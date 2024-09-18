@@ -57,6 +57,7 @@ class GPTSFTDataset(Dataset):
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
         hf_dataset: bool = False,
+        global_sample_mapping: bool = False,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         is_test: bool = False,
@@ -83,6 +84,7 @@ class GPTSFTDataset(Dataset):
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
+        global_sample_mapping: Whether to shuffle all data together, or shuffle the dataset within each epoch
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         is_test: Whether this dataset is the test split.
@@ -109,6 +111,7 @@ class GPTSFTDataset(Dataset):
         self.tokens_to_generate = tokens_to_generate
         self.memmap_workers = memmap_workers
         self.hf_dataset = hf_dataset
+        self.global_sample_mapping = global_sample_mapping
         self.truncation_method = truncation_method
         self.is_test = is_test
         self.output_original_text = output_original_text
@@ -176,7 +179,11 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            osm = OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
+            osm = (
+                OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
+                if not self.global_sample_mapping
+                else None
+            )
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -514,11 +521,16 @@ class GPTSFTDataset(Dataset):
 
 class GPTSFTPackedDataset(GPTSFTDataset):
     def __init__(self, file_path: str, tokenizer: TokenizerSpec, return_cu_seqlen: bool = True, **kwargs):
+        """
+        file_path: See `file_path` in the parent class.
+        tokenizer: See `tokenizer` in the parent class.
+        return_cu_seqlen: Whether to return `cu_seqlen` to pass to the model. Having `cu_seqlen` in the model input
+                enables THD attention kernel, which is the correct format for training with packed sequence to prevent
+                cross-sequence attention. This flag should be True unless you have a specific use case.
+        """
         np.random.seed(kwargs.get('seed', 1234))
         super().__init__(file_path, tokenizer, **kwargs)
         assert self.virtual_tokens == 0, "P-Tuning with packed sequence is not supported."
-
-        # Whether to return `cu_seqlen` to pass to model. This should be true for almost all use cases.
         self.return_cu_seqlen = return_cu_seqlen
 
     def __getitem__(self, idx):

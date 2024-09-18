@@ -51,6 +51,7 @@ from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import, safe_import_from
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -63,19 +64,18 @@ try:
     from megatron.core import parallel_state
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig
-    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.models.vision.clip_vit_model import CLIPViTModel
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
-    from megatron.core.transformer.custom_layers.transformer_engine import (
+    from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
         TEDotProductAttention,
         TELayerNormColumnParallelLinear,
         TENorm,
         TERowParallelLinear,
     )
+    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.models.vision.clip_vit_model import CLIPViTModel
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
     from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -97,13 +97,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    import transformer_engine
-    from transformer_engine.pytorch import module as te_module
-
-    HAVE_TE = True
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+_, HAVE_TE = safe_import("transformer_engine")
+te_module, _ = safe_import_from("transformer_engine.pytorch", "module")
 
 
 @cache
@@ -423,24 +424,26 @@ class MCoreCLIPViTModel(CLIPViTModel):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
         super().__init__(*args, **kwargs)
-        self.final_layernorm = TENorm(
-            config=self.config,
-            hidden_size=self.config.hidden_size,
-            eps=self.config.layernorm_epsilon,
-        )
-        self.head = torch.nn.Linear(
-            self.config.hidden_size,
-            self.output_dim,
-            bias=False,
-        )
+        if self.post_process:
+            self.final_layernorm = TENorm(
+                config=self.config,
+                hidden_size=self.config.hidden_size,
+                eps=self.config.layernorm_epsilon,
+            )
+            self.head = torch.nn.Linear(
+                self.config.hidden_size,
+                self.output_dim,
+                bias=False,
+            )
 
     def forward(self, x):
         x = super().forward(
             x,
         )
-        x = self.final_layernorm(x)
-        x = x[:, 0]
-        x = self.head(x)
+        if self.post_process:
+            x = self.final_layernorm(x)
+            x = x[:, 0]
+            x = self.head(x)
         return x
 
 
@@ -501,8 +504,7 @@ class CLIPModel(MegatronModule):
                 add_class_token = True
             vision_layer_spec = get_specs(
                 model_cfg.text.get('name', ''),
-                vision_transformer_config.num_moe_experts,
-                vision_transformer_config.moe_grouped_gemm,
+                vision_transformer_config,
                 model_cfg.get('transformer_engine', True),
             )
             vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
@@ -527,8 +529,7 @@ class CLIPModel(MegatronModule):
                 config=text_transformer_config,
                 transformer_layer_spec=get_specs(
                     model_cfg.text.get('name', ''),
-                    text_transformer_config.num_moe_experts,
-                    text_transformer_config.moe_grouped_gemm,
+                    text_transformer_config,
                     model_cfg.get('transformer_engine', True),
                 ),
                 vocab_size=model_cfg.text.get('override_vocab_size', padded_vocab_size),

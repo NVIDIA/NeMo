@@ -7,10 +7,6 @@ init_from_pretrained_model: null  # name of pretrained NeMo model, e.g., `stt_en
 
 model:
   sample_rate: 16000
-  compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
-  log_prediction: true # enables logging sample predictions in the output during training
-  rnnt_reduction: 'mean_volume'
-  skip_nan_grad: false
 
   # configs for huggingface load_dataset function
   data_path: "librispeech_asr"
@@ -39,14 +35,17 @@ model:
         name: ${model.data_name}
         split: 'train.clean.360'
         streaming: ${model.streaming}
+        trust_remote_code: true
       - path: ${model.data_path}
         name: ${model.data_name}
         split: 'train.clean.100'
         streaming: ${model.streaming}
+        trust_remote_code: true
       - path: ${model.data_path}
         name: ${model.data_name}
         split: 'train.other.500'
         streaming: ${model.streaming}
+        trust_remote_code: true
   
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
@@ -69,6 +68,7 @@ model:
       name: ${model.data_name}
       split: 'validation.other'
       streaming: ${model.streaming}
+      trust_remote_code: true
 
     sample_rate: ${model.sample_rate}
     batch_size: 8
@@ -91,10 +91,12 @@ model:
         name: ${model.data_name}
         split: 'test.other'
         streaming: ${model.streaming}
+        trust_remote_code: true
       - path: ${model.data_path}
         name: ${model.data_name}
         split: 'test.clean'
         streaming: ${model.streaming}
+        trust_remote_code: true
 
     sample_rate: ${model.sample_rate}
     batch_size: 8
@@ -142,7 +144,9 @@ trainer:
   max_steps: -1 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
-  strategy: ddp
+  strategy:
+    _target_: pytorch_lightning.strategies.DDPStrategy
+    gradient_as_bucket_view: true
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   precision: 32 # 16, 32, or bf16

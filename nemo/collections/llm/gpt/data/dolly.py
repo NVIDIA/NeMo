@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 import shutil
 from typing import TYPE_CHECKING, List, Optional
@@ -7,13 +21,14 @@ from datasets import load_dataset
 
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
 
 
-class DollyDataModule(FineTuningDataModule):
+class DollyDataModule(FineTuningDataModule, IOMixin):
     """A data module for fine-tuning on the Dolly dataset.
 
     This class inherits from the `FineTuningDataModule` class and is specifically designed for fine-tuning models on the

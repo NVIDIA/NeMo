@@ -18,12 +18,18 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 import uvicorn
 
 from nemo.deploy import DeployPyTriton
 
 LOGGER = logging.getLogger("NeMo")
+
+
+class UsageError(Exception):
+    pass
+
 
 megatron_llm_supported = True
 try:
@@ -80,7 +86,7 @@ def get_args(argv):
     parser.add_argument(
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
-    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-ng", "--num_gpus", default=None, type=int, help="Number of GPUs for the deployment")
     parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
@@ -95,7 +101,13 @@ def get_args(argv):
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument("-mnt", "--max_num_tokens", default=None, type=int, help="Max number of tokens")
+    parser.add_argument("-msl", "--max_seq_len", default=None, type=int, help="Maximum number of sequence length")
+    parser.add_argument("-mp", "--multiple_profiles", default=False, action='store_true', help="Multiple profiles")
     parser.add_argument("-ont", "--opt_num_tokens", default=None, type=int, help="Optimum number of tokens")
+    parser.add_argument(
+        "-gap", "--gpt_attention_plugin", default="auto", type=str, help="dtype of gpt attention plugin"
+    )
+    parser.add_argument("-gp", "--gemm_plugin", default="auto", type=str, help="dtype of gpt plugin")
     parser.add_argument(
         "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
@@ -122,7 +134,8 @@ def get_args(argv):
         default=False,
         action='store_true',
         help='Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
-                        It is beneifical when batchxnum_heads cannot fully utilize GPU.',
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU. \
+                        Only available when using c++ runtime.',
     )
     parser.add_argument(
         "-es", '--enable_streaming', default=False, action='store_true', help="Enables streaming sentences."
@@ -179,8 +192,8 @@ def get_args(argv):
     parser.add_argument(
         "-srs",
         "--start_rest_service",
-        default="False",
-        type=str,
+        default=False,
+        type=bool,
         help="Starts the REST service for OpenAI API support",
     )
     parser.add_argument(
@@ -195,7 +208,36 @@ def get_args(argv):
         help="Return the response from PyTriton server in OpenAI compatible format",
     )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
+    parser.add_argument(
+        "-fp8",
+        "--export_fp8_quantized",
+        default="auto",
+        type=str,
+        help="Enables exporting to a FP8-quantized TRT LLM checkpoint",
+    )
+    parser.add_argument(
+        "-kv_fp8",
+        "--use_fp8_kv_cache",
+        default="auto",
+        type=str,
+        help="Enables exporting with FP8-quantizatized KV-cache",
+    )
     args = parser.parse_args(argv)
+
+    def str_to_bool(name: str, s: str, optional: bool = False) -> Optional[bool]:
+        s = s.lower()
+        true_strings = ["true", "1"]
+        false_strings = ["false", "0"]
+        if s in true_strings:
+            return True
+        if s in false_strings:
+            return False
+        if optional and s == 'auto':
+            return None
+        raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
+
+    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
+    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
     return args
 
 
@@ -268,6 +310,7 @@ def get_trtllm_deployable(args):
         lora_ckpt_list=args.lora_ckpt,
         load_model=(args.nemo_checkpoint is None),
         use_python_runtime=(not args.use_cpp_runtime),
+        multi_block_mode=args.multi_block_mode,
     )
 
     if args.nemo_checkpoint is not None:
@@ -284,15 +327,20 @@ def get_trtllm_deployable(args):
                 max_batch_size=args.max_batch_size,
                 max_num_tokens=args.max_num_tokens,
                 opt_num_tokens=args.opt_num_tokens,
+                max_seq_len=args.max_seq_len,
                 use_parallel_embedding=args.use_parallel_embedding,
                 max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
                 paged_kv_cache=(not args.no_paged_kv_cache),
                 remove_input_padding=(not args.disable_remove_input_padding),
                 dtype=args.dtype,
-                enable_multi_block_mode=args.multi_block_mode,
                 use_lora_plugin=args.use_lora_plugin,
                 lora_target_modules=args.lora_target_modules,
                 max_lora_rank=args.max_lora_rank,
+                multiple_profiles=args.multiple_profiles,
+                gpt_attention_plugin=args.gpt_attention_plugin,
+                gemm_plugin=args.gemm_plugin,
+                fp8_quantized=args.export_fp8_quantized,
+                fp8_kvcache=args.use_fp8_kv_cache,
             )
         except Exception as error:
             raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))

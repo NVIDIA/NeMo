@@ -50,7 +50,6 @@ from nemo.utils.get_rank import is_global_rank_zero
 try:
     from megatron.core import ModelParallelConfig, parallel_state
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
@@ -62,6 +61,13 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_current_global_batch_size, get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, get_num_microbatches
 
 try:
     from megatron.core import Timers
@@ -379,8 +385,11 @@ class MegatronBaseModel(NLPModel):
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
 
-        # Support DLFW master container
-        if nvidia_torch_version == 'master':
+        def is_official_release_version(nvidia_torch_version):
+            return re.fullmatch("[0-9][0-9]\.[0-9][0-9].*", nvidia_torch_version)  # "YY.MM.*"
+
+        # Support DLFW dev container
+        if not is_official_release_version(nvidia_torch_version):
             nvidia_torch_version = datetime.now().strftime('%y.%m')
 
         if nvidia_torch_version is not None:
@@ -389,7 +398,7 @@ class MegatronBaseModel(NLPModel):
             except Exception:
                 NVIDIA_TORCH_MAJOR = 0
             try:
-                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1][:2])
             except Exception:
                 NVIDIA_TORCH_MINOR = 0
 
@@ -399,7 +408,9 @@ class MegatronBaseModel(NLPModel):
                 self.cfg.persist_layer_norm = False
 
             # NVFUSER available starting with 21.11
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
+            if (NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11)) and (
+                NVIDIA_TORCH_MAJOR < 23 or (NVIDIA_TORCH_MAJOR == 23 and NVIDIA_TORCH_MINOR < 11)
+            ):
 
                 # NVFUSER
                 torch._C._jit_set_profiling_executor(True)
@@ -523,6 +534,8 @@ class MegatronBaseModel(NLPModel):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
+        tp_only_amax_red = self.cfg.get('tp_only_amax_red', False)
+
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
@@ -546,6 +559,7 @@ class MegatronBaseModel(NLPModel):
             'fp8': None,
             'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
+            'tp_only_amax_red': tp_only_amax_red,
         }
 
         # populate the transformer config dict
@@ -908,9 +922,7 @@ class MegatronBaseModel(NLPModel):
         app_state = AppState()
 
         if self.cfg.get('rampup_batch_size', None):
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'current_global_batch_size', 1)
+            current_global_batch_size = get_current_global_batch_size() if get_current_global_batch_size() else 1
             consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
         else:
             consumed_samples = (

@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Optional
 
 from nemo.core.optim.lr_scheduler import (
@@ -25,7 +39,7 @@ class WarmupPolicyScheduler(LRSchedulerModule):
         warmup_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -68,7 +82,7 @@ class WarmupHoldPolicyScheduler(LRSchedulerModule):
         hold_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -111,7 +125,7 @@ class SquareAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 1e-5,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -142,7 +156,7 @@ class SquareRootAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -176,7 +190,7 @@ class NoamAnnealingScheduler(LRSchedulerModule):
         warmup_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -218,7 +232,7 @@ class NoamHoldAnnealingScheduler(LRSchedulerModule):
         max_steps: int = 10,
         decay_rate: float = 0.5,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -252,7 +266,7 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -283,7 +297,7 @@ class InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -314,7 +328,7 @@ class T5InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -347,7 +361,7 @@ class PolynomialDecayAnnealingScheduler(LRSchedulerModule):
         min_lr: float = 0.0,
         power: float = 1.0,
         cycle: bool = False,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -384,7 +398,7 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
         min_lr: float = 0.0,
         power: float = 1.0,
         cycle: bool = False,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -415,13 +429,13 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
 class CosineAnnealingScheduler(LRSchedulerModule):
     def __init__(
         self,
-        max_steps=10,
-        warmup_steps=750,
-        constant_steps=80000,
-        min_lr=int(6e-5),
-        interval="epoch",
-        frequency=1,
-        monitor="val_loss",
+        max_steps: int = 10,
+        warmup_steps: int = 750,
+        constant_steps: int = 80000,
+        min_lr: float = 6e-5,
+        interval: str = "step",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps

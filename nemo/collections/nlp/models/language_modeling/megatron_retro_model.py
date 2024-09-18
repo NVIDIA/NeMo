@@ -66,6 +66,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import, safe_import_from
 
 try:
     from megatron.core import InferenceParams, parallel_state
@@ -74,7 +75,6 @@ try:
     from megatron.core.models.retro.decoder_spec import get_retro_decoder_block_spec
     from megatron.core.models.retro.utils import get_config_path as get_retro_config_path
     from megatron.core.models.retro.utils import get_gpt_data_dir as get_retro_data_dir
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -93,13 +93,15 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    import transformer_engine
-    from transformer_engine.pytorch import module as te_module
-
-    HAVE_TE = True
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+transformer_engine, HAVE_TE = safe_import("transformer_engine")
+te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", "module")
+HAVE_TE = HAVE_TE and HAVE_TE_MODULE
 
 
 class MegatronRetroModel(MegatronGPTModel):
@@ -425,7 +427,7 @@ class MegatronRetroModel(MegatronGPTModel):
         # Validate Transformer Engine version.
         from importlib.metadata import version
 
-        from pkg_resources import packaging
+        import packaging
 
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version >= packaging.version.Version("1.3"):

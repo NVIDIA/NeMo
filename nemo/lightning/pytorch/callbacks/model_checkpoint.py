@@ -26,16 +26,39 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
-from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import ckpt_to_dir
 
 
-class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
+class ModelCheckpoint(PTLModelCheckpoint):
+    """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
+    Adds support for asyncronous checkpointing and provides some additional logic to clean up invalid checkpoints
+    Args:
+        monitor: Metric to monitor when saving top-k checkpoints.
+        verbose: Verbosity mode.
+        save_last: When ``True``, saves a `*-last` copy whenever a checkpoint file gets saved.
+        save_top_k: When ``True``, saves the top-k checkpoints according to ``monitor``.
+        save_weights_only:  if ``True``, then only the model's weights will be saved. Optimizer states will
+            be omitted from all checkpoints.
+        mode: One of {min, max}. Whether the objective is to minimize or maximize the monitored quantity.
+        every_n_epochs: Number of epochs between checkpoints.
+        every_n_train_steps: Number of train steps between checkpoints.
+        train_time_interval: After each interval, monitor checkpoints. Not to be used with
+            ``every_n_epochs`` or ``every_n_train_steps``.
+        save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
+        save_optim_on_train_end: Whether to include the optimizer states in the final checkpoint
+            at the end of training. Only applicable when save_weights_only is ``True``.
+        always_save_context: Whether to dump the artifacts needed to reinintialize the current
+            model, trainer, and dataloader to allow for reproducibility of experiments.
+        save_context_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
+            ``always_save_context`` is ``True``.
+        async_save: Whether to enable asynchronous checkpointing.
+    """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
+    WEIGHTS_PATH = "weights"
 
     def __init__(
         self,
@@ -48,23 +71,21 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         every_n_epochs: int = None,
         every_n_train_steps: Optional[int] = None,
         train_time_interval: Optional[timedelta] = None,
-        save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
-        enable_nemo_ckpt_io: bool = True,
-        async_save: bool = False,
-        try_restore_best_ckpt: bool = True,
+        save_optim_on_train_end: Optional[bool] = False,
+        always_save_context: bool = False,
+        save_context_on_train_end: bool = True,
         **kwargs,
     ):
-        self.save_best_model = save_best_model
-        self.previous_best_path = ""
-        self.enable_nemo_ckpt_io = enable_nemo_ckpt_io
-        self.async_save = async_save
+        self.always_save_context = always_save_context
+        self.save_context_on_train_end = save_context_on_train_end
+        self.save_optim_on_train_end = save_optim_on_train_end
+
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
         # is called, the last element is frozen and a new element is added.
         self.deferred_ckpts_to_remove: List[List[str]] = []
-        self.try_restore_best_ckpt = try_restore_best_ckpt
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
@@ -166,7 +187,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
             if index != len(self.monitor):
                 match = re.search('[A-z]', checkpoint[index:])
                 if match:
-                    value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hypen
+                    value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hyphen
                     self.best_k_models[checkpoint] = float(value)
         if len(self.best_k_models) < 1:
             return  # No saved checkpoints yet
@@ -221,7 +242,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         super().load_state_dict(state_dict)
         self._remove_invalid_entries_from_topk()
 
-    def setup(self, *args, **kwargs) -> None:
+    def setup(self, trainer, *args, **kwargs) -> None:
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero():
@@ -230,13 +251,13 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         # Ensure that all ranks continue with unfinished checkpoints removed
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        super().setup(*args, **kwargs)
 
-    def on_save_checkpoint(self, trainer, pl_module, checkpoint):
-        output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
-        return output
+        self.async_save = getattr(trainer.strategy, "async_save", False)
+        super().setup(trainer, *args, **kwargs)
 
     def on_train_end(self, trainer, pl_module):
+        from nemo.utils.get_rank import is_global_rank_zero
+
         if trainer.fast_dev_run:
             return None
 
@@ -253,25 +274,10 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
                     logging.debug(f'Last checkpoint {self.last_model_path} already saved')
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
+            if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
-
-        # Load the best model and then re-save it
-        if self.save_best_model:
-            # wait for all processes
-            trainer.strategy.barrier("SaveBestCheckpointConnector.resume_end")
-            if self.best_model_path == "":
-                logging.warning(
-                    f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
-                    "were found. Saving latest model instead."
-                )
-
-            else:
-                if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
-                    self.best_model_path = self.best_model_path.split('.ckpt')[0]
-                if self.try_restore_best_ckpt:
-                    self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
-                    trainer._checkpoint_connector.restore(self.best_model_path)
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         from nemo.utils.get_rank import is_global_rank_zero
@@ -374,27 +380,56 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
 
+    def _monitor_candidates(self, trainer: "pl.Trainer") -> Dict[str, torch.Tensor]:
+        """Broadcast loss from last pipeline stage."""
+        monitor_candidates = super()._monitor_candidates(trainer)
+
+        from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
+
+        keys = re.findall(r"[\{](.*?)[:\}]", self.filename)
+        for loss_name in ['reduced_train_loss']:
+            if loss_name in keys or loss_name == self.monitor:
+                if loss_name not in monitor_candidates:
+                    monitor_candidates[loss_name] = torch.tensor(0.0, device=torch.cuda.current_device())
+                _sync_from_last_pipeline_stage(monitor_candidates[loss_name], broadcast=True)
+
+        return monitor_candidates
+
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+        from nemo.utils.get_rank import is_global_rank_zero
+
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
+        ckpt_filepath = ckpt_to_dir(filepath) / ModelCheckpoint.WEIGHTS_PATH
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
+
+        self._last_global_step_saved = trainer.global_step
 
         if ema_callback is not None:
             if self.async_save:
                 raise ValueError('async_save with EMA not supported')
             with ema_callback.save_original_optimizer_state(trainer):
-                super()._save_checkpoint(trainer, filepath)
+                super()._save_checkpoint(trainer, ckpt_filepath)
 
             # save EMA copy of the model as well.
             with ema_callback.save_ema_model(trainer):
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
-                filepath = self._ema_format_filepath(filepath)
+                rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
+                ckpt_filepath = self._ema_format_filepath(ckpt_filepath)
                 if self.verbose:
-                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
-                super()._save_checkpoint(trainer, filepath)
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
+                super()._save_checkpoint(trainer, ckpt_filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
+            ## Determine whether to include optimizer states in the checkpoint
+            ## optimizer states are included when
+            ## 1. save_weights_only is False and
+            ## 2. either save_optim_on_train_end is True, or save_optim_on_train_end is False but the checkpoint
+            ##    is an intermediate checkpoint.
+            save_weights_only = self.save_weights_only or (
+                not self.save_optim_on_train_end and trainer.global_step == trainer.max_steps
+            )
+
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
             finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
@@ -409,7 +444,11 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
                 self.deferred_ckpts_to_remove.append([])
             else:
                 storage_options = None
-            trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
+            trainer.save_checkpoint(ckpt_filepath, save_weights_only, storage_options=storage_options)
+
+            if self.always_save_context and is_global_rank_zero():
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
+
             if self.async_save:
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
@@ -422,13 +461,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
 
         def _cb():
             logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
-            self._last_global_step_saved = global_step
             self._last_checkpoint_saved = filepath
-
-            from nemo.utils.get_rank import is_global_rank_zero
-
-            if self.enable_nemo_ckpt_io and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
 
             # notify loggers
             if trainer.is_global_zero:

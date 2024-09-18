@@ -40,7 +40,7 @@ def get_args():
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument('--hf_model_name', type=str, default="mistralai/Mistral-7B-v0.1", help="Name of HF checkpoint")
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--precision", type=str, default="bf16", help="Model precision")
     args = parser.parse_args()
     return args
 
@@ -48,7 +48,8 @@ def get_args():
 def load_config(hf_model_name, nemo_config):
     hf_config = AutoConfig.from_pretrained(hf_model_name)
     # SWA; nemo_config.window_size is list [left-bound, right-bound]
-    hf_config.sliding_window = nemo_config.window_size[0]
+    if hasattr(nemo_config, 'window_size'):
+        hf_config.sliding_window = nemo_config.window_size[0]
     hf_config.max_position_embeddings = nemo_config.encoder_seq_length
     hf_config.num_hidden_layers = nemo_config.num_layers
     hf_config.hidden_size = nemo_config.hidden_size
@@ -78,11 +79,13 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     model_config = MegatronGPTModel.restore_from(in_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
+    model_config.sequence_parallel = False
     if cpu_only:
         map_location = torch.device('cpu')
         model_config.use_cpu_initialization = True
     else:
         map_location = None
+    model_config.perform_initialization = False
 
     if cpu_only:
         logging.info("******** Loading model on CPU. This will take a significant amount of time.")
@@ -129,7 +132,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     num_layers = model.cfg.num_layers
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
-    head_size = hidden_size // head_num
+    head_size = model.cfg.get('kv_channels', hidden_size // head_num)
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
@@ -215,6 +218,14 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
 
 
 if __name__ == '__main__':
+    import transformers
+
+    type(transformers.__version__)
+    from packaging.version import Version
+
+    if Version(transformers.__version__) < Version('4.44.0'):
+        logging.warning("You need to use transformers >= v4.44.0")
+
     args = get_args()
     hf_state_dict, nemo_config, dtype = convert(args.input_name_or_path, args.precision)
 

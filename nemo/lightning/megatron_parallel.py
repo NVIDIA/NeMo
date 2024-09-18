@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import abc
 import collections.abc
 import functools
@@ -85,8 +99,7 @@ def extract_ddp_funcs(ddp_config, pipeline):
     if getattr(ddp_config, "overlap_grad_reduce", False):
         no_sync_func = [model_chunk.no_sync for model_chunk in pipeline]
         no_sync_func = no_sync_func[0] if len(pipeline) == 1 else no_sync_func
-        # TODO(@akoumparouli): why is True default here?
-        if getattr(ddp_config, "delay_grad_reduce", True):
+        if getattr(ddp_config, "align_grad_reduce", False):
             grad_sync_func = [model_chunk.start_grad_sync for model_chunk in pipeline]
             grad_sync_func = grad_sync_func[0] if len(pipeline) == 1 else grad_sync_func
 
@@ -116,6 +129,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             forward pass of a model.
         loss_reduction (Optional[Callable[[nn.Module], MegatronLossReduction]]): An optional
             function that defines how the loss is reduced.
+        vp_size (Optional[int]): Virtual pipeline parallel size.
+        ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
+            DistributedDataParallelConfig which controls the Megatron DDP configuration.
+        cpu (bool): Whether model should reside on CPU.
+        convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
+            apply to the model parameters after initialization.
 
     Examples
     --------
@@ -224,6 +243,37 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
+
+        # FIXME: cleanup the following code block which is here for backwards compatibility with nemo1. The "batch"
+        #  sampler is a nemo1 sampler. It requires some custom code here to use (if use_global_batch_sampler).
+        #  by default we shouldn't use this "batch" sampler probably.
+        if getattr(self.trainer, "datamodule", None) is not None:
+            use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
+        elif getattr(self.trainer, "predict_dataloaders", None) is not None:
+            from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (  # noqa: I001
+                MegatronPretrainingBatchSampler,
+            )
+
+            # The batch_sampler gets injected into the dataloader by the data_sampler. When doing predict without a
+            #  datamodule we can look inside the dataloader's batch_sampler to see if it is the nemo1 style sampler
+            #  that we need to handle specially below.
+            use_global_batch_sampler = isinstance(
+                self.trainer.predict_dataloaders.batch_sampler, MegatronPretrainingBatchSampler
+            )
+        else:
+            raise ValueError("Unsure how to check for nemo1 global_batch_sampler status. TODO maybe default to False?")
+        if use_global_batch_sampler:
+            from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
+            # The current way of using a batch sampler + split to micro iterator results in
+            # extraneous padding, and is only implemented to ensure bit-exactness with NeMo 1.
+            # This part in NeMo 1 was written when megatron fwd_bwd_function did not support unequal
+            # sequence lengths, but it does now. Hence this part should be revisited in the future.
+            batch = next(data)
+            if isinstance(batch, tuple) and len(batch) == 3:
+                batch = batch[0]
+            data = get_iterator_k_split(batch, _num_microbatches, True)
+
         data_iterator: List[Iterator[DataT]] = self.to_data_iterator_list(data)
         context = self._build_context({**locals()})
 
@@ -266,16 +316,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             self.callbacks.event("on_megatron_reduce_microbatches_end", **context)
         else:
             # we're not on the last pipeline stage so no losses
-            if forward_only:
-                loss_mean = cast(torch.Tensor, [])
-            else:
-                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
         self.callbacks.event("on_megatron_log_step_end", **context)
         self.callbacks.event("on_megatron_step_end", **context)
-
-        if loss_mean == []:
-            loss_mean = None
 
         return loss_mean
 
@@ -628,6 +672,11 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
 
 class _ModuleStepFunction:
+    """
+    This class acts as a bridge between Megatron core's lower-level functional API and PTL's object-oriented API,
+        making it possible to use PTL-compatible functions in Megatron core.
+    """
+
     def __init__(self, name: str, is_property: bool = False, includes_self: bool = False):
         self.name = name
         self.is_property = is_property
@@ -656,7 +705,9 @@ class _ModuleStepFunction:
 def getattr_proxy(self, item: Any) -> Any:
     try:
         return super(self.__class__, self).__getattr__(item)
-    except AttributeError:
+    except AttributeError as e:
+        if item == 'module':  ## this is a hacky WAR and may cause misleading error messages
+            raise e
         try:
             return getattr(self.module, item)
         except AttributeError:
@@ -1053,6 +1104,10 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
         from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
+        # neva returns (logits, loss_mask)
+        if isinstance(forward_out, tuple):
+            forward_out, loss_mask = forward_out
+            batch["loss_mask"] = loss_mask
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:
             loss_for_ub = masked_token_loss(forward_out, batch["loss_mask"])
@@ -1104,6 +1159,19 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             return loss_sum
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
+
+
+class MaskedTokenLossReductionWithLossMask(MaskedTokenLossReduction):
+    def forward(
+        self,
+        batch: Dict[str, torch.Tensor],
+        forward_out: Tuple[torch.Tensor, torch.Tensor],
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        # expecting returns (token_level_loss, loss_mask)
+        forward_out, loss_mask = forward_out
+        batch["loss_mask"] = loss_mask
+
+        return super().forward(batch, forward_out)
 
 
 def masked_token_loss(tensor: Tensor, mask: Tensor):

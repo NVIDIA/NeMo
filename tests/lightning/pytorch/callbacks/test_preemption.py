@@ -1,4 +1,17 @@
-import logging
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import signal
 from unittest.mock import MagicMock, PropertyMock, patch
 
@@ -6,7 +19,7 @@ import pytest
 import torch
 from pytorch_lightning import Trainer
 
-from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback, PreemptionException
+from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback
 
 
 class TestPreemptionCallback:
@@ -100,15 +113,9 @@ class TestPreemptionCallback:
     @pytest.mark.parametrize("interrupted", [True, False])
     def test_on_train_batch_end(self, callback, mock_trainer, interrupted):
         with patch.object(PreemptionCallback, 'interrupted', new_callable=lambda: property(lambda self: interrupted)):
-            callback.on_train_batch_end(mock_trainer, None, None, None, 0)
+            if interrupted:
+                with pytest.raises(SystemExit):
+                    callback.on_train_batch_end(mock_trainer, None, None, None, 0)
+            else:
+                callback.on_train_batch_end(mock_trainer, None, None, None, 0)
             assert mock_trainer.should_stop == interrupted
-
-    def test_on_exception_preemption(self, callback, mock_trainer):
-        exception = PreemptionException("Test preemption")
-        callback.on_exception(mock_trainer, None, exception)
-        assert mock_trainer.should_stop
-
-    def test_on_exception_other(self, callback, mock_trainer):
-        exception = ValueError("Some other exception")
-        callback.on_exception(mock_trainer, None, exception)
-        assert not mock_trainer.should_stop

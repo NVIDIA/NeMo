@@ -37,11 +37,10 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate, 
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.utils.apex_utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.num_microbatches_calculator import get_current_global_batch_size, get_num_microbatches
+    from megatron.core.distributed import finalize_model_grads
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
@@ -49,6 +48,25 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import (
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+        reconfigure_num_microbatches_calculator,
+    )
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+    )
+    from apex.transformer.pipeline_parallel.utils import (
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
 
 
 __all__ = ['MegatronGPTSFTModel']
@@ -283,7 +301,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),
                 ceil_to_power_2=data_cfg.get('ceil_to_power_2', False),
-                get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', False),
+                get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', True),
+                global_sample_mapping=data_cfg.get('global_sample_mapping', False),
                 virtual_tokens=self.virtual_tokens,
                 tokens_to_generate=data_cfg.get(
                     'tokens_to_generate', 0
@@ -360,11 +379,27 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             )
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
+        elif not forward_only and self.use_mcore_dist_optim:
+            if self.cfg.optim.get("overlap_grad_sync", False):
+                no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
+                no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
+
+                if self.cfg.optim.get("delay_grad_reduce", True):
+                    grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
+                    grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
+            if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
+                param_sync_func = [
+                    lambda x, model_index=model_index: self._optimizer.finish_param_sync(model_index, x)
+                    for model_index in range(len(self.model))
+                ]
+                param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
 
         for module in self.get_model_module_list():
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
             module.config.param_sync_func = param_sync_func
+            if self.use_mcore_dist_optim:
+                module.config.finalize_model_grads_func = finalize_model_grads
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -630,7 +665,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         app_state = AppState()
         self._restore_activation_checkpointing_args()
         if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -640,7 +675,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # When running `trainer.validate()`, the training dataset is not available.
         else:
             logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=data_cfg.global_batch_size,
@@ -676,7 +711,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             response = generate(self, **inference_config)
 
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -770,7 +805,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 != data_cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
-                _reconfigure_microbatch_calculator(
+                reconfigure_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -780,7 +815,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             # NOTE: need to explicitly handle resetting for multi-validation
             else:
                 app_state = AppState()
-                _reconfigure_microbatch_calculator(
+                reconfigure_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=data_cfg.global_batch_size,
@@ -864,7 +899,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.validation_ds.global_batch_size,
@@ -876,7 +911,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     def on_test_epoch_start(self):
         self._reset_activation_checkpointing_args()
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.test_ds.global_batch_size,

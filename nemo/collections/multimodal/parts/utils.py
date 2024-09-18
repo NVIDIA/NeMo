@@ -15,7 +15,6 @@ import os
 import tempfile
 from typing import Any, Callable, Tuple
 
-import decord
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -32,6 +31,11 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
+
+try:
+    import decord
+except Exception:
+    logging.warning("The package `decord` was not installed in this environment.")
 
 try:
     from megatron.core import dist_checkpointing
@@ -145,6 +149,7 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
                 checkpoint = dist_checkpointing.load(
                     sharded_state_dict=checkpoint,
                     checkpoint_dir=tmp_model_weights_dir,
+                    strict=dist_checkpointing.validation.StrictHandling.LOG_UNEXPECTED,
                 )
                 state_dict = checkpoint["state_dict"]
 
@@ -299,41 +304,41 @@ def setup_trainer_and_model_for_inference(
 
     # Create the NLPSaveRestoreConnector object for model saving and restoring.
     save_restore_connector = NLPSaveRestoreConnector()
+    if cfg.model.restore_from_path is not None:
+        if cfg.model.restore_from_path.endswith(".nemo") or os.path.isdir(cfg.model.restore_from_path):
+            # Set the model_extracted_dir attribute if the restore path is a directory.
+            if os.path.isdir(cfg.model.restore_from_path):
+                save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
 
-    if cfg.model.restore_from_path.endswith(".nemo") or os.path.isdir(cfg.model.restore_from_path):
-        # Set the model_extracted_dir attribute if the restore path is a directory.
-        if os.path.isdir(cfg.model.restore_from_path):
-            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+            # Restore the model configuration from the specified path and modify it for inference.
+            model_cfg = model_provider.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                return_config=True,
+            )
+            with open_dict(model_cfg):
+                model_cfg_modifier(model_cfg)  # modify the configuration for inference
 
-        # Restore the model configuration from the specified path and modify it for inference.
-        model_cfg = model_provider.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            save_restore_connector=save_restore_connector,
-            return_config=True,
-        )
-        with open_dict(model_cfg):
-            model_cfg_modifier(model_cfg)  # modify the configuration for inference
+            # Restore the model from the specified path and configuration, and set it up for inference.
+            model = model_provider.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                override_config_path=model_cfg,
+                save_restore_connector=save_restore_connector,
+                strict=True,
+            )
 
-        # Restore the model from the specified path and configuration, and set it up for inference.
-        model = model_provider.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=model_cfg,
-            save_restore_connector=save_restore_connector,
-            strict=True,
-        )
+        elif cfg.model.restore_from_path.endswith(".ckpt"):
+            logging.warning(
+                "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
+            )
 
-    elif cfg.model.restore_from_path.endswith(".ckpt"):
-        logging.warning(
-            "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
-        )
-
-        model = model_provider.load_from_checkpoint(
-            cfg.model.restore_from_path,
-            hparams_file=cfg.model.get("hparams_file"),
-            trainer=trainer,
-        )
+            model = model_provider.load_from_checkpoint(
+                cfg.model.restore_from_path,
+                hparams_file=cfg.model.get("hparams_file"),
+                trainer=trainer,
+            )
 
     else:
         # load a model from scratch
@@ -485,18 +490,9 @@ def create_neva_model_and_processor(cfg):
         else:
             frames = maybe_video_path
 
-        if neva_cfg.mm_cfg.vision_encoder.get("from_hf", False):
-            if (
-                "siglip" in neva_cfg.mm_cfg.vision_encoder.from_pretrained
-                or "siglip" in neva_cfg.mm_cfg.vision_encoder.get("model_type", "")
-            ):
-                processor = SiglipImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
-            else:
-                # for clip and vit model
-                processor = CLIPImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
-        else:
-            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14")
-
+        processor = (
+            model.model.module.image_processor if hasattr(model.model, "module") else model.model.image_processor
+        )
         # support single video inference
         if neva_cfg.data.image_aspect_ratio == 'keep':
             max_hw, min_hw = max(frames.size), min(frames.size)
@@ -537,11 +533,11 @@ def create_image_processor(mm_cfg):
         from transformers import AutoConfig
 
         config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
-        if config.architectures[0] == "CLIPVisionModel":
+        if config.architectures[0] == "CLIPVisionModel" or config.architectures[0] == "CLIPModel":
             image_processor = CLIPImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
-        elif config.architectures[0] == "SiglipVisionModel":
+        elif config.architectures[0] == "SiglipVisionModel" or config.architectures[0] == "SiglipModel":
             image_processor = SiglipImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )

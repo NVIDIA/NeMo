@@ -25,6 +25,12 @@ def get_args():
     parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
     parser.add_argument('--merges-path', type=str, help="Path to merges file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
+    parser.add_argument(
+        '--no-masked-softmax-fusion',
+        action='store_false',
+        help='Disable fusion of softmax.',
+        dest='masked_softmax_fusion',
+    )
 
     return parser.parse_args()
 
@@ -59,13 +65,12 @@ if __name__ == '__main__':
         attention_dropout=0.1,
         layernorm_epsilon=1e-5,
         make_vocab_size_divisible_by=128,
+        masked_softmax_fusion=args.masked_softmax_fusion,
     )
     model = llm.GPTModel(gpt_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy()
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
-        enable_nemo_ckpt_io=False,
-        async_save=False,
     )
     callbacks = [checkpoint_callback]
 
@@ -92,11 +97,12 @@ if __name__ == '__main__':
         logger=loggers,
         callbacks=callbacks,
         log_every_n_steps=1,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", amp_O2=False),
+        limit_val_batches=2,
+        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     )
 
     nemo_logger = NeMoLogger(
-        dir=args.experiment_dir,
+        log_dir=args.experiment_dir,
     )
 
     train(
