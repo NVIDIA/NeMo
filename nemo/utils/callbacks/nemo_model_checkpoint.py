@@ -201,10 +201,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.last_model_path = trainer.strategy.broadcast(self.last_model_path)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
-        # Load the correct state_dict for current checkpoint.
-        # Temporary solution.
-        if self.save_last_n_optim_states >= 0:
-            self._load_current_state_dict(trainer, checkpoint)
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
@@ -401,6 +397,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
+
+            # Load the correct state_dict for current checkpoint.
+            # Temporary solution.
+            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=ckpt_to_dir(filepath), load_optimizer_states=True)
+            self._load_current_state_dict(trainer, checkpoint)
 
             logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
 
