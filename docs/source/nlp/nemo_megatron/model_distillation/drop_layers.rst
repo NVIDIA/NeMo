@@ -17,6 +17,7 @@ To trim the model layers, use the following script:
       --drop_layers 1 2 3 4
 
 .. note::
+
   layer indices start from 1.
 
 To save trimmed model in ``zarr`` checkpoint format, add the following flag to the command above:
@@ -26,6 +27,7 @@ To save trimmed model in ``zarr`` checkpoint format, add the following flag to t
   --zarr
 
 .. note::
+  
   The ``zarr`` checkpoint format is deprecated.
 
 Validate Trimmed Model
