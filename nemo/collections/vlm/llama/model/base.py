@@ -665,8 +665,8 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             ),
             vision_model_config=CrossAttentionVisionModelConfig(
                 num_layers=source['n_layers'],
-                hidden_size=source['dim'],
-                num_attention_heads=source['n_heads'],
+                hidden_size=1280,
+                num_attention_heads=16, #source['n_heads'],
                 vision_chunk_size=source['vision_chunk_size'],
                 vision_max_num_chunks=source['vision_max_num_chunks'],
             )
@@ -677,14 +677,14 @@ def _import_gate(gate):
     return gate[0:1]
 
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
-    megatron_config = ctx.target.config
+    vision_config = ctx.target.config.vision_model_config
 
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
+    head_num = vision_config.num_attention_heads
+    num_query_groups = vision_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = megatron_config.kv_channels
+    hidden_size = vision_config.hidden_size
+    head_num = vision_config.num_attention_heads
+    head_size = vision_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
