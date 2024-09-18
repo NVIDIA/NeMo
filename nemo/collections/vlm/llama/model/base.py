@@ -551,6 +551,7 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         return output_path
 
     def convert_state(self, source, target):
+        v = "vision_model.vision_encoder"
         mapping = {
             "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "text_model.layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.layers.*.mlp.linear_fc1.weight",
@@ -571,56 +572,56 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             "text_model.tok_embeddings.weight": "language_model.embedding.word_embeddings.weight",
             "text_model.learnable_embedding.weight": "language_model.learnable_embedding.weight",
             "text_model.output.weight": "language_model.output_layer.weight",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.attn.wo.weight": "vision_encoder.global_transformer.layers.0.self_attention.linear_proj.weight",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.gate_attn": "vision_encoder.global_transformer.layers.0.gate_attn",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.gate_ffn": "vision_encoder.global_transformer.layers.0.gate_ffn",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.ln_1.bias": "vision_encoder.global_transformer.layers.0.input_layernorm.bias",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.ln_1.weight": "vision_encoder.global_transformer.layers.0.input_layernorm.weight",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.ln_2.bias": "vision_encoder.global_transformer.layers.0.pre_mlp_layernorm.bias",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.ln_2.weight": "vision_encoder.global_transformer.layers.0.pre_mlp_layernorm.weight",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.mlp.c_fc.bias": "vision_encoder.global_transformer.layers.0.mlp.linear_fc1.bias",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.mlp.c_fc.weight": "vision_encoder.global_transformer.layers.0.mlp.linear_fc1.weight",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.mlp.c_proj.bias": "vision_encoder.global_transformer.layers.0.mlp.linear_fc2.bias",
-            "vision_model.vision_encoder.global_transformer.resblocks.0.mlp.c_proj.weight": "vision_encoder.global_transformer.layers.0.mlp.linear_fc2.weight",
-            "vision_model.vision_encoder.transformer.resblocks.0.attn.wo.weight": "vision_encoder.transformer.layers.0.self_attention.linear_proj.weight",
-            "vision_model.vision_encoder.transformer.resblocks.0.ln_1.bias": "vision_encoder.transformer.layers.0.input_layernorm.bias",
-            "vision_model.vision_encoder.transformer.resblocks.0.ln_1.weight": "vision_encoder.transformer.layers.0.input_layernorm.weight",
-            "vision_model.vision_encoder.transformer.resblocks.0.ln_2.bias": "vision_encoder.transformer.layers.0.pre_mlp_layernorm.bias",
-            "vision_model.vision_encoder.transformer.resblocks.0.ln_2.weight": "vision_encoder.transformer.layers.0.pre_mlp_layernorm.weight",
-            "vision_model.vision_encoder.transformer.resblocks.0.mlp.c_fc.bias": "vision_encoder.transformer.layers.0.mlp.linear_fc1.bias",
-            "vision_model.vision_encoder.transformer.resblocks.0.mlp.c_fc.weight": "vision_encoder.transformer.layers.0.mlp.linear_fc1.weight",
-            "vision_model.vision_encoder.transformer.resblocks.0.mlp.c_proj.bias": "vision_encoder.transformer.layers.0.mlp.linear_fc2.bias",
-            "vision_model.vision_encoder.transformer.resblocks.0.mlp.c_proj.weight": "vision_encoder.transformer.layers.0.mlp.linear_fc2.weight",
-            "vision_model.vision_encoder.class_embedding": "vision_encoder.class_embedding",
-            "vision_model.vision_encoder.conv1._linear.weight": "vision_encoder.conv1._linear.weight",
-            "vision_model.vision_encoder.gated_positional_embedding": "vision_encoder.gated_positional_embedding",
-            "vision_model.vision_encoder.gated_positional_embedding_gate": "vision_encoder.gated_positional_embedding_gate",
-            "vision_model.vision_encoder.ln_post.bias": "vision_encoder.ln_post.bias",
-            "vision_model.vision_encoder.ln_post.weight": "vision_encoder.ln_post.weight",
-            "vision_model.vision_encoder.ln_pre.bias": "vision_encoder.ln_pre.bias",
-            "vision_model.vision_encoder.ln_pre.weight": "vision_encoder.ln_pre.weight",
-            "vision_model.vision_encoder.positional_embedding": "vision_encoder.positional_embedding",
-            "vision_model.vision_encoder.post_tile_pos_embed.embedding": "vision_encoder.post_tile_pos_embed.embedding",
-            "vision_model.vision_encoder.post_tile_pos_embed.gate": "vision_encoder.post_tile_pos_embed.gate",
-            "vision_model.vision_encoder.pre_tile_pos_embed.embedding": "vision_encoder.pre_tile_pos_embed.embedding",
-            "vision_model.vision_encoder.pre_tile_pos_embed.gate": "vision_encoder.pre_tile_pos_embed.gate",
-            "vision_model.vision_projection.bias": "vision_projection.encoder.bias",
-            "vision_model.vision_projection.weight": "vision_projection.encoder.weight",
+            f"{v}.global_transformer.resblocks.*.attn.wo.weight": f"{v}.global_transformer.layers.*.self_attention.linear_proj.weight",
+            f"{v}.global_transformer.resblocks.*.gate_attn": f"{v}.global_transformer.layers.*.gate_attn",
+            f"{v}.global_transformer.resblocks.*.gate_ffn": f"{v}.global_transformer.layers.*.gate_ffn",
+            f"{v}.global_transformer.resblocks.*.ln_1.bias": f"{v}.global_transformer.layers.*.input_layernorm.bias",
+            f"{v}.global_transformer.resblocks.*.ln_1.weight": f"{v}.global_transformer.layers.*.input_layernorm.weight",
+            f"{v}.global_transformer.resblocks.*.ln_2.bias": f"{v}.global_transformer.layers.*.pre_mlp_layernorm.bias",
+            f"{v}.global_transformer.resblocks.*.ln_2.weight": f"{v}.global_transformer.layers.*.pre_mlp_layernorm.weight",
+            f"{v}.global_transformer.resblocks.*.mlp.c_fc.bias": f"{v}.global_transformer.layers.*.mlp.linear_fc1.bias",
+            f"{v}.global_transformer.resblocks.*.mlp.c_fc.weight": f"{v}.global_transformer.layers.*.mlp.linear_fc1.weight",
+            f"{v}.global_transformer.resblocks.*.mlp.c_proj.bias": f"{v}.global_transformer.layers.*.mlp.linear_fc2.bias",
+            f"{v}.global_transformer.resblocks.*.mlp.c_proj.weight": f"{v}.global_transformer.layers.*.mlp.linear_fc2.weight",
+            f"{v}.transformer.resblocks.*.attn.wo.weight": f"{v}.transformer.layers.*.self_attention.linear_proj.weight",
+            f"{v}.transformer.resblocks.*.ln_1.bias": f"{v}.transformer.layers.*.input_layernorm.bias",
+            f"{v}.transformer.resblocks.*.ln_1.weight": f"{v}.transformer.layers.*.input_layernorm.weight",
+            f"{v}.transformer.resblocks.*.ln_2.bias": f"{v}.transformer.layers.*.pre_mlp_layernorm.bias",
+            f"{v}.transformer.resblocks.*.ln_2.weight": f"{v}.transformer.layers.*.pre_mlp_layernorm.weight",
+            f"{v}.transformer.resblocks.*.mlp.c_fc.bias": f"{v}.transformer.layers.*.mlp.linear_fc1.bias",
+            f"{v}.transformer.resblocks.*.mlp.c_fc.weight": f"{v}.transformer.layers.*.mlp.linear_fc1.weight",
+            f"{v}.transformer.resblocks.*.mlp.c_proj.bias": f"{v}.transformer.layers.*.mlp.linear_fc2.bias",
+            f"{v}.transformer.resblocks.*.mlp.c_proj.weight": f"{v}.transformer.layers.*.mlp.linear_fc2.weight",
+            f"{v}.class_embedding": f"{v}.class_embedding",
+            f"{v}.conv1._linear.weight": f"{v}.conv1._linear.weight",
+            f"{v}.gated_positional_embedding": f"{v}.gated_positional_embedding",
+            f"{v}.gated_positional_embedding_gate": f"{v}.gated_positional_embedding_gate",
+            f"{v}.ln_post.bias": f"{v}.ln_post.bias",
+            f"{v}.ln_post.weight": f"{v}.ln_post.weight",
+            f"{v}.ln_pre.bias": f"{v}.ln_pre.bias",
+            f"{v}.ln_pre.weight": f"{v}.ln_pre.weight",
+            f"{v}.positional_embedding": f"{v}.positional_embedding",
+            f"{v}.post_tile_pos_embed.embedding": f"{v}.post_tile_pos_embed.embedding",
+            f"{v}.post_tile_pos_embed.gate": f"{v}.post_tile_pos_embed.gate",
+            f"{v}.pre_tile_pos_embed.embedding": f"{v}.pre_tile_pos_embed.embedding",
+            f"{v}.pre_tile_pos_embed.gate": f"{v}.pre_tile_pos_embed.gate",
+            "vision_model.vision_projection.bias": "vision_model.vision_projection.encoder.bias",
+            "vision_model.vision_projection.weight": "vision_model.vision_projection.encoder.weight",
         }
 
         transforms = [
             io.state_transform(
-                source_key=("vision_model.vision_encoder.global_transformer.resblocks.*.attn.wk.weight",
-                            "vision_model.vision_encoder.global_transformer.resblocks.*.attn.wq.weight",
-                            "vision_model.vision_encoder.global_transformer.resblocks.*.attn.wv.weight"),
-                target_key=("vision_encoder.global_transformer.layers.*.self_attention.linear_qkv.weight"),
+                source_key=(f"{v}.global_transformer.resblocks.*.attn.wk.weight",
+                            f"{v}.global_transformer.resblocks.*.attn.wq.weight",
+                            f"{v}.global_transformer.resblocks.*.attn.wv.weight"),
+                target_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
                 fn=_import_qkv
             ),
             io.state_transform(
-                source_key=("vision_model.vision_encoder.transformer.resblocks.*.attn.wk.weight",
-                            "vision_model.vision_encoder.transformer.resblocks.*.attn.wq.weight",
-                            "vision_model.vision_encoder.transformer.resblocks.*.attn.wv.weight"),
-                target_key=("vision_encoder.transformer.layers.*.self_attention.linear_qkv.weight"),
+                source_key=(f"{v}.transformer.resblocks.*.attn.wk.weight",
+                            f"{v}.transformer.resblocks.*.attn.wq.weight",
+                            f"{v}.transformer.resblocks.*.attn.wv.weight"),
+                target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
                 fn=_import_qkv
             ),
             io.state_transform(
@@ -668,8 +669,8 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             ),
             vision_model_config=CrossAttentionVisionModelConfig(
                 num_layers=source['n_layers'],
-                hidden_size=source['dim'],
-                num_attention_heads=source['n_heads'],
+                hidden_size=1280,
+                num_attention_heads=16, #source['n_heads'],
                 vision_chunk_size=source['vision_chunk_size'],
                 vision_max_num_chunks=source['vision_max_num_chunks'],
             )
@@ -680,14 +681,14 @@ def _import_gate(gate):
     return gate[0:1]
 
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
-    megatron_config = ctx.target.config
+    vision_config = ctx.target.config.vision_model_config
 
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
+    head_num = vision_config.num_attention_heads
+    num_query_groups = vision_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = megatron_config.kv_channels
+    hidden_size = vision_config.hidden_size
+    head_num = vision_config.num_attention_heads
+    head_size = vision_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
