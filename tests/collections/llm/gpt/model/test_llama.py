@@ -11,6 +11,7 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama3Config,
     Llama3Config8B,
     Llama3Config70B,
+    Llama31Config,
     Llama31Config8B,
     Llama31Config70B,
     Llama31Config405B,
@@ -104,6 +105,13 @@ def test_llama3_config_70b():
     assert config.init_method_std == 0.008944
     assert config.make_vocab_size_divisible_by == 128
 
+def test_llama31_config():
+    config = Llama31Config(num_layers=32, num_attention_heads=32, hidden_size=4096)
+    assert config.scale_factor == 8
+    assert config.low_freq_factor == 1
+    assert config.high_freq_factor == 4
+    assert config.old_context_len == 8192
+    assert config.init_method_std == 0.02
 
 def test_llama31_config_8b():
     config = Llama31Config8B()
