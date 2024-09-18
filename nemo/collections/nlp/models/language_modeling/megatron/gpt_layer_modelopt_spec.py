@@ -46,7 +46,7 @@ def get_gpt_layer_modelopt_spec(num_experts: int = None) -> ModuleSpec:
     TEDotProductAttention is used to support sliding window attention.
     """
     if not HAVE_MEGATRON_CORE:
-        raise Exception(IMPORT_ERROR)
+        raise IMPORT_ERROR
 
     return ModuleSpec(
         module=TransformerLayer,
