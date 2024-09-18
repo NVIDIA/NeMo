@@ -234,7 +234,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 texts_expanded[i, :text_length, 0] = texts[i, :text_length]
                 texts_expanded[i, :text_length, 1:] = self.speech_unk_id
                 eos_tensor = torch.full(
-                    (1, self.n_speech_codebooks * self.decoder_reduction_factor + 1), self.speech_eos_id
+                    (1, self.n_speech_codebooks * self.decoder_reduction_factor + 1), self.speech_bos_id
                 ).to(torch.int)
                 eos_tensor[:, 0] = self.text_processor.eos_id
 

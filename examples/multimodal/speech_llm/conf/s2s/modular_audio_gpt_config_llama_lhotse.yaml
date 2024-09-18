@@ -244,7 +244,7 @@ model:
         weight: 1.0
         tags:
           lang: en
-          direct_s2s: True
+          s2s: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -304,14 +304,14 @@ model:
           weight: 1.0
           tags:
             lang: en
-            direct_s2s: True
+            s2s: True
           input_cfg:
             - type: lhotse_shar
               shar_path: manifests/es_mini_prompt3 #/workspace/nemo/works/zhehuaic_works/data/s2s_shars/es_mini/
               weight: 1.0
               tags:
                 lang: en
-                direct_s2s: True
+                s2s: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
