@@ -21,9 +21,11 @@ from nemo.collections.vlm.neva.model import (
 )
 
 from nemo.collections.vlm.llama.model.base import (
-    CrossAttentionTextModelConfig,
     LlamaCrossAttentionModel,
+    LlamaCrossAttentionModelConfig,
+    CrossAttentionTextModelConfig,
     CrossAttentionTextModelConfig8B,
+    CrossAttentionVisionModelConfig,
 )
 
 __all__ = [
@@ -45,6 +47,8 @@ __all__ = [
     "Llava1_5Config13B",
     "LlavaModel",
     "LlamaCrossAttentionModel",
+    "LlamaCrossAttentionModelConfig",
     "CrossAttentionTextModelConfig",
     "CrossAttentionTextModelConfig8B",
+    "CrossAttentionVisionModelConfig",
 ]
