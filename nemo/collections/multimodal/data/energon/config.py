@@ -15,6 +15,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 import torch
+from nemo.collections.multimodal.data.energon.conversation import BaseConversationTemplateConfig
 
 
 @dataclass
@@ -55,32 +56,15 @@ class ImageTextRawBatch:
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
 
 
-@dataclass
-class ConversationTemplateConfig:
-    """Conversation template config related parameters"""
+class LLaVATemplateConfig(BaseConversationTemplateConfig):
+    """LLava specific template configuration which extends the base config"""
 
-    system: Optional[str] = (
-        "A chat between a curious user and artificial assistant agent. The assistant gives helpful, detailed and polite answers to user's questions.".format()
-    )  # fmt: off
-    roles: List[str] = field(default_factory=lambda: ['user', 'assistant'])
-    stop_string: str = "</s>"
-    chat_template = """
-    {%- for message in messages %}
-        {%- if message['role'] == 'system' %}
-            {{- message['content'].strip() + ' ' -}}
-        {%- elif message['role'] == 'user' %}
-            {{- 'USER: ' -}} {{- message['content'].strip() + ' ' -}}
-        {%- elif message['role'] == 'assistant' %}
-            {{- 'ASSISTANT: ' -}} {{- message['content'].strip() -}}
-            {{- '</s>' -}}
-        {%- endif %}
-    {%- endfor -%}
-    """
+    pass
 
 
 @dataclass
 class MultiModalSampleConfig:
     image_token: ImageToken = ImageToken()
     ignore_place_holder: int = -100
-    conversation_template_config: ConversationTemplateConfig = ConversationTemplateConfig()
+    conversation_template_config: LLaVATemplateConfig = LLaVATemplateConfig()
     image_following_text: bool = True

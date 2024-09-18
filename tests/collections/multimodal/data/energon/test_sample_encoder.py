@@ -21,7 +21,7 @@ from transformers import AutoProcessor
 
 from nemo.collections.multimodal.data.energon import (
     BaseSampleEncoder,
-    ConversationTemplateConfig,
+    LLaVATemplateConfig,
     ImageTextSample,
     ImageToken,
     InterleavedSampleEncoder,
@@ -73,7 +73,7 @@ class TestVQASampleEncoder(unittest.TestCase):
         self.config = MultiModalSampleConfig(
             image_token=ImageToken(token_str="<image>", token_id=-200),
             ignore_place_holder=-100,
-            conversation_template_config=ConversationTemplateConfig(
+            conversation_template_config=LLaVATemplateConfig(
                 system='Im groot', roles=['user', 'assistant'], stop_string=' </s>'
             ),
         )

@@ -15,7 +15,7 @@
 
 from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import (
-    ConversationTemplateConfig,
+    LLaVATemplateConfig,
     ImageTextSample,
     ImageToken,
     MultiModalSampleConfig,
@@ -32,7 +32,7 @@ __all__ = [
     "ImageToken",
     "ImageTextSample",
     "MultiModalSampleConfig",
-    "ConversationTemplateConfig",
+    "LLaVATemplateConfig",
     "BaseSampleEncoder",
     "VQASampleEncoder",
     "InterleavedSampleEncoder",
