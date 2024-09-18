@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import abc
 import collections.abc
 import functools
@@ -85,8 +99,7 @@ def extract_ddp_funcs(ddp_config, pipeline):
     if getattr(ddp_config, "overlap_grad_reduce", False):
         no_sync_func = [model_chunk.no_sync for model_chunk in pipeline]
         no_sync_func = no_sync_func[0] if len(pipeline) == 1 else no_sync_func
-        # TODO(@akoumparouli): why is True default here?
-        if getattr(ddp_config, "delay_grad_reduce", True):
+        if getattr(ddp_config, "align_grad_reduce", False):
             grad_sync_func = [model_chunk.start_grad_sync for model_chunk in pipeline]
             grad_sync_func = grad_sync_func[0] if len(pipeline) == 1 else grad_sync_func
 
@@ -1091,6 +1104,10 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
         from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
+        # neva returns (logits, loss_mask)
+        if isinstance(forward_out, tuple):
+            forward_out, loss_mask = forward_out
+            batch["loss_mask"] = loss_mask
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:
             loss_for_ub = masked_token_loss(forward_out, batch["loss_mask"])
@@ -1142,6 +1159,19 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             return loss_sum
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
+
+
+class MaskedTokenLossReductionWithLossMask(MaskedTokenLossReduction):
+    def forward(
+        self,
+        batch: Dict[str, torch.Tensor],
+        forward_out: Tuple[torch.Tensor, torch.Tensor],
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        # expecting returns (token_level_loss, loss_mask)
+        forward_out, loss_mask = forward_out
+        batch["loss_mask"] = loss_mask
+
+        return super().forward(batch, forward_out)
 
 
 def masked_token_loss(tensor: Tensor, mask: Tensor):

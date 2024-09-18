@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import itertools
 import os
 from collections import defaultdict
@@ -130,9 +144,6 @@ def set_model_parallel_attributes(model, parallelism):
     # Note: Importing nemo.lightning.pytorch.strategies creates an import cycle.
     from megatron.core.transformer.transformer_config import TransformerConfig
 
-    assert (
-        type(parallelism).__name__ == 'ParallelismConfig'
-    ), f"Expected parallelism config to be of type ParallelismConfig, but got {type(parallelism)}"
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config
@@ -153,7 +164,7 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
     def monkey_patched(c):
         return {"device": "meta"}
 
-    from megatron.core.transformer.custom_layers import transformer_engine as _te
+    from megatron.core.extensions import transformer_engine as _te
 
     original = _te._get_extra_te_kwargs  # noqa: SLF001
     _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
