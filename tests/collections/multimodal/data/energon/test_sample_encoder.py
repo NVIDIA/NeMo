@@ -21,10 +21,10 @@ from transformers import AutoProcessor
 
 from nemo.collections.multimodal.data.energon import (
     BaseSampleEncoder,
-    LLaVATemplateConfig,
     ImageTextSample,
     ImageToken,
     InterleavedSampleEncoder,
+    LLaVATemplateConfig,
     MultiModalSampleConfig,
     SimilarityInterleavedEncoder,
     VQASampleEncoder,
