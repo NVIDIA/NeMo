@@ -226,7 +226,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     def batch_score_hypothesis(
-        self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
+        self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any]
     ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
@@ -234,30 +234,29 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         Args:
             hypothesis: List of Hypotheses. Refer to rnnt_utils.Hypothesis.
             cache: Dict which contains a cache to avoid duplicate computations.
-            batch_states: List of torch.Tensor which represent the states of the RNN for this batch.
-                Each state is of shape [L, B, H]
 
         Returns:
-            Returns a tuple (b_y, b_states, lm_tokens) such that:
-            b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
-            b_state is a list of list of RNN states, each of shape [L, B, H].
-                Represented as B x List[states].
-            lm_token is a list of the final integer tokens of the hypotheses in the batch.
+            Returns a tuple (batch_dec_out, batch_dec_states) such that:
+                batch_dec_out: a list of torch.Tensor [1, H] representing the prediction network outputs for the last tokens in the Hypotheses.
+                batch_dec_states: a list of list of RNN states, each of shape [L, B, H]. Represented as B x List[states].
         """
         raise NotImplementedError()
 
     def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]):
         """
-        Create batch of decoder states.
+        Creates a stacked decoder states to be passed to prediction network
 
-       Args:
-           decoder_states (list of list): list of decoder states
-               [B x ([L x (1, H)], [L x (1, H)])]
-
-       Returns:
-           batch_states (tuple): batch of decoder states
-               ([L x (B, H)], [L x (B, H)])
-       """
+        Args:
+            decoder_states (list of list of list of torch.Tensor): list of decoder states
+                [B, L, 1, H] 
+                    - B: Batch size.
+                    - L: Number of layers in prediction RNN (e.g., for LSTM, this is 2: hidden and cell states).
+                    - H: Dimensionality of the hidden state.
+        
+        Returns:
+            batch_states (list of torch.Tensor): batch of decoder states
+                [L x torch.Tensor[1 x B x H]
+        """
         raise NotImplementedError()
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
