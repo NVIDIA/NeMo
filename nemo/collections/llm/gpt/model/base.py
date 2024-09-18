@@ -257,6 +257,12 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
+            if self.config.enable_cuda_graph:
+                assert HAVE_TE, "Transformer Engine is required for cudagraphs."
+                assert getattr(self.config,
+                    'use_te_rng_tracker', False
+                ), "Transformer engine's RNG tracker is required for cudagraphs, it can be "\
+                    "enabled with use_te_rng_tracker=True'."
             self.module = self.config.configure_model(self.tokenizer)
             if self.config.enable_cuda_graph and self.training:
                 assert not self.config.cpu_offloading and self.config.recompute_granularity is None, \
