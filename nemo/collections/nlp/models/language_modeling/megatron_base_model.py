@@ -192,6 +192,7 @@ class MegatronBaseModel(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             expert_model_parallel_size=cfg.get('expert_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
+            pipeline_model_parallel_comm_backend=cfg.get('pipeline_model_parallel_comm_backend', 'nccl'),
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             use_tp_pp_dp_mapping=cfg.get('use_tp_pp_dp_mapping', False),
