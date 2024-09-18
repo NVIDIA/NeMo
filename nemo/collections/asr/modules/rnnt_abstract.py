@@ -248,11 +248,11 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
 
         Args:
             decoder_states (list of list of list of torch.Tensor): list of decoder states
-                [B, L, 1, H] 
+                [B, L, 1, H]
                     - B: Batch size.
                     - L: Number of layers in prediction RNN (e.g., for LSTM, this is 2: hidden and cell states).
                     - H: Dimensionality of the hidden state.
-        
+
         Returns:
             batch_states (list of torch.Tensor): batch of decoder states
                 [L x torch.Tensor[1 x B x H]
@@ -276,14 +276,19 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
 
     @classmethod
     def batch_replace_states_mask(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
+        mask: torch.Tensor,
     ):
         """Replace states in dst_states with states from src_states using the mask, in a way that does not synchronize with the CPU"""
         raise NotImplementedError()
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor],
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
     ):
         """Replace states in dst_states with states from src_states"""
         raise NotImplementedError()
@@ -316,7 +321,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         value: Optional[float] = None,
     ) -> List[torch.Tensor]:
         """Copy states from new state to old state at certain indices.
-        
+
         Args:
             old_states(list): packed decoder states
                 (L x B x H, L x B x H)
