@@ -18,6 +18,7 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
@@ -35,11 +36,10 @@ from typing import (
     cast,
     runtime_checkable,
 )
-from dataclasses import dataclass
 
+import pytorch_lightning as pl
 import torch
 import torch.distributed
-import pytorch_lightning as pl
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -47,7 +47,6 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
-
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
@@ -254,10 +253,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
         else:
             forward_step_func = _forward_step
-            
+
         step = MegatronStep.infer(
             self,
-            data, 
+            data,
             forward_step_func,
             forward_only=forward_only,
             micro_batch_size=micro_batch_size,
@@ -266,10 +265,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         )
         _forward_context["step"] = step
         step = self.callbacks.transform_event("on_megatron_step_start", step)
-        
+
         self.callbacks.event("on_megatron_microbatches_start", step=step)
         microbatch_outputs = step()
-        
+
         # microbatch_outputs = step.forward_backward_func(
         #     forward_step_func=forward_step_func,
         #     data_iterator=step.data_iterator,
@@ -278,14 +277,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         #     seq_length=step.seq_length,
         #     micro_batch_size=step.micro_batch_size,
         # )
-        
+
         self.callbacks.event("on_megatron_microbatches_end", step=step, microbatch_outputs=microbatch_outputs)
 
         if microbatch_outputs:
             self.callbacks.event(
-                "on_megatron_reduce_microbatches_start", 
-                step=step, 
-                microbatch_outputs=microbatch_outputs
+                "on_megatron_reduce_microbatches_start", step=step, microbatch_outputs=microbatch_outputs
             )
 
             if isinstance(_loss_reduction, _ModuleStepFunction):
@@ -293,37 +290,28 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             reduced = _loss_reduction.reduce(microbatch_outputs)
             self.callbacks.event(
-                "on_megatron_reduce_microbatches_end", 
-                step=step, 
+                "on_megatron_reduce_microbatches_end",
+                step=step,
                 loss_reduction=_loss_reduction,
                 microbatch_outputs=microbatch_outputs,
-                reduced=reduced
+                reduced=reduced,
             )
-            
+
             print(step)
             print(loss_reduction)
             print(microbatch_outputs)
             print(reduced)
-            
+
         else:
             # we're not on the last pipeline stage so no losses
             reduced = torch.tensor(0.0, device=torch.cuda.current_device())
 
-        self.callbacks.event(
-            "on_megatron_step_end",
-            step=step, 
-            microbatch_outputs=microbatch_outputs,
-            reduced=reduced
-        )
+        self.callbacks.event("on_megatron_step_end", step=step, microbatch_outputs=microbatch_outputs, reduced=reduced)
 
         return reduced
 
     def wrapped_forward_step(
-        self,
-        forward_step,
-        loss_reduction,
-        data_step,
-        context
+        self, forward_step, loss_reduction, data_step, context
     ) -> Callable[[nn.Module, DataT], Tuple[torch.Tensor, "MegatronCallbackProtocol"]]:
         """The method wraps the forward step function and returns a callable.
 
@@ -363,7 +351,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 _forward_step = forward_step
 
             self.callbacks.event(
-                "on_megatron_microbatch_start", 
+                "on_megatron_microbatch_start",
                 step=step,
                 batch=batch,
                 forward_callback=forward_callback,
@@ -387,7 +375,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 output_tensor = self.precision_plugin.convert_output(output_tensor)
 
             self.callbacks.event(
-                "on_megatron_microbatch_end", 
+                "on_megatron_microbatch_end",
                 step=step,
                 batch=batch,
                 output=output_tensor,
@@ -859,8 +847,8 @@ class CallbackConnector:
                 return True
 
         return False
-    
-    
+
+
 @dataclass
 class MegatronStep(Generic[ModelT, DataT]):
     """
@@ -892,10 +880,10 @@ class MegatronStep(Generic[ModelT, DataT]):
     micro_batch_size: Optional[int] = None
     seq_length: Optional[int] = None
     num_microbatches: Optional[int] = None
-    
+
     @classmethod
     def infer(
-        cls, 
+        cls,
         pipeline: MegatronParallel[ModelT],
         data: DataT,
         forward_step_func: Callable,
@@ -931,7 +919,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             seq_length=seq_length or cls.infer_seq_length(data),
             num_microbatches=num_microbatches or cls.infer_num_microbatches(data),
         )
-    
+
     def __call__(self) -> List[Any]:
         """
         Executes the Megatron step.
@@ -949,13 +937,13 @@ class MegatronStep(Generic[ModelT, DataT]):
         """
         if self.num_microbatches is None:
             raise ValueError("num_microbatches is not set")
-        
+
         if self.seq_length is None:
             raise ValueError("seq_length is not set")
-        
+
         if self.micro_batch_size is None:
             raise ValueError("micro_batch_size is not set")
-        
+
         return self.forward_backward_func(
             forward_step_func=self.forward_step_func,
             data_iterator=self.data_iterator,
@@ -964,7 +952,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             seq_length=self.seq_length,
             micro_batch_size=self.micro_batch_size,
         )
-    
+
     def to_data_iterator_list(
         self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]
     ) -> List[Iterator[DataT]]:
@@ -990,7 +978,7 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         # For a single data item or any other type, wrap it in an iterator and return as a list
         return cast(List[Iterator[DataT]], [iter([data])])
-    
+
     @classmethod
     def infer_micro_batch_size(cls, data: DataT) -> Optional[int]:
         """
@@ -1060,7 +1048,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             return 1
 
         return None
-    
+
     @property
     def model(self) -> Union[ModelT, List[ModelT]]:
         """
@@ -1070,7 +1058,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             Union[ModelT, List[ModelT]]: The model or list of models in the pipeline.
         """
         return self.pipeline.pipeline
-    
+
     @property
     def pl_module(self) -> pl.LightningModule:
         """
@@ -1080,7 +1068,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             pl.LightningModule: The PyTorch Lightning module.
         """
         return self.pipeline.module
-    
+
     @property
     def trainer(self) -> pl.Trainer:
         """
@@ -1090,7 +1078,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             pl.Trainer: The PyTorch Lightning trainer.
         """
         return self.pipeline.trainer
-    
+
     @functools.cached_property
     def forward_backward_func(self) -> "MegatronStepProtocol":
         """
@@ -1105,7 +1093,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
-    
+
     @functools.cached_property
     def data_iterator(self) -> List[Iterator[DataT]]:
         """
@@ -1143,7 +1131,7 @@ class CallbackMethods:
             MegatronStep: The potentially modified MegatronStep object.
         """
         ...
-    
+
     def on_megatron_microbatches_start(self, step: MegatronStep) -> None:
         """
         Called before processing of microbatches begins.
@@ -1157,7 +1145,7 @@ class CallbackMethods:
         ...
 
     def on_megatron_microbatch_start(
-        self, 
+        self,
         step: MegatronStep,
         batch: DataT,
         forward_callback: "MegatronLossReduction",
@@ -1176,7 +1164,7 @@ class CallbackMethods:
         ...
 
     def on_megatron_microbatch_end(
-        self, 
+        self,
         step: MegatronStep,
         batch: DataT,
         forward_callback: "MegatronLossReduction",
@@ -1195,7 +1183,7 @@ class CallbackMethods:
             output (Any): The output from the forward pass for this microbatch.
         """
         ...
-    
+
     def on_megatron_microbatches_end(self, step: MegatronStep, microbatch_outputs: List[Any]) -> None:
         """
         Called after all microbatches in a step have been processed.
@@ -1210,8 +1198,8 @@ class CallbackMethods:
         ...
 
     def on_megatron_reduce_microbatches_start(
-        self, 
-        step: MegatronStep, 
+        self,
+        step: MegatronStep,
         microbatch_outputs: List[Any],
     ) -> None:
         """
@@ -1228,8 +1216,8 @@ class CallbackMethods:
         ...
 
     def on_megatron_reduce_microbatches_end(
-        self, 
-        step: MegatronStep, 
+        self,
+        step: MegatronStep,
         microbatch_outputs: List[Any],
         loss_reduction: "MegatronLossReduction",
         reduced: Union[torch.Tensor, Dict[str, torch.Tensor]],
@@ -1250,8 +1238,8 @@ class CallbackMethods:
         ...
 
     def on_megatron_step_end(
-        self, 
-        step: MegatronStep, 
+        self,
+        step: MegatronStep,
         microbatch_outputs: List[Any],
         reduced: Optional[Union[torch.Tensor, Dict[str, torch.Tensor]]] = None,
     ) -> None:

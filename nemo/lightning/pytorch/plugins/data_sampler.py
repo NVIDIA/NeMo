@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import logging
 from typing import List, Literal, Optional
-import dataclasses
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
@@ -94,15 +94,15 @@ class MegatronDataSampler(DataSampler):
         return int(consumed_samples)
 
     # Megatron callbacks
-    
+
     def on_megatron_step_start(self, step: MegatronStep) -> MegatronStep:
         return dataclasses.replace(
-            step, 
+            step,
             seq_length=self.seq_len,
             micro_batch_size=self.micro_batch_size,
             num_microbatches=self.num_microbatches,
         )
-    
+
     def on_megatron_microbatches_start(self, step: MegatronStep) -> None:
         # do validation and save the checkpoint when gbs is changed
         if (
@@ -115,7 +115,7 @@ class MegatronDataSampler(DataSampler):
     def on_megatron_step_end(self, step: MegatronStep) -> None:
         trainer = step.trainer
         pl_module = step.pl_module
-        
+
         try:
             from megatron.core.num_microbatches_calculator import update_num_microbatches
 
