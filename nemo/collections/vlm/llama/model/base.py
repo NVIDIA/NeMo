@@ -26,6 +26,7 @@ from PIL import Image as PIL_Image
 from megatron.core import dist_checkpointing
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel.mappings import gather_from_tensor_model_parallel_region
+from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn, Tensor
@@ -34,7 +35,6 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.llama.image_transform import VariableSizeImageTransform
 from nemo.collections.vlm.llama.model.transformer import (
     precompute_freqs_cis,
@@ -293,8 +293,8 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
     def __init__(
             self,
             config: TransformerConfig,
-            language_model: MegatronModule,
-            vision_model: MegatronModule,
+            language_model: CrossAttentionTextModel,
+            vision_model: CrossAttentionVisionModel,
             pre_process: bool = True,
             post_process: bool = True,
     ) -> None:
@@ -548,25 +548,25 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
 
     def convert_state(self, source, target):
         mapping = {
-            "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "text_model.layers.*.feed_forward.mlp.fc1_weight": "decoder.layers.*.mlp.linear_fc1.weight",
-            "text_model.layers.*.feed_forward.mlp.fc2_weight": "decoder.layers.*.mlp.linear_fc2.weight",
-            "text_model.layers.*.attention.wo.weight": "decoder.layers.*.self_attention.linear_proj.weight",
-            "text_model.layers.*.attention.wqkv.layer_norm_weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-            "text_model.layers.*.attention.wqkv.weight": "decoder.layers.*.self_attention.linear_qkv.weight",
-            "text_model.cross_attention_layers.*.attention.inner_attention.k_norm.weight": "decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
-            "text_model.cross_attention_layers.*.attention.wkv.weight": "decoder.xattn_layers.*.cross_attention.linear_kv.weight",
-            "text_model.cross_attention_layers.*.attention.wo.weight": "decoder.xattn_layers.*.cross_attention.linear_proj.weight",
-            "text_model.cross_attention_layers.*.attention.wq.layer_norm_weight": "decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
-            "text_model.cross_attention_layers.*.attention.wq.weight": "decoder.xattn_layers.*.cross_attention.linear_q.weight",
-            "text_model.cross_attention_layers.*.attention.inner_attention.q_norm.weight": "decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
-            "text_model.cross_attention_layers.*.feed_forward.mlp.layer_norm_weight": "decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
-            "text_model.cross_attention_layers.*.feed_forward.mlp.fc1_weight": "decoder.xattn_layers.*.mlp.linear_fc1.weight",
-            "text_model.cross_attention_layers.*.feed_forward.mlp.fc2_weight": "decoder.xattn_layers.*.mlp.linear_fc2.weight",
-            "text_model.norm.weight": "decoder.final_layernorm.weight",
-            "text_model.tok_embeddings.weight": "embedding.word_embeddings.weight",
-            "text_model.learnable_embedding.weight": "learnable_embedding.weight",
-            "text_model.output.weight": "output_layer.weight",
+            "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "text_model.layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.layers.*.mlp.linear_fc1.weight",
+            "text_model.layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
+            "text_model.layers.*.attention.wo.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
+            "text_model.layers.*.attention.wqkv.layer_norm_weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "text_model.layers.*.attention.wqkv.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+            "text_model.cross_attention_layers.*.attention.inner_attention.k_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
+            "text_model.cross_attention_layers.*.attention.wkv.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
+            "text_model.cross_attention_layers.*.attention.wo.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_proj.weight",
+            "text_model.cross_attention_layers.*.attention.wq.layer_norm_weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
+            "text_model.cross_attention_layers.*.attention.wq.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.weight",
+            "text_model.cross_attention_layers.*.attention.inner_attention.q_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
+            "text_model.cross_attention_layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
+            "text_model.cross_attention_layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.weight",
+            "text_model.cross_attention_layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc2.weight",
+            "text_model.norm.weight": "language_model.decoder.final_layernorm.weight",
+            "text_model.tok_embeddings.weight": "language_model.embedding.word_embeddings.weight",
+            "text_model.learnable_embedding.weight": "language_model.learnable_embedding.weight",
+            "text_model.output.weight": "language_model.output_layer.weight",
             "vision_model.vision_encoder.global_transformer.resblocks.0.attn.wo.weight": "vision_encoder.global_transformer.layers.0.self_attention.linear_proj.weight",
             "vision_model.vision_encoder.global_transformer.resblocks.0.gate_attn": "vision_encoder.global_transformer.layers.0.gate_attn",
             "vision_model.vision_encoder.global_transformer.resblocks.0.gate_ffn": "vision_encoder.global_transformer.layers.0.gate_ffn",
@@ -621,17 +621,16 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             ),
             io.state_transform(
                 source_key="text_model.cross_attention_layers.*.gate_attn",
-                target_key="decoder.xattn_layers.*.gate_attn",
+                target_key="language_model.decoder.xattn_layers.*.gate_attn",
                 fn=_import_gate,
             ),
             io.state_transform(
                 source_key="text_model.cross_attention_layers.*.gate_ffwd",
-                target_key="decoder.xattn_layers.*.gate_ffn",
+                target_key="language_model.decoder.xattn_layers.*.gate_ffn",
                 fn=_import_gate,
             ),
         ]
 
-        breakpoint()
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
 
@@ -642,7 +641,7 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Meta-Llama-3.1-8B"))
 
     @property
-    def config(self) -> CrossAttentionTextModelConfig:
+    def config(self) -> LlamaCrossAttentionModelConfig:
         import json
         with open(self.parent / "params.json") as f:
             source = json.load(f)
@@ -654,13 +653,23 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
                 hidden_dim = int(ffn_dim_multiplier * hidden_dim)
             return multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
 
-        return CrossAttentionTextModelConfig(
-            rotary_base=source['rope_theta'],
-            seq_length=8192,
-            num_layers=source['n_layers'],
-            hidden_size=source['dim'],
-            ffn_hidden_size=_calculate_ffn_size(source['dim'], source['ffn_dim_multiplier'], source['multiple_of']),
-            num_attention_heads=source['n_heads'],
+        return LlamaCrossAttentionModelConfig(
+            language_model_config=CrossAttentionTextModelConfig(
+                rotary_base=source['rope_theta'],
+                seq_length=8192,
+                num_layers=source['n_layers'],
+                hidden_size=source['dim'],
+                ffn_hidden_size=_calculate_ffn_size(source['dim'], source['ffn_dim_multiplier'], source['multiple_of']),
+                num_attention_heads=source['n_heads'],
+            ),
+            vision_model_config=CrossAttentionVisionModelConfig(
+                num_layers=source['n_layers'],
+                hidden_size=source['dim'],
+                num_attention_heads=source['n_heads'],
+                vision_chunk_size=source['vision_chunk_size'],
+                vision_max_num_chunks=source['vision_max_num_chunks'],
+            )
+
         )
 
 def _import_gate(gate):
