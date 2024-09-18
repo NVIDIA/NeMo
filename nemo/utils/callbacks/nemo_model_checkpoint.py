@@ -400,9 +400,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             # Load the correct state_dict for current checkpoint.
             # Temporary solution.
+<<<<<<< HEAD
             checkpoint = trainer.strategy.load_checkpoint(
                 checkpoint_path=ckpt_to_dir(filepath), load_optimizer_states=True
             )
+=======
+            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=ckpt_to_dir(filepath), load_optimizer_states=False)
+>>>>>>> 67c02a11b (minor changes)
             self._load_current_state_dict(trainer, checkpoint)
 
             logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")

@@ -393,9 +393,8 @@ class NLPDDPStrategy(DDPStrategy):
             )
 
             # Check whether to save optim states
-            if storage_options is None:
-                storage_options = {}
-            if storage_options.get('include_optimizer', True):
+            include_optimizer = True if not storage_options else storage_options.get('include_optimizer', True)
+            if include_optimizer:
                 checkpoint['optimizer_states'] = [sharded_optim_state]
             else:
                 checkpoint['optimizer_states'] = None
@@ -475,9 +474,9 @@ class NLPDDPStrategy(DDPStrategy):
         """
         common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
         # @akoumparouli: check if it contains an mcore dist opt
-        if common_state_dict.get('optimizer_states', [{}])[0].get('param_groups', None) is None:
-            return False
         if sharded_state_dict.get('optimizer_states') is None:
+            return False
+        if common_state_dict['optimizer_states'][0].get('param_groups', None) is None:
             return False
         model_param_groups = self._get_param_group(common_state_dict)
         checkpoint_param_groups = self._get_param_group(sharded_state_dict)
