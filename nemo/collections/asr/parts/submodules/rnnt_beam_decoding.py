@@ -921,7 +921,7 @@ class BeamRNNTInfer(Typing):
 
                     # extract the states of the sub batch only.
                     if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
-                        beam_state_= (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
+                        beam_state_ = (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
                     else:
                         raise NotImplementedError("Unknown decoder type.")
 
@@ -939,10 +939,10 @@ class BeamRNNTInfer(Typing):
                     # These indices are specified by sub_batch_ids, the ids of samples which were updated.
                     if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
                         # LSTM decoder, state is [layer x batch x hidden]
-                        index=0
+                        index = 0
                         for sub_batch_id in sub_batch_ids:
                             beam_state[sub_batch_id] = beam_state_[index]
-                            index+=1
+                            index += 1
                     else:
                         raise NotImplementedError("Unknown decoder type.")
                 else:
@@ -1463,6 +1463,7 @@ class BeamRNNTInfer(Typing):
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
             self.token_offset = DEFAULT_TOKEN_OFFSET
+
 
 @dataclass
 class BeamRNNTInferConfig:

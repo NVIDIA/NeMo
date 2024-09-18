@@ -74,8 +74,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -84,8 +83,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -316,17 +314,17 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             torch.full([batch, self.context_size - 1], fill_value=self.blank_idx, dtype=torch.long, device=y.device)
         ]
         return state
-    
+
     def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]):
         """
         Creates a stacked decoder states to be passed to prediction network.
 
         Args:
             decoder_states (list of list of torch.Tensor): list of decoder states
-                [B, 1, C] 
+                [B, 1, C]
                     - B: Batch size.
                     - C: Dimensionality of the hidden state.
-        
+
         Returns:
             batch_states (list of torch.Tensor): batch of decoder states [[B x C]]
         """
@@ -380,7 +378,10 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_mask(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
+        mask: torch.Tensor,
     ):
         """Replace states in dst_states with states from src_states using the mask"""
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
@@ -388,7 +389,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor],
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
     ):
         """Replace states in dst_states with states from src_states"""
         dst_states[0].copy_(src_states[0])
@@ -447,7 +450,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return [states[0][mask]]
 
     def batch_score_hypothesis(
-        self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any],
+        self,
+        hypotheses: List[rnnt_utils.Hypothesis],
+        cache: Dict[Tuple[int], Any],
     ) -> Tuple[List[torch.Tensor], List[List[torch.Tensor]]]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
@@ -506,8 +511,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 cache[to_process[processed_idx][0]] = (dec_outputs[processed_idx], new_state)
 
                 processed_idx += 1
-        
+
         return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
+
 
 class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
@@ -569,8 +575,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -579,8 +584,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -912,7 +916,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         return y, new_state, lm_token
 
     def batch_score_hypothesis(
-        self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any],
+        self,
+        hypotheses: List[rnnt_utils.Hypothesis],
+        cache: Dict[Tuple[int], Any],
     ) -> Tuple[List[torch.Tensor], List[List[torch.Tensor]]]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
@@ -971,7 +977,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
                 cache[to_process[processed_idx][0]] = (dec_out[processed_idx], new_state)
 
                 processed_idx += 1
-        
+
         return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
     def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
@@ -980,11 +986,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         Args:
             decoder_states (list of list of list of torch.Tensor): list of decoder states
-                [B, L, 1, H] 
+                [B, L, 1, H]
                     - B: Batch size.
                     - L: Number of layers in prediction RNN (e.g., for LSTM, this is 2: hidden and cell states).
                     - H: Dimensionality of the hidden state.
-        
+
         Returns:
             batch_states (list of torch.Tensor): batch of decoder states
                 [L x torch.Tensor[1 x B x H]
@@ -1012,7 +1018,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         # print("###", len(batch_states), batch_states[0].shape, self.pred_rnn_layers)
         if batch_states is not None:
             return [state[:, idx] for state in batch_states]
-        
+
         return None
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
@@ -1057,7 +1063,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: Tuple[torch.Tensor, torch.Tensor], dst_states: Tuple[torch.Tensor, torch.Tensor],
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        dst_states: Tuple[torch.Tensor, torch.Tensor],
     ):
         """Replace states in dst_states with states from src_states"""
         dst_states[0].copy_(src_states[0])
@@ -1201,8 +1209,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "decoder_outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
@@ -1214,8 +1221,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         if not self._fuse_loss_wer:
             return {
                 "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
@@ -1995,7 +2001,11 @@ class SampledRNNTJoint(RNNTJoint):
         return losses, wer, wer_num, wer_denom
 
     def sampled_joint(
-        self, f: torch.Tensor, g: torch.Tensor, transcript: torch.Tensor, transcript_lengths: torch.Tensor,
+        self,
+        f: torch.Tensor,
+        g: torch.Tensor,
+        transcript: torch.Tensor,
+        transcript_lengths: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute the sampled joint step of the network.
