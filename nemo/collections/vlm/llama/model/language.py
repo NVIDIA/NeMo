@@ -51,6 +51,7 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
 from nemo.collections.vlm.llama.model.transformer import _get_full_row_masked_out_mask, get_negative_inf_value
+
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEDelayedScaling,
@@ -372,6 +373,9 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         self.gate_attn = nn.Parameter(torch.zeros(1))
         self.gate_ffn = nn.Parameter(torch.zeros(1))
 
+    def compute_xattn_kv_cache(self, xattn_tokens: torch.Tensor) -> torch.Tensor:
+        return self.cross_attention._compute_xattn_kv_cache(xattn_tokens)
+
     def forward(
             self,
             hidden_states,
@@ -383,28 +387,6 @@ class CrossAttentionTransformerLayer(TransformerLayer):
             packed_seq_params=None,
     ):
         # hidden_states: [s, b, h]
-
-        # Residual connection.
-        residual = hidden_states
-
-        # Optional Input Layer norm
-        input_layernorm_output = self.input_layernorm(hidden_states)
-
-        # Self attention.
-        attention_output_with_bias = self.self_attention(
-            input_layernorm_output,
-            attention_mask=attention_mask,
-            inference_params=inference_params,
-            rotary_pos_emb=rotary_pos_emb,
-            packed_seq_params=packed_seq_params,
-        )
-
-        # TODO: could we move `bias_dropout_add_exec_handler` itself
-        # inside the module provided in the `bias_dropout_add_spec` module?
-        with self.bias_dropout_add_exec_handler():
-            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
 
         # Residual connection.
         residual = hidden_states
@@ -680,6 +662,26 @@ class LlamaCrossAttention(Attention):
         output, bias = self.linear_proj(core_attn_out)
 
         return output, bias
+
+    def _compute_xattn_kv_cache(self, xattn_tokens: torch.Tensor) -> torch.Tensor:
+        bsz = xattn_tokens.shape[0]
+        xk = self.wk(xattn_tokens)
+        xv = self.wv(xattn_tokens)
+
+        _, seqlen_y, _ = xk.shape
+
+        xk = xk.view(bsz, seqlen_y, self.n_local_kv_heads, self.head_dim)
+        xv = xv.view(bsz, seqlen_y, self.n_local_kv_heads, self.head_dim)
+
+        xk, xv = [tensor.transpose(1, 2) for tensor in (xk, xv)]
+
+        # repeat k/v heads if n_kv_heads < n_heads
+        xk = xk.repeat_interleave(self.n_rep, dim=1)
+        xv = xv.repeat_interleave(self.n_rep, dim=1)
+
+        xk = self.k_norm(xk)
+
+        return torch.stack([xk, xv])
 
 
 class LlamaModel(GPTModel):

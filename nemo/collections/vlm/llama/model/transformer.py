@@ -391,11 +391,11 @@ class SelfAttentionNoBias(SelfAttention):
     """
 
     def __init__(
-        self,
-        config: TransformerConfig,
-        submodules: SelfAttentionSubmodules,
-        layer_number: int,
-        attn_mask_type=AttnMaskType.padding,
+            self,
+            config: TransformerConfig,
+            submodules: SelfAttentionSubmodules,
+            layer_number: int,
+            attn_mask_type=AttnMaskType.padding,
     ):
         super().__init__(
             config=config,
@@ -477,7 +477,12 @@ class ImageTransformerLayer(TransformerLayer):
             packed_seq_params=packed_seq_params,
         )
         _gate_attn = 1 if not self.gated else self.gate_attn.tanh()
-        attention_output_with_bias = _gate_attn * attention_output_with_bias
+        assert isinstance(attention_output_with_bias,
+                          tuple), "`attention_output_with_bias` needs to be tuple for gating."
+        attention_output_with_bias = (
+            _gate_attn * output if output is not None else None
+            for output in attention_output_with_bias
+        )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
@@ -520,7 +525,12 @@ class ImageTransformerLayer(TransformerLayer):
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
         _gate_ffn = 1 if not self.gated else self.gate_ffn.tanh()
-        mlp_output_with_bias = _gate_ffn * mlp_output_with_bias
+        assert isinstance(mlp_output_with_bias,
+                          tuple), "`mlp_output_with_bias` needs to be tuple for gating."
+        mlp_output_with_bias = (
+            _gate_attn * output if output is not None else None
+            for output in mlp_output_with_bias
+        )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?

@@ -378,12 +378,13 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             vision_tokens = self.vision_model(stacked_images, aspect_ratios)
 
         bsz, nimg, nchunk, ntok, image_token_dim = tuple(vision_tokens.shape)
+
         xattn_caches = torch.stack(
             [
                 layer.compute_xattn_kv_cache(
                     vision_tokens.view(bsz, -1, image_token_dim)
                 )
-                for layer in self.language_model.cross_attention_layers
+                for layer in self.language_model.decoder.xattn_layers
             ]
         )
         padded_masks = _pad_masks(
