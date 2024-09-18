@@ -41,3 +41,19 @@ To use a specific dataset instead of a mock dataset, modify the ``model.data`` p
 .. code::
   model.data.data_impl=mmap \
   model.data.data_prefix=["path/to/datafile1", "path/to/datafile2"]
+
+Validate Original Model
+-----------------------
+
+To validate the original model without specific layers, use the following script:
+
+.. code::
+  python /NeMo/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+    --config-path=/path/to/folder/with/model/config \
+    --config-name=model_config.yaml \
+    trainer.limit_val_batches=<limit_val_batches> \
+    model.restore_from_path=/path/to/original_model.nemo \
+    model.skip_train=True \
+    model.data.data_impl=mock \
+    model.data.data_prefix=[] \
+    model.drop_layers=[1,2,3,4]
