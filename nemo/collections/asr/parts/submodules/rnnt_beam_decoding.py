@@ -921,7 +921,7 @@ class BeamRNNTInfer(Typing):
 
                     # extract the states of the sub batch only.
                     if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
-                        beam_state_= (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)s
+                        beam_state_= (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
                     else:
                         raise NotImplementedError("Unknown decoder type.")
 
