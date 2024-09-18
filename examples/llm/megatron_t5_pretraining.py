@@ -126,7 +126,7 @@ if __name__ == '__main__':
     nemo_logger = NeMoLogger(
         name=args.experiment_name,
         use_datetime_version=False,
-        dir=args.experiment_dir,
+        log_dir=args.experiment_dir,
         wandb=wandb_logger,
     )
 
