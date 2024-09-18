@@ -441,7 +441,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             wav = wav[0]
             wavs.append(wav)
             sf.write(
-                os.path.join(wav_dir, metadata['audio_filepath'].replace(".wav", ".gen.wav")),
+                os.path.join(wav_dir, metadata['audio_filepath'].split('.wav')[0] + ".gen.wav"),
                 wav.detach().cpu().numpy(),
                 sample_rate,
             )
