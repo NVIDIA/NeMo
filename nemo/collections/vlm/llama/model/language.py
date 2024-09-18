@@ -523,17 +523,14 @@ class LlamaCrossAttention(Attention):
             eps=self.config.layernorm_epsilon,
         )
 
-    def get_query_key_value_tensors(self, hidden_states, key_value_states):
-        """
-        Derives `query` tensor from `hidden_states`, and `key`/`value` tensors
-        from `key_value_states`.
-        """
+    def get_key_value_tensors(self, key_value_states):
         # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
+        import pdb; pdb.set_trace()
         mixed_kv, _ = self.linear_kv(key_value_states)
 
         # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
         new_tensor_shape = mixed_kv.size()[:-1] + (
-            self.num_attention_heads_per_partition,
+            self.num_query_groups_per_partition,  # TODO(yuya): check TP
             2 * self.hidden_size_per_attention_head,
         )
         mixed_kv = mixed_kv.view(*new_tensor_shape)
@@ -544,6 +541,13 @@ class LlamaCrossAttention(Attention):
         # repeat k/v heads if n_kv_heads < n_heads
         key = key.repeat_interleave(self.n_rep, dim=2)
         value = value.repeat_interleave(self.n_rep, dim=2)
+
+        # Apply LayerNorm
+        key = self.k_layernorm(key)
+
+        return key, value
+
+    def get_query_tensor(self, hidden_states):
 
         # Attention head [sq, b, h] --> [sq, b, hp]
         query, _ = self.linear_q(hidden_states)
@@ -557,8 +561,12 @@ class LlamaCrossAttention(Attention):
 
         # Apply LayerNorm
         query = self.q_layernorm(query)
-        key = self.k_layernorm(key)
 
+        return query
+
+    def get_query_key_value_tensors(self, hidden_states, key_value_states):
+        query = self.get_query_tensor(hidden_states)
+        key, value = self.get_key_value_tensors(key_value_states)
         return query, key, value
 
     def forward(
@@ -664,24 +672,9 @@ class LlamaCrossAttention(Attention):
         return output, bias
 
     def _compute_xattn_kv_cache(self, xattn_tokens: torch.Tensor) -> torch.Tensor:
-        bsz = xattn_tokens.shape[0]
-        xk = self.wk(xattn_tokens)
-        xv = self.wv(xattn_tokens)
-
-        _, seqlen_y, _ = xk.shape
-
-        xk = xk.view(bsz, seqlen_y, self.n_local_kv_heads, self.head_dim)
-        xv = xv.view(bsz, seqlen_y, self.n_local_kv_heads, self.head_dim)
-
-        xk, xv = [tensor.transpose(1, 2) for tensor in (xk, xv)]
-
-        # repeat k/v heads if n_kv_heads < n_heads
-        xk = xk.repeat_interleave(self.n_rep, dim=1)
-        xv = xv.repeat_interleave(self.n_rep, dim=1)
-
-        xk = self.k_norm(xk)
-
-        return torch.stack([xk, xv])
+        key, value = self.get_key_value_tensors(xattn_tokens)
+        import pdb; pdb.set_trace()
+        return torch.stack([key, value])
 
 
 class LlamaModel(GPTModel):

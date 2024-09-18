@@ -62,13 +62,13 @@ def main(args):
     )
 
 
-    from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig
+    from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig, CrossAttentionTextModelConfig8B
 
     vision_config = CrossAttentionVisionModelConfig(
         num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,
     )
-    text_config = CrossAttentionTextModelConfig(
-        num_layers=2, hidden_size=12, num_attention_heads=4, num_query_groups=None,
+    text_config = CrossAttentionTextModelConfig8B(
+        num_layers=2,
     )
     llama_config = LlamaCrossAttentionModelConfig(
         language_model_config=text_config,

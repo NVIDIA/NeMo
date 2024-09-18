@@ -382,7 +382,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         xattn_caches = torch.stack(
             [
                 layer.compute_xattn_kv_cache(
-                    vision_tokens.view(bsz, -1, image_token_dim)
+                    vision_tokens.view(bsz, -1, image_token_dim).transpose(0, 1).contiguous()
                 )
                 for layer in self.language_model.decoder.xattn_layers
             ]
@@ -429,8 +429,12 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
                 )
             )
 
-        h = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids])
-        logits = self.language_model.forward(
+        # TODO(yuya): check
+        # h = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids])
+        h = self.language_model.embedding(
+                input_ids=tokens[:, position_ids], position_ids=position_ids
+            )
+        logits = self.language_model(
             position_ids=position_ids,
             h=h,
             xattn_mask=cross_attention_masks[:, :, position_ids],
