@@ -32,7 +32,11 @@ from nemo.collections.llm.recipes import (
     nemotron3_4b,
     nemotron3_8b,
     nemotron4_15b,
+    nemotron4_15b_16k,
+    nemotron4_15b_64k,
     nemotron4_22b,
+    nemotron4_22b_16k,
+    nemotron4_22b_64k,
     nemotron4_340b,
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
@@ -57,7 +61,11 @@ __all__ = [
     "nemotron3_4b",
     "nemotron3_8b",
     "nemotron4_15b",
+    "nemotron4_15b_16k",
+    "nemotron4_15b_64k",
     "nemotron4_22b",
+    "nemotron4_22b_16k",
+    "nemotron4_22b_64k",
     "nemotron4_340b",
     "adam",
     "default_log",

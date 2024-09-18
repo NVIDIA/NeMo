@@ -12,15 +12,15 @@ class TestNemotron:
         return nemotron
 
     def test_nemotron_model(self, recipe_module):
-        model_config = recipe_module.nemotron_model(version="nemotron3_4b")
-        assert isinstance(model_config, run.Config)
-        assert model_config.__fn_or_cls__ == NemotronModel
-        assert isinstance(model_config.config, run.Config)
-        assert model_config.config.__fn_or_cls__ == Nemotron3Config4B
+        model = recipe_module.nemotron_model(version="nemotron3_4b")
+        assert isinstance(model, run.Config)
+        assert model.__fn_or_cls__ == NemotronModel
+        assert isinstance(model.config, run.Config)
+        assert model.config.__fn_or_cls__ == Nemotron3Config4B
 
     def test_model_config_parameters(self, recipe_module):
-        model_config = recipe_module.nemotron_model(version="nemotron3_4b")
-        nemotron_config = model_config.config
+        model = recipe_module.nemotron_model(version="nemotron3_4b")
+        nemotron_config = model.config
         assert nemotron_config.num_layers == 32
         assert nemotron_config.hidden_size == 3072
         assert nemotron_config.seq_length == 4096

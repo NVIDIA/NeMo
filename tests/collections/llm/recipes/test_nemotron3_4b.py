@@ -8,18 +8,25 @@ from nemo.collections.llm.recipes import nemotron3_4b
 from nemo.lightning import Trainer
 
 
-# TODO(ahmadki): add parallelism tests
 class TestNemotron3_4B:
     @pytest.fixture(scope="class")
     def recipe_module(self):
         return nemotron3_4b
 
     def test_model(self, recipe_module):
-        model_config = recipe_module.model()
-        assert isinstance(model_config, run.Config)
-        assert model_config.__fn_or_cls__ == NemotronModel
-        assert isinstance(model_config.config, run.Config)
-        assert model_config.config.__fn_or_cls__ == Nemotron3Config4B
+        model = recipe_module.model()
+        assert isinstance(model, run.Config)
+        assert model.__fn_or_cls__ == NemotronModel
+
+    def test_model_config_parameters(self, recipe_module):
+        model = recipe_module.model()
+        nemotron_config = model.config
+        assert isinstance(nemotron_config, run.Config)
+        assert nemotron_config.__fn_or_cls__ == Nemotron3Config4B
+        assert nemotron_config.num_layers == 32
+        assert nemotron_config.hidden_size == 3072
+        assert nemotron_config.seq_length == 4096
+        assert nemotron_config.num_attention_heads == 24
 
     def test_pretrain_recipe(self, recipe_module):
         recipe = recipe_module.pretrain_recipe()

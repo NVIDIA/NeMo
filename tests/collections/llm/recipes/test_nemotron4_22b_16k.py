@@ -4,14 +4,14 @@ import pytest
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config22B, NemotronModel
-from nemo.collections.llm.recipes import nemotron4_22b
+from nemo.collections.llm.recipes import nemotron4_22b_16k
 from nemo.lightning import Trainer
 
 
-class TestNemotron4_22B:
+class TestNemotron4_22B_16K:
     @pytest.fixture(scope="class")
     def recipe_module(self):
-        return nemotron4_22b
+        return nemotron4_22b_16k
 
     def test_model(self, recipe_module):
         model = recipe_module.model()
@@ -25,7 +25,7 @@ class TestNemotron4_22B:
         assert nemotron_config.__fn_or_cls__ == Nemotron4Config22B
         assert nemotron_config.num_layers == 40
         assert nemotron_config.hidden_size == 6144
-        assert nemotron_config.seq_length == 4096
+        assert nemotron_config.seq_length == 16384
         assert nemotron_config.num_attention_heads == 48
 
     def test_pretrain_recipe(self, recipe_module):
@@ -38,7 +38,7 @@ class TestNemotron4_22B:
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == MockDataModule
-        assert recipe.data.seq_length == 4096
+        assert recipe.data.seq_length == 16384
         assert recipe.data.global_batch_size == 32
         assert recipe.data.micro_batch_size == 1
 
