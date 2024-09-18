@@ -549,10 +549,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                                 self.cfg.data.train_ds.speech_eos_id,
                             )
                             text_pred_text = self.tokenizer.ids_to_text(text_pred)
-                            deduplicated_outputs['preds'].append(text_pred_text)
-                            deduplicated_outputs['labels'].append(labels_text)
-                            text_answer_text = self.tokenizer.ids_to_text(text_answer.unsqueeze(0))
-                            deduplicated_outputs['text_answers'].append(text_answer_text)
+                            deduplicated_outputs['preds'].append(text_pred_text.strip())
+                            deduplicated_outputs['labels'].append(labels_text.strip())
+                            text_answer_text = self.tokenizer.ids_to_text(text_answer)
+                            deduplicated_outputs['text_answers'].append(text_answer_text.strip())
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
                             deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
 

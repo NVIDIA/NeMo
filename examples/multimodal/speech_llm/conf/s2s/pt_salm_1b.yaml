@@ -65,6 +65,9 @@ exp_manager:
 model:
   # TBD:
   salm_model_path: ???
+  speech_pad_id: 1001
+  speech_unk_id: 1002
+  speech_bos_id: 1003
   speech_eos_id: 1004
   s2s_vocab_size: 72960 # This should be equal to the vocab_sizes[0] + decoder_reduction_factor * sum(vocab_sizes[1:])
   proj_head_dims: [32000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
@@ -264,9 +267,9 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       # prompt_template: "{context}\n{answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       prompt_template: "[INST]\n<<SYS>>\nPlease answer the following based on the previous speech feature.\n<</SYS>>\n\n{context}[/INST] {answer}"
-      speech_pad_id: 1001
-      speech_unk_id: 1002
-      speech_bos_id: 1003
+      speech_pad_id: ${model.speech_pad_id}
+      speech_unk_id: ${model.speech_unk_id}
+      speech_bos_id: ${model.speech_bos_id}
       speech_eos_id: ${model.speech_eos_id}
       filter_by_source_target_text_ratio: False # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
@@ -327,9 +330,9 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       tokens_to_generate: 256
-      speech_pad_id: 1001
-      speech_unk_id: 1002
-      speech_bos_id: 1003
+      speech_pad_id: ${model.speech_pad_id}
+      speech_unk_id: ${model.speech_unk_id}
+      speech_bos_id: ${model.speech_bos_id}
       speech_eos_id: ${model.speech_eos_id}
       filter_by_source_target_text_ratio: False # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
