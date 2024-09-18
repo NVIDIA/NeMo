@@ -246,14 +246,11 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]):
         """
         Create batch of decoder states.
 
        Args:
-           batch_states (list): batch of decoder states
-              ([L x (B, H)], [L x (B, H)])
-
            decoder_states (list of list): list of decoder states
                [B x ([L x (1, H)], [L x (1, H)])]
 
