@@ -282,7 +282,13 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, model, optimizer):
-        lr_scheduler = WarmupAnnealing(optimizer, warmup_steps=self.warmup_steps, warmup_ratio=self.warmup_ratio, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = WarmupAnnealing(
+            optimizer,
+            warmup_steps=self.warmup_steps,
+            warmup_ratio=self.warmup_ratio,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {

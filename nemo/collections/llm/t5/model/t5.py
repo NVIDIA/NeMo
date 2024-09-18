@@ -1,6 +1,6 @@
+import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
-import copy
 
 import pytorch_lightning as L
 import torch
@@ -71,8 +71,8 @@ def t5_forward_step(model, batch) -> torch.Tensor:
 
 def transformer_engine_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
     from megatron.core.models.T5.t5_spec import (
-        get_t5_encoder_with_transformer_engine_block_spec,
         get_t5_decoder_with_transformer_engine_block_spec,
+        get_t5_encoder_with_transformer_engine_block_spec,
     )
 
     en_block_spec = get_t5_encoder_with_transformer_engine_block_spec(encoder_config.num_layers)
@@ -83,15 +83,14 @@ def transformer_engine_layer_spec(encoder_config: "T5Config", decoder_config: "T
 
 def local_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
     from megatron.core.models.T5.t5_spec import (
-        get_t5_encoder_with_local_block_spec,
         get_t5_decoder_with_local_block_spec,
+        get_t5_encoder_with_local_block_spec,
     )
 
     en_block_spec = get_t5_encoder_with_local_block_spec(encoder_config.num_layers)
     de_block_spec = get_t5_decoder_with_local_block_spec(decoder_config.num_layers)
 
     return [en_block_spec, de_block_spec]
-
 
 
 def default_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
@@ -113,7 +112,7 @@ class T5Config(TransformerConfig, io.IOMixin):
     max_position_embeddings: int = 512
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
-    encoder_pipeline_model_parallel_size : int = 0
+    encoder_pipeline_model_parallel_size: int = 0
     attention_softmax_in_fp32: float = False
     bias_activation_fusion: bool = True
     masked_softmax_fusion: bool = True
@@ -121,7 +120,7 @@ class T5Config(TransformerConfig, io.IOMixin):
     bias_dropout_fusion: bool = True
     deallocate_pipeline_outputs: bool = True
     pipeline_model_parallel_split_rank: int = 0
-    num_moe_experts: int = 1 
+    num_moe_experts: int = 1
     recompute_num_layers: int = 1
     distribute_saved_activations: bool = False
     enable_autocast: bool = False
@@ -244,6 +243,7 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
+
 
 __all__ = [
     "T5Model",

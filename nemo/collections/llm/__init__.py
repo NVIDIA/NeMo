@@ -102,13 +102,8 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.t5.model import (
-    T5Config,
-    T5Model,
-    t5_data_step,
-    t5_forward_step,
-)
 from nemo.collections.llm.recipes import *  # noqa
+from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 from nemo.utils import logging
 
 try:
