@@ -16,17 +16,17 @@ To trim the model layers, use the following script:
       --gpus_per_node <gpus_per_node>  \
       --drop_layers 1 2 3 4
 
-> [!NOTE]
-> layer indices start from 1.
+.. note::
+  layer indices start from 1.
 
 To save trimmed model in ``zarr`` checkpoint format, add the following flag to the command above:
 
 .. code-block:: bash
-  
+
   --zarr
 
-> [!NOTE]
-> The ``zarr`` checkpoint format is deprecated.
+.. note::
+  The ``zarr`` checkpoint format is deprecated.
 
 Validate Trimmed Model
 ----------------------
