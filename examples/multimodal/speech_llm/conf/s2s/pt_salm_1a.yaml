@@ -66,8 +66,10 @@ model:
   # TBD:
   salm_model_path: ???
   speech_eos_id: 1004
-  s2s_vocab_size: 72960 # This should be equal to the vocab_sizes[0] + decoder_reduction_factor * sum(vocab_sizes[1:])
+  # proj_head_dims[0] should be set to LLM vocab size (32k below)
+  # proj_head_dims[1:] should be set to nemo codec vocab size (1024 below)
   proj_head_dims: [32000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
+  s2s_vocab_size: 72960 # This should be equal to the proj_head_dims[0] + decoder_reduction_factor * sum(proj_head_dims[1:])
   proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
   decoder_reduction_factor: 5
 
