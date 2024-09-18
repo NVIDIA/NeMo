@@ -104,6 +104,7 @@ class Hypothesis:
     ngram_lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
     last_token: Optional[torch.Tensor] = None
+    token_duration: Optional[List[int]] = None
 
     @property
     def non_blank_frame_confidence(self) -> List[float]:

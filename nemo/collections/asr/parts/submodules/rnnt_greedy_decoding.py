@@ -2509,7 +2509,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], token_duration=[], last_token=None)
 
         if partial_hypotheses is not None:
             hypothesis.last_token = partial_hypotheses.last_token
@@ -2595,6 +2595,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
                     hypothesis.y_sequence.append(k)
                     hypothesis.score += float(v)
                     hypothesis.timestep.append(time_idx)
+                    hypothesis.token_duration.append(skip)
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
 
