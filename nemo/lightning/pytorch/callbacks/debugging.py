@@ -1,5 +1,6 @@
 from typing import Callable, Dict, List, Optional, Union
 
+import pytorch_lightning as pl
 import torch
 from prettytable import PrettyTable
 from pytorch_lightning.callbacks import Callback
@@ -8,11 +9,11 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
 
 
-def collect_precision(tensor: torch.Tensor):
+def collect_precision(tensor: torch.Tensor) -> Dict[str, str]:
     return {"Precision": str(tensor.dtype)}
 
 
-def collect_precision_and_shape(tensor: torch.Tensor):
+def collect_precision_and_shape(tensor: torch.Tensor) -> Dict[str, str]:
     return {"Shape": str(tensor.shape), "Precision": str(tensor.dtype)}
 
 
@@ -74,9 +75,9 @@ class ParameterDebugger(Callback):
             ), f"Hook {hook_name} supplied to log_on_hooks is not valid or can not be used. Valid hooks are {valid_hooks}"
             setattr(self, hook_name, self._log_param_and_grad_attrs)
 
-    def _log_param_and_grad_attrs(self, trainer, pl_module):
+    def _log_param_and_grad_attrs(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
 
-        def find_grad_tensor(param):
+        def find_grad_tensor(param: torch.Tensor) -> Optional[torch.Tensor]:
             """If using MCore optimizer, search the grad buckets for param's grad tensor."""
             if not isinstance(pl_module.optim, MegatronOptimizerModule):
                 return param.grad
@@ -84,6 +85,8 @@ class ParameterDebugger(Callback):
             for buf in pl_module.buffers:
                 if param in buf.param_to_bucket:
                     return buf.param_to_bucket[param].grad_data
+
+            return None
 
         # create table and get table column headers
         debug_table = PrettyTable()
