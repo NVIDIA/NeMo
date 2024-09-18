@@ -201,7 +201,6 @@ class AppState(metaclass=Singleton):
         """
         self._pipeline_model_parallel_size = size
     
-    #YOUNGEUNK
     @property
     def pipeline_model_parallel_comm_backend(self):
         """Property returns the backend communication library of pipeline communication.
