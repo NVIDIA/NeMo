@@ -16,6 +16,7 @@ def test_gpt_config_126m():
     assert config.ffn_hidden_size == 3072
     assert config.num_attention_heads == 12
 
+
 def test_gpt_config_5b():
     config = GPTConfig5B()
     assert config.seq_length == 2048
@@ -23,6 +24,7 @@ def test_gpt_config_5b():
     assert config.hidden_size == 4096
     assert config.ffn_hidden_size == 16384
     assert config.num_attention_heads == 32
+
 
 def test_gpt_config_7b():
     config = GPTConfig7B()
@@ -32,6 +34,7 @@ def test_gpt_config_7b():
     assert config.ffn_hidden_size == 10880
     assert config.num_attention_heads == 32
 
+
 def test_gpt_config_20b():
     config = GPTConfig20B()
     assert config.seq_length == 2048
@@ -40,6 +43,7 @@ def test_gpt_config_20b():
     assert config.ffn_hidden_size == 24576
     assert config.num_attention_heads == 48
 
+
 def test_gpt_config_40b():
     config = GPTConfig40B()
     assert config.seq_length == 2048
@@ -47,6 +51,7 @@ def test_gpt_config_40b():
     assert config.hidden_size == 8192
     assert config.ffn_hidden_size == 32768
     assert config.num_attention_heads == 64
+
 
 def test_gpt_config_175b():
     config = GPTConfig175B()

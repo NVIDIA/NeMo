@@ -43,6 +43,7 @@ def test_ssm_config():
     assert config.forward_step_fn == ssm_forward_step
     assert config.data_step_fn == gpt_data_step
 
+
 def test_base_mamba_config_130m():
     config = BaseMambaConfig130M()
     assert config.hybrid_override_pattern == "M" * 24
@@ -55,6 +56,7 @@ def test_base_mamba_config_130m():
     assert config.tokenizer_library == 'huggingface'
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
+
 
 def test_base_mamba_config_370m():
     config = BaseMambaConfig370M()
@@ -69,6 +71,7 @@ def test_base_mamba_config_370m():
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
+
 def test_base_mamba_config_780m():
     config = BaseMambaConfig780M()
     assert config.hybrid_override_pattern == "M" * 48
@@ -81,6 +84,7 @@ def test_base_mamba_config_780m():
     assert config.tokenizer_library == 'huggingface'
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
+
 
 def test_base_mamba_config_1_3b():
     config = BaseMambaConfig1_3B()
@@ -95,6 +99,7 @@ def test_base_mamba_config_1_3b():
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
+
 def test_base_mamba_config_2_7b():
     config = BaseMambaConfig2_7B()
     assert config.hybrid_override_pattern == "M" * 64
@@ -108,6 +113,7 @@ def test_base_mamba_config_2_7b():
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
+
 def test_nvidia_mamba_config_8b():
     config = NVIDIAMambaConfig8B()
     assert config.hybrid_override_pattern == "M" * 56
@@ -120,6 +126,7 @@ def test_nvidia_mamba_config_8b():
     assert config.tokenizer_library == 'megatron'
     assert config.tokenizer_name == "GPTSentencePieceTokenizer"
     assert config.mapping_type == "nvidia-pure"
+
 
 def test_nvidia_mamba_hybrid_config_8b():
     config = NVIDIAMambaHybridConfig8B()
