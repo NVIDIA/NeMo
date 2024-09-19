@@ -154,7 +154,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         _, _, _, num_image_tokens, image_token_dim = tuple(vision_tokens.shape)
         bsz, ntext, nimg, nchunks = cross_attention_masks.shape
         cross_attention_masks = (
-            cross_attention_masks.repeat_interleave(vision_seqlen, dim=2)
+            cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
             .view(bsz, ntext, -1)
             .unsqueeze(1)
         )
@@ -283,7 +283,6 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                                 k_layernorm=TENorm,
                             ),
                         ),
-                        # TODO dropout needed ?
                         cross_attn_bda=get_bias_dropout_add,
                         pre_mlp_layernorm=IdentityOp,
                         mlp=ModuleSpec(

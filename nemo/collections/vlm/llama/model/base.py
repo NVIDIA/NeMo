@@ -31,7 +31,6 @@ from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn, Tensor
 
-
 from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
 from megatron.core.transformer.spec_utils import ModuleSpec
 from nemo.lightning import get_vocab_size
@@ -182,6 +181,7 @@ class CrossAttentionTextModelConfig(Llama31Config):
         )
         return model
 
+
 @dataclass
 class CrossAttentionTextModelConfig8B(CrossAttentionTextModelConfig):
     rotary_base: int = 500_000
@@ -190,6 +190,7 @@ class CrossAttentionTextModelConfig8B(CrossAttentionTextModelConfig):
     hidden_size: int = 4096
     ffn_hidden_size: int = 14336
     num_attention_heads: int = 32
+
 
 @dataclass
 class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
@@ -537,6 +538,7 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
 
         return self._validation_loss_reduction
 
+
 @io.model_importer(LlamaCrossAttentionModel, "pytorch")
 class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionModel", LlamaCrossAttentionModel]):
     def init(self) -> LlamaCrossAttentionModel:
@@ -556,6 +558,7 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
 
     def apply(self, output_path: Path) -> Path:
         source = torch.load(str(self), map_location='cpu')
+
         class ModelState:
             def __init__(self, state_dict):
                 self._state_dict = state_dict
@@ -673,7 +676,6 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
-
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -693,12 +695,14 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
 
     def _language_model_config(self, source) -> Optional[CrossAttentionTextModelConfig]:
         if not self.convert_text: return None
+
         def _calculate_ffn_size(dim, ffn_dim_multiplier, multiple_of):
             hidden_dim = dim * 4
             hidden_dim = int(2 * hidden_dim / 3)
             if ffn_dim_multiplier is not None:
                 hidden_dim = int(ffn_dim_multiplier * hidden_dim)
             return multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
+
         return CrossAttentionTextModelConfig(
             rotary_base=source['rope_theta'],
             seq_length=8192,
@@ -714,13 +718,15 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         return CrossAttentionVisionModelConfig(
             num_layers=source['n_layers'],
             hidden_size=1280,
-            num_attention_heads=16, #source['n_heads'],
+            num_attention_heads=16,  # source['n_heads'],
             vision_chunk_size=source['vision_chunk_size'],
             vision_max_num_chunks=source['vision_max_num_chunks'],
         )
 
+
 def _import_gate(gate):
     return gate[0:1]
+
 
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
     vision_config = ctx.target.config.vision_model_config
@@ -742,9 +748,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i : i + 1, :, :])
-        qkv_weights_l.append(v[i : i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i: i + 1, :, :])
+        qkv_weights_l.append(v[i: i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape

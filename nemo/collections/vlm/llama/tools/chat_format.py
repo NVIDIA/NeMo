@@ -70,7 +70,8 @@ class ChatFormat:
                 added_bos = True
             elif isinstance(c, ImageMedia):
                 tokens.append(self.vision_token)
-                images.append(c.image)
+                cc = interleaved_text_media_localize(c)
+                images.append(cc.image)
 
         if isinstance(content, str):
             _process(content)
@@ -137,17 +138,17 @@ class ChatFormat:
         self, tokens: List[int], stop_reason: StopReason
     ) -> CompletionMessage:
         content = self.tokenizer.decode(tokens)
-        content = content.strip(" ")
-        for _, header_str in self.possible_headers.items():
-            if content.startswith(header_str):
-                content = content[len(header_str) :]
-                break
 
         return self.decode_assistant_message_from_content(content, stop_reason)
 
     def decode_assistant_message_from_content(
         self, content: str, stop_reason: StopReason
     ) -> CompletionMessage:
+        content = content.strip(" ")
+        header_str = self.possible_headers[Role.assistant]
+        if content.startswith(header_str):
+            content = content[len(header_str) :]
+
         ipython = content.startswith("<|python_tag|>")
         if ipython:
             content = content[len("<|python_tag|>") :]

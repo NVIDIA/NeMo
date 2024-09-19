@@ -28,7 +28,8 @@ from nemo.utils import logging
 def main() -> None:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
-        ckpt_include_optimizer=False,
+        ckpt_load_optimizer=False,
+        ckpt_save_optimizer=False,
     )
     trainer = nl.Trainer(
         devices=1,
@@ -47,7 +48,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
     model = vlm.LlamaCrossAttentionModel(
         vlm.LlamaCrossAttentionModelConfig(
-            language_model_config=None, # vlm.CrossAttentionTextModelConfig8B(),
+            language_model_config=None,  # vlm.CrossAttentionTextModelConfig8B(),
             vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),  # vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
         ),
         tokenizer=tokenizer)

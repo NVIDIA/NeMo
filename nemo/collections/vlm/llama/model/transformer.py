@@ -633,55 +633,6 @@ class VisionEncoder(MegatronModule):
         )
         self.gated_positional_embedding_gate = nn.Parameter(torch.zeros(1))
 
-        self._register_load_state_dict_pre_hook(self.load_hook)
-
-    def load_hook(
-            self,
-            state_dict: Dict[str, Any],
-            prefix: str,
-            local_metadata: Dict[str, Any],
-            strict: bool = True,
-            missing_keys: List[str] = None,
-            unexpected_keys: List[str] = None,
-            error_msgs: List[str] = None,
-            return_state_dict: bool = False,
-    ) -> None:
-        orig_pos_embed = state_dict.get(prefix + "positional_embedding")
-        if orig_pos_embed is not None:
-            new_pos_embed = resize_local_position_embedding(
-                orig_pos_embed, self.grid_size
-            )
-            state_dict[prefix + "positional_embedding"] = new_pos_embed
-        if hasattr(self, "gated_positional_embedding"):
-            if prefix + "gated_positional_embedding" not in state_dict:
-                # resize positional_embedding to fit the new grid size
-                global_pos_embed = initialize_global_position_embedding_from_local(
-                    new_pos_embed,
-                    self.grid_size,
-                    self.max_num_tiles,
-                    self.max_num_tiles,
-                )
-                state_dict[prefix + "gated_positional_embedding"] = global_pos_embed
-                state_dict[prefix + "gated_positional_embedding_gate"] = torch.zeros(
-                    1, dtype=global_pos_embed.dtype
-                )
-                logging.info(
-                    f"Initialized global positional embedding with size {global_pos_embed.size()}"
-                )
-            else:
-                global_pos_embed = resize_global_position_embedding(
-                    state_dict[prefix + "gated_positional_embedding"],
-                    self.grid_size,
-                    self.max_num_tiles,
-                    self.max_num_tiles,
-                )
-                logging.info(
-                    f"Resized global positional embedding from {state_dict[prefix + 'gated_positional_embedding'].size()} to {global_pos_embed.size()}"
-                )
-                state_dict[prefix + "gated_positional_embedding"] = global_pos_embed
-        if return_state_dict:
-            return state_dict
-
     def apply_positional_embedding(self, x, ar):
         out = []
         # apply regular position embedding
@@ -793,30 +744,6 @@ class TilePositionEmbedding(torch.nn.Module):
         if gated:
             self.gate = nn.Parameter(torch.zeros(1))
 
-        self._register_load_state_dict_pre_hook(self.load_hook)
-
-    def load_hook(
-            self,
-            state_dict,
-            prefix,
-            local_metadata,
-            strict,
-            missing_keys,
-            unexpected_keys,
-            error_msgs,
-    ):
-        # load the weights from the checkpoint
-        embed = state_dict.get(prefix + "embedding")
-        if embed is not None:
-            # reshape the weights to the correct shape
-            nt_old, nt_old, _, w = embed.shape
-            logging.info(
-                f"Resizing tile embedding from {nt_old}x{nt_old} to {self.num_tiles}x{self.num_tiles}"
-            )
-            embed_new = TilePositionEmbedding._dynamic_resize(embed, self.num_tiles)
-            # assign the weights to the module
-            state_dict[prefix + "embedding"] = embed_new
-
     @staticmethod
     def _dynamic_resize(embed: torch.Tensor, num_tiles: int):
         nt_old, nt_old, _, w = embed.shape
@@ -842,8 +769,8 @@ class TilePositionEmbedding(torch.nn.Module):
             x.shape[0], num_tiles, 1, self.width, device=x.device, dtype=x.dtype
         )
         for idx, arx in enumerate(ar):
-            w, h = arx
-            out_pos_embed[idx, : w * h] = embed[:w, :h].reshape(w * h, 1, self.width)
+            h, w = arx
+            out_pos_embed[idx, : w * h] = embed[:h, :w].reshape(w * h, 1, self.width)
         if self.gated:
             out_pos_embed = out_pos_embed * self.gate.tanh()
         x = x + out_pos_embed
