@@ -83,6 +83,38 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
         )
         exp.dryrun()
 
+    with pytest.raises(AssertionError):
+        with run.Experiment(f"{name}-unit-test-fail-validate-nodes-and-devices") as exp:
+            exp.add(
+                recipe_config,
+                executor=run.SlurmExecutor(
+                    account="dummy",
+                    partition="dummy",
+                    nodes=recipe_config.trainer.num_nodes + 1,
+                    ntasks_per_node=recipe_config.trainer.devices + 1,
+                ),
+                name=name,
+                plugins=run_plugins,
+            )
+            exp.dryrun()
+
+    with pytest.raises(AssertionError):
+        cfg = recipe_config.clone()
+        cfg.log.log_dir = "/temporary-does-not-exist"
+        with run.Experiment(f"{name}-unit-test-fail-validate-checkpoint-dir") as exp:
+            exp.add(
+                cfg,
+                executor=run.SlurmExecutor(
+                    account="dummy",
+                    partition="dummy",
+                    nodes=cfg.trainer.num_nodes,
+                    ntasks_per_node=cfg.trainer.devices,
+                ),
+                name=name,
+                plugins=run_plugins,
+            )
+            exp.dryrun()
+
     run_plugins = [plugins.NsysPlugin(start_step=3, end_step=4)] + run_plugins
     with run.Experiment(f"{name}-nsys-unit-test") as exp:
         exp.add(
