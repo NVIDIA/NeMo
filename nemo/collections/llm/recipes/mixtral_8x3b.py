@@ -37,8 +37,8 @@ def trainer(
     num_nodes: int = 2,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
-    callbacks: Optional[list[run.Config[Callback]]] = None,
-) -> run.Config[nl.Trainer]:
+    callbacks: Optional[list[Config[Callback]]] = None,
+) -> Config[nl.Trainer]:
     """
     Configure the NeMo Lightning Trainer for Mixtral 8x3B model.
 
@@ -55,10 +55,10 @@ def trainer(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
-        callbacks (Optional[list[run.Config[Callback]]]): List of callback configurations.
+        callbacks (Optional[list[Config[Callback]]]): List of callback configurations.
 
     Returns:
-        run.Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
+        Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
 
     Examples:
         CLI usage:
@@ -68,7 +68,7 @@ def trainer(
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
             >>> print(trainer_config)
     """
-    strategy = run.Config(
+    strategy = Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
         pipeline_model_parallel_size=pipeline_parallelism,
@@ -126,7 +126,7 @@ def pretrain_recipe(
         fn (Callable): Function to use for pre-training (default: nemo.collections.llm.api.pretrain).
 
     Returns:
-        run.Partial: Partial configuration for pre-training.
+        Partial: Partial configuration for pre-training.
 
     Examples:
         CLI usage:
@@ -137,7 +137,7 @@ def pretrain_recipe(
             >>> recipe = pretrain_recipe(name="mixtral_8x3b_pretrain", num_nodes=2)
             >>> print(recipe)
     """
-    return run.Partial(
+    return Partial(
         fn,
         model=model(),
         trainer=trainer(
@@ -159,10 +159,9 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 2, num_gpus_per_node: int = 8, fn=pretrain
-) -> run.Partial:
+) -> Partial:
     """
     Create a performance-optimized pre-training recipe for Mixtral 8x3B model.
 
@@ -177,7 +176,7 @@ def pretrain_recipe_performance(
         fn (Callable): The pre-training function to use.
 
     Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
+        Partial: Partial configuration for performance-optimized pre-training.
 
     Examples:
         CLI usage:
@@ -195,22 +194,22 @@ def pretrain_recipe_performance(
 
     recipe.trainer.callbacks.extend(
         [
-            run.Config(MegatronTokenDropCallback),
-            run.Config(MegatronCommOverlapCallback),
+            Config(MegatronTokenDropCallback),
+            Config(MegatronCommOverlapCallback),
         ]
     )
 
     return recipe
 
 
-def hf_resume() -> run.Config[nl.AutoResume]:
+def hf_resume() -> Config[nl.AutoResume]:
     """
     Configure the Hugging Face model resuming for Mixtral 8x3B model.
 
     This function sets up the configuration for resuming training from a Hugging Face model.
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from a Hugging Face model.
+        Config[nl.AutoResume]: Configuration for resuming from a Hugging Face model.
 
     Examples:
         CLI usage:
@@ -221,7 +220,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
             >>> recipe.resume = hf_resume()
             >>> print(recipe)
     """
-    return run.Config(
+    return Config(
         nl.AutoResume,
         restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
     )

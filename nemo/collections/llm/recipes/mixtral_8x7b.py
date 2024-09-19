@@ -96,7 +96,7 @@ def pretrain_recipe(
         fn (Callable): The pre-training function to use.
 
     Returns:
-        run.Partial: Partial configuration for pre-training.
+        Partial: Partial configuration for pre-training.
 
     Examples:
         CLI usage:
@@ -107,7 +107,7 @@ def pretrain_recipe(
             >>> recipe = pretrain_recipe(name="mixtral_8x7b_pretrain", num_nodes=8)
             >>> print(recipe)
     """
-    return run.Partial(
+    return Partial(
         fn,
         model=model(),
         trainer=trainer(
@@ -129,10 +129,9 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
-) -> run.Partial:
+) -> Partial:
     """
     Create a performance-optimized pre-training recipe for Mixtral 8x7B model.
 
@@ -147,7 +146,7 @@ def pretrain_recipe_performance(
         fn (Callable): The pre-training function to use.
 
     Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
+        Partial: Partial configuration for performance-optimized pre-training.
 
     Examples:
         CLI usage:
@@ -164,15 +163,15 @@ def pretrain_recipe_performance(
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
     recipe.trainer.callbacks.extend(
         [
-            run.Config(MegatronTokenDropCallback),
-            run.Config(MegatronCommOverlapCallback),
+            Config(MegatronTokenDropCallback),
+            Config(MegatronCommOverlapCallback),
         ]
     )
 
     return recipe
 
 
-def hf_resume() -> run.Config[nl.AutoResume]:
+def hf_resume() -> Config[nl.AutoResume]:
     """
     Configure automatic resumption from a Hugging Face checkpoint for Mixtral 8x7B model.
 
@@ -182,13 +181,13 @@ def hf_resume() -> run.Config[nl.AutoResume]:
     More info about the model can be found at: https://huggingface.co/mistralai/Mixtral-8x7B-v0.1
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+        Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
 
     Note:
         This is particularly useful for fine-tuning scenarios where you want to
         start from the pre-trained Mixtral 8x7B model.
     """
-    return run.Config(
+    return Config(
         nl.AutoResume,
         restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
     )
