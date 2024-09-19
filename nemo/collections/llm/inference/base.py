@@ -37,6 +37,7 @@ class MCoreTokenizerWrappper:
 # TODO: Move to lightning Fabric API.
 def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule):
     assert isinstance(trainer.strategy, MegatronStrategy), "Only MegatronStrategy is supported for trainer.strategy."
+    assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
     restore_config = RestoreConfig(
         path=path,
         load_model_state=True,
