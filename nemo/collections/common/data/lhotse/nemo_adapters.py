@@ -360,7 +360,7 @@ class LazyNeMoTarredIterator:
                         f"The following audio_filepath='{data['audio_filepath']}' was not found in the tar file."
                     ) from e
 
-    def _iter_sequential(self,  tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
+    def _iter_sequential(self, tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
         with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
             for tar_info in tar:
                 assert tar_info.name in shard_manifest, (
@@ -398,40 +398,40 @@ class LazyNeMoTarredIterator:
 
             shard_manifest: dict[str, list[dict]] = groupby(basename, self.shard_id_to_manifest[sid])
             tar_path = self.shard_id_to_tar_path[sid]
-            for data, raw_audio, tar_info in iter_fn(tar_path,shard_manifest,manifest_path):
-                    meta = soundfile.info(BytesIO(raw_audio))
-                    recording = Recording(
-                        id=tar_info.path,
-                        sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
-                        sampling_rate=int(meta.samplerate),
-                        num_samples=meta.frames,
-                        duration=meta.duration,
+            for data, raw_audio, tar_info in iter_fn(tar_path, shard_manifest, manifest_path):
+                meta = soundfile.info(BytesIO(raw_audio))
+                recording = Recording(
+                    id=tar_info.path,
+                    sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
+                    sampling_rate=int(meta.samplerate),
+                    num_samples=meta.frames,
+                    duration=meta.duration,
+                )
+                cuts_for_recording = []
+                for data in sorted(shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]):
+                    # Cut the recording into corresponding segment and discard audio data outside the segment.
+                    cut = make_cut_with_subset_inmemory_recording(
+                        recording, offset=data.get("offset", 0.0), duration=data.get("duration")
                     )
-                    cuts_for_recording = []
-                    for data in sorted(shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]):
-                        # Cut the recording into corresponding segment and discard audio data outside the segment.
-                        cut = make_cut_with_subset_inmemory_recording(
-                            recording, offset=data.get("offset", 0.0), duration=data.get("duration")
+                    cut.supervisions.append(
+                        SupervisionSegment(
+                            id=cut.id,
+                            recording_id=cut.recording_id,
+                            start=0,
+                            duration=cut.duration,
+                            text=data.get(self.text_field),
+                            language=data.get(self.lang_field),
                         )
-                        cut.supervisions.append(
-                            SupervisionSegment(
-                                id=cut.id,
-                                recording_id=cut.recording_id,
-                                start=0,
-                                duration=cut.duration,
-                                text=data.get(self.text_field),
-                                language=data.get(self.lang_field),
-                            )
-                        )
-                        cut.custom = _to_custom_attr_dict(data)
-                        cut.manifest_origin = manifest_path
-                        cut.tar_origin = tar_path
-                        for extra_field in extra_fields:
-                            extra_field.attach_to(cut)
-                        cuts_for_recording.append(cut)
-                    del recording  # free the memory - helps with very large audio files
-                    del raw_audio
-                    yield from cuts_for_recording
+                    )
+                    cut.custom = _to_custom_attr_dict(data)
+                    cut.manifest_origin = manifest_path
+                    cut.tar_origin = tar_path
+                    for extra_field in extra_fields:
+                        extra_field.attach_to(cut)
+                    cuts_for_recording.append(cut)
+                del recording  # free the memory - helps with very large audio files
+                del raw_audio
+                yield from cuts_for_recording
 
     def __len__(self) -> int:
         return len(self.source)
