@@ -216,12 +216,19 @@ class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
             'calculate_per_token_loss'
         ]
 
-        for attr in model_config_attr:
-            setattr(self, attr, getattr(self.language_model_config, attr))
+        if self.language_model_config is not None:
+            for attr in model_config_attr:
+                setattr(self, attr, getattr(self.language_model_config, attr))
 
     def configure_model(self, tokenizer) -> "MCoreLlamaCrossAttentionModel":
-        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)
-        vision_model = self.vision_model_config.configure_model()
+        if self.language_model_config is not None:
+            language_model = self.language_model_config.configure_model(tokenizer=tokenizer)
+        else:
+            language_model = None
+        if self.vision_model_config is not None:
+            vision_model = self.vision_model_config.configure_model()
+        else:
+            vision_model = None
 
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
@@ -310,12 +317,13 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         self.language_model = language_model
         self.model_type = ModelType.encoder_or_decoder
 
-        self.image_res = config.vision_model_config.vision_chunk_size
-        self.max_num_chunks = config.vision_model_config.vision_max_num_chunks
-        self.image_transform = partial(
-            VariableSizeImageTransform(size=self.image_res),
-            max_num_chunks=self.max_num_chunks,
-        )
+        if vision_model is not None:
+            self.image_res = config.vision_model_config.vision_chunk_size
+            self.max_num_chunks = config.vision_model_config.vision_max_num_chunks
+            self.image_transform = partial(
+                VariableSizeImageTransform(size=self.image_res),
+                max_num_chunks=self.max_num_chunks,
+            )
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
         self.language_model.setup_cache(max_batch_size, dtype)
@@ -326,7 +334,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             batch_masks: List[List[List[int]]],
             total_len: int,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        skip_vision_encoder = False
+        skip_vision_encoder = self.vision_model is None
 
         assert len(batch_images) == len(
             batch_masks
@@ -529,6 +537,9 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
 @io.model_importer(LlamaCrossAttentionModel, "pytorch")
 class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionModel", LlamaCrossAttentionModel]):
     def init(self) -> LlamaCrossAttentionModel:
+        self.convert_vision = True
+        self.convert_text = False
+        assert self.convert_vision or self.convert_text
         return LlamaCrossAttentionModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
@@ -546,6 +557,10 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         trainer = self.nemo_setup(target)
 
         self.convert_state(source, target)
+        if not self.convert_text:
+            output_path = Path(str(output_path) + '_vision_only')
+        if not self.convert_vision:
+            output_path = Path(str(output_path) + '_text_only')
         self.nemo_save(output_path, trainer)
 
         logging.info(f"Converted Llama Cross Attention model to Nemo, model saved to {output_path}")
@@ -556,90 +571,97 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         return output_path
 
     def convert_state(self, source, target):
-        v = "vision_model.vision_encoder"
-        mapping = {
-            "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "text_model.layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.layers.*.mlp.linear_fc1.weight",
-            "text_model.layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
-            "text_model.layers.*.attention.wo.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
-            "text_model.layers.*.attention.wqkv.layer_norm_weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-            "text_model.layers.*.attention.wqkv.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.weight",
-            "text_model.cross_attention_layers.*.attention.inner_attention.k_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
-            "text_model.cross_attention_layers.*.attention.wkv.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
-            "text_model.cross_attention_layers.*.attention.wo.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_proj.weight",
-            "text_model.cross_attention_layers.*.attention.wq.layer_norm_weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
-            "text_model.cross_attention_layers.*.attention.wq.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.weight",
-            "text_model.cross_attention_layers.*.attention.inner_attention.q_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
-            "text_model.cross_attention_layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
-            "text_model.cross_attention_layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.weight",
-            "text_model.cross_attention_layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc2.weight",
-            "text_model.norm.weight": "language_model.decoder.final_layernorm.weight",
-            "text_model.tok_embeddings.weight": "language_model.embedding.word_embeddings.weight",
-            "text_model.learnable_embedding.weight": "language_model.learnable_embedding.weight",
-            "text_model.output.weight": "language_model.output_layer.weight",
-            f"{v}.global_transformer.resblocks.*.attn.wo.weight": f"{v}.global_transformer.layers.*.self_attention.linear_proj.weight",
-            f"{v}.global_transformer.resblocks.*.gate_attn": f"{v}.global_transformer.layers.*.gate_attn",
-            f"{v}.global_transformer.resblocks.*.gate_ffn": f"{v}.global_transformer.layers.*.gate_ffn",
-            f"{v}.global_transformer.resblocks.*.ln_1.bias": f"{v}.global_transformer.layers.*.input_layernorm.bias",
-            f"{v}.global_transformer.resblocks.*.ln_1.weight": f"{v}.global_transformer.layers.*.input_layernorm.weight",
-            f"{v}.global_transformer.resblocks.*.ln_2.bias": f"{v}.global_transformer.layers.*.pre_mlp_layernorm.bias",
-            f"{v}.global_transformer.resblocks.*.ln_2.weight": f"{v}.global_transformer.layers.*.pre_mlp_layernorm.weight",
-            f"{v}.global_transformer.resblocks.*.mlp.c_fc.bias": f"{v}.global_transformer.layers.*.mlp.linear_fc1.bias",
-            f"{v}.global_transformer.resblocks.*.mlp.c_fc.weight": f"{v}.global_transformer.layers.*.mlp.linear_fc1.weight",
-            f"{v}.global_transformer.resblocks.*.mlp.c_proj.bias": f"{v}.global_transformer.layers.*.mlp.linear_fc2.bias",
-            f"{v}.global_transformer.resblocks.*.mlp.c_proj.weight": f"{v}.global_transformer.layers.*.mlp.linear_fc2.weight",
-            f"{v}.transformer.resblocks.*.attn.wo.weight": f"{v}.transformer.layers.*.self_attention.linear_proj.weight",
-            f"{v}.transformer.resblocks.*.ln_1.bias": f"{v}.transformer.layers.*.input_layernorm.bias",
-            f"{v}.transformer.resblocks.*.ln_1.weight": f"{v}.transformer.layers.*.input_layernorm.weight",
-            f"{v}.transformer.resblocks.*.ln_2.bias": f"{v}.transformer.layers.*.pre_mlp_layernorm.bias",
-            f"{v}.transformer.resblocks.*.ln_2.weight": f"{v}.transformer.layers.*.pre_mlp_layernorm.weight",
-            f"{v}.transformer.resblocks.*.mlp.c_fc.bias": f"{v}.transformer.layers.*.mlp.linear_fc1.bias",
-            f"{v}.transformer.resblocks.*.mlp.c_fc.weight": f"{v}.transformer.layers.*.mlp.linear_fc1.weight",
-            f"{v}.transformer.resblocks.*.mlp.c_proj.bias": f"{v}.transformer.layers.*.mlp.linear_fc2.bias",
-            f"{v}.transformer.resblocks.*.mlp.c_proj.weight": f"{v}.transformer.layers.*.mlp.linear_fc2.weight",
-            f"{v}.class_embedding": f"{v}.class_embedding",
-            f"{v}.conv1._linear.weight": f"{v}.conv1._linear.weight",
-            f"{v}.gated_positional_embedding": f"{v}.gated_positional_embedding",
-            f"{v}.gated_positional_embedding_gate": f"{v}.gated_positional_embedding_gate",
-            f"{v}.ln_post.bias": f"{v}.ln_post.bias",
-            f"{v}.ln_post.weight": f"{v}.ln_post.weight",
-            f"{v}.ln_pre.bias": f"{v}.ln_pre.bias",
-            f"{v}.ln_pre.weight": f"{v}.ln_pre.weight",
-            f"{v}.positional_embedding": f"{v}.positional_embedding",
-            f"{v}.post_tile_pos_embed.embedding": f"{v}.post_tile_pos_embed.embedding",
-            f"{v}.post_tile_pos_embed.gate": f"{v}.post_tile_pos_embed.gate",
-            f"{v}.pre_tile_pos_embed.embedding": f"{v}.pre_tile_pos_embed.embedding",
-            f"{v}.pre_tile_pos_embed.gate": f"{v}.pre_tile_pos_embed.gate",
-            "vision_model.vision_projection.bias": "vision_model.vision_projection.encoder.bias",
-            "vision_model.vision_projection.weight": "vision_model.vision_projection.encoder.weight",
-        }
-
-        transforms = [
-            io.state_transform(
-                source_key=(f"{v}.global_transformer.resblocks.*.attn.wk.weight",
-                            f"{v}.global_transformer.resblocks.*.attn.wq.weight",
-                            f"{v}.global_transformer.resblocks.*.attn.wv.weight"),
-                target_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
-                fn=_import_qkv
-            ),
-            io.state_transform(
-                source_key=(f"{v}.transformer.resblocks.*.attn.wk.weight",
-                            f"{v}.transformer.resblocks.*.attn.wq.weight",
-                            f"{v}.transformer.resblocks.*.attn.wv.weight"),
-                target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
-                fn=_import_qkv
-            ),
-            io.state_transform(
-                source_key="text_model.cross_attention_layers.*.gate_attn",
-                target_key="language_model.decoder.xattn_layers.*.gate_attn",
-                fn=_import_gate,
-            ),
-            io.state_transform(
-                source_key="text_model.cross_attention_layers.*.gate_ffwd",
-                target_key="language_model.decoder.xattn_layers.*.gate_ffn",
-                fn=_import_gate,
-            ),
-        ]
+        mapping = {}
+        transforms = []
+        if self.convert_text:
+            mapping.update({
+                "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "text_model.layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.layers.*.mlp.linear_fc1.weight",
+                "text_model.layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
+                "text_model.layers.*.attention.wo.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
+                "text_model.layers.*.attention.wqkv.layer_norm_weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                "text_model.layers.*.attention.wqkv.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+                "text_model.cross_attention_layers.*.attention.inner_attention.k_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
+                "text_model.cross_attention_layers.*.attention.wkv.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
+                "text_model.cross_attention_layers.*.attention.wo.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_proj.weight",
+                "text_model.cross_attention_layers.*.attention.wq.layer_norm_weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
+                "text_model.cross_attention_layers.*.attention.wq.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.weight",
+                "text_model.cross_attention_layers.*.attention.inner_attention.q_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
+                "text_model.cross_attention_layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
+                "text_model.cross_attention_layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.weight",
+                "text_model.cross_attention_layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc2.weight",
+                "text_model.norm.weight": "language_model.decoder.final_layernorm.weight",
+                "text_model.tok_embeddings.weight": "language_model.embedding.word_embeddings.weight",
+                "text_model.learnable_embedding.weight": "language_model.learnable_embedding.weight",
+                "text_model.output.weight": "language_model.output_layer.weight",
+            })
+            transforms.extend([
+                io.state_transform(
+                    source_key="text_model.cross_attention_layers.*.gate_attn",
+                    target_key="language_model.decoder.xattn_layers.*.gate_attn",
+                    fn=_import_gate,
+                ),
+                io.state_transform(
+                    source_key="text_model.cross_attention_layers.*.gate_ffwd",
+                    target_key="language_model.decoder.xattn_layers.*.gate_ffn",
+                    fn=_import_gate,
+                ),
+            ])
+        if self.convert_vision:
+            v = "vision_model.vision_encoder"
+            mapping.update({
+                f"{v}.global_transformer.resblocks.*.attn.wo.weight": f"{v}.global_transformer.layers.*.self_attention.linear_proj.weight",
+                f"{v}.global_transformer.resblocks.*.gate_attn": f"{v}.global_transformer.layers.*.gate_attn",
+                f"{v}.global_transformer.resblocks.*.gate_ffn": f"{v}.global_transformer.layers.*.gate_ffn",
+                f"{v}.global_transformer.resblocks.*.ln_1.bias": f"{v}.global_transformer.layers.*.input_layernorm.bias",
+                f"{v}.global_transformer.resblocks.*.ln_1.weight": f"{v}.global_transformer.layers.*.input_layernorm.weight",
+                f"{v}.global_transformer.resblocks.*.ln_2.bias": f"{v}.global_transformer.layers.*.pre_mlp_layernorm.bias",
+                f"{v}.global_transformer.resblocks.*.ln_2.weight": f"{v}.global_transformer.layers.*.pre_mlp_layernorm.weight",
+                f"{v}.global_transformer.resblocks.*.mlp.c_fc.bias": f"{v}.global_transformer.layers.*.mlp.linear_fc1.bias",
+                f"{v}.global_transformer.resblocks.*.mlp.c_fc.weight": f"{v}.global_transformer.layers.*.mlp.linear_fc1.weight",
+                f"{v}.global_transformer.resblocks.*.mlp.c_proj.bias": f"{v}.global_transformer.layers.*.mlp.linear_fc2.bias",
+                f"{v}.global_transformer.resblocks.*.mlp.c_proj.weight": f"{v}.global_transformer.layers.*.mlp.linear_fc2.weight",
+                f"{v}.transformer.resblocks.*.attn.wo.weight": f"{v}.transformer.layers.*.self_attention.linear_proj.weight",
+                f"{v}.transformer.resblocks.*.ln_1.bias": f"{v}.transformer.layers.*.input_layernorm.bias",
+                f"{v}.transformer.resblocks.*.ln_1.weight": f"{v}.transformer.layers.*.input_layernorm.weight",
+                f"{v}.transformer.resblocks.*.ln_2.bias": f"{v}.transformer.layers.*.pre_mlp_layernorm.bias",
+                f"{v}.transformer.resblocks.*.ln_2.weight": f"{v}.transformer.layers.*.pre_mlp_layernorm.weight",
+                f"{v}.transformer.resblocks.*.mlp.c_fc.bias": f"{v}.transformer.layers.*.mlp.linear_fc1.bias",
+                f"{v}.transformer.resblocks.*.mlp.c_fc.weight": f"{v}.transformer.layers.*.mlp.linear_fc1.weight",
+                f"{v}.transformer.resblocks.*.mlp.c_proj.bias": f"{v}.transformer.layers.*.mlp.linear_fc2.bias",
+                f"{v}.transformer.resblocks.*.mlp.c_proj.weight": f"{v}.transformer.layers.*.mlp.linear_fc2.weight",
+                f"{v}.class_embedding": f"{v}.class_embedding",
+                f"{v}.conv1._linear.weight": f"{v}.conv1._linear.weight",
+                f"{v}.gated_positional_embedding": f"{v}.gated_positional_embedding",
+                f"{v}.gated_positional_embedding_gate": f"{v}.gated_positional_embedding_gate",
+                f"{v}.ln_post.bias": f"{v}.ln_post.bias",
+                f"{v}.ln_post.weight": f"{v}.ln_post.weight",
+                f"{v}.ln_pre.bias": f"{v}.ln_pre.bias",
+                f"{v}.ln_pre.weight": f"{v}.ln_pre.weight",
+                f"{v}.positional_embedding": f"{v}.positional_embedding",
+                f"{v}.post_tile_pos_embed.embedding": f"{v}.post_tile_pos_embed.embedding",
+                f"{v}.post_tile_pos_embed.gate": f"{v}.post_tile_pos_embed.gate",
+                f"{v}.pre_tile_pos_embed.embedding": f"{v}.pre_tile_pos_embed.embedding",
+                f"{v}.pre_tile_pos_embed.gate": f"{v}.pre_tile_pos_embed.gate",
+                "vision_model.vision_projection.bias": "vision_model.vision_projection.encoder.bias",
+                "vision_model.vision_projection.weight": "vision_model.vision_projection.encoder.weight",
+            })
+            transforms.extend([
+                io.state_transform(
+                    source_key=(f"{v}.global_transformer.resblocks.*.attn.wk.weight",
+                                f"{v}.global_transformer.resblocks.*.attn.wq.weight",
+                                f"{v}.global_transformer.resblocks.*.attn.wv.weight"),
+                    target_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
+                    fn=_import_qkv
+                ),
+                io.state_transform(
+                    source_key=(f"{v}.transformer.resblocks.*.attn.wk.weight",
+                                f"{v}.transformer.resblocks.*.attn.wq.weight",
+                                f"{v}.transformer.resblocks.*.attn.wv.weight"),
+                    target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
+                    fn=_import_qkv
+                ),
+            ])
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
@@ -656,30 +678,37 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         with open(self.parent / "params.json") as f:
             source = json.load(f)
 
+        return LlamaCrossAttentionModelConfig(
+            language_model_config=self._language_model_config(source),
+            vision_model_config=self._vision_model_config(source),
+        )
+
+    def _language_model_config(self, source) -> Optional[CrossAttentionTextModelConfig]:
+        if not self.convert_text: return None
         def _calculate_ffn_size(dim, ffn_dim_multiplier, multiple_of):
             hidden_dim = dim * 4
             hidden_dim = int(2 * hidden_dim / 3)
             if ffn_dim_multiplier is not None:
                 hidden_dim = int(ffn_dim_multiplier * hidden_dim)
             return multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
+        return CrossAttentionTextModelConfig(
+            rotary_base=source['rope_theta'],
+            seq_length=8192,
+            num_layers=source['n_layers'],
+            hidden_size=source['dim'],
+            ffn_hidden_size=_calculate_ffn_size(source['dim'], source['ffn_dim_multiplier'], source['multiple_of']),
+            num_attention_heads=source['n_heads'],
+        )
 
-        return LlamaCrossAttentionModelConfig(
-            language_model_config=CrossAttentionTextModelConfig(
-                rotary_base=source['rope_theta'],
-                seq_length=8192,
-                num_layers=source['n_layers'],
-                hidden_size=source['dim'],
-                ffn_hidden_size=_calculate_ffn_size(source['dim'], source['ffn_dim_multiplier'], source['multiple_of']),
-                num_attention_heads=source['n_heads'],
-            ),
-            vision_model_config=CrossAttentionVisionModelConfig(
-                num_layers=source['n_layers'],
-                hidden_size=1280,
-                num_attention_heads=16, #source['n_heads'],
-                vision_chunk_size=source['vision_chunk_size'],
-                vision_max_num_chunks=source['vision_max_num_chunks'],
-            )
+    def _vision_model_config(self, source) -> Optional[CrossAttentionVisionModelConfig]:
+        if not self.convert_vision: return None
 
+        return CrossAttentionVisionModelConfig(
+            num_layers=source['n_layers'],
+            hidden_size=1280,
+            num_attention_heads=16, #source['n_heads'],
+            vision_chunk_size=source['vision_chunk_size'],
+            vision_max_num_chunks=source['vision_max_num_chunks'],
         )
 
 def _import_gate(gate):
