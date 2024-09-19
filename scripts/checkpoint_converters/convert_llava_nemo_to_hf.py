@@ -284,9 +284,7 @@ def convert(args):
     )
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model_config = model_config = MegatronNevaModel.restore_from(
-        restore_path=args.input_name_or_path,
-        trainer=trainer,
-        return_config=True
+        restore_path=args.input_name_or_path, trainer=trainer, return_config=True
     )
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
