@@ -21,7 +21,6 @@ import torch.distributed
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.cuda_graphs import CudaGraphManager
 from torch import nn
 
 from nemo.collections.llm import fn
