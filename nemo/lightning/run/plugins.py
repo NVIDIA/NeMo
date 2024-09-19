@@ -34,7 +34,7 @@ from nemo.utils import logging
 
 def _merge_callbacks(partial: run.Partial, callbacks: list[run.Config[Callback]]):
     if hasattr(partial, "trainer"):
-        if hasattr(partial.trainer, "callbacks"):
+        if hasattr(partial.trainer, "callbacks") and partial.trainer.callbacks:
             for callback in callbacks:
                 if callback not in partial.trainer.callbacks:
                     partial.trainer.callbacks.append(callback)
@@ -199,12 +199,15 @@ class ConfigValidationPlugin(run.Plugin):
         validate_wandb (bool): Whether to validate Weights and Biases integration. If set to True, the plugin will
             assert that the executor's environment variables contain a `WANDB_API_KEY`
             and that NeMo Logger's `wandb` is set. Defaults to False.
+        validate_nodes_and_devices (bool): Whether to validate the number of devices and nodes. If set to True, the plugin will assert that the task's
+            trainer is configured to use the same number of nodes and devices as the executor. Defaults to True.
     """
 
     validate_preemption: bool = True
     validate_checkpoint_dir: bool = True
     validate_serialization: bool = True
     validate_wandb: bool = False
+    validate_nodes_and_devices: bool = True
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         assert isinstance(task, run.Partial)
@@ -232,3 +235,10 @@ class ConfigValidationPlugin(run.Plugin):
             logging.info("Validating that Weights and Biases is enabled for task")
             assert "WANDB_API_KEY" in executor.env_vars.keys()
             assert task.log.wandb
+
+        if self.validate_nodes_and_devices:
+            logging.info("Validating that nodes and devices match for task and executor")
+            if isinstance(executor, run.SlurmExecutor):
+                assert task.trainer.num_nodes == executor.nodes
+                assert task.trainer.devices == executor.nproc_per_node()
+
