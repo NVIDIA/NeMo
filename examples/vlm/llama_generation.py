@@ -1,108 +1,126 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-import argparse
-
-import requests
-import torch
-from PIL import Image
-from transformers import AutoProcessor
-
+import nemo_run as run
 from nemo import lightning as nl
-from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
-from nemo.utils import logging
+from nemo.collections import llm, vlm
+from megatron.core.optimizer import OptimizerConfig
+import torch
+from pytorch_lightning.loggers import WandbLogger
+import pytorch_lightning as pl
 
 
-def load_image(image_url: str) -> Image.Image:
-    try:
-        response = requests.get(image_url, stream=True)
-        response.raise_for_status()
-        image = Image.open(response.raw)
-        return image
-    except requests.exceptions.RequestException as e:
-        print(f"Error loading image from {image_url}: {e}")
-        return None
 
-
-def main() -> None:
+# @run.factory
+def trainer(devices=1) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
-        ckpt_include_optimizer=False,
+        tensor_model_parallel_size=4,
     )
-    trainer = nl.Trainer(
-        devices=1,
-        max_steps=1000,
+
+    return nl.Trainer(
+        devices=4,
+        max_steps=2,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        val_check_interval=1000,
-        limit_val_batches=50,
+        log_every_n_steps=1,
+        limit_val_batches=2,
+        val_check_interval=2,
+        num_sanity_val_steps=0,
     )
-    from transformers import AutoTokenizer, AutoModel
-    hf_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
-
-    from nemo.collections.vlm.llama.model.base import CrossAttentionModelVisionConfig, CrossAttentionModelVision, CrossAttentionModelTextConfig, CrossAttentionModelText
-
-    vision_config = CrossAttentionModelVisionConfig(num_layers=2, hidden_size=12, num_attention_heads=4)
-    # vision_model = vision_config.configure_model()
-
-    # fabric = trainer.to_fabric()
-    #
-    # # Decide whether to import or load the model based on the input arguments
-    # if args.load_from_hf:
-    #     model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
-    # else:
-    #     model = LlavaModel(Llava1_5Config7B(), tokenizer=hf_tokenizer)
-    #     model = fabric.load_model(args.local_model_path, model)
-    #
-    # model = model.module.cuda()
-    # model.eval()
-    # generated_ids = input_ids.clone()
-    #
-    # # Greedy generation loop
-    # for _ in range(20):
-    #     with torch.no_grad():
-    #         output = model(
-    #             media=media,
-    #             input_ids=input_ids,
-    #             position_ids=position_ids,
-    #             attention_mask=None,
-    #         )
-    #
-    #         next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
-    #
-    #         generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
-    #
-    #         input_ids = generated_ids
-    #         position_ids = (
-    #             torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
-    #             .unsqueeze(0)
-    #             .expand_as(input_ids)
-    #         )
-    #
-    #         # If the generated token is the end of sequence token, stop generating
-    #         if next_token_ids.item() == hf_tokenizer.eos_token_id:
-    #             break
-    #
-    # generated_ids[generated_ids == -200] = 0
-    # generated_texts = hf_tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
-    # logging.info("======== GENERATED TEXT OUTPUT ========")
-    # logging.info(f"{generated_texts}")
-    # logging.info("=======================================")
 
 
-if __name__ == "__main__":
+# @run.factory
+def logger() -> nl.NeMoLogger:
+    # ckpt = None
+    ckpt = nl.ModelCheckpoint(
+        save_last=True,
+        monitor="reduced_train_loss",
+        save_top_k=1,
+        save_on_train_epoch_end=True,
+    )
+
+    wandb = None
+    # wandb = WandbLogger(
+    #         project="nemo2-squad",
+    #         name='llama3-8b_lora-attn_test_api_wandb',
+    #     )
+
+    return nl.NeMoLogger(
+        name="evian3_testload",
+        dir="/chcui/exp/evian3",
+        use_datetime_version=False,  # must be false if using auto resume
+        ckpt=ckpt,
+        wandb=wandb
+    )
 
 
-    main()
+# @run.factory
+def adam_with_cosine_annealing() -> nl.OptimizerModule:
+    return nl.MegatronOptimizerModule(
+        config=OptimizerConfig(
+            optimizer="adam",
+            lr=0.0001,
+            adam_beta2=0.98,
+            use_distributed_optimizer=True,
+            clip_grad=1.0,
+            bf16=True,
+            # params_dtype=torch.bfloat16,
+        ),
+        # lr_scheduler=nl.lr_scheduler.CosineAnnealingScheduler(max_steps=100),
+    )
+
+# @run.factory
+# def lora() -> nl.pytorch.callbacks.PEFT:
+#     return llm.peft.LoRA()
+    # return llm.peft.LoRA(
+    #     target_modules=['linear_qkv', 'linear_proj'], #, 'linear_fc1', 'linear_fc2'],
+    #     dim=32,
+    # )
+
+# @run.factory
+def squad() -> pl.LightningDataModule:
+    return llm.FineTuningDataModule(dataset_root="/lustre/fsw/coreai_dlalgo_llm/nemo_home/datasets/samples/squad_1",
+                                    seq_length=2048, micro_batch_size=1,
+                                    global_batch_size=128, num_workers=0)
+
+
+# @run.factory
+def llama32() -> pl.LightningModule:
+    # from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    # tokenizer = get_nmt_tokenizer(
+    #         library="sentencepiece",
+    #         # model_name=self.model_config.tokenizer_name,
+    #         tokenizer_model="/lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-early_vv1/tokenizer.model",
+    #         use_fast=True,
+    #     )
+    from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig8B
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
+    # tokenizer = None
+    return LlamaCrossAttentionModel(
+        LlamaCrossAttentionModelConfig(
+            language_model_config=CrossAttentionTextModelConfig8B(),
+            vision_model_config=CrossAttentionVisionModelConfig(
+                num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,
+            ),
+        ),
+        tokenizer=tokenizer)
+
+# @run.factory
+def resume() -> nl.AutoResume:
+    return nl.AutoResume(
+        restore_config=nl.RestoreConfig(
+            path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-early_vv1/consolidated.pth",
+        ),
+        resume_if_exists=True,
+        # resume_ignore_no_checkpoint=True,
+    )
+
+if __name__ == '__main__':
+    llm.finetune(
+        model=llama32(),
+        data=squad(),
+        trainer=trainer(),
+        peft=None,
+        log=logger(),
+        optim=adam_with_cosine_annealing(),
+        resume=resume(),
+    )
