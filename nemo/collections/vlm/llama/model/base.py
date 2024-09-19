@@ -537,10 +537,19 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
 @io.model_importer(LlamaCrossAttentionModel, "pytorch")
 class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionModel", LlamaCrossAttentionModel]):
     def init(self) -> LlamaCrossAttentionModel:
-        self.convert_vision = True
+        return LlamaCrossAttentionModel(self.config, tokenizer=self.tokenizer)
+
+    def local_path(self, base_path: Optional[Path] = None) -> Path:
+        self.convert_vision = False
         self.convert_text = True
         assert self.convert_vision or self.convert_text
-        return LlamaCrossAttentionModel(self.config, tokenizer=self.tokenizer)
+
+        output_path = super().local_path(base_path)
+        if not self.convert_text:
+            output_path = Path(str(output_path) + '_vision_only')
+        if not self.convert_vision:
+            output_path = Path(str(output_path) + '_text_only')
+        return output_path
 
     def apply(self, output_path: Path) -> Path:
         source = torch.load(str(self), map_location='cpu')
@@ -557,10 +566,6 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         trainer = self.nemo_setup(target)
 
         self.convert_state(source, target)
-        if not self.convert_text:
-            output_path = Path(str(output_path) + '_vision_only')
-        if not self.convert_vision:
-            output_path = Path(str(output_path) + '_text_only')
         self.nemo_save(output_path, trainer)
 
         logging.info(f"Converted Llama Cross Attention model to Nemo, model saved to {output_path}")

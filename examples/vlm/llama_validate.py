@@ -11,12 +11,12 @@ import pytorch_lightning as pl
 # @run.factory
 def trainer(devices=1) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=2,
-        save_ckpt_format="zarr",
+        tensor_model_parallel_size=1,
+        setup_optimizers=False,
     )
 
     return nl.Trainer(
-        devices=2,
+        devices=1,
         max_steps=2,
         accelerator="gpu",
         strategy=strategy,
