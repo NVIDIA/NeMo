@@ -40,8 +40,8 @@ import torch
 import torch.distributed
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
-from megatron.core.distributed.torch_fsdp2 import FullyShardedDataParallel as McoreFSDP
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.distributed.torch_fsdp2 import FullyShardedDataParallel as McoreFSDP
 from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
@@ -750,7 +750,8 @@ class DDP(McoreDDP):
 
     def __getattr__(self, item: Any) -> Any:
         return getattr_proxy(self, item)
-    
+
+
 class FSDP(McoreFSDP):
     def __init__(
         self,

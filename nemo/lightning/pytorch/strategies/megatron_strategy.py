@@ -713,7 +713,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         from torch.distributed._tensor import DTensor, Shard
 
         mesh = DeviceMesh.from_group(parallel_state.get_data_parallel_group(), "cuda")
-        
+
         optimizer_states = checkpoint["optimizer"]
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
             if self._fsdp:
