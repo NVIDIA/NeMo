@@ -24,7 +24,7 @@ from einops import rearrange, reduce, repeat
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import CLIPVisionModel, SiglipVisionModel
+from transformers import CLIPVisionModel, SiglipVisionModel, AutoModel
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
@@ -497,6 +497,16 @@ class NevaBaseModel:
                     torch_dtype=torch.bfloat16,
                 ).cuda()
                 vision_encoder = vision_encoder.to(torch.bfloat16)
+                if mm_cfg.vision_encoder.freeze:
+                    for param in vision_encoder.parameters():
+                        param.requires_grad = False
+                    vision_encoder = vision_encoder.eval()
+            elif config.architectures[0] == "PixtralModel":
+                from safetensors.torch import load_file
+                vision_encoder = AutoModel.from_config(config)
+                safetensor_file = "model.safetensors"
+                ckpt_file = os.path.join(mm_cfg.vision_encoder.from_pretrained, safetensor_file)
+                vision_encoder.load_state_dict(load_file(ckpt_file))
                 if mm_cfg.vision_encoder.freeze:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False

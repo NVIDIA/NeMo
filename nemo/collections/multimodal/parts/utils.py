@@ -22,7 +22,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from transformers import CLIPImageProcessor, SiglipImageProcessor
+from transformers import CLIPImageProcessor, SiglipImageProcessor, PixtralImageProcessor
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
@@ -536,8 +536,12 @@ def create_image_processor(mm_cfg):
             image_processor = SiglipImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
+        elif config.architectures[0] == "PixtralModel":
+            image_processor = PixtralImageProcessor.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
         else:
-            raise (ValueError("Currently only support CLIPImageProcessor and SiglipImageProcessor from Huggingface"))
+            raise (ValueError("Currently only support CLIPImageProcessor, SiglipImageProcessor, and PixtralImageProcessor from Huggingface"))
 
         crop_size = mm_cfg.vision_encoder.get("crop_size")
         if hasattr(image_processor, 'crop_size') and crop_size is not None:
