@@ -440,13 +440,14 @@ def generate(
     params_dtype: torch.dtype = torch.bfloat16,
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
+    inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
 ) -> list[Union["InferenceRequest", str]]:
     from nemo.collections.llm import inference
 
     inference_wrapped_model, mcore_tokenizer = inference.setup_model_and_tokenizer(
-        path=path, trainer=trainer, params_dtype=params_dtype
+        path=path, trainer=trainer, params_dtype=params_dtype, inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
     results = inference.generate(
         model=inference_wrapped_model,

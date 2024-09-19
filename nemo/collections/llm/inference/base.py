@@ -59,7 +59,7 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
 
 
 def setup_model_and_tokenizer(
-    path: Path, trainer: Optional[nl.Trainer] = None, params_dtype: torch.dtype = torch.bfloat16
+    path: Path, trainer: Optional[nl.Trainer] = None, params_dtype: torch.dtype = torch.bfloat16, inference_batch_times_seqlen_threshold: int = 1000
 ) -> tuple[MCoreGPTModel, MCoreTokenizerWrappper]:
     model: io.TrainerContext = io.load_context(path=path, subpath="model")
     trainer = trainer or io.load_context(path=path, subpath="trainer")
@@ -71,7 +71,7 @@ def setup_model_and_tokenizer(
         InferenceWrapperConfig(
             hidden_size=mcore_model.config.hidden_size,
             params_dtype=params_dtype,
-            inference_batch_times_seqlen_threshold=1000,
+            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=model.tokenizer.vocab_size,
         ),
     )
