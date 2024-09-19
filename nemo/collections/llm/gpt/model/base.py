@@ -273,11 +273,6 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
                 "Cudagraphs is not supported with cpu_offloading/recompute_granularity"
                 self.add_module('cudagraph_manager', CudaGraphManager())
 
-    def __call__(self, *args, **kwargs):
-        if hasattr(self, 'cudagraph_manager'):
-            return self.cudagraph_manager(self, args, kwargs)
-        return super().__call__(*args, **kwargs)
-
     def forward(
         self,
         input_ids: torch.Tensor,
