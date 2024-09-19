@@ -86,7 +86,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
         # is called, the last element is frozen and a new element is added.
         self.deferred_ckpts_to_remove: List[List[str]] = []
-        self.checkpoints_to_link: List[tuple[str | Path]] = []
+        self.ckpts_to_link: Dict[str, str] = {}
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
@@ -274,7 +274,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 if self.last_model_path == self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST):
                     logging.debug(f'Last checkpoint {self.last_model_path} already saved')
                 else:
-                    super()._save_last_checkpoint(trainer, monitor_candidates)
+                    self._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
         # Call parent on_train_end() to save the -last checkpoint
@@ -399,7 +399,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
     def _link_checkpoint(self, trainer: "pl.Trainer", filepath: str, linkpath: str, override_async=False) -> None:
         ## linking will happen as part of the finalize fn
         if self.async_save and not override_async:
-            self.checkpoints_to_link.append((filepath, linkpath))
+            self.ckpts_to_link[str(filepath)] = str(linkpath)
             return
 
         filepath = ckpt_to_dir(filepath)
@@ -524,11 +524,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if not self.async_save:
                 return
 
-            if len(self.checkpoints_to_link) > 0:
-                link = self.checkpoints_to_link.pop(0)
-                self._link_checkpoint(trainer, link[0], link[1], override_async=True)
-
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
+
+            if str(filepath) in self.ckpts_to_link:
+                self._link_checkpoint(trainer, filepath, self.ckpts_to_link.pop(filepath), override_async=True)
 
             # Remove checkpoints marked for removal by `self._remove_checkpoint`
             # For each finalization there is exactly one entry in self.deferred_ckpts_to_remove
