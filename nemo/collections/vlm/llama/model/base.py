@@ -88,8 +88,9 @@ def llama_forward_step(model, batch) -> torch.Tensor:
         "batch_images": batch["batch_images"],
         "batch_masks": batch["batch_masks"],
         "total_len": batch["total_len"],
-        "tokens": batch.get("tokens", None),
-        "position_ids": batch.get("position_ids", None),
+        "tokens": batch["tokens"],
+        "position_ids": batch["position_ids"],
+        "labels": batch.get("labels", None),
     }
 
     if 'cu_seqlens' in batch:
@@ -281,8 +282,9 @@ class CrossAttentionVisionModel(MegatronModule):
         vision_tokens = self.vision_encoder(
             images.to(dtype=torch.bfloat16), aspect_ratios
         )
-
-        vision_tokens = self.vision_projection(vision_tokens)
+        vision_shape = vision_tokens.shape
+        vision_tokens = self.vision_projection(vision_tokens.reshape(-1, *vision_shape[-2:]))
+        vision_tokens = vision_tokens.reshape(*vision_shape[:-1], -1)
         return vision_tokens
 
     def set_input_tensor(self, tensor):
@@ -369,8 +371,8 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
                         ** 2
                         + 1
                     ),
-                    self.model_dim,
-                ), device="cuda"
+                    self.language_model.config.hidden_size,
+                ), device="cuda", dtype=torch.bfloat16,
             )
         else:
             stacked_images = stacked_images.cuda(non_blocking=True)
@@ -413,6 +415,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             self,
             position_ids: torch.Tensor,
             tokens: torch.Tensor,
+            labels: Optional[torch.Tensor] = None,
             batch_images: Optional[List[List[PIL_Image.Image]]] = None,
             batch_masks: Optional[List[List[List[int]]]] = None,
             total_len: Optional[int] = None,
@@ -429,17 +432,17 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
                 )
             )
 
-        # TODO(yuya): check
-        h = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids], position_ids=position_ids)
-        # h = self.language_model.embedding(
-        #         input_ids=tokens[:, position_ids], position_ids=position_ids
-        #     )
+        # TODO(yuya): check, fix position_ids[0]
+        embeddings = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids[0]], position_ids)
         logits = self.language_model(
-            position_ids=position_ids,
-            h=h,
-            xattn_mask=cross_attention_masks[:, :, position_ids],
+            input_ids=None,
+            position_ids=None,
+            labels=labels,
+            decoder_input=embeddings,
+            attention_mask=None,
+            cross_attention_masks=cross_attention_masks[:, :, position_ids[0]],
             full_text_row_masked_out_mask=full_text_row_masked_out_mask[
-                                          :, :, position_ids
+                                          :, :, position_ids[0]
                                           ],
             xattn_caches=xattn_caches,
         )
@@ -474,23 +477,25 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
             total_len: int,
             tokens: torch.LongTensor,
             position_ids: torch.LongTensor,
+            labels: Optional[torch.Tensor] = None,
             cross_attention_masks: Optional[torch.Tensor] = None,
             full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
             xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
-        logits = self.module(
+        output_tensor = self.module(
             position_ids=position_ids,
             tokens=tokens,
             batch_images=batch_images,
             batch_masks=batch_masks,
             total_len=total_len,
+            labels=labels,
             cross_attention_masks=cross_attention_masks,
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
             xattn_caches=xattn_caches,
         )
 
-        return logits
+        return output_tensor
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
         return self.config.data_step_fn(dataloader_iter)

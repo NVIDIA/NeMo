@@ -479,7 +479,7 @@ class ImageTransformerLayer(TransformerLayer):
         _gate_attn = 1 if not self.gated else self.gate_attn.tanh()
         assert isinstance(attention_output_with_bias,
                           tuple), "`attention_output_with_bias` needs to be tuple for gating."
-        attention_output_with_bias = (
+        attention_output_with_bias = tuple(
             _gate_attn * output if output is not None else None
             for output in attention_output_with_bias
         )
@@ -527,7 +527,7 @@ class ImageTransformerLayer(TransformerLayer):
         _gate_ffn = 1 if not self.gated else self.gate_ffn.tanh()
         assert isinstance(mlp_output_with_bias,
                           tuple), "`mlp_output_with_bias` needs to be tuple for gating."
-        mlp_output_with_bias = (
+        mlp_output_with_bias = tuple(
             _gate_attn * output if output is not None else None
             for output in mlp_output_with_bias
         )
