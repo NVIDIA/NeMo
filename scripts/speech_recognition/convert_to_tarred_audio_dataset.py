@@ -209,8 +209,8 @@ class ASRTarredDatasetBuilder:
 
         config = self.config  # type: ASRTarredDatasetConfig
 
-        # if not os.path.exists(target_dir):
-        #    os.makedirs(target_dir)
+        if not os.path.exists(target_dir):
+           os.makedirs(target_dir)
 
         # Read the existing manifest
         entries, total_duration, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
@@ -690,7 +690,6 @@ def main(args):
                 # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
                 bucket_config.max_duration += 1e-5
             bucket_config.target_dir = os.path.join(args.target_dir, f"bucket{i_bucket+1}")
-            os.makedirs(bucket_config.target_dir, exist_ok=True)
             print(
                 f"Creating bucket {i_bucket+1} with min_duration={bucket_config.min_duration} and max_duration={bucket_config.max_duration} ..."
             )
@@ -698,7 +697,6 @@ def main(args):
             create_tar_datasets(**vars(bucket_config))
             print(f"Bucket {i_bucket+1} is created.")
     else:
-        os.makedirs(args.target_dir, exist_ok=True)
         create_tar_datasets(**vars(args))
 
 
