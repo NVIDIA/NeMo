@@ -210,7 +210,7 @@ class ASRTarredDatasetBuilder:
         config = self.config  # type: ASRTarredDatasetConfig
 
         if not os.path.exists(target_dir):
-           os.makedirs(target_dir)
+            os.makedirs(target_dir)
 
         # Read the existing manifest
         entries, total_duration, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
