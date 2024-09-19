@@ -1,126 +1,67 @@
-import nemo_run as run
-from nemo import lightning as nl
-from nemo.collections import llm, vlm
-from megatron.core.optimizer import OptimizerConfig
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+
+import requests
 import torch
-from pytorch_lightning.loggers import WandbLogger
-import pytorch_lightning as pl
+from PIL import Image
+from transformers import AutoProcessor
+from nemo.collections import llm, vlm
+
+from nemo import lightning as nl
+from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
+from nemo.utils import logging
 
 
-
-# @run.factory
-def trainer(devices=1) -> nl.Trainer:
+def main() -> None:
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=4,
+        tensor_model_parallel_size=1,
+        ckpt_include_optimizer=False,
     )
-
-    return nl.Trainer(
-        devices=4,
-        max_steps=2,
+    trainer = nl.Trainer(
+        devices=1,
+        max_steps=1000,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        log_every_n_steps=1,
-        limit_val_batches=2,
-        val_check_interval=2,
-        num_sanity_val_steps=0,
+        val_check_interval=1000,
+        limit_val_batches=50,
     )
 
+    fabric = trainer.to_fabric()
 
-# @run.factory
-def logger() -> nl.NeMoLogger:
-    # ckpt = None
-    ckpt = nl.ModelCheckpoint(
-        save_last=True,
-        monitor="reduced_train_loss",
-        save_top_k=1,
-        save_on_train_epoch_end=True,
-    )
-
-    wandb = None
-    # wandb = WandbLogger(
-    #         project="nemo2-squad",
-    #         name='llama3-8b_lora-attn_test_api_wandb',
-    #     )
-
-    return nl.NeMoLogger(
-        name="evian3_testload",
-        dir="/chcui/exp/evian3",
-        use_datetime_version=False,  # must be false if using auto resume
-        ckpt=ckpt,
-        wandb=wandb
-    )
-
-
-# @run.factory
-def adam_with_cosine_annealing() -> nl.OptimizerModule:
-    return nl.MegatronOptimizerModule(
-        config=OptimizerConfig(
-            optimizer="adam",
-            lr=0.0001,
-            adam_beta2=0.98,
-            use_distributed_optimizer=True,
-            clip_grad=1.0,
-            bf16=True,
-            # params_dtype=torch.bfloat16,
-        ),
-        # lr_scheduler=nl.lr_scheduler.CosineAnnealingScheduler(max_steps=100),
-    )
-
-# @run.factory
-# def lora() -> nl.pytorch.callbacks.PEFT:
-#     return llm.peft.LoRA()
-    # return llm.peft.LoRA(
-    #     target_modules=['linear_qkv', 'linear_proj'], #, 'linear_fc1', 'linear_fc2'],
-    #     dim=32,
-    # )
-
-# @run.factory
-def squad() -> pl.LightningDataModule:
-    return llm.FineTuningDataModule(dataset_root="/lustre/fsw/coreai_dlalgo_llm/nemo_home/datasets/samples/squad_1",
-                                    seq_length=2048, micro_batch_size=1,
-                                    global_batch_size=128, num_workers=0)
-
-
-# @run.factory
-def llama32() -> pl.LightningModule:
-    # from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-    # tokenizer = get_nmt_tokenizer(
-    #         library="sentencepiece",
-    #         # model_name=self.model_config.tokenizer_name,
-    #         tokenizer_model="/lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-early_vv1/tokenizer.model",
-    #         use_fast=True,
-    #     )
-    from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig8B
+    # Decide whether to import or load the model based on the input arguments
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
-    # tokenizer = None
-    return LlamaCrossAttentionModel(
-        LlamaCrossAttentionModelConfig(
-            language_model_config=CrossAttentionTextModelConfig8B(),
-            vision_model_config=CrossAttentionVisionModelConfig(
-                num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,
-            ),
+    model = vlm.LlamaCrossAttentionModel(
+        vlm.LlamaCrossAttentionModelConfig(
+            language_model_config=None, # vlm.CrossAttentionTextModelConfig8B(),
+            vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),  # vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
         ),
         tokenizer=tokenizer)
+    # local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-early_vv1_text_only/"
+    local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-early_vv1_vision_only/"
+    model = fabric.load_model(local_model_path, model)
 
-# @run.factory
-def resume() -> nl.AutoResume:
-    return nl.AutoResume(
-        restore_config=nl.RestoreConfig(
-            path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-early_vv1/consolidated.pth",
-        ),
-        resume_if_exists=True,
-        # resume_ignore_no_checkpoint=True,
-    )
+    model = model.module.cuda()
+    model.eval()
 
-if __name__ == '__main__':
-    llm.finetune(
-        model=llama32(),
-        data=squad(),
-        trainer=trainer(),
-        peft=None,
-        log=logger(),
-        optim=adam_with_cosine_annealing(),
-        resume=resume(),
-    )
+    input = torch.load("/lustre/fsw/coreai_dlalgo_genai/yuya/evian3/evian3_input.pt")
+
+    import pdb; pdb.set_trace()
+
+
+if __name__ == "__main__":
+    main()
