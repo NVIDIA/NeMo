@@ -447,7 +447,10 @@ def generate(
     from nemo.collections.llm import inference
 
     inference_wrapped_model, mcore_tokenizer = inference.setup_model_and_tokenizer(
-        path=path, trainer=trainer, params_dtype=params_dtype, inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        path=path,
+        trainer=trainer,
+        params_dtype=params_dtype,
+        inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
     results = inference.generate(
         model=inference_wrapped_model,
