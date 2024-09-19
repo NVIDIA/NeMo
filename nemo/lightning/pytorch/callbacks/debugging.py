@@ -18,6 +18,29 @@ def collect_precision_and_shape(tensor: torch.Tensor) -> Dict[str, str]:
 
 
 class ParameterDebugger(Callback):
+    """
+    Debugging tool to help inspect parameters and gradients at any callback event.
+
+    Since accessing the gradient tensors with MegatronCore optimizers is less intuitive than pure PyTorch,
+    this callback handles the boilerplate needed to iterate over the model parameters and gradients,
+    and applies user specified functions to them. These functions can be used to log attributes or
+    apply asserts on the param and grad tensors. Attributes are logged in a table, with a row for each parameter name.
+    Default behavior is to log the precision and shapes of each parameter and its gradient.
+
+    Args:
+        param_attr_fn: Function to apply to model parameters. Can be used to apply assertions on the tensor,
+            or return a mapping of labels and values to log for each parameter.
+        grad_attr_fn: Function to apply to model gradients.
+        log_on_hooks: PTL callback hook name or list of hook names on which to apply param_attr_fn and grad_attr_fn.
+            See `PTL docs <https://lightning.ai/docs/pytorch/stable/extensions/callbacks.html#hooks>`_ for more info
+            on callback hooks. Note that some hooks that occur before the model is constructed are invalid.
+
+    Example:
+        >>> fn = lambda x: {"Norm": str(x.norm(2).item())}
+        >>> callback = ParameterDebugger(param_attr_fn=fn, log_on_hooks=["on_train_start", "on_train_end"])
+        >>> trainer = Trainer(callbacks=[callback])
+    """
+
     def __init__(
         self,
         param_attr_fn: Optional[Callable[[torch.Tensor], Dict[str, str]]] = collect_precision_and_shape,
@@ -76,6 +99,10 @@ class ParameterDebugger(Callback):
             setattr(self, hook_name, self._log_param_and_grad_attrs)
 
     def _log_param_and_grad_attrs(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        """
+        Iterate over model parameters, find gradient tensor, apply and collect outputs of
+        param_attr_fn and grad_attr_fn, and log outputs in a table.
+        """
 
         def find_grad_tensor(param: torch.Tensor) -> Optional[torch.Tensor]:
             """If using MCore optimizer, search the grad buckets for param's grad tensor."""
