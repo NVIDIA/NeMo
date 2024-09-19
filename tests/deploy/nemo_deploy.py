@@ -164,6 +164,7 @@ def run_trt_llm_inference(
     use_embedding_sharing=False,
     max_input_len=128,
     max_output_len=128,
+    max_num_tokens=None,
     ptuning=False,
     p_tuning_checkpoint=None,
     lora=False,
@@ -249,7 +250,7 @@ def run_trt_llm_inference(
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
-            max_num_tokens=int(max_input_len * max_batch_size * 0.2),
+            max_num_tokens=max_num_tokens,
             opt_num_tokens=60,
             use_embedding_sharing=use_embedding_sharing,
         )
@@ -379,25 +380,17 @@ def run_existing_checkpoints(
 
     model_info = test_data[model_name]
 
-    if n_gpus < model_info["min_gpus"]:
+    if n_gpus < model_info.min_gpus:
         print("Min n_gpus for this model is {0}".format(n_gpus))
         return None, None, None, None, None
 
-    p_tuning_checkpoint = None
-    if ptuning:
-        if "p_tuning_checkpoint" in model_info.keys():
-            p_tuning_checkpoint = model_info["p_tuning_checkpoint"]
-        else:
-            raise Exception("There is not ptuning checkpoint path defined.")
+    if ptuning and model_info.p_tuning_checkpoint is None:
+        raise Exception("There is not ptuning checkpoint path defined.")
 
-    lora_checkpoint = None
-    if lora:
-        if "lora_checkpoint" in model_info.keys():
-            lora_checkpoint = model_info["lora_checkpoint"]
-        else:
-            raise Exception("There is not lora checkpoint path defined.")
+    if lora and model_info.lora_checkpoint is None:
+        raise Exception("There is not lora checkpoint path defined.")
 
-    if model_info["model_type"] == "gemma":
+    if model_info.model_type == "gemma":
         print("*********************")
         use_embedding_sharing = True
     else:
@@ -406,28 +399,29 @@ def run_existing_checkpoints(
     if backend == "in-framework":
         return run_in_framework_inference(
             model_name=model_name,
-            prompt=model_info["prompt_template"],
-            checkpoint_path=model_info["checkpoint"],
-            max_batch_size=model_info["max_batch_size"],
+            prompt=model_info.prompt_template,
+            checkpoint_path=model_info.checkpoint,
+            max_batch_size=model_info.max_batch_size,
             max_input_len=None,
-            max_output_len=model_info["max_output_len"],
+            max_output_len=model_info.max_output_len,
         )
     else:
         return run_trt_llm_inference(
             model_name=model_name,
-            model_type=model_info["model_type"],
-            prompt=model_info["prompt_template"],
-            checkpoint_path=model_info["checkpoint"],
-            trt_llm_model_dir=model_info["trt_llm_model_dir"],
+            model_type=model_info.model_type,
+            prompt=model_info.prompt_template,
+            checkpoint_path=model_info.checkpoint,
+            trt_llm_model_dir=model_info.trt_llm_model_dir,
             n_gpu=n_gpus,
-            max_batch_size=model_info["max_batch_size"],
+            max_batch_size=model_info.max_batch_size,
             use_embedding_sharing=use_embedding_sharing,
             max_input_len=512,
-            max_output_len=model_info["max_output_len"],
+            max_output_len=model_info.max_output_len,
+            max_num_tokens=None,
             ptuning=ptuning,
-            p_tuning_checkpoint=p_tuning_checkpoint,
+            p_tuning_checkpoint=model_info.p_tuning_checkpoint,
             lora=lora,
-            lora_checkpoint=lora_checkpoint,
+            lora_checkpoint=model_info.lora_checkpoint,
             tp_size=tp_size,
             pp_size=pp_size,
             top_k=1,
@@ -448,7 +442,6 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton and benchmark the models",
     )
-
     parser.add_argument(
         "--model_name",
         type=str,
@@ -498,6 +491,10 @@ def get_args():
         "--max_output_len",
         type=int,
         default=128,
+    )
+    parser.add_argument(
+        "--max_num_tokens",
+        type=int,
     )
     parser.add_argument(
         "--p_tuning_checkpoint",
@@ -646,6 +643,7 @@ def run_inference_tests(args):
                     max_batch_size=args.max_batch_size,
                     max_input_len=args.max_input_len,
                     max_output_len=args.max_output_len,
+                    max_num_tokens=args.max_num_tokens,
                     ptuning=args.ptuning,
                     p_tuning_checkpoint=args.p_tuning_checkpoint,
                     lora=args.lora,

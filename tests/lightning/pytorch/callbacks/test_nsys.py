@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -68,6 +82,7 @@ class TestNsysCallback:
         mock_get_rank.return_value = 0
         callback = NsysCallback(start_step=10, end_step=20, ranks=[0], gen_shape=True)
 
+        mock_trainer.strategy.current_epoch_step = 10
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 10)
 
         mock_cudart().cudaProfilerStart.assert_called_once()
@@ -80,6 +95,7 @@ class TestNsysCallback:
         mock_get_rank.return_value = 0
         callback = NsysCallback(start_step=10, end_step=20, ranks=[0])
 
+        mock_trainer.strategy.current_epoch_step = 9
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 9)
 
         mock_cudart().cudaProfilerStart.assert_not_called()
@@ -94,6 +110,7 @@ class TestNsysCallback:
         mock_get_rank.return_value = 0
         callback = NsysCallback(start_step=10, end_step=20, ranks=[0])
 
+        mock_trainer.strategy.current_epoch_step = 20
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 20)
 
         mock_cudart().cudaProfilerStop.assert_called_once()
@@ -163,6 +180,7 @@ class TestNsysCallback:
         mock_get_rank.return_value = 0
         callback = NsysCallback(start_step=start_step, end_step=end_step, ranks=[0])
 
+        mock_trainer.strategy.current_epoch_step = batch_idx
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, batch_idx)
 
         if expected_call:
@@ -183,13 +201,16 @@ class TestNsysCallback:
         mock_trainer.strategy.root_device.type = 'cuda'
 
         # Start of range
+        mock_trainer.strategy.current_epoch_step = 10
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 10)
         assert mock_cudart().cudaProfilerStart.call_count == 1, "cudaProfilerStart was not called"
 
         # Middle of range
+        mock_trainer.strategy.current_epoch_step = 25
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 25)
         assert mock_cudart().cudaProfilerStart.call_count == 1, "cudaProfilerStart was called again"
 
         # End of range
+        mock_trainer.strategy.current_epoch_step = 40
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 40)
         assert mock_cudart().cudaProfilerStop.call_count == 1, "cudaProfilerStop was not called"

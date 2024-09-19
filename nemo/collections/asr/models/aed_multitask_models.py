@@ -28,7 +28,6 @@ from torch.utils.data import DataLoader
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
     PromptedAudioToTextMiniBatch,
-    get_prompt_format_fn,
 )
 from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
@@ -48,6 +47,7 @@ from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+from nemo.collections.common.prompts.fn import get_prompt_format_fn
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
@@ -461,7 +461,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
         Args:
-            audio: (a single or list) of paths to audio files or a np.ndarray audio array.
+            audio: (a single or list) of paths to audio files or a np.ndarray/tensor audio array or path to a manifest file.
                 Can also be a dataloader object that provides values that can be consumed by the model.
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.
@@ -512,6 +512,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 tokenizer=self.tokenizer,
                 prompt_format_fn=get_prompt_format_fn(self.prompt_format),
             ),
+            tokenizer=self.tokenizer,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -680,9 +681,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
 
+        num_frames = batch.audio_lens.sum()
+        num_tokens = batch.prompted_transcript_lens.sum()
+        tot_frames = batch.audio.numel()
+        tot_tokens = batch.prompted_transcript.numel()
         tensorboard_logs = {
             'train_loss': audio_loss,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
+            'batch_size': batch.audio.shape[0],
+            'num_frames': num_frames,
+            'num_tokens': num_tokens,
+            'input_to_padding_ratio': num_frames / tot_frames,
+            'output_to_padding_ratio': num_tokens / tot_tokens,
         }
 
         return {'loss': audio_loss, 'log': tensorboard_logs}
@@ -773,17 +783,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     trcfg._internal.primary_language = self.tokenizer.langs[0]
                     logging.debug(f"Transcribing with default setting of {trcfg._internal.primary_language}.")
 
-        elif isinstance(audio, str):
-            logging.debug(f"Found 'audio' to be a string. Assuming it is a path to manifest file.")
-            assert os.path.exists(audio), f"File {audio} doesn't exist"
-            # assert audio.endswith('.json') or audio.endswith('.jsonl'), f"File {audio} must be a json or jsonl file"
-
-            # load json lines
-            manifest_path = audio  # need to save this as we are overwriting paths2audio_files in nextline
-            if audio.endswith('.json') or audio.endswith('.jsonl'):
-                if hasattr(trcfg, '_internal') and hasattr(trcfg._internal, 'manifest_path'):
-                    trcfg._internal.manifest_filepath = manifest_path
-
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: MultiTaskTranscriptionConfig
     ) -> Dict[str, Any]:
@@ -799,21 +798,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         Returns:
             A config dict that is used to setup the dataloader for transcription.
         """
-        manifest_filepath = None
-        if len(audio_files) == 1 and isinstance(audio_files[0], str):
-            # Check if manifest file is provided
-            if (
-                hasattr(trcfg._internal, 'manifest_filepath')
-                and getattr(trcfg._internal, 'manifest_filepath') is not None
-            ):
-                manifest_filepath = trcfg._internal.manifest_filepath
-
-            elif audio_files[0].endswith('.json') or audio_files[0].endswith('.jsonl'):
-                # Assume it is a path to a manifest file
-                manifest_filepath = audio_files[0]
-
-            if manifest_filepath is not None:
-                audio_files = manifest_utils.read_manifest(audio_files[0])
+        manifest_filepath = trcfg._internal.manifest_filepath
 
         audio_files = self._may_be_make_dict_and_fix_paths(audio_files, manifest_filepath, trcfg)
 
@@ -947,9 +932,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            # when using a list of audio files instead of a manifest (added from TranscrptionMixin)
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'batch_size': batch_size,
             'trim_silence': False,
@@ -1038,13 +1029,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             signal = batch.audio
             signal_len = batch.audio_lens
 
-        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+        _, _, enc_states, enc_mask = self.forward(
             input_signal=signal,
             input_signal_length=signal_len,
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
-            transcript=batch.prompt,
-            transcript_length=batch.prompt_lens,
         )
 
         text = self.decoding.decode_predictions_tensor(
@@ -1059,6 +1048,35 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     @property
     def adapter_module_names(self) -> List[str]:
         return ['', 'encoder', 'transf_encoder', 'transf_decoder']
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": PromptedAudioToTextMiniBatch,
+            "inputs": [
+                {"name": "audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "prompted_transcript",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {
+                    "name": "prompted_transcript_lens",
+                    "type": NeuralType(("B",), LengthsType()),
+                    "seq_length": "output",
+                },
+                {"name": "transcript", "type": "dummy"},
+                {"name": "transcript_lens", "type": "dummy"},
+                {"name": "prompt", "type": "dummy"},
+                {"name": "prompt_lens", "type": "dummy"},
+            ],
+        }
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:

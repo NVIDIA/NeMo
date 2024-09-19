@@ -408,7 +408,9 @@ class MegatronBaseModel(NLPModel):
                 self.cfg.persist_layer_norm = False
 
             # NVFUSER available starting with 21.11
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
+            if (NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11)) and (
+                NVIDIA_TORCH_MAJOR < 23 or (NVIDIA_TORCH_MAJOR == 23 and NVIDIA_TORCH_MINOR < 11)
+            ):
 
                 # NVFUSER
                 torch._C._jit_set_profiling_executor(True)
@@ -532,6 +534,8 @@ class MegatronBaseModel(NLPModel):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
+        tp_only_amax_red = self.cfg.get('tp_only_amax_red', False)
+
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
@@ -555,6 +559,7 @@ class MegatronBaseModel(NLPModel):
             'fp8': None,
             'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
+            'tp_only_amax_red': tp_only_amax_red,
         }
 
         # populate the transformer config dict
