@@ -241,4 +241,3 @@ class ConfigValidationPlugin(run.Plugin):
             if isinstance(executor, run.SlurmExecutor):
                 assert task.trainer.num_nodes == executor.nodes
                 assert task.trainer.devices == executor.nproc_per_node()
-
