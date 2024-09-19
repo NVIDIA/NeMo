@@ -179,7 +179,7 @@ class WandbPlugin(run.Plugin):
 
 
 @dataclass(kw_only=True)
-class ValidationPlugin(run.Plugin):
+class ConfigValidationPlugin(run.Plugin):
     """
     A plugin for validating a NeMo task with its executor.
 
