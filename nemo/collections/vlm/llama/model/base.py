@@ -31,6 +31,12 @@ from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn, Tensor
 
+
+from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
+from megatron.core.transformer.spec_utils import ModuleSpec
+from nemo.lightning import get_vocab_size
+from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
+
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
@@ -117,10 +123,6 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
             self,
         )
 
-from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
-from megatron.core.transformer.spec_utils import ModuleSpec
-from nemo.lightning import get_vocab_size
-from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 
 @dataclass
 class CrossAttentionTextModelConfig(Llama31Config):
@@ -279,6 +281,7 @@ class CrossAttentionVisionModel(MegatronModule):
             projector_type="affine",
             input_size=self.vision_input_dim,
         )
+        self.vision_projection.encoder.skip_bias_add = False  # Temporary fix for a MCore side bug
 
     def forward(
             self, images: torch.Tensor, aspect_ratios: torch.Tensor
