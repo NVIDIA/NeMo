@@ -430,10 +430,10 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             )
 
         # TODO(yuya): check
-        # h = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids])
-        h = self.language_model.embedding(
-                input_ids=tokens[:, position_ids], position_ids=position_ids
-            )
+        h = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids], position_ids=position_ids)
+        # h = self.language_model.embedding(
+        #         input_ids=tokens[:, position_ids], position_ids=position_ids
+        #     )
         logits = self.language_model(
             position_ids=position_ids,
             h=h,

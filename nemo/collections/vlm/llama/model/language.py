@@ -126,6 +126,9 @@ class CrossAttentionTextModel(MCoreGPTModel):
             config=self.config,
         )
 
+        self.num_frozen_embeddings = self.embedding.word_embeddings.num_embeddings
+        self._thresh = self.num_frozen_embeddings - 1
+
     def _get_xattn_mask(
             self,
             num_tokens,
@@ -162,6 +165,22 @@ class CrossAttentionTextModel(MCoreGPTModel):
             cross_attention_masks.to(device=text_device, dtype=text_dtype),
             full_text_row_masked_out_mask,
         )
+
+    def get_partially_trainable_embedding(self, x, position_ids):
+        xz = torch.zeros_like(x, device=x.device)
+        oz = torch.ones_like(x, device=x.device)
+        x_orig = torch.minimum(x, torch.tensor(self._thresh, device=x.device))
+        x_new = (
+            torch.maximum(x, torch.tensor(self._thresh + 1, device=x.device))
+            - self.num_frozen_embeddings
+        )
+
+        mask_orig = torch.where(x >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
+        mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
+
+        x_orig = self.embedding(x_orig, position_ids)
+        x_new = self.learnable_embedding(x_new).type_as(x_orig)
+        return x_orig * mask_orig.type_as(x_orig) + x_new * mask_new.type_as(x_new)
 
 
 class CrossAttentionTransformerBlock(TransformerBlock):
