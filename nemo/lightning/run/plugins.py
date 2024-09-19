@@ -223,6 +223,7 @@ class ValidationPlugin(run.Plugin):
 
         if self.validate_serialization:
             from nemo_run.core.serialization.zlib_json import ZlibJSONSerializer
+
             logging.info("Validating serialization/de-serialization of task")
             serializer = ZlibJSONSerializer()
             assert serializer.deserialize(serializer.serialize(task)) == task
