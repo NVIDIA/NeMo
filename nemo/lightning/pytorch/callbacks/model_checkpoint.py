@@ -80,6 +80,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.always_save_context = always_save_context
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
+        self.previous = "" ## previously saved -last checkpoint, to WAR last_model_path issue when save_last = 'link'
 
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
@@ -428,6 +429,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         self._last_global_step_saved = trainer.global_step
 
+        ## manually update last_model_path so symlink is up-to-date
+        if self.save_last == "link" and not str(ckpt_to_dir(filepath)).endswith("last"):
+            self.previous = self.last_model_path
+            self.last_model_path = str(ckpt_to_dir(filepath)) + "-last.ckpt"
+
         if ema_callback is not None:
             if self.async_save:
                 raise ValueError('async_save with EMA not supported')
@@ -490,7 +496,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 version_cnt += 1
 
         # set the last model path before saving because it will be part of the state.
-        previous, self.last_model_path = self.last_model_path, filepath
+        if self.save_last != "link":
+            previous, self.last_model_path = self.last_model_path, filepath
+        else:
+            previous = self.previous
 
         ## check to see whether this step has already been saved as top_k
         ## in which case we can create a symlink
