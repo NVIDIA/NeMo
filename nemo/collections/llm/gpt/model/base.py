@@ -143,6 +143,10 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = gpt_data_step
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
+        if self.enable_cuda_graph:
+            assert not self.gradient_accumulation_fusion, \
+                "gradient_accumulation_fusion is not supported with enable_cuda_graph"
+
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
