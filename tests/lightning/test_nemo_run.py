@@ -82,3 +82,18 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
             plugins=run_plugins,
         )
         exp.dryrun()
+
+    run_plugins = [plugins.NsysPlugin(start_step=3, end_step=4)] + run_plugins
+    with run.Experiment(f"{name}-nsys-unit-test") as exp:
+        exp.add(
+            recipe_config,
+            executor=run.SlurmExecutor(
+                account="dummy",
+                partition="dummy",
+                nodes=recipe_config.trainer.num_nodes,
+                ntasks_per_node=recipe_config.trainer.devices,
+            ),
+            name=name,
+            plugins=run_plugins,
+        )
+        exp.dryrun()
