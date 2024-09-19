@@ -538,7 +538,7 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
 class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionModel", LlamaCrossAttentionModel]):
     def init(self) -> LlamaCrossAttentionModel:
         self.convert_vision = True
-        self.convert_text = False
+        self.convert_text = True
         assert self.convert_vision or self.convert_text
         return LlamaCrossAttentionModel(self.config, tokenizer=self.tokenizer)
 
