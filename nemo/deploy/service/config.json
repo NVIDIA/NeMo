@@ -1,0 +1,1 @@
+{"triton_service_ip": "0.0.0.0", "triton_service_port": 8000, "triton_request_timeout": 60, "openai_format_response": false}
