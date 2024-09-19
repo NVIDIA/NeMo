@@ -209,7 +209,7 @@ class ASRTarredDatasetBuilder:
 
         config = self.config  # type: ASRTarredDatasetConfig
 
-        #if not os.path.exists(target_dir):
+        # if not os.path.exists(target_dir):
         #    os.makedirs(target_dir)
 
         # Read the existing manifest
