@@ -16,10 +16,14 @@ from dataclasses import dataclass, field
 from typing import List, Literal
 
 from megatron.core import parallel_state
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 from torch import nn
 
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_TE = safe_import("transformer_engine")
 
 
 class AdapterParallelAdd(AdapterWrapper):
@@ -67,7 +71,21 @@ class LoRAModuleConnector:
         Returns:
             int: The number of input features.
         """
-        return m.in_features
+        if HAVE_TE:
+            from megatron.core.transformer.custom_layers.transformer_engine import (
+                TEColumnParallelLinear,
+                TERowParallelLinear,
+            )
+
+        if isinstance(m, ColumnParallelLinear) or isinstance(m, RowParallelLinear):
+            return m.input_size
+        elif HAVE_TE and isinstance(m, TEColumnParallelLinear):
+            return m.in_features
+        elif HAVE_TE and isinstance(m, TERowParallelLinear):
+            tp_size = parallel_state.get_tensor_model_parallel_world_size()
+            return m.in_features * tp_size
+        else:
+            raise ValueError(f"Unsupported module type for LoRA: {type(m)}")
 
     @staticmethod
     def get_out_features(m: nn.Module):
@@ -79,7 +97,21 @@ class LoRAModuleConnector:
         Returns:
             int
         """
-        return m.out_features
+        if HAVE_TE:
+            from megatron.core.transformer.custom_layers.transformer_engine import (
+                TEColumnParallelLinear,
+                TERowParallelLinear,
+            )
+
+        if isinstance(m, ColumnParallelLinear) or isinstance(m, RowParallelLinear):
+            return m.output_size
+        elif HAVE_TE and isinstance(m, TEColumnParallelLinear):
+            tp_size = parallel_state.get_tensor_model_parallel_world_size()
+            return m.out_features * tp_size
+        elif HAVE_TE and isinstance(m, TERowParallelLinear):
+            return m.out_features
+        else:
+            raise ValueError(f"Unsupported module type for LoRA: {type(m)}")
 
     @staticmethod
     def get_sequence_parallel(m: nn.Module):
