@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List, Literal
+from typing import List, Literal, Union
 
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
@@ -57,12 +57,14 @@ class AdapterParallelAdd(AdapterWrapper):
         adapter_output = self.adapter(x)
         return linear_output + adapter_output, bias
 
+LoRASupportedModule = Union[RowParallelLinear, ColumnParallelLinear, "TERowParallelLinear", "TEColumnParallelLinear"]
+
 
 class LoRAModuleConnector:
     """Gets and sets attributes of a module that are relevant to LoRA."""
 
     @staticmethod
-    def get_in_features(m: nn.Module):
+    def get_in_features(m: LoRASupportedModule):
         """Gets the number of input features for the module.
 
         Args:
@@ -88,7 +90,7 @@ class LoRAModuleConnector:
             raise ValueError(f"Unsupported module type for LoRA: {type(m)}")
 
     @staticmethod
-    def get_out_features(m: nn.Module):
+    def get_out_features(m: LoRASupportedModule):
         """Gets the number of output features for the module.
 
         Args:
@@ -114,7 +116,7 @@ class LoRAModuleConnector:
             raise ValueError(f"Unsupported module type for LoRA: {type(m)}")
 
     @staticmethod
-    def get_sequence_parallel(m: nn.Module):
+    def get_sequence_parallel(m: LoRASupportedModule):
         """Gets the sequence parallel configuration for the module.
 
         Args:
@@ -126,7 +128,7 @@ class LoRAModuleConnector:
         return m.config.sequence_parallel
 
     @staticmethod
-    def get_ub_overlap_ag(m: nn.Module):
+    def get_ub_overlap_ag(m: LoRASupportedModule):
         """Gets the ub_overlap_ag attribute of the module.
 
         Args:
@@ -138,7 +140,7 @@ class LoRAModuleConnector:
         return m.ub_overlap_ag
 
     @staticmethod
-    def get_config(m: nn.Module):
+    def get_config(m: LoRASupportedModule):
         """Gets the configuration for the module.
 
         Args:
@@ -150,7 +152,7 @@ class LoRAModuleConnector:
         return getattr(m, 'config', None)
 
     @staticmethod
-    def set_layer_norm_output(m: nn.Module, value: bool):
+    def set_layer_norm_output(m: LoRASupportedModule, value: bool):
         """Sets the return_layernorm_output attribute of the module.
 
         Args:
@@ -160,7 +162,7 @@ class LoRAModuleConnector:
         m.return_layernorm_output = value
 
     @staticmethod
-    def set_layer_norm_output_gathered(m: nn.Module, value: bool):
+    def set_layer_norm_output_gathered(m: LoRASupportedModule, value: bool):
         """Sets the return_layernorm_output_gathered attribute of the module.
 
         Args:
