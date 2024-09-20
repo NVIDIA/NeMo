@@ -93,20 +93,20 @@ class LlamaCrossAttentionSubmodules:
 
 class CrossAttentionTextModel(MCoreGPTModel):
     def __init__(
-            self,
-            config: TransformerConfig,
-            transformer_layer_spec: ModuleSpec,
-            vocab_size: int,
-            max_sequence_length: int,
-            pre_process: bool = True,
-            post_process: bool = True,
-            fp16_lm_cross_entropy: bool = False,
-            parallel_output: bool = True,
-            share_embeddings_and_output_weights: bool = False,
-            position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'learned_absolute',
-            rotary_percent: float = 1.0,
-            rotary_base: int = 10000,
-            seq_len_interpolation_factor: Optional[float] = None,
+        self,
+        config: TransformerConfig,
+        transformer_layer_spec: ModuleSpec,
+        vocab_size: int,
+        max_sequence_length: int,
+        pre_process: bool = True,
+        post_process: bool = True,
+        fp16_lm_cross_entropy: bool = False,
+        parallel_output: bool = True,
+        share_embeddings_and_output_weights: bool = False,
+        position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'learned_absolute',
+        rotary_percent: float = 1.0,
+        rotary_base: int = 10000,
+        seq_len_interpolation_factor: Optional[float] = None,
     ):
         super().__init__(config, transformer_layer_spec, vocab_size, max_sequence_length, pre_process, post_process,
                          fp16_lm_cross_entropy, parallel_output,
@@ -133,12 +133,12 @@ class CrossAttentionTextModel(MCoreGPTModel):
         self._thresh = self.num_frozen_embeddings - 1
 
     def _get_xattn_mask(
-            self,
-            num_tokens,
-            text_device,
-            text_dtype,
-            vision_tokens,
-            cross_attention_masks,
+        self,
+        num_tokens,
+        text_device,
+        text_dtype,
+        vision_tokens,
+        cross_attention_masks,
     ) -> Tuple[Tensor, Tensor]:
         assert vision_tokens is not None, "Vision tokens must be provided"
         vision_seqlen = vision_tokens.shape[3]
@@ -305,15 +305,15 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             self.layers), 'Check PP implementation for cross attention layers!'
 
     def forward(
-            self,
-            hidden_states: Tensor,
-            attention_mask: Tensor,
-            xattn_caches: Tensor = None,
-            cross_attention_masks: Tensor = None,
-            full_text_row_masked_out_mask: Tensor = None,
-            rotary_pos_emb: Tensor = None,
-            inference_params: InferenceParams = None,
-            packed_seq_params: PackedSeqParams = None,
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        xattn_caches: Tensor = None,
+        cross_attention_masks: Tensor = None,
+        full_text_row_masked_out_mask: Tensor = None,
+        rotary_pos_emb: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
     ):
         # hidden_states (float): [s, b, h]
         # attention_mask (bool): [1, 1, s, s]
@@ -441,11 +441,11 @@ class CrossAttentionTransformerBlock(TransformerBlock):
 
 class CrossAttentionTransformerLayer(TransformerLayer):
     def __init__(
-            self,
-            config: TransformerConfig,
-            submodules: TransformerLayerSubmodules,
-            layer_number: int = 1,
-            hidden_dropout: float = None,
+        self,
+        config: TransformerConfig,
+        submodules: TransformerLayerSubmodules,
+        layer_number: int = 1,
+        hidden_dropout: float = None,
     ):
         super().__init__(
             config=config,
@@ -461,14 +461,14 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         return self.cross_attention._compute_xattn_kv_cache(xattn_tokens)
 
     def forward(
-            self,
-            hidden_states,
-            cross_attention_masks,
-            xattn_cache=None,
-            full_text_row_masked_out_mask=None,
-            rotary_pos_emb=None,
-            inference_params=None,
-            packed_seq_params=None,
+        self,
+        hidden_states,
+        cross_attention_masks,
+        xattn_cache=None,
+        full_text_row_masked_out_mask=None,
+        rotary_pos_emb=None,
+        inference_params=None,
+        packed_seq_params=None,
     ):
         # hidden_states: [s, b, h]
 
@@ -544,10 +544,10 @@ class DummyCrossAttentionTransformerLayer(MegatronModule):
     """Dummy cross-attention transformer block with tanh-gated attention and feedforward."""
 
     def __call__(
-            self,
-            hidden_states: Tensor,
-            *args,
-            **kwargs,
+        self,
+        hidden_states: Tensor,
+        *args,
+        **kwargs,
     ) -> Tensor:
         return hidden_states
 
@@ -560,11 +560,11 @@ class LlamaCrossAttention(Attention):
     """
 
     def __init__(
-            self,
-            config: TransformerConfig,
-            submodules: LlamaCrossAttentionSubmodules,
-            layer_number: int,
-            attn_mask_type=AttnMaskType.padding,
+        self,
+        config: TransformerConfig,
+        submodules: LlamaCrossAttentionSubmodules,
+        layer_number: int,
+        attn_mask_type=AttnMaskType.padding,
     ):
         super().__init__(
             config=config,
@@ -661,14 +661,14 @@ class LlamaCrossAttention(Attention):
         return query, key, value
 
     def forward(
-            self,
-            hidden_states,
-            cross_attention_masks,
-            xattn_cache=None,
-            full_text_row_masked_out_mask=None,
-            inference_params=None,
-            rotary_pos_emb=None,
-            packed_seq_params=None,
+        self,
+        hidden_states,
+        cross_attention_masks,
+        xattn_cache=None,
+        full_text_row_masked_out_mask=None,
+        inference_params=None,
+        rotary_pos_emb=None,
+        packed_seq_params=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -778,172 +778,21 @@ class LlamaCrossAttention(Attention):
 
 class LlamaModel(GPTModel):
     def __init__(
-            self,
-            config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
-# @io.model_exporter(LlamaModel, "hf")
-# class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
-#     def init(self) -> "LlamaForCausalLM":
-#         from transformers import AutoModelForCausalLM
-#
-#         return AutoModelForCausalLM.from_config(self.config)
-#
-#     def apply(self, output_path: Path) -> Path:
-#         target = self.init()
-#         source, _ = self.nemo_load(str(self))
-#         target = self.convert_state(source, target)
-#
-#         target = target.cpu()
-#         target.save_pretrained(output_path)
-#         self.tokenizer.save_pretrained(output_path)
-#
-#         return output_path
-#
-#     def convert_state(self, source, target):
-#         mapping = {
-#             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
-#             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
-#             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
-#             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
-#             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
-#             "decoder.final_layernorm.weight": "model.norm.weight",
-#             "output_layer.weight": "lm_head.weight",
-#         }
-#
-#         return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
-#
-#     @property
-#     def tokenizer(self):
-#         return io.load_context(str(self)).model.tokenizer.tokenizer
-#
-#     @property
-#     def config(self) -> "HFLlamaConfig":
-#         source: LlamaConfig = io.load_context(str(self)).model.config
-#
-#         from transformers import LlamaConfig as HFLlamaConfig
-#
-#         return HFLlamaConfig(
-#             num_hidden_layers=source.num_layers,
-#             hidden_size=source.hidden_size,
-#             intermediate_size=source.ffn_hidden_size,
-#             num_attention_heads=source.num_attention_heads,
-#             max_position_embeddings=source.seq_length,
-#             initializer_range=source.init_method_std,
-#             rms_norm_eps=source.layernorm_epsilon,
-#             num_key_value_heads=source.num_query_groups,
-#             rope_theta=source.rotary_base,
-#             vocab_size=self.tokenizer.vocab_size,
-#         )
-#
-#
-# @io.state_transform(
-#     source_key=(
-#             "model.layers.*.self_attn.q_proj.weight",
-#             "model.layers.*.self_attn.k_proj.weight",
-#             "model.layers.*.self_attn.v_proj.weight",
-#     ),
-#     target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-# )
-# def _import_qkv(ctx: io.TransformCTX, q, k, v):
-#     megatron_config = ctx.target.config
-#
-#     head_num = megatron_config.num_attention_heads
-#     num_query_groups = megatron_config.num_query_groups
-#     heads_per_group = head_num // num_query_groups
-#     hidden_size = megatron_config.hidden_size
-#     head_num = megatron_config.num_attention_heads
-#     head_size = hidden_size // head_num
-#
-#     old_tensor_shape = q.size()
-#     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
-#     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
-#
-#     q = q.view(*new_q_tensor_shape)
-#     k = k.view(*new_kv_tensor_shape)
-#     v = v.view(*new_kv_tensor_shape)
-#
-#     qkv_weights_l = []
-#     for i in range(num_query_groups):
-#         qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
-#         qkv_weights_l.append(k[i: i + 1, :, :])
-#         qkv_weights_l.append(v[i: i + 1, :, :])
-#     qkv_weights = torch.cat(qkv_weights_l)
-#     assert qkv_weights.ndim == 3, qkv_weights.shape
-#     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
-#     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
-#     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
-#
-#     qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
-#
-#     return qkv_weights
-#
-#
-# @io.state_transform(
-#     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
-#     target_key=(
-#             "model.layers.*.self_attn.q_proj.weight",
-#             "model.layers.*.self_attn.k_proj.weight",
-#             "model.layers.*.self_attn.v_proj.weight",
-#     ),
-# )
-# def _export_qkv(ctx: io.TransformCTX, linear_qkv):
-#     megatron_config = ctx.source.config
-#
-#     head_num = megatron_config.num_attention_heads
-#     num_query_groups = megatron_config.num_query_groups
-#     heads_per_group = head_num // num_query_groups
-#     hidden_size = megatron_config.hidden_size
-#     head_num = megatron_config.num_attention_heads
-#     head_size = hidden_size // head_num
-#     qkv_total_dim = head_num + 2 * num_query_groups
-#
-#     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
-#     q_slice = torch.cat(
-#         [
-#             torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
-#             for i in range(num_query_groups)
-#         ]
-#     )
-#     k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-#     v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-#
-#     q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
-#     k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
-#     v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
-#
-#     return q_proj, k_proj, v_proj
-#
-#
-# @io.state_transform(
-#     source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-#     target_key="decoder.layers.*.mlp.linear_fc1.weight",
-# )
-# def _import_linear_fc1(down, gate):
-#     return torch.cat((down, gate), axis=0).float()
-#
-#
-# @io.state_transform(
-#     source_key="decoder.layers.*.mlp.linear_fc1.weight",
-#     target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-# )
-# def _export_linear_fc1(linear_fc1):
-#     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-#
-#     return gate_proj, up_proj
-
-
 def apply_rope_scaling(
-        inv_freq,
-        factor: int = 8,
-        low_freq_factor: int = 1,
-        high_freq_factor: int = 4,
-        old_context_len: int = 8192,
+    inv_freq,
+    factor: int = 8,
+    low_freq_factor: int = 1,
+    high_freq_factor: int = 4,
+    old_context_len: int = 8192,
 ):
     logging.info(
         f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."
