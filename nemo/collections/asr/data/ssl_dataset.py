@@ -363,17 +363,23 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         self,
         noise_manifest: str | None = None,
         batch_augmentor: Any | None = None,
-        max_audio_cache: int = 5,
         min_audio_len_secs: float = 1.0,
         pad_audio_mode: str = 'repeat',
         **kwargs,
     ):
+        """
+        Args:
+            noise_manifest: the noise manifest file
+            batch_augmentor: the batch augmentor
+            min_audio_len_secs: the minimum audio length in seconds, audios shorter than this will be padded
+            pad_audio_mode: the padding mode for audios shorter than min_audio_len_secs, either 'repeat' or 'zero'
+            **kwargs: other arguments for TarredAudioToCharDataset
+
+        """
         super().__init__(bos_id=0, manifest_parse_func=_parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
         self.noise_data = load_noise_manifest(noise_manifest)
-        self._audio_cache = OrderedDict()
-        self._max_audio_cache = max_audio_cache
         self.min_audio_len_secs = min_audio_len_secs
         self.pad_audio_mode = pad_audio_mode
 
@@ -390,7 +396,6 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         if offset is None:
             offset = 0
 
-        failed = False
         try:
             # Convert audio bytes to IO stream for processing (for SoundFile to read)
             audio_filestream = io.BytesIO(audio_bytes)
@@ -403,32 +408,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             )
             audio_filestream.close()
         except Exception as e:
-            logging.warning(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
-            failed = True
-
-        if audio.size(0) == 0:
-            logging.warning(f"Loaded audio has zero length: {manifest_entry}.")
-            failed = True
-        elif audio.isnan().any():
-            logging.warning(f"Loaded audio has NaN values: {manifest_entry}.")
-            failed = True
-        elif audio.abs().max() == 0:
-            logging.warning(f"Loaded audio has all zero values: {manifest_entry}.")
-            failed = True
-
-        if failed:
-            if len(self._audio_cache) > 0:
-                idx, audio = self._audio_cache.popitem(last=False)
-                logging.warning(
-                    f"Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}"
-                )
-            else:
-                logging.warning(f"Error reading audio sample: {manifest_entry}, returning dummy audio for sample.")
-                audio = 0.1 * torch.ones(self.featurizer.sample_rate, dtype=torch.float32)
-
-        if len(self._audio_cache) >= self._max_audio_cache:
-            self._audio_cache.popitem(last=False)
-        self._audio_cache[manifest_idx] = audio.clone()
+            raise RuntimeError(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
 
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         audio = pad_audio(audio, min_len, self.pad_audio_mode)
@@ -455,7 +435,9 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             elif self.pad_audio_mode == 'zero':
                 audio = torch.nn.functional.pad(audio, (0, min_len - audio.size(0)))
             else:
-                raise ValueError(f"Unsupported pad_audio_mode: {self.pad_audio_mode}")
+                raise ValueError(
+                    f"Unsupported pad_audio_mode: {self.pad_audio_mode}, must be one of ['repeat', 'zero']"
+                )
         return audio
 
     def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
