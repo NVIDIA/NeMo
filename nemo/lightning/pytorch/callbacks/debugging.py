@@ -142,7 +142,6 @@ class ParameterDebugger(Callback):
         # create table only if there is something to print
         if any(param_keys) or any(grad_keys):
             debug_table = PrettyTable()
-            debug_table.align = "l"
             debug_table.add_column("Parameter", names_col)
 
             for prefix, keys, output_list in zip(
@@ -158,4 +157,5 @@ class ParameterDebugger(Callback):
                     if col_to_log != []:
                         debug_table.add_column(prefix + k, col_to_log)
 
+            debug_table.align = "l"
             logging.info("\n" + debug_table.get_string())
