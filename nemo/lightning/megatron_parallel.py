@@ -268,16 +268,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         self.callbacks.event("on_megatron_microbatches_start", step=step)
         microbatch_outputs = step()
-
-        # microbatch_outputs = step.forward_backward_func(
-        #     forward_step_func=forward_step_func,
-        #     data_iterator=step.data_iterator,
-        #     model=self.pipeline,
-        #     num_microbatches=step.num_microbatches,
-        #     seq_length=step.seq_length,
-        #     micro_batch_size=step.micro_batch_size,
-        # )
-
         self.callbacks.event("on_megatron_microbatches_end", step=step, microbatch_outputs=microbatch_outputs)
 
         if microbatch_outputs:
@@ -296,12 +286,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 microbatch_outputs=microbatch_outputs,
                 reduced=reduced,
             )
-
-            print(step)
-            print(loss_reduction)
-            print(microbatch_outputs)
-            print(reduced)
-
         else:
             # we're not on the last pipeline stage so no losses
             reduced = torch.tensor(0.0, device=torch.cuda.current_device())
