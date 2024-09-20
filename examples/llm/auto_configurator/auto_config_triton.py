@@ -346,6 +346,7 @@ def autoconfig_run(options: AutoConfiguratorOptions):
             lora_ckpt_list=combination['lora_ckpt'],
             load_model=False,
             use_python_runtime=(not combination['use_cpp_runtime']),
+            multi_block_mode=combination['multi_block_mode']
         )
         trt_llm_exporter.export(
             nemo_checkpoint_path=options['nemo_checkpoint'],
@@ -363,7 +364,6 @@ def autoconfig_run(options: AutoConfiguratorOptions):
             paged_kv_cache=combination['paged_kv_cache'],
             remove_input_padding=combination['remove_input_padding'],
             dtype=combination['dtype'],
-            enable_multi_block_mode=combination['multi_block_mode'],
             use_lora_plugin=combination['use_lora_plugin'],
             lora_target_modules=combination['lora_target_modules'],
             max_lora_rank=combination['max_lora_rank'],
@@ -389,11 +389,12 @@ def autoconfig_run(options: AutoConfiguratorOptions):
     varying_parameters = []
     for key, value in options.items():
         if isinstance(value, list) and len(value) > 1:
-            varying_parameters.append(key)
+            # remove the trailing "_list" to get the original parameter name
+            varying_parameters.append(key[:-5])
     # print best ones
     for index, result_entry in enumerate(sorted_results[:4]):
         print(f"#{index+1} configuration, {result_entry[0]['evaluation_time']} seconds:")
-        print({key: result_entry[key] for key in varying_parameters})
+        print({key: result_entry[1][key] for key in varying_parameters})
 
 def main():
     autoconfig_options: AutoConfiguratorOptions = generate_autoconfig_options()
