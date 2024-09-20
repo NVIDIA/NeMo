@@ -23,7 +23,6 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import OptimizerModule
-from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from transformers import MixtralForCausalLM

@@ -34,7 +34,6 @@ except (ImportError, ModuleNotFoundError):
 from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
-from nemo.lightning.pytorch.utils import dtype_from_hf
 
 
 def ssm_forward_step(model, batch) -> torch.Tensor:
