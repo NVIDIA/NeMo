@@ -106,7 +106,7 @@ def make_seq_mask_like(
 
 def lens_to_mask(lens: List[int], max_len: int, device: str = None):
     """
-    outputs masking labels for list of lengths of audio features, with max length of any 
+    outputs masking labels for list of lengths of audio features, with max length of any
     mask as max_len
     input:
         lens: list of lens
@@ -126,8 +126,8 @@ def get_statistics_with_mask(x: torch.Tensor, m: torch.Tensor, dim: int = 2, eps
     """
     compute mean and standard deviation of input(x) provided with its masking labels (m)
     input:
-        x: feature input 
-        m: averaged mask labels 
+        x: feature input
+        m: averaged mask labels
     output:
         mean: mean of input features
         std: stadard deviation of input features
@@ -148,7 +148,7 @@ class TDNNModule(nn.Module):
         stride: stride for conv layer
         padding: padding for conv layer (default None: chooses padding value such that input and output feature shape matches)
     output:
-        tdnn layer output 
+        tdnn layer output
     """
 
     def __init__(
@@ -185,7 +185,7 @@ class MaskedSEModule(nn.Module):
     """
     Squeeze and Excite module implementation with conv1d layers
     input:
-        inp_filters: input filter channel size 
+        inp_filters: input filter channel size
         se_filters: intermediate squeeze and excite channel output and input size
         out_filters: output filter channel size
         kernel_size: kernel_size for both conv1d layers
@@ -198,10 +198,20 @@ class MaskedSEModule(nn.Module):
     def __init__(self, inp_filters: int, se_filters: int, out_filters: int, kernel_size: int = 1, dilation: int = 1):
         super().__init__()
         self.se_layer = nn.Sequential(
-            nn.Conv1d(inp_filters, se_filters, kernel_size=kernel_size, dilation=dilation,),
+            nn.Conv1d(
+                inp_filters,
+                se_filters,
+                kernel_size=kernel_size,
+                dilation=dilation,
+            ),
             nn.ReLU(),
             nn.BatchNorm1d(se_filters),
-            nn.Conv1d(se_filters, out_filters, kernel_size=kernel_size, dilation=dilation,),
+            nn.Conv1d(
+                se_filters,
+                out_filters,
+                kernel_size=kernel_size,
+                dilation=dilation,
+            ),
             nn.Sigmoid(),
         )
 
@@ -222,7 +232,7 @@ class TDNNSEModule(nn.Module):
     Modified building SE_TDNN group module block from ECAPA implementation for faster training and inference
     Reference: ECAPA-TDNN Embeddings for Speaker Diarization (https://arxiv.org/pdf/2104.01466.pdf)
     inputs:
-        inp_filters: input filter channel size 
+        inp_filters: input filter channel size
         out_filters: output filter channel size
         group_scale: scale value to group wider conv channels (deafult:8)
         se_channels: squeeze and excite output channel size (deafult: 1024/8= 128)
@@ -278,7 +288,7 @@ class AttentivePoolLayer(nn.Module):
         inp_filters: input feature channel length from encoder
         attention_channels: intermediate attention channel size
         kernel_size: kernel_size for TDNN and attention conv1d layers (default: 1)
-        dilation: dilation size for TDNN and attention conv1d layers  (default: 1) 
+        dilation: dilation size for TDNN and attention conv1d layers  (default: 1)
     """
 
     def __init__(
@@ -297,7 +307,10 @@ class AttentivePoolLayer(nn.Module):
             TDNNModule(inp_filters * 3, attention_channels, kernel_size=kernel_size, dilation=dilation),
             nn.Tanh(),
             nn.Conv1d(
-                in_channels=attention_channels, out_channels=inp_filters, kernel_size=kernel_size, dilation=dilation,
+                in_channels=attention_channels,
+                out_channels=inp_filters,
+                kernel_size=kernel_size,
+                dilation=dilation,
             ),
         )
         self.eps = eps
