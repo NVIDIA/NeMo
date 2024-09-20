@@ -557,21 +557,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
         """
         from nemo.utils.get_rank import is_global_rank_zero
 
-        if str(filepath).endswith('.ckpt'):
-            ## TODO: why is this needed?
-            filepath = ckpt_to_dir(filepath)
-
         if self.async_save and not override_async:
             # Register checkpoint removal in the last (active) checkpoint removal list
             self.deferred_ckpts_to_remove[-1].append(filepath)
             return
 
-        if os.path.islink(filepath):
-            ## wait for all ranks to catch up before removing the checkpoint
-            torch.distributed.barrier()
-            if is_global_rank_zero():
-                os.unlink(filepath)
-            return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
