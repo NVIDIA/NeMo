@@ -57,6 +57,7 @@ class AdapterParallelAdd(AdapterWrapper):
         adapter_output = self.adapter(x)
         return linear_output + adapter_output, bias
 
+
 LoRASupportedModule = Union[RowParallelLinear, ColumnParallelLinear, "TERowParallelLinear", "TEColumnParallelLinear"]
 
 
