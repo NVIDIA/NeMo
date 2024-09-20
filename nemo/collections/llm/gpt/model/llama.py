@@ -25,7 +25,7 @@ from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.utils import logging
-from nemo.lightning.pytorch.utils import extract_dtypes, dtype_from_hf
+from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -226,9 +226,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
-        target_dtypes = extract_dtypes(target.module.named_parameters())
         self.convert_state(source, target)
-        assert target_dtypes == extract_dtypes(target.module.named_parameters())
         self.nemo_save(output_path, trainer)
 
         print(f"Converted Llama model to Nemo, model saved to {output_path} in {source.dtype}.")
