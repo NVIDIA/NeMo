@@ -245,7 +245,7 @@ class LoRA(PEFT):
                 # Column Parallel Linear
                 input_is_parallel = False
                 in_features = self.module_connector.get_in_features(m)
-                out_features = self.module_connector.get_out_features(m) * tp_size
+                out_features = self.module_connector.get_out_features(m)
                 # LoRA is applied after layernorm, so layernorm output must be returned
                 self.module_connector.set_layer_norm_output(m, True)
                 # perf optimization for LoRA + SP
@@ -254,7 +254,7 @@ class LoRA(PEFT):
             else:  # name in ['linear_proj', 'linear_fc2']
                 # Row Parallel Linear
                 input_is_parallel = True
-                in_features = self.module_connector.get_in_features(m) * tp_size
+                in_features = self.module_connector.get_in_features(m)
                 out_features = self.module_connector.get_out_features(m)
 
             logging.info(f"Adding lora to: {prefix}.{name}")
