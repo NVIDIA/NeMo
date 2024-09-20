@@ -7,10 +7,14 @@ def extract_dtypes(ckpt):
     """
     dtypes = {}
     for key, val in ckpt:
-        try:
+        if hasattr(val, 'dtype'):
             dtypes[key] = val.dtype
-        except:
-            continue
+        elif hasattr(val, 'data'):
+            # if it's ShardedTensor populated with data.
+            try:
+                dtypes[key] = val.data.dtype
+            except:
+                continue
     return dtypes
 
 def dtype_from_str(dtype):
