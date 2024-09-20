@@ -277,9 +277,17 @@ def convert(args):
         os.path.join(os.path.dirname(__file__), '../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml')
     )
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
+
+    model_config = MegatronNevaModel.restore_from(
+        restore_path=args.input_name_or_path, trainer=trainer, return_config=True
+    )
+    model_config.tensor_model_parallel_size = 1
+    model_config.pipeline_model_parallel_size = 1
+    
     model = MegatronNevaModel.restore_from(
         restore_path=args.input_name_or_path,
         trainer=trainer,
+        override_config_path=model_config,
         save_restore_connector=NLPSaveRestoreConnector(),
     )
 
