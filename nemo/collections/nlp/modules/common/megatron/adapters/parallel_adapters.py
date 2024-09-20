@@ -23,8 +23,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -52,6 +52,7 @@ try:
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
     from megatron.core.tensor_parallel.mappings import (
         gather_from_sequence_parallel_region,
+        reduce_scatter_last_dim_to_tensor_parallel_region,
         scatter_to_sequence_parallel_region,
     )
 
@@ -167,6 +168,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.input_is_parallel = input_is_parallel
         self.dropout_position = dropout_position
         self.use_a2a = a2a_experimental
+        self.reduce_scatter = False
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -305,9 +307,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.config.cpu_offloading and self.config.cpu_offloading_activations:
             x.activation_offloading = True
-        x, _ = self.linear_out(x)
 
-        if self._sequence_parallel and self.input_is_parallel:
+        if self.reduce_scatter:
+            x = scatter_to_sequence_parallel_region(x)
+
+        x, _ = self.linear_out(x)
+        if self._sequence_parallel and self.input_is_parallel and not self.reduce_scatter:
             # for attention_dense and linear_fc2
             # layernorm after lora is impacted by sequence parallel,
             # hence seq dim need to be scattered right after lora linear layers
