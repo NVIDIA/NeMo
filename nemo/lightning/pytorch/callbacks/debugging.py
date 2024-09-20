@@ -115,29 +115,47 @@ class ParameterDebugger(Callback):
 
             return None
 
-        # create table and get table column headers
-        debug_table = PrettyTable()
-        debug_table.align = "l"
-        param_keys = self.param_fn(torch.zeros(0)).keys() if self.param_fn else []
-        grad_keys = self.grad_fn(torch.zeros(0)).keys() if self.grad_fn else []
-        debug_table.field_names = ["Parameter"] + ["Param " + k for k in param_keys] + ["Grad " + k for k in grad_keys]
-
+        names_col, params_output, grads_output = [], [], []
         for param_name, param_tensor in pl_module.named_parameters():
-            short_name = param_name.replace("module.", "").replace(".weight", "")
             grad_tensor = find_grad_tensor(param_tensor)
+            short_name = param_name.replace("module.", "").replace(".weight", "")
+            names_col.append(short_name)
 
-            row = [short_name]
-            for tensor, attr_fn, attr_keys in zip(
-                [param_tensor, grad_tensor], [self.param_attr_fn, self.grad_attr_fn], [param_keys, grad_keys]
+            for tensor, fn, out_col in zip(
+                [param_tensor, grad_tensor], [self.param_fn, self.grad_fn], [params_output, grads_output]
             ):
-                if attr_fn is not None:
+                if fn is not None:
                     if tensor is not None:
-                        # iterate instead of just appending attrs.values() to ensure order
-                        attrs = attr_fn(tensor)
-                        row += [attrs[k] for k in attr_keys]
+                        out_col.append(fn(tensor))
                     else:
-                        row += [None for k in attr_keys]
+                        out_col.append({})
 
-            debug_table.add_row(row)
+        # get table column headers
+        param_keys, grad_keys = set([]), set([])
+        for output in params_output:
+            if output is not None:
+                param_keys.update(output.keys())
+        for output in grads_output:
+            if output is not None:
+                grad_keys.update(output.keys())
 
-        logging.info("\n" + debug_table.get_string())
+        # create table only if there is something to print
+        if any(param_keys) or any(grad_keys):
+            debug_table = PrettyTable()
+            debug_table.align = "l"
+            debug_table.add_column("Parameter", names_col)
+
+            for prefix, keys, output_list in zip(
+                ["Param ", "Grad "], [param_keys, grad_keys], [params_output, grads_output]
+            ):
+                for k in keys:
+                    col_to_log = []
+                    for output in output_list:
+                        if output is not None:
+                            col_to_log.append(output.get(k, None))
+                        else:
+                            col_to_log.append(None)
+                    if col_to_log != []:
+                        debug_table.add_column(prefix + k, col_to_log)
+
+            logging.info("\n" + debug_table.get_string())
