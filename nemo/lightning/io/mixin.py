@@ -306,7 +306,7 @@ class ConnectorMixin:
         return ckpt_path
 
     @classmethod
-    def _get_connector(cls, ext, path=None, importer=True, **kwargs) -> ModelConnector:
+    def _get_connector(cls, ext: str, path: Optional[str] = None, importer: bool=True, **kwargs) -> ModelConnector:
         """
         Retrieves the appropriate model connector based on the file extension and path,
         distinguishing between importers and exporters.
@@ -330,7 +330,7 @@ class ConnectorMixin:
         if "://" in ext:
             ext, _path = ext.split("://")
         else:
-            _path = path
+            _path = str(path)
 
         connector = cls._IMPORTERS.get(str(cls) + ext) if importer else cls._EXPORTERS.get(str(cls) + ext)
         if not connector:
