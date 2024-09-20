@@ -283,7 +283,7 @@ def convert(args):
     )
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
-    
+
     model = MegatronNevaModel.restore_from(
         restore_path=args.input_name_or_path,
         trainer=trainer,
