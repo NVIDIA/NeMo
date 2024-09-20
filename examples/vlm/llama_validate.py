@@ -11,12 +11,13 @@ import pytorch_lightning as pl
 # @run.factory
 def trainer(devices=1) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=devices,
         setup_optimizers=False,
+        # save_ckpt_format='zarr',
     )
 
     return nl.Trainer(
-        devices=1,
+        devices=devices,
         max_steps=2,
         accelerator="gpu",
         strategy=strategy,
@@ -76,7 +77,7 @@ def llama32() -> pl.LightningModule:
     return vlm.LlamaCrossAttentionModel(
         vlm.LlamaCrossAttentionModelConfig(
             language_model_config=vlm.CrossAttentionTextModelConfig8B(),
-            vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
+            vision_model_config=None, #vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
         ),
         tokenizer=tokenizer)
 
@@ -84,7 +85,7 @@ def llama32() -> pl.LightningModule:
 def resume() -> nl.AutoResume:
     return nl.AutoResume(
         restore_config=nl.RestoreConfig(
-            path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-early_vv1/consolidated.pth",
+            path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-final_vv1/consolidated.pth",
         ),
         resume_if_exists=True,
         # resume_ignore_no_checkpoint=True,
@@ -94,7 +95,7 @@ if __name__ == '__main__':
     llm.validate(
         model=llama32(),
         data=squad(),
-        trainer=trainer(),
+        trainer=trainer(devices=1),
         log=logger(),
         resume=resume(),
     )

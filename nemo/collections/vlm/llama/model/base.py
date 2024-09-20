@@ -33,7 +33,7 @@ from torch import nn, Tensor
 
 from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
 from megatron.core.transformer.spec_utils import ModuleSpec
-from nemo.lightning import get_vocab_size
+from nemo.lightning import get_vocab_size, MegatronStrategy, Trainer
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -545,8 +545,10 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         return LlamaCrossAttentionModel(self.config, tokenizer=self.tokenizer)
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
+        # note: this entire function is for debugging
         self.convert_vision = False
         self.convert_text = True
+        self.zarr = True
         assert self.convert_vision or self.convert_text
 
         output_path = super().local_path(base_path)
@@ -554,6 +556,8 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             output_path = Path(str(output_path) + '_vision_only')
         if not self.convert_vision:
             output_path = Path(str(output_path) + '_text_only')
+        if self.zarr:
+            output_path = Path(str(output_path) + '_zarr')
         return output_path
 
     def apply(self, output_path: Path) -> Path:
@@ -569,7 +573,13 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         source = ModelState(source)
 
         target = self.init()
-        trainer = self.nemo_setup(target)
+        dummy_trainer = Trainer(
+            devices=1, accelerator="cpu", strategy=MegatronStrategy(
+                store_optimizer_states=False,
+                save_ckpt_format='zarr',  # use zarr before torch_dist issue is resolved
+            )
+        )
+        trainer = self.nemo_setup(target, dummy_trainer)
 
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
@@ -582,30 +592,46 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         return output_path
 
     def convert_state(self, source, target):
+        ckpt_version = 'final'  # early | final. Remove before merging
         mapping = {}
         transforms = []
         if self.convert_text:
             mapping.update({
-                "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-                "text_model.layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.layers.*.mlp.linear_fc1.weight",
-                "text_model.layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
                 "text_model.layers.*.attention.wo.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
-                "text_model.layers.*.attention.wqkv.layer_norm_weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-                "text_model.layers.*.attention.wqkv.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.weight",
-                "text_model.cross_attention_layers.*.attention.inner_attention.k_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
-                "text_model.cross_attention_layers.*.attention.wkv.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
                 "text_model.cross_attention_layers.*.attention.wo.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_proj.weight",
-                "text_model.cross_attention_layers.*.attention.wq.layer_norm_weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
                 "text_model.cross_attention_layers.*.attention.wq.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.weight",
-                "text_model.cross_attention_layers.*.attention.inner_attention.q_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
-                "text_model.cross_attention_layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
-                "text_model.cross_attention_layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.weight",
-                "text_model.cross_attention_layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc2.weight",
                 "text_model.norm.weight": "language_model.decoder.final_layernorm.weight",
                 "text_model.tok_embeddings.weight": "language_model.embedding.word_embeddings.weight",
                 "text_model.learnable_embedding.weight": "language_model.learnable_embedding.weight",
                 "text_model.output.weight": "language_model.output_layer.weight",
             })
+            if ckpt_version == 'final':
+                mapping.update({
+                    "text_model.layers.*.ffn_norm.weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                    "text_model.layers.*.feed_forward.w2.weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
+                    "text_model.layers.*.attention_norm.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                    "text_model.cross_attention_layers.*.attention.k_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
+                    "text_model.cross_attention_layers.*.attention_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
+                    "text_model.cross_attention_layers.*.attention.q_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
+                    "text_model.cross_attention_layers.*.ffn_norm.weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
+                    "text_model.cross_attention_layers.*.feed_forward.w2.weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc2.weight",
+                })
+            elif ckpt_version == 'early':
+                mapping.update({
+                    "text_model.layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.layers.*.mlp.linear_fc1.weight",
+                    "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                    "text_model.layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
+                    "text_model.layers.*.attention.wqkv.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+                    "text_model.layers.*.attention.wqkv.layer_norm_weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                    "text_model.cross_attention_layers.*.attention.inner_attention.k_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
+                    "text_model.cross_attention_layers.*.attention.wq.layer_norm_weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
+                    "text_model.cross_attention_layers.*.attention.wkv.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
+                    "text_model.cross_attention_layers.*.attention.inner_attention.q_norm.weight": "language_model.decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
+                    "text_model.cross_attention_layers.*.feed_forward.mlp.layer_norm_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
+                    "text_model.cross_attention_layers.*.feed_forward.mlp.fc1_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc1.weight",
+                    "text_model.cross_attention_layers.*.feed_forward.mlp.fc2_weight": "language_model.decoder.xattn_layers.*.mlp.linear_fc2.weight",
+                })
+
             transforms.extend([
                 io.state_transform(
                     source_key="text_model.cross_attention_layers.*.gate_attn",
@@ -618,6 +644,34 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
                     fn=_import_gate,
                 ),
             ])
+            if ckpt_version == 'final':
+                transforms.extend([
+                    io.state_transform(
+                        source_key=("text_model.layers.*.attention.wq.weight",
+                                    "text_model.layers.*.attention.wk.weight",
+                                    "text_model.layers.*.attention.wv.weight",),
+                        target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+                        fn=_import_text_qkv,
+                    ),
+                    io.state_transform(
+                        source_key=("text_model.layers.*.feed_forward.w1.weight",
+                                    "text_model.layers.*.feed_forward.w3.weight"),
+                        target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
+                        fn=_import_simple_concat,
+                    ),
+                    io.state_transform(
+                        source_key=("text_model.cross_attention_layers.*.attention.wk.weight",
+                                    "text_model.cross_attention_layers.*.attention.wv.weight"),
+                        target_key="language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
+                        fn=_import_simple_concat,
+                    ),
+                    io.state_transform(
+                        source_key=("text_model.cross_attention_layers.*.feed_forward.w1.weight",
+                                    "text_model.cross_attention_layers.*.feed_forward.w3.weight"),
+                        target_key="language_model.decoder.xattn_layers.*.mlp.linear_fc1.weight",
+                        fn=_import_simple_concat,
+                ),
+                ])
         if self.convert_vision:
             v = "vision_model.vision_encoder"
             mapping.update({
@@ -663,14 +717,14 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
                                 f"{v}.global_transformer.resblocks.*.attn.wq.weight",
                                 f"{v}.global_transformer.resblocks.*.attn.wv.weight"),
                     target_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
-                    fn=_import_qkv
+                    fn=_import_vision_qkv
                 ),
                 io.state_transform(
                     source_key=(f"{v}.transformer.resblocks.*.attn.wk.weight",
                                 f"{v}.transformer.resblocks.*.attn.wq.weight",
                                 f"{v}.transformer.resblocks.*.attn.wv.weight"),
                     target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
-                    fn=_import_qkv
+                    fn=_import_vision_qkv
                 ),
             ])
 
@@ -728,16 +782,27 @@ def _import_gate(gate):
     return gate[0:1]
 
 
-def _import_qkv(ctx: io.TransformCTX, q, k, v):
+def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
     vision_config = ctx.target.config.vision_model_config
 
     head_num = vision_config.num_attention_heads
     num_query_groups = vision_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = vision_config.hidden_size
-    head_num = vision_config.num_attention_heads
     head_size = vision_config.kv_channels
+    hidden_size = vision_config.hidden_size
+    return _merge_qkv(q, k, v, head_num, num_query_groups, head_size, hidden_size)
 
+def _import_text_qkv(ctx: io.TransformCTX, q, k, v):
+    text_config = ctx.target.config.language_model_config
+
+    head_num = text_config.num_attention_heads
+    num_query_groups = text_config.num_query_groups
+    head_size = text_config.kv_channels
+    hidden_size = text_config.hidden_size
+    return _merge_qkv(q, k, v, head_num, num_query_groups, head_size, hidden_size)
+
+
+def _merge_qkv(q: Tensor, k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_size: int, hidden_size: int):
+    heads_per_group = head_num // num_query_groups
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
@@ -760,6 +825,10 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
     return qkv_weights
+
+def _import_simple_concat(a, b):
+    # for both (w1, w3) -> fc1, and (wk, wv) -> wkv
+    return torch.cat((a, b), dim=0).float()
 
 __all__ = [
     "LlamaCrossAttentionModel",
