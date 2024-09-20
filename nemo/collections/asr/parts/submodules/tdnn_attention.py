@@ -32,7 +32,7 @@ class StatsPoolLayer(nn.Module):
         pool_mode: Type of pool mode. Supported modes are 'xvector' (mean and standard deviation) and 'tap' (time
             average pooling, i.e., mean)
         eps: Epsilon, minimum value before taking the square root, when using 'xvector' mode.
-        biased: Whether to use the biased estimator for the standard deviation when using 'xvector' mode. The default
+        unbiased: Whether to use the biased estimator for the standard deviation when using 'xvector' mode. The default
             for torch.Tensor.std() is True.
 
     Returns:
@@ -42,7 +42,7 @@ class StatsPoolLayer(nn.Module):
         ValueError if an unsupported pooling mode is specified.
     """
 
-    def __init__(self, feat_in: int, pool_mode: str = 'xvector', eps: float = 1e-10, biased: bool = True):
+    def __init__(self, feat_in: int, pool_mode: str = 'xvector', eps: float = 1e-10, unbiased: bool = True):
         super().__init__()
         supported_modes = {"xvector", "tap"}
         if pool_mode not in supported_modes:
@@ -50,7 +50,7 @@ class StatsPoolLayer(nn.Module):
         self.pool_mode = pool_mode
         self.feat_in = feat_in
         self.eps = eps
-        self.biased = biased
+        self.unbiased = unbiased
         if self.pool_mode == 'xvector':
             # Mean + std
             self.feat_in *= 2
@@ -59,7 +59,8 @@ class StatsPoolLayer(nn.Module):
         if length is None:
             mean = encoder_output.mean(dim=-1)  # Time Axis
             if self.pool_mode == 'xvector':
-                std = encoder_output.std(dim=-1)
+                correction = 1 if self.unbiased else 0
+                std = encoder_output.std(dim=-1, correction=correction).clamp(min=self.eps)
                 pooled = torch.cat([mean, std], dim=-1)
             else:
                 pooled = mean
@@ -71,12 +72,13 @@ class StatsPoolLayer(nn.Module):
             # Re-scale to get padded means
             means = means * (encoder_output.shape[-1] / length).unsqueeze(-1)
             if self.pool_mode == "xvector":
+                correction = 1 if self.unbiased else 0
                 stds = (
                     encoder_output.sub(means.unsqueeze(-1))
                     .masked_fill(mask, 0.0)
                     .pow(2.0)
                     .sum(-1)  # [B, D, T] -> [B, D]
-                    .div(length.view(-1, 1).sub(1 if self.biased else 0))
+                    .div(length.view(-1, 1).sub(correction))
                     .clamp(min=self.eps)
                     .sqrt()
                 )
