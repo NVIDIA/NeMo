@@ -24,8 +24,8 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
-from nemo.utils import logging
 from nemo.lightning.pytorch.utils import dtype_from_hf
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel

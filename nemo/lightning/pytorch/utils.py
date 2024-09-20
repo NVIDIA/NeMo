@@ -1,5 +1,6 @@
 import torch
 
+
 def extract_dtypes(ckpt):
     """
     Extracts dtype from the input iterator
@@ -14,6 +15,7 @@ def extract_dtypes(ckpt):
             dtypes[key] = val.data.dtype
     return dtypes
 
+
 def dtype_from_str(dtype):
     """
     Convert a str precision to equivalent torch dtype.
@@ -25,6 +27,7 @@ def dtype_from_str(dtype):
         return torch.bfloat16
     else:
         return torch.float32
+
 
 def dtype_from_hf(config):
     """
