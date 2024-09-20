@@ -21,34 +21,34 @@ class ParameterDebugger(Callback):
     """
     Debugging tool to help inspect parameters and gradients at any callback event.
 
-    Since accessing the gradient tensors with MegatronCore optimizers is less intuitive than pure PyTorch,
-    this callback handles the boilerplate needed to iterate over the model parameters and gradients,
+    This callback handles the boilerplate needed to iterate over the model parameters and gradients,
     and applies user specified functions to them. These functions can be used to log attributes or
     apply asserts on the param and grad tensors. Attributes are logged in a table, with a row for each parameter name.
     Default behavior is to log the precision and shapes of each parameter and its gradient.
 
     Args:
-        param_attr_fn: Function to apply to model parameters. Can be used to apply assertions on the tensor,
+        param_fn: Function to apply to model parameters. Can be used to apply assertions on the tensor,
             or return a mapping of labels and values to log for each parameter.
-        grad_attr_fn: Function to apply to model gradients.
-        log_on_hooks: PTL callback hook name or list of hook names on which to apply param_attr_fn and grad_attr_fn.
+        grad_fn: Function to apply to model gradients. Can be used to apply assertions on the tensor,
+            or return a mapping of labels and values to log for each gradient.
+        log_on_hooks: PTL callback hook name or list of hook names on which to apply param_fn and grad_fn.
             See `PTL docs <https://lightning.ai/docs/pytorch/stable/extensions/callbacks.html#hooks>`_ for more info
             on callback hooks. Note that some hooks that occur before the model is constructed are invalid.
 
     Example:
         >>> fn = lambda x: {"Norm": str(x.norm(2).item())}
-        >>> callback = ParameterDebugger(param_attr_fn=fn, log_on_hooks=["on_train_start", "on_train_end"])
+        >>> callback = ParameterDebugger(param_fn=fn, log_on_hooks=["on_train_start", "on_train_end"])
         >>> trainer = Trainer(callbacks=[callback])
     """
 
     def __init__(
         self,
-        param_attr_fn: Optional[Callable[[torch.Tensor], Dict[str, str]]] = collect_precision_and_shape,
-        grad_attr_fn: Optional[Callable[[torch.Tensor], Dict[str, str]]] = collect_precision,
+        param_fn: Optional[Callable[[torch.Tensor], Optional[Dict[str, str]]]] = collect_precision_and_shape,
+        grad_fn: Optional[Callable[[torch.Tensor], Optional[Dict[str, str]]]] = collect_precision,
         log_on_hooks: Union[List[str], str] = "on_train_start",
     ):
-        self.param_attr_fn = param_attr_fn
-        self.grad_attr_fn = grad_attr_fn
+        self.param_fn = param_fn
+        self.grad_fn = grad_fn
 
         valid_hooks = set(
             [
@@ -96,12 +96,12 @@ class ParameterDebugger(Callback):
             assert (
                 hook_name in valid_hooks
             ), f"Hook {hook_name} supplied to log_on_hooks is not valid or can not be used. Valid hooks are {valid_hooks}"
-            setattr(self, hook_name, self._log_param_and_grad_attrs)
+            setattr(self, hook_name, self._apply_user_funcs)
 
-    def _log_param_and_grad_attrs(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def _apply_user_funcs(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """
         Iterate over model parameters, find gradient tensor, apply and collect outputs of
-        param_attr_fn and grad_attr_fn, and log outputs in a table.
+        param_fn and grad_fn, and log outputs in a table.
         """
 
         def find_grad_tensor(param: torch.Tensor) -> Optional[torch.Tensor]:
@@ -118,8 +118,8 @@ class ParameterDebugger(Callback):
         # create table and get table column headers
         debug_table = PrettyTable()
         debug_table.align = "l"
-        param_keys = self.param_attr_fn(torch.zeros(0)).keys() if self.param_attr_fn else []
-        grad_keys = self.grad_attr_fn(torch.zeros(0)).keys() if self.grad_attr_fn else []
+        param_keys = self.param_fn(torch.zeros(0)).keys() if self.param_fn else []
+        grad_keys = self.grad_fn(torch.zeros(0)).keys() if self.grad_fn else []
         debug_table.field_names = ["Parameter"] + ["Param " + k for k in param_keys] + ["Grad " + k for k in grad_keys]
 
         for param_name, param_tensor in pl_module.named_parameters():
