@@ -80,7 +80,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.always_save_context = always_save_context
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
-        self.previous = "" ## previously saved -last checkpoint, to WAR last_model_path issue when save_last = 'link'
+
+        ## stores the previously saved -last checkpoint, used only when save_last = 'link'
+        ## this is needed because when using symlinks, we need to update last_model_path when
+        ## saving the non-last checkpoint. Storing "previous" is needed to keep us from overwriting the
+        ## previous "last_model_path"
+        self.previous = ""
 
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
@@ -430,6 +435,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self._last_global_step_saved = trainer.global_step
 
         ## manually update last_model_path so symlink is up-to-date
+        ## should only be done when using a symlink
         if self.save_last == "link" and not str(ckpt_to_dir(filepath)).endswith("last"):
             self.previous = self.last_model_path
             self.last_model_path = str(ckpt_to_dir(filepath)) + "-last.ckpt"
@@ -555,7 +561,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         is actually finished so we can't remove it. Instead we add it to
         `self.deferred_ckpts_to_remove` for future removal.
         """
-
         if self.async_save and not override_async:
             # Register checkpoint removal in the last (active) checkpoint removal list
             self.deferred_ckpts_to_remove[-1].append(filepath)
