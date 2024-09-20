@@ -223,7 +223,6 @@ def main(cfg) -> None:
             model = load_from_checkpoint_dir(MegatronT5SFTModel, cfg, trainer, modify_confg_fn=_modify_config)
 
     trainer.fit(model)
-    trainer.validate(model)
     if hasattr(cfg.model.data, 'test_ds'):
         trainer.test(model)
 
