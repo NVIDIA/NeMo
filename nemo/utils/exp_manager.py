@@ -125,6 +125,7 @@ class CallbackParams:
     model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
     save_on_train_epoch_end: Optional[bool] = False  # Save after training, not after validation
     async_save: Optional[bool] = False  # save the checkpoint asynchronously
+    save_last_n_optim_states: Optional[int] = -1  # a number of last checkpoints to be saved with optimizer states
 
 
 @dataclass
@@ -951,8 +952,8 @@ def get_git_hash():
             True,
             subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT).decode(),
         )
-    except subprocess.CalledProcessError as err:
-        return False, "{}\n".format(err.output.decode("utf-8"))
+    except (subprocess.CalledProcessError, FileNotFoundError) as err:
+        return False, "{}\n".format(err)
 
 
 def get_git_diff():
