@@ -935,6 +935,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             num_microbatches=self.num_microbatches,
             seq_length=self.seq_length,
             micro_batch_size=self.micro_batch_size,
+            forward_only=self.forward_only,
         )
 
     def to_data_iterator_list(
