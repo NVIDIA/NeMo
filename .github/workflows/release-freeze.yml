@@ -118,10 +118,10 @@ jobs:
         id: bump-version
         run: |
           cd ${{ github.run_id }}
-          PRE_RELEASE=$(cat megatron/core/package_info.py | awk -F"'" '/^PRE_RELEASE =/ {print $2}')
-          MAJOR=$(cat megatron/core/package_info.py | awk '/^MAJOR = [0-9]+$/' | awk -F"= " '{print $2}')
-          MINOR=$(cat megatron/core/package_info.py | awk '/^MINOR = [0-9]+$/' | awk -F"= " '{print $2}')
-          PATCH=$(cat megatron/core/package_info.py | awk '/^PATCH = [0-9]+$/' | awk -F"= " '{print $2}')
+          PRE_RELEASE=$(cat nemo/package_info.py | awk -F"'" '/^PRE_RELEASE =/ {print $2}')
+          MAJOR=$(cat nemo/package_info.py | awk '/^MAJOR = [0-9]+$/' | awk -F"= " '{print $2}')
+          MINOR=$(cat nemo/package_info.py | awk '/^MINOR = [0-9]+$/' | awk -F"= " '{print $2}')
+          PATCH=$(cat nemo/package_info.py | awk '/^PATCH = [0-9]+$/' | awk -F"= " '{print $2}')
 
           if [[ "${{ inputs.is_prelease }}" == "true" ]]; then
             NEXT_MAJOR=$MAJOR
@@ -133,9 +133,9 @@ jobs:
             NEXT_PRE_RELEASE="'rc0'"
           fi
 
-          sed -i "s/^MAJOR = $MAJOR/MAJOR = $NEXT_MAJOR/" megatron/core/package_info.py
-          sed -i "s/^MINOR = $MINOR/MINOR = $NEXT_MINOR/" megatron/core/package_info.py
-          sed -i "s/^PRE_RELEASE = '$PRE_RELEASE'/PRE_RELEASE = $NEXT_PRE_RELEASE/" megatron/core/package_info.py
+          sed -i "s/^MAJOR = $MAJOR/MAJOR = $NEXT_MAJOR/" nemo/package_info.py
+          sed -i "s/^MINOR = $MINOR/MINOR = $NEXT_MINOR/" nemo/package_info.py
+          sed -i "s/^PRE_RELEASE = '$PRE_RELEASE'/PRE_RELEASE = $NEXT_PRE_RELEASE/" nemo/package_info.py
 
           echo "version=$NEXT_MAJOR.$NEXT_MINOR.$PATCH$NEXT_PRE_RELEASE" >> "$GITHUB_OUTPUT"
 
