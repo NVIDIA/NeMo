@@ -240,7 +240,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
 
         return loss
 
-    def get_partially_trainable_embedding(self, x, position_ids):
+    def get_partially_trainable_embedding(self, x):
         xz = torch.zeros_like(x, device=x.device)
         oz = torch.ones_like(x, device=x.device)
         x_orig = torch.minimum(x, torch.tensor(self._thresh, device=x.device))
@@ -252,7 +252,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         mask_orig = torch.where(x >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1).transpose(0, 1)
         mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1).transpose(0, 1)
 
-        x_orig = self.embedding(x_orig, position_ids)
+        x_orig = self.embedding(x_orig, None)
         x_new = self.learnable_embedding(x_new).type_as(x_orig).transpose(0, 1)
         return x_orig * mask_orig.type_as(x_orig) + x_new * mask_new.type_as(x_new)
 

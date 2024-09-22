@@ -126,6 +126,7 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
 @dataclass
 class CrossAttentionTextModelConfig(Llama31Config):
     num_cross_attention_layers: int = 8
+    vocab_size: int = 128256
 
     def _init_fusion_schedule(self, num_layers: int) -> List[int]:
         llama_layers = list(range(self.num_layers))
@@ -424,16 +425,16 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         pass
 
     def forward(
-            self,
-            position_ids: torch.Tensor,
-            tokens: torch.Tensor,
-            labels: Optional[torch.Tensor] = None,
-            batch_images: Optional[List[List[PIL_Image.Image]]] = None,
-            batch_masks: Optional[List[List[List[int]]]] = None,
-            total_len: Optional[int] = None,
-            cross_attention_masks: Optional[torch.Tensor] = None,
-            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
-            xattn_caches: Optional[torch.Tensor] = None,
+        self,
+        position_ids: torch.Tensor,
+        tokens: torch.Tensor,
+        labels: Optional[torch.Tensor] = None,
+        batch_images: Optional[List[List[PIL_Image.Image]]] = None,
+        batch_masks: Optional[List[List[List[int]]]] = None,
+        total_len: Optional[int] = None,
+        cross_attention_masks: Optional[torch.Tensor] = None,
+        full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+        xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if xattn_caches is None:
             xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
@@ -445,7 +446,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             )
 
         # TODO(yuya): check, fix position_ids[0]
-        embeddings = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids[0]], position_ids)
+        embeddings = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids[0]])
         logits = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -764,6 +765,7 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             hidden_size=source['dim'],
             ffn_hidden_size=_calculate_ffn_size(source['dim'], source['ffn_dim_multiplier'], source['multiple_of']),
             num_attention_heads=source['n_heads'],
+            vocab_size=128256,
         )
 
     def _vision_model_config(self, source) -> Optional[CrossAttentionVisionModelConfig]:
