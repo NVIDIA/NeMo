@@ -23,6 +23,7 @@ from nemo.utils.exp_manager import exp_manager
 
 torch._dynamo.config.suppress_errors = True
 
+
 @hydra_runner(config_path="conf", config_name="megatron_t5_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
