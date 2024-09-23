@@ -286,7 +286,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 if self.last_model_path == self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST):
                     logging.debug(f'Last checkpoint {self.last_model_path} already saved')
                 else:
-                    self._save_last_checkpoint(trainer, monitor_candidates)
+                    super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
         # Call parent on_train_end() to save the -last checkpoint
