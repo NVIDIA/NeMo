@@ -69,12 +69,34 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     .. warning::  This is an :ref:`experimental <versioning:Experimental API>` feature.
 
+    Args:
+        save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving.
+        load_directly_on_device (bool, optional): if True, loads the weights directly
+            on GPU. Has effect only for `zarr` based checkpoints (PyT Distributed
+            always loads on device). Defaults to True.
+        load_strictness (StrictHandling, optional): defines loading strictness.
+            If not None, overwrites the `strict` flag passed to `load_checkpoint`.
+            Defaults to None.
+        async_save (bool): whether to save asynchronously. Should be set to True if
+            this class will be wrapped with AsyncFinalizableCheckpointIO.
+        torch_dist_multiproc (int, optional): number of extra processes per rank
+            used during ckpt save with PyTorch distributed format. Defaults, to None
+            which means using an MCore default (2).
+        assume_constant_structure (bool): Allows caching some computation across checkpoint saves.
+            Set to True only if the state dict structure doesn't change within a single job.
+        parallel_save (bool): parallelizes the save across ranks. Defaults to True
+        parallel_save_within_dp (bool): If true, save will be parallelized only within a DP group
+            (whole world otherwise), which might slightly reduce the save overhead. Defaults to False.
+        parallel_load (bool): parallelizes the load across ranks (followed by params all gather).
+            Defaults to False due to some extra memory usage requirement.
+
     """
 
     def __init__(
         self,
         save_ckpt_format: str = 'torch_dist',
         load_directly_on_device: bool = True,
+        load_strictness: Optional['StrictHandling'] = None,
         async_save: bool = False,
         torch_dist_multiproc: Optional[int] = None,
         assume_constant_structure: bool = False,
@@ -84,6 +106,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
     ):
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
+        self.load_strictness = load_strictness
         self.async_save = async_save
         self.torch_dist_multiproc = torch_dist_multiproc
         self.assume_constant_structure = assume_constant_structure
@@ -145,7 +168,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     @override
     def load_checkpoint(
-        self, path: _PATH, sharded_state_dict=None, map_location: Optional[Callable] = None
+        self,
+        path: _PATH,
+        sharded_state_dict=None,
+        map_location: Optional[Callable] = None,
+        strict: Union[None, bool, 'StrictHandling'] = None,
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 
@@ -162,6 +189,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         """
         from megatron.core import dist_checkpointing
+        from megatron.core.dist_checkpointing.validation import StrictHandling
 
         if map_location is not None:
             raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
@@ -190,8 +218,21 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if sharded_strategy is not None:
             logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
 
+        if isinstance(strict, bool):
+            # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
+            # we must apply a simple strict check here.
+            if not strict:
+                sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
+        if self.load_strictness is not None:
+            # Overwrites function argument
+            strict = self.load_strictness
+
         checkpoint = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path), sharded_strategy=sharded_strategy
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=str(path),
+            sharded_strategy=sharded_strategy,
+            strict=strict,
         )
         checkpoint = _fix_tensors_device(checkpoint)
 

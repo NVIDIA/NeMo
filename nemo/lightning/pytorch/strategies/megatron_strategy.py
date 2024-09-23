@@ -127,6 +127,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
             'torch_dist' or 'zarr'. Defaults to 'torch_dist'.
+        ckpt_load_strictness (StrictHandling, optional): defines loading strictness.
+            If not None, overwrites the `strict` flag passed to `load_checkpoint`.
+            Defaults to None.
         ckpt_async_save (bool): Whether to save checkpoints asynchronously to reduce checkpointing overhead.
             Defaults to False.
         ckpt_torch_dist_multiproc (int): Number of extra processes per rank used during ckpt save
@@ -184,6 +187,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         save_ckpt_format: str = "torch_dist",
+        ckpt_load_strictness: Optional['StrictHandling'] = None,
         ckpt_async_save: bool = False,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
         ckpt_assume_constant_structure: bool = False,
@@ -227,6 +231,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
         self.save_ckpt_format = save_ckpt_format
+        self.load_strictness = ckpt_load_strictness
         self.async_save = ckpt_async_save
         self.torch_dist_multiproc = ckpt_torch_dist_multiproc
         self.assume_constant_structure = ckpt_assume_constant_structure
@@ -727,6 +732,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if not self._checkpoint_io:
             self._checkpoint_io = create_checkpoint_io(
                 save_ckpt_format=self.save_ckpt_format,
+                load_strictness=self.load_strictness,
                 async_save=self.async_save,
                 torch_dist_multiproc=self.torch_dist_multiproc,
                 assume_constant_structure=self.assume_constant_structure,
