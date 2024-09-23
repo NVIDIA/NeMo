@@ -15,7 +15,7 @@
 import os
 from functools import partial
 from itertools import chain
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import numpy as np
 import torch
@@ -24,7 +24,7 @@ from einops import rearrange, reduce, repeat
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import CLIPVisionModel, SiglipVisionModel, AutoModel
+from transformers import CLIPVisionModel, SiglipVisionModel, AutoModel, PixtralModel
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
@@ -135,6 +135,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self,
         vision_encoder,
         media_start_id,
+        media_token_id,
         media_end_id,
         vision_select_layer=-1,
         vision_select_feature="patch",
@@ -142,9 +143,10 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         use_im_start_end=False,
     ):
         self.vision_encoder = vision_encoder
-        self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel)
+        self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel) or isinstance(vision_encoder, PixtralModel)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
+        self.media_token_id = media_token_id
         self.class_token_length = class_token_length
         self.use_im_start_end = use_im_start_end
         self.vision_select_layer = vision_select_layer
@@ -185,23 +187,16 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         embeddings = embeddings.transpose(0, 1).contiguous()
         return tensor_parallel.mappings.scatter_to_sequence_parallel_region(embeddings)
 
-    def encode_vision_x(self, vision_x: torch.Tensor):
+    def encode_vision_x(self, vision_x: List[torch.Tensor]):
         """
         Compute media tokens from vision input by passing it through vision encoder and conditioning language model.
         Args:
-            vision_x (torch.Tensor): Vision input
-                shape (B, T_img, F, C, H, W)
-                Images in the same chunk are collated along T_img, and frames are collated along F
-                Currently only F=1 is supported (single-frame videos)
+            vision_x (List[torch.Tensor]): Vision input
+                a list of images with shape (C, H, W)
 
-        rearrange code based on https://github.com/dhansmair/flamingo-mini
+        rearrange code based on https://github.com/huggingface/transformers/blob/main/src/transformers/models/pixtral/modeling_pixtral.py
         """
-
-        assert vision_x.ndim == 6, "vision_x should be of shape (b, T_img, F, C, H, W)"
-        b, T, F = vision_x.shape[:3]
-
-        vision_x = rearrange(vision_x, "b T F c h w -> (b T F) c h w")
-        vision_x = vision_x.to(self.vision_encoder.dtype)
+        vision_x = [element.to(self.vision_encoder.dtype) for element in vision_x]
         with torch.no_grad():
             if self.from_hf:
                 vision_x = self.vision_encoder(vision_x, output_hidden_states=True)
@@ -209,16 +204,15 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)
-        vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
         if self.vision_select_feature == "patch":
-            vision_x = vision_x[:, :, :, self.class_token_length :]
+            vision_x = vision_x[:, self.class_token_length :]
         elif self.vision_select_feature != "cls_patch":
             raise ValueError(f"Unsupported vision_select_feature {self.vision_select_feature}")
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
         vision_connector = self.get_adapter_module(AdapterName.MULTIMODAL_PROJECTOR_ADAPTER)
         vision_x = vision_connector(vision_x)
         return vision_x
-
+    
     def replace_media_embeddings(self, input_ids, inputs_embeds, media):
         if media is None:
             return inputs_embeds
@@ -226,47 +220,13 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         # calculate media features without gradients
         media_features = self.encode_vision_x(media)  # b T F S(eq) H(idden)
-        num_images_per_sample = media_features.size(1)
-        num_patches = media_features.size(3) * media_features.size(2)
-        # flatten patches
-        media_features = media_features.view(batch_size, -1, hidden_size)
 
-        # create an indices matrix used in torch.scatter
-        padded_media_indices = torch.ones(
-            (batch_size, num_images_per_sample), dtype=torch.long, device=input_ids.device
-        )
-        padded_media_indices *= sequence_length
-        for idx, input_id in enumerate(input_ids):
-            media_end_positions = torch.where(input_id == self.media_end_id)[0]
-            if self.use_im_start_end:
-                # locate the first media token positions
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches
-                assert (
-                    input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id
-                ).all()
-            else:
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches + 1
-                assert (input_id[padded_media_indices[idx, : len(media_end_positions)]] == self.media_start_id).all()
-
-        # use indices to create a span
-        padded_media_indices = padded_media_indices.unsqueeze(-1) + torch.arange(
-            num_patches, device=padded_media_indices.device
-        ).repeat(*padded_media_indices.shape, 1)
-        padded_media_indices = padded_media_indices.reshape(batch_size, -1)
-        padded_media_indices = repeat(padded_media_indices, 'b s -> b s h', h=hidden_size)
-
-        # concat placeholder
-        updated_input_embeds = torch.cat(
-            (inputs_embeds, torch.zeros((batch_size, num_patches, hidden_size), device=inputs_embeds.device)), dim=1
-        )
-        updated_input_embeds = updated_input_embeds.type(media_features.dtype)
-        # scatter media_features
-        updated_input_embeds.scatter_(1, padded_media_indices, media_features)
-
-        # chop off placeholder
-        updated_input_embeds = updated_input_embeds[:, :sequence_length]
-
-        return updated_input_embeds
+        special_image_mask = (
+                    (input_ids == self.media_token_id).unsqueeze(-1).expand_as(inputs_embeds)
+                )
+        media_features = media_features.to(inputs_embeds.device, inputs_embeds.dtype)
+        inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, media_features)
+        return inputs_embeds
 
     def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
         sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
@@ -431,12 +391,14 @@ class NevaBaseModel:
         self,
         mm_cfg,
         media_start_id,
+        media_token_id,
         media_end_id,
         mcore_gpt,
         **kwargs,
     ):
         self.mm_cfg = mm_cfg
         self.media_start_id = media_start_id
+        self.media_token_id= media_token_id
         self.media_end_id = media_end_id
         self.mcore_gpt = mcore_gpt
         self.is_dist_ckpt = False
@@ -468,10 +430,11 @@ class NevaBaseModel:
             self.embedding.word_embeddings.init_vision(
                 vision_encoder,
                 media_start_id,
+                media_token_id,
                 media_end_id,
-                vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
+                vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -1),
                 vision_select_feature=mm_cfg.vision_encoder.get("vision_select_feature", "patch"),
-                class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
+                class_token_length=mm_cfg.vision_encoder.get("class_token_length", 0),
                 use_im_start_end=mm_cfg.get("use_im_start_end", False),
             )
 
@@ -625,12 +588,13 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         self,
         mm_cfg,
         media_start_id,
+        media_token_id,
         media_end_id,
         mcore_gpt,
         **kwargs,
     ):
         MCoreGPTModel.__init__(self, **kwargs)
-        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
+        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_token_id, media_end_id, mcore_gpt, **kwargs)
 
     def freeze_llm(self, mm_cfg):
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
