@@ -262,8 +262,6 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
                     'use_te_rng_tracker', False
                 ), "Transformer engine's RNG tracker is required for cudagraphs, it can be "\
                     "enabled with use_te_rng_tracker=True'."
-                assert not self.config.gradient_accumulation_fusion, \
-                    "gradient_accumulation_fusion is not supported with enable_cuda_graph"
 
             self.module = self.config.configure_model(self.tokenizer)
 
