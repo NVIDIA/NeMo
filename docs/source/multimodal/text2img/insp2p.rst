@@ -13,7 +13,7 @@ Training Dataset
 
 The dataset for NeMo's InstructPix2Pix model stands out among NeMo multimodal models, as it doesn't mandate data storage in the webdataset format. Users are advised to verify the dataset's content, assess the relevant licenses, and ensure its appropriateness for their use. Before downloading, it's essential to review any links associated with the dataset.
 
-For instructions on downloading and preparing the custom dataset for training InstructPix2Pix, refer to the official InstructPix2Pix repository. `Instruct-Pix2Pix Repository <https://github.com/timothybrooks/instruct-pix2pix#generated-dataset>`_
+For instructions on downloading and preparing the custom dataset for training InstructPix2Pix, refer to the official `Instruct-Pix2Pix Repository <https://github.com/timothybrooks/instruct-pix2pix#generated-dataset>`_
 
 Model Configuration
 -------------------
@@ -47,6 +47,7 @@ Essential Model Configuration
 - ``first_stage_key``: Key for the model's initial processing stage. Set to `edited` for InstructPix2Pix.
 - ``cond_stage_key``: Key for the model's conditional stage. Set to `edit` for InstructPix2Pix.
 - ``unet_config``: Configuration parameters for the UNet model within the NeMo collection.
+
   - ``_target_``: Designates the target module for the UNet model in the NeMo collection.
   - ``from_pretrained``: (Value not provided) Generally indicates the path or identifier of a pretrained model.
   - ``in_channels``: Specifies the number of input channels for the UNet model. Here, the value is set to 8, with the initial 4 channels dedicated to image guidance.
