@@ -36,6 +36,9 @@ from megatron.core.utils import (
     make_viewless_tensor,
 )
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
+from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.transformer.utils import sharded_state_dict_default
 
 from torch import nn
 from contextlib import nullcontext
@@ -323,20 +326,6 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             hidden_states = self.input_tensor
 
         # Viewless tensor.
-        # - We only need to create a viewless tensor in the case of micro batch
-        #   size (mbs) == 1, since in this case, 'hidden_states.transpose()'
-        #   above creates a view tensor, and '.contiguous()' is a pass-through.
-        #   For mbs >= 2, '.contiguous()' creates a new tensor, eliminating
-        #   the need to make it viewless.
-        #
-        #   However, we don't explicitly check mbs == 1 here because
-        #   make_viewless_tensor() has negligible overhead when its input
-        #   is already viewless.
-        #
-        # - For the 'else' case above, calling make_viewless_tensor() here is
-        #   likely redundant, since p2p_communication.py (likely originator)
-        #   already creates viewless tensors. That said, make_viewless_tensor()
-        #   is called here to be future-proof and corner-case-proof.
         hidden_states = make_viewless_tensor(
             inp=hidden_states,
             requires_grad=True,
@@ -437,6 +426,64 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             )
 
         return hidden_states
+
+    def sharded_state_dict(
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: dict = None
+    ) -> ShardedStateDict:
+        assert not sharded_offsets, "Unexpected sharded offsets"
+        non_homogeneous_layers = metadata is not None and metadata.get(
+            'non_homogeneous_layers', False
+        )
+        sharded_state_dict = {}
+
+        layer_prefix = f'{prefix}layers.'
+        num_layers = self.config.num_layers
+        for layer in self.layers:
+            offset = layer._get_layer_offset()
+
+            global_layer_offset = layer.layer_number - 1  # self.layer_number starts at 1
+            state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
+            if non_homogeneous_layers:
+                sharded_prefix = f'{layer_prefix}{global_layer_offset}.'
+                sharded_pp_offset = []
+            else:
+                sharded_prefix = layer_prefix
+                sharded_pp_offset = [
+                    (0, global_layer_offset, num_layers)
+                ]  # PP sharding offset for ShardedTensors
+            layer_sharded_state_dict = layer.sharded_state_dict(
+                state_dict_prefix, sharded_pp_offset, metadata
+            )
+            replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
+            sharded_state_dict.update(layer_sharded_state_dict)
+
+        xlayer_prefix = f'{prefix}xattn_layers.'
+        for ind, xlayer in enumerate(self.xattn_layers):
+            offset = xlayer._get_layer_offset()
+
+            global_layer_offset = xlayer.layer_number - 1  # self.layer_number starts at 1
+            state_dict_prefix = f'{xlayer_prefix}{ind}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
+            sharded_prefix = f'{xlayer_prefix}{ind}.'
+            sharded_pp_offset = []
+
+            xlayer_sharded_state_dict = xlayer.sharded_state_dict(
+                state_dict_prefix, sharded_pp_offset, metadata
+            )
+
+            replace_prefix_for_sharding(xlayer_sharded_state_dict, state_dict_prefix, sharded_prefix)
+
+            sharded_state_dict.update(xlayer_sharded_state_dict)
+
+        # Add modules other than self.layers
+        for name, module in self.named_children():
+            if not module is self.layers and not module is self.xattn_layers:
+                sharded_state_dict.update(
+                    sharded_state_dict_default(
+                        module, f'{prefix}{name}.', sharded_offsets, metadata
+                    )
+                )
+
+        return sharded_state_dict
 
 
 class CrossAttentionTransformerLayer(TransformerLayer):
