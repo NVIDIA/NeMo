@@ -21,7 +21,7 @@ from pathlib import Path
 import uvicorn
 
 from nemo.deploy import DeployPyTriton
-from nemo.export.tensorrt_llm_parsing_utils import add_export_kwargs, add_multi_block_mode_flag, create_parser
+from nemo.export.utils.argparse import add_export_kwargs, add_multi_block_mode_flag, create_parser
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -222,8 +222,8 @@ def get_nemo_deployable(args):
     return MegatronLLMDeployable(args.nemo_checkpoint, args.num_gpus)
 
 
-def nemo_deploy(argv):
-    args = get_args(argv)
+def nemo_deploy():
+    args = get_args(sys.argv[1:])
 
     loglevel = logging.DEBUG if args.debug_mode else logging.INFO
     LOGGER.setLevel(loglevel)
@@ -288,4 +288,4 @@ def nemo_deploy(argv):
 
 
 if __name__ == '__main__':
-    nemo_deploy(sys.argv[1:])
+    nemo_deploy()

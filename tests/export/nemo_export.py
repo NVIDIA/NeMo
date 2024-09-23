@@ -27,6 +27,7 @@ import torch
 # Import infer_data_path from the parent folder assuming that the 'tests' package is not installed.
 sys.path.append(str(Path(__file__).parent.parent))
 from infer_data_path import get_infer_test_data
+from nemo.export.utils.argparse import add_quantization_flags, parse_quantization_args, str_to_bool
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -62,12 +63,8 @@ except Exception as e:
     vllm_supported = False
 
 
-from nemo.export.tensorrt_llm_parsing_utils import (
-    UsageError,
-    add_quantization_flags,
-    parse_quantization_args,
-    str_to_bool,
-)
+class UsageError(Exception):
+    pass
 
 
 @dataclass
@@ -773,7 +770,7 @@ def get_args():
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.functional_test = str_to_bool("functional_test", args.functional_test)
-    args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
+    args.save_trt_engine = str_to_bool("save_trt_engine", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
@@ -953,6 +950,6 @@ if __name__ == '__main__':
     try:
         args = get_args()
         run_inference_tests(args)
-    except (UsageError, argparse.ArgumentError) as e:
+    except (UsageError, argparse.ArgumentError, argparse.ArgumentTypeError) as e:
         LOGGER.error(f"{e}")
         raise e

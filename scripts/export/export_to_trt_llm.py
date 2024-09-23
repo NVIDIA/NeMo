@@ -16,7 +16,7 @@ import logging
 import sys
 
 from nemo.export.tensorrt_llm import TensorRTLLM
-from nemo.export.tensorrt_llm_parsing_utils import add_export_kwargs, add_multi_block_mode_flag, create_parser
+from nemo.export.utils.argparse import add_export_kwargs, add_multi_block_mode_flag, create_parser
 
 LOGGER = logging.getLogger("NeMo")
 

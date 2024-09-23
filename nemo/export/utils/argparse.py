@@ -16,22 +16,17 @@ import argparse
 from typing import Optional
 
 
-class UsageError(Exception):
-    pass
-
-
 def str_to_bool(name: str, s: str, optional: bool = False) -> Optional[bool]:
-    s = s.lower()
     true_strings = ["true", "1"]
     false_strings = ["false", "0"]
     none_strings = ["auto", "none"]
-    if s in true_strings:
+    if s.lower() in true_strings:
         return True
-    if s in false_strings:
+    if s.lower() in false_strings:
         return False
-    if optional and s in none_strings:
+    if optional and s.lower() in none_strings:
         return None
-    raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
+    raise argparse.ArgumentTypeError(f"Invalid boolean value for argument --{name}: '{s}'")
 
 
 def add_quantization_flags(parser):
@@ -47,7 +42,7 @@ def add_quantization_flags(parser):
         "--use_fp8_kv_cache",
         default="auto",
         type=str,
-        help="Enables exporting with FP8-quantizatized KV-cache",
+        help="Enables exporting with FP8-quantized KV-cache",
     )
     return parser
 
@@ -65,7 +60,7 @@ def add_multi_block_mode_flag(parser):
         default=False,
         action='store_true',
         help='Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
-                        It is beneifical when batchxnum_heads cannot fully utilize GPU. \
+                        It is beneficial when batchxnum_heads cannot fully utilize GPU. \
                         Only available when using c++ runtime.',
     )
     return parser
