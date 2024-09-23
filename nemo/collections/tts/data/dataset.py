@@ -653,7 +653,7 @@ class TTSDataset(Dataset):
                 sr=self.sample_rate,
                 fill_na=0.0,
             )
-            for (i, voiced_name, voiced_filepath) in non_exist_voiced_index:
+            for i, voiced_name, voiced_filepath in non_exist_voiced_index:
                 my_var.__setitem__(voiced_name, torch.from_numpy(voiced_tuple[i]).float())
                 torch.save(my_var.get(voiced_name), voiced_filepath)
 
@@ -860,9 +860,9 @@ class TTSDataset(Dataset):
                 durations_list.append(general_padding(durations, len(durations), max_durations_len))
 
             if AlignPriorMatrix in self.sup_data_types_set:
-                align_prior_matrices[
-                    i, : align_prior_matrix.shape[0], : align_prior_matrix.shape[1]
-                ] = align_prior_matrix
+                align_prior_matrices[i, : align_prior_matrix.shape[0], : align_prior_matrix.shape[1]] = (
+                    align_prior_matrix
+                )
 
             if Pitch in self.sup_data_types_set:
                 pitches.append(general_padding(pitch, pitch_length.item(), max_pitches_len))
@@ -902,9 +902,9 @@ class TTSDataset(Dataset):
             "p_voiced": torch.stack(p_voiceds) if P_voiced in self.sup_data_types_set else None,
             "audio_shifted": torch.stack(audios_shifted) if audio_shifted is not None else None,
             "reference_audio": torch.stack(reference_audios) if ReferenceAudio in self.sup_data_types_set else None,
-            "reference_audio_lens": torch.stack(reference_audio_lengths)
-            if ReferenceAudio in self.sup_data_types_set
-            else None,
+            "reference_audio_lens": (
+                torch.stack(reference_audio_lengths) if ReferenceAudio in self.sup_data_types_set else None
+            ),
         }
 
         return data_dict
@@ -1163,7 +1163,8 @@ class VocoderDataset(Dataset):
 
 class PairedRealFakeSpectrogramsDataset(Dataset):
     def __init__(
-        self, manifest_filepath: Union[str, Path],
+        self,
+        manifest_filepath: Union[str, Path],
     ):
         manifest_filepath = Path(manifest_filepath)
         with Path(manifest_filepath).open() as f:
@@ -1216,7 +1217,6 @@ class FastPitchSSLDataset(Dataset):
         speaker_stats_pitch_fp: Optional[Union[str, Path]] = None,
         speaker_conditioning_type: Optional[str] = "per_sample",  # per_sample, mean, interpolate,
     ):
-
         """Dataset used for training FastPitchModel_SSL model.
         Requires supplementary data created using scripts/ssl_tts/make_supdata.py
         Args:
@@ -1329,7 +1329,10 @@ class FastPitchSSLDataset(Dataset):
 
     def _get_wav_from_filepath(self, audio_filepath):
         features = AudioSegment.segment_from_file(
-            audio_filepath, target_sr=self.sample_rate, n_segments=-1, trim=self.trim,
+            audio_filepath,
+            target_sr=self.sample_rate,
+            n_segments=-1,
+            trim=self.trim,
         )
         audio_samples = features.samples
 

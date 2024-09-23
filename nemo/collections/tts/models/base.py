@@ -34,13 +34,16 @@ try:
 except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
+
 class NeedsNormalizer(ModelPT, ABC):
-    """ Base class for all TTS models that needs text normalization(TN) """
+    """Base class for all TTS models that needs text normalization(TN)"""
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
             if not PYNINI_AVAILABLE:
-                logging.error("`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details.")
+                logging.error(
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details."
+                )
                 logging.error("The normalizer will be disabled.")
                 return
             normalizer_kwargs = {}
@@ -56,7 +59,7 @@ class NeedsNormalizer(ModelPT, ABC):
 
 
 class SpectrogramGenerator(NeedsNormalizer, ModelPT, ABC):
-    """ Base class for all TTS models that turn text into a spectrogram """
+    """Base class for all TTS models that turn text into a spectrogram"""
 
     @abstractmethod
     def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
@@ -141,7 +144,7 @@ class Vocoder(ModelPT, ABC):
 
 
 class GlowVocoder(Vocoder):
-    """ Base class for all Vocoders that use a Glow or reversible Flow-based setup. All child class are expected
+    """Base class for all Vocoders that use a Glow or reversible Flow-based setup. All child class are expected
     to have a parameter called audio_to_melspec_precessor that is an instance of
     nemo.collections.asr.parts.FilterbankFeatures"""
 
@@ -201,7 +204,11 @@ class GlowVocoder(Vocoder):
                 return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
 
             self.stft = lambda x: yet_another_patch(
-                x, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window,
+                x,
+                n_fft=n_fft,
+                hop_length=hop_length,
+                win_length=win_length,
+                window=window,
             )
             self.istft = lambda x, y: torch.istft(
                 torch.complex(x * torch.cos(y), x * torch.sin(y)),
@@ -279,14 +286,14 @@ class MelToSpec(ModelPT, ABC):
 
 
 class TextToWaveform(NeedsNormalizer, ModelPT, ABC):
-    """ Base class for all end-to-end TTS models that generate a waveform from text """
+    """Base class for all end-to-end TTS models that generate a waveform from text"""
 
     @abstractmethod
     def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
         """
-       A helper function that accepts a raw python string and turns it into a tensor. The tensor should have 2
-        dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
-        should represent either tokenized or embedded text, depending on the model.
+        A helper function that accepts a raw python string and turns it into a tensor. The tensor should have 2
+         dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
+         should represent either tokenized or embedded text, depending on the model.
         """
 
     @abstractmethod
@@ -325,7 +332,6 @@ class G2PModel(ModelPT, ABC):
         num_workers: int = 0,
         pred_field: Optional[str] = "pred_text",
     ) -> List[str]:
-
         """
         Main function for Inference. Converts grapheme entries from the manifest "graheme_field" to phonemes
         Args:

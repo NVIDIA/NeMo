@@ -140,12 +140,14 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                    'text_tokenizer.g2p.phoneme_dict',
+                    cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms',
+                    cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
@@ -246,7 +248,10 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
     def run_aligner(self, text, text_len, text_mask, spect, spect_len, attn_prior):
         text_emb = self.symbol_emb(text)
         attn_soft, attn_logprob = self.aligner(
-            spect, text_emb.permute(0, 2, 1), mask=text_mask == 0, attn_prior=attn_prior,
+            spect,
+            text_emb.permute(0, 2, 1),
+            mask=text_mask == 0,
+            attn_prior=attn_prior,
         )
         attn_hard = binarize_attention_parallel(attn_soft, text_len, spect_len)
         attn_hard_dur = attn_hard.sum(2)[:, 0, :]
@@ -421,7 +426,16 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         pitch = (pitch - self.pitch_mean) / self.pitch_std
         pitch[zero_pitch_idx] = 0.0
 
-        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur,) = self(
+        (
+            pred_spect,
+            _,
+            pred_log_durs,
+            pred_pitch,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+        ) = self(
             text=text,
             text_len=text_len,
             pitch=pitch,
@@ -431,7 +445,17 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             lm_tokens=lm_tokens,
         )
 
-        (loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss,) = self._metrics(
+        (
+            loss,
+            durs_loss,
+            acc,
+            acc_dist_1,
+            acc_dist_3,
+            pitch_loss,
+            mel_loss,
+            ctc_loss,
+            bin_loss,
+        ) = self._metrics(
             pred_durs=pred_log_durs,
             pred_pitch=pred_pitch,
             true_durs=attn_hard_dur,
@@ -473,7 +497,16 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         pitch = (pitch - self.pitch_mean) / self.pitch_std
         pitch[zero_pitch_idx] = 0.0
 
-        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur,) = self(
+        (
+            pred_spect,
+            _,
+            pred_log_durs,
+            pred_pitch,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+        ) = self(
             text=text,
             text_len=text_len,
             pitch=pitch,
@@ -483,7 +516,17 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             lm_tokens=lm_tokens,
         )
 
-        (loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss,) = self._metrics(
+        (
+            loss,
+            durs_loss,
+            acc,
+            acc_dist_1,
+            acc_dist_3,
+            pitch_loss,
+            mel_loss,
+            ctc_loss,
+            bin_loss,
+        ) = self._metrics(
             pred_durs=pred_log_durs,
             pred_pitch=pred_pitch,
             true_durs=attn_hard_dur,
@@ -582,7 +625,9 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             "raw_texts": [NeuralType(optional=True)],
             "lm_model": NeuralType(optional=True),
         },
-        output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),},
+        output_types={
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+        },
     )
     def generate_spectrogram(
         self,
@@ -671,7 +716,9 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             text_tokenizer=self.tokenizer,
         )
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -726,7 +773,11 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
     def input_example(self, max_text_len=10, max_lm_tokens_len=10):
         text = torch.randint(
-            low=0, high=len(self.tokenizer.tokens), size=(1, max_text_len), device=self.device, dtype=torch.long,
+            low=0,
+            high=len(self.tokenizer.tokens),
+            size=(1, max_text_len),
+            device=self.device,
+            dtype=torch.long,
         )
 
         inputs = {'text': text}
