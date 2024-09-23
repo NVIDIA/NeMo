@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import torch._dynamo
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
@@ -20,6 +20,8 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronT5Traine
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
+torch._dynamo.config.suppress_errors = True
 
 
 @hydra_runner(config_path="conf", config_name="megatron_t5_config")
