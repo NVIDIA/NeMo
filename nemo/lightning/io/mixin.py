@@ -307,7 +307,7 @@ class ConnectorMixin:
 
     @classmethod
     def _get_connector(
-        cls, ext: Union[str, Path], path: Optional[str, Path] = None, importer: bool = True, **kwargs
+        cls, ext: Union[str, Path], path: Optional[Union[str, Path]] = None, importer: bool = True, **kwargs
     ) -> ModelConnector:
         """
         Retrieves the appropriate model connector based on the file extension and path,
