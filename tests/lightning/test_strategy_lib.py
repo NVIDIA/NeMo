@@ -78,6 +78,7 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
     mock_parallel_config.expert_model_parallel_size = 2
     mock_parallel_config.tp_comm_overlap = False
     mock_parallel_config.pipeline_model_parallel_split_rank = None
+    mock_parallel_config.use_te_rng_tracker = False
 
     _strategy_lib.init_parallel_ranks(
         world_size=2,
@@ -100,6 +101,7 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
         pipeline_model_parallel_split_rank=None,
         use_fp8=False,
         init_mpi_proc_group=False,
+        use_te_rng_tracker=False,
     )
 
 
