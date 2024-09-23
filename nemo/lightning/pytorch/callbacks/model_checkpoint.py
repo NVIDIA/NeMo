@@ -493,7 +493,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # set the last model path before saving because it will be part of the state.
         if self.save_last == "link":
             previous = self.previous_last_model_path
-        if else:
+        else:
             previous, self.last_model_path = self.last_model_path, filepath
 
         ## check to see whether this step has already been saved as top_k
