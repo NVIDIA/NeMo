@@ -13,6 +13,7 @@
 # limitations under the License.
 import copy
 import math
+import re
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -563,6 +564,7 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
 
     def apply(self, output_path: Path) -> Path:
         source = torch.load(str(self), map_location='cpu')
+        source = _rename_xattn_layer_nums(source)
 
         class ModelState:
             def __init__(self, state_dict):
@@ -856,6 +858,20 @@ def _split_qkv(qkv, head_num: int, num_query_groups: int, head_size: int, hidden
 def _import_simple_concat(a, b):
     # for both (w1, w3) -> fc1, and (wk, wv) -> wkv
     return torch.cat((a, b), dim=0)
+
+def _rename_xattn_layer_nums(source: Dict):
+    def convert_layer_num(match):
+        new_layer_num = int(match.group(1)) * 4 + 3
+        return f'.{new_layer_num}.'
+
+    output_dict = {}
+    for k, v in source.items():
+        if "cross_attention_layers" in k:
+            output_dict[re.sub(r"\.(\d+)\.", convert_layer_num, k)] = v
+        else:
+            output_dict[k] = v
+    return output_dict
+
 
 __all__ = [
     "LlamaCrossAttentionModel",

@@ -263,8 +263,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         # initialize cross attention layers
 
         self.fusion_schedule = self.config.fusion_schedule
-        self.xattn_layers = torch.nn.ModuleList([])  # for state dict to match up with Meta's
-        self.xattn_and_dummy_layers = []  # for forward call, not in state dict
+        self.xattn_layers = []
         for i in range(self.num_layers_per_pipeline_rank):
             # TODO Handle with PP
             if i in self.fusion_schedule:
@@ -295,14 +294,12 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                         mlp_bda=get_bias_dropout_add,
                     ),
                 )
-                xattn_layer = build_module(layer_spec, config=self.config, layer_number=i + 1)
-                self.xattn_layers.append(xattn_layer)
-                self.xattn_and_dummy_layers.append(xattn_layer)
+                self.xattn_layers.append(build_module(layer_spec, config=self.config, layer_number=i + 1))
             else:
-                self.xattn_and_dummy_layers.append(DummyCrossAttentionTransformerLayer(config=self.config))
+                self.xattn_layers.append(DummyCrossAttentionTransformerLayer(config=self.config))
+        self.xattn_layers = torch.nn.ModuleList(self.xattn_layers)
 
-        assert len(self.xattn_and_dummy_layers) == len(
-            self.layers), 'Check PP implementation for cross attention layers!'
+        assert len(self.xattn_layers) == len(self.layers), 'Check PP implementation for cross attention layers!'
 
     def forward(
         self,
@@ -377,7 +374,9 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             if self.config.recompute_granularity == 'full' and self.training:
                 raise NotImplementedError
             else:
-                for l_no, (layer, xattn_layer) in enumerate(zip(self.layers, self.xattn_and_dummy_layers)):
+                for l_no, (layer, xattn_layer) in enumerate(zip(self.layers, self.xattn_layers)):
+                    layer: TransformerLayer
+                    xattn_layer: Union[DummyCrossAttentionTransformerLayer, CrossAttentionTransformerLayer]
                     with self.offload_context:
                         if (len(self.cuda_graphs) == 0) or (not self.training):
                             # hidden_states = xattn_layer(
