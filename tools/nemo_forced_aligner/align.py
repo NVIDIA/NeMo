@@ -17,7 +17,7 @@ import math
 import os
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 import torch
 from omegaconf import OmegaConf
@@ -120,6 +120,21 @@ class ASSFileConfig:
 
 
 @dataclass
+class TextNormalizationConfig:
+    enabled: bool = False
+    based_on: str = 'audio'
+    input_case: str = 'cased'
+    lang: str = 'en'
+    deterministic: bool = True
+    n_tagged: Optional[int] = 30
+    cache_dir: Optional[str] = None
+    overwrite_cache: bool = False
+    whitelist: Optional[str] = None
+    lm: bool = False
+    post_process: bool = True
+    max_number_of_permutations_per_split: int = 729
+
+@dataclass
 class AlignmentConfig:
     # Required configs
     pretrained_name: Optional[str] = None
@@ -142,6 +157,9 @@ class AlignmentConfig:
     chunk_len_in_secs: float = 1.6
     total_buffer_in_secs: float = 4.0
     chunk_batch_size: int = 32
+
+    # Text Normalization config
+    text_normalization: TextNormalizationConfig = field(default_factory=lambda: TextNormalizationConfig())
 
     # Cache aware streaming configs
     simulate_cache_aware_streaming: Optional[bool] = False
@@ -299,6 +317,37 @@ def main(cfg: AlignmentConfig):
             "model_stride_in_secs": model_stride_in_secs,
             "tokens_per_chunk": tokens_per_chunk,
         }
+    
+    
+    normalization_params = {}
+    normalizer = None
+    if cfg.text_normalization.enabled:
+        if cfg.text_normalization.based_on == "text_only":
+            from nemo_text_processing.text_normalization.normalize import Normalizer
+            
+            normalizer = Normalizer(input_case = cfg.text_normalization.input_case,
+                                    lang = cfg.text_normalization.lang,
+                                    deterministic= cfg.text_normalization.deterministic,
+                                    cache_dir= cfg.text_normalization.cache_dir,
+                                    overwrite_cache = cfg.text_normalization.overwrite_cache,
+                                    whitelist= cfg.text_normalization.whitelist,
+                                    lm = cfg.text_normalization.lm,
+                                    post_process= cfg.text_normalization.post_process,
+                                    max_number_of_permutations_per_split= cfg.text_normalization.max_number_of_permutations_per_split)
+        else:
+            from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+            
+            normalizer = NormalizerWithAudio(input_case = cfg.text_normalization.input_case,
+                                             lang = cfg.text_normalization.lang,
+                                             cache_dir= cfg.text_normalization.cache_dir, 
+                                             overwrite_cache = cfg.text_normalization.overwrite_cache,
+                                             whitelist= cfg.text_normalization.whitelist,
+                                             lm = cfg.text_normalization.lm,
+                                             post_process= cfg.text_normalization.post_process,
+                                             max_number_of_permutations_per_split= cfg.text_normalization.max_number_of_permutations_per_split)
+            
+            normalization_params = {"n_tagged" : cfg.text_normalization.n_tagged}
+
 
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None
@@ -323,6 +372,7 @@ def main(cfg: AlignmentConfig):
             cfg.simulate_cache_aware_streaming,
             cfg.use_buffered_chunked_streaming,
             buffered_chunk_params,
+            normalizer, normalization_params,
         )
 
         if cfg.align_using_text:
@@ -353,19 +403,19 @@ def main(cfg: AlignmentConfig):
                 utt.text.add_t_start_end(text_alignments_batch[i_utt], utt_batch.output_timestep_duration)
 
                 if "ctm" in cfg.save_output_file_formats:
-                    make_ctm_files(utt.text[i_utt], utt_id, text_based_output_dir, cfg.ctm_file_config)
+                    make_ctm_files(utt.text, utt_id, text_based_output_dir, cfg.ctm_file_config)
                 
                 if "ass" in cfg.save_output_file_formats:
-                    make_ass_files(utt.text[i_utt], utt_id, text_based_output_dir, cfg.ass_file_config)
+                    make_ass_files(utt.text, utt.audio_filepath, utt_id, text_based_output_dir, cfg.ass_file_config)
             
             if cfg.align_using_pred_text:
-                utt.text.add_t_start_end(pred_text_alignments_batch[i_utt], utt_batch.output_timestep_duration)
+                utt.pred_text.add_t_start_end(pred_text_alignments_batch[i_utt], utt_batch.output_timestep_duration)
 
                 if "ctm" in cfg.save_output_file_formats:
-                    make_ctm_files(utt.pred_text[i_utt], utt_id, pred_text_based_output_dir, cfg.ctm_file_config)
+                    make_ctm_files(utt.pred_text, utt_id, pred_text_based_output_dir, cfg.ctm_file_config)
                 
                 if "ass" in cfg.save_output_file_formats:
-                    make_ass_files(utt.pred_text[i_utt], utt_id, pred_text_based_output_dir, cfg.ass_file_config)
+                    make_ass_files(utt.pred_text, utt.audio_filepath, utt_id, pred_text_based_output_dir, cfg.ass_file_config)
 
             write_manifest_out_line(f_manifest_out, utt)
             

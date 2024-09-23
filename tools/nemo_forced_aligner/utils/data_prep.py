@@ -20,7 +20,7 @@ from typing import List, Dict, Union
 import soundfile as sf
 import torch
 from tqdm.auto import tqdm
-from utils.constants import BLANK_TOKEN, BLANK_ID, SPACE_TOKEN, V_NEGATIVE_NUM
+import utils.constants as constants
 
 from nemo.utils import logging
 from utils.tokenization.token_based import TokenBasedAligner
@@ -69,6 +69,7 @@ def create_utt_batch(
     simulate_cache_aware_streaming=False,
     use_buffered_chunked_streaming=False,
     buffered_chunk_params={},
+    normalizer = None, normalization_params = {},
 ):
     """
     Returns:
@@ -120,16 +121,16 @@ def create_utt_batch(
 
     if hasattr(model, 'tokenizer'):
         if hasattr(model, 'blank_id'):
-            BLANK_ID = model.blank_id
+            constants.BLANK_ID = model.blank_id
         else:
-            BLANK_ID = len(model.tokenizer.vocab)
+            constants.BLANK_ID = len(model.tokenizer.vocab)
 
         aligner = TokenBasedAligner(tokenizer=model.tokenizer)
         V = len(model.tokenizer.vocab) + 1
  
     elif hasattr(model.decoder, "vocabulary"):  # i.e. tokenization is simply character-based
-        BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
-        SPACE_ID = model.decoder.vocabulary.index(" ")
+        constants.BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
+        constants.SPACE_ID = model.decoder.vocabulary.index(" ")
         aligner = CharBasedAligner(vocabulary=model.decoder.vocabulary)
         V = len(model.decoder.vocabulary) + 1
    
@@ -138,6 +139,8 @@ def create_utt_batch(
 
     for utt, T in zip(batch.utterances, batch.T_list):
         if align_using_text:
+            if normalizer is not None:
+                utt.text.text = normalizer.normalize(text = utt.text.text, pred_text = utt.pred_text.text, **normalization_params)
             aligner.align(utt.text, T, separator=separator)
         if align_using_pred_text:
             aligner.align(utt.pred_text, T)

@@ -52,7 +52,7 @@ class BaseAligner(ABC):
         return True
     
     def align_unit(self, unit_text: str, unit_type: Type[Union[Segment, Word, Token]], unit_s_pointer: int = 0):
-        if type(unit_type) is Segment or type(unit_type) is Word:
+        if unit_type == Segment or unit_type == Word:
             unit_tokens = self.text_to_tokens(unit_text)
             unit = unit_type(text = unit_text,
                              s_start = unit_s_pointer,

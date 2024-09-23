@@ -27,8 +27,7 @@ import math
 import os
 import soundfile as sf
 
-from utils.constants import BLANK_TOKEN, SPACE_TOKEN
-from utils.units import Segment, Token, Word
+from utils.units import Segment, Word, Token, BlankToken, SpaceToken
 
 PLAYERRESX = 384
 PLAYERRESY = 288
@@ -65,7 +64,7 @@ def rgb_list_to_hex_bgr(rgb_list):
 
 
 def make_ass_files(
-    utt_obj, utt_id, output_dir_root, ass_file_config,
+    utt_obj, utt_audio_filepath, utt_id, output_dir_root, ass_file_config,
 ):
 
     # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen
@@ -78,7 +77,7 @@ def make_ass_files(
 
     # get duration of the utterance, so we know the final timestamp of the final set of subtitles,
     # which we will keep showing until the end
-    with sf.SoundFile(utt_obj.audio_filepath) as f:
+    with sf.SoundFile(utt_audio_filepath) as f:
         audio_dur = f.frames / f.samplerate
 
     utt_obj = make_word_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config, audio_dur)
@@ -90,7 +89,7 @@ def make_ass_files(
 def _get_word_n_chars(word):
     n_chars = 0
     for token in word.tokens:
-        if token.text != BLANK_TOKEN:
+        if type(token) is not BlankToken:
             n_chars += len(token.text)
     return n_chars
 
@@ -98,9 +97,9 @@ def _get_word_n_chars(word):
 def _get_segment_n_chars(segment):
     n_chars = 0
     for word_or_token in segment.words_and_tokens:
-        if word_or_token.text == SPACE_TOKEN:
+        if type(word_or_token) is SpaceToken:
             n_chars += 1
-        elif word_or_token.text != BLANK_TOKEN:
+        elif type(word_or_token) is not BlankToken:
             n_chars += len(word_or_token.text)
     return n_chars
 
@@ -131,7 +130,7 @@ def resegment_utt_obj(utt_obj, ass_file_config):
     new_segments_and_tokens = []
     all_words_and_tokens_pointer = 0
     for word_or_token in all_words_and_tokens:
-        if type(word_or_token) is Token:
+        if type(word_or_token) is Token or type(word_or_token) is SpaceToken:
             new_segments_and_tokens.append(word_or_token)
             all_words_and_tokens_pointer += 1
         else:
@@ -400,21 +399,19 @@ def make_token_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config,
         for segment_or_token in utt_obj.segments_and_tokens:
             if type(segment_or_token) is Segment:
                 for word_or_token in segment_or_token.words_and_tokens:
-                    if type(word_or_token) is Token:
-                        if word_or_token.text != BLANK_TOKEN:
-                            tokens_in_first_segment.append(word_or_token)
-                    else:
+                    if type(word_or_token) is Token or type(word_or_token) is SpaceToken:
+                        tokens_in_first_segment.append(word_or_token)
+                    elif type(word_or_token) is Word:
                         for token in word_or_token.tokens:
-                            if token.text != BLANK_TOKEN:
+                            if type(token) is not BlankToken:
                                 tokens_in_first_segment.append(token)
-
                 break
 
         for token in tokens_in_first_segment:
             token.text_cased = token.text_cased.replace(
                 "▁", " "
             )  # replace underscores used in subword tokens with spaces
-            token.text_cased = token.text_cased.replace(SPACE_TOKEN, " ")  # space token with actual space
+            token.text_cased = token.text_cased.replace(SpaceToken.text, " ")  # space token with actual space
 
         text_before_speech = (
             not_yet_spoken_color_code + "".join([x.text_cased for x in tokens_in_first_segment]) + r"{\r}"
@@ -432,19 +429,18 @@ def make_token_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config,
 
                 tokens_in_segment = []  # make list of (non-blank) tokens
                 for word_or_token in segment.words_and_tokens:
-                    if type(word_or_token) is Token:
-                        if word_or_token.text != BLANK_TOKEN:
-                            tokens_in_segment.append(word_or_token)
-                    else:
+                    if type(word_or_token) is Token or type(word_or_token) is SpaceToken:
+                        tokens_in_segment.append(word_or_token)
+                    elif type(word_or_token) is Word:
                         for token in word_or_token.tokens:
-                            if token.text != BLANK_TOKEN:
+                            if type(token) is not BlankToken:
                                 tokens_in_segment.append(token)
 
                 for token in tokens_in_segment:
                     token.text_cased = token.text_cased.replace(
                         "▁", " "
                     )  # replace underscores used in subword tokens with spaces
-                    token.text_cased = token.text_cased.replace(SPACE_TOKEN, " ")  # space token with actual space
+                    token.text_cased = token.text_cased.replace(SpaceToken.text, " ")  # space token with actual space
 
                 for token_i, token in enumerate(tokens_in_segment):
 
@@ -489,13 +485,12 @@ def make_token_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config,
             if type(segment_or_token) is Segment:
                 # 'segment_or_token' is known to be Segment, which has attribute 'words_and_tokens'
                 for word_or_token in segment_or_token.words_and_tokens:
-                    if type(word_or_token) is Token:
-                        if word_or_token.text != BLANK_TOKEN:
-                            tokens_in_final_segment.append(word_or_token)
-                    else:
+                    if type(word_or_token) is Token or type(word_or_token) is SpaceToken:
+                        tokens_in_final_segment.append(word_or_token)
+                    elif type(word_or_token) is Word:
                         # 'word_or_token' is known to be a Word, which has attribute 'tokens'
                         for token in word_or_token.tokens:
-                            if token.text != BLANK_TOKEN:
+                            if type(token) is not BlankToken:
                                 tokens_in_final_segment.append(token)
                 break
 
@@ -503,7 +498,7 @@ def make_token_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config,
             token.text_cased = token.text_cased.replace(
                 "▁", " "
             )  # replace underscores used in subword tokens with spaces
-            token.text_cased = token.text_cased.replace(SPACE_TOKEN, " ")  # space token with actual space
+            token.text_cased = token.text_cased.replace(SpaceToken.text, " ")  # space token with actual space
 
         text_after_speech = (
             already_spoken_color_code + "".join([x.text_cased for x in tokens_in_final_segment]) + r"{\r}"
