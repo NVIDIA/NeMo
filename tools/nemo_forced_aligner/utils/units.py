@@ -1,11 +1,12 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import Dict, List, Union
 
 import torch
 
 from utils import constants
+
 
 @dataclass
 class Token:
@@ -86,7 +87,9 @@ class Alignment:
 
                         for token in word.tokens:
                             if token.s_start in num_to_first_alignment_appearance:
-                                token.t_start = num_to_first_alignment_appearance[token.s_start] * output_timestep_duration
+                                token.t_start = (
+                                    num_to_first_alignment_appearance[token.s_start] * output_timestep_duration
+                                )
                             else:
                                 token.t_start = -1
 
@@ -104,7 +107,9 @@ class Alignment:
                             token.t_start = -1
 
                         if token.s_end in num_to_last_alignment_appearance:
-                            token.t_end = (num_to_last_alignment_appearance[token.s_end] + 1) * output_timestep_duration
+                            token.t_end = (
+                                num_to_last_alignment_appearance[token.s_end] + 1
+                            ) * output_timestep_duration
                         else:
                             token.t_end = -1
 
@@ -121,9 +126,10 @@ class Alignment:
                     token.t_end = -1
         return
 
+
 @dataclass
 class Utterance:
-    utt_id: str = None   
+    utt_id: str = None
     audio_filepath: str = None
     text: Alignment = field(default_factory=Alignment)
     pred_text: Alignment = field(default_factory=Alignment)
@@ -134,7 +140,9 @@ class Utterance:
         self.utt_id = self.utt_id.replace(" ", "-")  # replace any spaces in the filepath with dashes
 
     @staticmethod
-    def get_utterance(audio_filepath: str, text: str = None, pred_text: str = None, audio_filepath_parts_in_utt_id: int = 1):
+    def get_utterance(
+        audio_filepath: str, text: str = None, pred_text: str = None, audio_filepath_parts_in_utt_id: int = 1
+    ):
         utt = Utterance(audio_filepath=audio_filepath)
         utt._set_utt_id(audio_filepath_parts_in_utt_id)
         utt.text.text = text
@@ -154,7 +162,7 @@ class TokensBatch:
         self.U_max = max(self.U_list)
         self.U = torch.tensor(self.U_list)
         self.y = V * torch.ones((B, self.U_max), dtype=torch.int64)
-        
+
         for b, y_utt in enumerate(self.y_list):
             U_utt = self.U[b]
             self.y[b, :U_utt] = torch.tensor(y_utt)
@@ -193,7 +201,7 @@ class Batch:
                     # the output files
                     data["text"] = data["text"].replace("\u2026", "...")
                 yield data
-    
+
     @staticmethod
     def chunk_manifest(manifest_filepath: str, batch_size: int):
         manifest_chunk = []
@@ -204,17 +212,17 @@ class Batch:
                 manifest_chunk = []
         if len(manifest_chunk) > 0:
             yield manifest_chunk
-    
+
     @staticmethod
     def get_batch(manifest_lines_batch):
         batch = Batch(manifest_lines=manifest_lines_batch)
         batch._set_audio_filepaths()
         batch._set_B()
         return batch
-    
+
     def _set_audio_filepaths(self):
         self.audio_filepaths = [data["audio_filepath"] for data in self.manifest_lines]
-    
+
     def _set_B(self):
         self.B = len(self.manifest_lines)
     
@@ -222,11 +230,13 @@ class Batch:
         for data, audio_filepath, pred_text in zip(self.manifest_lines, self.audio_filepaths, self.pred_texts):
             text = data['text'] if align_using_text else None
             pred_text = " ".join(pred_text.split())
-            
-            utt = Utterance.get_utterance(audio_filepath=audio_filepath,
-                                          text = text,
-                                          pred_text = pred_text,
-                                          audio_filepath_parts_in_utt_id = audio_filepath_parts_in_utt_id)
+
+            utt = Utterance.get_utterance(
+                audio_filepath=audio_filepath,
+                text=text,
+                pred_text=pred_text,
+                audio_filepath_parts_in_utt_id=audio_filepath_parts_in_utt_id,
+            )
 
             self.utterances.append(utt)
     
@@ -246,9 +256,9 @@ class Batch:
         for b, log_probs_utt in enumerate(self.log_probs_list):
             t = log_probs_utt.shape[0]
             self.log_probs[b, :t, :] = log_probs_utt
-        
+
         if len(self.texts_batch.U_list) > 0:
             self.texts_batch.to_tensor(V, self.B)
-        
+
         if len(self.pred_texts_batch.U_list) > 0:
             self.pred_texts_batch.to_tensor(V, self.B)

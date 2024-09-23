@@ -16,7 +16,8 @@ import json
 
 
 def write_manifest_out_line(
-    f_manifest_out, utt_obj,
+    f_manifest_out,
+    utt_obj,
 ):
 
     data = {"audio_filepath": utt_obj.audio_filepath}
@@ -28,7 +29,7 @@ def write_manifest_out_line(
 
     for key, val in utt_obj.text.saved_output_files.items():
         data[f"{key}_text_based"] = val
-    
+
     for key, val in utt_obj.pred_text.saved_output_files.items():
         data[f"{key}_pred_text_based"] = val
 

@@ -64,7 +64,14 @@ def rgb_list_to_hex_bgr(rgb_list):
 
 
 def make_ass_files(
+<<<<<<< HEAD
     utt_obj, utt_audio_filepath, utt_id, output_dir_root, ass_file_config,
+=======
+    utt_obj,
+    utt_id,
+    output_dir_root,
+    ass_file_config,
+>>>>>>> 8859012c8a5aa8208ef725b984e7ae6d7491c875
 ):
 
     # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen

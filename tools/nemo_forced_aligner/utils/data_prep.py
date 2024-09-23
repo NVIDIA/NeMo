@@ -15,17 +15,17 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import Dict, List, Union
 
 import soundfile as sf
 import torch
 from tqdm.auto import tqdm
 import utils.constants as constants
+from utils.tokenization.char_based import CharBasedAligner
+from utils.tokenization.token_based import TokenBasedAligner
+from utils.units import Batch
 
 from nemo.utils import logging
-from utils.tokenization.token_based import TokenBasedAligner
-from utils.tokenization.char_based import CharBasedAligner
-from utils.units import Batch
 
 
 def is_entry_in_any_lines(manifest_filepath, entry):
@@ -58,6 +58,7 @@ def is_entry_in_all_lines(manifest_filepath, entry):
 
     return True
 
+
 def create_utt_batch(
     manifest_lines_batch,
     model,
@@ -79,7 +80,7 @@ def create_utt_batch(
         output_timestep_duration: a float indicating the duration of a single output timestep from
             the ASR Model.
     """
-    
+
     batch = Batch.get_batch(manifest_lines_batch)
 
     if not use_buffered_chunked_streaming:
@@ -116,8 +117,9 @@ def create_utt_batch(
     # and record the y (list of tokens, including blanks), U (list of lengths of y) and
     # token_info_batch, word_info_batch, segment_info_batch
 
-    batch.set_utterances(audio_filepath_parts_in_utt_id = audio_filepath_parts_in_utt_id,
-                         align_using_text = align_using_text)
+    batch.set_utterances(
+        audio_filepath_parts_in_utt_id=audio_filepath_parts_in_utt_id, align_using_text=align_using_text
+    )
 
     if hasattr(model, 'tokenizer'):
         if hasattr(model, 'blank_id'):
@@ -127,13 +129,13 @@ def create_utt_batch(
 
         aligner = TokenBasedAligner(tokenizer=model.tokenizer)
         V = len(model.tokenizer.vocab) + 1
- 
+
     elif hasattr(model.decoder, "vocabulary"):  # i.e. tokenization is simply character-based
         constants.BLANK_ID = len(model.decoder.vocabulary)  # TODO: check this is correct
         constants.SPACE_ID = model.decoder.vocabulary.index(" ")
         aligner = CharBasedAligner(vocabulary=model.decoder.vocabulary)
         V = len(model.decoder.vocabulary) + 1
-   
+
     else:
         raise RuntimeError("Cannot get tokens of this model.")
 
@@ -144,7 +146,7 @@ def create_utt_batch(
             aligner.align(utt.text, T, separator=separator)
         if align_using_pred_text:
             aligner.align(utt.pred_text, T)
-    
+
     batch.to_tensor(V=V)
 
     # calculate output_timestep_duration if it is None
@@ -176,6 +178,6 @@ def create_utt_batch(
             " -- will use this for all batches"
         )
 
-        batch.output_timestep_duration=output_timestep_duration
+        batch.output_timestep_duration = output_timestep_duration
 
     return batch

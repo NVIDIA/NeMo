@@ -21,11 +21,7 @@ from typing import List, Optional, Literal
 
 import torch
 from omegaconf import OmegaConf
-from utils.data_prep import (
-    create_utt_batch,
-    is_entry_in_all_lines,
-    is_entry_in_any_lines,
-)
+from utils.data_prep import create_utt_batch, is_entry_in_all_lines, is_entry_in_any_lines
 from utils.make_ass_files import make_ass_files
 from utils.make_ctm_files import make_ctm_files
 from utils.make_output_manifest import write_manifest_out_line
@@ -230,7 +226,7 @@ def main(cfg: AlignmentConfig):
                 "contains 'pred_text' entries. This is because the audio will be transcribed and may produce "
                 "a different 'pred_text'. This may cause confusion."
             )
-    
+
     if cfg.align_using_text:
         if not is_entry_in_all_lines(cfg.manifest_filepath, "text"):
             raise RuntimeError(
@@ -360,7 +356,7 @@ def main(cfg: AlignmentConfig):
 
     # get alignment and save in CTM batch-by-batch
     for manifest_lines_batch in Batch.chunk_manifest(cfg.manifest_filepath, cfg.batch_size):
-        
+
         utt_batch = create_utt_batch(
             manifest_lines_batch,
             model,
@@ -379,23 +375,22 @@ def main(cfg: AlignmentConfig):
             text_based_output_dir = os.path.join(cfg.output_dir, "text_based")
             os.makedirs(text_based_output_dir, exist_ok=True)
 
-            text_alignments_batch = viterbi_decoding(utt_batch.log_probs, 
-                                                     utt_batch.texts_batch.y,
-                                                     utt_batch.T,
-                                                     utt_batch.texts_batch.U,
-                                                     viterbi_device)
+            text_alignments_batch = viterbi_decoding(
+                utt_batch.log_probs, utt_batch.texts_batch.y, utt_batch.T, utt_batch.texts_batch.U, viterbi_device
+            )
 
-        
         if cfg.align_using_pred_text:
             pred_text_based_output_dir = os.path.join(cfg.output_dir, "pred_text_based")
             os.makedirs(pred_text_based_output_dir, exist_ok=True)
 
-            pred_text_alignments_batch = viterbi_decoding(utt_batch.log_probs, 
-                                                          utt_batch.pred_texts_batch.y,
-                                                          utt_batch.T,
-                                                          utt_batch.pred_texts_batch.U,
-                                                          viterbi_device)
-            
+            pred_text_alignments_batch = viterbi_decoding(
+                utt_batch.log_probs,
+                utt_batch.pred_texts_batch.y,
+                utt_batch.T,
+                utt_batch.pred_texts_batch.U,
+                viterbi_device,
+            )
+
         for i_utt, utt in enumerate(utt_batch.utterances):
             utt_id = utt.utt_id
 
@@ -418,7 +413,7 @@ def main(cfg: AlignmentConfig):
                     make_ass_files(utt.pred_text, utt.audio_filepath, utt_id, pred_text_based_output_dir, cfg.ass_file_config)
 
             write_manifest_out_line(f_manifest_out, utt)
-            
+
     f_manifest_out.close()
 
     return None
