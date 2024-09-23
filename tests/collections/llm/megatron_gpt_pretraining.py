@@ -11,7 +11,7 @@ from nemo.collections import llm
 from nemo.collections.llm.api import train
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning import NeMoLogger
+from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     strategy = nl.MegatronStrategy()
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
-        enable_nemo_ckpt_io=False,
+        save_optim_on_train_end=True,
     )
     callbacks = [checkpoint_callback]
 
@@ -103,7 +103,12 @@ if __name__ == '__main__':
     )
 
     nemo_logger = NeMoLogger(
-        dir=args.experiment_dir,
+        log_dir=args.experiment_dir,
+    )
+
+    resume = AutoResume(
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=True,
     )
 
     train(
@@ -111,6 +116,7 @@ if __name__ == '__main__':
         data=data,
         trainer=trainer,
         log=nemo_logger,
+        resume=resume,
         tokenizer='data',
         optim=opt,
     )

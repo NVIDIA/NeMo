@@ -23,13 +23,21 @@ from torch.nn import Module
 from torch.optim import Optimizer
 
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
 
 AnyT = TypeVar("AnyT")
 
 
 def get_optim_config(optimizer: Optimizer):
+    extract_config = lambda x: x.config
     try:
-        return optimizer.mcore_optimizer.config
+        from megatron.core.optimizer import ChainedOptimizer
+
+        if isinstance(optimizer.mcore_optimizer, ChainedOptimizer):
+            opts = optimizer.mcore_optimizer.chained_optimizers
+        else:
+            opts = [optimizer.mcore_optimizer]
+        yield from map(extract_config, opts)
     except:
         raise ValueError("Failed to extract optimizer config from module.")
 
@@ -47,12 +55,12 @@ class DtypeConfig:
     # fp8 related
     fp8: str = None
     fp8_margin: int = 0
-    fp8_interval: int = 1
     fp8_amax_history_len: int = 1
     fp8_amax_compute_algo: str = "most_recent"
     fp8_wgrad: bool = True
     fp8_dot_product_attention: bool = False
     fp8_multi_head_attention: bool = False
+    fp8_param_gather: bool = True
     # FP16 Loss scaling
     loss_scale: float = (None,)
     initial_loss_scale: float = (None,)
@@ -73,12 +81,12 @@ class MegatronMixedPrecision(Precision):
         # fp8 related,
         fp8: str = None,
         fp8_margin: int = 0,
-        fp8_interval: int = 1,
         fp8_amax_history_len: int = 1,
         fp8_amax_compute_algo: str = "most_recent",
         fp8_wgrad: bool = True,
         fp8_dot_product_attention: bool = False,
         fp8_multi_head_attention: bool = False,
+        fp8_params: bool = False,
         fp16_loss_scale: float = None,
         fp16_initial_loss_scale: float = 4294967296,
         fp16_min_loss_scale: float = 1.0,
@@ -88,6 +96,14 @@ class MegatronMixedPrecision(Precision):
 
         if isinstance(precision, int):
             precision = str(precision)
+
+        fp8_param_gather = False
+        if fp8 is not None:
+            te_fp8, HAVE_TE = safe_import("transformer_engine.pytorch.fp8")
+            assert HAVE_TE, "FP8 precision requires transformer engine."
+            if fp8_params:
+                te_fp8.FP8GlobalStateManager.FP8_PARAMETERS = True
+                fp8_param_gather = True
 
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
         self.dtype_config = DtypeConfig(
@@ -101,12 +117,12 @@ class MegatronMixedPrecision(Precision):
             grad_reduce_in_fp32=grad_reduce_in_fp32,
             fp8=fp8,
             fp8_margin=fp8_margin,
-            fp8_interval=fp8_interval,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             fp8_wgrad=fp8_wgrad,
             fp8_dot_product_attention=fp8_dot_product_attention,
             fp8_multi_head_attention=fp8_multi_head_attention,
+            fp8_param_gather=fp8_param_gather,
             # fp16 loss scale
             loss_scale=fp16_loss_scale,
             initial_loss_scale=fp16_initial_loss_scale,
@@ -149,9 +165,9 @@ class MegatronMixedPrecision(Precision):
         This is optional and depends on the precision limitations during optimization.
 
         """
-        optim_config = get_optim_config(optimizer)
-        assert optim_config.bf16 == self.dtype_config.bf16, "BF16 enabled on model but not on optimizer"
-        assert optim_config.fp16 == self.dtype_config.fp16, "BF16 enabled on model but not on optimizer"
+        for optim_config in get_optim_config(optimizer):
+            assert optim_config.bf16 == self.dtype_config.bf16, "BF16 model/optim config mismatch"
+            assert optim_config.fp16 == self.dtype_config.fp16, "FP16 model/optim config mismatch"
         return optimizer
 
     def convert_input(self, data: AnyT) -> AnyT:
@@ -179,6 +195,23 @@ class MegatronMixedPrecision(Precision):
             yield
         finally:
             pass
+
+    def clip_gradients(
+        self,
+        optimizer: Optimizer,
+        clip_val: Union[int, float] = 0.0,
+        gradient_clip_algorithm=None,
+    ) -> None:
+        if clip_val > 0.0:
+            raise ValueError(
+                "Gradient clipping is handled in Mcore's optimizer. Use the clip_grad attribute in OptimizerConfig."
+            )
+
+    def clip_grad_by_value(self, optimizer: Optimizer, clip_val: Union[int, float]) -> None:
+        return
+
+    def clip_grad_by_norm(self, optimizer: Optimizer, clip_val: Union[int, float]) -> None:
+        return
 
 
 def update_config_with_dtype_overrides(dtype_config, config):

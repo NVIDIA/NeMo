@@ -63,6 +63,7 @@ exp_manager:
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
     async_save: False # Set to True to enable async checkpoint save. Currently works only with distributed checkpoints
+    save_last_n_optim_states: -1 # a number of last checkpoints to be saved with optimizer states
 
 model:
   # The following two settings are used for continual training:
@@ -71,6 +72,9 @@ model:
 
   # use GPTModel from megatron.core
   mcore_gpt: True
+  
+  # Skip training and do only validation step
+  skip_train: False
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -118,6 +122,7 @@ model:
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
   scale_positional_embedding: False # Apply scaling for RoPE frequencies 
+  drop_layers: [] # Select which layers should be ignored. Should be a list of layer numbers such as [0, 1, 4].
 
   ## Reset learning rate schedule.
   # 1. reset_lr=True, reset_lr_steps=False. When pre-training an existing checkpoint "from scratch" on a different dataset.
@@ -175,7 +180,7 @@ model:
   fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
 
   # Distributed checkpoint setup
-  dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
+  dist_ckpt_format: 'torch_dist' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
   dist_ckpt_load_on_device: True # whether to load checkpoint weights directly on GPU or to CPU
   dist_ckpt_parallel_save: True # if true, each worker will write its own part of the dist checkpoint
   dist_ckpt_parallel_save_within_dp: False # if true, save will be parallelized only within a DP group (whole world otherwise), which might slightly reduce the save overhead
