@@ -102,7 +102,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": ":alert: Cherrypick bot 🤖: Hey @'$USERNAME' (and @okoenig): Cherry-pick of <'$URL'|#'$PR_ID'> failed (3-way merge impossible). Please resolve manually and create a PR."
+                      "text": ":alert: Cherrypick bot 🤖: Hey @'$USERNAME': Cherry-pick of <'$URL'|#'$PR_ID'> failed (3-way merge impossible). Please resolve manually and create a PR.\n\ncc: @okoenig"
                     }
                   }
                 ]
