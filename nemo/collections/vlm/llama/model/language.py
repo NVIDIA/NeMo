@@ -183,7 +183,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         packed_seq_params: PackedSeqParams = None,
         extra_block_kwargs: dict = None,
     ) -> Tensor:
-        """Forward function of the GPT Model This function passes the input tensors
+        """TODO Forward function of the GPT Model This function passes the input tensors
         through the embedding layer, and then the decoeder and finally into the post
         processing layer (optional).
 
@@ -454,8 +454,8 @@ class CrossAttentionTransformerLayer(TransformerLayer):
             hidden_dropout=hidden_dropout,
         )
 
-        self.gate_attn = nn.Parameter(torch.zeros(1))
-        self.gate_ffn = nn.Parameter(torch.zeros(1))
+        self.gate_attn = nn.Parameter(torch.zeros(1, dtype=self.config.params_dtype))
+        self.gate_ffn = nn.Parameter(torch.zeros(1, dtype=self.config.params_dtype))
 
     def compute_xattn_kv_cache(self, xattn_tokens: Tensor) -> Tensor:
         return self.cross_attention._compute_xattn_kv_cache(xattn_tokens)
@@ -548,8 +548,8 @@ class DummyCrossAttentionTransformerLayer(MegatronModule):
         hidden_states: Tensor,
         *args,
         **kwargs,
-    ) -> Tensor:
-        return hidden_states
+    ):
+        return hidden_states, None
 
 
 class LlamaCrossAttention(Attention):

@@ -448,8 +448,8 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         # TODO(yuya): check, fix position_ids[0]
         embeddings = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids[0]])
         logits = self.language_model(
-            input_ids=None,
-            position_ids=None,
+            input_ids=tokens,
+            position_ids=position_ids,
             labels=labels,
             decoder_input=embeddings,
             attention_mask=None,
@@ -464,11 +464,11 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
 
 class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-            self,
-            config: LlamaCrossAttentionModelConfig,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: LlamaCrossAttentionModelConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -484,16 +484,16 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-            self,
-            batch_images: List[List[PIL_Image.Image]],
-            batch_masks: List[List[List[int]]],
-            total_len: int,
-            tokens: torch.LongTensor,
-            position_ids: torch.LongTensor,
-            labels: Optional[torch.Tensor] = None,
-            cross_attention_masks: Optional[torch.Tensor] = None,
-            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
-            xattn_caches: Optional[torch.Tensor] = None,
+        self,
+        batch_images: List[List[PIL_Image.Image]],
+        batch_masks: List[List[List[int]]],
+        total_len: int,
+        tokens: torch.LongTensor,
+        position_ids: torch.LongTensor,
+        labels: Optional[torch.Tensor] = None,
+        cross_attention_masks: Optional[torch.Tensor] = None,
+        full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+        xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         output_tensor = self.module(
@@ -765,7 +765,10 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             hidden_size=source['dim'],
             ffn_hidden_size=_calculate_ffn_size(source['dim'], source['ffn_dim_multiplier'], source['multiple_of']),
             num_attention_heads=source['n_heads'],
+            num_query_groups=source['n_kv_heads'],
             vocab_size=128256,
+            bf16=True,
+            params_dtype=torch.bfloat16,
         )
 
     def _vision_model_config(self, source) -> Optional[CrossAttentionVisionModelConfig]:
@@ -777,6 +780,8 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             num_attention_heads=16,  # source['n_heads'],
             vision_chunk_size=source['vision_chunk_size'],
             vision_max_num_chunks=source['vision_max_num_chunks'],
+            bf16=True,
+            params_dtype=torch.bfloat16,
         )
 
 
@@ -828,9 +833,29 @@ def _merge_qkv(q: Tensor, k: Tensor, v: Tensor, head_num: int, num_query_groups:
 
     return qkv_weights
 
+def _split_qkv(qkv, head_num: int, num_query_groups: int, head_size: int, hidden_size: int):
+    heads_per_group = head_num // num_query_groups
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = qkv.reshape([qkv_total_dim, head_size, hidden_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
 def _import_simple_concat(a, b):
     # for both (w1, w3) -> fc1, and (wk, wv) -> wkv
-    return torch.cat((a, b), dim=0).float()
+    return torch.cat((a, b), dim=0)
 
 __all__ = [
     "LlamaCrossAttentionModel",
