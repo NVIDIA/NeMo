@@ -324,33 +324,33 @@ class TensorRTLLM(ITritonDeployable):
                 if use_mcore_path:
                     from megatron.core.export.data_type import DataType
                     from megatron.core.export.export_config import ExportConfig
-                    from megatron.core.transformer.transformer_config import TransformerConfig
                     from megatron.core.export.model_type import ModelType
                     from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
                         DEFAULT_CONVERSION_DICT,
                     )
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
+                    from megatron.core.transformer.transformer_config import TransformerConfig
                     from tensorrt_llm.layers import MoeConfig
 
                     def get_transformer_config(nemo_model_config):
                         conf = TransformerConfig(
-                            num_layers = nemo_model_config.get('num_layers'),
-                            moe_router_topk = nemo_model_config.get('moe_router_topk', 0),
-                            num_attention_heads = nemo_model_config.get('num_attention_heads'),
-                            num_query_groups = nemo_model_config.get(
-                            'num_query_groups', nemo_model_config['num_attention_heads']
+                            num_layers=nemo_model_config.get('num_layers'),
+                            moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
+                            num_attention_heads=nemo_model_config.get('num_attention_heads'),
+                            num_query_groups=nemo_model_config.get(
+                                'num_query_groups', nemo_model_config['num_attention_heads']
                             ),
-                            kv_channels = nemo_model_config.get("kv_channels", None),
-                            hidden_size = nemo_model_config.get('hidden_size'),
-                            ffn_hidden_size = nemo_model_config.get('ffn_hidden_size'),
-                            layernorm_epsilon = nemo_model_config.get('layernorm_epsilon'),
-                            add_bias_linear = nemo_model_config.get('bias'),
-                            num_moe_experts = nemo_model_config.get('num_moe_experts', None),             
+                            kv_channels=nemo_model_config.get("kv_channels", None),
+                            hidden_size=nemo_model_config.get('hidden_size'),
+                            ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
+                            layernorm_epsilon=nemo_model_config.get('layernorm_epsilon'),
+                            add_bias_linear=nemo_model_config.get('bias'),
+                            num_moe_experts=nemo_model_config.get('num_moe_experts', None),
                         )
 
                         return conf
 
-                    # We build the transformer config using the nemo model config. 
+                    # We build the transformer config using the nemo model config.
                     transformer_config = get_transformer_config(model_configs)
                     input_model_type = getattr(ModelType, model_type)
 
@@ -362,19 +362,23 @@ class TensorRTLLM(ITritonDeployable):
                     }
 
                     trtllm_helper = TRTLLMHelper(
-                        transformer_config = transformer_config, 
-                        model_type = input_model_type, 
-                        trtllm_conversion_dict = nemo_model_conversion_dict,
-                        position_embedding_type = model_configs.get('position_embedding_type'),
-                        max_position_embeddings = model_configs.get('max_position_embeddings'),
-                        rotary_percentage = model_configs.get('rotary_percentage', 1.0),
-                        rotary_base = model_configs.get('rotary_base', 10000),
-                        moe_tp_mode = model_configs.get('moe_tp_mode', 2),
-                        multi_query_mode = model_configs.get("multi_query_mode", False),
-                        activation = model_configs.get('activation', "gelu"),
-                        seq_len_interpolation_factor = model_configs.get("seq_len_interpolation_factor"),
-                        moe_renorm_mode = model_configs.get('moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE),
-                        share_embeddings_and_output_weights = model_configs.get("share_embeddings_and_output_weights", False),
+                        transformer_config=transformer_config,
+                        model_type=input_model_type,
+                        trtllm_conversion_dict=nemo_model_conversion_dict,
+                        position_embedding_type=model_configs.get('position_embedding_type'),
+                        max_position_embeddings=model_configs.get('max_position_embeddings'),
+                        rotary_percentage=model_configs.get('rotary_percentage', 1.0),
+                        rotary_base=model_configs.get('rotary_base', 10000),
+                        moe_tp_mode=model_configs.get('moe_tp_mode', 2),
+                        multi_query_mode=model_configs.get("multi_query_mode", False),
+                        activation=model_configs.get('activation', "gelu"),
+                        seq_len_interpolation_factor=model_configs.get("seq_len_interpolation_factor"),
+                        moe_renorm_mode=model_configs.get(
+                            'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
+                        ),
+                        share_embeddings_and_output_weights=model_configs.get(
+                            "share_embeddings_and_output_weights", False
+                        ),
                     )
 
                     input_dtype = getattr(DataType, dtype)
@@ -428,7 +432,7 @@ class TensorRTLLM(ITritonDeployable):
 
                     if model_type == "mixtral":
                         model_type = "llama"
- 
+
                     weights_dicts, model_configs = model_to_trtllm_ckpt(
                         model=model,
                         nemo_model_config=model_configs,
@@ -442,8 +446,8 @@ class TensorRTLLM(ITritonDeployable):
                         use_embedding_sharing=use_embedding_sharing,
                         fp8_quantized=fp8_quantized,
                         fp8_kvcache=fp8_kvcache,
-                    )                    
-                    
+                    )
+
                     for weight_dict, model_config in zip(weights_dicts, model_configs):
                         build_and_save_engine(
                             max_input_len=max_input_len,
