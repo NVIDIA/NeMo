@@ -81,11 +81,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
 
-        ## stores the previously saved -last checkpoint, used only when save_last = 'link'
-        ## this is needed because when using symlinks, we need to update last_model_path when
-        ## saving the non-last checkpoint. Storing "previous" is needed to keep us from overwriting the
-        ## previous "last_model_path"
-        self.previous_last_model_path = ""
+        ## stores the next -last checkpoint to be saved, used only when save_last = 'link'
+        ## this is needed because when using symlinks, we need to update the non-last checkpoint's
+        ## last_model_path to point to the corresponding -last version
+        self.future_last_model_path = ""
 
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
@@ -245,6 +244,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.best_model_path = ""
             self.best_model_score = None
 
+    def state_dict(self):
+        state = super().state_dict()
+        ## if using symlinks, overwrite last_model_path to avoid off-by-one issues
+        if self.save_last == "link":
+            state["last_model_path"] = self.future_last_model_path
+        return state
+
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         super().load_state_dict(state_dict)
         self._remove_invalid_entries_from_topk()
@@ -403,6 +409,17 @@ class ModelCheckpoint(PTLModelCheckpoint):
         return monitor_candidates
 
     def _link_checkpoint(self, trainer: "pl.Trainer", filepath: str, linkpath: str, override_async=False) -> None:
+
+        ## check to see whether this step has already been saved as top_k
+        ## in which case we can create a symlink
+        ## otherwise, we have to save the checkpoint
+        saved_current_step = str(ckpt_to_dir(filepath)).replace("-last", "") == str(
+            ckpt_to_dir(self._last_checkpoint_saved)
+        )
+        if not saved_current_step:
+            self._save_checkpoint(trainer, linkpath)
+            return
+
         ## linking will happen as part of the finalize fn
         if self.async_save and not override_async:
             self.ckpts_to_link[str(filepath)] = str(linkpath)
@@ -426,8 +443,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         ## manually update last_model_path so symlink is up-to-date
         ## should only be done when using a symlink
         if self.save_last == "link" and not str(ckpt_to_dir(filepath)).endswith("last"):
-            self.previous_last_model_path = self.last_model_path
-            self.last_model_path = str(ckpt_to_dir(filepath)) + "-last.ckpt"
+            self.future_last_model_path = str(ckpt_to_dir(filepath)) + "-last.ckpt"
 
         if ema_callback is not None:
             if self.async_save:
@@ -477,37 +493,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
-
-    def _save_last_checkpoint(self, trainer: "pl.Trainer", monitor_candidates: Dict[str, torch.Tensor]) -> None:
-        if not self.save_last:
-            return
-
-        filepath = self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST)
-
-        if self._enable_version_counter:
-            version_cnt = self.STARTING_VERSION
-            while self.file_exists(filepath, trainer) and filepath != self.last_model_path:
-                filepath = self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST, ver=version_cnt)
-                version_cnt += 1
-
-        # set the last model path before saving because it will be part of the state.
-        if self.save_last == "link":
-            previous = self.previous_last_model_path
-        else:
-            previous, self.last_model_path = self.last_model_path, filepath
-
-        ## check to see whether this step has already been saved as top_k
-        ## in which case we can create a symlink
-        saved_current_step = str(ckpt_to_dir(filepath)).replace("-last", "") == str(
-            ckpt_to_dir(self._last_checkpoint_saved)
-        )
-
-        if self.save_last == "link" and self._last_checkpoint_saved and self.save_top_k != 0 and saved_current_step:
-            self._link_checkpoint(trainer, self._last_checkpoint_saved, filepath)
-        else:
-            self._save_checkpoint(trainer, filepath)
-        if previous and self._should_remove_checkpoint(trainer, previous, filepath):
-            self._remove_checkpoint(trainer, previous)
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
