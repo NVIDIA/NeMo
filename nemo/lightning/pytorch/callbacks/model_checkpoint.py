@@ -413,8 +413,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         ## check to see whether this step has already been saved as top_k
         ## in which case we can create a symlink
         ## otherwise, we have to save the checkpoint
-        saved_current_step = str(ckpt_to_dir(filepath)).replace("-last", "") == str(
-            ckpt_to_dir(self._last_checkpoint_saved)
+        saved_current_step = str(ckpt_to_dir(linkpath)).replace("-last", "") == str(
+            ckpt_to_dir(filepath)
         )
         if not saved_current_step:
             self._save_checkpoint(trainer, linkpath)
