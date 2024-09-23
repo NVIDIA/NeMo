@@ -43,6 +43,7 @@ from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.utilities import move_data_to_device
+from pytorch_lightning.trainer.states import TrainerFn
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -529,8 +530,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         if self.convert_module_fn:
             self.apply_convert_module_fn()
-
-        self.init_ddp()
+        if self.trainer.state.fn == TrainerFn.FITTING:
+            self.init_ddp()
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
