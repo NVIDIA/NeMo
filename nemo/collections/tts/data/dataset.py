@@ -204,7 +204,8 @@ class TTSDataset(Dataset):
             self.text_normalizer_call = None
         elif not PYNINI_AVAILABLE:
             raise ImportError(
-                "`nemo_text_processing` is not installed, see https://github.com/NVIDIA/NeMo-text-processing for details"
+                "`nemo_text_processing` is not installed, see https://github.com/NVIDIA/NeMo-text-processing for details. "
+                "If you wish to continue without text normalization, please remove the text_normalizer part in your TTS yaml file."
             )
         else:
             self.text_normalizer_call = (
@@ -1226,7 +1227,7 @@ class FastPitchSSLDataset(Dataset):
                 "speaker" : <SPEAKER NUM>
                 "duration": <Duration of audio clip in seconds> (Optional)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
-            ssl_content_emb_type (str): One of ["probs", "embedding", "log_probs", "embedding_and_probs"]. 
+            ssl_content_emb_type (str): One of ["probs", "embedding", "log_probs", "embedding_and_probs"].
                 Indicated which output to use as content embedding.
             max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
                 pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
@@ -1239,18 +1240,18 @@ class FastPitchSSLDataset(Dataset):
             trim (bool): Whether to apply `librosa.effects.trim` to trim leading and trailing silence from an audio
                 signal. Defaults to False.
             pitch_conditioning (bool): Whether to load pitch contour or not
-            pitch_mean (Optional[float]): If using global normalization, normalize using these statistics. 
+            pitch_mean (Optional[float]): If using global normalization, normalize using these statistics.
                 Also used if speaker stats are not available for the given speaker
-            pitch_std (Optional[float]): If using global normalization, normalize using these statistics. 
+            pitch_std (Optional[float]): If using global normalization, normalize using these statistics.
                 Also used if speaker stats are not available for the given speaker
             pitch_normalization (str): Can be one of ['speaker_wise', 'global', 'none']. Indicates the kind of pitch normalization.
-            sup_data_dir (Optional[Union[str, Path]]): Data directory containing pre-computed embeddings/statistics. If set as 
-            speaker_stats_pitch_fp (Optional[Union[str, Path]]): Path to the json containing speaker pitch stats. 
-                If set as None, tries to lookup for a default filename (speaker_pitch_stats.json) in sup_data_dir. 
+            sup_data_dir (Optional[Union[str, Path]]): Data directory containing pre-computed embeddings/statistics. If set as
+            speaker_stats_pitch_fp (Optional[Union[str, Path]]): Path to the json containing speaker pitch stats.
+                If set as None, tries to lookup for a default filename (speaker_pitch_stats.json) in sup_data_dir.
                 Needed if we use pitch_normalization is "speaker_wise"
             speaker_conditioning_type (Optional[str]): Can be one of ["per_sample", "mean", "interpolate"]. Defaults to "per_sample"
                 per_sample: Speaker embedding computed from the same utterance
-                mean: Speaker embedding for all utterances of a given speaker is the same and equal to the mean speaker embedding. 
+                mean: Speaker embedding for all utterances of a given speaker is the same and equal to the mean speaker embedding.
                 interpolate: Interpolate b/w per_sample and mean speaker embedding.
         """
         assert ssl_content_emb_type in ["probs", "embedding", "log_probs", "embedding_and_probs"]
@@ -1531,7 +1532,7 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
     Maintain similar input lengths in a batch.
     Length groups are specified by boundaries.
     Ex) boundaries = [b1, b2, b3] -> any batch is included either {x | b1 < length(x) <=b2} or {x | b2 < length(x) <= b3}.
-  
+
     It removes samples which are not included in the boundaries.
     Ex) boundaries = [b1, b2, b3] -> any x s.t. length(x) <= b1 or length(x) > b3 are discarded.
     """

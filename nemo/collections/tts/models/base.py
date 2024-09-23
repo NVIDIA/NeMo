@@ -28,8 +28,34 @@ from nemo.core.neural_types.elements import AudioSignal
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
+PYNINI_AVAILABLE = True
+try:
+    import nemo_text_processing
+except (ImportError, ModuleNotFoundError):
+    PYNINI_AVAILABLE = False
 
-class SpectrogramGenerator(ModelPT, ABC):
+class NeedsNormalizer(ModelPT, ABC):
+    """ Base class for all TTS models that needs text normalization(TN) """
+
+    def _setup_normalizer(self, cfg):
+        if "text_normalizer" in cfg:
+            if not PYNINI_AVAILABLE:
+                logging.error("`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details.")
+                logging.error("The normalizer will be disabled.")
+                return
+            normalizer_kwargs = {}
+
+            if "whitelist" in cfg.text_normalizer:
+                normalizer_kwargs["whitelist"] = self.register_artifact(
+                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
+                )
+
+            self.text_normalizer_call = self.normalizer.normalize
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
+
+
+class SpectrogramGenerator(NeedsNormalizer, ModelPT, ABC):
     """ Base class for all TTS models that turn text into a spectrogram """
 
     @abstractmethod
@@ -252,7 +278,7 @@ class MelToSpec(ModelPT, ABC):
         return list_of_models
 
 
-class TextToWaveform(ModelPT, ABC):
+class TextToWaveform(NeedsNormalizer, ModelPT, ABC):
     """ Base class for all end-to-end TTS models that generate a waveform from text """
 
     @abstractmethod

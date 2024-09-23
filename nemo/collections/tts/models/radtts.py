@@ -374,29 +374,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
             self.tokens = tokens
 
-    def _setup_normalizer(self, cfg):
-        if "text_normalizer" in cfg:
-            normalizer_kwargs = {}
-
-            if "whitelist" in cfg.text_normalizer:
-                normalizer_kwargs["whitelist"] = self.register_artifact(
-                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
-                )
-
-            try:
-                import nemo_text_processing
-
-                self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
-                self.text_normalizer_call = self.normalizer.normalize
-            except Exception as e:
-                logging.error(e)
-                raise ImportError(
-                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
-                )
-            self.text_normalizer_call = self.normalizer.normalize
-            if "text_normalizer_call_kwargs" in cfg:
-                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
-
     def parse(self, text: str, normalize=False) -> torch.Tensor:
         if self.training:
             logging.warning("parse() is meant to be called in eval mode.")

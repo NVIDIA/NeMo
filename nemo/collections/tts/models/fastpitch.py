@@ -200,28 +200,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
         return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
 
-    def _setup_normalizer(self, cfg):
-        if "text_normalizer" in cfg:
-            normalizer_kwargs = {}
-
-            if "whitelist" in cfg.text_normalizer:
-                normalizer_kwargs["whitelist"] = self.register_artifact(
-                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
-                )
-            try:
-                import nemo_text_processing
-
-                self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
-            except Exception as e:
-                logging.error(e)
-                raise ImportError(
-                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
-                )
-
-            self.text_normalizer_call = self.normalizer.normalize
-            if "text_normalizer_call_kwargs" in cfg:
-                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
-
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
 
