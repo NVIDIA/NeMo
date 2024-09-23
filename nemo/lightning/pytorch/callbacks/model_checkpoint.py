@@ -85,7 +85,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         ## this is needed because when using symlinks, we need to update last_model_path when
         ## saving the non-last checkpoint. Storing "previous" is needed to keep us from overwriting the
         ## previous "last_model_path"
-        self.previous = ""
+        self.previous_last_model_path = ""
 
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
@@ -410,18 +410,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         filepath = ckpt_to_dir(filepath)
         linkpath = ckpt_to_dir(linkpath)
-        if trainer.is_global_zero:
-            if os.path.islink(linkpath) or os.path.isfile(linkpath):
-                os.remove(linkpath)
-            elif os.path.isdir(linkpath):
-                shutil.rmtree(linkpath)
-            try:
-                os.symlink(os.path.relpath(filepath, os.path.dirname(linkpath)), linkpath)
-            except OSError:
-                # on Windows, special permissions are required to create symbolic links as a regular user
-                # fall back to copying the file
-                shutil.copy(filepath, linkpath)
-        trainer.strategy.barrier()
+        super()._link_checkpoint(trainer, filepath, linkpath)
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         from nemo.utils.get_rank import is_global_rank_zero
@@ -437,7 +426,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         ## manually update last_model_path so symlink is up-to-date
         ## should only be done when using a symlink
         if self.save_last == "link" and not str(ckpt_to_dir(filepath)).endswith("last"):
-            self.previous = self.last_model_path
+            self.previous_last_model_path = self.last_model_path
             self.last_model_path = str(ckpt_to_dir(filepath)) + "-last.ckpt"
 
         if ema_callback is not None:
@@ -502,10 +491,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 version_cnt += 1
 
         # set the last model path before saving because it will be part of the state.
-        if self.save_last != "link":
+        if self.save_last == "link":
+            previous = self.previous_last_model_path
+        if else:
             previous, self.last_model_path = self.last_model_path, filepath
-        else:
-            previous = self.previous
 
         ## check to see whether this step has already been saved as top_k
         ## in which case we can create a symlink
