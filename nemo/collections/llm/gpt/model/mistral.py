@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
@@ -12,6 +26,7 @@ from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import OptimizerModule
+from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM
@@ -27,7 +42,6 @@ class MistralConfig7B(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
 
     num_layers: int = 32
     hidden_size: int = 4096
@@ -99,7 +113,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
     def apply(self, output_path: Path) -> Path:
         from transformers import MistralForCausalLM
 
-        source = MistralForCausalLM.from_pretrained(str(self))
+        source = MistralForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -129,7 +143,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(str(self))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> MistralConfig7B:
@@ -162,6 +176,9 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             window_size=window_size,
             share_embeddings_and_output_weights=False,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
         return output
