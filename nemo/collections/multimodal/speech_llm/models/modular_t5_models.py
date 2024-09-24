@@ -153,7 +153,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             self.hidden_size = self.frozen_model.cfg.hidden_size
 
         # Handle this when moving GPT prompt learning to the base class.
-        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+        if self.megatron_amp_O2:
+            self.word_embeddings = self.frozen_model.enc_dec_model.module.encoder_embedding
+        else:
+            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding
 
         self._reduced_loss_buffer = []
         self._inference_config = None
@@ -287,7 +290,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             return concat_emb, concat_len
 
         # [b, t, c]
-        lm_embedding = self.frozen_model.enc_dec_model.encoder_embedding
+        lm_embedding = self.word_embeddings
         input_embeds = lm_embedding.word_embeddings(input_ids)
         if self.cfg.audio_prompt_first:
             encoder_input, encoder_length = _concat_embs(encoded, encoded_len, input_embeds, input_length)

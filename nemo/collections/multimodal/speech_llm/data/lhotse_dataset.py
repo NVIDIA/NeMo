@@ -140,7 +140,7 @@ def collate_text_data(
             k: torch.as_tensor(v)
             for k, v in text_processor._process_example(
                 context=cut.context,
-                output=cut.supervisions[0].text,
+                output=str(cut.supervisions[0].text),
             ).items()
         }
         for cut in cuts
