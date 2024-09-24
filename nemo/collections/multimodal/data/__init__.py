@@ -12,7 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+try:
+    from megatron.energon
 
-from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
+    HAVE_MEGATRON_ENERGON = True
 
-__all__ = ["SimpleMultiModalDataModule"]
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_ENERGON = False
+
+
+if HAVE_MEGATRON_ENERGON:
+
+    from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
+
+    __all__ = ["SimpleMultiModalDataModule"]
+
+else:
+
+    __all__ = []
