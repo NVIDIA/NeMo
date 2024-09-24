@@ -225,7 +225,7 @@ def update_config_with_dtype_overrides(dtype_config, config):
         new_val = getattr(dtype_config, field.name)
         if old_val != new_val:
             setattr(config, field.name, new_val)
-            logging.warning(f"Overwrote {type(config).__name__}.{field.name}  {old_val} -> {new_val}")
+            logging.debug(f"Overwrote {type(config).__name__}.{field.name}  {old_val} -> {new_val}")
     return config
 
 
