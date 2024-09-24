@@ -253,7 +253,7 @@ class TextProcessing:
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id != None and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
@@ -312,7 +312,7 @@ class TextProcessing:
         else:
             pre_pad = []
         answer_text = text[len(context) :]
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text)
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 

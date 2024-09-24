@@ -446,8 +446,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         # TODO(pzelasko): I marked the sections that are modified from the original with TODOs like this one.
 
-        # Local imports mimic global imports in the original file that had this func.
-
         # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
         # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
         if isinstance(dataloader_iter, _DataFetcherWrapper):
@@ -1020,8 +1018,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         if pretrained_model_cfg:
             model_cfg = pretrained_model_cfg
-        elif cfg.model.peft.restore_from_path:
-            if cfg.model.peft.restore_from_path.endswith(".nemo"):
+        elif cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir:
+            if cfg.model.peft.restore_from_path and cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
                     restore_path=cfg.model.peft.restore_from_path,
                     trainer=trainer,
