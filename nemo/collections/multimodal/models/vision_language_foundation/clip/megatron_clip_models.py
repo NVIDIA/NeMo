@@ -64,18 +64,18 @@ try:
     from megatron.core import parallel_state
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig
-    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.models.vision.clip_vit_model import CLIPViTModel
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
-    from megatron.core.transformer.custom_layers.transformer_engine import (
+    from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
         TEDotProductAttention,
         TELayerNormColumnParallelLinear,
         TENorm,
         TERowParallelLinear,
     )
+    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.models.vision.clip_vit_model import CLIPViTModel
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
     from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -424,24 +424,26 @@ class MCoreCLIPViTModel(CLIPViTModel):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
         super().__init__(*args, **kwargs)
-        self.final_layernorm = TENorm(
-            config=self.config,
-            hidden_size=self.config.hidden_size,
-            eps=self.config.layernorm_epsilon,
-        )
-        self.head = torch.nn.Linear(
-            self.config.hidden_size,
-            self.output_dim,
-            bias=False,
-        )
+        if self.post_process:
+            self.final_layernorm = TENorm(
+                config=self.config,
+                hidden_size=self.config.hidden_size,
+                eps=self.config.layernorm_epsilon,
+            )
+            self.head = torch.nn.Linear(
+                self.config.hidden_size,
+                self.output_dim,
+                bias=False,
+            )
 
     def forward(self, x):
         x = super().forward(
             x,
         )
-        x = self.final_layernorm(x)
-        x = x[:, 0]
-        x = self.head(x)
+        if self.post_process:
+            x = self.final_layernorm(x)
+            x = x[:, 0]
+            x = self.head(x)
         return x
 
 

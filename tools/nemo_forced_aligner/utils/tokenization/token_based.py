@@ -1,8 +1,8 @@
 from typing import List
 
-from utils.tokenization.abc import BaseAligner
-from utils.units import Alignment, Segment, Word, Token, BlankToken
 from utils import constants
+from utils.tokenization.abc import BaseAligner
+from utils.units import Alignment, BlankToken, Segment, Token, Word
 
 
 class TokenBasedAligner(BaseAligner):
@@ -111,19 +111,21 @@ class TokenBasedAligner(BaseAligner):
             segment_words = segment.text.split()
 
             for word_i, _word in enumerate(segment_words):
-                word, word_tokens, word_s_pointer = self.align_unit(unit_text=_word,
-                                                                    unit_type=Word,
-                                                                    unit_s_pointer=word_s_pointer)
-                
+                word, word_tokens, word_s_pointer = self.align_unit(
+                    unit_text=_word, unit_type=Word, unit_s_pointer=word_s_pointer
+                )
+
                 word_tokens_cased = self._restore_token_case(_word, word_tokens)
                 word_tokens_ids = self.text_to_ids(_word)
 
-                for token_i, (_token, token_cased, token_id) in enumerate(zip(word_tokens, word_tokens_cased, word_tokens_ids)):
+                for token_i, (_token, token_cased, token_id) in enumerate(
+                    zip(word_tokens, word_tokens_cased, word_tokens_ids)
+                ):
                     alignment.token_ids_with_blanks.extend([token_id, constants.BLANK_ID])
-                    
-                    token, _, token_s_pointer = self.align_unit(unit_text=_token,
-                                                                unit_type=Token,
-                                                                unit_s_pointer=token_s_pointer)
+
+                    token, _, token_s_pointer = self.align_unit(
+                        unit_text=_token, unit_type=Token, unit_s_pointer=token_s_pointer
+                    )
                     token.text_cased = token_cased
 
                     word.tokens.append(token)

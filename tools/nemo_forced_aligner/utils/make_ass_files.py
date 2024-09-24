@@ -25,9 +25,9 @@ by the NFA alignemtns.
 
 import math
 import os
-import soundfile as sf
 
-from utils.units import Segment, Word, Token, BlankToken, SpaceToken
+import soundfile as sf
+from utils.units import BlankToken, Segment, SpaceToken, Token, Word
 
 PLAYERRESX = 384
 PLAYERRESY = 288
@@ -64,7 +64,11 @@ def rgb_list_to_hex_bgr(rgb_list):
 
 
 def make_ass_files(
-    utt_obj, utt_audio_filepath, utt_id, output_dir_root, ass_file_config,
+    utt_obj,
+    utt_audio_filepath,
+    utt_id,
+    output_dir_root,
+    ass_file_config,
 ):
 
     # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen
