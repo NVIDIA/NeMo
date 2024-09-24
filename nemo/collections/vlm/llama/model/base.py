@@ -339,7 +339,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             batch_images: List[List[PIL_Image.Image]],
             batch_masks: List[List[List[int]]],
             total_len: int,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[List, torch.Tensor, torch.Tensor]:
         skip_vision_encoder = self.vision_model is None
 
         assert len(batch_images) == len(
@@ -395,14 +395,13 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
 
         bsz, nimg, nchunk, ntok, image_token_dim = tuple(vision_tokens.shape)
 
-        xattn_caches = torch.stack(
-            [
-                layer.compute_xattn_kv_cache(
-                    vision_tokens.view(bsz, -1, image_token_dim).transpose(0, 1).contiguous()
-                )
-                for layer in self.language_model.decoder.xattn_layers if isinstance(layer, CrossAttentionTransformerLayer)
-            ]
-        )
+        xattn_caches = [
+            layer.compute_xattn_kv_cache(
+                vision_tokens.view(bsz, -1, image_token_dim).transpose(0, 1).contiguous()
+            )
+            for layer in self.language_model.decoder.xattn_layers
+        ]
+
         padded_masks = _pad_masks(
             batch_masks,
             num_chunks,
@@ -435,7 +434,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         total_len: Optional[int] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
-        xattn_caches: Optional[torch.Tensor] = None,
+        xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
         if xattn_caches is None:
             xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
@@ -716,15 +715,15 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             })
             transforms.extend([
                 io.state_transform(
-                    source_key=(f"{v}.global_transformer.resblocks.*.attn.wk.weight",
-                                f"{v}.global_transformer.resblocks.*.attn.wq.weight",
+                    source_key=(f"{v}.global_transformer.resblocks.*.attn.wq.weight",
+                                f"{v}.global_transformer.resblocks.*.attn.wk.weight",
                                 f"{v}.global_transformer.resblocks.*.attn.wv.weight"),
                     target_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
                     fn=_import_vision_qkv
                 ),
                 io.state_transform(
-                    source_key=(f"{v}.transformer.resblocks.*.attn.wk.weight",
-                                f"{v}.transformer.resblocks.*.attn.wq.weight",
+                    source_key=(f"{v}.transformer.resblocks.*.attn.wq.weight",
+                                f"{v}.transformer.resblocks.*.attn.wk.weight",
                                 f"{v}.transformer.resblocks.*.attn.wv.weight"),
                     target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
                     fn=_import_vision_qkv
