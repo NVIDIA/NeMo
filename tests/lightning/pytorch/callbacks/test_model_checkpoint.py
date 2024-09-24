@@ -1,4 +1,5 @@
 import os
+<<<<<<< HEAD
 import pytest
 import torch
 import megatron
@@ -37,6 +38,22 @@ def reset_megatron_parallel_state() -> Iterator[None]:
         yield
     finally:
         _reset_megatron_parallel_state()
+=======
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict
+
+import pytest
+import pytorch_lightning as pl
+import torch
+from megatron.core import ModelParallelConfig
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+
+import nemo.lightning as nl
+from nemo.collections import llm
+from nemo.lightning.io.mixin import IOMixin
+
+>>>>>>> dae8c1fd79470828a9f7b87ef50ab88d947e66d0
 
 class RandomDataset(pl.LightningDataModule):
     def __init__(self, size, length):
@@ -63,6 +80,7 @@ class RandomDataset(pl.LightningDataModule):
     def val_dataloader(self) -> EVAL_DATALOADERS:
         return torch.utils.data.DataLoader(self.data, batch_size=2)
 
+<<<<<<< HEAD
 class PassThroughLossReduction(MegatronLossReduction):
     """A class used for calculating the loss, and for logging the reduced loss across micro batches."""
 
@@ -83,6 +101,14 @@ class PassThroughLossReduction(MegatronLossReduction):
         """
         mse_losses = torch.stack([loss for loss in losses_reduced_per_micro_batch])
         return mse_losses.mean()
+=======
+    def test_dataloader(self) -> EVAL_DATALOADERS:
+        dataset = RandomDataset(32, 16)
+        dl = torch.utils.data.DataLoader(dataset, batch_size=2)
+        # self._test_names = ['test_{}_'.format(idx) for idx in range(len(dl))]
+        return dl
+>>>>>>> dae8c1fd79470828a9f7b87ef50ab88d947e66d0
+
 
 class ExampleModel(pl.LightningModule, IOMixin):
     def __init__(self, *args, **kwargs):
