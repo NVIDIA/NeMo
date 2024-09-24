@@ -128,6 +128,8 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
 class CrossAttentionTextModelConfig(Llama31Config):
     num_cross_attention_layers: int = 8
     vocab_size: int = 128256
+    apply_rope_fusion: bool = False
+    rotary_interleaved: bool = True
 
     def _init_fusion_schedule(self, num_layers: int) -> List[int]:
         llama_layers = list(range(self.num_layers))
