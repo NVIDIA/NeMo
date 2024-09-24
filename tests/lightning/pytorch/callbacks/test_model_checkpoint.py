@@ -13,7 +13,6 @@ from torch import Tensor
 
 import nemo.lightning as nl
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
