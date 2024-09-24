@@ -16,8 +16,5 @@ from .albert import AlbertEncoder
 from .bert import BertEncoder
 from .camembert import CamembertEncoder
 from .distilbert import DistilBertEncoder
-from .huggingface_utils import (
-    get_huggingface_lm_model,
-    get_huggingface_pretrained_lm_models_list,
-)
+from .huggingface_utils import get_huggingface_lm_model, get_huggingface_pretrained_lm_models_list
 from .roberta import RobertaEncoder

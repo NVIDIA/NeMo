@@ -25,13 +25,14 @@ from transformers import (
     RobertaConfig,
 )
 
+from nemo.utils import logging
+
 from .albert import AlbertEncoder
 from .bert import BertEncoder
 from .camembert import CamembertEncoder
 from .distilbert import DistilBertEncoder
 from .gpt2 import GPT2Encoder
 from .roberta import RobertaEncoder
-from nemo.utils import logging
 
 __all__ = ["get_huggingface_lm_model", "get_huggingface_pretrained_lm_models_list", "VOCAB_FILE_NAME"]
 

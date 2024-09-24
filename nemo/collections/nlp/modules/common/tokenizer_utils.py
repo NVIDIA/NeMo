@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .huggingface.huggingface_utils import (
-    get_huggingface_pretrained_lm_models_list,
-)
 import os.path
 from dataclasses import MISSING, dataclass
 from typing import Dict, List, Optional
 
 from nemo.utils import logging
+
+from .huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 

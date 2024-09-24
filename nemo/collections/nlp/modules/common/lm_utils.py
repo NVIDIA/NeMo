@@ -20,19 +20,14 @@ from attr import asdict
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
+from nemo.utils import AppState, logging
+
 from .bert_module import BertModule
 from .decoder_module import DecoderModule
 from .encoder_module import EncoderModule
-from .huggingface.huggingface_utils import (
-    get_huggingface_lm_model,
-    get_huggingface_pretrained_lm_models_list,
-)
+from .huggingface.huggingface_utils import get_huggingface_lm_model, get_huggingface_pretrained_lm_models_list
 from .transformer.transformer import NeMoTransformerConfig
-from .transformer.transformer_utils import (
-    get_huggingface_transformer,
-    get_nemo_transformer,
-)
-from nemo.utils import AppState, logging
+from .transformer.transformer_utils import get_huggingface_transformer, get_nemo_transformer
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model', 'pad_batch']
 
@@ -102,6 +97,7 @@ def get_lm_model(
     if cfg.get('language_model') and cfg.language_model.get('pretrained_model_name', ''):
         pretrain_model_name = cfg.language_model.get('pretrained_model_name', '')
     from .megatron.megatron_utils import get_megatron_pretrained_bert_models
+
     all_pretrained_megatron_bert_models = get_megatron_pretrained_bert_models()
     if (
         cfg.tokenizer is not None
@@ -175,13 +171,13 @@ def get_transformer(
                                  config_dict={
                                      '_target_': 'transformers.BertConfig',
                                      'hidden_size': 1536
-                                 }) 
+                                 })
 
 
     Args:
         library (str, optional): Can be 'nemo', 'huggingface', or 'megatron'. Defaults to 'nemo'.
         model_name (Optional[str], optional): Named model architecture from the chosen library. Defaults to None.
-        pretrained (bool, optional): Use True to get pretrained weights. 
+        pretrained (bool, optional): Use True to get pretrained weights.
                                      False will use the same architecture but with randomly initialized weights.
                                      Defaults to False.
         config_dict (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.
