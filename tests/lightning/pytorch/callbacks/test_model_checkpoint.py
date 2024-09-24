@@ -1,16 +1,18 @@
 import os
-import pytest
-import torch
-import pytorch_lightning as pl
-import nemo.lightning as nl
-
 from dataclasses import dataclass
 from pathlib import Path
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from typing import Dict
+
+import pytest
+import pytorch_lightning as pl
+import torch
 from megatron.core import ModelParallelConfig
-from nemo.lightning.io.mixin import IOMixin
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+
+import nemo.lightning as nl
 from nemo.collections import llm
+from nemo.lightning.io.mixin import IOMixin
+
 
 class RandomDataset(pl.LightningDataModule):
     def __init__(self, size, length):
@@ -35,8 +37,9 @@ class RandomDataset(pl.LightningDataModule):
     def test_dataloader(self) -> EVAL_DATALOADERS:
         dataset = RandomDataset(32, 16)
         dl = torch.utils.data.DataLoader(dataset, batch_size=2)
-        #self._test_names = ['test_{}_'.format(idx) for idx in range(len(dl))]
+        # self._test_names = ['test_{}_'.format(idx) for idx in range(len(dl))]
         return dl
+
 
 class ExampleModel(pl.LightningModule, IOMixin):
     def __init__(self, *args, **kwargs):
@@ -94,6 +97,7 @@ class ExampleModel(pl.LightningModule, IOMixin):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
         self.validation_step_outputs.clear()  # free memory
 
+
 class TestModelCheckpoint:
 
     @pytest.mark.unit
@@ -111,10 +115,7 @@ class TestModelCheckpoint:
             use_datetime_version=False,
         )
 
-        strategy = nl.MegatronStrategy(
-            ckpt_async_save=True,
-            replace_progress_bar=False
-        )
+        strategy = nl.MegatronStrategy(ckpt_async_save=True, replace_progress_bar=False)
 
         trainer = nl.Trainer(
             max_epochs=5,
@@ -127,17 +128,16 @@ class TestModelCheckpoint:
                 save_context_on_train_end=False,
                 filename=f'{{step}}-{{epoch}}-{{val_loss}}-{{consumed_samples}}',
                 save_last="link",
-            )
+            ),
         )
         nemo_logger.setup(trainer)
         trainer.fit(model, data)
 
         checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
         dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
-        last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]        
+        last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
         final_ckpt = sorted(last_checkpoints, key=lambda pth: pth.lstat().st_mtime, reverse=True)[0]
         assert os.path.islink(final_ckpt)
 
         link = final_ckpt.resolve()
         assert str(final_ckpt).replace("-last", "") == str(link)
-
