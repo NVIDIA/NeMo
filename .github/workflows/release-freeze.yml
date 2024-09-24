@@ -138,9 +138,9 @@ jobs:
           branch: bot/chore/version-bump-${{ steps.bump-version.outputs.version }}
           title: 'Version bump to `${{ steps.bump-version.outputs.version }}`'
           body: |
-            🚀 Version bump NeMo-Aligner to `${{ steps.bump-version.outputs.version }}`
+            🚀 Version bump NeMo-Toolkit to `${{ steps.bump-version.outputs.version }}`
 
-          commit-message: "[🤠]: Howdy folks, let's bump NeMo-Aligner `${{ steps.bump-version.outputs.version }}` !"
+          commit-message: "[🤠]: Howdy folks, let's bump NeMo-Toolkit `${{ steps.bump-version.outputs.version }}` !"
           signoff: true
           assignees: okoenig
           labels: 'Run CICD'
@@ -159,7 +159,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "Releasebot 🤖: NeMo-Aligner has been frozen 🎉 to branch `r${{ needs.create-release-branch.outputs.version }}`"
+                  "text": "Releasebot 🤖: NeMo-Toolkit has been frozen 🎉 to branch `r${{ needs.create-release-branch.outputs.version }}`"
                 }
               }
             ]
