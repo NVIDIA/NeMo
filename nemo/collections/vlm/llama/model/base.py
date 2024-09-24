@@ -715,15 +715,15 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
             })
             transforms.extend([
                 io.state_transform(
-                    source_key=(f"{v}.global_transformer.resblocks.*.attn.wk.weight",
-                                f"{v}.global_transformer.resblocks.*.attn.wq.weight",
+                    source_key=(f"{v}.global_transformer.resblocks.*.attn.wq.weight",
+                                f"{v}.global_transformer.resblocks.*.attn.wk.weight",
                                 f"{v}.global_transformer.resblocks.*.attn.wv.weight"),
                     target_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
                     fn=_import_vision_qkv
                 ),
                 io.state_transform(
-                    source_key=(f"{v}.transformer.resblocks.*.attn.wk.weight",
-                                f"{v}.transformer.resblocks.*.attn.wq.weight",
+                    source_key=(f"{v}.transformer.resblocks.*.attn.wq.weight",
+                                f"{v}.transformer.resblocks.*.attn.wk.weight",
                                 f"{v}.transformer.resblocks.*.attn.wv.weight"),
                     target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
                     fn=_import_vision_qkv
