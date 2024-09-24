@@ -447,8 +447,8 @@ class ImageTransformerLayer(TransformerLayer):
         )
         self.gated = self.config.gated
         if self.gated:
-            self.gate_attn = nn.Parameter(torch.zeros(1))
-            self.gate_ffn = nn.Parameter(torch.zeros(1))
+            self.gate_attn = nn.Parameter(torch.zeros(1, dtype=self.config.params_dtype))
+            self.gate_ffn = nn.Parameter(torch.zeros(1, dtype=self.config.params_dtype))
 
     def forward(
             self,

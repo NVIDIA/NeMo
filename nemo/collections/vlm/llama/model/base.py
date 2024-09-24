@@ -273,7 +273,7 @@ class CrossAttentionVisionModel(MegatronModule):
             image_size=config.vision_chunk_size,
             patch_size=self.patch_size,
             return_intermediate=return_intermediate,
-        )
+        ).to(config.params_dtype)
 
         projection_config = copy.deepcopy(config)
         projection_config.hidden_size = config.text_hidden_size
