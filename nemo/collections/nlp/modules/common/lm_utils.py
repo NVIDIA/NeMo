@@ -27,7 +27,6 @@ from .huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_pretrained_lm_models_list,
 )
-from .megatron.megatron_utils import get_megatron_pretrained_bert_models
 from .transformer.transformer import NeMoTransformerConfig
 from .transformer.transformer_utils import (
     get_huggingface_transformer,
@@ -102,6 +101,7 @@ def get_lm_model(
     pretrain_model_name = ''
     if cfg.get('language_model') and cfg.language_model.get('pretrained_model_name', ''):
         pretrain_model_name = cfg.language_model.get('pretrained_model_name', '')
+    from .megatron.megatron_utils import get_megatron_pretrained_bert_models
     all_pretrained_megatron_bert_models = get_megatron_pretrained_bert_models()
     if (
         cfg.tokenizer is not None
