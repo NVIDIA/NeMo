@@ -225,7 +225,7 @@ class Batch:
 
     def _set_B(self):
         self.B = len(self.manifest_lines)
-    
+
     def set_utterances(self, audio_filepath_parts_in_utt_id: int, align_using_text: bool = True):
         for data, audio_filepath, pred_text in zip(self.manifest_lines, self.audio_filepaths, self.pred_texts):
             text = data['text'] if align_using_text else None
@@ -239,7 +239,7 @@ class Batch:
             )
 
             self.utterances.append(utt)
-    
+
     def to_tensor(self, V: int):
         for utterance in self.utterances:
             if utterance.text:

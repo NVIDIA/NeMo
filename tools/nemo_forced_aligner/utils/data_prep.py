@@ -19,8 +19,8 @@ from typing import Dict, List, Union
 
 import soundfile as sf
 import torch
-from tqdm.auto import tqdm
 import utils.constants as constants
+from tqdm.auto import tqdm
 from utils.tokenization.char_based import CharBasedAligner
 from utils.tokenization.token_based import TokenBasedAligner
 from utils.units import Batch
@@ -70,7 +70,8 @@ def create_utt_batch(
     simulate_cache_aware_streaming=False,
     use_buffered_chunked_streaming=False,
     buffered_chunk_params={},
-    normalizer = None, normalization_params = {},
+    normalizer=None,
+    normalization_params={},
 ):
     """
     Returns:
@@ -142,7 +143,9 @@ def create_utt_batch(
     for utt, T in zip(batch.utterances, batch.T_list):
         if align_using_text:
             if normalizer is not None:
-                utt.text.text = normalizer.normalize(text = utt.text.text, pred_text = utt.pred_text.text, **normalization_params)
+                utt.text.text = normalizer.normalize(
+                    text=utt.text.text, pred_text=utt.pred_text.text, **normalization_params
+                )
             aligner.align(utt.text, T, separator=separator)
         if align_using_pred_text:
             aligner.align(utt.pred_text, T)
