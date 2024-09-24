@@ -227,6 +227,9 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if self.load_strictness is not None:
             # Overwrites function argument
             strict = self.load_strictness
+        if strict is None:
+            # Default behavior
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED
 
         checkpoint = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
