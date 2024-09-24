@@ -429,27 +429,18 @@ class CrossAttentionTransformerBlock(TransformerBlock):
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: dict = None
     ) -> ShardedStateDict:
-        assert not sharded_offsets, "Unexpected sharded offsets"
-        non_homogeneous_layers = metadata is not None and metadata.get(
-            'non_homogeneous_layers', False
-        )
         sharded_state_dict = {}
 
         layer_prefix = f'{prefix}layers.'
         num_layers = self.config.num_layers
         for layer in self.layers:
             offset = layer._get_layer_offset()
-
             global_layer_offset = layer.layer_number - 1  # self.layer_number starts at 1
             state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
-            if non_homogeneous_layers:
-                sharded_prefix = f'{layer_prefix}{global_layer_offset}.'
-                sharded_pp_offset = []
-            else:
-                sharded_prefix = layer_prefix
-                sharded_pp_offset = [
-                    (0, global_layer_offset, num_layers)
-                ]  # PP sharding offset for ShardedTensors
+            sharded_prefix = layer_prefix
+            sharded_pp_offset = [
+                (0, global_layer_offset, num_layers)
+            ]  # PP sharding offset for ShardedTensors
             layer_sharded_state_dict = layer.sharded_state_dict(
                 state_dict_prefix, sharded_pp_offset, metadata
             )
@@ -457,17 +448,18 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             sharded_state_dict.update(layer_sharded_state_dict)
 
         xlayer_prefix = f'{prefix}xattn_layers.'
-        for ind, xlayer in enumerate(self.xattn_layers):
-            state_dict_prefix = f'{xlayer_prefix}{ind}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
-            sharded_prefix = f'{xlayer_prefix}{ind}.'
+        for xlayer in self.xattn_layers:
+            if isinstance(xlayer, DummyCrossAttentionTransformerLayer):
+                continue
+            offset = xlayer._get_layer_offset()
+            global_layer_offset = xlayer.layer_number - 1
+            state_dict_prefix = f'{xlayer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
+            sharded_prefix = f'{xlayer_prefix}{global_layer_offset}.'
             sharded_pp_offset = []
-
             xlayer_sharded_state_dict = xlayer.sharded_state_dict(
                 state_dict_prefix, sharded_pp_offset, metadata
             )
-
             replace_prefix_for_sharding(xlayer_sharded_state_dict, state_dict_prefix, sharded_prefix)
-
             sharded_state_dict.update(xlayer_sharded_state_dict)
 
         # Add modules other than self.layers
