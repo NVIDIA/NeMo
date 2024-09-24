@@ -147,44 +147,69 @@ class ExampleModel(pl.LightningModule, IOMixin):
     def validation_loss_reduction(self) -> MegatronLossReduction:  # noqa: D102
         return PassThroughLossReduction()
 
-class TestModelCheckpoint:
+def setup_test(path, async_save=False):
+    model = ExampleModel()
+
+    data = RandomDataset(32, 64)
+
+    nemo_logger = nl.NeMoLogger(
+        log_dir=path,
+        use_datetime_version=False,
+    )
+
+    strategy = nl.MegatronStrategy(
+        ckpt_async_save=async_save,
+        replace_progress_bar=False
+    )
+
+    trainer = nl.Trainer(
+        max_epochs=5,
+        devices=1,
+        val_check_interval=5,
+        callbacks=nl.ModelCheckpoint(
+            monitor="val_loss",
+            save_top_k=3,
+            save_on_train_epoch_end=True,
+            save_context_on_train_end=False,
+            filename=f'{{step}}-{{epoch}}-{{val_loss}}-{{consumed_samples}}',
+            save_last="link",
+        ),
+        strategy=strategy,
+    )
+    nemo_logger.setup(trainer)
+
+    return data, model, trainer
+
+class TestLinkCheckpoint:
 
     @pytest.mark.unit
     def test_link_ckpt(self, tmpdir):
         """Test to ensure that we always keep top_k checkpoints, even after resuming."""
-        tmp_path = tmpdir / "link_ckpt_test"
-        model = ExampleModel()
 
         with reset_megatron_parallel_state():
+            tmp_path = tmpdir / "link_ckpt_test"
+            data, model, trainer = setup_test(tmp_path, async_save=False)
 
-            data = RandomDataset(32, 64)
-            save_top_k = 3
+            trainer.fit(model, data)
 
-            nemo_logger = nl.NeMoLogger(
-                log_dir=tmp_path,
-                use_datetime_version=False,
-            )
+            checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
+            dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
+            last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
+            assert len(last_checkpoints) == 1 ## should only have one -last checkpoint
+            final_ckpt = last_checkpoints[0]
+            assert os.path.islink(final_ckpt)
 
-            strategy = nl.MegatronStrategy(
-                ckpt_async_save=False,
-                replace_progress_bar=False
-            )
+            link = final_ckpt.resolve()
+            assert str(final_ckpt).replace("-last", "") == str(link)
 
-            trainer = nl.Trainer(
-                max_epochs=5,
-                devices=1,
-                val_check_interval=5,
-                callbacks=nl.ModelCheckpoint(
-                    monitor="val_loss",
-                    save_top_k=3,
-                    save_on_train_epoch_end=True,
-                    save_context_on_train_end=False,
-                    filename=f'{{step}}-{{epoch}}-{{val_loss}}-{{consumed_samples}}',
-                    save_last="link",
-                ),
-                strategy=strategy,
-            )
-            nemo_logger.setup(trainer)
+    @pytest.mark.unit
+    def test_link_ckpt_async(self, tmpdir):
+        """Test to ensure that we always keep top_k checkpoints, even after resuming."""
+
+        with reset_megatron_parallel_state():
+            tmp_path = tmpdir / "async_link_ckpt_test"
+            data, model, trainer = setup_test(tmp_path, async_save=True)
+
             trainer.fit(model, data)
 
             checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
