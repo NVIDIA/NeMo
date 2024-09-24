@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import dataclasses
 import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, List, Tuple, Literal, Union
@@ -275,7 +275,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                     submodules=TransformerLayerSubmodules(
                         cross_attention=ModuleSpec(
                             module=LlamaCrossAttention,
-                            params={"attn_mask_type": AttnMaskType.causal},
+                            params={"attn_mask_type": AttnMaskType.arbitrary},
                             submodules=LlamaCrossAttentionSubmodules(
                                 linear_q=TELayerNormColumnParallelLinear,  # This wraps attention_norm before attention
                                 linear_kv=TEColumnParallelLinear,
@@ -547,11 +547,11 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         # MLP.
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
-        _gate_ffn = self.gate_ffn.tanh()
+        _gate_ffn = self.gate_ffn.tanh() * full_text_row_masked_out_mask[:, 0].transpose(0, 1)
         assert isinstance(mlp_output_with_bias,
                           tuple), "`mlp_output_with_bias` needs to be tuple for gating."
         mlp_output_with_bias = tuple(
-            _gate_attn * output if output is not None else None
+            _gate_ffn * output if output is not None else None
             for output in mlp_output_with_bias
         )
 
@@ -654,6 +654,17 @@ class LlamaCrossAttention(Attention):
             eps=self.config.layernorm_epsilon,
         )
 
+        # reinitialize core attention without GQA
+        # self.attn_mask_type = AttnMaskType.arbitrary
+        xattn_config = dataclasses.replace(self.config, num_query_groups=32)
+        self.core_attention = build_module(
+            submodules.core_attention,
+            config=xattn_config,
+            layer_number=self.layer_number,
+            attn_mask_type=self.attn_mask_type,
+            attention_type=self.attention_type,
+        )
+
     def get_key_value_tensors(self, key_value_states):
         # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
         mixed_kv, _ = self.linear_kv(key_value_states)
@@ -734,41 +745,12 @@ class LlamaCrossAttention(Attention):
             key = key.squeeze(1)
             value = value.squeeze(1)
 
-        # ================================================
-        # relative positional embedding (rotary embedding)
-        # ================================================
-        if rotary_pos_emb is not None:
-            q_pos_emb, k_pos_emb = rotary_pos_emb
-
-            if packed_seq_params is not None:
-                cu_seqlens_q = packed_seq_params.cu_seqlens_q
-                cu_seqlens_kv = packed_seq_params.cu_seqlens_kv
-            else:
-                cu_seqlens_q = cu_seqlens_kv = None
-
-            # query = apply_rotary_pos_emb(
-            #     query,
-            #     q_pos_emb,
-            #     config=self.config,
-            #     cu_seqlens=cu_seqlens_q,
-            # )
-            #
-            #
-            # key = apply_rotary_pos_emb(
-            #     key,
-            #     k_pos_emb,
-            #     config=self.config,
-            #     cu_seqlens=cu_seqlens_kv,
-            # )
-
-            # TODO, can apply positional embedding to value_layer so it has
-            # absolute positional embedding.
-            # otherwise, only relative positional embedding takes effect
-            # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
-
         # ==================================
         # core attention computation
         # ==================================
+
+        # In TE "True" means masked out
+        cross_attention_masks = torch.where(cross_attention_masks==0, False, True)
 
         if self.checkpoint_core_attention and self.training:
             core_attn_out = self._checkpointed_attention_forward(
