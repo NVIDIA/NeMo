@@ -1,37 +1,24 @@
-name: "NeMo Code freeze"
+name: "Code freeze"
 
 on:
   workflow_dispatch:
     inputs:
-      is_major:
-        description: Whether to do a major bump
-        required: false
-        default: False
-        type: boolean
-      is_prelease:
-        description: Whether to keep and bump the pre-release label
-        required: false
-        default: false
-        type: boolean
+      type_of_release:
+        type: choice
+        description: Type of release
+        options: 
+        - major
+        - minor
+        - pre_release
       mcore_version:
         description: 'Version of MCore to use (must be a valid git ref)'
         required: true
         type: string
-jobs:
-  validate-inputs:
-    runs-on: ubuntu-latest
-    steps:
-      - name: main
-        run: |
-          if [[ "${{ inputs.is_major }}" == "true" && "${{ inputs.is_prelease }}" == "true" ]]; then
-            echo Please either major or pre-release, not both
-            exit 1
-          fi
 
+jobs:
   create-release-branch:
     runs-on: ubuntu-latest
     if: contains(fromJSON('["ko3n1g"]'), github.actor)
-    needs: [validate-inputs]
     environment: 
       name: main
     outputs:
@@ -51,7 +38,7 @@ jobs:
         run: |
           cd ${{ github.run_id }}
                     
-          if [[ "${{ inputs.is_prelease }}" == "false" ]]; then
+          if [[ "${{ inputs.type_of_release }}" != "pre_release" ]]; then
             sed -i "/^PRE_RELEASE/c\PRE_RELEASE = ''" nemo/package_info.py 
           fi
 
@@ -118,24 +105,28 @@ jobs:
         id: bump-version
         run: |
           cd ${{ github.run_id }}
-          PRE_RELEASE=$(cat nemo/package_info.py | awk -F"'" '/^PRE_RELEASE =/ {print $2}')
-          MAJOR=$(cat nemo/package_info.py | awk '/^MAJOR = [0-9]+$/' | awk -F"= " '{print $2}')
-          MINOR=$(cat nemo/package_info.py | awk '/^MINOR = [0-9]+$/' | awk -F"= " '{print $2}')
-          PATCH=$(cat nemo/package_info.py | awk '/^PATCH = [0-9]+$/' | awk -F"= " '{print $2}')
+          PRE_RELEASE=$(cat nemo/package_info.py | awk '/^PRE_RELEASE = /' | awk -F"= " '{print $2}' | tr -d '"' | tr -d "'")
+          MAJOR=$(cat nemo/package_info.py | awk '/^MAJOR = /' | awk -F"= " '{print $2}')
+          MINOR=$(cat nemo/package_info.py | awk '/^MINOR = /' | awk -F"= " '{print $2}')
+          PATCH=$(cat nemo/package_info.py | awk '/^PATCH = /' | awk -F"= " '{print $2}')
 
-          if [[ "${{ inputs.is_prelease }}" == "true" ]]; then
+          if [[ "${{ inputs.type_of_release }}" == "pre_release" ]]; then
             NEXT_MAJOR=$MAJOR
             NEXT_MINOR=$MINOR
             NEXT_PRE_RELEASE=rc$(( $(echo $PRE_RELEASE | awk -F"rc" '{print $2}') + 1))
-          else
+          elif [[ "${{ inputs.type_of_release }}" == "major" ]]; then
             NEXT_MAJOR=$(( MAJOR + 1))
-            NEXT_MINOR='0'
-            NEXT_PRE_RELEASE="'rc0'"
+            NEXT_MINOR=0
+            NEXT_PRE_RELEASE=rc0
+          else
+            NEXT_MAJOR=$MAJOR
+            NEXT_MINOR=$(( MINOR + 1))
+            NEXT_PRE_RELEASE=rc0
           fi
 
-          sed -i "s/^MAJOR = $MAJOR/MAJOR = $NEXT_MAJOR/" nemo/package_info.py
-          sed -i "s/^MINOR = $MINOR/MINOR = $NEXT_MINOR/" nemo/package_info.py
-          sed -i "s/^PRE_RELEASE = '$PRE_RELEASE'/PRE_RELEASE = $NEXT_PRE_RELEASE/" nemo/package_info.py
+          sed -i "/^MAJOR/c\MAJOR = $NEXT_MAJOR" nemo/package_info.py
+          sed -i "/^MINOR/c\MINOR = $NEXT_MINOR" nemo/package_info.py
+          sed -i "/^PRE_RELEASE/c\PRE_RELEASE = '$NEXT_PRE_RELEASE'" nemo/package_info.py
 
           echo "version=$NEXT_MAJOR.$NEXT_MINOR.$PATCH$NEXT_PRE_RELEASE" >> "$GITHUB_OUTPUT"
 
@@ -147,9 +138,9 @@ jobs:
           branch: bot/chore/version-bump-${{ steps.bump-version.outputs.version }}
           title: 'Version bump to `${{ steps.bump-version.outputs.version }}`'
           body: |
-            🚀 Version bump NeMo toolkit to `${{ steps.bump-version.outputs.version }}`
+            🚀 Version bump NeMo-Aligner to `${{ steps.bump-version.outputs.version }}`
 
-          commit-message: "[🤠]: Howdy folks, let's bump NeMo `${{ steps.bump-version.outputs.version }}` !"
+          commit-message: "[🤠]: Howdy folks, let's bump NeMo-Aligner `${{ steps.bump-version.outputs.version }}` !"
           signoff: true
           assignees: okoenig
           labels: 'Run CICD'
@@ -168,7 +159,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "Releasebot 🤖: NeMo Toolkit has been frozen 🎉 to branch `r${{ needs.create-release-branch.outputs.version }}`"
+                  "text": "Releasebot 🤖: NeMo-Aligner has been frozen 🎉 to branch `r${{ needs.create-release-branch.outputs.version }}`"
                 }
               }
             ]
