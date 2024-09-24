@@ -204,6 +204,10 @@ class TestLinkCheckpoint:
             final_ckpt = last_checkpoints[0]
             assert os.path.islink(final_ckpt)
 
+            top_k_checkpoints = [d for d in dist_checkpoints if d not in last_checkpoints]
+            ## make sure we're saving the expected number of checkpoints
+            assert len(top_k_checkpoints) == 3
+
             link = final_ckpt.resolve()
             assert str(final_ckpt).replace("-last", "") == str(link)
 
@@ -223,6 +227,9 @@ class TestLinkCheckpoint:
             assert len(last_checkpoints) == 1  ## should only have one -last checkpoint
             final_ckpt = last_checkpoints[0]
             assert os.path.islink(final_ckpt)
+
+            top_k_checkpoints = [d for d in dist_checkpoints if d not in last_checkpoints]
+            assert len(top_k_checkpoints) == 3
 
             link = final_ckpt.resolve()
             assert str(final_ckpt).replace("-last", "") == str(link)
