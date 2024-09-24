@@ -1,8 +1,9 @@
 import torch
 from torch import nn, Tensor
 import numpy as np
-from nemo.collections.diffusion.autoencoder.blocks import ResnetBlock, Upsample, Downsample, AttnBlock, make_attn, Normalize
+from nemo.collections.diffusion.vae.blocks import ResnetBlock, Upsample, Downsample, AttnBlock, make_attn, Normalize
 from dataclasses import dataclass
+#from nemo.utils import logging
 
 @dataclass
 class AutoEncoderParams:
@@ -290,6 +291,7 @@ class AutoEncoder(nn.Module):
 
         self.scale_factor = params.scale_factor
         self.shift_factor = params.shift_factor
+        self.params = params
 
     def encode(self, x: Tensor) -> Tensor:
         z = self.reg(self.encoder(x))
@@ -302,6 +304,13 @@ class AutoEncoder(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return self.decode(self.encode(x))
+
+    # def load_from_checkpoint(self, ckpt_path: Dict[str, Any]) -> None:
+    #     from safetensors.torch import load_file as load_sft
+    #     state_dict = load_sft(ckpt_path)
+    #     missing, unexpected = self.load_from_checkpoint(state_dict)
+    #     if len(missing) > 0:
+    #         logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
 
 
 

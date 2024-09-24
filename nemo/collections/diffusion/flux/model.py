@@ -6,13 +6,15 @@ from megatron.core.models.dit.dit_layer_spec import (
     get_flux_single_transformer_engine_spec,
     MMDiTLayer,
     FluxSingleTransformerBlock,
-    AdaLNContinous)
+    AdaLNContinuous)
 from megatron.core.transformer.utils import openai_gelu
 
-from nemo.collections.diffusion.flux.layer import EmbedND, MLPEmbedder, TimeStepEmbedder
+from nemo.collections.diffusion.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 from torch import nn
-
-class FluxConfig(TransformerConfig):
+from typing import Any, Callable, Dict, List, Optional, Union
+from dataclasses import dataclass
+@dataclass
+class FluxParams:
     num_joint_layers: int = 19
     num_single_layers: int = 38
     hidden_size: int = 3072
@@ -33,8 +35,9 @@ class FluxConfig(TransformerConfig):
 
 
 class Flux(nn.Module):
-    def __init__(self, config: FluxConfig):
+    def __init__(self, config: FluxParams):
         super().__init__()
+        self.config = config
         self.out_channels = config.in_channels
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
@@ -43,13 +46,15 @@ class Flux(nn.Module):
         self.img_embed = nn.Linear(config.in_channels, self.hidden_size)
         self.txt_embed = nn.Linear(config.context_dim, self.hidden_size)
         self.timestep_embedding = TimeStepEmbedder(config.model_channels, self.hidden_size)
-        self.guidance_embedding = MLPEmbedder(in_dim=config.model_channels, hidden_dim=self.hidden_size) if config.guidance_embed else nn.Identity()
         self.vector_embedding = MLPEmbedder(in_dim=config.vec_in_dim, hidden_dim=self.hidden_size)
+        if self.config.guidance_embed:
+            self.guidance_embedding = MLPEmbedder(in_dim=config.model_channels,
+                                                  hidden_dim=self.hidden_size) if config.guidance_embed else nn.Identity()
 
         transformer_config = TransformerConfig(num_layers=1, hidden_size=self.hidden_size, num_attention_heads=self.num_attention_heads,
                                                use_cpu_initialization=True, activation_func=config.activation_func,
                                                hidden_dropout=0, attention_dropout=0, layernorm_epsilon=1e-6,
-                                               add_qkv_bias=True, ffn_hidden_size=int(self.hidden_size*4))
+                                               add_qkv_bias=config.add_qkv_bias)
 
 
         self.transformer_blocks = nn.ModuleList([
@@ -70,8 +75,9 @@ class Flux(nn.Module):
             for i in range(config.num_single_layers)
         ])
 
-        self.norm_out = AdaLNContinuous(config=TransformerConfig, conditioning_embedding_dim=self.hidden_size)
+        self.norm_out = AdaLNContinuous(config=transformer_config, conditioning_embedding_dim=self.hidden_size)
         self.proj_out = nn.Linear(self.hidden_size, self.patch_size * self.patch_size * self.out_channels, bias=True)
+
     def forward(
         self,
         img: torch.Tensor,

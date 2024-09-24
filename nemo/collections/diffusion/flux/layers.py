@@ -1,12 +1,8 @@
-from megatron.core.transformer.transformer_block import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.models.dit.dit_layer_spec import RMSNorm, get_dit_block_with_transformer_engine_spec, DiTLayer
 from tests.unit_tests.test_utilities import Utils
 import torch
-from torch import nn
-from megatron.legacy.model.utils import openai_gelu
+from torch import nn, Tensor
+import math
 
-from flux.modules.layers import SingleStreamBlock
 
 
 def rope(pos: torch.Tensor, dim: int, theta: int) -> torch.Tensor:
@@ -114,6 +110,7 @@ class Timesteps(nn.Module):
                 downscale_freq_shift: float = 0,
                 scale: float = 1,
                 max_period: int = 10000,):
+        super().__init__()
         self.embedding_dim = embedding_dim
         self.flip_sin_to_cos = flip_sin_to_cos
         self.downscale_freq_shift = downscale_freq_shift

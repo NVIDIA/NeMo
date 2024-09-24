@@ -13,26 +13,18 @@
 # limitations under the License.
 
 import math
-from dataclasses import dataclass
+from abc import ABC
 from typing import List, Optional, Tuple, Union
+
 
 import numpy as np
 import torch
 
-from ..configuration_utils import ConfigMixin, register_to_config
-from ..utils import BaseOutput, logging
-from .scheduling_utils import SchedulerMixin
 
 
-logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
-
-
-class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
+class FlowMatchEulerDiscreteScheduler(ABC):
     """
     Euler scheduler.
-
-    This model inherits from [`SchedulerMixin`] and [`ConfigMixin`]. Check the superclass documentation for the generic
-    methods the library implements for all schedulers such as loading and saving.
 
     Args:
         num_train_timesteps (`int`, defaults to 1000):
@@ -47,7 +39,6 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
     _compatibles = []
     order = 1
 
-    @register_to_config
     def __init__(
         self,
         num_train_timesteps: int = 1000,
@@ -74,6 +65,14 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         self.sigmas = sigmas.to("cpu")  # to avoid too much CPU/GPU communication
         self.sigma_min = self.sigmas[-1].item()
         self.sigma_max = self.sigmas[0].item()
+
+        self.base_shift = base_shift
+        self.max_shift = max_shift
+        self.base_image_seq_len = base_image_seq_len
+        self.max_image_seq_len = max_image_seq_len
+        self.use_dynamic_shifting = use_dynamic_shifting
+        self.num_train_timesteps = num_train_timesteps
+        self.shift = shift
 
     @property
     def step_index(self):
@@ -149,7 +148,7 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         return sample
 
     def _sigma_to_t(self, sigma):
-        return sigma * self.config.num_train_timesteps
+        return sigma * self.num_train_timesteps
 
     def time_shift(self, mu: float, sigma: float, t: torch.Tensor):
         return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
@@ -171,7 +170,7 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
                 The device to which the timesteps should be moved to. If `None`, the timesteps are not moved.
         """
 
-        if self.config.use_dynamic_shifting and mu is None:
+        if self.use_dynamic_shifting and mu is None:
             raise ValueError(" you have a pass a value for `mu` when `use_dynamic_shifting` is set to be `True`")
 
         if sigmas is None:
@@ -180,15 +179,14 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
                 self._sigma_to_t(self.sigma_max), self._sigma_to_t(self.sigma_min), num_inference_steps
             )
 
-            sigmas = timesteps / self.config.num_train_timesteps
+            sigmas = timesteps / self.num_train_timesteps
 
-        if self.config.use_dynamic_shifting:
+        if self.use_dynamic_shifting:
             sigmas = self.time_shift(mu, 1.0, sigmas)
         else:
-            sigmas = self.config.shift * sigmas / (1 + (self.config.shift - 1) * sigmas)
-
+            sigmas = self.shift * sigmas / (1 + (self.shift - 1) * sigmas)
         sigmas = torch.from_numpy(sigmas).to(dtype=torch.float32, device=device)
-        timesteps = sigmas * self.config.num_train_timesteps
+        timesteps = sigmas * self.num_train_timesteps
 
         self.timesteps = timesteps.to(device=device)
         self.sigmas = torch.cat([sigmas, torch.zeros(1, device=sigmas.device)])
@@ -228,8 +226,7 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         s_tmax: float = float("inf"),
         s_noise: float = 1.0,
         generator: Optional[torch.Generator] = None,
-        return_dict: bool = True,
-    ) -> Union[FlowMatchEulerDiscreteSchedulerOutput, Tuple]:
+    ) -> Tuple:
         """
         Predict the sample from the previous timestep by reversing the SDE. This function propagates the diffusion
         process from the learned model outputs (most often the predicted noise).
@@ -248,14 +245,9 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
                 Scaling factor for noise added to the sample.
             generator (`torch.Generator`, *optional*):
                 A random number generator.
-            return_dict (`bool`):
-                Whether or not to return a [`~schedulers.scheduling_euler_discrete.EulerDiscreteSchedulerOutput`] or
-                tuple.
 
         Returns:
-            [`~schedulers.scheduling_euler_discrete.EulerDiscreteSchedulerOutput`] or `tuple`:
-                If return_dict is `True`, [`~schedulers.scheduling_euler_discrete.EulerDiscreteSchedulerOutput`] is
-                returned, otherwise a tuple is returned where the first element is the sample tensor.
+            A tuple is returned where the first element is the sample tensor.
         """
 
         if (
@@ -288,10 +280,8 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         # upon completion increase step index by one
         self._step_index += 1
 
-        if not return_dict:
-            return (prev_sample,)
+        return (prev_sample,)
 
-        return FlowMatchEulerDiscreteSchedulerOutput(prev_sample=prev_sample)
 
     def __len__(self):
-        return self.config.num_train_timesteps
+        return self.num_train_timesteps
