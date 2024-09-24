@@ -45,6 +45,7 @@ python examples/nlp/language_modeling/megatron_gpt_prune.py \
     prune.ffn_hidden_size=3584 \
     prune.num_attention_heads=8 \
     prune.num_query_groups=4 \
+    prune.hidden_size=2048 \
     export.save_path=llama3.1-8b-base-pruned.nemo
 ```
 where tensor_model_parallel_size must be 1 because of the current prune API limitation
@@ -109,7 +110,7 @@ def main(cfg) -> None:
         constraints={
             "export_config": {
                 k: cfg.prune.get(k)
-                for k in ["ffn_hidden_size", "num_attention_heads", "num_query_groups"]
+                for k in ["ffn_hidden_size", "num_attention_heads", "num_query_groups", "hidden_size"]
                 if cfg.prune.get(k) is not None
             },
         },

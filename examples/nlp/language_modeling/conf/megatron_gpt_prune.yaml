@@ -36,6 +36,7 @@ prune:
   ffn_hidden_size: 3584 # ffn_hidden_size in the pruned model, ffn_hidden_size // 4
   num_attention_heads: 8 # num_attention_heads in the pruned model, num_attention_heads // 4
   num_query_groups: 4 # num_query_groups in the pruned model, num_query_groups // 2
+  hidden_size: 2048 # hidden_size in the pruned model, hidden_size // 2
 
 export:
   save_path: llama3.1-8b-base-pruned.nemo # Path where the pruned model will be saved
