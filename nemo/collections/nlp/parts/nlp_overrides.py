@@ -1066,7 +1066,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
-            
+
             # create nemo file from folder with all mp_ranks checkpoints
             if dist_ckpt:
                 should_move_data = is_global_rank_zero()
@@ -1076,7 +1076,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     and app_state.tensor_model_parallel_rank == 0
                     and app_state.data_parallel_rank == 0
                 )
-                
+
             if should_move_data:
                 with tempfile.TemporaryDirectory() as tmpdir:
                     if dist_ckpt:
