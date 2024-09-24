@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from .lm_utils import get_pretrained_lm_models_list, get_huggingface_pretrained_lm_models_list
 
 import os.path
 from dataclasses import MISSING, dataclass
