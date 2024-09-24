@@ -718,8 +718,12 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_triton_input(self):
         inputs = (
-            Tensor(name="prompts", shape=(-1,), dtype=bytes),
+            # input text should be either in "prompts" or "test_input" (latter is Triton standard)
+            Tensor(name="prompts", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="text_input", shape=(-1,), dtype=bytes, optional=True),
+            # max tokens should be either "max_output_len" or "max_tokens" (latter is Triton standard)
             Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="max_tokens", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
@@ -734,13 +738,30 @@ class TensorRTLLM(ITritonDeployable):
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
+        outputs = (
+            # output both under "outputs" and "text_output" (latter is Triton standard)
+            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="text_output", shape=(-1,), dtype=bytes),
+            )
         return outputs
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
-            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
+            if not ("text_input" in inputs or "prompts" in inputs):
+                raise KeyError("one of 'text_input' or 'prompts' must be defined in the inputs")
+            if "text_input" in inputs and "prompts" in inputs:
+                raise KeyError("inputs have both 'text_input' and 'prompts' defined; you should only be using one or the other")
+            if "max_output_len" in inputs and "max_tokens" in inputs:
+                raise KeyError("inputs have both 'max_output_len' and 'max_tokens' defined; you should only be using one or the other")
+
+            infer_input = {}
+            if "text_input" in inputs:
+                infer_input["input_texts"] = str_ndarray2list(inputs.pop("text_input"))
+            if "prompts" in inputs:
+                infer_input["input_texts"] = str_ndarray2list(inputs.pop("prompts"))
+            if "max_tokens" in inputs:
+                infer_input["max_output_len"] = inputs.pop("max_tokens")[0][0]
             if "max_output_len" in inputs:
                 infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
             if "top_k" in inputs:
@@ -772,12 +793,25 @@ class TensorRTLLM(ITritonDeployable):
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
 
-        return {"outputs": output}
+        return {"outputs": output, "text_output": output}
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
         try:
-            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
+            if not ("text_input" in inputs or "prompts" in inputs):
+                raise KeyError("one of 'text_input' or 'prompts' must be defined in the inputs")
+            if "text_input" in inputs and "prompts" in inputs:
+                raise KeyError("inputs have both 'text_input' and 'prompts' defined; you should only be using one or the other")
+            if "max_output_len" in inputs and "max_tokens" in inputs:
+                raise KeyError("inputs have both 'max_output_len' and 'max_tokens' defined; you should only be using one or the other")
+
+            infer_input = {}
+            if "text_input" in inputs:
+                infer_input["input_texts"] = str_ndarray2list(inputs.pop("text_input"))
+            if "prompts" in inputs:
+                infer_input["input_texts"] = str_ndarray2list(inputs.pop("prompts"))
+            if "max_tokens" in inputs:
+                infer_input["max_output_len"] = inputs.pop("max_tokens")[0][0]
             if "max_output_len" in inputs:
                 infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
             if "top_k" in inputs:
@@ -811,7 +845,7 @@ class TensorRTLLM(ITritonDeployable):
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
-            return {"outputs": output}
+            return {"outputs": output, "text_output": output}
 
     def _prep_ptuning_table(self):
         self.task_vocab_size = 0

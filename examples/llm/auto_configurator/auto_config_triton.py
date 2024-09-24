@@ -19,6 +19,7 @@ import shutil
 import json
 import time
 from typing import List, TypedDict
+import subprocess
 
 from nemo.deploy import DeployPyTriton
 from nemo.export.tensorrt_llm import TensorRTLLM
@@ -280,65 +281,13 @@ def generate_autoconfig_combinations(options: AutoConfiguratorOptions) -> List[A
             combinations = combination_list
     return combinations
 
-def test_inference(options: AutoConfiguratorOptions, combination: AutoConfiguratorCombination, query):
-    # lambada dataset based accuracy test, which includes more than 5000 sentences.
-    # Use generated last token with original text's last token for accuracy comparison.
-    # If the generated last token start with the original token, trtllm_correct make an increment.
-    # It generates a CSV file for text comparison detail.
-
-    correct_answers_deployed = 0
-    correct_answers_deployed_relaxed = 0
-
-    with open(options['test_data_path'], 'r') as file:
-        entries = json.load(file)
-
-        # extract and batch the prompts
-        batch_size = combination['max_batch_size']
-        num_entries = len(entries)
-        num_batches = (num_entries + batch_size) // batch_size
-        prompt_batches = [[entry["text_before_last_word"] for entry in entries[batch_size*i:batch_size*(i+1)]] for i in range(num_batches)]
-        expected_output_batches = [[entry["last_word"].strip().lower() for entry in entries[batch_size*i:batch_size*(i+1)]] for i in range(num_batches)]
-
-        evaluation_time = 0
-        for prompt_batch, expected_output_batch in zip(prompt_batches, expected_output_batches):
-            eval_start = time.monotonic()
-
-            if isinstance(query, NemoQueryLLM):
-                deployed_output = query.query_llm(
-                    prompts=prompt_batch,
-                    max_output_len=1,
-                    top_k=1,
-                    top_p=0,
-                    temperature=0.1
-                )
-            eval_end = time.monotonic()
-            evaluation_time += (eval_end - eval_start)
-
-            for output_entry, expected_output_entry in zip(deployed_output, expected_output_batch):
-                output_text = output_entry[0].strip().lower()
-                if (output_text == expected_output_entry):
-                    correct_answers_deployed += 1
-                if (
-                    output_text == expected_output_entry
-                    or output_text.startswith(expected_output_entry)
-                    or expected_output_entry.startswith(output_text)
-                ):
-                    if len(deployed_output) == 1 and len(expected_output_entry) > 1:
-                        continue
-                    correct_answers_deployed_relaxed += 1
-
-
-    return {
-        'deployed_accuracy': correct_answers_deployed / num_entries,
-        'deployed_accuracy_relaxed': correct_answers_deployed_relaxed / num_entries,
-        'evaluation_time': evaluation_time,
-    }
-
 def autoconfig_run(options: AutoConfiguratorOptions):
     trt_llm_path = "/tmp/trt_llm_model_dir/"
     model_name = "autoconfigurator_model"
     autoconfig_combinations = generate_autoconfig_combinations(options)
-    results = []
+    throughput_results = []
+
+    min_input_length = min(options["max_input_len_list"])
 
     for combination in autoconfig_combinations:
         trt_llm_exporter = TensorRTLLM(
@@ -375,16 +324,32 @@ def autoconfig_run(options: AutoConfiguratorOptions):
         nm.deploy()
         nm.run()
 
-        # run queries on test data here and time them
-        nemo_query = NemoQueryLLM(url="localhost:8000", model_name=model_name)
-        inference_result = test_inference(options, combination, nemo_query)
-        results.append(inference_result)
+        # testing using genai-perf
+        artifact_dir = "/tmp/autoconfig/artifacts"
+        subprocess.run(
+            [
+            "genai-perf", "profile",
+            "-m", "autoconfigurator_model",
+            "--service-kind", "triton",
+            "--backend", "tensorrtllm",
+            "--num-prompts", "100",
+            "--synthetic-input-tokens-mean", f"{min_input_length}",
+            "--artifact-dir", artifact_dir
+            ],
+            capture_output=True)
+        # read the output json file
+        gap_output_path = artifact_dir + "/profile_export_genai_perf.json"
+        with open(gap_output_path) as gap_output_file:
+            gap_output_json = json.load(gap_output_file)
+            # TODO: change evaluation_time key since now we are measuring throughput rather than time taken
+            inference_result = gap_output_json["request_throughput"]["avg"]
+            throughput_results.append(inference_result)
 
         nm.stop()
     
     # at this point, we have finished testing for all combinations
     # sort combinations by ascending time taken (fastest first)
-    sorted_results = sorted(zip(results, autoconfig_combinations), key=lambda x: x[0]['evaluation_time'])
+    sorted_results = sorted(zip(throughput_results, autoconfig_combinations), key=lambda x: x[0], reverse=True)
     # get list of parameters that were actually varying between combinations
     varying_parameters = []
     for key, value in options.items():
@@ -393,7 +358,7 @@ def autoconfig_run(options: AutoConfiguratorOptions):
             varying_parameters.append(key[:-5])
     # print best ones
     for index, result_entry in enumerate(sorted_results[:4]):
-        print(f"#{index+1} configuration, {result_entry[0]['evaluation_time']} seconds:")
+        print(f"#{index+1} configuration, {result_entry[0]:.5f} requests/second:")
         print({key: result_entry[1][key] for key in varying_parameters})
 
 def main():
