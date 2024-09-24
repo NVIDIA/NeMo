@@ -59,6 +59,7 @@ class AppState(metaclass=Singleton):
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
         self._context_parallel_size = None
+        self._context_parallel_comm_backend = None
         self._init_mpi_proc_gruop = False
 
         self._random_seed = None
@@ -431,6 +432,22 @@ class AppState(metaclass=Singleton):
             size (int):  Number of GPUs in each context parallel group.
         """
         self._context_parallel_size = size
+
+    @property
+    def context_parallel_comm_backend(self):
+        """Property returns the backend communication library of context parallel group.
+        Returns:
+            Backend communication library of context parallel group.
+        """
+        return self._context_parallel_comm_backend
+
+    @context_parallel_comm_backend.setter
+    def context_parallel_comm_backend(self, backend):
+        """Property sets the backend communication library of context parallel group.
+        Args:
+            backend (str):  Backend communication library of context parallel group.
+        """
+        self._context_parallel_comm_backend = backend
 
     @property
     def init_mpi_proc_group(self):

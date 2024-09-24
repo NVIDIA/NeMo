@@ -95,6 +95,7 @@ def initialize_model_parallel_for_nemo(
     virtual_pipeline_model_parallel_size=None,
     pipeline_model_parallel_split_rank=None,
     context_parallel_size=1,
+    context_parallel_comm_backend='nccl',
     micro_batch_size=None,
     global_batch_size=None,
     rampup_batch_size=None,
@@ -120,6 +121,7 @@ def initialize_model_parallel_for_nemo(
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
     app_state.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
     app_state.context_parallel_size = context_parallel_size
+    app_state.context_parallel_comm_backend = context_parallel_comm_backend
     app_state.use_fp8 = use_fp8
     app_state.init_mpi_proc_group = init_mpi_proc_group
     (
