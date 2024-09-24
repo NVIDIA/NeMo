@@ -20,8 +20,10 @@ import types
 import warnings
 from dataclasses import fields
 from functools import partial
+from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
 
+import packaging
 import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
@@ -174,10 +176,18 @@ class MegatronRetroModel(MegatronGPTModel):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
             self.retro_model_config = self.build_retro_config()
+
+            # transformer_engine-based mcore RETRO not yet support TEv1.10. If TEv1.10, fall back to local mcore implementation
+            te_version = packaging.version.Version(version("transformer-engine"))
+            if te_version >= packaging.version.Version("1.10"):
+                use_transformer_engine = False
+            else:
+                use_transformer_engine = True
+
             model = MCoreRetroModel(
                 config=self.retro_model_config,
                 transformer_layer_spec=get_retro_decoder_block_spec(
-                    self.retro_model_config, use_transformer_engine=True
+                    self.retro_model_config, use_transformer_engine=use_transformer_engine
                 ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.data.get('seq_length', 512),
@@ -425,10 +435,6 @@ class MegatronRetroModel(MegatronGPTModel):
         logging.info(retro_config)
 
         # Validate Transformer Engine version.
-        from importlib.metadata import version
-
-        import packaging
-
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version >= packaging.version.Version("1.3"):
             try:
