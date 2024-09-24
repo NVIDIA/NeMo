@@ -1,4 +1,4 @@
-from utils.constants import BLANK_ID, SPACE_ID
+from utils import constants
 from utils.tokenization.abc import BaseAligner
 from utils.units import Alignment, BlankToken, Segment, SpaceToken, Token, Word
 
@@ -29,7 +29,7 @@ class CharBasedAligner(BaseAligner):
         segment_s_pointer = 1
         word_s_pointer = 1
 
-        alignment.token_ids_with_blanks = [BLANK_ID]
+        alignment.token_ids_with_blanks = [constants.BLANK_ID]
         token_s_pointer = 1
 
         text_segments = self.text_to_segments(alignment.text, separator)
@@ -59,37 +59,37 @@ class CharBasedAligner(BaseAligner):
                     word.tokens.append(token)
                     if token_i < len(word_tokens) - 1:
                         token_s_pointer += 1
-                        alignment.token_ids_with_blanks.extend([BLANK_ID])
+                        alignment.token_ids_with_blanks.extend([constants.BLANK_ID])
                         word.tokens.append(BlankToken(s_start=token_s_pointer, s_end=token_s_pointer))
 
                 segment.words_and_tokens.append(word)
                 if word_i < len(segment_words) - 1:
 
                     token_s_pointer += 1
-                    alignment.token_ids_with_blanks.extend([BLANK_ID])
+                    alignment.token_ids_with_blanks.extend([constants.BLANK_ID])
                     segment.words_and_tokens.append(BlankToken(s_start=token_s_pointer, s_end=token_s_pointer))
 
                     token_s_pointer += 1
-                    alignment.token_ids_with_blanks.extend([SPACE_ID])
+                    alignment.token_ids_with_blanks.extend([constants.SPACE_ID])
                     segment.words_and_tokens.append(SpaceToken(s_start=token_s_pointer, s_end=token_s_pointer))
 
                     token_s_pointer += 1
-                    alignment.token_ids_with_blanks.extend([BLANK_ID])
+                    alignment.token_ids_with_blanks.extend([constants.BLANK_ID])
                     segment.words_and_tokens.append(BlankToken(s_start=token_s_pointer, s_end=token_s_pointer))
 
             alignment.segments_and_tokens.append(segment)
 
             token_s_pointer += 1
-            alignment.token_ids_with_blanks.extend([BLANK_ID])
+            alignment.token_ids_with_blanks.extend([constants.BLANK_ID])
             alignment.segments_and_tokens.append(BlankToken(s_start=token_s_pointer, s_end=token_s_pointer))
 
             if i_segment < len(text_segments) - 1:
                 token_s_pointer += 1
-                alignment.token_ids_with_blanks.extend([SPACE_ID])
+                alignment.token_ids_with_blanks.extend([constants.SPACE_ID])
                 alignment.segments_and_tokens.append(SpaceToken(s_start=token_s_pointer, s_end=token_s_pointer))
 
                 token_s_pointer += 1
-                alignment.token_ids_with_blanks.extend([BLANK_ID])
+                alignment.token_ids_with_blanks.extend([constants.BLANK_ID])
                 alignment.segments_and_tokens.append(BlankToken(s_start=token_s_pointer, s_end=token_s_pointer))
 
         return

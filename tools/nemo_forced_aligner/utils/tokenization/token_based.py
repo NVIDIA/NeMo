@@ -1,4 +1,4 @@
-from typing import List, Type, Union
+from typing import List
 
 from utils.tokenization.abc import BaseAligner
 from utils.units import Alignment, Segment, Word, Token, BlankToken

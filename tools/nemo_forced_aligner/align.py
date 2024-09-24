@@ -17,7 +17,7 @@ import math
 import os
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import List, Optional, Literal
+from typing import List, Optional
 
 import torch
 from omegaconf import OmegaConf
