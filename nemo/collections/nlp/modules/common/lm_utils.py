@@ -20,16 +20,16 @@ from attr import asdict
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.collections.nlp.modules.common.bert_module import BertModule
-from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
-from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
+from .bert_module import BertModule
+from .decoder_module import DecoderModule
+from .encoder_module import EncoderModule
+from .huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_pretrained_lm_models_list,
 )
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_pretrained_bert_models
-from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
-from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
+from .megatron.megatron_utils import get_megatron_pretrained_bert_models
+from .transformer.transformer import NeMoTransformerConfig
+from .transformer.transformer_utils import (
     get_huggingface_transformer,
     get_nemo_transformer,
 )
