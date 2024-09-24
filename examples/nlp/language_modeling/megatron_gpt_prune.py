@@ -82,7 +82,9 @@ def main(cfg) -> None:
     model_cfg.name = "modelopt"  # Use modelopt transformer spec for pruning
 
     assert cfg.model.tensor_model_parallel_size == 1, "Pruning currently only supports tensor_model_parallel_size=1"
-    assert not hasattr(cfg.model, "sequence_parallel") or not cfg.model.sequence_parallel, "Pruning currently does not support sequence parallelism"
+    assert (
+        not hasattr(cfg.model, "sequence_parallel") or not cfg.model.sequence_parallel
+    ), "Pruning currently does not support sequence parallelism"
 
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     model = MegatronGPTModel.restore_from(
