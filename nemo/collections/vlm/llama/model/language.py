@@ -458,9 +458,6 @@ class CrossAttentionTransformerBlock(TransformerBlock):
 
         xlayer_prefix = f'{prefix}xattn_layers.'
         for ind, xlayer in enumerate(self.xattn_layers):
-            offset = xlayer._get_layer_offset()
-
-            global_layer_offset = xlayer.layer_number - 1  # self.layer_number starts at 1
             state_dict_prefix = f'{xlayer_prefix}{ind}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = f'{xlayer_prefix}{ind}.'
             sharded_pp_offset = []
