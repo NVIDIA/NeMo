@@ -1,20 +1,22 @@
 import os
-import pytest
-import torch
-import megatron
-import pytorch_lightning as pl
-import nemo.lightning as nl
-
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator, Optional, Sequence, Tuple
+
+import megatron
+import pytest
+import pytorch_lightning as pl
+import torch
+from megatron.core import ModelParallelConfig, parallel_state
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch import Tensor
-from typing import Iterator, Optional, Sequence, Tuple
-from megatron.core import parallel_state, ModelParallelConfig
-from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
+
+import nemo.lightning as nl
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
+
 
 ### model environment related utilities
 def _reset_megatron_parallel_state():
@@ -29,6 +31,7 @@ def _reset_megatron_parallel_state():
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()
 
+
 @contextmanager
 def reset_megatron_parallel_state() -> Iterator[None]:
     """Puts you into a clean parallel state, and again tears it down at the end."""
@@ -37,6 +40,7 @@ def reset_megatron_parallel_state() -> Iterator[None]:
         yield
     finally:
         _reset_megatron_parallel_state()
+
 
 class RandomDataset(pl.LightningDataModule):
     def __init__(self, size, length):
@@ -50,7 +54,6 @@ class RandomDataset(pl.LightningDataModule):
             rampup_batch_size=None,
         )
 
-
     def __getitem__(self, index):
         return self.data[index]
 
@@ -62,6 +65,7 @@ class RandomDataset(pl.LightningDataModule):
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
         return torch.utils.data.DataLoader(self.data, batch_size=2)
+
 
 class PassThroughLossReduction(MegatronLossReduction):
     """A class used for calculating the loss, and for logging the reduced loss across micro batches."""
@@ -96,6 +100,7 @@ class ExampleModel(pl.LightningModule, IOMixin):
         class DummyConfig(ModelParallelConfig):
             calculate_per_token_loss: bool = False
             fp8: bool = False
+
         self.config = DummyConfig()
 
     def forward(self, batch):
@@ -148,6 +153,7 @@ class ExampleModel(pl.LightningModule, IOMixin):
     def validation_loss_reduction(self) -> MegatronLossReduction:  # noqa: D102
         return PassThroughLossReduction()
 
+
 def setup_test(path, async_save=False):
     model = ExampleModel()
 
@@ -158,10 +164,7 @@ def setup_test(path, async_save=False):
         use_datetime_version=False,
     )
 
-    strategy = nl.MegatronStrategy(
-        ckpt_async_save=async_save,
-        replace_progress_bar=False
-    )
+    strategy = nl.MegatronStrategy(ckpt_async_save=async_save, replace_progress_bar=False)
 
     trainer = nl.Trainer(
         max_epochs=5,
@@ -181,6 +184,7 @@ def setup_test(path, async_save=False):
 
     return data, model, trainer
 
+
 class TestLinkCheckpoint:
 
     @pytest.mark.unit
@@ -196,7 +200,7 @@ class TestLinkCheckpoint:
             checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
             dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
             last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
-            assert len(last_checkpoints) == 1 ## should only have one -last checkpoint
+            assert len(last_checkpoints) == 1  ## should only have one -last checkpoint
             final_ckpt = last_checkpoints[0]
             assert os.path.islink(final_ckpt)
 
@@ -216,7 +220,7 @@ class TestLinkCheckpoint:
             checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
             dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
             last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
-            assert len(last_checkpoints) == 1 ## should only have one -last checkpoint
+            assert len(last_checkpoints) == 1  ## should only have one -last checkpoint
             final_ckpt = last_checkpoints[0]
             assert os.path.islink(final_ckpt)
 
