@@ -1075,8 +1075,11 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             ):
                 with tempfile.TemporaryDirectory() as tmpdir:
 
-                    if dist_ckpt:
+                    if dist_ckpt and is_global_rank_zero():
                         shutil.move(str(dist_ckpt_dir), tmpdir)
+
+                    if torch.distributed.is_initialized():
+                        torch.distributed.barrier()
 
                     elif app_state.pipeline_model_parallel_size == 1:
                         # move weights to the tmpdir
