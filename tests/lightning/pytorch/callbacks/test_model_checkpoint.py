@@ -4,13 +4,9 @@ import torch
 import pytorch_lightning as pl
 import nemo.lightning as nl
 
-from dataclasses import dataclass
 from pathlib import Path
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from typing import Dict
-from megatron.core import ModelParallelConfig
 from nemo.lightning.io.mixin import IOMixin
-from nemo.collections import llm
 
 class RandomDataset(pl.LightningDataModule):
     def __init__(self, size, length):
@@ -78,18 +74,6 @@ class ExampleModel(pl.LightningModule, IOMixin):
     def configure_optimizers(self):
         return torch.optim.SGD(self.parameters(), lr=1e-3)
 
-    def list_available_models(self):
-        pass
-
-    def setup_training_data(self, train_data_config: Dict):
-        pass
-
-    def setup_validation_data(self, val_data_config: Dict):
-        pass
-
-    def setup_test_data(self, val_data_config: Dict):
-        pass
-
     def on_validation_epoch_end(self):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
         self.validation_step_outputs.clear()  # free memory
@@ -100,7 +84,6 @@ class TestModelCheckpoint:
     def test_link_ckpt(self, tmpdir):
         """Test to ensure that we always keep top_k checkpoints, even after resuming."""
         tmp_path = tmpdir / "link_ckpt_test"
-        print(f'{tmp_path=}')
         model = ExampleModel()
 
         data = RandomDataset(32, 64)
