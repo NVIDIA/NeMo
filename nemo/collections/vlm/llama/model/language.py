@@ -180,7 +180,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         decoder_input: Tensor = None,
         cross_attention_masks: Tensor = None,
         full_text_row_masked_out_mask: Tensor = None,
-        xattn_caches: Tensor = None,
+        xattn_caches: Optional[List] = None,
         labels: Tensor = None,
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
@@ -308,7 +308,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
-        xattn_caches: Tensor = None,
+        xattn_caches: Optional[List] = None,
         cross_attention_masks: Tensor = None,
         full_text_row_masked_out_mask: Tensor = None,
         rotary_pos_emb: Tensor = None,
@@ -593,6 +593,9 @@ class DummyCrossAttentionTransformerLayer(MegatronModule):
         **kwargs,
     ):
         return hidden_states, None
+
+    def compute_xattn_kv_cache(self, xattn_tokens: Tensor) -> Optional[Tensor]:
+        return None
 
 
 class LlamaCrossAttention(Attention):
