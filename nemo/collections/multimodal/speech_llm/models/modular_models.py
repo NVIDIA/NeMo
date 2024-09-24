@@ -25,6 +25,7 @@ from hydra.utils import get_class
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
@@ -48,6 +49,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
+    get_iterator_k_split,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
@@ -61,12 +63,12 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
-
 
 try:
     from megatron.core.num_microbatches_calculator import (
@@ -273,8 +275,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
     ):
         """Inject audio features into the text input and return the final input embeddings to LLM."""
         # [b, t, c]
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
         lm_embedding = (
-            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
+            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
         )
         input_embeds = lm_embedding.word_embeddings(input_ids)
         if isinstance(encoded, torch.Tensor):
@@ -316,8 +322,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     def _get_text_embeddings(self, text_tokens, position_ids):
         """Get text embeddings for the input text tokens."""
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
         lm_embedding = (
-            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
+            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
         )
         text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
         if hasattr(lm_embedding, 'position_embeddings'):
@@ -373,6 +383,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         self, input_ids, position_ids, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
     ):
         """Forward pass of the GPT model."""
+        if self.megatron_amp_O2:
+            encoder_input = encoder_input.type(self.model.module.embedding.word_embeddings.weight.dtype)
         if self.mcore_gpt:
             output = self.model(
                 input_ids=input_ids,
@@ -433,12 +445,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         since we have mixed text/audio dataloading and sometimes one of the modalities might be missing.
         """
         # TODO(pzelasko): I marked the sections that are modified from the original with TODOs like this one.
-
-        # Local imports mimic global imports in the original file that had this func.
-        from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-        from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
-
-        from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
         # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
         # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
@@ -596,6 +602,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             ):
                 attention_mask = None
 
+            if self.megatron_amp_O2:
+                input_embeddings = input_embeddings.type(self.model.module.embedding.word_embeddings.weight.dtype)
             output_tensor = model(
                 input_ids=None,
                 position_ids=None,
@@ -1011,8 +1019,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         if pretrained_model_cfg:
             model_cfg = pretrained_model_cfg
-        elif cfg.model.peft.restore_from_path:
-            if cfg.model.peft.restore_from_path.endswith(".nemo"):
+        elif cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir:
+            if cfg.model.peft.restore_from_path and cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
                     restore_path=cfg.model.peft.restore_from_path,
                     trainer=trainer,
