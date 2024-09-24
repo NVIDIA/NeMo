@@ -362,7 +362,6 @@ class FabricMegatronStrategy(DDPStrategy):
 
         _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
 
-
         _orig_perform_initialization = self.parallelism.perform_initialization
         _orig_use_cpu_initialization = self.parallelism.use_cpu_initialization
 
