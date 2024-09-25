@@ -11,19 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import os
-
 from dataclasses import dataclass
 
-import argparse
-
-## NOTE: This script is present for github-actions testing only.
+from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from megatron.core.optimizer import OptimizerConfig
-
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
+## NOTE: This script is present for github-actions testing only.
+
+
 
 
 @dataclass
