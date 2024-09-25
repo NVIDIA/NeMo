@@ -160,6 +160,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
     def init(self) -> "GPTBigCodeForCausalLM":
         from transformers import GPTBigCodeForCausalLM
         from transformers.modeling_utils import no_init_weights
+
         with no_init_weights(True):
             return GPTBigCodeForCausalLM._from_config(self.config)
 

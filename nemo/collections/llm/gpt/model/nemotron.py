@@ -213,6 +213,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
     def init(self) -> "NemotronForCausalLM":
         from transformers.modeling_utils import no_init_weights
+
         with no_init_weights(True):
             return NemotronForCausalLM.from_config(self.config)
 

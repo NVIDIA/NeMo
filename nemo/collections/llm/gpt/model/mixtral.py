@@ -269,6 +269,7 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
     def init(self) -> "MixtralForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
+
         with no_init_weights(True):
             return AutoModelForCausalLM.from_config(self.config)
 
