@@ -1095,11 +1095,11 @@ class MegatronStep(Generic[ModelT, DataT]):
             if isinstance(batch, tuple) and len(batch) == 3:
                 batch = batch[0]
             from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
             data = get_iterator_k_split(batch, self.num_microbatches, True)
         else:
             data = self.data
         return self.to_data_iterator_list(data)
-
 
     @functools.cached_property
     def has_global_batch_sampler(self) -> bool:
@@ -1122,6 +1122,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         else:
             use_global_batch_sampler = False
         return use_global_batch_sampler
+
 
 class CallbackMethods:
     """
