@@ -31,14 +31,17 @@ jobs:
           SHA=$(git rev-list --no-merges -n 1 HEAD)
           MESSAGE=$(git log -n 1 --pretty=format:%s $SHA)
           PR_ID=$(echo $MESSAGE | awk -F'#' '{print $2}' | awk -F')' '{print $1}' )
+          USERNAME=$(git log -n 1 --pretty=format:%ae $SHA | awk -F'@' '{print $1}')
 
           PR=$(curl -L \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/NVIDIA/NeMo/pulls/$PR_ID)
+          PR_TITLE=$(echo -E $PR | jq '.title' | tr -d '"')
           
           LABELS=$(echo -E $PR | jq '.labels | [.[].name] | join(",")' | tr -d '"')
+          AUTHOR=$(echo -E $PR | jq '.user.login' | tr -d '"')
 
           TARGET_BRANCHES=$(echo "$LABELS" | grep -o 'r[^,]*')
       
@@ -66,13 +69,47 @@ jobs:
             CHERRYPICK_SUCCESSFUL=$?
 
             if [[ $CHERRYPICK_SUCCESSFUL -eq 0 ]]; then
-              curl -L \
+              PR_URL="https://github.com/NVIDIA/NeMo/pull/$PR_ID"
+
+              PAYLOAD=$(jq \
+                -n \
+                -c \
+                --arg TITLE "Cherry pick \`$PR_TITLE ($PR_ID)\` into \`$RELEASE_BRANCH\`" \
+                --arg HEAD "cherry-pick-$PR_ID-$RELEASE_BRANCH" \
+                --arg RELEASE_BRANCH "$RELEASE_BRANCH" \
+                --arg BODY "[🤖]: Hi @$AUTHOR 👋,<br><br>we've cherry picked #$PR_ID into \`$RELEASE_BRANCH\` for you! 🚀<br><br>Please review and approve this cherry pick by your convenience\!" \
+                '{
+                  "title": $TITLE,
+                  "head": $HEAD,
+                  "base": $RELEASE_BRANCH,
+                  "body": $BODY
+                }'
+              )
+
+              NEW_PR=$(curl -L \
                 -X POST \
                 -H "Accept: application/vnd.github+json" \
                 -H "Authorization: Bearer $GH_TOKEN" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 https://api.github.com/repos/NVIDIA/NeMo/pulls \
-                -d '{"title":"Cherry-pick '$PR_ID' into '$RELEASE_BRANCH'","head":"cherry-pick-'$PR_ID'-'$RELEASE_BRANCH'","base":"'$RELEASE_BRANCH'"}'
+                -d "$PAYLOAD")
+                
+              NEW_PR_ID=$(echo -E $NEW_PR | jq '.number')
+              curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/NVIDIA/NeMo/pulls/$NEW_PR_ID/requested_reviewers \
+                -d '{"reviewers":["'$AUTHOR'"]}'
+              
+              curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/NVIDIA/NeMo/issues/$NEW_PR_ID/labels \
+                -d '{"labels":["Run CICD"]}'
 
             else
               URL="https://github.com/NVIDIA/NeMo/pull/$PR_ID"
@@ -83,7 +120,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": ":alert: Cherrypick bot 🤖: Cherry-pick of <'$URL'|#'$PR_ID'> failed"
+                      "text": ":alert: Cherrypick bot 🤖: Hey @'$USERNAME': Cherry-pick of <'$URL'|#'$PR_ID'> failed (3-way merge impossible). Please resolve manually and create a PR.\n\ncc: @okoenig"
                     }
                   }
                 ]

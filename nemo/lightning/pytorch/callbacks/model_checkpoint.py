@@ -73,7 +73,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         save_optim_on_train_end: Optional[bool] = False,
-        always_save_context: bool = False,
+        always_save_context: bool = True,
         save_context_on_train_end: bool = True,
         **kwargs,
     ):
@@ -162,6 +162,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
+
+        super().on_train_start(trainer, pl_module)
 
     def nemo_topk_check_previous_run(self):
         try:
