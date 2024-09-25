@@ -167,7 +167,7 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=1,
+            tensor_parallelism=2,
             pipeline_parallelism=1,
             pipeline_parallelism_type=None,
             virtual_pipeline_parallelism=None,
