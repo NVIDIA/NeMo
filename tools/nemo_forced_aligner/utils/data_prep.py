@@ -15,10 +15,11 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+
 import soundfile as sf
 import torch
-from utils import constants
 from tqdm.auto import tqdm
+from utils import constants
 from utils.tokenization.char_based import CharBasedAligner
 from utils.tokenization.token_based import TokenBasedAligner
 from utils.units import Batch
