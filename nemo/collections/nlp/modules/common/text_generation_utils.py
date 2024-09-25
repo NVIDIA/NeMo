@@ -892,9 +892,11 @@ def switch(val1, val2, boolean):
     boolean = boolean.type_as(val1)
     return (1 - boolean) * val1 + boolean * val2
 
+
 def ceil_to_mult(n, m):
     assert m > 0
     return ((n + m - 1) // m) * m
+
 
 def sample_sequence_batch(
     model,
@@ -967,15 +969,14 @@ def sample_sequence_batch(
                 )
             else:
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                    tokens, maxlen, micro_batch_size, counter, context_length,
-                    compute_attention_mask
+                    tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
                 )
             pad_len = 0
             if pad_seq_to_mult > 0:
                 pad_len = pad_seq_to_mult - batch[0].shape[1] % pad_seq_to_mult
                 # pad input tokens to make them dividable by pad_seq_to_mult
                 if pad_len > 0:
-                    batch[0] = F.pad(batch[0], pad=(0,pad_len,0,0), mode='constant', value=eod_id)
+                    batch[0] = F.pad(batch[0], pad=(0, pad_len, 0, 0), mode='constant', value=eod_id)
 
             output = inference_strategy.forward_step(batch, tensor_shape)
             if parallel_state.is_pipeline_last_stage():
