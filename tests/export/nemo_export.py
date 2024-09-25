@@ -27,6 +27,7 @@ import torch
 # Import infer_data_path from the parent folder assuming that the 'tests' package is not installed.
 sys.path.append(str(Path(__file__).parent.parent))
 from infer_data_path import get_infer_test_data
+from nemo.export.utils.argparse import add_quantization_flags, parse_quantization_args, str_to_bool
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -758,52 +759,23 @@ def get_args():
         help="GPU memory utilization percentage for vLLM.",
     )
     parser.add_argument(
-        "-fp8",
-        "--export_fp8_quantized",
-        default="auto",
-        type=str,
-        help="Enables exporting to a FP8-quantized TRT LLM checkpoint",
-    )
-    parser.add_argument(
-        "-kv_fp8",
-        "--use_fp8_kv_cache",
-        default="auto",
-        type=str,
-        help="Enables exporting with FP8-quantizatized KV-cache",
-    )
-    parser.add_argument(
         "--trt_llm_export_kwargs",
         default={},
         type=json.loads,
         help="Extra keyword arguments passed to TensorRTLLM.export",
     )
+    parser = add_quantization_flags(parser)
 
     args = parser.parse_args()
-
-    def str_to_bool(name: str, s: str, optional: bool = False) -> Optional[bool]:
-        s = s.lower()
-        true_strings = ["true", "1"]
-        false_strings = ["false", "0"]
-        if s in true_strings:
-            return True
-        if s in false_strings:
-            return False
-        if optional and s == 'auto':
-            return None
-        raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
-
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.functional_test = str_to_bool("functional_test", args.functional_test)
-    args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
+    args.save_trt_engine = str_to_bool("save_trt_engine", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
     args.in_framework = str_to_bool("in_framework", args.in_framework)
-    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
-    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
-
-    return args
+    return parse_quantization_args(args)
 
 
 def run_inference_tests(args):
@@ -978,9 +950,6 @@ if __name__ == '__main__':
     try:
         args = get_args()
         run_inference_tests(args)
-    except UsageError as e:
-        LOGGER.error(f"{e}")
-        raise e
-    except argparse.ArgumentError as e:
+    except (UsageError, argparse.ArgumentError, argparse.ArgumentTypeError) as e:
         LOGGER.error(f"{e}")
         raise e
