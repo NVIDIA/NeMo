@@ -476,6 +476,7 @@ class ImageTransformerLayer(TransformerLayer):
             rotary_pos_emb=rotary_pos_emb,
             packed_seq_params=packed_seq_params,
         )
+
         _gate_attn = 1 if not self.gated else self.gate_attn.tanh()
         assert isinstance(attention_output_with_bias,
                           tuple), "`attention_output_with_bias` needs to be tuple for gating."
@@ -494,30 +495,6 @@ class ImageTransformerLayer(TransformerLayer):
         # Residual connection.
         residual = hidden_states
 
-        # Optional Layer norm after self-attention
-        pre_cross_attn_layernorm_output = self.pre_cross_attn_layernorm(hidden_states)
-
-        # Cross attention.
-        attention_output_with_bias = self.cross_attention(
-            pre_cross_attn_layernorm_output,
-            attention_mask=context_mask,
-            key_value_states=context,
-            inference_params=inference_params,
-        )
-
-        if isinstance(attention_output_with_bias, dict) and "context" in attention_output_with_bias:
-            context = attention_output_with_bias["context"]
-
-        # TODO: could we move `bias_dropout_add_exec_handler` itself
-        # inside the module provided in the `bias_dropout_add_spec` module?
-        with self.bias_dropout_add_exec_handler():
-            hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
-
-        # Residual connection.
-        residual = hidden_states
-
         # Optional Layer norm post the cross-attention.
         pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
 
@@ -528,7 +505,7 @@ class ImageTransformerLayer(TransformerLayer):
         assert isinstance(mlp_output_with_bias,
                           tuple), "`mlp_output_with_bias` needs to be tuple for gating."
         mlp_output_with_bias = tuple(
-            _gate_attn * output if output is not None else None
+            _gate_ffn * output if output is not None else None
             for output in mlp_output_with_bias
         )
 
