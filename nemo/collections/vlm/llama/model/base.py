@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from einops import rearrange
 
 import pytorch_lightning as L
 import torch
@@ -228,7 +229,7 @@ class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
                 setattr(self, attr, getattr(self.language_model_config, attr))
 
     def configure_model(self, tokenizer) -> "MCoreLlamaCrossAttentionModel":
-        from megatron.core import parallel_state
+        from megatron.core import parallel_state as ps
 
         if self.encoder_pipeline_model_parallel_size > 0:
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
@@ -241,10 +242,10 @@ class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
             language_model_config=self.language_model_config,
             vision_model_config=self.vision_model_config,
             tokenizer=tokenizer,
-            pre_process=True,
-            post_process=parallel_state.is_pipeline_last_stage(),
-            add_encoder=parallel_state.is_pipeline_first_stage(),
-            add_decoder=parallel_state.is_pipeline_last_stage(),
+            pre_process=ps.is_pipeline_first_stage() or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            post_process=ps.is_pipeline_last_stage(),
+            add_encoder=ps.is_pipeline_first_stage(),
+            add_decoder=ps.is_pipeline_last_stage() or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
         )
 
         return model
@@ -263,7 +264,6 @@ class CrossAttentionVisionModel(MegatronModule):
                                             len(return_intermediate) + 1
                                     ) * self.vision_input_dim
         self.patch_size = 14
-        config.num_global_layers = 8
         self.vision_encoder = VisionEncoder(
             config=config,
             max_num_tiles=4,
@@ -336,6 +336,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             self.vision_model = vision_model_config.configure_model()
 
         self.model_type = ModelType.encoder_and_decoder
+        self.xattn_needed = True
 
         self.patch_size = 14
         self.image_res = config.vision_model_config.vision_chunk_size
@@ -352,7 +353,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             self,
             batch_images: List[List[PIL_Image.Image]],
             batch_masks: List[List[List[int]]],
-    ) -> Tuple[torch.Tensor, List[List[int]]]:
+    ) -> Tuple[torch.Tensor, torch.Size, List[List[int]]]:
         skip_vision_encoder = self.vision_model is None
 
         assert len(batch_images) == len(
@@ -386,41 +387,47 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
                 image_res=self.image_res,
                 max_num_images=max_num_images,
             )
+        # bsz, nimg, nchunk, ntok, image_token_dim e.g. [2, 1, 4, 1025, 4096]
+        vision_orig_shape = (
+            bsz,
+            max_num_images,
+            self.max_num_chunks,
+            int(
+                (self.image_res / self.patch_size)
+                ** 2
+                + 1
+            ),
+            self.config.hidden_size,
+        )
 
-        if skip_vision_encoder:
-            vision_tokens = torch.zeros(
-                (
-                    bsz,
-                    max_num_images,
-                    self.max_num_chunks,
-                    int(
-                        (self.image_res / self.patch_size)
-                        ** 2
-                        + 1
-                    ),
-                    self.language_model.config.hidden_size,
-                ), device="cuda", dtype=torch.bfloat16,
-            ) if self.encoder_hidden_state is None else self.encoder_hidden_state
+        if self.encoder_hidden_state is not None:
+            vision_tokens = self.encoder_hidden_state
         else:
-            stacked_images = stacked_images.cuda(non_blocking=True)
-            aspect_ratios = aspect_ratios.cuda(non_blocking=True)
-            vision_tokens = self.vision_model(stacked_images, aspect_ratios)
-
-        return vision_tokens, num_chunks
+            if skip_vision_encoder:
+                vision_tokens = torch.zeros(
+                    vision_orig_shape, device="cuda", dtype=torch.bfloat16,
+                )
+            # else:
+            #     vision_tokens = self.encoder_hidden_state
+            else:
+                stacked_images = stacked_images.cuda(non_blocking=True)
+                aspect_ratios = aspect_ratios.cuda(non_blocking=True)
+                vision_tokens = self.vision_model(stacked_images, aspect_ratios)
+            vision_tokens = rearrange(vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim").contiguous()
+        return vision_tokens, vision_orig_shape, num_chunks
 
     def compute_xattn_caches_masks(
             self,
             vision_tokens: torch.Tensor,
+            vision_orig_shape: torch.Size,
             batch_masks: List[List[List[int]]],
             num_chunks: List[List[int]],
             total_len: int
     ) -> Tuple[List, torch.Tensor, torch.Tensor]:
-        bsz, nimg, nchunk, ntok, image_token_dim = tuple(vision_tokens.shape)
+        bsz, nimg, nchunk, ntok, image_token_dim = vision_orig_shape
 
         xattn_caches = [
-            layer.compute_xattn_kv_cache(
-                vision_tokens.view(bsz, -1, image_token_dim).transpose(0, 1).contiguous()
-            )
+            layer.compute_xattn_kv_cache(vision_tokens)
             for layer in self.language_model.decoder.xattn_layers
         ]
 
@@ -431,6 +438,8 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             self.max_num_chunks,
         )
 
+        vision_tokens = rearrange(vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg,
+                                  nchk=nchunk, ntok=ntok)
         cross_attention_masks, full_text_row_masked_out_mask = (
             self.language_model._get_xattn_mask(
                 num_tokens=total_len,
@@ -456,15 +465,17 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
         if xattn_caches is None:
-            vision_tokens, num_chunks = self.compute_vision_tokens(
+            vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
                 batch_images=batch_images,
                 batch_masks=batch_masks,
             )
+
             if not self.add_decoder:
                 return vision_tokens
 
             xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = self.compute_xattn_caches_masks(
                 vision_tokens=vision_tokens,
+                vision_orig_shape=vision_orig_shape,
                 batch_masks=batch_masks,
                 num_chunks=num_chunks,
                 total_len=total_len,
@@ -497,7 +508,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         """Set model chunk input tensor."""
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
-        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
+        # assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
 
         print(f"### {torch.distributed.get_rank()} {input_tensor[0].shape if input_tensor[0] is not None else None}")
 
