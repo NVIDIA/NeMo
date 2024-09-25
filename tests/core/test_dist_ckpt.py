@@ -8,6 +8,8 @@ import pytorch_lightning as pl
 import torch
 from lightning_fabric.plugins import TorchCheckpointIO
 from pytorch_lightning.demos.boring_classes import BoringModel
+from pytorch_lightning.trainer import call
+from torch import Tensor
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils.callbacks.dist_ckpt_io import (
@@ -33,7 +35,8 @@ class ExampleModel(BoringModel):
 class ExampleMCoreModel(ExampleModel):
     def sharded_state_dict(self):
         return {
-            'a': ShardedTensor.from_rank_offsets('a', self.layer.weight, replica_id=torch.distributed.get_rank()),
+            'layer.weight': ShardedTensor.from_rank_offsets('a', self.layer.weight, replica_id=torch.distributed.get_rank()),
+            'layer.bias': ShardedTensor.from_rank_offsets('a.bias', self.layer.bias, replica_id=torch.distributed.get_rank()),
             'const': 3,
         }
 
@@ -68,7 +71,7 @@ def _get_nlp_strategy_without_optimizer_state():
     strategy = NLPDDPStrategy()
     # this ensures optimizer sharded state creation is skipped
     strategy.optimizer_sharded_state_dict = types.MethodType(
-        lambda self, unsharded_optim_state: unsharded_optim_state, strategy
+        lambda self, unsharded_optim_state={}, is_loading=False: unsharded_optim_state, strategy
     )
     return strategy
 
@@ -176,4 +179,66 @@ class TestAsyncSave:
         )
 
         assert sync_state_dict['sharded_state_dict']['const'] == async_state_dict['sharded_state_dict']['const']
-        assert torch.all(sync_state_dict['sharded_state_dict']['a'] == async_state_dict['sharded_state_dict']['a'])
+        assert torch.all(sync_state_dict['sharded_state_dict']['layer.weight'] == async_state_dict['sharded_state_dict']['layer.weight'])
+
+
+class TestLoadStrictness:
+    class ExampleMCoreModelExtraHead(ExampleMCoreModel):
+        def __init__(self):
+            super().__init__()
+            self.extra_head = torch.nn.Linear(2, 4)
+
+        def forward(self, x: Tensor) -> Tensor:
+            x = super().forward(x)
+            return self.extra_head(x)
+
+        def sharded_state_dict(self):
+            sharded_sd = super().sharded_state_dict()
+            sharded_sd['extra_head.weight'] = ShardedTensor.from_rank_offsets('extra_head.weight', self.extra_head.weight, replica_id=torch.distributed.get_rank())
+            sharded_sd['extra_head.bias'] = ShardedTensor.from_rank_offsets('extra_head.bias', self.extra_head.bias, replica_id=torch.distributed.get_rank())
+            return sharded_sd
+
+        def on_load_checkpoint(self, checkpoint):
+            self.load_state_dict(checkpoint['state_dict'], strict=False)
+
+    @pytest.mark.run_only_on('GPU')
+    def test_load_strictness(self, tmp_path):
+        strategy = NLPDDPStrategy()
+        sync_checkpoint_io = DistributedCheckpointIO('torch_dist', load_strictness='log_all')
+
+        model = ExampleMCoreModel()
+
+        # dummy_trainer just to initialize NCCL
+        dummy_trainer = pl.Trainer(
+            enable_checkpointing=False,
+            logger=False,
+            max_epochs=1,
+            strategy=NLPDDPStrategy(),
+            plugins=[sync_checkpoint_io],
+        )
+        dummy_trainer.fit(model)
+        tmp_path = strategy.broadcast(tmp_path)
+
+        sync_ckpt_dir = tmp_path / 'sync_checkpoints'
+
+        test_trainer = pl.Trainer(
+            enable_checkpointing=True,
+            logger=False,
+            max_epochs=1,
+            strategy=NLPDDPStrategy(),
+            plugins=[sync_checkpoint_io],
+            default_root_dir=sync_ckpt_dir,
+        )
+        test_trainer.fit(model)
+
+        # Simulate finetuning with an extra head
+        extra_head_model = TestLoadStrictness.ExampleMCoreModelExtraHead()
+        finetuning_trainer = pl.Trainer(
+            enable_checkpointing=True,
+            logger=False,
+            max_epochs=2,
+            strategy=NLPDDPStrategy(),
+            plugins=[sync_checkpoint_io],
+            default_root_dir=sync_ckpt_dir,
+        )
+        finetuning_trainer.fit(extra_head_model, ckpt_path=_get_last_checkpoint_dir(sync_ckpt_dir, model))
