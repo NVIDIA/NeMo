@@ -24,8 +24,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 ## NOTE: This script is present for github-actions testing only.
 
 
-
-
 @dataclass
 class Llama3Config96M(llm.Llama3Config8B):
     seq_length: int = 2048
