@@ -615,7 +615,6 @@ class LlamaCrossAttention(Attention):
         # TODO might need special care when TP>8
         assert self.query_projection_size % self.kv_projection_size == 0
 
-        self.n_rep = self.query_projection_size // self.kv_projection_size
         self.linear_q = build_module(
             submodules.linear_q,
             self.config.hidden_size,
@@ -654,17 +653,6 @@ class LlamaCrossAttention(Attention):
             eps=self.config.layernorm_epsilon,
         )
 
-        # reinitialize core attention without GQA
-        # self.attn_mask_type = AttnMaskType.arbitrary
-        xattn_config = dataclasses.replace(self.config, num_query_groups=32)
-        self.core_attention = build_module(
-            submodules.core_attention,
-            config=xattn_config,
-            layer_number=self.layer_number,
-            attn_mask_type=self.attn_mask_type,
-            attention_type=self.attention_type,
-        )
-
     def get_key_value_tensors(self, key_value_states):
         # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
         mixed_kv, _ = self.linear_kv(key_value_states)
@@ -678,12 +666,8 @@ class LlamaCrossAttention(Attention):
         key = key.view(*new_tensor_shape)
         value = value.view(*new_tensor_shape)
 
-        # repeat k/v heads if n_kv_heads < n_heads
-        key = key.repeat_interleave(self.n_rep, dim=2)
-        value = value.repeat_interleave(self.n_rep, dim=2)
-
         # Apply LayerNorm
-        key = self.k_layernorm(key)
+        key = self.k_layernorm(key.contiguous())
 
         return key, value
 
