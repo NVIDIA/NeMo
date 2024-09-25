@@ -259,6 +259,9 @@ def forward_with_return_intermediate(
         else:
             intermediate_hidden_states = []
             for l_no, layer in enumerate(self.layers):
+                if return_intermediate is not None and l_no in return_intermediate:
+                    intermediate_hidden_states.append(hidden_states)
+
                 with self.offload_context:
                     if (len(self.cuda_graphs) == 0) or (not self.training):
                         hidden_states, context = layer(
@@ -294,9 +297,6 @@ def forward_with_return_intermediate(
                         and self.group_prefetch_offload_commit_async is not None
                 ):
                     hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
-
-                if return_intermediate is not None and l_no in return_intermediate:
-                    intermediate_hidden_states.append(hidden_states)
 
         # Final layer norm.
         if self.final_layernorm is not None:
