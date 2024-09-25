@@ -5,11 +5,11 @@ from megatron.core.optimizer import OptimizerConfig
 import torch
 from pytorch_lightning.loggers import WandbLogger
 import pytorch_lightning as pl
-
+import argparse
 
 
 # @run.factory
-def trainer(devices=1) -> nl.Trainer:
+def trainer(devices) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=devices,
         setup_optimizers=False,
@@ -63,16 +63,8 @@ def squad() -> pl.LightningDataModule:
 
 # @run.factory
 def llama32() -> pl.LightningModule:
-    # from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-    # tokenizer = get_nmt_tokenizer(
-    #         library="sentencepiece",
-    #         # model_name=self.model_config.tokenizer_name,
-    #         tokenizer_model="/lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-early_vv1/tokenizer.model",
-    #         use_fast=True,
-    #     )
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
-    # tokenizer = None
     # set language_model_config or vision_model_config to None to load only one part
     return vlm.LlamaCrossAttentionModel(
         vlm.LlamaCrossAttentionModelConfig(
@@ -81,6 +73,7 @@ def llama32() -> pl.LightningModule:
         ),
         tokenizer=tokenizer)
 
+
 # @run.factory
 def resume() -> nl.AutoResume:
     return nl.AutoResume(
@@ -88,14 +81,19 @@ def resume() -> nl.AutoResume:
             path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-final_vv1/consolidated.pth",
         ),
         resume_if_exists=True,
-        # resume_ignore_no_checkpoint=True,
     )
 
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Trainer Configuration")
+    parser.add_argument("--devices", type=int, default=1, help="Number of devices to use for training")
+
+    args = parser.parse_args()
+
     llm.validate(
         model=llama32(),
         data=squad(),
-        trainer=trainer(devices=1),
+        trainer=trainer(devices=args.devices),
         log=logger(),
         resume=resume(),
     )

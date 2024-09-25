@@ -124,16 +124,17 @@ class CrossAttentionTextModel(MCoreGPTModel):
             post_process=self.post_process,
         )
 
-        self.learnable_embedding = tensor_parallel.VocabParallelEmbedding(
-            num_embeddings=8,
-            embedding_dim=self.config.hidden_size,
-            init_method=self.config.init_method,
-            reduce_scatter_embeddings=False,  # TODO double check this
-            config=self.config,
-        )
+        if self.pre_process:
+            self.learnable_embedding = tensor_parallel.VocabParallelEmbedding(
+                num_embeddings=8,
+                embedding_dim=self.config.hidden_size,
+                init_method=self.config.init_method,
+                reduce_scatter_embeddings=False,  # TODO double check this
+                config=self.config,
+            )
 
-        self.num_frozen_embeddings = self.embedding.word_embeddings.num_embeddings
-        self._thresh = self.num_frozen_embeddings - 1
+            self.num_frozen_embeddings = self.embedding.word_embeddings.num_embeddings
+            self._thresh = self.num_frozen_embeddings - 1
 
     def _get_xattn_mask(
         self,
@@ -199,7 +200,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         if decoder_input is not None:
             pass
         elif self.pre_process:
-            decoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids)
+            raise ValueError("Either decoder_input is not None or self.pre_process is False")
         else:
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
@@ -252,11 +253,11 @@ class CrossAttentionTextModel(MCoreGPTModel):
             - self.num_frozen_embeddings
         )
 
-        mask_orig = torch.where(x >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1).transpose(0, 1)
-        mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1).transpose(0, 1)
+        mask_orig = torch.where(x >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
+        mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
 
-        x_orig = self.embedding(x_orig, None)
-        x_new = self.learnable_embedding(x_new).type_as(x_orig).transpose(0, 1)
+        x_orig = self.embedding(x_orig, None).transpose(0, 1)
+        x_new = self.learnable_embedding(x_new).type_as(x_orig)
         return x_orig * mask_orig.type_as(x_orig) + x_new * mask_new.type_as(x_new)
 
 
@@ -368,11 +369,6 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                     xattn_layer: Union[DummyCrossAttentionTransformerLayer, CrossAttentionTransformerLayer]
                     with self.offload_context:
                         if (len(self.cuda_graphs) == 0) or (not self.training):
-                            # hidden_states = xattn_layer(
-                            #     x=hidden_states,
-                            #     xattn_mask=xattn_mask,
-                            #     xattn_cache=xattn_caches[l_no//4] # TODO correct mapping 3->0, 7->1, etc, for PP
-                            # )
                             hidden_states, context = xattn_layer(
                                 hidden_states=hidden_states,
                                 cross_attention_masks=cross_attention_masks,

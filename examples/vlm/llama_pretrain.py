@@ -61,18 +61,20 @@ def main(args):
         num_workers=0,
     )
 
-
-    from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig, CrossAttentionTextModelConfig8B
+    from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, \
+        LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig, CrossAttentionTextModelConfig8B
 
     vision_config = CrossAttentionVisionModelConfig(
         num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,
     )
     text_config = CrossAttentionTextModelConfig8B(
-        num_layers=3,
+        num_layers=4,
     )
+
     llama_config = LlamaCrossAttentionModelConfig(
         language_model_config=text_config,
         vision_model_config=vision_config,
+        encoder_pipeline_model_parallel_size=args.encoder_pp_size,
     )
     model = LlamaCrossAttentionModel(llama_config, tokenizer=tokenizer)
 
@@ -155,11 +157,14 @@ if __name__ == "__main__":
     # Argument parsing
     parser.add_argument("--data_path", type=str, required=False, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=False, help="Path to the image folder")
-    parser.add_argument("--log_dir", type=str, required=False, default="./nemo_experiments", help="Directory for logging and checkpoints")
-    parser.add_argument("--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model")
+    parser.add_argument("--log_dir", type=str, required=False, default="./nemo_experiments",
+                        help="Directory for logging and checkpoints")
+    parser.add_argument("--language_model_path", type=str, required=False, default=None,
+                        help="Path to the pretrained language model")
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
+    parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
 

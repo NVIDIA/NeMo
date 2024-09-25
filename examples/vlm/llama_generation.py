@@ -48,11 +48,14 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
     model = vlm.LlamaCrossAttentionModel(
         vlm.LlamaCrossAttentionModelConfig(
-            language_model_config=vlm.CrossAttentionTextModelConfig8B(),
-            vision_model_config=None, #vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),  # vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
+            language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=True, apply_rope_fusion=False),
+            vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280,
+                                                                    num_attention_heads=16, vision_chunk_size=448,
+                                                                    vision_max_num_chunks=4, ),
+            # vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
         ),
         tokenizer=tokenizer)
-    local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-final_vv1_text_only_zarr/"
+    local_model_path = "/root/.cache/nemo/models/evian3-11b-vision-final_vv1_text_only_zarr/"
     # local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-early_vv1_vision_only/"
     model = fabric.load_model(local_model_path, model)
 
@@ -69,10 +72,11 @@ def main() -> None:
         batch_images=[[]],
         batch_masks=[input['mask']],
         total_len=input['total_len'],
-        # cross_attention_masks=input['cross_attention_masks'],
-        # full_text_row_masked_out_mask=input['full_text_row_masked_out_mask'],
-        # xattn_caches=input['xattn_caches'],
+        cross_attention_masks=input['cross_attention_masks'],
+        full_text_row_masked_out_mask=input['full_text_row_masked_out_mask'],
+        xattn_caches=input['xattn_caches'],
     )
+
 
 if __name__ == "__main__":
     main()
