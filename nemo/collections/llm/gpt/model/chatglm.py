@@ -141,8 +141,9 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
 class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"]):
     def init(self) -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
-
-        return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
+        from transformers.modeling_utils import no_init_weights
+        with no_init_weights(True):
+            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
 
     def apply(self, output_path: Path) -> Path:
         target = self.init()

@@ -268,8 +268,9 @@ def _import_moe_w1_w3(gate_proj, up_proj):
 class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
     def init(self) -> "MixtralForCausalLM":
         from transformers import AutoModelForCausalLM
-
-        return AutoModelForCausalLM.from_config(self.config)
+        from transformers.modeling_utils import no_init_weights
+        with no_init_weights(True):
+            return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         # TODO: Make it work with lazy init

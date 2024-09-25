@@ -291,8 +291,9 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
 class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
     def init(self) -> "LlamaForCausalLM":
         from transformers import AutoModelForCausalLM
-
-        return AutoModelForCausalLM.from_config(self.config)
+        from transformers.modeling_utils import no_init_weights
+        with no_init_weights(True):
+            return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         target = self.init()
