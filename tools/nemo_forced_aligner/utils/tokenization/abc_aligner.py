@@ -62,5 +62,5 @@ class BaseAligner(ABC):
         return unit, unit_tokens, unit_s_pointer
 
     @abstractmethod
-    def align(self, alignment_obj: Alignment, **kwargs):
+    def align(self, alignment_obj: Alignment):
         pass
