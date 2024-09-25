@@ -747,8 +747,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         num_flattened_tokens = 0
         for t in range(len(char_offsets)):
             # Subtract one here for the extra RNNT BLANK token emitted to designate "End of timestep"
-            chars = [c for c in char_offsets[t]['char'] if c != self.blank_id]
-            num_flattened_tokens += len(chars)
+            num_flattened_tokens += len(char_offsets[t]['char']) - 1
 
         if num_flattened_tokens != len(hypothesis.text):
             raise ValueError(
@@ -846,8 +845,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # as the start index.
         if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
             start_index = max(0, hypothesis.timestep[0] - 1)
-            start_index = start_index.cpu().numpy()
-
 
         # Construct the start and end indices brackets
         end_indices = np.asarray(token_repetitions).cumsum()
@@ -868,7 +865,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Filter out RNNT token (blank at [t][0] position). This is because blank can only occur at end of a
         # time step for RNNT, so if 0th token is blank, then that timestep is skipped.
         offsets = list(filter(lambda offsets: offsets["char"][0] != rnnt_token, offsets))
-
         return offsets
 
     @staticmethod
