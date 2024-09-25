@@ -1,5 +1,5 @@
 from utils import constants
-from utils.tokenization.abc import BaseAligner
+from utils.tokenization.abc_aligner import BaseAligner
 from utils.units import Alignment, BlankToken, Segment, SpaceToken, Token, Word
 
 
