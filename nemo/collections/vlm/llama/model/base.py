@@ -327,7 +327,9 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         self.add_encoder = (vision_model_config is not None) and add_encoder
 
         if self.add_decoder:
-            self.language_model = language_model_config.configure_model(tokenizer=tokenizer)
+            self.language_model = language_model_config.configure_model(
+                tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
+            )
             self.share_embeddings_and_output_weights = (
                 self.language_model.share_embeddings_and_output_weights
             )
@@ -463,7 +465,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             cross_attention_masks: Optional[torch.Tensor] = None,
             full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
             xattn_caches: Optional[List] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         if xattn_caches is None:
             vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
                 batch_images=batch_images,
@@ -508,16 +510,15 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         """Set model chunk input tensor."""
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
-        # assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
-
-        print(f"### {torch.distributed.get_rank()} {input_tensor[0].shape if input_tensor[0] is not None else None}")
 
         if self.add_encoder:
             self.vision_model.set_input_tensor(input_tensor[0])
-        elif self.pre_process:
+        elif self.add_decoder and self.pre_process:
             self.encoder_hidden_state = input_tensor[0]
         else:
+            assert len(input_tensor) == 2, 'input_tensor should contain encoder output.'
             self.language_model.set_input_tensor(input_tensor[0])
+            self.encoder_hidden_state = input_tensor[1]
 
 
 class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
