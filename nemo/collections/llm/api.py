@@ -399,6 +399,82 @@ def deploy(
     logging.info("Model serving will be stopped.")
     nm.stop()
 
+def evaluate(
+    url: str = "http://0.0.0.0:1234/v1", 
+    model_name: str = "xxxx",
+    eval_task: str = "gsm8k",
+    num_fewshot: Optional[int] = None,
+    limit: Optional[Union[int, float]] = None,
+    bootstrap_iters: int = 100000,
+    # inference params
+    max_tokens_to_generate: Optional[int] = 256,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = 0.0,
+    top_k: Optional[int] = 1,
+    ):
+
+    from lm_eval import tasks, evaluator
+    from lm_eval.api.model import LM
+    import requests
+    class CustomModel(LM):
+        def __init__(self, model_name, api_url, max_tokens_to_generate, temperature, top_p, top_k):
+            self.model_name = model_name
+            self.api_url = api_url
+            self.max_tokens_to_generate = max_tokens_to_generate
+            self.temperature = temperature
+            self.top_p = top_p
+            self.top_k = top_k
+            super().__init__()
+
+        def loglikelihood(self, requests):
+            # Implement log likelihood calculation logic here
+            pass
+
+        def loglikelihood_rolling(self, requests):
+            # Implement log likelihood calculation logic here
+            pass
+
+        def generate_until(self, inputs):
+            results = []
+            for instance in inputs:
+                # Access the 'arguments' attribute of the Instance
+                prompt = instance.arguments[0]  # This should be the prompt string
+
+                # Extract default temperature from instance of the benchmark or use the uder defined value
+                temperature = instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
+
+                payload = {
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "max_tokens": self.max_tokens_to_generate,
+                    "temperature": temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k
+                }
+
+                response = requests.post(f"{self.api_url}/completions/", json=payload)
+                response_data = response.json()
+
+                if 'error' in response_data:
+                    raise Exception(f"API Error: {response_data['error']}")
+
+                # Assuming the response is in OpenAI format
+                generated_text = response_data['choices'][0]['text']
+                results.append(generated_text)
+
+            return results
+    model = CustomModel(model_name, url, temperature, top_p, top_k)
+
+    results = evaluator.simple_evaluate(
+        model=model,
+        tasks=eval_task,
+        limit=limit,
+        num_fewshot=num_fewshot,
+        bootstrap_iters=bootstrap_iters
+        )
+
+    print("--score---",results['results']['gsm8k'])
+>>>>>>> a1832c40f... Add inference params to evaluate method
 
 @run.cli.entrypoint(name="import", namespace="llm")
 def import_ckpt(
