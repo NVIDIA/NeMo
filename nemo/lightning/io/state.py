@@ -330,7 +330,7 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
     i = 0
     wildcard_positions = []
     while i < len(pattern):
-        if pattern[i:i+2] == '**':
+        if pattern[i : i + 2] == '**':
             escaped_pattern += r'(.+)'  # Match any characters including dots
             wildcard_positions.append('**')
             i += 2
