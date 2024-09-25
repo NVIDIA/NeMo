@@ -22,7 +22,9 @@ class CharBasedAligner(BaseAligner):
         return list(text)
 
     def align(self, alignment: Alignment, T: int, separator: str = None):
-        if not self.is_alignable(alignment.text):
+        super().align(alignment)
+        
+        if not self.is_alignable(alignment.text, T):
             return
 
         alignment.segments_and_tokens.append(BlankToken(s_start=0, s_end=0))
