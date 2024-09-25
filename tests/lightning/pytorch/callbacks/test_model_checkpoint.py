@@ -187,6 +187,7 @@ def setup_test(path, async_save=False):
 class TestLinkCheckpoint:
 
     @pytest.mark.unit
+    @pytest.mark.run_only_on("GPU")
     def test_link_ckpt(self, tmpdir):
         """Test to ensure that we always keep top_k checkpoints, even after resuming."""
 
@@ -211,6 +212,7 @@ class TestLinkCheckpoint:
             assert str(final_ckpt).replace("-last", "") == str(link)
 
     @pytest.mark.unit
+    @pytest.mark.run_only_on("GPU")
     def test_link_ckpt_async(self, tmpdir):
         """Test to ensure that we always keep top_k checkpoints, even after resuming."""
 
