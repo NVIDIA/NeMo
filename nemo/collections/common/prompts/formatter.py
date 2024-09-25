@@ -1,5 +1,5 @@
+import re
 from abc import ABC
-from enum import Enum
 from functools import lru_cache
 from typing import Any, Type
 
@@ -20,21 +20,56 @@ BOS_SLOT = "|bos|"
 EOS_SLOT = "|eos|"
 
 
-class BaseModalityType:
-    @staticmethod
-    def matches(value: Any) -> bool:
+class BaseModalityMeta(type):
+    def __or__(cls, other):
+        return Union(cls, other)
+
+
+class BaseModalityType(metaclass=BaseModalityMeta):
+    def matches(self, value: Any) -> bool:
         raise NotImplementedError
 
     def __repr__(self):
         return f"Modality.{self.__class__.__name__}()"
 
+    def __or__(self, other: "BaseModalityType") -> "BaseModalityType":
+        return Union(self, other)
+
+    def kleene_plus(self) -> "BaseModalityType":
+        return OneOrMore(self)
+
+
+class Union(BaseModalityType):
+    def __init__(self, *sub_modalities: BaseModalityType):
+        self.sub_modalities = sub_modalities
+
+    def matches(self, value: Any) -> bool:
+        return any(sub.matches(value) for sub in self.sub_modalities)
+
+    def __repr__(self):
+        return " | ".join(map(repr, self.sub_modalities))
+
+
+class OneOrMore(BaseModalityType):
+    def __init__(self, modality: BaseModalityType):
+        self.modality = modality
+
+    def matches(self, value: Any) -> bool:
+        if not isinstance(value, (list, tuple)):
+            value = [value]
+        if len(value) == 0:
+            return False
+        return all(self.modality.matches(v) for v in value)
+
+    def __repr__(self):
+        return f"({repr(self.modality)})+"
+
 
 class Text(BaseModalityType):
     """Modality for text values."""
 
-    @staticmethod
-    def matches(value: str) -> bool:
-        return isinstance(value, str)
+    def matches(self, value: Any) -> bool:
+        return isinstance(value, str) or is_text_tensor(value)
 
 
 class TextLiteral(BaseModalityType):
@@ -48,13 +83,35 @@ class TextLiteral(BaseModalityType):
         return f"Modality.{self.__class__.__name__}(allowed_values={self.allowed_values})"
 
 
+class Audio(BaseModalityType):
+    """Modality for audio values."""
+
+    def matches(self, value: Any) -> bool:
+        return isinstance(value, torch.Tensor) and torch.is_floating_point(value)
+
+
 class Modality:
     """
     Modalities supported as PromptFormatter slot values.
     """
 
-    Text = Text
+    Text = Text()
     TextLiteral = TextLiteral
+    Audio = Audio()
+
+    @staticmethod
+    def determine(value) -> BaseModalityType | list[BaseModalityType]:
+
+        def _determine_single(value):
+            for m in (Modality.Text, Modality.Audio):
+                if m.matches(value):
+                    return m
+            raise RuntimeError(f"Cannot determine the modality of input: {value}")
+
+        if isinstance(value, (list, tuple)):
+            return [_determine_single(v) for v in value]
+        else:
+            return _determine_single(value)
 
 
 class PromptFormatter(ABC):
@@ -145,10 +202,17 @@ class PromptFormatter(ABC):
     # Internal reserved field.
     _REGISTERED_FORMATTERS = {}
 
-    def __init__(self, tokenizer: TokenizerSpec, defaults: list[dict] | None = None) -> None:
+    def __init__(
+        self,
+        tokenizer: TokenizerSpec,
+        defaults: list[dict] | None = None,
+        modality_encoders: dict[BaseModalityType, torch.nn.Module] | None = None,
+    ) -> None:
         self.tokenizer = tokenizer
+        self.modality_encoders = modality_encoders
         self._defaults = defaults if defaults is not None else []
         self._validate_defaults()
+        self._validate_modality_encoders()
 
     def __init_subclass__(cls, **kwargs) -> None:
         ERR = "PromptFormatter subclass definition error:"
@@ -220,9 +284,9 @@ class PromptFormatter(ABC):
             if role != self.OUTPUT_ROLE
         ]
 
-    def encode_turn(
+    def encode_str_turn(
         self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
-    ) -> list[int]:
+    ) -> torch.Tensor:
         prompt = prompt_template
         for slot in expected_slots:
             # For the final substitution of 'slot' in the template we have to mangle it to '|slot|' anyway,
@@ -230,8 +294,99 @@ class PromptFormatter(ABC):
             # for passing slots around in user functions.
             value = slot_values.get(slot)
             assert value is not None, f"Missing required {slot=} in {slot_values=} for {prompt_template=}"
+            assert isinstance(
+                value, (str, list, tuple)
+            ), "To support non-string slot values, provide modality_encoders argument to prompt formatter's constructor."
+            if isinstance(value, (list, tuple)):
+                assert isinstance(
+                    value, str
+                ), "To support non-string slot values, provide modality_encoders argument to prompt formatter's constructor."
+                value = " ".join(value)
             prompt = prompt.replace(_mangled(slot), value)
-        return self._apply_tokenizer(prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT))
+        tokens = self._apply_tokenizer(prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT))
+        return torch.as_tensor(tokens, dtype=torch.long)
+
+    def encode_tensor_turn_modalityencoder(
+        self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
+    ) -> torch.Tensor:
+        prompt = _split(prompt_template)
+        ans = []
+        for piece in prompt:
+            if not is_slot(piece):
+                # Tokenize part of prompt template.
+                toks = torch.as_tensor(
+                    self._apply_tokenizer(piece, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT)),
+                    dtype=torch.long,
+                )
+                ans.append(self.modality_encoders[Modality.Text](toks))
+                continue
+
+            value = slot_values.get(piece)
+            assert value is not None, f"Missing required {piece=} in {slot_values=} for {prompt_template=}"
+
+            modality = Modality.determine(value)
+
+            if not isinstance(value, (list, tuple)):
+                value = [value]
+                modality = [modality]
+
+            for v, m in value, modality:
+                if isinstance(v, str):
+                    v = torch.as_tensor(
+                        self._apply_tokenizer(v, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT)),
+                        dtype=torch.long,
+                    )
+                encoded_v = self.modality_encoders[m](v)
+                ans.append(encoded_v)
+
+        return torch.cat(ans, dim=0)
+
+    def encode_tensor_turn_raw(
+        self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
+    ) -> torch.Tensor:
+        prompt = _split(prompt_template)
+        ans = []
+        for piece in prompt:
+            if not is_slot(piece):
+                # Tokenize part of prompt template.
+                toks = torch.as_tensor(
+                    self._apply_tokenizer(piece, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT)),
+                    dtype=torch.long,
+                )
+                ans.append(self.modality_encoders[Modality.Text](toks))
+                continue
+
+            value = slot_values.get(piece)
+            assert value is not None, f"Missing required {piece=} in {slot_values=} for {prompt_template=}"
+
+            modality = Modality.determine(value)
+
+            if not isinstance(value, (list, tuple)):
+                value = [value]
+                modality = [modality]
+
+            for v, m in value, modality:
+                if isinstance(v, str):
+                    v = torch.as_tensor(
+                        self._apply_tokenizer(v, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT)),
+                        dtype=torch.long,
+                    )
+                encoded_v = self.modality_encoders[m](v)
+                ans.append(encoded_v)
+
+        return torch.cat(ans, dim=0)
+
+    def encode_turn(
+        self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
+    ) -> torch.Tensor:
+        if self.modality_encoders:
+            return self.encode_tensor_turn_modalityencoder(
+                prompt_template=prompt_template, expected_slots=expected_slots, slot_values=slot_values
+            )
+        else:
+            return self.encode_str_turn(
+                prompt_template=prompt_template, expected_slots=expected_slots, slot_values=slot_values
+            )
 
     def encode_dialog(self, turns: list[dict]) -> dict[str, torch.Tensor]:
         assert len(turns) > 0, "Empty dialog is not supported."
@@ -263,11 +418,11 @@ class PromptFormatter(ABC):
                 self._validate_slot_values(expected_slots, slot_values)
             template = self.get_template(role)
             tokens = self.encode_turn(template, expected_slots, slot_values)
-            turn_tokens.extend(tokens)
+            turn_tokens.append(tokens)
             turn_token_counts.append(len(tokens))
             turn_mask_values.append(role == self.OUTPUT_ROLE)
 
-        ans = {"input_ids": torch.tensor(turn_tokens, dtype=torch.long)}
+        ans = {"input_ids": torch.cat(turn_tokens, dim=0)}
         if turn_mask_values[-1]:
             # The last turn comes from OUTPUT_ROLE, i.e. it's a response from the system.
             # This indicates it's a training example for which we provide context/answer/mask.
@@ -329,7 +484,7 @@ class PromptFormatter(ABC):
                 value
             ), f"{slot=} received {value=} which does not match modality {expected_modality}"
 
-    def _validate_defaults(self):
+    def _validate_defaults(self) -> None:
         if not self._defaults:
             return
 
@@ -353,6 +508,46 @@ class PromptFormatter(ABC):
                         f"The following slots are supported for {role=}: {expected_slots}"
                     )
 
+    def _validate_modality_encoders(self) -> None:
+        if self.modality_encoders is None:
+            return
+
+        for k, v in self.modality_encoders.items():
+            match k:
+                case Modality.Text:
+                    test_input = torch.tensor([0], dtype=torch.long)
+                case Modality.Audio:
+                    test_input = torch.zeros(1, 8000, dtype=torch.float32)
+                case _:
+                    raise RuntimeError(
+                        f"Unsupported key type in modality_encoders arg (we expected Modality.Text or Modality.Audio): {k}"
+                    )
+            assert isinstance(
+                v, torch.nn.Module
+            ), f"Unsupported value type in modality_encoders arg for key={k} (we expected a torch.nn.Module): {v}"
+            ans = v(test_input)
+            assert isinstance(
+                ans, torch.Tensor
+            ), f"Expected modality encoder for {k} to return a single torch.Tensor, but we received: {ans}"
+            assert torch.is_floating_point(
+                ans
+            ), f"Expected modality encoder for {k} to return a floating point tensor, but we received: {ans}"
+            assert (
+                ans.ndim
+            ), f"Expected modality encoder for {k} to return a 2D tensor, but we received: {ans.ndim=} with value {ans}"
+
+
+def is_text_tensor(t: torch.Tensor) -> bool:
+    """Either string or 1D tensor of int64 token indexes."""
+    return isinstance(t, torch.Tensor) and t.ndim == 1 and t.dtype == torch.long
+
+
+SLOT_PATTERN = re.compile(r"\|.+\|")
+
+
+def is_slot(s: str) -> bool:
+    return SLOT_PATTERN.fullmatch(s) is not None
+
 
 def _mangled(slot: str) -> str:
     if not (slot[0] == "|" and slot[-1] == "|"):
@@ -364,3 +559,7 @@ def _unmangled(slot: str) -> str:
     if slot[0] == "|" and slot[-1] == "|":
         return slot[1:-1]
     return slot
+
+
+def _split(prompt_template: str) -> list[str]:
+    return SLOT_PATTERN.split(prompt_template)
