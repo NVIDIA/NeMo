@@ -23,7 +23,7 @@ class CharBasedAligner(BaseAligner):
 
     def align(self, alignment: Alignment, T: int, separator: str = None):
         super().align(alignment)
-        
+
         if not self.is_alignable(alignment.text, T):
             return
 
