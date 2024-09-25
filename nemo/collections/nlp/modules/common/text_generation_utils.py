@@ -579,6 +579,7 @@ def synced_generate(
     end_strings=[],
     min_tokens_to_generate=0,
     image_list=None,
+    pad_seq_to_mult=8,
     **strategy_args,
 ):
     context_length = context_length_tensor.min().item()
@@ -620,6 +621,7 @@ def synced_generate(
             temperature=temperature,
             end_strings=end_strings,
             image_list=image_list,
+            pad_seq_to_mult=pad_seq_to_mult,
             extra=extra,
         )
 
@@ -681,6 +683,7 @@ def generate(
     end_strings=['<|endoftext|>'],
     image_list=None,
     min_tokens_to_generate=0,
+    pad_seq_to_mult=8,
     random_seed=None,
     **strategy_args,
 ) -> OutputType:
@@ -816,6 +819,7 @@ def generate(
         repetition_penalty=repetition_penalty,
         end_strings=end_strings,
         min_tokens_to_generate=min_tokens_to_generate,
+        pad_seq_to_mult=pad_seq_to_mult,
         image_list=image_list,
         **strategy_args,
     )
