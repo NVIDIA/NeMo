@@ -418,16 +418,24 @@ def evaluate(
     num_fewshot: Optional[int] = None,
     limit: Optional[Union[int, float]] = None,
     bootstrap_iters: int = 100000,
+    # inference params
+    max_tokens_to_generate: Optional[int] = 256,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = 0.0,
+    top_k: Optional[int] = 1,
     ):
 
     from lm_eval import tasks, evaluator
     from lm_eval.api.model import LM
     import requests
     class CustomModel(LM):
-        def __init__(self, model_name, api_url):
+        def __init__(self, model_name, api_url, max_tokens_to_generate, temperature, top_p, top_k):
             self.model_name = model_name
             self.api_url = api_url
-
+            self.max_tokens_to_generate = max_tokens_to_generate
+            self.temperature = temperature
+            self.top_p = top_p
+            self.top_k = top_k
             super().__init__()
 
         def loglikelihood(self, requests):
@@ -444,22 +452,16 @@ def evaluate(
                 # Access the 'arguments' attribute of the Instance
                 prompt = instance.arguments[0]  # This should be the prompt string
 
-                # Extract other parameters from the 'arguments' or 'doc' as needed
-                max_tokens = 50  # Set a default or extract from instance if available
-                #temperature = instance.arguments[1].get('temperature', 1.0)
-                # top_p = instance.arguments[1].get('top_p', 1.0)
-                # top_k = instance.arguments[1].get('top_k', 0)
-                temperature = 1.0
-                top_p = 0
-                top_k = 1.0
+                # Extract default temperature from instance of the benchmark or use the uder defined value
+                temperature = instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
 
                 payload = {
                     "model": self.model_name,
                     "prompt": prompt,
-                    "max_tokens": max_tokens,
+                    "max_tokens": self.max_tokens_to_generate,
                     "temperature": temperature,
-                    "top_p": top_p,
-                    "n": top_k
+                    "top_p": self.top_p,
+                    "top_k": self.top_k
                 }
 
                 response = requests.post(f"{self.api_url}/completions/", json=payload)
@@ -473,14 +475,8 @@ def evaluate(
                 results.append(generated_text)
 
             return results
-    model = CustomModel(model_name, url)
-    #task = tasks.get_task_dict(eval_task)
-    # Run evaluation
-    # results = evaluator.evaluate(
-    #     lm=model,
-    #     limit=1,
-    #     task_dict=task
-    # )
+    model = CustomModel(model_name, url, temperature, top_p, top_k)
+
     results = evaluator.simple_evaluate(
         model=model,
         tasks=eval_task,

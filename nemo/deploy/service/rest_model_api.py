@@ -70,7 +70,7 @@ class CompletionRequest(BaseModel):
     max_tokens: int = 512
     temperature: float = 1.0
     top_p: float = 0.0
-    n: int = 1
+    top_k: int = 1
     stream: bool = False
     stop: str | None = None
     frequency_penalty: float = 1.0
@@ -106,7 +106,7 @@ def completions_v1(request: CompletionRequest):
         output = nq.query_llm(
             prompts=[request.prompt],
             max_output_len=request.max_tokens,
-            top_k=request.n,
+            top_k=request.top_k,
             top_p=request.top_p,
             temperature=request.temperature,
             init_timeout=triton_settings.triton_request_timeout,
