@@ -154,6 +154,7 @@ class AlignmentConfig:
     chunk_len_in_secs: float = 1.6
     total_buffer_in_secs: float = 4.0
     chunk_batch_size: int = 32
+    model_stride: int = 8
 
     # Text Normalization config
     text_normalization: TextNormalizationConfig = TextNormalizationConfig()
@@ -296,7 +297,7 @@ def main(cfg: AlignmentConfig):
         OmegaConf.set_struct(model_cfg.preprocessor, True)
 
         feature_stride = model_cfg.preprocessor['window_stride']
-        model_stride_in_secs = feature_stride * cfg.model_downsample_factor
+        model_stride_in_secs = feature_stride * cfg.model_stride
         total_buffer = cfg.total_buffer_in_secs
         chunk_len = float(cfg.chunk_len_in_secs)
         tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
