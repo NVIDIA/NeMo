@@ -317,7 +317,7 @@ def deploy(
     model_type: str = "llama",
     triton_model_name: str = "xxx",
     triton_model_version: Optional[int] = 1,
-    triton_port: int = 8080,
+    triton_port: int = 8000,
     triton_http_address: str = "0.0.0.0",
     triton_request_timeout: int = 60,
     triton_model_repository: Path = None,
@@ -332,6 +332,7 @@ def deploy(
     rest_service_http_address: str = "0.0.0.0",
     rest_service_port: int = 8000,
     openai_format_response: bool = False,
+    ckpt_type: str = "nemo"
 ):
     from nemo.deploy import DeployPyTriton
 
@@ -342,18 +343,28 @@ def deploy(
         # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
         store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
 
-    triton_deployable = get_trtllm_deployable(
-        nemo_checkpoint,
-        model_type,
-        triton_model_repository,
-        num_gpus,
-        tensor_parallelism_size,
-        pipeline_parallelism_size,
-        max_input_len,
-        max_output_len,
-        max_batch_size,
-        dtype,
-    )
+    #TODO: directly support deploy of trtllm engine wo exporting to TRTLLM
+    if ckpt_type == "trtllm":
+        triton_deployable = get_trtllm_deployable(
+            nemo_checkpoint,
+            model_type,
+            triton_model_repository,
+            num_gpus,
+            tensor_parallelism_size,
+            pipeline_parallelism_size,
+            max_input_len,
+            max_output_len,
+            max_batch_size,
+            dtype,
+        )
+    elif ckpt_type == "nemo":
+        if nemo_checkpoint is None:
+            raise ValueError("In-Framework deployment requires a .nemo checkpoint")
+        try:
+            from nemo.deploy.nlp import MegatronLLMDeployable
+        except Exception as e:
+            raise ValueError("MegatronLLMDeployable is not supported in this environment as it was not imported.{type(e).__name__}: {e}")
+        triton_deployable = MegatronLLMDeployable(nemo_checkpoint, num_gpus)
 
     try:
         nm = DeployPyTriton(
@@ -367,6 +378,7 @@ def deploy(
 
         logging.info("Triton deploy function will be called.")
         nm.deploy()
+        nm.run()
     except Exception as error:
         logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
@@ -399,6 +411,85 @@ def deploy(
     logging.info("Model serving will be stopped.")
     nm.stop()
 
+def evaluate(
+    url: str = "http://0.0.0.0:1234/v1", 
+    model_name: str = "xxxx",
+    eval_task: str = "gsm8k",
+    num_fewshot: Optional[int] = None,
+    limit: Optional[Union[int, float]] = None,
+    bootstrap_iters: int = 100000,
+    ):
+
+    from lm_eval import tasks, evaluator
+    from lm_eval.api.model import LM
+    import requests
+    class CustomModel(LM):
+        def __init__(self, model_name, api_url):
+            self.model_name = model_name
+            self.api_url = api_url
+
+            super().__init__()
+
+        def loglikelihood(self, requests):
+            # Implement log likelihood calculation logic here
+            pass
+
+        def loglikelihood_rolling(self, requests):
+            # Implement log likelihood calculation logic here
+            pass
+
+        def generate_until(self, inputs):
+            results = []
+            for instance in inputs:
+                # Access the 'arguments' attribute of the Instance
+                prompt = instance.arguments[0]  # This should be the prompt string
+
+                # Extract other parameters from the 'arguments' or 'doc' as needed
+                max_tokens = 50  # Set a default or extract from instance if available
+                #temperature = instance.arguments[1].get('temperature', 1.0)
+                # top_p = instance.arguments[1].get('top_p', 1.0)
+                # top_k = instance.arguments[1].get('top_k', 0)
+                temperature = 1.0
+                top_p = 0
+                top_k = 1.0
+
+                payload = {
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "n": top_k
+                }
+
+                response = requests.post(f"{self.api_url}/completions/", json=payload)
+                response_data = response.json()
+
+                if 'error' in response_data:
+                    raise Exception(f"API Error: {response_data['error']}")
+
+                # Assuming the response is in OpenAI format
+                generated_text = response_data['choices'][0]['text']
+                results.append(generated_text)
+
+            return results
+    model = CustomModel(model_name, url)
+    #task = tasks.get_task_dict(eval_task)
+    # Run evaluation
+    # results = evaluator.evaluate(
+    #     lm=model,
+    #     limit=1,
+    #     task_dict=task
+    # )
+    results = evaluator.simple_evaluate(
+        model=model,
+        tasks=eval_task,
+        limit=limit,
+        num_fewshot=num_fewshot,
+        bootstrap_iters=bootstrap_iters
+        )
+
+    print("--score---",results['results']['gsm8k'])
 
 @run.cli.entrypoint(name="import", namespace="llm")
 def import_ckpt(
