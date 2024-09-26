@@ -27,7 +27,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel, SiglipVisionModel, AutoModel, PixtralVisionModel
 
 from nemo.collections.common.parts.utils import extend_instance
-from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
+from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IMAGE_PATCH_TOKEN
 from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
     NevaPackedSeqDatatset,
@@ -692,6 +692,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         model_type = self.cfg.mm_cfg.llm.get("model_type", "nvgpt")
         media_start_id = self.tokenizer.token_to_id(DEFAULT_IM_START_TOKEN[model_type])
+        media_token_id = self.tokenizer.token_to_id(DEFAULT_IMAGE_PATCH_TOKEN[model_type])
         media_end_id = self.tokenizer.token_to_id(DEFAULT_IM_END_TOKEN[model_type])
 
         if self.mcore_gpt:
@@ -707,6 +708,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             model = MCoreNevaModel(
                 mm_cfg=self.cfg.mm_cfg,
                 media_start_id=media_start_id,
+                media_token_id=media_token_id,
                 media_end_id=media_end_id,
                 mcore_gpt=self.mcore_gpt,
                 config=self.transformer_config,
