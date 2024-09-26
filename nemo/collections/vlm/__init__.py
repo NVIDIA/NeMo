@@ -7,6 +7,7 @@ from nemo.collections.vlm.neva.data import (
     NevaLazyDataModule,
     VideoDataConfig,
     VideoToken,
+    LlavaNextTaskEncoder,
 )
 from nemo.collections.vlm.neva.model import (
     CLIPViTConfig,
@@ -38,4 +39,5 @@ __all__ = [
     "Llava1_5Config7B",
     "Llava1_5Config13B",
     "LlavaModel",
+    "LlavaNextTaskEncoder",
 ]

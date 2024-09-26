@@ -64,7 +64,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
-
+    breakpoint()
     batch = next(dataloader_iter)
 
     _batch: dict
@@ -91,6 +91,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
+    breakpoint()
     forward_args = {
         "media": batch["media"],
         "input_ids": batch["tokens"],
@@ -98,6 +99,7 @@ def neva_forward_step(model, batch) -> torch.Tensor:
         "attention_mask": batch.get("attention_mask", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
+        "num_media_tiles": batch.get("num_media_tiles", 1),
     }
 
     if 'cu_seqlens' in batch:
@@ -252,6 +254,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
             language_model.load_state_dict(loaded_state_dict)
             logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
+
         model = MCoreNevaModel(
             transformer_config=self,
             language_model=language_model,
@@ -530,6 +533,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             output (torch.Tensor): Loss of shape [b, s] if labels are provided, otherwise logits of shape [b, s, vocab_size].
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
+        breakpoint()
         use_inference_kv_cache = (
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
