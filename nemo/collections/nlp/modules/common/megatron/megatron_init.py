@@ -155,7 +155,9 @@ def initialize_model_parallel_for_nemo(
     set_expert_model_parallel_world_size(app_state.expert_model_parallel_size)
     set_expert_model_parallel_rank(app_state.expert_model_parallel_rank)
 
-    set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size + app_state.encoder_pipeline_model_parallel_size)
+    set_pipeline_model_parallel_world_size(
+        app_state.pipeline_model_parallel_size + app_state.encoder_pipeline_model_parallel_size
+    )
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
     if HAVE_INTERLEAVED:
@@ -308,24 +310,20 @@ def fake_initialize_model_parallel(
         ), "We do not support encoders with more TP than the decoder."
 
     encoder_model_size = (
-        encoder_tensor_model_parallel_size
-        * encoder_pipeline_model_parallel_size
-        * context_parallel_size
+        encoder_tensor_model_parallel_size * encoder_pipeline_model_parallel_size * context_parallel_size
     )
-    decoder_model_size = (
-        tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size
-    )
+    decoder_model_size = tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size
     total_model_size = encoder_model_size + decoder_model_size
 
-    assert (
-        world_size % total_model_size == 0
-    ), f'world_size: {world_size} must be divisible by total world_size: ' \
-       f'(decoder_)tensor_model_parallel_size {tensor_model_parallel_size} ' \
-       f'* (decoder_)pipeline_model_parallel_size {pipeline_model_parallel_size} ' \
-       f'* (decoder_)context_parallel_size {context_parallel_size} + ' \
-       f'encoder_tensor_model_parallel_size {encoder_tensor_model_parallel_size} ' \
-       f'* encoder_pipeline_model_parallel_size {encoder_pipeline_model_parallel_size} ' \
-       f'* context_parallel_size {context_parallel_size}'
+    assert world_size % total_model_size == 0, (
+        f'world_size: {world_size} must be divisible by total world_size: '
+        f'(decoder_)tensor_model_parallel_size {tensor_model_parallel_size} '
+        f'* (decoder_)pipeline_model_parallel_size {pipeline_model_parallel_size} '
+        f'* (decoder_)context_parallel_size {context_parallel_size} + '
+        f'encoder_tensor_model_parallel_size {encoder_tensor_model_parallel_size} '
+        f'* encoder_pipeline_model_parallel_size {encoder_pipeline_model_parallel_size} '
+        f'* context_parallel_size {context_parallel_size}'
+    )
     data_parallel_size = world_size // total_model_size
 
     encoder_world_size = encoder_model_size * data_parallel_size
@@ -360,6 +358,7 @@ def fake_initialize_model_parallel(
 
     def generator_wrapper(group_type, **kwargs):
         from itertools import cycle
+
         """The `RankGenerator` class produces a hyper-rectangle for a given set of
         tensor, pipeline, data, expert, and context parallelism. If we have an encoder,
         in addition to the default decoder, we essentially instantiate two `RankGenerator`
