@@ -345,6 +345,7 @@ def autoconfig_run(options: AutoConfiguratorOptions):
             inference_result = gap_output_json["request_throughput"]["avg"]
             throughput_results.append(inference_result)
 
+        shutil.rmtree(artifact_dir)
         nm.stop()
     
     # at this point, we have finished testing for all combinations

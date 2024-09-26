@@ -748,6 +748,9 @@ class TensorRTLLM(ITritonDeployable):
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
+            triton_standard_io = "text_input" in inputs
+            output_key = "text_output" if triton_standard_io else "outputs"
+
             if not ("text_input" in inputs or "prompts" in inputs):
                 raise KeyError("one of 'text_input' or 'prompts' must be defined in the inputs")
             if "text_input" in inputs and "prompts" in inputs:
@@ -756,7 +759,7 @@ class TensorRTLLM(ITritonDeployable):
                 raise KeyError("inputs have both 'max_output_len' and 'max_tokens' defined; you should only be using one or the other")
 
             infer_input = {}
-            if "text_input" in inputs:
+            if triton_standard_io:
                 infer_input["input_texts"] = str_ndarray2list(inputs.pop("text_input"))
             if "prompts" in inputs:
                 infer_input["input_texts"] = str_ndarray2list(inputs.pop("prompts"))
@@ -793,11 +796,13 @@ class TensorRTLLM(ITritonDeployable):
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
 
-        return {"outputs": output, "text_output": output}
+        return {output_key: output}
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
         try:
+            triton_standard_io = "text_input" in inputs
+            output_key = "text_output" if triton_standard_io else "outputs"
             if not ("text_input" in inputs or "prompts" in inputs):
                 raise KeyError("one of 'text_input' or 'prompts' must be defined in the inputs")
             if "text_input" in inputs and "prompts" in inputs:
@@ -806,7 +811,7 @@ class TensorRTLLM(ITritonDeployable):
                 raise KeyError("inputs have both 'max_output_len' and 'max_tokens' defined; you should only be using one or the other")
 
             infer_input = {}
-            if "text_input" in inputs:
+            if triton_standard_io:
                 infer_input["input_texts"] = str_ndarray2list(inputs.pop("text_input"))
             if "prompts" in inputs:
                 infer_input["input_texts"] = str_ndarray2list(inputs.pop("prompts"))
@@ -841,11 +846,11 @@ class TensorRTLLM(ITritonDeployable):
             # On each request to this generator, run the model for one step and return a dict
             # with full outputs generated until this step.
             for output_texts in partial_outputs:
-                yield {"outputs": cast_output(output_texts, np.bytes_)}
+                yield {output_key: cast_output(output_texts, np.bytes_)}
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
-            return {"outputs": output, "text_output": output}
+            return {output_key: output}
 
     def _prep_ptuning_table(self):
         self.task_vocab_size = 0
