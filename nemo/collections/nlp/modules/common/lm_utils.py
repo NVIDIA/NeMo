@@ -96,7 +96,14 @@ def get_lm_model(
     pretrain_model_name = ''
     if cfg.get('language_model') and cfg.language_model.get('pretrained_model_name', ''):
         pretrain_model_name = cfg.language_model.get('pretrained_model_name', '')
-    from .megatron.megatron_utils import get_megatron_pretrained_bert_models
+
+    def get_megatron_pretrained_bert_models() -> List[str]:
+        from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+
+        all_pretrained_megatron_bert_models = [
+            model.pretrained_model_name for model in MegatronBertModel.list_available_models()
+        ]
+        return all_pretrained_megatron_bert_models
 
     all_pretrained_megatron_bert_models = get_megatron_pretrained_bert_models()
     if (
