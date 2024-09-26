@@ -579,7 +579,6 @@ def synced_generate(
     end_strings=[],
     min_tokens_to_generate=0,
     image_list=None,
-    pad_seq_to_mult=8,
     **strategy_args,
 ):
     context_length = context_length_tensor.min().item()
@@ -621,7 +620,6 @@ def synced_generate(
             temperature=temperature,
             end_strings=end_strings,
             image_list=image_list,
-            pad_seq_to_mult=pad_seq_to_mult,
             extra=extra,
         )
 
@@ -683,7 +681,6 @@ def generate(
     end_strings=['<|endoftext|>'],
     image_list=None,
     min_tokens_to_generate=0,
-    pad_seq_to_mult=8,
     random_seed=None,
     **strategy_args,
 ) -> OutputType:
@@ -819,7 +816,6 @@ def generate(
         repetition_penalty=repetition_penalty,
         end_strings=end_strings,
         min_tokens_to_generate=min_tokens_to_generate,
-        pad_seq_to_mult=pad_seq_to_mult,
         image_list=image_list,
         **strategy_args,
     )
@@ -911,10 +907,14 @@ def sample_sequence_batch(
     temperature=None,
     end_strings=['<|endoftext|>'],
     image_list=None,
-    pad_seq_to_mult=8,
+    pad_seq_to_mult=1,
     extra={},
 ):
-    # Importing here to avoid circular import errors
+    if hasattr(model, 'cfg'):
+        pad_seq_to_mult = model.cfg.get('tensor_model_parallel_size', 1)
+        pad_seq_to_mult *= model.cfg.get('context_parallel_size', 1)
+        if pad_seq_to_mult > 0:
+            logging.warning(f"Padding sequences to be a multiple of {pad_seq_to_mult}")
 
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
