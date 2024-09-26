@@ -483,7 +483,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 seq_length = batch['text_input_ids'].shape[1]
             else:
                 seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
-
+            
             data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
             # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
@@ -891,6 +891,46 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
                 audio_model = model_class.from_pretrained(pretrained_audio_model, map_location='cpu')
             return audio_model, audio_model.cfg
+    
+    @classmethod
+    def get_codec_models_and_configs(cls, cfg):
+        pretrained_codec_model = cfg.model.get("codec_model_path", None)
+        pretrained_codec_model_class = cfg.model.get(
+            "pretrained_codec_model_target", "nemo.collections.tts.models.audio_codec.AudioCodecModel"
+        )
+
+        model_class = hydra.utils.get_class(pretrained_codec_model_class)
+        if pretrained_codec_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained codec model from local file: {pretrained_codec_model}')
+            codec_model = model_class.restore_from(pretrained_codec_model, map_location='cpu')
+        else:
+            logging.info(f'Loading pretrained codec model from NGC: {pretrained_codec_model}')
+            codec_model = model_class.from_pretrained(pretrained_codec_model, map_location='cpu')
+        return codec_model, codec_model.cfg
+
+    @classmethod
+    def get_asr_models_and_configs(cls, cfg):
+
+        pretrained_asr_model = cfg.model.get("asr_model_path", None)
+        pretrained_asr_model_class = cfg.model.get(
+            "pretrained_asr_model_target", "nemo.collections.asr.models.ASRModel"
+        )
+
+        model_class = hydra.utils.get_class(pretrained_asr_model_class)
+        if pretrained_asr_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained codec model from local file: {pretrained_asr_model}')
+            asr_model = model_class.restore_from(pretrained_asr_model, map_location='cpu')
+        else:
+            logging.info(f'Loading pretrained asr model from NGC: {pretrained_asr_model}')
+            asr_model = model_class.from_pretrained(pretrained_asr_model, map_location='cpu')
+        return asr_model, asr_model.cfg
+
+    @classmethod
+    def get_mos_models_and_configs(cls, cfg):
+        import torchaudio
+        from torchaudio.pipelines import SQUIM_SUBJECTIVE
+        squim_mos_model = SQUIM_SUBJECTIVE.get_model()
+        return squim_mos_model
 
     @classmethod
     def load_pretrained_audio_weights(
@@ -945,6 +985,16 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         base_model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
         audio_model, audio_model_cfg = cls.get_audio_encoder_models_and_configs(cfg)
+
+        codec_model, codec_model_cfg = cls.get_codec_models_and_configs(cfg)
+        logging.info(f"Loaded Codec Model: {codec_model}")
+
+        asr_model, asr_model_cfg = cls.get_asr_models_and_configs(cfg)
+        logging.info(f"Loaded ASR Model: {asr_model}")
+
+        mos_model = cls.get_mos_models_and_configs(cfg)
+        logging.info(f"Loaded MOS Model: {mos_model}")
+
         speaker_model, speaker_cfg = cls.get_speaker_model_and_config(cfg)
         model_cfg = cls._modify_config(
             base_model_cfg, cfg, audio_model_cfg, add_cfg_to_tree=False, speaker_cfg=speaker_cfg
@@ -981,7 +1031,13 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
-        return model
+        
+        # from nemo.collections.tts.models import AudioCodecModel
+        # codec_model = AudioCodecModel.restore_from(cfg.model.codec_model_path)
+        cls.codec_model = codec_model
+        cls.asr_model = asr_model
+        cls.mos_model = mos_model
+        return model, codec_model, asr_model, mos_model
 
     @classmethod
     def load_audio_encoder_for_inference(cls, cfg: DictConfig, model_cfg: DictConfig, model: ModelPT) -> ModelPT:

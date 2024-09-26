@@ -283,7 +283,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         cfg: Optional[Union[OmegaConf, str]] = None,
         trainer: Optional[Trainer] = None,
     ):
-        model = super().restore_from_pretrained_models(cfg, trainer)
+
+        model, codec_model, asr_model, mos_model = super().restore_from_pretrained_models(cfg, trainer)
+        model, codec_model, asr_model = super().restore_from_pretrained_models(cfg, trainer)
         if cfg.model.get('salm_model_path') is not None:
             torch_state_dict = torch.load(cfg.model.get('salm_model_path'))['state_dict']
             model.setup_complete = False
@@ -291,9 +293,13 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             logging.info(f"loading from {cfg.model.get('salm_model_path')}: {torch_state_dict.keys()}")
 
         model.padded_vocab_size = cfg.model.s2s_vocab_size
-        model.model.extend_embedding(model.padded_vocab_size)
+        model.model.module.extend_embedding(model.padded_vocab_size)
         # print out params in more details
         model.summarize(max_depth=2)
+
+        cls.codec_model = codec_model
+        cls.asr_model = asr_model
+        cls.mos_model = mos_model
         return model
 
     # change to add one more dimension
@@ -414,7 +420,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             speech_tokens = decoder_output[:, 1:]
 
         # Get speech token ids
-        n_speech_codebooks = self.model.n_proj_heads - 1
+        n_speech_codebooks = self.model.module.n_proj_heads - 1
 
         # Remove padded parts of speech tokens
         speech_eos_pos = torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebooks
@@ -571,16 +577,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
             # TODO: move the following model init code to init() function
             if run_codec:
-                if 'codec_model' not in self.additional_models:
-                    from nemo.collections.tts.models import AudioCodecModel
-
-                    codec_model = AudioCodecModel.restore_from(self.cfg.codec_model_path)
-                    codec_model.to(self.device)
-                    codec_model.eval()
-                    self.additional_models['codec_model'] = codec_model
-                    logging.info(f"Loaded Codec Model: {codec_model}")
-                else:
-                    codec_model = self.additional_models['codec_model']
+                self.additional_models['codec_model'] = self.codec_model
+                assert 'codec_model' in self.additional_models
+                codec_model = self.additional_models['codec_model']
+                codec_model.to(self.device)
+                codec_model.eval()
 
                 with torch.no_grad():
                     logging.info(f"Decoding and saving audio")
@@ -598,16 +599,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     )
 
             if run_asr:
-                if 'asr_model' not in self.additional_models:
-                    import nemo.collections.asr as nemo_asr
-
-                    asr_model = nemo_asr.models.ASRModel.from_pretrained(self.cfg.asr_model_path).to(self.device)
-                    asr_model.encoder.disable_torch_distributed = True  # For multi-gpu training validation
-                    asr_model.eval()
-                    self.additional_models['asr_model'] = asr_model
-                    logging.info(f"Loaded ASR Model: {asr_model}")
-                else:
-                    asr_model = self.additional_models['asr_model']
+                self.additional_models['asr_model'] = self.asr_model
+                assert 'asr_model' in self.additional_models
+                asr_model = self.additional_models['asr_model']
 
                 with torch.no_grad():
                     logging.info(f"Running ASR on speech preds")
@@ -617,13 +611,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
 
             if run_mos:
-                if 'squim_mos_model' not in self.additional_models:
-                    from torchaudio.pipelines import SQUIM_SUBJECTIVE
-
-                    squim_mos_model = SQUIM_SUBJECTIVE.get_model().to(self.device)
-                    self.additional_models['squim_mos_model'] = squim_mos_model
-                else:
-                    squim_mos_model = self.additional_models['squim_mos_model']
+                self.additional_models['squim_mos_model'] = self.mos_model
+                assert 'squim_mos_model' in self.additional_models
+                squim_mos_model = self.additional_models['squim_mos_model']
 
                 import torchaudio
 
@@ -816,7 +806,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     def de_concat_multiproj_logits(self, logits):
         logits_list = []
         prev = 0
-        for i in self.model.proj_head_dims:
+        for i in self.model.module.proj_head_dims:
             logits_list.append(logits[:, prev : prev + i])
             prev += i
         return logits_list
@@ -875,4 +865,5 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         self.additional_models = {}
+
         super().__init__(cfg, trainer)
