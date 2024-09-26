@@ -18,6 +18,7 @@ from contextlib import ExitStack, contextmanager
 from typing import List, Optional
 
 import torch
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from tqdm import tqdm
 
@@ -35,7 +36,7 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
-class NeedsNormalizer(ModelPT, ABC):
+class NeedsNormalizer():
     """Base class for all TTS models that needs text normalization(TN)"""
 
     def _setup_normalizer(self, cfg):
@@ -53,6 +54,7 @@ class NeedsNormalizer(ModelPT, ABC):
                     'text_normalizer.whitelist', cfg.text_normalizer.whitelist
                 )
 
+            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             self.text_normalizer_call = self.normalizer.normalize
             if "text_normalizer_call_kwargs" in cfg:
                 self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
