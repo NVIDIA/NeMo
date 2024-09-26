@@ -61,7 +61,16 @@ class MultiHeadAttention(nn.Module):
         use_bias (bool): whether to remove bias in linear and conv layers
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0, use_bias=True, use_pytorch_sdpa=False, pytorch_sdpa_backends=None):
+    def __init__(
+        self,
+        n_head,
+        n_feat,
+        dropout_rate,
+        max_cache_len=0,
+        use_bias=True,
+        use_pytorch_sdpa=False,
+        pytorch_sdpa_backends=None,
+    ):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
         self.use_pytorch_sdpa = use_pytorch_sdpa
@@ -158,7 +167,9 @@ class MultiHeadAttention(nn.Module):
 
                 dropout_rate = self.dropout_rate if self.training else 0
                 with sdpa_kernel(self.pytorch_sdpa_backends):
-                    out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=dropout_rate)
+                    out = torch.nn.functional.scaled_dot_product_attention(
+                        q, k, v, attn_mask=mask, dropout_p=dropout_rate
+                    )
 
                 # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
                 if mask is not None:

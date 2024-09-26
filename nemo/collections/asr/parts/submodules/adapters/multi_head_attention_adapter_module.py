@@ -143,7 +143,7 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterM
             dropout_rate=dropout_rate,
             max_cache_len=0,
             use_pytorch_sdpa=use_pytorch_sdpa,
-            pytorch_sdpa_backends=pytorch_sdpa_backends
+            pytorch_sdpa_backends=pytorch_sdpa_backends,
         )
 
         self.pre_norm = nn.LayerNorm(n_feat)
