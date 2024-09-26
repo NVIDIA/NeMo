@@ -143,6 +143,7 @@ class PEFT(ABC, ModelTransform):
     def adapter_key_filter(self, key: str) -> bool:
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
 
+
 class AdapterWrapper(nn.Module):
     """Abstract base class for wrapping modules with adapters in Parameter-Efficient Fine-Tuning (PEFT).
 
