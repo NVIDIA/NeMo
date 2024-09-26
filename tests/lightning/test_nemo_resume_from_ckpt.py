@@ -16,6 +16,7 @@ import os
 
 os.environ['NVTE_FLASH_ATTN'] = '0'
 os.environ['NVTE_FUSED_ATTN'] = '0'
+os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '0'
 
 import sys
 from pathlib import Path
