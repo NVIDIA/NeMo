@@ -7,7 +7,7 @@ from torch import tensor
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import TextProcessing
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
 
 
 @pytest.fixture
@@ -63,16 +63,18 @@ def cuts():
                     )
                 ],
                 recording=dummy_recording(0, duration=5.0, with_data=True),
-                custom={"context": "non default prompt context", "answer": "some desired answer"},
+                custom={
+                    "context": "non default prompt context",
+                    "answer": "some desired answer",
+                    "system_prompt": "Please answer the following based on the previous speech feature.",
+                },
             ),
         ]
     )
 
 
 def test_speechllm_dataset(tokenizer, cuts):
-    text_processor = TextProcessing(
-        tokenizer=tokenizer,
-    )
+    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="plain")
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="do this task",
@@ -82,6 +84,7 @@ def test_speechllm_dataset(tokenizer, cuts):
     )
 
     batch = dataset[cuts]
+    print(batch)
 
     expected_keys = {
         "sample_ids",
@@ -116,11 +119,11 @@ def test_speechllm_dataset(tokenizer, cuts):
     # fmt: off
     expected = tensor([[  1,  78,   9,   1,  64,  80,   5,  75,  15,   6,   1,  12,  24,  14,
                23,   6,   1,  27,  14,   9,   6,  63,   6,  76,  14,  73,   2,   1,
-               56, 100,  41,  14,   9,  -1,   0,   0,   0,   0,   0,   0,   0,   0,
+               56, 100,  41,  14,   9,  0,   0,   0,   0,   0,   0,   0,   0,   0,
                0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
                0,   0,   0,   0,   0,   0,   0]])
     torch.testing.assert_close(batch["tokens"], expected)
-    torch.testing.assert_close(batch["tokens_length"], tensor([33]))
+    torch.testing.assert_close(batch["tokens_length"], tensor([32]))
     assert tokenizer.ids_to_text(expected[0, :33].tolist()) == "non default prompt context some transcription"
 
     expected = tensor([[1, 78, 9, 1, 64, 80, 5, 75, 15, 6, 1, 12, 24, 14, 23, 6, 1, 27,
@@ -131,7 +134,7 @@ def test_speechllm_dataset(tokenizer, cuts):
     torch.testing.assert_close(batch["context_lengths"], tensor([23]))
     assert tokenizer.ids_to_text(expected[0, :23].tolist()) == "non default prompt context"
 
-    expected = tensor([[76, 14, 73, 2, 1, 56, 100, 41, 14, 9, -1, 0, 0, 0,
+    expected = tensor([[76, 14, 73, 2, 1, 56, 100, 41, 14, 9, 0, 0, 0, 0,
              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -141,7 +144,7 @@ def test_speechllm_dataset(tokenizer, cuts):
 
     expected = tensor([[78, 9, 1, 64, 80, 5, 75, 15, 6, 1, 12, 24, 14, 23,
              6, 1, 27, 14, 9, 6, 63, 6, 76, 14, 73, 2, 1, 56,
-             100, 41, 14, 9, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             100, 41, 14, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
              0, 0, 0, 0, 0, 0, 0]])
     torch.testing.assert_close(batch["labels"], expected)
@@ -158,7 +161,7 @@ def test_speechllm_dataset(tokenizer, cuts):
     torch.testing.assert_close(
         batch["loss_mask"],
         tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                 0., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0., 0., 0.,
+                 0., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0., 0., 0., 0.,
                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                  0., 0., 0., 0., 0., 0., 0., 0., 0.]])
     )
@@ -212,17 +215,7 @@ def llama_tokenizer(capsys, tmp_path_factory):
 
 def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
     tokenizer = llama_tokenizer
-    text_processor = TextProcessing(
-        tokenizer=tokenizer,
-        prompt_template='[INST]\n<<SYS>>\nPlease answer the following based on the previous speech feature.\n<</SYS>>\n\n{context}[/INST] {answer}',
-        context_key="context",
-        answer_key="answer",
-        add_eos=True,
-        add_sep=False,
-        add_bos=False,
-        separate_prompt_and_response_with_newline=False,
-        end_string="[EOG]",
-    )
+    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="llama2")
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="do this task",
@@ -264,35 +257,38 @@ def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
     assert batch["audio_signal"].shape == (1, 80000)
     torch.testing.assert_close(batch["audio_signal_length"], tensor([80000], dtype=torch.int32))
 
+    for k in ("tokens", "contexts", "answers", "labels"):
+        print(f"batch['{k}']=", tokenizer.ids_to_text(batch[k][0]))
     # fmt: off
-    expected = tensor([[  8,   3,   8,   5,   8, 105,  18,   9,  12,  17,   9,  41,  14,  17,
-          22, 125,  43,   9, 117,  19,  18,  18,  79,  48,  15,  92,  12,  17,
-           9,  42,   8,  19,  14,  43,   9,  85,  21,   9, 114,  45,  19,  86,
-          17,  72,  20,   9,   9,  32,  46, 117,   9, 123,  69,   9,  25,   8,
-           6,   8,  93,  14,   8,  74,  88,  12,  86,  18,  13,  85,  21,  19,
-          27,  13, 116,  19,  14,  13,  78,  13,   4,  72,  19,  84,   9,   8,
-          65, 120,  45,  19,  14,   8,   7,   2,   2,   2,   2,   2,   2,   2,
+    expected = tensor([[  1,   8,   3,   8,   5,   8, 105,  18,   9,  12,  17,   9,  41,  14,
+          17,  22, 125,  43,   9, 117,  19,  18,  18,  79,  48,  15,  92,  12,
+          17,   9,  42,   8,  19,  14,  43,   9,  85,  21,   9, 114,  45,  19,
+          86,  17,  72,  20,   9,   9,  32,  46, 117,   9, 123,  69,   9,  25,
+           8,   6,   8,  93,  14,   8,  74,  88,  12,  86,  18,  13,  85,  21,
+          19,  27,  13, 116,  19,  14,  13,  78,  13,   8,   4,  72,  19,  84,
+           9,   8,  65, 120,  45,  19,  14,   2,   2,   2,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2]])
     torch.testing.assert_close(batch["tokens"], expected)
     torch.testing.assert_close(batch["tokens_length"], tensor([91]))
-    assert tokenizer.ids_to_text(expected[0, :91].tolist()) == "[INST] <<SYS>> Please answer the following based on the previous speech feature. <</SYS>> non default prompt context[/INST] some transcription [EOG]"
+    assert tokenizer.ids_to_text(expected[0, :91].tolist()) == "[INST] <<SYS>> Please answer the following based on the previous speech feature. <</SYS>> non default prompt context [/INST] some transcription"
 
-    expected =  tensor([[  8,   3,   8,   5,   8, 105,  18,   9,  12,  17,   9,  41,  14,  17,
-          22, 125,  43,   9, 117,  19,  18,  18,  79,  48,  15,  92,  12,  17,
-           9,  42,   8,  19,  14,  43,   9,  85,  21,   9, 114,  45,  19,  86,
-          17,  72,  20,   9,   9,  32,  46, 117,   9, 123,  69,   9,  25,   8,
-           6,   8,  93,  14,   8,  74,  88,  12,  86,  18,  13,  85,  21,  19,
-          27,  13, 116,  19,  14,  13,  78,  13,   4,   2,   2,   2,   2,   2,
-           2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,           2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
+    expected = tensor([[  1,   8,   3,   8,   5,   8, 105,  18,   9,  12,  17,   9,  41,  14,
+          17,  22, 125,  43,   9, 117,  19,  18,  18,  79,  48,  15,  92,  12,
+          17,   9,  42,   8,  19,  14,  43,   9,  85,  21,   9, 114,  45,  19,
+          86,  17,  72,  20,   9,   9,  32,  46, 117,   9, 123,  69,   9,  25,
+           8,   6,   8,  93,  14,   8,  74,  88,  12,  86,  18,  13,  85,  21,
+          19,  27,  13, 116,  19,  14,  13,  78,  13,   8,   4,   2,   2,   2,
+           2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
+           2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2]])
     torch.testing.assert_close(batch["contexts"], expected)
-    torch.testing.assert_close(batch["context_lengths"], tensor([79]))
-    assert tokenizer.ids_to_text(expected[0, :79].tolist()) == "[INST] <<SYS>> Please answer the following based on the previous speech feature. <</SYS>> non default prompt context[/INST]"
+    torch.testing.assert_close(batch["context_lengths"], tensor([81]))
+    assert tokenizer.ids_to_text(expected[0, :81].tolist()) == "[INST] <<SYS>> Please answer the following based on the previous speech feature. <</SYS>> non default prompt context [/INST]"
 
-    expected = tensor([[ 72,  19,  84,   9,   8,  65, 120,  45,  19,  14,   8,   7,   2,   2,
+    expected = tensor([[ 72,  19,  84,   9,   8,  65, 120,  45,  19,  14,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
@@ -303,20 +299,20 @@ def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2]])
     torch.testing.assert_close(batch["answers"], expected)
-    assert tokenizer.ids_to_text(expected[0, :12].tolist()) == "some transcription [EOG]"
+    assert tokenizer.ids_to_text(expected[0, :11].tolist()) == "some transcription"
 
-    expected = tensor([[  3,   8,   5,   8, 105,  18,   9,  12,  17,   9,  41,  14,  17,  22,
-         125,  43,   9, 117,  19,  18,  18,  79,  48,  15,  92,  12,  17,   9,
-          42,   8,  19,  14,  43,   9,  85,  21,   9, 114,  45,  19,  86,  17,
-          72,  20,   9,   9,  32,  46, 117,   9, 123,  69,   9,  25,   8,   6,
-           8,  93,  14,   8,  74,  88,  12,  86,  18,  13,  85,  21,  19,  27,
-          13, 116,  19,  14,  13,  78,  13,   4,  72,  19,  84,   9,   8,  65,
-         120,  45,  19,  14,   8,   7,   2,   2,   2,   2,   2,   2,   2,   2,
+    expected = tensor([[  8,   3,   8,   5,   8, 105,  18,   9,  12,  17,   9,  41,  14,  17,
+          22, 125,  43,   9, 117,  19,  18,  18,  79,  48,  15,  92,  12,  17,
+           9,  42,   8,  19,  14,  43,   9,  85,  21,   9, 114,  45,  19,  86,
+          17,  72,  20,   9,   9,  32,  46, 117,   9, 123,  69,   9,  25,   8,
+           6,   8,  93,  14,   8,  74,  88,  12,  86,  18,  13,  85,  21,  19,
+          27,  13, 116,  19,  14,  13,  78,  13,   8,   4,  72,  19,  84,   9,
+           8,  65, 120,  45,  19,  14,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,   2,
            2]])
     torch.testing.assert_close(batch["labels"], expected)
-    assert tokenizer.ids_to_text(expected[0, :90].tolist()) == "[INST] <<SYS>> Please answer the following based on the previous speech feature. <</SYS>> non default prompt context[/INST] some transcription [EOG]"
+    assert tokenizer.ids_to_text(expected[0, :90].tolist()) == "[INST] <<SYS>> Please answer the following based on the previous speech feature. <</SYS>> non default prompt context [/INST] some transcription"
 
     torch.testing.assert_close(
         batch["position_ids"],
@@ -338,7 +334,7 @@ def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                 0., 0., 0., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,
+                 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,
                  1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                  0.]])
