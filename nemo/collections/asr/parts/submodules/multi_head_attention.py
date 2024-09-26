@@ -167,7 +167,9 @@ class MultiHeadAttention(nn.Module):
 
                 dropout_rate = self.dropout_rate if self.training else 0
                 with sdpa_kernel(self.use_pytorch_sdpa_backends):
-                    out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=dropout_rate)
+                    out = torch.nn.functional.scaled_dot_product_attention(
+                        q, k, v, attn_mask=mask, dropout_p=dropout_rate
+                    )
 
                 # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
                 if mask is not None:
