@@ -5470,6 +5470,23 @@ jobs:
 
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/${{ github.run_id }}
+  L2_NeMo_2_T5_Pretraining:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_T5_Pretraining') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_pretraining.py \
+        --devices=2 \
+        --max-steps=3 \
+        --experiment-dir=tests/collections/llm/t5_pretrain_results \
+        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
+        --index-mapping-dir=tests/collections/llm/t5_index_mappings
+
+      AFTER_SCRIPT: |
+        rm -rf tests/collections/llm/t5_pretrain_results
+        rm -rf tests/collections/llm/t5_index_mappings
 
   Nemo_CICD_Test:
     needs: 
@@ -5615,6 +5632,7 @@ jobs:
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
+      - L2_NeMo_2_T5_Pretraining
     if: always()
     runs-on: ubuntu-latest
     steps:  
@@ -5632,6 +5650,23 @@ jobs:
       # This should depend on all the tests so we block/unblock based on all tests passing
       - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
         run: exit 0
+
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.number }}
+          body: |
+            [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
+            
+            I just wanted to let you know that, you know, a [CICD pipeline](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for this PR just finished successfully ✨
+
+            So it might be time to merge this PR or like to get some approvals 🚀
+
+            But I'm just a 🤖 so I'll leave it you what to do next.
+
+            Have a great day! 
+
+            //cc @ko3n1g
 
       - if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' }}
         name: Checkout repository
@@ -5708,4 +5743,3 @@ jobs:
       - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
         run: |
           exit 1
-
