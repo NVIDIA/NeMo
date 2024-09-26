@@ -36,7 +36,7 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
-class NeedsNormalizer():
+class NeedsNormalizer:
     """Base class for all TTS models that needs text normalization(TN)"""
 
     def _setup_normalizer(self, cfg):
