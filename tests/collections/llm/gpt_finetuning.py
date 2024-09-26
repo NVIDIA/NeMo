@@ -99,9 +99,7 @@ if __name__ == '__main__':
 
     squad = llm.SquadDataModule(seq_length=2048, micro_batch_size=args.mbs, global_batch_size=8, num_workers=0)
 
-    tokenizer = get_nmt_tokenizer(
-        tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model")
-    )
+    tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model"))
     llama3_8b = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
 
     resume = nl.AutoResume(
