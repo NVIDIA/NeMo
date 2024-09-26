@@ -14,7 +14,7 @@
 <!-- markdownlint-disable -->
 <details open>
   <summary><b>NeMo 2.0</b></summary>
-      We've released NeMo 2.0, an update on the NeMo Framework which prioritizes modularity and ease-of-use. Please refer to the <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html)>NeMo Framework User Guide</a> to get started.
+      We've released NeMo 2.0, an update on the NeMo Framework which prioritizes modularity and ease-of-use. Please refer to the <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html>NeMo Framework User Guide</a> to get started.
     </details>
   </details>
 
