@@ -536,7 +536,7 @@ def create_image_processor(mm_cfg):
             image_processor = SiglipImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
-        elif config.architectures[0] == "PixtralModel":
+        elif config.architectures[0] == "PixtralVisionModel":
             image_processor = PixtralImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )

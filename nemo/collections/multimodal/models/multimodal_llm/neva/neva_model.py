@@ -24,7 +24,7 @@ from einops import rearrange, reduce, repeat
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import CLIPVisionModel, SiglipVisionModel, AutoModel, PixtralModel
+from transformers import CLIPVisionModel, SiglipVisionModel, AutoModel, PixtralVisionModel
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
@@ -143,7 +143,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         use_im_start_end=False,
     ):
         self.vision_encoder = vision_encoder
-        self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel) or isinstance(vision_encoder, PixtralModel)
+        self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel) or isinstance(vision_encoder, PixtralVisionModel)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.media_token_id = media_token_id
@@ -196,22 +196,22 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         rearrange code based on https://github.com/huggingface/transformers/blob/main/src/transformers/models/pixtral/modeling_pixtral.py
         """
-        vision_x = [element.to(self.vision_encoder.dtype) for element in vision_x]
+        #vision_x = [element.to(self.vision_encoder.dtype) for element in vision_x]
         with torch.no_grad():
             if self.from_hf:
-                vision_x = self.vision_encoder(vision_x, output_hidden_states=True)
-                vision_x = vision_x.hidden_states[self.vision_select_layer]
+                image_outputs = self.vision_encoder(vision_x, output_hidden_states=True)
+                selected_image_feature = image_outputs.hidden_states[self.vision_select_layer]
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
-                vision_x = self.vision_encoder(vision_x)
+                selected_image_feature = self.vision_encoder(vision_x)
         if self.vision_select_feature == "patch":
-            vision_x = vision_x[:, self.class_token_length :]
+            selected_image_feature = selected_image_feature[:, self.class_token_length :]
         elif self.vision_select_feature != "cls_patch":
             raise ValueError(f"Unsupported vision_select_feature {self.vision_select_feature}")
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
         vision_connector = self.get_adapter_module(AdapterName.MULTIMODAL_PROJECTOR_ADAPTER)
-        vision_x = vision_connector(vision_x)
-        return vision_x
+        image_features = vision_connector(selected_image_feature)
+        return image_features
     
     def replace_media_embeddings(self, input_ids, inputs_embeds, media):
         if media is None:
@@ -220,7 +220,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         # calculate media features without gradients
         media_features = self.encode_vision_x(media)  # b T F S(eq) H(idden)
-
         special_image_mask = (
                     (input_ids == self.media_token_id).unsqueeze(-1).expand_as(inputs_embeds)
                 )
@@ -464,7 +463,7 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-            elif config.architectures[0] == "PixtralModel":
+            elif config.architectures[0] == "PixtralVisionModel":
                 from safetensors.torch import load_file
                 vision_encoder = AutoModel.from_config(config)
                 safetensor_file = "model.safetensors"
