@@ -251,7 +251,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
     """
     return run.Config(
         nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-70B"),
+        restore_config=run.Config(nl.RestoreConfig, path="nemo://meta-llama/Meta-Llama-3-70B"),
     )
 
 

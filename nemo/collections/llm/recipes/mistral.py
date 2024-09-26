@@ -204,7 +204,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
         start from the pre-trained Mistral 7B model.
     """
     return run.Config(
-        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3")
+        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="nemo://mistralai/Mistral-7B-v0.3")
     )
 
 

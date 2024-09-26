@@ -192,7 +192,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
         start from the pre-trained Nemotron4 340B model.
     """
     return run.Config(
-        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="hf://nvidia/Nemotron-4-340B-Base")
+        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="nemo://nvidia/Nemotron-4-340B-Base")
     )
 
 

@@ -247,7 +247,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
     """
     return run.Config(
         nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
+        restore_config=run.Config(nl.RestoreConfig, path="nemo://mistralai/Mixtral-8x7B-v0.1"),
     )
 
 
