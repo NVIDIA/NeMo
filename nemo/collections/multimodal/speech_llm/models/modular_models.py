@@ -483,7 +483,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 seq_length = batch['text_input_ids'].shape[1]
             else:
                 seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
-            
+
             data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
             # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
@@ -891,7 +891,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
                 audio_model = model_class.from_pretrained(pretrained_audio_model, map_location='cpu')
             return audio_model, audio_model.cfg
-    
+
     @classmethod
     def get_codec_models_and_configs(cls, cfg):
         pretrained_codec_model = cfg.model.get("codec_model_path", None)
@@ -929,6 +929,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
     def get_mos_models_and_configs(cls, cfg):
         import torchaudio
         from torchaudio.pipelines import SQUIM_SUBJECTIVE
+
         squim_mos_model = SQUIM_SUBJECTIVE.get_model()
         return squim_mos_model
 
@@ -1031,7 +1032,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
-        
+
         # from nemo.collections.tts.models import AudioCodecModel
         # codec_model = AudioCodecModel.restore_from(cfg.model.codec_model_path)
         cls.codec_model = codec_model
