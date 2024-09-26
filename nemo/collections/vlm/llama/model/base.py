@@ -455,17 +455,17 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         return (xattn_caches, cross_attention_masks, full_text_row_masked_out_mask)
 
     def forward(
-            self,
-            position_ids: torch.Tensor,
-            tokens: torch.Tensor,
-            labels: Optional[torch.Tensor] = None,
-            batch_images: Optional[List[List[PIL_Image.Image]]] = None,
-            batch_masks: Optional[List[List[List[int]]]] = None,
-            total_len: Optional[int] = None,
-            cross_attention_masks: Optional[torch.Tensor] = None,
-            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
-            xattn_caches: Optional[List] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self,
+        position_ids: torch.Tensor,
+        tokens: torch.Tensor,
+        labels: Optional[torch.Tensor] = None,
+        batch_images: Optional[List[List[PIL_Image.Image]]] = None,
+        batch_masks: Optional[List[List[List[int]]]] = None,
+        total_len: Optional[int] = None,
+        cross_attention_masks: Optional[torch.Tensor] = None,
+        full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+        xattn_caches: Optional[List] = None,
+    ) -> torch.Tensor:
         if xattn_caches is None:
             vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
                 batch_images=batch_images,
@@ -523,11 +523,11 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
 
 class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-            self,
-            config: LlamaCrossAttentionModelConfig,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: LlamaCrossAttentionModelConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -543,16 +543,16 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-            self,
-            batch_images: List[List[PIL_Image.Image]],
-            batch_masks: List[List[List[int]]],
-            total_len: int,
-            tokens: torch.LongTensor,
-            position_ids: torch.LongTensor,
-            labels: Optional[torch.Tensor] = None,
-            cross_attention_masks: Optional[torch.Tensor] = None,
-            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
-            xattn_caches: Optional[torch.Tensor] = None,
+        self,
+        batch_images: List[List[PIL_Image.Image]],
+        batch_masks: List[List[List[int]]],
+        total_len: int,
+        tokens: torch.LongTensor,
+        position_ids: torch.LongTensor,
+        labels: Optional[torch.Tensor] = None,
+        cross_attention_masks: Optional[torch.Tensor] = None,
+        full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+        xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         output_tensor = self.module(
@@ -637,7 +637,7 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         dummy_trainer = Trainer(
             devices=1, accelerator="cpu", strategy=MegatronStrategy(
                 store_optimizer_states=False,
-                save_ckpt_format='zarr',  # use zarr before torch_dist issue is resolved
+                save_ckpt_format='zarr' if self.zarr else 'torch_dist',  # use zarr before torch_dist issue is resolved
             )
         )
         trainer = self.nemo_setup(target, dummy_trainer)
