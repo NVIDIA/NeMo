@@ -149,7 +149,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to False.
         use_pytorch_sdpa (bool): use torch sdpa instead of manual attention.
             Defaults to False.
-        pytorch_sdpa_backends (list[SDPBackend]): list of backends to use in sdpa. None or empty list means all backends.
+        use_pytorch_sdpa_backends (list[SDPBackend]): list of backends to use in sdpa. None or empty list means all backends.
             Defaults to None
 
     """
@@ -300,7 +300,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         global_tokens_spacing: int = 1,
         global_attn_separate: bool = False,
         use_pytorch_sdpa: bool = False,
-        pytorch_sdpa_backends=None,
+        use_pytorch_sdpa_backends=None,
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -316,9 +316,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.global_attn_separate = global_attn_separate
         self.global_tokens_spacing = global_tokens_spacing
         self.use_pytorch_sdpa = use_pytorch_sdpa
-        if pytorch_sdpa_backends is None:
-            pytorch_sdpa_backends = []
-        self.pytorch_sdpa_backends = pytorch_sdpa_backends
+        if use_pytorch_sdpa_backends is None:
+            use_pytorch_sdpa_backends = []
+        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
 
         # Setting up the att_context_size
         (
@@ -441,7 +441,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 att_context_size=self.att_context_size,
                 use_bias=use_bias,
                 use_pytorch_sdpa=self.use_pytorch_sdpa,
-                pytorch_sdpa_backends=self.pytorch_sdpa_backends,
+                use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
             )
             self.layers.append(layer)
 
@@ -1041,7 +1041,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         pos_bias_u=None,
                         pos_bias_v=None,
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
-                        pytorch_sdpa_backends=self.pytorch_sdpa_backends,
+                        use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
                 elif self_attention_model == 'rel_pos_local_attn':
                     new_attn = RelPositionMultiHeadAttentionLongformer(
@@ -1053,7 +1053,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         pos_bias_u=None,
                         pos_bias_v=None,
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
-                        pytorch_sdpa_backends=self.pytorch_sdpa_backends,
+                        use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
                 elif self_attention_model == 'abs_pos':
                     new_attn = MultiHeadAttention(
@@ -1062,7 +1062,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         dropout_rate=self._cfg.dropout_att,
                         max_cache_len=att_context_size[0],
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
-                        pytorch_sdpa_backends=self.pytorch_sdpa_backends,
+                        use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
                 else:
                     raise ValueError(

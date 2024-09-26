@@ -78,14 +78,14 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         att_context_size=[-1, -1],
         use_bias=True,
         use_pytorch_sdpa=False,
-        pytorch_sdpa_backends=None,
+        use_pytorch_sdpa_backends=None,
     ):
         super(ConformerLayer, self).__init__()
 
         self.use_pytorch_sdpa = use_pytorch_sdpa
-        if pytorch_sdpa_backends is None:
-            pytorch_sdpa_backends = []
-        self.pytorch_sdpa_backends = pytorch_sdpa_backends
+        if use_pytorch_sdpa_backends is None:
+            use_pytorch_sdpa_backends = []
+        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
         self.fc_factor = 0.5
@@ -118,7 +118,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
                 max_cache_len=MHA_max_cache_len,
                 use_bias=use_bias,
                 use_pytorch_sdpa=self.use_pytorch_sdpa,
-                pytorch_sdpa_backends=self.pytorch_sdpa_backends,
+                use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
             )
         elif self_attention_model == 'rel_pos_local_attn':
             self.self_attn = RelPositionMultiHeadAttentionLongformer(
@@ -142,7 +142,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
                 max_cache_len=MHA_max_cache_len,
                 use_bias=use_bias,
                 use_pytorch_sdpa=self.use_pytorch_sdpa,
-                pytorch_sdpa_backends=self.pytorch_sdpa_backends,
+                use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
             )
         else:
             raise ValueError(

@@ -69,14 +69,14 @@ class MultiHeadAttention(nn.Module):
         max_cache_len=0,
         use_bias=True,
         use_pytorch_sdpa=False,
-        pytorch_sdpa_backends=None,
+        use_pytorch_sdpa_backends=None,
     ):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
         self.use_pytorch_sdpa = use_pytorch_sdpa
-        if pytorch_sdpa_backends is None or len(pytorch_sdpa_backends) == 0:
-            pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
-        self.pytorch_sdpa_backends = pytorch_sdpa_backends
+        if use_pytorch_sdpa_backends is None or len(use_pytorch_sdpa_backends) == 0:
+            use_pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
+        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
         self.cache_drop_size = None
         self.use_bias = use_bias
         self.dropout_rate = dropout_rate
@@ -166,10 +166,8 @@ class MultiHeadAttention(nn.Module):
                     mask = ~mask.unsqueeze(1)
 
                 dropout_rate = self.dropout_rate if self.training else 0
-                with sdpa_kernel(self.pytorch_sdpa_backends):
-                    out = torch.nn.functional.scaled_dot_product_attention(
-                        q, k, v, attn_mask=mask, dropout_p=dropout_rate
-                    )
+                with sdpa_kernel(self.use_pytorch_sdpa_backends):
+                    out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=dropout_rate)
 
                 # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
                 if mask is not None:
@@ -216,7 +214,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         max_cache_len=0,
         use_bias=True,
         use_pytorch_sdpa=False,
-        pytorch_sdpa_backends=None,
+        use_pytorch_sdpa_backends=None,
     ):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__(
@@ -226,7 +224,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             max_cache_len=max_cache_len,
             use_bias=use_bias,
             use_pytorch_sdpa=use_pytorch_sdpa,
-            pytorch_sdpa_backends=pytorch_sdpa_backends,
+            use_pytorch_sdpa_backends=use_pytorch_sdpa_backends,
         )
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
@@ -309,7 +307,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
                     matrix_bd.masked_fill_(mask, -inf_val)
 
                 dropout_rate = self.dropout_rate if self.training else 0
-                with sdpa_kernel(self.pytorch_sdpa_backends):
+                with sdpa_kernel(self.use_pytorch_sdpa_backends):
                     out = torch.nn.functional.scaled_dot_product_attention(
                         q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=dropout_rate
                     )
@@ -370,7 +368,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_attn_separate=False,
         use_bias=True,
         use_pytorch_sdpa=False,
-        pytorch_sdpa_backends=None,
+        use_pytorch_sdpa_backends=None,
     ):
         """Construct an RelPositionMultiHeadAttentionLongformer object."""
         super().__init__(
@@ -382,7 +380,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             max_cache_len=max_cache_len,
             use_bias=use_bias,
             use_pytorch_sdpa=use_pytorch_sdpa,
-            pytorch_sdpa_backends=pytorch_sdpa_backends,
+            use_pytorch_sdpa_backends=use_pytorch_sdpa_backends,
         )
 
         if use_pytorch_sdpa:
