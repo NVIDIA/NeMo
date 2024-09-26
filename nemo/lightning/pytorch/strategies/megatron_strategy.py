@@ -97,6 +97,8 @@ class ParallelismConfig:
     sequence_parallel: bool
     expert_model_parallel_size: int
     moe_extended_tp: bool
+    encoder_tensor_model_parallel_size: int
+    encoder_pipeline_model_parallel_size: int
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
