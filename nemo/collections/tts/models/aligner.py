@@ -110,7 +110,7 @@ class AlignerModel(NeedsNormalizer, ModelPT):
         self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
     def forward(self, *, spec, spec_len, text, text_len, attn_prior=None):
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(self.device.type, enabled=False):
             attn_soft, attn_logprob = self.alignment_encoder(
                 queries=spec,
                 keys=self.embed(text).transpose(1, 2),
