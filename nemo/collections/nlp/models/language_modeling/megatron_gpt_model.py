@@ -1414,7 +1414,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     attention_mask = attention_mask[0:1]
                 if self.mcore_gpt:
                     # if first step, then clear KV cache, otherwise reuse inference_paarms
-                    if set_inference_key_value_memory[0].item():
+                    # Invalidate cache if SP is enabled.
+                    has_sp = self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.sequence_parallel
+                    if set_inference_key_value_memory[0].item() or has_sp:
                         self.inference_params = InferenceParams(
                             max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
                         )
