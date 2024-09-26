@@ -35,6 +35,7 @@ class BaseMegatronSampler:
         global_batch_size: Optional[int] = None,
         rampup_batch_size: Optional[list] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
+        limit_train_batches=None,
     ) -> None:
         # Sanity checks.
         if total_samples <= 0:
@@ -72,6 +73,13 @@ class BaseMegatronSampler:
         self.drop_last = drop_last
         self.global_batch_size = global_batch_size
         self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
+        
+        if limit_train_batches is None or (isinstance(limit_train_batches, float) and limit_train_batches > 1.0) or (limit_train_batches <= 0):
+            limit_train_batches = 1.0
+        if isinstance(limit_train_batches, float):
+            self.total_samples = int(limit_train_batches * self.total_samples)
+        elif isinstance(limit_train_batches, int):
+            self.total_samples = min(limit_train_batches * global_batch_size, self.total_samples)
 
         logging.info(
             f'Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and consumed_samples: {consumed_samples}'
@@ -145,6 +153,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         global_batch_size: Optional[int] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
         seed: int = 0,
+        limit_train_batches = None,
     ) -> None:
         super().__init__(
             total_samples=total_samples,
@@ -155,6 +164,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
             drop_last=drop_last,
             global_batch_size=global_batch_size,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
+            limit_train_batches=limit_train_batches,
         )
         assert (
             not pad_samples_to_global_batch_size
