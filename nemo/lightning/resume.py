@@ -124,7 +124,7 @@ class AutoResume:
     def _extract_path(
         self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None
     ) -> BasePath:
-        if  "://" in path:
+        if "://" in path:
             assert path.startswith("nemo://"), "Only NeMo based paths starting with nemo:// are currently supported."
             _, _path = path.split("://")
             new_path = os.path.join(NEMO_MODELS_CACHE, _path)
