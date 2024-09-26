@@ -144,21 +144,13 @@ Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.
 
 NVIDIA NeMo 2.0 introduces several significant improvements over its predecessor, NeMo 1.0, enhancing flexibility, performance, and scalability.
 
-- **Python-Based Configuration** - NeMo 2.0 transitions from YAML files to a Python-based configuration, providing more flexibility and control. This shift allows for better integration with IDEs, making it easier to extend and customize configurations programmatically.
+- **Python-Based Configuration** - NeMo 2.0 transitions from YAML files to a Python-based configuration, providing more flexibility and control. This shift makes it easier to extend and customize configurations programmatically.
 
 - **Modular Abstractions** - By adopting PyTorch Lightning’s modular abstractions, NeMo 2.0 simplifies adaptation and experimentation. This modular approach allows developers to more easily modify and experiment with different components of their models.
 
-- **Large-Scale Experiment Support** - NeMo 2.0 supports scaling to thousands of GPUs using NeMo-Run, facilitating large-scale experiments. This capability is crucial for conducting extensive research and development in AI.
+- **Scalability** - NeMo 2.0 seamlessly scaling large-scale experiments across thousands of GPUs using [NeMo-Run](https://github.com/NVIDIA/NeMo-Run).
 
-- **New Model Architectures** - It introduces support for various new model architectures, including QLoRA for Mixture-of-Experts (MoE) dense layers, State Space Models, and Hybrid Architectures.
-
-- **Scalability** - NeMo 2.0 supports large-scale experiments across thousands of GPUs using NeMo-Run. This capability is essential for conducting extensive research and development in AI.
-
-- **Performance Enhancements** - Leveraging TensorRT-LLM, NeMo 2.0 offers faster and more accurate LLM inference on NVIDIA GPUs. Additionally, it improves training throughput with advanced techniques like model parallelization and optimized attention mechanisms.
-
-- **Enhanced ASR Models** - The new version includes substantial improvements in automatic speech recognition (ASR) models, boosting inference speed by up to 10x. Key enhancements include autocasting tensors to bfloat16, the innovative label-looping algorithm, and the introduction of CUDA Graphs.
-
-- **Training Throughput** - NeMo 2.0 efficiently handles large-scale models and datasets. It manages large batch sizes and sequence lengths using multiple GPUs, distributing model components across GPUs through model parallelization. Optimized attention mechanisms further enhance the efficiency of sequence processing.
+- **Training Throughput** - NeMo 2.0 efficiently handles large-scale models and datasets. It manages large batch sizes and sequence lengths, distributing model components across GPUs through model parallelization.
 
 Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendly framework for AI model development.
 
@@ -168,7 +160,7 @@ Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendl
 ### Get Started with NeMo 2.0
 
 - For more information about NeMo 2.0, see the [NeMo Framework User Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html).
-- For an in-depth exploration of the main features of NeMo 2.0, see the [Design Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/design/index.html#nemo-2-design).
+- For an in-depth exploration of the main features of NeMo 2.0, see the [Feature Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/features/index.html#nemo-2-design).
 - To transition from NeMo 1.0 to 2.0, see the [Migration Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/index) for step-by-step instructions.
 
 ## LLMs and MMs Training, Alignment, and Customization
