@@ -91,6 +91,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
+    breakpoint()
     forward_args = {
         "media": batch["media"],
         "input_ids": batch["tokens"],
