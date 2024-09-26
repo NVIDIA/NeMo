@@ -89,6 +89,8 @@ class ParallelismConfig:
     sequence_parallel: bool
     expert_model_parallel_size: int
     moe_extended_tp: bool
+    encoder_tensor_model_parallel_size: int
+    encoder_pipeline_model_parallel_size: int
     pipeline_dtype: torch.dtype
 
 
@@ -170,6 +172,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
+        encoder_tensor_model_parallel_size: Optional[int] = 0,
+        encoder_pipeline_model_parallel_size: Optional[int] = 0,
         data_sampler: Optional["DataSampler"] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
@@ -213,6 +217,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
+        self.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
+        self.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
@@ -813,6 +819,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             sequence_parallel=self.sequence_parallel,
             expert_model_parallel_size=self.expert_model_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
+            encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
+            encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
             pipeline_dtype=self.pipeline_dtype,
         )
 
