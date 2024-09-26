@@ -73,8 +73,12 @@ class BaseMegatronSampler:
         self.drop_last = drop_last
         self.global_batch_size = global_batch_size
         self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
-        
-        if limit_train_batches is None or (isinstance(limit_train_batches, float) and limit_train_batches > 1.0) or (limit_train_batches <= 0):
+
+        if (
+            limit_train_batches is None
+            or (isinstance(limit_train_batches, float) and limit_train_batches > 1.0)
+            or (limit_train_batches <= 0)
+        ):
             limit_train_batches = 1.0
         if isinstance(limit_train_batches, float):
             self.total_samples = int(limit_train_batches * self.total_samples)
@@ -153,7 +157,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         global_batch_size: Optional[int] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
         seed: int = 0,
-        limit_train_batches = None,
+        limit_train_batches=None,
     ) -> None:
         super().__init__(
             total_samples=total_samples,
