@@ -30,16 +30,7 @@ from megatron.core.utils import (
     make_viewless_tensor,
 )
 from torch import nn
-from torch.distributed import _functional_collectives as funcol
 
-from nemo.collections.vlm.llama.model.encoder_utils import (
-    build_encoder_attention_mask,
-    contract_num_tokens_from_mult8,
-    expand_num_tokens_to_mult8,
-    initialize_global_position_embedding_from_local,
-    resize_global_position_embedding,
-    resize_local_position_embedding,
-)
 from nemo.collections.vlm.llama.utils import get_negative_inf_value, to_2tuple
 
 from megatron.core.transformer.transformer_layer import TransformerLayer
@@ -312,20 +303,6 @@ def forward_with_return_intermediate(
             return hidden_states, torch.stack(intermediate_hidden_states, dim=-1)
 
         return hidden_states
-
-
-class RMSNorm(torch.nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-6):
-        super().__init__()
-        self.eps = eps
-        self.weight = nn.Parameter(torch.ones(dim))
-
-    def _norm(self, x):
-        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
-
-    def forward(self, x):
-        output = self._norm(x.float()).type_as(x)
-        return output * self.weight
 
 
 # Image encoder for inference
