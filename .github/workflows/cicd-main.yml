@@ -5217,7 +5217,7 @@ jobs:
   Nemo_CICD_Test:
     needs: 
       - pre-flight
-      - gpu-test
+      - build-container
       - cicd-test-container-setup
 
       #- OPTIONAL_L0_Unit_Tests_GPU_ASR
