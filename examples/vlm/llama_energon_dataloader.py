@@ -1,29 +1,30 @@
-import os
-import sys
+import fabric
+import torch
+
 from nemo.utils import logging
 
 
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 
-logging.setLevel(logging.DEBUG)
-from transformers import AutoProcessor
-from megatron.energon import VQASample
-import requests
-import torch
-from PIL import Image
+# logging.setLevel(logging.DEBUG)
 from transformers import MllamaForConditionalGeneration, AutoProcessor
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.vlm.llama.data.task_encoder import LlamaTaskEncoder
+from transformers import AutoTokenizer
+
+from nemo import lightning as nl
+from nemo.collections import vlm
 
 
-if __name__ == '__main__':
-    data_path = '/home/ykarnati/Downloads/LLaVA-Pretrain/wds'
-    model_directory = "/home/ykarnati/Downloads/HF_HOME/evian3-11b-vision-instruct-final-hf_vv1"
+
+def get_dataloader():
+    data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/energon_datasets/LLaVA-Pretrain-LCS-558K'
+    model_directory = "/lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-instruct-final-hf_vv1/"
     # model_id = "evian3-11b-vision-instruct-final-hf_vv1"
     processor = AutoProcessor.from_pretrained(model_directory)
     image_processor = processor.image_processor
+    image_processor.size = {'height': 448, 'width': 448}
+
     tokenizer = processor.tokenizer
 
     multimodal_sample_config = MultiModalSampleConfig()
@@ -32,32 +33,24 @@ if __name__ == '__main__':
     multimodal_sample_config.image_token.token_id = 128256
     multimodal_sample_config.conversation_template_config.stop_string = None
 
-    task_encoder = LlamaTaskEncoder(
-        tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config
-    )
-    data_module = SimpleMultiModalDataModule(
-        path=data_path,
-        tokenizer=tokenizer,
-        image_processor=image_processor,
-        num_workers=0,
-        micro_batch_size=2,
-        multimodal_sample_config=multimodal_sample_config,
-        task_encoder=task_encoder,
-    )
 
-    train_loader = data_module.train_dataloader()
+if __name__ == '__main__':
 
-    for batch in train_loader:
-        print("keys  ", batch["__keys__"])
+    train_loader = get_dataloader()
+    for i, batch in enumerate(train_loader):
+        # print("keys  ", batch["__keys__"])
         print("image tensor shape", batch["media"].shape)
         print("prompt tokens tensor shape", batch["tokens"].shape)
         print("labels tensor shape", batch["labels"].shape)
         print("loss mask shape", batch["loss_mask"].shape)
-        print("************************************")
-        print(f"labels 0 shape", batch["labels"][0])
-        print("**********************************")
-        print(f"loss_mask   {batch['loss_mask']}")
-        print("**********************************")
-        print(f"vision mask {batch['vision_mask']}")
-        print("**********************************")
-        break
+        print(batch.keys())
+        # print("************************************")
+        # print(f"labels 0 shape", batch["labels"][0])
+        # print("**********************************")
+        # print(f"loss_mask   {batch['loss_mask']}")
+        # print("**********************************")
+        # print(f"vision mask {batch['vision_mask']}")
+        # print("**********************************")
+        if i == 0:
+            break
+
