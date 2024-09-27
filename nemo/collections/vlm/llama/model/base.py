@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from einops import rearrange
 
 import pytorch_lightning as L
@@ -459,18 +459,36 @@ class MCoreMLlamaModel(MegatronModule):
         position_ids: torch.Tensor,
         tokens: torch.Tensor,
         labels: Optional[torch.Tensor] = None,
-        batch_images: Optional[List[List[PIL_Image.Image]]] = None,
+        batch_images: Optional[Union[List[List[PIL_Image.Image]], Tensor]] = None,
         batch_masks: Optional[List[List[List[int]]]] = None,
+        aspect_ratios: Optional[torch.Tensor] = None,
         total_len: Optional[int] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
         if xattn_caches is None:
-            vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
-                batch_images=batch_images,
-                batch_masks=batch_masks,
-            )
+            if isinstance(batch_images, Tensor):
+                assert aspect_ratios is not None
+                num_chunks = [[self.max_num_chunks] for _ in batch_images]
+                bsz, max_num_images = batch_images.size(0), batch_images.size(1)
+                vision_orig_shape = (
+                    bsz,
+                    max_num_images,
+                    self.max_num_chunks,
+                    int(
+                        (self.image_res / self.patch_size)
+                        ** 2
+                        + 1
+                    ),
+                    self.config.hidden_size,
+                )
+                vision_tokens = self.vision_model(batch_images, aspect_ratios)
+            else:
+                vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
+                    batch_images=batch_images,
+                    batch_masks=batch_masks,
+                )
 
             if not self.add_decoder:
                 return vision_tokens
@@ -488,9 +506,7 @@ class MCoreMLlamaModel(MegatronModule):
         language_embeddings = None
         if self.pre_process:
             language_embeddings = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids[0]])
-            language_embeddings = language_embeddings.transpose(
-                1, 0
-            ).contiguous()  # [text_seq_len, b, h_language]
+            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [text_seq_len, b, h_language]
 
         output = self.language_model(
             input_ids=tokens,
