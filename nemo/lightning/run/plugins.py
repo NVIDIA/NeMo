@@ -59,7 +59,7 @@ class PreemptionPlugin(run.Plugin):
                                                 By default, the list includes NeMo's preemption callback.
     """
 
-    preempt_time: int = 300
+    preempt_time: int = 60
     callbacks: list[run.Config[Callback]] = field(default_factory=lambda: [run.Config(PreemptionCallback)])
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):

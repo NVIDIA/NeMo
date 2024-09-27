@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Optional
 
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -34,7 +35,7 @@ def default_log(
         nl.ModelCheckpoint,
         save_last=True,
         save_top_k=10,
-        every_n_train_steps=200,
+        train_time_interval=Config(timedelta, minutes=15),
         filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
     )
 
