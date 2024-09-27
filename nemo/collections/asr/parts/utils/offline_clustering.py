@@ -389,7 +389,7 @@ def getRepeatedList(mapping_argmat: torch.Tensor, score_mat_size: torch.Tensor) 
     return repeat_list
 
 
-def get_argmin_mat(timestamps_in_scales: List[torch.Tensor]) -> List[torch.Tensor]:
+def get_argmin_mat(timestamps_in_scales: List[torch.Tensor], is_longform: bool = False) -> List[torch.Tensor]:
     """
     Calculate the mapping between the base scale and other scales. A segment from a longer scale is
     repeatedly mapped to a segment from a shorter scale or the base scale.
@@ -413,9 +413,15 @@ def get_argmin_mat(timestamps_in_scales: List[torch.Tensor]) -> List[torch.Tenso
     session_scale_mapping_list = []
     for scale_idx in scale_list:
         curr_scale_anchor = segment_anchor_list[scale_idx]
-        curr_mat = curr_scale_anchor.expand(base_scale_anchor.shape[0], -1)
-        base_mat = base_scale_anchor.expand(curr_scale_anchor.shape[0], -1).t()
-        argmin_mat = torch.argmin(torch.abs(curr_mat - base_mat), dim=1)
+        if is_longform:
+            session_scale_mapping = []
+            for value in base_scale_anchor:
+                session_scale_mapping.append(torch.argmin(torch.abs(segment_anchor_list[scale_idx] - value)).item())
+            argmin_mat = torch.tensor(session_scale_mapping, dtype=torch.int64)
+        else:
+            curr_mat = curr_scale_anchor.expand(base_scale_anchor.shape[0], -1)
+            base_mat = base_scale_anchor.expand(curr_scale_anchor.shape[0], -1).t()
+            argmin_mat = torch.argmin(torch.abs(curr_mat - base_mat), dim=1)
         session_scale_mapping_list.append(argmin_mat)
     return session_scale_mapping_list
 
@@ -449,6 +455,7 @@ def get_scale_interpolated_embs(
     multiscale_weights: torch.Tensor,
     embeddings_in_scales: List[torch.Tensor],
     timestamps_in_scales: List[torch.Tensor],
+    is_longform: bool = False,
     device: torch.device = torch.device('cpu'),
 ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
     """
@@ -476,7 +483,7 @@ def get_scale_interpolated_embs(
     """
     rep_mat_list = []
     multiscale_weights = multiscale_weights.to(device)
-    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
+    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales, is_longform=is_longform)
     scale_list = list(range(len(timestamps_in_scales)))
     for scale_idx in scale_list:
         mapping_argmat = session_scale_mapping_list[scale_idx]

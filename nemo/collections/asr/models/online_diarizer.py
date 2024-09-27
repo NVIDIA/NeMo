@@ -471,6 +471,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
             embeddings_in_scales=embeddings_in_scales,
             timestamps_in_scales=timestamps_in_scales,
+            is_longform=False,
             device=device,
         )
 

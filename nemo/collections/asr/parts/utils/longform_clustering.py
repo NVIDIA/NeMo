@@ -276,7 +276,11 @@ class LongFormSpeakerClustering(torch.nn.Module):
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
         emb, _ = get_scale_interpolated_embs(
-            multiscale_weights, self.embeddings_in_scales, self.timestamps_in_scales, self.device
+            multiscale_weights=multiscale_weights,
+            embeddings_in_scales=self.embeddings_in_scales,
+            timestamps_in_scales=self.timestamps_in_scales,
+            is_longform=True,
+            device=self.device
         )
         offset_index: int = 0
         window_offset: int = 0
