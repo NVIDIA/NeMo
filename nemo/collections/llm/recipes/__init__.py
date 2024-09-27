@@ -5,7 +5,6 @@ from nemo.collections.llm.recipes import (
     llama3_70b,
     llama3_70b_16k,
     llama3_70b_64k,
-    mistral,
     mistral_7b,
     mistral_nemo_12b,
     mixtral_8x3b,
