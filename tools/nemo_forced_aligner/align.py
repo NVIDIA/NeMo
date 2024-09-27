@@ -127,8 +127,8 @@ class TextNormalizationConfig:
     lm: bool = False
     post_process: bool = True
     max_number_of_permutations_per_split: int = 729
-    punct_pre_process: bool = (False,)
-    punct_post_process: bool = (True,)
+    punct_pre_process: bool = False
+    punct_post_process: bool = True
     n_jobs: int = 1
 
 
