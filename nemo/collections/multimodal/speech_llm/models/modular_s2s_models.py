@@ -292,12 +292,12 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             logging.info(f"loading from {cfg.model.get('salm_model_path')}: {torch_state_dict.keys()}")
 
         model.padded_vocab_size = cfg.model.s2s_vocab_size
-        
+
         if cfg.model.get('megatron_amp_O2', False):
             base_model = model.model.module
         else:
             base_model = model.model
-        
+
         base_model.extend_embedding(model.padded_vocab_size)
         # print out params in more details
         model.summarize(max_depth=2)
