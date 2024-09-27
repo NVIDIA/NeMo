@@ -196,7 +196,7 @@ class CrossAttentionTextModelConfig8B(CrossAttentionTextModelConfig):
 
 
 @dataclass
-class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
+class MLlamaModelConfig(TransformerConfig, io.IOMixin):
     language_model_config: Optional[TransformerConfig] = None
     vision_model_config: Optional[TransformerConfig] = None
 
@@ -228,7 +228,7 @@ class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
             for attr in model_config_attr:
                 setattr(self, attr, getattr(self.language_model_config, attr))
 
-    def configure_model(self, tokenizer) -> "MCoreLlamaCrossAttentionModel":
+    def configure_model(self, tokenizer) -> "MCoreMLlamaModel":
         from megatron.core import parallel_state as ps
 
         if self.encoder_pipeline_model_parallel_size > 0:
@@ -237,7 +237,7 @@ class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
             if self.encoder_tensor_model_parallel_size > 0:
                 self.vision_model_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        model = MCoreLlamaCrossAttentionModel(
+        model = MCoreMLlamaModel(
             config=self,
             language_model_config=self.language_model_config,
             vision_model_config=self.vision_model_config,
@@ -301,7 +301,7 @@ class CrossAttentionVisionModel(MegatronModule):
         pass
 
 
-class MCoreLlamaCrossAttentionModel(MegatronModule):
+class MCoreMLlamaModel(MegatronModule):
     def __init__(
             self,
             config: TransformerConfig,
@@ -521,10 +521,10 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             self.encoder_hidden_state = input_tensor[1]
 
 
-class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
-        config: LlamaCrossAttentionModelConfig,
+        config: MLlamaModelConfig,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
@@ -599,14 +599,14 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
         return self._validation_loss_reduction
 
 
-@io.model_importer(LlamaCrossAttentionModel, "pytorch")
-class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionModel", LlamaCrossAttentionModel]):
-    def init(self) -> LlamaCrossAttentionModel:
-        return LlamaCrossAttentionModel(self.config, tokenizer=self.tokenizer)
+@io.model_importer(MLlamaModel, "pytorch")
+class PytorchLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
+    def init(self) -> MLlamaModel:
+        return MLlamaModel(self.config, tokenizer=self.tokenizer)
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
         # note: this entire function is for debugging
-        self.convert_vision = False
+        self.convert_vision = True
         self.convert_text = True
         self.zarr = True
         assert self.convert_vision or self.convert_text
@@ -798,12 +798,12 @@ class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionM
         return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Meta-Llama-3.1-8B"))
 
     @property
-    def config(self) -> LlamaCrossAttentionModelConfig:
+    def config(self) -> MLlamaModelConfig:
         import json
         with open(self.parent / "params.json") as f:
             source = json.load(f)
 
-        return LlamaCrossAttentionModelConfig(
+        return MLlamaModelConfig(
             language_model_config=self._language_model_config(source),
             vision_model_config=self._vision_model_config(source),
         )
@@ -936,8 +936,8 @@ def _rename_xattn_layer_nums(source: Dict):
 
 
 __all__ = [
-    "LlamaCrossAttentionModel",
-    "LlamaCrossAttentionModelConfig",
+    "MLlamaModel",
+    "MLlamaModelConfig",
     "llama_data_step",
     "llama_forward_step",
     "transformer_engine_layer_spec",

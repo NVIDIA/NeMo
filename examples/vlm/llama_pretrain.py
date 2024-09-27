@@ -61,8 +61,8 @@ def main(args):
         num_workers=0,
     )
 
-    from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, \
-        LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig, CrossAttentionTextModelConfig8B
+    from nemo.collections.vlm.llama.model.base import MLlamaModel, CrossAttentionVisionModelConfig, \
+        MLlamaModelConfig, CrossAttentionTextModelConfig, CrossAttentionTextModelConfig8B
 
     vision_config = CrossAttentionVisionModelConfig(
         num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,
@@ -71,12 +71,12 @@ def main(args):
         num_layers=4,
     )
 
-    llama_config = LlamaCrossAttentionModelConfig(
+    llama_config = MLlamaModelConfig(
         language_model_config=text_config,
         vision_model_config=vision_config,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
     )
-    model = LlamaCrossAttentionModel(llama_config, tokenizer=tokenizer)
+    model = MLlamaModel(llama_config, tokenizer=tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
