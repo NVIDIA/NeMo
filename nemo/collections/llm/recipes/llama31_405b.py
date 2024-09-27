@@ -131,7 +131,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, max_steps: int = 1168251, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3.1 405B model.
@@ -167,10 +167,11 @@ def pretrain_recipe(
         trainer=trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
+            max_steps=max_steps,
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4, max_steps=max_steps),
         resume=default_resume(),
     )

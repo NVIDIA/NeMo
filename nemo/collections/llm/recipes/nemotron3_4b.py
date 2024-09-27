@@ -160,6 +160,7 @@ def pretrain_recipe(
             precision=precision,
             warmup_steps=warmup_steps,
             constant_steps=constant_steps,
+            max_steps=max_steps,
             min_lr=min_lr,
             max_lr=max_lr,
             clip_grad=gradient_clip_val,

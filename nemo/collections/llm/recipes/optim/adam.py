@@ -25,6 +25,7 @@ def distributed_fused_adam_with_cosine_annealing(
     precision: str = "bf16-mixed",  # or "16-mixed"
     warmup_steps: int = 2000,
     constant_steps: int = 0,
+    max_steps: int = 10,
     max_lr: float = 1e-4,
     min_lr: Optional[float] = None,
     clip_grad: float = 1.0,
@@ -47,6 +48,7 @@ def distributed_fused_adam_with_cosine_annealing(
     min_lr = min_lr or (0.1 * max_lr)
     sched = run.Config(
         CosineAnnealingScheduler,
+        max_steps=max_steps,
         warmup_steps=warmup_steps,
         constant_steps=constant_steps,
         min_lr=min_lr,
