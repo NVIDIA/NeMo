@@ -78,8 +78,8 @@ def test_speechllm_dataset(tokenizer, cuts):
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="do this task",
-        tokens_to_generate=128,
-        pad_to_max_length=False,
+        tokens_to_generate=0,
+        pad_to_max_length=True,
         max_seq_length=64,
     )
 
@@ -219,8 +219,8 @@ def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="do this task",
-        tokens_to_generate=128,
-        pad_to_max_length=False,
+        tokens_to_generate=0,
+        pad_to_max_length=True,
         max_seq_length=128,
     )
 
@@ -354,11 +354,11 @@ def test_speechllm_dataset_tokens_to_generate_increases_seq_len(llama_tokenizer,
         max_seq_length=512,
     )
     batch = dataset[cuts]
-    assert batch["tokens"].shape == (1, 95)
-    assert batch["labels"].shape == (1, 95)
-    assert batch["contexts"].shape == (1, 96)
-    assert batch["answers"].shape == (1, 96)
-    assert batch["position_ids"].shape == (1, 96)
+    assert batch["tokens"].shape == (1, 91)
+    assert batch["labels"].shape == (1, 91)
+    assert batch["contexts"].shape == (1, 81)  # was 92 before padding optimization
+    assert batch["answers"].shape == (1, 11)  # was 92 before padding optimization
+    assert batch["position_ids"].shape == (1, 92)
 
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
@@ -368,8 +368,8 @@ def test_speechllm_dataset_tokens_to_generate_increases_seq_len(llama_tokenizer,
         max_seq_length=512,
     )
     batch = dataset[cuts]
-    assert batch["tokens"].shape == (1, 351)
-    assert batch["labels"].shape == (1, 351)
-    assert batch["contexts"].shape == (1, 352)
-    assert batch["answers"].shape == (1, 352)
-    assert batch["position_ids"].shape == (1, 352)
+    assert batch["tokens"].shape == (1, 347)  # was 351 before padding optimization
+    assert batch["labels"].shape == (1, 347)  # was 351 before padding optimization
+    assert batch["contexts"].shape == (1, 337)  # was 352 before padding optimization
+    assert batch["answers"].shape == (1, 267)  # was 352 before padding optimization
+    assert batch["position_ids"].shape == (1, 348)  # was 352 before padding optimization
