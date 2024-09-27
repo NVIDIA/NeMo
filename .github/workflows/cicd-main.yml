@@ -52,6 +52,7 @@ jobs:
     uses: NVIDIA/NeMo-Aligner/.github/workflows/_build_container.yml@ko3n1g/ci/switch-to-template
     with:
       image-name: nemo_container
+      dockerfile: Dockerfile.ci
   
   cicd-test-container-setup:
     needs: [pre-flight, build-container]
