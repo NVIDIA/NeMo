@@ -67,10 +67,9 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     # Flash Attention Triton
-    import pkg_resources
     from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
-except (ImportError, ModuleNotFoundError, pkg_resources.DistributionNotFound):
+except (ImportError, ModuleNotFoundError):
 
     flash_attn_func_triton = None
 

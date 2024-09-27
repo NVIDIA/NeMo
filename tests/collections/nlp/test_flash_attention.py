@@ -39,7 +39,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_FA = False
 
 try:
-    import pkg_resources
     import triton
 
     HAVE_TRITON = True

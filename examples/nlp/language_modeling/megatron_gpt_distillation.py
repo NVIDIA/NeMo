@@ -38,7 +38,7 @@ import torch.nn.functional as F
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.parallel_state import get_tensor_model_parallel_group
 from megatron.core.transformer import TransformerConfig
-from pkg_resources import packaging
+import packaging
 from torch import Tensor
 from torch.nn.modules.loss import _Loss
 

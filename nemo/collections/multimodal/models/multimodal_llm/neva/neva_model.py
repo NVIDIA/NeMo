@@ -22,7 +22,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, reduce, repeat
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pkg_resources import packaging
+import packaging
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel, SiglipVisionModel
 
