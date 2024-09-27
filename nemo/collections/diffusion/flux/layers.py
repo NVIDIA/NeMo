@@ -35,8 +35,8 @@ class EmbedND(nn.Module):
             [rope(ids[..., i], self.axes_dim[i], self.theta) for i in range(n_axes)],
             dim=-1,
         )
-        return emb.unsqueeze(1)
-
+        emb = emb.unsqueeze(1).permute(2,0,1,3)
+        return torch.cat([emb, emb], dim=-1)
 
 class MLPEmbedder(nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int):

@@ -271,7 +271,6 @@ class FlowMatchEulerDiscreteScheduler(ABC):
 
         sigma = self.sigmas[self.step_index]
         sigma_next = self.sigmas[self.step_index + 1]
-
         prev_sample = sample + (sigma_next - sigma) * model_output
 
         # Cast sample back to model compatible dtype

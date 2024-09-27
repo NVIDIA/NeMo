@@ -13,7 +13,6 @@ if __name__ == '__main__':
     params = configs['flux']
 
     pipe = FluxInferencePipeline(params)
-    import pdb; pdb.set_trace()
     text = ['a cat']
-    pipe(text, max_sequence_length=256)
+    pipe(text, max_sequence_length=256, height=1024, width=1024, num_inference_steps=4,num_images_per_prompt=2, offload=True)
 

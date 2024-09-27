@@ -24,7 +24,7 @@ class Utils:
 
         # Torch setup for distributed training
         rank = int(os.environ['LOCAL_RANK'])
-        world_size = torch.cuda.device_count()
+        world_size = 1 #torch.cuda.device_count()
         torch.cuda.set_device(rank)
         torch.distributed.init_process_group(world_size=world_size, rank=rank)
 

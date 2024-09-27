@@ -88,6 +88,7 @@ class Flux(nn.Module):
         txt_ids: torch.Tensor = None,
         guidance: torch.Tensor = None,
     ):
+
         hidden_states = self.img_embed(img)
         encoder_hidden_states = self.txt_embed(txt)
 
@@ -98,8 +99,7 @@ class Flux(nn.Module):
         vec_emb = vec_emb + self.vector_embedding(y)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
-        rotary_pos_emb = self.pos_embed(ids)
-
+        rotary_pos_emb = self.pos_embed(ids).repeat(1, 1, self.num_attention_heads, 1)
 
         for id_block, block in enumerate(self.transformer_blocks):
             hidden_states, encoder_hidden_states = block(
@@ -109,16 +109,16 @@ class Flux(nn.Module):
                 emb = vec_emb,
             )
 
-        hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
+        hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
 
         for id_block, block in enumerate(self.single_transformer_blocks):
-            hidden_states, encoder_hidden_states = block(
+            hidden_states = block(
                 hidden_states=hidden_states,
                 rotary_pos_emb = rotary_pos_emb,
                 emb = vec_emb,
             )
 
-        hidden_states = hidden_states[:, encoder_hidden_states.shape[1] :, ...]
+        hidden_states = hidden_states[encoder_hidden_states.shape[0]:, ...]
 
         hidden_states = self.norm_out(hidden_states, vec_emb)
         output = self.proj_out(hidden_states)
