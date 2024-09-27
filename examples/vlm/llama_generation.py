@@ -55,7 +55,7 @@ def main() -> None:
             # vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
         ),
         tokenizer=tokenizer)
-    local_model_path = "/root/.cache/nemo/models/evian3-11b-vision-final_vv1_text_only_zarr/"
+    local_model_path = "/root/.cache/nemo/models/evian3-11b-vision-final_vv1_zarr/"
     # local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-early_vv1_vision_only/"
     model = fabric.load_model(local_model_path, model)
 
@@ -65,17 +65,39 @@ def main() -> None:
 
     input = torch.load("/lustre/fsw/coreai_dlalgo_genai/yuya/evian3/evian3_input.pt")
 
-    model(
-        position_ids=input['position_ids'].unsqueeze(0),
-        tokens=input['tokens'],
-        labels=None,
-        batch_images=[[]],
-        batch_masks=[input['mask']],
-        total_len=input['total_len'],
-        cross_attention_masks=input['cross_attention_masks'],
-        full_text_row_masked_out_mask=input['full_text_row_masked_out_mask'],
-        xattn_caches=input['xattn_caches'],
-    )
+    input_ids = input["tokens"]
+    position_ids = input["position_ids"].unsqueeze(0)
+
+    prev_pos = 0
+    min_prompt_len = position_ids.shape[-1]
+    total_len = input["total_len"]
+
+    input_ids = input_ids[:, :min_prompt_len]
+    generated_ids = input_ids.clone()
+
+    for cur_pos in range(min_prompt_len, min_prompt_len+64):
+        with torch.no_grad():
+            position_ids = torch.arange(
+                0, cur_pos, dtype=torch.long, device="cuda"
+            ).reshape(1, -1)
+
+            output = model(
+                batch_images=[input["images"]],
+                batch_masks=[input["mask"]],
+                total_len=total_len,
+                tokens=generated_ids,
+                position_ids=position_ids,
+            )
+
+            next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
+            generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
+            if next_token_ids == tokenizer.eos_token_id:
+                break
+            prev_pos = cur_pos
+
+    generated_ids = generated_ids.tolist()
+    print(generated_ids)
+    print(tokenizer.decode(generated_ids[0][min_prompt_len:]))
 
 
 if __name__ == "__main__":
