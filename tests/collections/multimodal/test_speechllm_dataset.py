@@ -340,3 +340,36 @@ def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
                  0.]])
     )
     # fmt: on
+
+
+def test_speechllm_dataset_tokens_to_generate_increases_seq_len(llama_tokenizer, cuts):
+    tokenizer = llama_tokenizer
+    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="llama2")
+
+    dataset = LhotseAudioQuestionAnswerDataset(
+        text_processor=text_processor,
+        default_context="do this task",
+        tokens_to_generate=0,
+        pad_to_max_length=False,
+        max_seq_length=512,
+    )
+    batch = dataset[cuts]
+    assert batch["tokens"].shape == (1, 95)
+    assert batch["labels"].shape == (1, 95)
+    assert batch["contexts"].shape == (1, 96)
+    assert batch["answers"].shape == (1, 96)
+    assert batch["position_ids"].shape == (1, 96)
+
+    dataset = LhotseAudioQuestionAnswerDataset(
+        text_processor=text_processor,
+        default_context="do this task",
+        tokens_to_generate=256,
+        pad_to_max_length=False,
+        max_seq_length=512,
+    )
+    batch = dataset[cuts]
+    assert batch["tokens"].shape == (1, 351)
+    assert batch["labels"].shape == (1, 351)
+    assert batch["contexts"].shape == (1, 352)
+    assert batch["answers"].shape == (1, 352)
+    assert batch["position_ids"].shape == (1, 352)

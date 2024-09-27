@@ -405,7 +405,9 @@ class PromptFormatterTextProcessing:
         self.prompt_format_fn = get_prompt_format_fn(prompt_format)
         self.tokenizer = tokenizer
         self.audio_locator = audio_locator
-        self.audio_locator_id = self.tokenizer.text_to_ids(audio_locator) if audio_locator is not None else None
+        self.audio_locator_id = (
+            torch.as_tensor(self.tokenizer.text_to_ids(audio_locator)) if audio_locator is not None else None
+        )
         if hasattr(tokenizer, "pad_id") and tokenizer.pad_id != None and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
