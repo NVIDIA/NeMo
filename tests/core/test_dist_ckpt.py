@@ -35,8 +35,12 @@ class ExampleModel(BoringModel):
 class ExampleMCoreModel(ExampleModel):
     def sharded_state_dict(self):
         return {
-            'layer.weight': ShardedTensor.from_rank_offsets('a', self.layer.weight, replica_id=torch.distributed.get_rank()),
-            'layer.bias': ShardedTensor.from_rank_offsets('a.bias', self.layer.bias, replica_id=torch.distributed.get_rank()),
+            'layer.weight': ShardedTensor.from_rank_offsets(
+                'a', self.layer.weight, replica_id=torch.distributed.get_rank()
+            ),
+            'layer.bias': ShardedTensor.from_rank_offsets(
+                'a.bias', self.layer.bias, replica_id=torch.distributed.get_rank()
+            ),
             'const': 3,
         }
 
@@ -179,7 +183,10 @@ class TestAsyncSave:
         )
 
         assert sync_state_dict['sharded_state_dict']['const'] == async_state_dict['sharded_state_dict']['const']
-        assert torch.all(sync_state_dict['sharded_state_dict']['layer.weight'] == async_state_dict['sharded_state_dict']['layer.weight'])
+        assert torch.all(
+            sync_state_dict['sharded_state_dict']['layer.weight']
+            == async_state_dict['sharded_state_dict']['layer.weight']
+        )
 
 
 class TestLoadStrictness:
@@ -194,8 +201,12 @@ class TestLoadStrictness:
 
         def sharded_state_dict(self):
             sharded_sd = super().sharded_state_dict()
-            sharded_sd['extra_head.weight'] = ShardedTensor.from_rank_offsets('extra_head.weight', self.extra_head.weight, replica_id=torch.distributed.get_rank())
-            sharded_sd['extra_head.bias'] = ShardedTensor.from_rank_offsets('extra_head.bias', self.extra_head.bias, replica_id=torch.distributed.get_rank())
+            sharded_sd['extra_head.weight'] = ShardedTensor.from_rank_offsets(
+                'extra_head.weight', self.extra_head.weight, replica_id=torch.distributed.get_rank()
+            )
+            sharded_sd['extra_head.bias'] = ShardedTensor.from_rank_offsets(
+                'extra_head.bias', self.extra_head.bias, replica_id=torch.distributed.get_rank()
+            )
             return sharded_sd
 
         def on_load_checkpoint(self, checkpoint):
