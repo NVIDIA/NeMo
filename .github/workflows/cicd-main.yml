@@ -48,61 +48,22 @@ jobs:
         run: |
           echo "main=${{ contains(fromJSON(steps.test_to_run.outputs.main), 'all') }}" | tee -a "$GITHUB_OUTPUT" 
 
-  gpu-test:
-    needs: [pre-flight]
-    runs-on: self-hosted-azure
-    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
-    steps:
-    - name: Run nvidia-smi test
-      run: |
-        whoami
-        nvidia-smi
+  build-container:
+    uses: NVIDIA/NeMo-Aligner/.github/workflows/_build_container.yml@ko3n1g/ci/switch-to-template
+    with:
+      image-name: nemo_container
   
-
-  cicd-cluster-clean:
-    runs-on: self-hosted-azure-builder
-    needs: [pre-flight]
-    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
-    steps:
-    - name: Clean server from old files
-      run: |
-        docker container prune --filter "until=24h" --force
-        docker image prune -a --filter "until=24h" --force
-
   cicd-test-container-setup:
-    needs: [cicd-cluster-clean, pre-flight]
+    needs: [cicd-cluster-clean, pre-flight, build-container]
     runs-on: self-hosted-azure-builder
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     outputs:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
       all: ${{ needs.pre-flight.outputs.all }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        path: ${{ github.run_id }}
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      with: 
-        # We use `docker` driver as this speeds things up for 
-        # trivial (non-multi-stage) builds.
-        driver: docker
-
-    - name: Build and push
-      uses: docker/build-push-action@v5
-      with:
-        file: Dockerfile.ci
-        push: true
-        cache-from: nemoci.azurecr.io/nemo_container:latest
-        cache-to: type=inline
-        tags: |
-          nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-          nemoci.azurecr.io/nemo_container:latest
-
     - name: Run some checks
       run: |
-        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '\
+        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
           # PyTorch Lightning version
           python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
 
@@ -497,7 +458,7 @@ jobs:
   #   needs: [cicd-test-container-setup]
   #   runs-on: self-hosted-azure
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
@@ -578,7 +539,7 @@ jobs:
   #  runs-on: self-hosted-azure
   #  timeout-minutes: 10
   #  container:
-  #    image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #    image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #    options:
   #      # --user 0:128
   #      --device=/dev/nvidia0
@@ -610,7 +571,7 @@ jobs:
   #    runs-on: self-hosted-azure
   #    timeout-minutes: 10
   #    container:
-  #      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #      image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #      options:
   #        # --user 0:128
   #        --device=/dev/nvidia0
@@ -2694,7 +2655,7 @@ jobs:
   #   needs: [cicd-test-container-setup]
   #   runs-on: self-hosted-azure
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
@@ -4957,7 +4918,7 @@ jobs:
   #   runs-on: self-hosted-azure
   #   timeout-minutes: 10
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
@@ -5048,7 +5009,7 @@ jobs:
   #   needs: [cicd-test-container-setup]
   #   runs-on: self-hosted-azure
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
