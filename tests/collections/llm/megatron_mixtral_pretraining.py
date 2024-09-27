@@ -1,12 +1,10 @@
 import argparse
-import sys
 import os
 import torch
 
 from pathlib import Path
-import torch.nn.functional as F
 
-from nemo.lightning import Trainer, MegatronStrategy, MegatronMixedPrecision
+from nemo.lightning import Trainer, MegatronStrategy
 from nemo.collections.llm import PreTrainingDataModule, MixtralConfig8x3B, MixtralModel
 
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule as MegatronOptim, OptimizerConfig
