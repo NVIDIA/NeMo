@@ -171,13 +171,6 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-        )
-    )
-
     return recipe
 
 @run.cli.factory(name=NAME + "_hf")
