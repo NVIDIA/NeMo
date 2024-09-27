@@ -1,10 +1,9 @@
 from typing import List
 
+from nemo_text_processing.text_normalization.normalize import Normalizer
 from utils import constants
 from utils.tokenization.abc_aligner import BaseAligner
 from utils.units import Alignment, BlankToken, Segment, Token, Word
-
-from nemo_text_processing.text_normalization.normalize import Normalizer 
 
 
 class TokenBasedAligner(BaseAligner):
@@ -92,7 +91,14 @@ class TokenBasedAligner(BaseAligner):
 
         return word_tokens_cased
 
-    def align(self, alignment: Alignment, T: int, separator: str = None, normalizer: Normalizer = None, normalization_params: dict = None):
+    def align(
+        self,
+        alignment: Alignment,
+        T: int,
+        separator: str = None,
+        normalizer: Normalizer = None,
+        normalization_params: dict = None,
+    ):
         super().align(alignment)
 
         if not self.is_alignable(alignment.text, T):

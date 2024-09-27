@@ -127,8 +127,8 @@ class TextNormalizationConfig:
     lm: bool = False
     post_process: bool = True
     max_number_of_permutations_per_split: int = 729
-    punct_pre_process: bool = False,
-    punct_post_process: bool = True,
+    punct_pre_process: bool = (False,)
+    punct_post_process: bool = (True,)
     n_jobs: int = 1
 
 
@@ -320,23 +320,25 @@ def main(cfg: AlignmentConfig):
     normalization_params = {}
     normalizer = None
     if cfg.text_normalization.enabled:
-            from nemo_text_processing.text_normalization.normalize import Normalizer
+        from nemo_text_processing.text_normalization.normalize import Normalizer
 
-            normalizer = Normalizer(
-                input_case=cfg.text_normalization.input_case,
-                lang=cfg.text_normalization.lang,
-                deterministic=cfg.text_normalization.deterministic,
-                cache_dir=cfg.text_normalization.cache_dir,
-                overwrite_cache=cfg.text_normalization.overwrite_cache,
-                whitelist=cfg.text_normalization.whitelist,
-                lm=cfg.text_normalization.lm,
-                post_process=cfg.text_normalization.post_process,
-                max_number_of_permutations_per_split=cfg.text_normalization.max_number_of_permutations_per_split,
-            )
-            
-            normalization_params = {"punct_pre_process": cfg.text_normalization.punct_pre_process, 
-                                    "punct_post_process" : cfg.text_normalization.punct_post_process,
-                                    "n_jobs" : cfg.text_normalization.punct_post_process.n_jobs} 
+        normalizer = Normalizer(
+            input_case=cfg.text_normalization.input_case,
+            lang=cfg.text_normalization.lang,
+            deterministic=cfg.text_normalization.deterministic,
+            cache_dir=cfg.text_normalization.cache_dir,
+            overwrite_cache=cfg.text_normalization.overwrite_cache,
+            whitelist=cfg.text_normalization.whitelist,
+            lm=cfg.text_normalization.lm,
+            post_process=cfg.text_normalization.post_process,
+            max_number_of_permutations_per_split=cfg.text_normalization.max_number_of_permutations_per_split,
+        )
+
+        normalization_params = {
+            "punct_pre_process": cfg.text_normalization.punct_pre_process,
+            "punct_post_process": cfg.text_normalization.punct_post_process,
+            "n_jobs": cfg.text_normalization.punct_post_process.n_jobs,
+        }
 
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None
