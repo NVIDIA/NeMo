@@ -641,12 +641,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def save_checkpoint(
-        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
+        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None, allow_meta_tensors = False,
     ) -> None:
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
         if "sharded_state_dict" not in checkpoint:
             checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
+            meta_tensors = list(filter(lambda x: isinstance(x[1], torch.Tensor) and x[1].device.type == 'meta', checkpoint['sharded_state_dict'].items()))
+            for (name, tensor) in meta_tensors:
+                 logging.warning(f"Got device=meta for {name}")
+            if not allow_meta_tensors:
+                 assert len(meta_tensors) == 0, meta_tensors
+
 
         ## replace unsharded optimizer_states with sharded dict.
         ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
