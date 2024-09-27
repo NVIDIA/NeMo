@@ -24,7 +24,7 @@ from typing import Generator, Iterable, List, Literal
 import lhotse.serialization
 import soundfile
 from cytoolz import groupby
-from lhotse import AudioSource, Recording, SupervisionSegment
+from lhotse import AudioSource, MonoCut, Recording, SupervisionSegment
 from lhotse.audio.backend import LibsndfileBackend
 from lhotse.cut import Cut
 from lhotse.dataset.dataloading import resolve_seed
@@ -139,6 +139,42 @@ class LazyNeMoIterator:
 
     def __add__(self, other):
         return LazyIteratorChain(self, other)
+
+    def _create_cut(
+        self,
+        audio_path: str,
+        offset: float,
+        duration: float,
+        sampling_rate: int | None = None,
+    ) -> Cut:
+        if not self.metadata_only:
+            recording = self._create_recording(audio_path, duration, sampling_rate)
+            cut = recording.to_cut()
+            if offset is not None:
+                cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
+                cut.id = f"{cut.id}-{round(offset * 1e2):06d}-{round(duration * 1e2):06d}"
+        else:
+            # Only metadata requested.
+            # We'll provide accurate metadata for Cut but inaccurate metadata for Recording to avoid
+            # incurring IO penalty (note that Lhotse manifests contain more information than
+            # NeMo manifests, so for actual dataloading we have to fill it using the audio file).
+            sr = ifnone(sampling_rate, 16000)  # fake sampling rate
+            offset = ifnone(offset, 0.0)
+            cut = MonoCut(
+                id=audio_path,
+                start=offset,
+                duration=duration,
+                channel=0,
+                supervisions=[],
+                recording=Recording(
+                    id=audio_path,
+                    sources=[AudioSource(type="dummy", channels=[0], source="")],
+                    sampling_rate=sr,
+                    duration=offset + duration,
+                    num_samples=compute_num_samples(offset + duration, sr),
+                ),
+            )
+        return cut
 
     def _create_recording(
         self,
