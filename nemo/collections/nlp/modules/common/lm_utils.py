@@ -20,8 +20,6 @@ from attr import asdict
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.utils import AppState, logging
-
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
@@ -35,6 +33,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
     get_huggingface_transformer,
     get_nemo_transformer,
 )
+from nemo.utils import AppState, logging
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model', 'pad_batch']
 
