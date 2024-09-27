@@ -284,8 +284,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         trainer: Optional[Trainer] = None,
     ):
 
-        # model, codec_model, asr_model, mos_model = super().restore_from_pretrained_models(cfg, trainer)
-        model, codec_model, asr_model = super().restore_from_pretrained_models(cfg, trainer)
+        model, codec_model, asr_model, mos_model = super().restore_from_pretrained_models(cfg, trainer)
         if cfg.model.get('salm_model_path') is not None:
             torch_state_dict = torch.load(cfg.model.get('salm_model_path'))['state_dict']
             model.setup_complete = False
@@ -305,7 +304,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         cls.codec_model = codec_model
         cls.asr_model = asr_model
-        # cls.mos_model = mos_model
+        cls.mos_model = mos_model
         return model
 
     # change to add one more dimension
