@@ -284,7 +284,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         trainer: Optional[Trainer] = None,
     ):
 
-        model, codec_model, asr_model, mos_model = super().restore_from_pretrained_models(cfg, trainer)
+        # model, codec_model, asr_model, mos_model = super().restore_from_pretrained_models(cfg, trainer)
         model, codec_model, asr_model = super().restore_from_pretrained_models(cfg, trainer)
         if cfg.model.get('salm_model_path') is not None:
             torch_state_dict = torch.load(cfg.model.get('salm_model_path'))['state_dict']
@@ -293,13 +293,19 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             logging.info(f"loading from {cfg.model.get('salm_model_path')}: {torch_state_dict.keys()}")
 
         model.padded_vocab_size = cfg.model.s2s_vocab_size
-        model.model.module.extend_embedding(model.padded_vocab_size)
+        
+        if cfg.model.get('megatron_amp_O2', False):
+            base_model = model.model.module
+        else:
+            base_model = model.model
+        
+        base_model.extend_embedding(model.padded_vocab_size)
         # print out params in more details
         model.summarize(max_depth=2)
 
         cls.codec_model = codec_model
         cls.asr_model = asr_model
-        cls.mos_model = mos_model
+        # cls.mos_model = mos_model
         return model
 
     # change to add one more dimension
@@ -420,7 +426,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             speech_tokens = decoder_output[:, 1:]
 
         # Get speech token ids
-        n_speech_codebooks = self.model.module.n_proj_heads - 1
+        if self.cfg.get('megatron_amp_O2', False):
+            n_speech_codebooks = self.model.module.n_proj_heads - 1
+        else:
+            n_speech_codebooks = self.model.n_proj_heads - 1
 
         # Remove padded parts of speech tokens
         speech_eos_pos = torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebooks
@@ -806,7 +815,13 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     def de_concat_multiproj_logits(self, logits):
         logits_list = []
         prev = 0
-        for i in self.model.module.proj_head_dims:
+
+        if self.cfg.get('megatron_amp_O2', False):
+            base_model = self.model.module
+        else:
+            base_model = self.model
+
+        for i in base_model.proj_head_dims:
             logits_list.append(logits[:, prev : prev + i])
             prev += i
         return logits_list

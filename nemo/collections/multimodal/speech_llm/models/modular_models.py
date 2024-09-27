@@ -925,12 +925,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             asr_model = model_class.from_pretrained(pretrained_asr_model, map_location='cpu')
         return asr_model, asr_model.cfg
 
-    @classmethod
-    def get_mos_models_and_configs(cls, cfg):
-        import torchaudio
-        from torchaudio.pipelines import SQUIM_SUBJECTIVE
-        squim_mos_model = SQUIM_SUBJECTIVE.get_model()
-        return squim_mos_model
+    # @classmethod
+    # def get_mos_models_and_configs(cls, cfg):
+    #     import torchaudio
+    #     from torchaudio.pipelines import SQUIM_SUBJECTIVE
+    #     squim_mos_model = SQUIM_SUBJECTIVE.get_model()
+    #     return squim_mos_model
 
     @classmethod
     def load_pretrained_audio_weights(
@@ -992,8 +992,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         asr_model, asr_model_cfg = cls.get_asr_models_and_configs(cfg)
         logging.info(f"Loaded ASR Model: {asr_model}")
 
-        mos_model = cls.get_mos_models_and_configs(cfg)
-        logging.info(f"Loaded MOS Model: {mos_model}")
+        # mos_model = cls.get_mos_models_and_configs(cfg)
+        # logging.info(f"Loaded MOS Model: {mos_model}")
 
         speaker_model, speaker_cfg = cls.get_speaker_model_and_config(cfg)
         model_cfg = cls._modify_config(
@@ -1036,8 +1036,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # codec_model = AudioCodecModel.restore_from(cfg.model.codec_model_path)
         cls.codec_model = codec_model
         cls.asr_model = asr_model
-        cls.mos_model = mos_model
-        return model, codec_model, asr_model, mos_model
+        # cls.mos_model = mos_model
+        return model, codec_model, asr_model #, mos_model
 
     @classmethod
     def load_audio_encoder_for_inference(cls, cfg: DictConfig, model_cfg: DictConfig, model: ModelPT) -> ModelPT:
