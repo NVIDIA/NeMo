@@ -150,6 +150,8 @@ NVIDIA NeMo 2.0 introduces several significant improvements over its predecessor
 
 - **Scalability** - NeMo 2.0 seamlessly scaling large-scale experiments across thousands of GPUs using [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), a powerful tool designed to streamline the configuration, execution, and management of machine learning experiments across computing environments.
 
+Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendly framework for AI model development.
+
 > [!IMPORTANT]  
 > NeMo 2.0 is currently supported by the LLM (large language model) and VLM (vision language model) collections.
 
