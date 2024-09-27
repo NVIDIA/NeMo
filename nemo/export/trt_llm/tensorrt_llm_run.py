@@ -23,17 +23,16 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
+import tensorrt as trt
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
-from tensorrt_llm.lora_manager import LoraManager
-from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig, GenerationSession
-from tensorrt_llm.mapping import Mapping
-from tensorrt_llm.builder import Engine
 from tensorrt_llm._utils import mpi_comm
-import tensorrt as trt
-
+from tensorrt_llm.builder import Engine
+from tensorrt_llm.lora_manager import LoraManager
+from tensorrt_llm.mapping import Mapping
+from tensorrt_llm.quantization import QuantMode
+from tensorrt_llm.runtime import GenerationSession, ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
 from transformers import PreTrainedTokenizer
 
 LOGGER = logging.getLogger("NeMo")
@@ -485,20 +484,17 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     # https://github.com/terrykong/TensorRT-LLM/blob/05316d3313360012536ace46c781518f5afae75e/cpp/tensorrt_llm/runtime/gptJsonConfig.cpp#L478
     engine_filename = f"rank{engine_index}.engine"
     serialize_path = Path(engine_dir) / engine_filename
-    #$#$#$assert torch.cuda.current_device() == mpi_device
+    # $#$#$assert torch.cuda.current_device() == mpi_device
     with open(serialize_path, "rb") as f:
         engine_data = bytearray(f.read())
 
     with open(config_path) as f:
         json_config_str = f.read()
 
-    engine = Engine.from_buffer(
-        engine_buffer=engine_data,
-        json_config_str=json_config_str,
-        rank=model_parallel_rank)
+    engine = Engine.from_buffer(engine_buffer=engine_data, json_config_str=json_config_str, rank=model_parallel_rank)
     decoder = ModelRunner.from_engine(
         engine=engine,
-        #rank=world_config.rank,
+        # rank=world_config.rank,
         # We want the engine to have the mp_rank, but the python runtime to not resassign the device of the current process
         # So we will set it to the current
         rank=torch.cuda.current_device(),
@@ -523,7 +519,9 @@ def refit(weights_dict: dict):
     global tensorrt_llm_worker_context
     decoder = tensorrt_llm_worker_context.decoder
     if not isinstance(decoder, ModelRunner):
-        raise ValueError(f"Refit is only supported with ModelRunner, but export has been configured with {type(decoder)=}")
+        raise ValueError(
+            f"Refit is only supported with ModelRunner, but export has been configured with {type(decoder)=}"
+        )
 
     engine = decoder.session.runtime.engine
     # The session dtype plumbs the model_config's dtype
@@ -538,15 +536,19 @@ def refit(weights_dict: dict):
             skipped_weights.append(trt_name)
             continue
         trt_weight = trt.Weights(model_dtype, weight.data_ptr(), torch.numel(weight))
-        trt_wt_location = (
-                trt.TensorLocation.DEVICE if weight.is_cuda else trt.TensorLocation.HOST
-            )
-        assert model_dtype == refitter.get_weights_prototype(trt_name).dtype == maybe_cast_to_trt_dtype(weight.dtype), f"Expected all three of these dtypes to be the same {model_dtype=} {refitter.get_weights_prototype(trt_name).dtype=} weight.dtype={maybe_cast_to_trt_dtype(weight.dtype)}"
+        trt_wt_location = trt.TensorLocation.DEVICE if weight.is_cuda else trt.TensorLocation.HOST
+        assert (
+            model_dtype == refitter.get_weights_prototype(trt_name).dtype == maybe_cast_to_trt_dtype(weight.dtype)
+        ), f"Expected all three of these dtypes to be the same {model_dtype=} {refitter.get_weights_prototype(trt_name).dtype=} weight.dtype={maybe_cast_to_trt_dtype(weight.dtype)}"
 
-        refitter.set_named_weights(trt_name, trt_weight, trt_wt_location), f"Unable to set {trt_name=} {trt_weight=} {trt_wt_location=}"
+        refitter.set_named_weights(
+            trt_name, trt_weight, trt_wt_location
+        ), f"Unable to set {trt_name=} {trt_weight=} {trt_wt_location=}"
         remaining_refit_weights.remove(trt_name)
     if skipped_weights:
-        logging.warning(f"These weights were ignored during refit since they are not present in engine: {skipped_weights}")
+        logging.warning(
+            f"These weights were ignored during refit since they are not present in engine: {skipped_weights}"
+        )
     if remaining_refit_weights:
         logging.warning(f"Weights dict did not contain weights for these named TRT weights: {remaining_refit_weights}")
 
@@ -561,7 +563,9 @@ def unload_engine():
     global tensorrt_llm_worker_context
     decoder = tensorrt_llm_worker_context.decoder
     if not isinstance(decoder, ModelRunner):
-        raise ValueError(f"unload_engine is only supported with ModelRunner, but export has been configured with {type(decoder)=}")
+        raise ValueError(
+            f"unload_engine is only supported with ModelRunner, but export has been configured with {type(decoder)=}"
+        )
 
     logging.info("Unloading engine...")
     del tensorrt_llm_worker_context.decoder
