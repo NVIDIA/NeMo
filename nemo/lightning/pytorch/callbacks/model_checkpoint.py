@@ -430,13 +430,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 not self.save_optim_on_train_end and trainer.global_step == trainer.max_steps
             )
 
-            ## PEFT training must have save_weights_only=False to use the on_save_checkpoint callback.
-            ## (See https://github.com/Lightning-AI/pytorch-lightning/blob/bc3c9c536dc88bfa9a46f63fbce22b382a86a9cb/src/lightning/pytorch/trainer/connectors/checkpoint_connector.py#L487-L492)
-            # breakpoint()
-            # from nemo.lightning.pytorch.callbacks import PEFT
-            # if any(isinstance(callback, PEFT) for callback in trainer.callbacks):
-            #     save_weights_only = False
-
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
             finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
