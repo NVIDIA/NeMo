@@ -118,17 +118,18 @@ class ASSFileConfig:
 @dataclass
 class TextNormalizationConfig:
     enabled: bool = False
-    based_on: str = 'audio'
     input_case: str = 'cased'
     lang: str = 'en'
     deterministic: bool = True
-    n_tagged: Optional[int] = 30
     cache_dir: Optional[str] = None
     overwrite_cache: bool = False
     whitelist: Optional[str] = None
     lm: bool = False
     post_process: bool = True
     max_number_of_permutations_per_split: int = 729
+    punct_pre_process: bool = False,
+    punct_post_process: bool = True,
+    n_jobs: int = 1
 
 
 @dataclass
@@ -319,7 +320,6 @@ def main(cfg: AlignmentConfig):
     normalization_params = {}
     normalizer = None
     if cfg.text_normalization.enabled:
-        if cfg.text_normalization.based_on == "text_only":
             from nemo_text_processing.text_normalization.normalize import Normalizer
 
             normalizer = Normalizer(
@@ -333,21 +333,10 @@ def main(cfg: AlignmentConfig):
                 post_process=cfg.text_normalization.post_process,
                 max_number_of_permutations_per_split=cfg.text_normalization.max_number_of_permutations_per_split,
             )
-        else:
-            from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
-
-            normalizer = NormalizerWithAudio(
-                input_case=cfg.text_normalization.input_case,
-                lang=cfg.text_normalization.lang,
-                cache_dir=cfg.text_normalization.cache_dir,
-                overwrite_cache=cfg.text_normalization.overwrite_cache,
-                whitelist=cfg.text_normalization.whitelist,
-                lm=cfg.text_normalization.lm,
-                post_process=cfg.text_normalization.post_process,
-                max_number_of_permutations_per_split=cfg.text_normalization.max_number_of_permutations_per_split,
-            )
-
-            normalization_params = {"n_tagged": cfg.text_normalization.n_tagged}
+            
+            normalization_params = {"punct_pre_process": cfg.text_normalization.punct_pre_process, 
+                                    "punct_post_process" : cfg.text_normalization.punct_post_process,
+                                    "n_jobs" : cfg.text_normalization.punct_post_process.n_jobs} 
 
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None

@@ -4,6 +4,7 @@ from typing import Type, Union
 from utils.units import Alignment, Segment, Token, Word
 
 from nemo.utils import logging
+from nemo_text_processing.text_normalization.normalize import Normalizer 
 
 
 class BaseAligner(ABC):
@@ -19,7 +20,7 @@ class BaseAligner(ABC):
         pass
 
     @staticmethod
-    def text_to_segments(text, separator: str = None):
+    def text_to_segments(text, separator: str = None, normalizer: Normalizer = None, normalization_params: dict = None):
         if separator:
             segmented_text = text.split(separator)
         else:
@@ -27,9 +28,13 @@ class BaseAligner(ABC):
 
         segmented_text = [seg for seg in [seg.strip() for seg in segmented_text] if len(seg) > 0]
 
+        if normalizer:
+            normalized_text = normalizer.normalize_list(texts = segmented_text, **normalization_params) 
+            return normalized_text
+
         return segmented_text
 
-    def is_alignable(self, text, T: int):
+    def is_alignable(self, text: str, T: int):
         if text is None or len(text) == 0:
             logging.info(f"utterance is empty - we will not generate" " any output alignment files for this utterance")
             return False

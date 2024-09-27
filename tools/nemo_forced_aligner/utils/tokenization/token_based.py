@@ -4,6 +4,8 @@ from utils import constants
 from utils.tokenization.abc_aligner import BaseAligner
 from utils.units import Alignment, BlankToken, Segment, Token, Word
 
+from nemo_text_processing.text_normalization.normalize import Normalizer 
+
 
 class TokenBasedAligner(BaseAligner):
     def __init__(self, tokenizer, **kwargs):
@@ -90,7 +92,7 @@ class TokenBasedAligner(BaseAligner):
 
         return word_tokens_cased
 
-    def align(self, alignment: Alignment, T: int, separator: str = None):
+    def align(self, alignment: Alignment, T: int, separator: str = None, normalizer: Normalizer = None, normalization_params: dict = None):
         super().align(alignment)
 
         if not self.is_alignable(alignment.text, T):
@@ -103,7 +105,7 @@ class TokenBasedAligner(BaseAligner):
         alignment.token_ids_with_blanks = [constants.BLANK_ID]
         token_s_pointer = 1
 
-        text_segments = self.text_to_segments(alignment.text, separator)
+        text_segments = self.text_to_segments(alignment.text, separator, normalizer, normalization_params)
 
         for text_segment in text_segments:
             segment, segment_tokens, segment_s_pointer = self.align_unit(

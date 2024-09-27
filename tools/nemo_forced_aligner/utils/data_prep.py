@@ -141,11 +141,7 @@ def create_utt_batch(
 
     for utt, T in zip(batch.utterances, batch.T_list):
         if align_using_text:
-            if normalizer is not None:
-                utt.text.text = normalizer.normalize(
-                    text=utt.text.text, pred_text=utt.pred_text.text, **normalization_params
-                )
-            aligner.align(utt.text, T, separator=separator)
+            aligner.align(utt.text, T, separator=separator, normalizer=normalizer, normalization_params=normalization_params)
         if align_using_pred_text:
             aligner.align(utt.pred_text, T)
 
