@@ -7,7 +7,7 @@ from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
 from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
-    TextProcessing,
+    PromptFormatterTextProcessing,
     build_loss_mask,
     ceil_to_nearest,
 )
@@ -48,7 +48,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        text_processor: TextProcessing,
+        text_processor: PromptFormatterTextProcessing,
         default_context: str,
         tokens_to_generate: int,
         pad_to_max_length: bool,
@@ -115,8 +115,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             pad_id = self.text_processor.pad_id
             text_minibatch = dict(
                 text_input_ids=collate_vectors_lhotse([e.input_ids for e in text_examples], padding_value=pad_id),
+                text_input_lens=torch.tensor([len(e.input_ids) for e in text_examples], dtype=torch.int64),
                 text_answer_ids=collate_vectors_lhotse([e.answer_ids for e in text_examples], padding_value=pad_id),
+                text_answer_lens=torch.tensor([len(e.answer_ids) for e in text_examples], dtype=torch.int64),
                 text_context_ids=collate_vectors_lhotse([e.context_ids for e in text_examples], padding_value=pad_id),
+                text_context_lens=torch.tensor([len(e.context_ids) for e in text_examples], dtype=torch.int64),
                 text_masks=collate_vectors_lhotse([e.mask for e in text_examples], padding_value=0),
             )
             ans.update(text_minibatch)
@@ -127,7 +130,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 def collate_text_data(
     cuts,
     default_context: str,
-    text_processor: TextProcessing,
+    text_processor: PromptFormatterTextProcessing,
     tokens_to_generate: int,
     pad_to_max_length: bool,
     max_seq_length: int,
@@ -135,47 +138,37 @@ def collate_text_data(
     """Perform text collation equivalent to nemo/collections/multimodal/data/audio_text_qa_dataset.py:121"""
     batch_size = len(cuts)
     pad_id = text_processor.pad_id
-    examples = [
-        {
-            k: torch.as_tensor(v)
-            for k, v in text_processor._process_example(
-                context=cut.context,
-                output=cut.supervisions[0].text if cut.supervisions[0].text is not None else "",
-            ).items()
-        }
-        for cut in cuts
-    ]
+    examples = [{k: torch.as_tensor(v) for k, v in text_processor._process_example(cut).items()} for cut in cuts]
     fields = as_dict(examples)
 
     def get_max_len(input_list):
         return max([len(x) for x in input_list])
 
-    max_length = tokens_to_generate + max(
-        get_max_len(fields["input_ids"]), get_max_len(fields["context_ids"]), get_max_len(fields["answer_ids"])
-    )
-    # increase max length to nearest multiple of 4 or 8
+    input_id_maxlen = tokens_to_generate + get_max_len(fields["input_ids"])
+    context_id_maxlen = tokens_to_generate + get_max_len(fields["context_ids"])
+    answer_id_maxlen = tokens_to_generate + get_max_len(fields["answer_ids"])
     if pad_to_max_length:
-        max_length = max_seq_length
-    else:
-        max_length = min(max_seq_length, ceil_to_nearest(max_length, 8))
+        input_id_maxlen = max_seq_length
+        context_id_maxlen = max_seq_length
+        answer_id_maxlen = max_seq_length
 
-    all_tokens = collate_vectors(fields["input_ids"], max_length=max_length, padding_value=pad_id)
+    all_tokens = collate_vectors(fields["input_ids"], max_length=input_id_maxlen, padding_value=pad_id)
     full_lengths = torch.LongTensor([len(item) for item in fields["input_ids"]])
 
-    assert max_length <= max_seq_length, f"{max_length=} <= {max_seq_length=}"
+    assert input_id_maxlen <= max_seq_length, f"{input_id_maxlen=} <= {max_seq_length=}"
 
     return {
         "tokens": all_tokens[:, :-1],
         "tokens_length": full_lengths - 1,
         "labels": all_tokens[:, 1:],
         "loss_mask": collate_vectors(
-            [torch.as_tensor(build_loss_mask(item)) for item in examples], max_length=max_length, padding_value=0
+            [torch.as_tensor(build_loss_mask(item)) for item in examples], max_length=input_id_maxlen, padding_value=0
         )[:, 1:],
-        "position_ids": torch.arange(max_length, dtype=torch.long).repeat(batch_size, 1),
-        "contexts": collate_vectors(fields["context_ids"], max_length=max_length, padding_value=pad_id),
+        "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(batch_size, 1),
+        "contexts": collate_vectors(fields["context_ids"], max_length=context_id_maxlen, padding_value=pad_id),
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
-        "answers": collate_vectors(fields["answer_ids"], max_length=max_length, padding_value=pad_id),
-        "max_length": torch.LongTensor([max_length] * batch_size),
+        "answers": collate_vectors(fields["answer_ids"], max_length=answer_id_maxlen, padding_value=pad_id),
+        "max_length": torch.LongTensor([input_id_maxlen] * batch_size),
     }
 
 
