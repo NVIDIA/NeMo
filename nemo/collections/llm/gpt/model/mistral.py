@@ -58,7 +58,7 @@ class MistralConfig7B(GPTConfig):
 
 
 @dataclass
-class MistralNeMo2407Config12B(MistralConfig7B):
+class MistralNeMoConfig12B(MistralConfig7B):
     """
     https://mistral.ai/news/mistral-nemo/
     """
@@ -74,7 +74,7 @@ class MistralNeMo2407Config12B(MistralConfig7B):
 
 
 @dataclass
-class MistralNeMo2407Config123B(MistralConfig7B):
+class MistralNeMoConfig123B(MistralConfig7B):
     """
     https://mistral.ai/news/mistral-large-2407/
     """
@@ -324,7 +324,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0).float()
+    return torch.cat((down, gate), axis=0)
 
 
 @io.state_transform(

@@ -12,7 +12,7 @@ from nemo.collections.llm.recipes.log.default import default_log
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.utils import Config, Partial, factory
 
-NAME = "mistral"
+NAME = "mistral_7b"
 
 
 @factory(name=NAME)
