@@ -69,7 +69,7 @@ def main(args):
     trainer = Trainer(
         log_every_n_steps=1,
         devices=args.devices,
-        max_steps=4,
+        max_steps=args.max_steps,
         accelerator="gpu",
         strategy=strategy,
         num_sanity_val_steps=0,
