@@ -21,17 +21,11 @@ from typing import List, Optional
 
 import torch
 from omegaconf import OmegaConf
-from utils.data_prep import (
-    add_t_start_end_to_utt_obj,
-    get_batch_starts_ends,
-    get_batch_variables,
-    get_manifest_lines_batch,
-    is_entry_in_all_lines,
-    is_entry_in_any_lines,
-)
+from utils.data_prep import create_utt_batch, is_entry_in_all_lines, is_entry_in_any_lines
 from utils.make_ass_files import make_ass_files
 from utils.make_ctm_files import make_ctm_files
 from utils.make_output_manifest import write_manifest_out_line
+from utils.units import Batch
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -122,6 +116,23 @@ class ASSFileConfig:
 
 
 @dataclass
+class TextNormalizationConfig:
+    enabled: bool = False
+    input_case: str = 'cased'
+    lang: str = 'en'
+    deterministic: bool = True
+    cache_dir: Optional[str] = None
+    overwrite_cache: bool = False
+    whitelist: Optional[str] = None
+    lm: bool = False
+    post_process: bool = True
+    max_number_of_permutations_per_split: int = 729
+    punct_pre_process: bool = False
+    punct_post_process: bool = True
+    n_jobs: int = 1
+
+
+@dataclass
 class AlignmentConfig:
     # Required configs
     pretrained_name: Optional[str] = None
@@ -130,6 +141,7 @@ class AlignmentConfig:
     output_dir: Optional[str] = None
 
     # General configs
+    align_using_text: bool = True
     align_using_pred_text: bool = False
     transcribe_device: Optional[str] = None
     viterbi_device: Optional[str] = None
@@ -143,6 +155,10 @@ class AlignmentConfig:
     chunk_len_in_secs: float = 1.6
     total_buffer_in_secs: float = 4.0
     chunk_batch_size: int = 32
+    model_stride: int = 8
+
+    # Text Normalization config
+    text_normalization: TextNormalizationConfig = TextNormalizationConfig()
 
     # Cache aware streaming configs
     simulate_cache_aware_streaming: Optional[bool] = False
@@ -213,11 +229,12 @@ def main(cfg: AlignmentConfig):
                 "contains 'pred_text' entries. This is because the audio will be transcribed and may produce "
                 "a different 'pred_text'. This may cause confusion."
             )
-    else:
+
+    if cfg.align_using_text:
         if not is_entry_in_all_lines(cfg.manifest_filepath, "text"):
             raise RuntimeError(
                 "At least one line in cfg.manifest_filepath does not contain a 'text' entry. "
-                "NFA requires all lines to contain a 'text' entry when cfg.align_using_pred_text=False."
+                "NFA requires all lines to contain a 'text' entry when cfg.align_using_text=True."
             )
 
     # init devices
@@ -281,7 +298,7 @@ def main(cfg: AlignmentConfig):
         OmegaConf.set_struct(model_cfg.preprocessor, True)
 
         feature_stride = model_cfg.preprocessor['window_stride']
-        model_stride_in_secs = feature_stride * cfg.model_downsample_factor
+        model_stride_in_secs = feature_stride * cfg.model_stride
         total_buffer = cfg.total_buffer_in_secs
         chunk_len = float(cfg.chunk_len_in_secs)
         tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
@@ -299,8 +316,29 @@ def main(cfg: AlignmentConfig):
             "model_stride_in_secs": model_stride_in_secs,
             "tokens_per_chunk": tokens_per_chunk,
         }
-    # get start and end line IDs of batches
-    starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
+
+    normalization_params = {}
+    normalizer = None
+    if cfg.text_normalization.enabled:
+        from nemo_text_processing.text_normalization.normalize import Normalizer
+
+        normalizer = Normalizer(
+            input_case=cfg.text_normalization.input_case,
+            lang=cfg.text_normalization.lang,
+            deterministic=cfg.text_normalization.deterministic,
+            cache_dir=cfg.text_normalization.cache_dir,
+            overwrite_cache=cfg.text_normalization.overwrite_cache,
+            whitelist=cfg.text_normalization.whitelist,
+            lm=cfg.text_normalization.lm,
+            post_process=cfg.text_normalization.post_process,
+            max_number_of_permutations_per_split=cfg.text_normalization.max_number_of_permutations_per_split,
+        )
+
+        normalization_params = {
+            "punct_pre_process": cfg.text_normalization.punct_pre_process,
+            "punct_post_process": cfg.text_normalization.punct_post_process,
+            "n_jobs": cfg.text_normalization.n_jobs,
+        }
 
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None
@@ -312,36 +350,67 @@ def main(cfg: AlignmentConfig):
     f_manifest_out = open(tgt_manifest_filepath, 'w')
 
     # get alignment and save in CTM batch-by-batch
-    for start, end in zip(starts, ends):
-        manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
+    for manifest_lines_batch in Batch.chunk_manifest(cfg.manifest_filepath, cfg.batch_size):
 
-        (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
+        utt_batch = create_utt_batch(
             manifest_lines_batch,
             model,
             cfg.additional_segment_grouping_separator,
+            cfg.align_using_text,
             cfg.align_using_pred_text,
             cfg.audio_filepath_parts_in_utt_id,
             output_timestep_duration,
             cfg.simulate_cache_aware_streaming,
             cfg.use_buffered_chunked_streaming,
             buffered_chunk_params,
+            normalizer,
+            normalization_params,
         )
 
-        alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
+        if cfg.align_using_text:
+            text_based_output_dir = os.path.join(cfg.output_dir, "text_based")
+            os.makedirs(text_based_output_dir, exist_ok=True)
 
-        for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
-
-            utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
-
-            if "ctm" in cfg.save_output_file_formats:
-                utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
-
-            if "ass" in cfg.save_output_file_formats:
-                utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
-
-            write_manifest_out_line(
-                f_manifest_out, utt_obj,
+            text_alignments_batch = viterbi_decoding(
+                utt_batch.log_probs, utt_batch.texts_batch.y, utt_batch.T, utt_batch.texts_batch.U, viterbi_device
             )
+
+        if cfg.align_using_pred_text:
+            pred_text_based_output_dir = os.path.join(cfg.output_dir, "pred_text_based")
+            os.makedirs(pred_text_based_output_dir, exist_ok=True)
+
+            pred_text_alignments_batch = viterbi_decoding(
+                utt_batch.log_probs,
+                utt_batch.pred_texts_batch.y,
+                utt_batch.T,
+                utt_batch.pred_texts_batch.U,
+                viterbi_device,
+            )
+
+        for i_utt, utt in enumerate(utt_batch.utterances):
+            utt_id = utt.utt_id
+
+            if cfg.align_using_text:
+                utt.text.add_t_start_end(text_alignments_batch[i_utt], utt_batch.output_timestep_duration)
+
+                if "ctm" in cfg.save_output_file_formats:
+                    make_ctm_files(utt.text, utt_id, text_based_output_dir, cfg.ctm_file_config)
+
+                if "ass" in cfg.save_output_file_formats:
+                    make_ass_files(utt.text, utt.audio_filepath, utt_id, text_based_output_dir, cfg.ass_file_config)
+
+            if cfg.align_using_pred_text:
+                utt.pred_text.add_t_start_end(pred_text_alignments_batch[i_utt], utt_batch.output_timestep_duration)
+
+                if "ctm" in cfg.save_output_file_formats:
+                    make_ctm_files(utt.pred_text, utt_id, pred_text_based_output_dir, cfg.ctm_file_config)
+
+                if "ass" in cfg.save_output_file_formats:
+                    make_ass_files(
+                        utt.pred_text, utt.audio_filepath, utt_id, pred_text_based_output_dir, cfg.ass_file_config
+                    )
+
+            write_manifest_out_line(f_manifest_out, utt)
 
     f_manifest_out.close()
 
