@@ -148,18 +148,16 @@ NVIDIA NeMo 2.0 introduces several significant improvements over its predecessor
 
 - **Modular Abstractions** - By adopting PyTorch Lightning’s modular abstractions, NeMo 2.0 simplifies adaptation and experimentation. This modular approach allows developers to more easily modify and experiment with different components of their models.
 
-- **Scalability** - NeMo 2.0 seamlessly scaling large-scale experiments across thousands of GPUs using [NeMo-Run](https://github.com/NVIDIA/NeMo-Run).
-
-- **Training Throughput** - NeMo 2.0 efficiently handles large-scale models and datasets. It manages large batch sizes and sequence lengths, distributing model components across GPUs through model parallelization.
-
-Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendly framework for AI model development.
+- **Scalability** - NeMo 2.0 seamlessly scaling large-scale experiments across thousands of GPUs using [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), a powerful tool designed to streamline the configuration, execution, and management of machine learning experiments across computing environments.
 
 > [!IMPORTANT]  
-> NeMo 2.0 is currently supported by the LLM and VLM collections.
+> NeMo 2.0 is currently supported by the LLM (large language model) and VLM (vision language model) collections.
 
 ### Get Started with NeMo 2.0
 
+- Refer to the [Quickstart](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html) for examples of using NeMo-Run to launch NeMo 2.0 experiments locally and on a slurm cluster.
 - For more information about NeMo 2.0, see the [NeMo Framework User Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html).
+- [NeMo 2.0 Recipes](https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes) contains additional examples of launching large-scale runs using NeMo 2.0 and NeMo-Run.
 - For an in-depth exploration of the main features of NeMo 2.0, see the [Feature Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/features/index.html#feature-guide).
 - To transition from NeMo 1.0 to 2.0, see the [Migration Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/index) for step-by-step instructions.
 
@@ -205,6 +203,9 @@ NeMo ASR and TTS models can be optimized for inference and deployed for
 production use cases with [NVIDIA Riva](https://developer.nvidia.com/riva).
 
 ## NeMo Framework Launcher
+
+> [!IMPORTANT]  
+> NeMo Framework Launcher is compatible with NeMo version 1.0 only. [NeMo-Run](https://github.com/NVIDIA/NeMo-Run) is recommended for launching experiments using NeMo 2.0.
 
 [NeMo Framework
 Launcher](https://github.com/NVIDIA/NeMo-Megatron-Launcher) is a
