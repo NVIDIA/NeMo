@@ -54,7 +54,7 @@ jobs:
       image-name: nemo_container
   
   cicd-test-container-setup:
-    needs: [cicd-cluster-clean, pre-flight, build-container]
+    needs: [pre-flight, build-container]
     runs-on: self-hosted-azure-builder
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     outputs:
