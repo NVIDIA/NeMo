@@ -17,10 +17,10 @@ from typing import Optional, Union
 
 from omegaconf.dictconfig import DictConfig
 
-from ..huggingface.huggingface_decoder import HuggingFaceDecoderModule
-from ..huggingface.huggingface_encoder import HuggingFaceEncoderModule
-from .transformer import TransformerDecoderNM, TransformerEncoderNM
-from .transformer_bottleneck import TransformerBottleneckEncoderNM
+from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import HuggingFaceDecoderModule
+from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
+from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
+from nemo.collections.nlp.modules.common.transformer.transformer_bottleneck import TransformerBottleneckEncoderNM
 
 
 def get_nemo_transformer(
