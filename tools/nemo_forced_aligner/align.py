@@ -337,7 +337,7 @@ def main(cfg: AlignmentConfig):
         normalization_params = {
             "punct_pre_process": cfg.text_normalization.punct_pre_process,
             "punct_post_process": cfg.text_normalization.punct_post_process,
-            "n_jobs": cfg.text_normalization.punct_post_process.n_jobs,
+            "n_jobs": cfg.text_normalization.n_jobs,
         }
 
     # init output_timestep_duration = None and we will calculate and update it during the first batch
