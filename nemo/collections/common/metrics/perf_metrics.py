@@ -43,7 +43,7 @@ class FLOPsMeasurementCallback(Callback):
 
         self.run_cfg = self.cfg.get('run', {})
         # exp_manager = None is valid and indicates no exp_manager should be initialized
-        self.exp_cfg = (self.cfg.get('exp_manager', {}) or {})
+        self.exp_cfg = self.cfg.get('exp_manager', {}) or {}
         self.train_cfg = self.cfg.get('trainer', {})
         self.model_cfg = self.cfg.get('model', {})
 

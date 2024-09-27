@@ -148,7 +148,9 @@ class MegatronTrainerBuilder:
             self.cfg.model.get('mcore_gpt', False) or self.cfg.model.get('mcore_bert', False)
         )
         # exp_manager == None is valid and indicates no exp_manager should be initialized
-        async_save = (self.cfg.get('exp_manager', {}) or {}).get('checkpoint_callback_params', {}).get('async_save', False)
+        async_save = (
+            (self.cfg.get('exp_manager', {}) or {}).get('checkpoint_callback_params', {}).get('async_save', False)
+        )
         if use_dist_ckpt:
             checkpoint_io = DistributedCheckpointIO.from_config(self.cfg.model, async_save)
             if async_save:
