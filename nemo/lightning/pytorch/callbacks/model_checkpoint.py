@@ -440,8 +440,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         ## manually update last_model_path so symlink is up-to-date
         ## should only be done when using a symlink
-        if self.save_last == "link" and not str(ckpt_to_dir(filepath)).endswith("last"):
-            self.future_last_model_path = str(ckpt_to_dir(filepath)) + "-last.ckpt"
+
+        ## if we're not creating a symlink, this could go wrong?
+        ## if we never enter into this for loop, we'll end up with problems
+        if self.save_last == "link":
+            self.future_last_model_path = str(ckpt_to_dir(filepath))
+            if not str(ckpt_to_dir(filepath)).endswith("last"):
+                self.future_last_model_path += "-last.ckpt"
 
         if ema_callback is not None:
             if self.async_save:

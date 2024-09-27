@@ -91,16 +91,28 @@ class PassThroughLossReduction(MegatronLossReduction):
 class ExampleModel(pl.LightningModule, IOMixin):
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.l1 = torch.nn.modules.Linear(in_features=32, out_features=32)
-        self.bn = torch.nn.BatchNorm1d(32)
-        self.model_type = "test"
-        self.validation_step_outputs = []
 
-        class DummyConfig(ModelParallelConfig):
-            calculate_per_token_loss: bool = False
-            fp8: bool = False
+        ## keeps track of number of validation steps
+        self.count = torch.zeros((1,))
 
-        self.config = DummyConfig()
+    def configure_model(self):
+
+        class NestedModel(torch.nn.Module):
+
+            def __init__(self):
+                super().__init__()
+                self.l1 = torch.nn.modules.Linear(in_features=32, out_features=32)
+                self.bn = torch.nn.BatchNorm1d(32)
+                self.model_type = "test"
+                self.validation_step_outputs = []
+
+                class DummyConfig(ModelParallelConfig):
+                    calculate_per_token_loss: bool = False
+                    fp8: bool = False
+
+                self.config = DummyConfig()
+
+        self.module = NestedModel()
 
     def forward(self, batch):
         return self.l1(self.bn(batch)).sum()
@@ -123,9 +135,11 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return self(batch)
 
     def validation_step(self, batch):
-        loss = self(batch)
-        self.validation_step_outputs.append(loss)
-        return loss
+        ## use a dummy validation loss to ensure that loss is decreasing at each step
+        ## which guarantees that the -last checkpoints will be symlinks if specified
+        self.count += 1
+        self.validation_step_outputs.append(-self.count)
+        return -self.count
 
     def test_step(self, batch):
         loss = self(batch)
@@ -139,9 +153,6 @@ class ExampleModel(pl.LightningModule, IOMixin):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
         self.validation_step_outputs.clear()  # free memory
 
-    def configure_model(self):
-        self.module = ExampleModel()
-
     def set_input_tensor(self, input_tensor: Optional[Tensor]) -> None:
         pass
 
@@ -153,22 +164,31 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return PassThroughLossReduction()
 
 
-def setup_test(path, async_save=False):
+def setup_test(path, async_save=False, max_epochs=3):
     model = ExampleModel()
 
     data = RandomDataset(32, 64)
+
+    resume = nl.AutoResume(
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=True,
+    )
 
     nemo_logger = nl.NeMoLogger(
         log_dir=path,
         use_datetime_version=False,
     )
 
-    strategy = nl.MegatronStrategy(ckpt_async_save=async_save, replace_progress_bar=False)
+    strategy = nl.MegatronStrategy(
+        ckpt_async_save=async_save,
+        replace_progress_bar=False,
+    )
 
     trainer = nl.Trainer(
-        max_epochs=5,
+        max_epochs=max_epochs,
         devices=1,
-        val_check_interval=5,
+        val_check_interval=6,
+        log_every_n_steps=4,
         callbacks=nl.ModelCheckpoint(
             monitor="val_loss",
             save_top_k=3,
@@ -180,9 +200,21 @@ def setup_test(path, async_save=False):
         strategy=strategy,
     )
     nemo_logger.setup(trainer)
+    resume.setup(trainer)
+
 
     return data, model, trainer
 
+def get_final_checkpoint(checkpoint_dir):
+    dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
+    last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
+
+    assert len(last_checkpoints) == 1  ## should only have one -last checkpoint
+    final_ckpt = last_checkpoints[0]
+
+    top_k_checkpoints = [d for d in dist_checkpoints if d not in last_checkpoints]
+
+    return final_ckpt, top_k_checkpoints
 
 class TestLinkCheckpoint:
 
@@ -198,13 +230,9 @@ class TestLinkCheckpoint:
             trainer.fit(model, data)
 
             checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
-            dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
-            last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
-            assert len(last_checkpoints) == 1  ## should only have one -last checkpoint
-            final_ckpt = last_checkpoints[0]
+            final_ckpt, top_k_checkpoints = get_final_checkpoint(checkpoint_dir)
             assert os.path.islink(final_ckpt)
 
-            top_k_checkpoints = [d for d in dist_checkpoints if d not in last_checkpoints]
             ## make sure we're saving the expected number of checkpoints
             assert len(top_k_checkpoints) == 3
 
@@ -223,14 +251,34 @@ class TestLinkCheckpoint:
             trainer.fit(model, data)
 
             checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
-            dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
-            last_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
-            assert len(last_checkpoints) == 1  ## should only have one -last checkpoint
-            final_ckpt = last_checkpoints[0]
+            final_ckpt, top_k_checkpoints = get_final_checkpoint(checkpoint_dir)
             assert os.path.islink(final_ckpt)
-
-            top_k_checkpoints = [d for d in dist_checkpoints if d not in last_checkpoints]
             assert len(top_k_checkpoints) == 3
 
             link = final_ckpt.resolve()
             assert str(final_ckpt).replace("-last", "") == str(link)
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on("GPU")
+    def test_restore_async(self, tmpdir):
+        """Test to ensure that we always keep top_k checkpoints, even after resuming."""
+
+        with reset_megatron_parallel_state():
+            tmp_path = tmpdir / "async_link_ckpt_test"
+            data, model, trainer = setup_test(tmp_path, async_save=True, max_epochs=3)
+
+            trainer.fit(model, data)
+
+            ## reinitialize
+            data, model, trainer = setup_test(tmp_path, async_save=True, max_epochs=6)
+
+            trainer.fit(model, data)
+
+            checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
+            final_ckpt, top_k_checkpoints = get_final_checkpoint(checkpoint_dir)
+            assert os.path.islink(final_ckpt)
+            assert len(top_k_checkpoints) == 3
+
+            epoch = str(final_ckpt).split('epoch=')[1][0]
+            assert int(epoch) == 5 ## make sure we're running the correct number of epochs
+
