@@ -52,6 +52,7 @@ class AppState(metaclass=Singleton):
         self._virtual_pipeline_model_parallel_size = None
         self._pipeline_model_parallel_group = None
         self._pipeline_model_parallel_split_rank = None
+        self.data_parallel_comm_backend = None
         self._is_megatron_initialized = False
         self._data_parallel_size = None
         self._data_parallel_group = None
@@ -151,6 +152,22 @@ class AppState(metaclass=Singleton):
             size (int):  Number of GPUs in each model parallel group.
         """
         self._tensor_model_parallel_size = size
+
+    @property
+    def data_parallel_comm_backend(self):
+        """Property returns the backend communication library of data parallel communication.
+        Returns:
+            Backend communication library of data parallel communication.
+        """
+        return self._data_parallel_comm_backend
+
+    @data_parallel_comm_backend.setter
+    def data_parallel_comm_backend(self, backend):
+        """Property sets the backend communication library of data parallel communication.
+        Args:
+            backend (str): Backend communication library of data parallel communication.
+        """
+        self._data_parallel_comm_backend = backend
 
     @property
     def expert_model_parallel_rank(self):
