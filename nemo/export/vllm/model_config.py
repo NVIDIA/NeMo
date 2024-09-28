@@ -77,6 +77,7 @@ class NemoModelConfig(ModelConfig):
         self.max_logprobs = max_logprobs
         self.disable_sliding_window = disable_sliding_window
         self.served_model_name = nemo_checkpoint
+        self.multimodal_config = None
 
         self.model_converter = get_model_converter(model_type)
         if self.model_converter is None:

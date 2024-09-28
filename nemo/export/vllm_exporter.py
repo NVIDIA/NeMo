@@ -248,7 +248,7 @@ class vLLMExporter(ITritonDeployable):
             device_config=device_config,
             load_config=load_config,
             lora_config=lora_config,
-            multimodal_config=None,
+            #multimodal_config=None,
             speculative_config=None,
             decoding_config=None,
             observability_config=None,
@@ -295,7 +295,7 @@ class vLLMExporter(ITritonDeployable):
         if top_p <= 0.0:
             top_p = 1.0
 
-        sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p)
+        sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=int(top_k), top_p=top_p)
 
         if lora_uid is not None and lora_uid >= 0 and lora_uid < len(self.lora_checkpoints):
             lora_request = LoRARequest(

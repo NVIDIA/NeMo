@@ -436,7 +436,7 @@ def run_inference(
         if test_deployment:
             nm.stop()
 
-        if not save_trt_engine:
+        if not save_trt_engine and model_dir:
             shutil.rmtree(model_dir)
 
         return (functional_result, accuracy_result)
