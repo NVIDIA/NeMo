@@ -17,6 +17,9 @@ from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncode
 @dataclass
 class LlamaImageTextRawBatch(ImageTextRawBatch):
     vision_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    num_tiles: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
 
 
 class LlamaTaskEncoder(MultiModalTaskEncoder):
@@ -28,6 +31,7 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
 
     def batch(self, samples: List[LlamaImageTextSample]) -> LlamaImageTextRawBatch:
         keys, images, tokens, labels, loss_mask, vision_mask = [], [], [], [], [], []
+        aspect_ratio_ids, aspect_ratio_mask, num_tiles = [], [], []
         for sample in samples:
             keys.append(sample.__key__)
             images.append(sample.images)
@@ -35,6 +39,9 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
             labels.append(sample.labels)
             loss_mask.append(sample.loss_mask)
             vision_mask.append(sample.vision_mask)
+            aspect_ratio_ids.append(sample.aspect_ratio_ids)
+            aspect_ratio_mask.append(sample.aspect_ratio_mask)
+            num_tiles.append(sample.num_tiles)
 
         batch_keys = batch_list(keys)
         batch_images = batch_pad_stack(images)
@@ -44,6 +51,9 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
 
         batch_loss_mask = batch_pad_stack(loss_mask)
         batch_vision_mask = batch_pad_stack(vision_mask)
+        batch_aspect_ratio_ids = batch_pad_stack(aspect_ratio_ids)
+        batch_aspect_ratio_mask = batch_pad_stack(aspect_ratio_mask)
+        batch_num_tiles = torch.tensor(num_tiles)
         return LlamaImageTextRawBatch(
             __keys__=batch_keys,
             images=batch_images,
@@ -51,4 +61,7 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
             labels=batch_labels,
             loss_mask=batch_loss_mask,
             vision_mask=batch_vision_mask,
+            aspect_ratio_ids=batch_aspect_ratio_ids,
+            aspect_ratio_mask=batch_aspect_ratio_mask,
+            num_tiles=batch_num_tiles,
         )

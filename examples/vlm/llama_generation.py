@@ -46,8 +46,8 @@ def main() -> None:
     # Decide whether to import or load the model based on the input arguments
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
-    model = vlm.LlamaCrossAttentionModel(
-        vlm.LlamaCrossAttentionModelConfig(
+    model = vlm.MLlamaModel(
+        vlm.MLlamaModelConfig(
             language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=True, apply_rope_fusion=False),
             vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280,
                                                                     num_attention_heads=16, vision_chunk_size=448,
