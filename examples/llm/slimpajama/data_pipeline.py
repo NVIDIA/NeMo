@@ -29,9 +29,7 @@ def slurm_executor(
     if custom_mounts:
         mounts.extend(custom_mounts)
 
-    env_vars = {
-        "NVIDIA_VISIBLE_DEVICES": "void"
-    }
+    env_vars = {"NVIDIA_VISIBLE_DEVICES": "void"}
     if custom_env_vars:
         env_vars |= custom_env_vars
 
@@ -76,17 +74,24 @@ def docker_executor():
 def run_data_pipeline():
     executor = docker_executor()
     with run.Experiment("slimpajama-data-pipeline") as exp:
-        exp.add(download_slimpajama(include_pattern='--include "train/chunk1/*_1*zst"',), name="download_slimpajama", executor=executor)
+        exp.add(
+            download_slimpajama(
+                include_pattern='--include "train/chunk1/*_1*zst"',
+            ),
+            name="download_slimpajama",
+            executor=executor,
+        )
 
         # Use NeMo image for the remaining tasks
-        executor.container_image = (
-            "nvcr.io/nvidia/nemo:dev"
-        )
+        executor.container_image = "nvcr.io/nvidia/nemo:dev"
         exp.add(run.Partial(run_extraction, data_dir="/data/slimpajama"), executor=executor)
 
         # examples/llm/slimpajama is automatically mounted to /nemo_run/code
         exp.add(run.Script("/nemo_run/code/data/concat.sh", args=["/data/slimpajama/train", "1"]), executor=executor)
-        exp.add(run.Partial(preprocess_data, data_dir="/data/slimpajama", output_dir="/data/slimpajama_megatron"), executor=executor)
+        exp.add(
+            run.Partial(preprocess_data, data_dir="/data/slimpajama", output_dir="/data/slimpajama_megatron"),
+            executor=executor,
+        )
 
         exp.run(sequential=True, tail_logs=True, detach=True)
 

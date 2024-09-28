@@ -86,7 +86,4 @@ def preprocess_data(
         final_cmds.append((final_cmd, task_id))
 
     with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
-        pool.map(
-            execute_cmd,
-            final_cmds
-        )
+        pool.map(execute_cmd, final_cmds)
