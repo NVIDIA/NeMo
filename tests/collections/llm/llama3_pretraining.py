@@ -30,6 +30,11 @@ def get_args():
     )
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
     parser.add_argument('--seq-length', type=int, default=8192, help="Sequence length. default is 8k")
+    parser.add_argument('--tp', type=int, default=None, help="Override tensor parallelism")
+    parser.add_argument('--pp', type=int, default=None, help="Override pipeline parallelism")
+    parser.add_argument('--vp', type=int, default=None, help="Override virtual pipeline parallelism")
+    parser.add_argument('--cp', type=int, default=None, help="Override context parallelism")
+    parser.add_argument('--sp', type=bool, default=None, help="Override sequence parallel")
 
     return parser.parse_args()
 
@@ -96,6 +101,17 @@ def main():
     pretrain_recipe.trainer.log_every_n_steps = 1
     pretrain_recipe.log.ckpt.every_n_train_steps = 1
     pretrain_recipe.trainer.val_check_interval = 0.5
+
+    parallelisms = {
+        "tensor_model_parallel_size": args.tp,
+        "pipeline_model_parallel_size": args.pp,
+        "virtual_pipeline_model_parallel_size": args.vp,
+        "context_parallel_size": args.cp,
+        "sequence_parallel": args.sp,
+    }
+    for k, v in parallelisms.items():
+        if v is not None:  # use recipe default if not specified
+            setattr(pretrain_recipe.trainer.strategy, k, v)
 
     run.run(pretrain_recipe, direct=True)
 
