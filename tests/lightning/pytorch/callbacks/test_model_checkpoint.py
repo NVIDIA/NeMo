@@ -202,8 +202,8 @@ def setup_test(path, async_save=False, max_epochs=3):
     nemo_logger.setup(trainer)
     resume.setup(trainer)
 
-
     return data, model, trainer
+
 
 def get_final_checkpoint(checkpoint_dir):
     dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
@@ -215,6 +215,7 @@ def get_final_checkpoint(checkpoint_dir):
     top_k_checkpoints = [d for d in dist_checkpoints if d not in last_checkpoints]
 
     return final_ckpt, top_k_checkpoints
+
 
 class TestLinkCheckpoint:
 
@@ -280,5 +281,4 @@ class TestLinkCheckpoint:
             assert len(top_k_checkpoints) == 3
 
             epoch = str(final_ckpt).split('epoch=')[1][0]
-            assert int(epoch) == 5 ## make sure we're running the correct number of epochs
-
+            assert int(epoch) == 5  ## make sure we're running the correct number of epochs
