@@ -12,6 +12,9 @@ from nemo.collections.multimodal.data.energon.sample_encoder import VQASampleEnc
 
 class LlamaImageTextSample(ImageTextSample):
     vision_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    num_tiles: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
 
 
 class Llama3SampleEncoder(VQASampleEncoder):
@@ -28,8 +31,8 @@ class Llama3SampleEncoder(VQASampleEncoder):
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
         self.conversation_template_config = multimodal_sample_config.conversation_template_config
 
-    def process_image(self, image):
-        image_dict = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+    def process_image(self, image) -> Dict[str, torch.Tensor]:
+        image_dict = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)
         return image_dict
 
     def apply_prompt_template(self, input_text: VQASample, use_plain=False):
@@ -151,9 +154,12 @@ class Llama3SampleEncoder(VQASampleEncoder):
         logging.debug(f"task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
         vision_mask = self.create_vision_mask_tensor(tokens=tokens, vision_token_id=self.image_token.token_id)
-        processed_image = self.process_image(input_sample.image)
+        processed_image_dict = self.process_image(input_sample.image)
         output_sample.__key__ = input_sample.__key__
-        output_sample.images = processed_image
+        output_sample.images = processed_image_dict['pixel_values'][0]
+        output_sample.aspect_ratio_ids = processed_image_dict['aspect_ratio_ids'][0]
+        output_sample.aspect_ratio_mask = processed_image_dict['aspect_ratio_mask'][0]
+        output_sample.num_tiles = processed_image_dict['num_tiles'][0]
         output_sample.tokens = tokens
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask

@@ -308,15 +308,15 @@ class CrossAttentionVisionModel(MegatronModule):
 
 class MLlamaBaseModel(MegatronModule):
     def __init__(
-            self,
-            config: TransformerConfig,
-            language_model_config: TransformerConfig,
-            vision_model_config: TransformerConfig,
-            tokenizer: Optional = None,
-            pre_process: bool = True,
-            post_process: bool = True,
-            add_encoder: bool = True,
-            add_decoder: bool = True,
+        self,
+        config: TransformerConfig,
+        language_model_config: CrossAttentionTextModelConfig,
+        vision_model_config: CrossAttentionVisionModelConfig,
+        tokenizer: Optional = None,
+        pre_process: bool = True,
+        post_process: bool = True,
+        add_encoder: bool = True,
+        add_decoder: bool = True,
     ) -> None:
         super().__init__(config=config)
 
@@ -324,8 +324,8 @@ class MLlamaBaseModel(MegatronModule):
         self.post_process = post_process
 
         self.encoder_hidden_state = None
-        self.vision_model = None
-        self.language_model = None
+        self.vision_model: Optional[CrossAttentionVisionModel] = None
+        self.language_model: Optional[CrossAttentionTextModel] = None
 
         self.share_embeddings_and_output_weights = False
         self.add_decoder = (language_model_config is not None) and add_decoder
@@ -424,12 +424,12 @@ class MLlamaBaseModel(MegatronModule):
         return vision_tokens, vision_orig_shape, num_chunks
 
     def compute_xattn_caches_masks(
-            self,
-            vision_tokens: torch.Tensor,
-            vision_orig_shape: torch.Size,
-            batch_masks: List[List[List[int]]],
-            num_chunks: List[List[int]],
-            total_len: int
+        self,
+        vision_tokens: torch.Tensor,
+        vision_orig_shape: torch.Size,
+        batch_masks: List[List[List[int]]],
+        num_chunks: List[List[int]],
+        total_len: int
     ) -> Tuple[List, torch.Tensor, torch.Tensor]:
         bsz, nimg, nchunk, ntok, image_token_dim = vision_orig_shape
 
@@ -467,7 +467,6 @@ class MLlamaBaseModel(MegatronModule):
         batch_images: Optional[Union[List[List[PIL_Image.Image]], Tensor]] = None,
         batch_masks: Optional[List[List[List[int]]]] = None,
         aspect_ratios: Optional[torch.Tensor] = None,
-        total_len: Optional[int] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[List] = None,
@@ -488,6 +487,8 @@ class MLlamaBaseModel(MegatronModule):
                     ),
                     self.config.hidden_size,
                 )
+                batch_images = batch_images.cuda(non_blocking=True)
+                aspect_ratios = aspect_ratios.cuda(non_blocking=True)
                 vision_tokens = self.vision_model(batch_images, aspect_ratios)
             else:
                 vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
@@ -503,7 +504,7 @@ class MLlamaBaseModel(MegatronModule):
                 vision_orig_shape=vision_orig_shape,
                 batch_masks=batch_masks,
                 num_chunks=num_chunks,
-                total_len=total_len,
+                total_len=self.language_model.config.seq_length,
             )
 
         assert self.add_decoder, "Language model required for forward pass."
@@ -561,15 +562,15 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
-            self.module = self.config.configure_model(self.tokenizer)
+            self.module: MCoreMLlamaModel = self.config.configure_model(self.tokenizer)
 
     def forward(
         self,
         batch_images: List[List[PIL_Image.Image]],
-        batch_masks: List[List[List[int]]],
-        total_len: int,
         tokens: torch.LongTensor,
         position_ids: torch.LongTensor,
+        batch_masks: Optional[List[List[List[int]]]] = None,
+        aspect_ratios: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
@@ -581,7 +582,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             tokens=tokens,
             batch_images=batch_images,
             batch_masks=batch_masks,
-            total_len=total_len,
+            aspect_ratios=aspect_ratios,
             labels=labels,
             cross_attention_masks=cross_attention_masks,
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
