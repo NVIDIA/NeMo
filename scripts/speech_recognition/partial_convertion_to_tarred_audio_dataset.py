@@ -16,6 +16,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Optional
+from tqdm import tqdm
 
 import hydra
 from convert_to_tarred_audio_dataset import ASRTarredDatasetBuilder, ASRTarredDatasetMetadata
@@ -85,8 +86,7 @@ def select_shards(manifest_filepath: str, shards_to_tar: str, slice_with_offset:
 
     entries_to_shard = {}
     with open(manifest_filepath, 'r') as manifest:
-        line = manifest.readline()
-        while line:
+        for line in tqdm(manifest, desc = "Selecting shards"):
             entry = json.loads(line)
             if shards_to_tar == "all" or entry['shard_id'] in shard_ids:
                 if entry['shard_id'] not in entries_to_shard:
@@ -101,8 +101,6 @@ def select_shards(manifest_filepath: str, shards_to_tar: str, slice_with_offset:
                     entry['offset'] = entry['source_audio_offset']
 
                 entries_to_shard[entry['shard_id']].append(entry)
-
-            line = manifest.readline()
 
     return entries_to_shard
 
@@ -127,6 +125,7 @@ class PartialASRTarredDatasetConfig:
     num_workers: int = 1
     dataset_metadata_filepath: Optional[str] = None
     dataset_metadata: ASRTarredDatasetMetadata = field(default=ASRTarredDatasetMetadata)
+    slice_with_offset: bool = False
 
 
 def create_shards(cfg: PartialASRTarredDatasetConfig):
