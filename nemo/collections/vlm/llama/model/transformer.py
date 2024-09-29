@@ -305,15 +305,6 @@ def forward_with_return_intermediate(
         return hidden_states
 
 
-# Image encoder for inference
-class LayerNorm(nn.LayerNorm):
-    """Subclass torch's LayerNorm to handle fp16."""
-
-    def forward(self, x: torch.Tensor):
-        x = F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
-        return x
-
-
 class ColumnParallelConv2dPatch(MegatronModule):
     """Conv2D Patching layer with model parallelism.
     Column parallel over unfolded input.
@@ -361,11 +352,7 @@ class ColumnParallelConv2dPatch(MegatronModule):
 
 
 class SelfAttentionNoBias(SelfAttention):
-    """Self-attention layer class
-
-    Self-attention layer takes input with size [s, b, h]
-    and returns output of the same size.
-    """
+    """Self-attention layer class without bias"""
 
     def __init__(
             self,
@@ -381,6 +368,7 @@ class SelfAttentionNoBias(SelfAttention):
             attn_mask_type=attn_mask_type,
         )
 
+        # Override to remove bias since we don't have a good config for this.
         self.linear_qkv = build_module(
             submodules.linear_qkv,
             self.config.hidden_size,
@@ -462,8 +450,6 @@ class ImageTransformerLayer(TransformerLayer):
             for output in attention_output_with_bias
         )
 
-        # TODO: could we move `bias_dropout_add_exec_handler` itself
-        # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
             hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
                 attention_output_with_bias, residual, self.hidden_dropout
@@ -486,19 +472,11 @@ class ImageTransformerLayer(TransformerLayer):
             for output in mlp_output_with_bias
         )
 
-        # TODO: could we move `bias_dropout_add_exec_handler` itself
-        # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
             hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
                 mlp_output_with_bias, residual, self.hidden_dropout
             )
 
-        # Jit compiled function creates 'view' tensor. This tensor
-        # potentially gets saved in the MPU checkpoint function context,
-        # which rejects view tensors. While making a viewless tensor here
-        # won't result in memory savings (like the data loader, or
-        # p2p_communication), it serves to document the origin of this
-        # 'view' tensor.
         output = make_viewless_tensor(
             inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
         )
@@ -544,8 +522,8 @@ class VisionEncoder(MegatronModule):
         self.positional_embedding = nn.Parameter(
             scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width)
         )
-        self.ln_post = LayerNorm(width)
-        self.ln_pre = LayerNorm(width)
+        self.ln_post = LayerNormImpl(config=config, hidden_size=width)
+        self.ln_pre = LayerNormImpl(config=config, hidden_size=width)
         self.transformer = TransformerBlock(
             config=self.config,
             spec=get_image_transformer_layer_spec(),

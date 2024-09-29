@@ -228,16 +228,21 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
             for attr in model_config_attr:
                 setattr(self, attr, getattr(self.language_model_config, attr))
 
-    def configure_model(self, tokenizer) -> "MCoreMLlamaModel":
+    def configure_model(self, tokenizer) -> "MLlamaBaseModel":
         from megatron.core import parallel_state as ps
+
+        self.language_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.vision_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
 
         if self.encoder_pipeline_model_parallel_size > 0:
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
             self.vision_model_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            self.language_model_config.encoder_pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
             if self.encoder_tensor_model_parallel_size > 0:
                 self.vision_model_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        model = MCoreMLlamaModel(
+        model = MLlamaBaseModel(
             config=self,
             language_model_config=self.language_model_config,
             vision_model_config=self.vision_model_config,
@@ -301,7 +306,7 @@ class CrossAttentionVisionModel(MegatronModule):
         pass
 
 
-class MCoreMLlamaModel(MegatronModule):
+class MLlamaBaseModel(MegatronModule):
     def __init__(
             self,
             config: TransformerConfig,
