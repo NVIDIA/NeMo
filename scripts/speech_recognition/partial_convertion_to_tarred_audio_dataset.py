@@ -16,13 +16,13 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Optional
-from tqdm import tqdm
 
 import hydra
 from convert_to_tarred_audio_dataset import ASRTarredDatasetBuilder, ASRTarredDatasetMetadata
 from hydra.core.config_store import ConfigStore
 from joblib import Parallel, delayed
 from omegaconf import MISSING
+from tqdm import tqdm
 
 """
 # Partial Tarred Audio Dataset Creator
@@ -86,7 +86,7 @@ def select_shards(manifest_filepath: str, shards_to_tar: str, slice_with_offset:
 
     entries_to_shard = {}
     with open(manifest_filepath, 'r') as manifest:
-        for line in tqdm(manifest, desc = "Selecting shards"):
+        for line in tqdm(manifest, desc="Selecting shards"):
             entry = json.loads(line)
             if shards_to_tar == "all" or entry['shard_id'] in shard_ids:
                 if entry['shard_id'] not in entries_to_shard:
