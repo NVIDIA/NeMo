@@ -95,7 +95,6 @@ class SLMDiscriminator(NeuralModule):
         super().__init__()
 
         self.slm_model = SSLModel(slm_model_name)
-        self.slm_model.ssl_model.feature_extractor._requires_grad = False
 
         # Freeze slm model
         self.slm_model.freeze()
