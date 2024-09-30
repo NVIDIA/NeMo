@@ -622,6 +622,7 @@ class BeamCTCInferConfig:
     beam_alpha: float = 1.0
     beam_beta: float = 0.0
     kenlm_path: Optional[str] = None
+    kenlm_type: Optional[str] = None
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
