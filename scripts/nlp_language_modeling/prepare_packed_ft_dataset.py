@@ -107,7 +107,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
         tokenizer=tokenizer,
         max_seq_length=data_cfg.max_seq_length,
         min_seq_length=data_cfg.min_seq_length,
-        pad_seq_length_to_mult=pad_seq_length_to_mult
+        pad_seq_length_to_mult=pad_seq_length_to_mult,
         add_bos=data_cfg.get('add_bos', False),
         add_eos=data_cfg.get('add_eos', True),
         add_sep=data_cfg.get('add_sep', False),
@@ -148,6 +148,8 @@ def tokenize_dataset(cfg: 'DictConfig'):
         ceil_to_nearest = lambda n, m: (n + m - 1) // m * m
         for data in dataset:
             max_length = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
+            if max_length < 512:
+                max_length = 512
             pre_pad_dataset(data, max_length, pad_id)
     return dataset
 
@@ -168,6 +170,13 @@ class PackingArgs:
         self.seed = cfg.get("seed", 0)
         return self
 
+def print_sample_data(data):
+    for key, val in data.items():
+        if key in {"input_ids","context_ids", "loss_mask"}:
+            print("{} length: {}".format(key, len(val)))
+        else:
+            print(key, val)
+    return
 
 @hydra_runner(
     config_path="../../examples/nlp/language_modeling/tuning/conf", config_name="megatron_gpt_finetuning_config"
@@ -179,6 +188,9 @@ def main(cfg: 'DictConfig') -> None:
     for pack_size in args.pack_sizes:
         assignments = create_packing_strategy(histogram, pack_size, args.packing_algorithm)
         output_data = fill_packing_strategy(assignments, sequences, pack_size)
+
+        for i in range(5):
+            print_sample_data(output_data[i])
 
         # save output data
         os.makedirs(args.output_dir, exist_ok=True)

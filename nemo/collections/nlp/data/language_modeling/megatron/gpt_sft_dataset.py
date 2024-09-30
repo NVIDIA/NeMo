@@ -613,17 +613,29 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         position_ids: List[List[int]] = []
         cu_seqlens: List[List[int]] = []
+        cu_seqlens_unpadded: List[List[int]] = []
         for item in batch:
             position_ids.append([])
             cu_seqlens.append([0])
+            cu_seqlens_unpadded.append([0])
             seqlens = np.array(item['seq_boundaries'][1:]) - np.array(item['seq_boundaries'][:-1])
             for l in seqlens:
                 # length minus 1 because input_ids is truncated by 1 for labels
                 position_ids[-1].extend(list(range(l - 1)))
                 cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
+                
             # set last seq to the max seq len because rope and attn kernels expect no padding
             cu_seqlens[-1][-1] = max_length
-
+            
+            #print(item['seq_boundaries'])
+            for i in range(len(item['seq_boundaries']) - 1):
+                #print(np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]))
+                seqlen_unpadded = np.argmin(np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]))
+                cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
+            cu_seqlens_unpadded[-1][-1] = max_length
+        #print(cu_seqlens)
+        #print(cu_seqlens_unpadded)
+        #print("##########################")
         assert len(input_ids[0]) == len(
             position_ids[0]
         ), "Dataset problem: input_ids and position_ids lengths don't match"
@@ -643,12 +655,19 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         if self.return_cu_seqlen:
             cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
-
+            cu_seqlens_unpadded = self._collate_item(cu_seqlens_unpadded, max_length=max(len(l) for l in cu_seqlens_unpadded) + 1, pad_id=-1)
             # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
             cu_seqlens = torch.IntTensor(cu_seqlens)
             cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
             seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
             max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
+            
+            # convert to pytorch tensor
+            cu_seqlens_unpadded = torch.IntTensor(cu_seqlens_unpadded)
+            
+            #print(cu_seqlens)
+            #print(cu_seqlens_unpadded)
+            #print("##########################")
 
             processed_batch.update(
                 {
@@ -658,6 +677,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                     'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
                     'cu_seqlens_argmin': cu_seqlens_argmin,  # only required for perf
                     'max_seqlen': max_seqlen,  # only required for perf
+                    'cu_seqlens_unpadded': torch.IntTensor(cu_seqlens_unpadded),
                 }
             )
         else:

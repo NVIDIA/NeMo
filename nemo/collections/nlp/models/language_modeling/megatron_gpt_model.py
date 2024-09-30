@@ -24,7 +24,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import packaging
 import torch
-import transformer_engine_extensions as tex
+import transformer_engine_torch as tex
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -1197,25 +1197,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
-            for key, val in batch.items():
-                # check if the batch is not in THD format
-                if 'cu_seqlens' not in batch:
-                    for key, val in batch.items():
-                        if val is not None and key != "context_lengths":
-                            seq_dim = 1 if key != 'attention_mask' else 2
-                            val = val.view(
-                                *val.shape[0:seq_dim],
-                                2 * cp_size,
-                                val.shape[seq_dim] // (2 * cp_size),
-                                *val.shape[(seq_dim + 1) :],
-                            )
-                            index = torch.tensor(
-                                [cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True
-                            ).cuda(non_blocking=True)
-                            val = val.index_select(seq_dim, index)
-                            val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
-                            batch[key] = val
-
+            # check if the batch is not in THD format
+            if 'cu_seqlens' not in batch:
+                #print("we are here in the sbhd format")
+                for key, val in batch.items():
+                    if val is not None and key != "context_lengths":
+                        seq_dim = 1 if key != 'attention_mask' else 2
+                        val = val.view(
+                            *val.shape[0:seq_dim],
+                            2 * cp_size,
+                            val.shape[seq_dim] // (2 * cp_size),
+                            *val.shape[(seq_dim + 1) :],
+                        )
+                        index = torch.tensor(
+                            [cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True
+                        ).cuda(non_blocking=True)
+                        val = val.index_select(seq_dim, index)
+                        val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
+                        batch[key] = val
         batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
 
         return batch
@@ -1236,6 +1235,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.add('attention_mask')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
+                if 'cu_seqlens_unpadded' in batch:
+                    required_keys.add('cu_seqlens_unpadded')
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -1268,13 +1269,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 forward_args.pop('loss_mask')
 
                 if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
+                    #print("THD format")
                     # these args are passed eventually into TEDotProductAttention.forward()
                     cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+                    cu_seqlens_unpadded = batch['cu_seqlens_unpadded'].squeeze()
                     # remove -1 "paddings" added in collate_fn
                     if cu_seqlens_argmin is not None:
                         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
+                        cu_seqlens_unpadded = cu_seqlens_unpadded[: cu_seqlens_argmin.item()]
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
+                        cu_seqlens_unpadded = cu_seqlens_unpadded[: torch.argmin(cu_seqlens_unpadded)]
 
                     try:
                         from megatron.core.packed_seq_params import PackedSeqParams
@@ -1290,29 +1295,45 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     cp_size = parallel_state.get_context_parallel_world_size()
                     if cp_size > 1:
                         cp_rank = parallel_state.get_context_parallel_rank()
+                        #print("cp_rank:{}, cu_seqlens:{}".format(cp_rank, cu_seqlens))
                         for key in required_keys:
                             val = batch[key]
-                            if key != "cu_seqlens":
-                                seq_dim = 1 if key != 'attention_mask' else 2
-                                index = tex.thd_get_partitioned_indices(
-                                    cu_seqlens, val.size(seq_dim), cp_size, cp_rank
-                                )
-                                val = val.index_select(seq_dim, index)
+                            if key not in {"cu_seqlens", "cu_seqlens_unpadded"}:
+                                #print("{} with size {}".format(key,val.size()))
+                                #print("before get index")
+                                #print(cu_seqlens)
+                                #print(cu_seqlens_unpadded)
+                                #print("****************")
+                                index = tex.thd_get_partitioned_indices(cu_seqlens, val.size(1), cp_size, cp_rank)
+                                val = val.index_select(1, index)
                                 batch[key] = val
+                                #print("after index select: {} with size {}".format(key,val.size()))
+                        
+                        ######################### NEED TO DOUBLE CHECK ###################
+                        #print(cu_seqlens)
+                        #print(cu_seqlens_unpadded)
+                        #print("****************")
                         cu_seqlens = cu_seqlens // cp_size
+                        cu_seqlens_unpadded = cu_seqlens_unpadded // cp_size
+                        ##################################################################
+                        
+                        #print("After partition:")
+                        #print("cp_rank:{}, cu_seqlens:{} \n".format(cp_rank, cu_seqlens))
                         forward_args = {
                             'input_ids': batch['tokens'],
                             'position_ids': batch['position_ids'],
                             'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                             'labels': batch['labels'] if 'labels' in batch else None,
                         }
-                    forward_args['packed_seq_params'] = PackedSeqParams(
-                        cu_seqlens_q=cu_seqlens,
-                        cu_seqlens_kv=cu_seqlens,
-                        max_seqlen_q=max_seqlen,
-                        max_seqlen_kv=max_seqlen,
-                        qkv_format='thd',
-                    )
+                        forward_args['packed_seq_params'] = PackedSeqParams(
+                            cu_seqlens_q=cu_seqlens_unpadded,
+                            cu_seqlens_kv=cu_seqlens_unpadded,
+                            cu_seqlens_q_padded=cu_seqlens,
+                            cu_seqlens_kv_padded=cu_seqlens,
+                            max_seqlen_q=max_seqlen,
+                            max_seqlen_kv=max_seqlen,
+                            qkv_format='thd',
+                        )
 
             output_tensor = model(**forward_args)
 
