@@ -890,8 +890,8 @@ class NevaBaseModel:
                     vision_encoder = vision_encoder.eval()
             elif config.architectures[0] == "PixtralVisionModel":
                 from safetensors.torch import load_file
-                config.vision_config.hidden_act = 'silu'
-                vision_encoder = PixtralVisionModel(config.vision_config).to(torch.bfloat16)
+                config.hidden_act = 'silu'
+                vision_encoder = PixtralVisionModel(config).to(torch.bfloat16)
                 safetensor_file = "model.safetensors"
                 ckpt_file = os.path.join(mm_cfg.vision_encoder.from_pretrained, safetensor_file)
                 vision_encoder.load_state_dict(load_file(ckpt_file))
