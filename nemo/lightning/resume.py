@@ -119,7 +119,7 @@ class AutoResume:
                 if not context_path.is_dir():
                     context_path = new_path
 
-                model = _try_restore_tokenizer(model, context_path)
+                _try_restore_tokenizer(model, context_path)
 
     def _extract_path(
         self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None
