@@ -94,14 +94,17 @@ def get_model() -> vlm.MLlamaModel:
 if __name__ == '__main__':
 
     train_loader = get_train_dataloader()
-    model = get_model()
-    for i, batch in enumerate(train_loader):
-        output = model(
-            batch_images=batch["media"],
-            aspect_ratios=get_aspect_ratio(batch["aspect_ratio_ids"]),
-            tokens=batch["tokens"],
-            position_ids=batch["position_ids"],
-        )
+    model: vlm.MLlamaModel = get_model()
+
+    with torch.no_grad():
+        for i, batch in enumerate(train_loader):
+            output = model(
+                batch_images=batch["media"].cuda(non_blocking=True),
+                batch_masks=batch["vision_mask"].cuda(non_blocking=True),
+                aspect_ratios=get_aspect_ratio(batch["aspect_ratio_ids"]).cuda(non_blocking=True),
+                tokens=batch["tokens"].cuda(non_blocking=True),
+                position_ids=batch["position_ids"].cuda(non_blocking=True),
+            )
 
         # print("keys  ", batch["__keys__"])
         print("aspect_ratio_ids", batch["aspect_ratio_ids"])
