@@ -56,7 +56,7 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from nemo.collections.vlm.llama.model.transformer import _get_full_row_masked_out_mask, get_negative_inf_value
+from nemo.collections.vlm.llama.model.vision import _get_full_row_masked_out_mask, get_negative_inf_value
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
