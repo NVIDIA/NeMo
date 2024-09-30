@@ -488,7 +488,6 @@ class VisionEncoder(MegatronModule):
     def __init__(
             self,
             config: TransformerConfig,
-            max_num_tiles: int,
             image_size: int = 224,
             patch_size: int = 14,
             in_channels: int = 3,
@@ -498,7 +497,6 @@ class VisionEncoder(MegatronModule):
     ):
         super().__init__(config=config)
         self.return_intermediate = return_intermediate
-        self.max_num_tiles = max_num_tiles
         self.image_size = to_2tuple(image_size)
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (
@@ -508,6 +506,7 @@ class VisionEncoder(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
 
+        self.max_num_tiles = config.max_num_tiles
         width = config.hidden_size
         self.conv1 = ColumnParallelConv2dPatch(
             config=config,
@@ -544,29 +543,28 @@ class VisionEncoder(MegatronModule):
             post_process=self.post_process,
         )
         # pre and post tile position embedding
-        self.pre_tile_pos_embed = TilePositionEmbedding(
-            num_tiles=max_num_tiles,
-            width=width,
+        self.pre_tile_pos_embed = PrecomputedTilePositionEmbedding(
+            config=config,
             gated=True,
         )
-        self.post_tile_pos_embed = TilePositionEmbedding(
-            num_tiles=max_num_tiles,
-            width=width,
+        self.post_tile_pos_embed = PrecomputedTilePositionEmbedding(
+            config=config,
             gated=True,
         )
-        self.gated_positional_embedding = nn.Parameter(
+        self.gated_tile_positional_embedding = nn.Parameter(
             scale
             * torch.randn(
-                max_num_tiles,
-                max_num_tiles,
+                self.max_num_tiles,
+                self.max_num_tiles,
                 self.grid_size[0] * self.grid_size[1] + 1,
                 width,
             )
         )
-        self.gated_positional_embedding_gate = nn.Parameter(torch.zeros(1))
+        self.gated_positional_embedding_gate = nn.Embedding(
+            self.max_aspect_ratio_id + 1, self.max_num_tiles * self.num_patches * self.hidden_size
+        )
 
-    def apply_positional_embedding(self, x, ar):
-        out = []
+    def apply_positional_embedding(self, x, aspect_ratio_ids):
         # apply regular position embedding
         bsz, num_chunks, num_tokens, dim = x.shape
         x = x.view(bsz * num_chunks, num_tokens, dim)
@@ -574,12 +572,11 @@ class VisionEncoder(MegatronModule):
                 1 - self.gated_positional_embedding_gate.tanh()
         )
         x = x.view(bsz, num_chunks, num_tokens, dim)
-        for idx, arx in enumerate(ar):
-            _pos_embed = self.gated_positional_embedding[: arx[0], : arx[1]]
-            _pos_embed = _pos_embed.reshape(arx[0] * arx[1], *_pos_embed.shape[2:])
-            x[idx, : arx[0] * arx[1]] += (
-                    _pos_embed * self.gated_positional_embedding_gate.tanh()
-            )
+        tile_position_embedding = self.gated_tile_positional_embedding(aspect_ratio_ids)
+        tile_position_embedding = tile_position_embedding.reshape(
+            bsz, num_chunks, num_tokens, dim
+        )
+        x = x + self.gate.tanh() * tile_position_embedding
         return x
 
     def apply_class_embedding(self, x):
@@ -659,54 +656,31 @@ class VisionEncoder(MegatronModule):
         return x
 
 
-class TilePositionEmbedding(torch.nn.Module):
+class PrecomputedTilePositionEmbedding(torch.nn.Module):
     def __init__(
             self,
-            num_tiles: int,
-            width: int,
+            config: TransformerConfig,
             gated: bool = False,
     ):
         super().__init__()
-        self.num_tiles = num_tiles
-        self.width = width
-        self.embedding = nn.Parameter(
-            torch.randn(num_tiles, num_tiles, 1, width) / math.sqrt(width)
-        )
+        self.max_num_tiles = config.max_num_tiles
+        self.hidden_size = config.hidden_size
+        self.max_aspect_ratio_id = config.max_aspect_ratio_id
+
+        self.embedding = nn.Embedding(self.max_aspect_ratio_id + 1, self.max_num_tiles * self.hidden_size)
         self.gated = gated
         if gated:
             self.gate = nn.Parameter(torch.zeros(1))
 
-    @staticmethod
-    def _dynamic_resize(embed: torch.Tensor, num_tiles: int):
-        nt_old, nt_old, _, w = embed.shape
-        embed = embed.permute(2, 3, 0, 1)
+    def forward(self, hidden_states: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
+        embeddings = self.embedding(aspect_ratio_ids)
+        embeddings = embeddings.reshape(-1, self.max_num_tiles, 1, self.hidden_size)
 
-        embed_new = F.interpolate(
-            embed,
-            size=(num_tiles, num_tiles),
-            mode="bilinear",
-            align_corners=True,
-        )
-        # reshape the weights to the correct shape
-        embed_new = embed_new.permute(2, 3, 0, 1)
-        return embed_new
-
-    def forward(self, x: torch.Tensor, ar: torch.Tensor, num_tiles: int = None):
-        embed = self.embedding
-        if num_tiles is None:
-            num_tiles = self.num_tiles
-        elif num_tiles > self.num_tiles:
-            embed = TilePositionEmbedding._dynamic_resize(self.embedding, num_tiles)
-        out_pos_embed = torch.zeros(
-            x.shape[0], num_tiles, 1, self.width, device=x.device, dtype=x.dtype
-        )
-        for idx, arx in enumerate(ar):
-            h, w = arx
-            out_pos_embed[idx, : w * h] = embed[:h, :w].reshape(w * h, 1, self.width)
         if self.gated:
-            out_pos_embed = out_pos_embed * self.gate.tanh()
-        x = x + out_pos_embed
-        return x
+            embeddings = embeddings * self.gate.tanh()
+
+        hidden_states = hidden_states + embeddings
+        return hidden_states
 
 
 def _stack_images(

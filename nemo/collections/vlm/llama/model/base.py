@@ -116,6 +116,7 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
     vision_chunk_size: int = -1  # image resolution for image models
     vision_max_num_chunks: int = 4
     num_global_layers: int = 8
+    max_num_tiles: int = 4
     text_hidden_size: int = 4096
     gated: bool = False
 
@@ -271,7 +272,6 @@ class CrossAttentionVisionModel(MegatronModule):
         self.patch_size = 14
         self.vision_encoder = VisionEncoder(
             config=config,
-            max_num_tiles=4,
             image_size=config.vision_chunk_size,
             patch_size=self.patch_size,
             return_intermediate=return_intermediate,
