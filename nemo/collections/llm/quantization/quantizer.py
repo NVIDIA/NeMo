@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import shutil
 import os
+from typing import Optional
 
 import torch
 import torch.distributed as dist
+from datasets import load_dataset
 
 from nemo import lightning as nl
+from nemo.collections import llm
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 
 try:
     import modelopt.torch.quantization as mtq
@@ -45,20 +48,32 @@ except (ImportError, ModuleNotFoundError) as e:
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 
-# TODO: delete
-class config_dict(dict):
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+
+def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
+    """Infers the modelopt decoder type from GPTConfig class"""
+    mapping = [
+        (llm.Baichuan2Config,   "baichuan"),
+        (llm.ChatGLMConfig,     "chatglm"),
+        (llm.GemmaConfig,       "gemma"),
+        (llm.LlamaConfig,       "llama"),
+        (llm.MistralConfig7B,   "llama"),
+        (llm.MixtralConfig,     "llama"),
+        (llm.NemotronConfig,    "gptnext"),
+        # TODO: (llm.Qwen2Config,       ""),
+        # (llm.StarcoderConfig,   ""),
+        (llm.Starcoder2Config,  "gptnext"),
+    ]
+
+    for config_class, decoder_type in mapping:
+        if isinstance(config, config_class):
+            return decoder_type
+
+    logging.warning("Could not directly infer the decoder type")
+    # TODO: Add a reasonable behavior for GPTConfig (for instance based on position_embedding_type)
+    return "llama"
 
 
-def _dict_to_config(config):
-    if isinstance(config, dict):
-        return config_dict(config)
-    return config
-
-
-#### nemo.export.quantize.quantizer.Quantizer class for NeMo 2
+# TODO: Support PP
 class Quantizer:
     """Post-training quantization (PTQ) and TRT-LLM export of Nemo checkpoints.
 
@@ -67,37 +82,30 @@ class Quantizer:
 
         1. Loading a Nemo model from disk using appropriate parallelism strategy
         2. Calibrating the model to obtain appropriate algorithm-specific scaling factors
-        3. Producing output directory or .qnemo tarball with model config (json),
-           quantized weights (safetensors) and tokenizer config (yaml).
+        3. Producing output directory
 
-    The output directory (or .qnemo file) produced is intended to be consumed by TensorRT-LLM toolbox
-    for efficient inference. This can be achieved using Nemo inference containers.
-
-    Currently supported and tested model family is Llama2. Model type needs to be specified in
-    the quantization command with decoder_type parameter on exporting (see below). Quantizing other
-    model families is experimental and might not be fully supported.
+    The output directory produced is intended to be consumed by TensorRT-LLM toolbox
+    for efficient inference. This can be achieved using NeMo inference containers.
 
     Available quantization methods are listed in `QUANT_CFG_CHOICES` dictionary above.
     Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer/ for details.
-    You can also inspect different choices in examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml
-    for quantization algorithms and calibration data as well as recommended settings.
 
-    Quantization algorithm can also be conveniently set to 'null' to perform only weights export step
+    Quantization algorithm can also be conveniently set to None to perform only weights export step
     for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
     """
 
-    def __init__(self, quantization_config, export_config):
+    def __init__(self, quantization_config: dict, export_config: dict):
         """Initialize Quantizer with quantization and export configurations.
 
         Expected keys in `quantization_config`:
-            - algorithm: str
+            - algorithm: (optional) str
             - awq_block_size: int (only for awq algorithms)
             - sq_alpha: float (only for smooth quant algorithms)
             - enable_kv_cache: bool (default: None i.e. auto-detect based on algorithm and decoder_type)
 
         Expected keys in `export_config`:
             - dtype: str/int
-            - decoder_type: str
+            - decoder_type: (optional) str
             - inference_tensor_parallel: int
             - inference_pipeline_parallel: int
             - path: str
@@ -107,59 +115,22 @@ class Quantizer:
         if not torch.cuda.is_available():
             raise EnvironmentError("GPU is required for the quantization.")
 
-        quantization_config = _dict_to_config(quantization_config)
-        export_config = _dict_to_config(export_config)
-
         self.quantization_config = quantization_config
         self.export_config = export_config
-
-        # Quantization sanity checks
-        assert (
-            quantization_config.algorithm is None or quantization_config.algorithm in QUANT_CFG_CHOICES
-        ), f"Unsupported quantization algorithm: {quantization_config.algorithm}"
-        if quantization_config.algorithm is not None:
-            quant_cfg = QUANT_CFG_CHOICES[quantization_config.algorithm]
-
-            if "awq" in quantization_config.algorithm:
-                weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
-                if isinstance(weight_quantizer, list):
-                    weight_quantizer = weight_quantizer[0]
-                weight_quantizer["block_sizes"][-1] = quantization_config.awq_block_size
-
-            # Always turn on FP8 kv cache to save memory footprint.
-            # For int8_sq, we use int8 kv cache.
-            # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
-            enable_quant_kv_cache = quantization_config.get("enable_kv_cache", None)
-            if enable_quant_kv_cache is None:
-                enable_quant_kv_cache = (
-                    "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gptnext"
-                )
-            logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
-            quant_cfg["quant_cfg"]["*output_quantizer"] = {
-                "num_bits": 8 if quantization_config.algorithm == "int8_sq" else (4, 3),
-                "axis": None,
-                "enable": enable_quant_kv_cache,
-            }
-            if quantization_config.algorithm == "int8_sq":
-                logging.info(f"Using int8_sq alpha = {quantization_config.sq_alpha}")
-                quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": quantization_config.sq_alpha}
-
-            self.quant_cfg = quant_cfg
-        else:
-            self.quant_cfg = None
-
-        # Export sanity checks
-        if export_config is not None:
-            assert export_config.dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {export_config.dtype}"
-
         self.nemo_checkpoint_path = None
 
+        algorithm = quantization_config.get("algorithm", None)
+        dtype = export_config["dtype"]
 
-    def load_quantizable_model(self, nemo_checkpoint_path: str, tensor_parallelism_size: int = 1):
-        from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
+        # Quantization sanity checks
+        assert (algorithm is None or algorithm in QUANT_CFG_CHOICES), f"Unsupported quantization algorithm: {algorithm}"
+        # Export sanity checks
+        if export_config is not None:
+            assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
 
-        self.nemo_checkpoint_path = nemo_checkpoint_path
 
+
+    def load_quantizable_model(self, nemo_checkpoint_path: str, tensor_parallelism_size: int = 1) -> llm.GPTModel:
         trainer = nl.Trainer(
             devices=tensor_parallelism_size,
             strategy=nl.MegatronStrategy(
@@ -177,94 +148,29 @@ class Quantizer:
 
         # TODO: [0] works only for PP=1
         model = fabric.load_model(nemo_checkpoint_path, model=model)[0]
-        model.freeze()
+
+        self.nemo_checkpoint_path = nemo_checkpoint_path
         return model
 
 
-    # TODO: what happens with NeMo 2?
-    # @staticmethod
-    # def _setup(model):
-    #     """Setup model for quantization."""
-    #     try:
-    #         model.model.module.language_model.encoder.activations_checkpoint_method = None
-    #     except AttributeError:
-    #         pass
+    
+    @staticmethod
+    def _setup(model: llm.GPTModel) -> None:
+        """Setup model for quantization."""
+        model.freeze()
 
-    #     if not parallel_state.is_initialized():
+        # TODO: update for NeMo 2.0
+        # try:
+        #     model.model.module.language_model.encoder.activations_checkpoint_method = None
+        # except AttributeError:
+        #     pass
 
-    #         def dummy():
-    #             return
-
-    #         if model.trainer.strategy.launcher is not None:
-    #             model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
-    #         model.trainer.strategy.setup_environment()
+    
 
     @staticmethod
-    def create_argparser():
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description="NeMo PTQ argument parser",
-        )
-        parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
-        parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
-        parser.add_argument(
-            "-tps",
-            "--tensor_parallelism_size",
-            type=int,
-            default=1
-        )
-        parser.add_argument(
-            '-out',
-            '--output_path',
-            type=str,
-            help='Path for the exported engine'
-        )
-        parser.add_argument(
-            '--quant_algo',
-            type=str,
-            default="no_quant",
-            choices=["no_quant", "int8", "int8_sq", "fp8", "int4_awq", "w4a8_awq", "int4"],
-            help='TensorRT-Model-Optimizer quantization algorithm'
-        )
-        parser.add_argument(
-            '-awq_bs',
-            '--awq_block_size',
-            type=int,
-            default=128,
-            help='Block size for AWQ quantization algorithms'
-        )
-        parser.add_argument(
-            '--sq_alpha',
-            type=float,
-            default=1.0,
-            help='Smooth-Quant alpha parameter'
-        )
-        
-        return parser
-
-    @staticmethod
-    def postprocess_argparse(args):
-        args.quantization_config = {
-            "algorithm": args.quant_algo,
-            "awq_block_size": args.awq_block_size,
-            "sq_alpha": args.sq_alpha,
-            "enable_kv_cache": None,
-        }
-        args.export_config = {
-            "path": args.output_path,
-            "decoder_type": args.decoder_type,
-            "inference_tensor_parallel": args.tensor_parallelism_size,
-            "inference_pipeline_parallel": 1,
-            "dtype": "bf16",
-        }
-        return args
-
-    @staticmethod
-    def modify_model_config(model_cfg):
+    def modify_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
         """Modify model config for quantization."""
 
-        # TODO: re-think
-        # with open_dict(model_cfg):
         if model_cfg.sequence_parallel:
             logging.warning("Disabling sequence parallelism for quantization...")
             model_cfg.sequence_parallel = False
@@ -274,45 +180,63 @@ class Quantizer:
         # layer implementation from megatron/core/transformer/dot_product_attention.py to be functional.
         model_cfg.name = "modelopt"
         model_cfg.apply_rope_fusion = False
-
         return model_cfg
 
-    # TODO: Add support for NeMo 2
-    # @staticmethod
-    # def _sample_output(model: MegatronGPTModel):
-    #     """Generate sample output for a model instance."""
-    #     logging.info("Generating sample output for the model...")
 
-    #     response = model.generate(
-    #         inputs=[
-    #             "Born in north-east France, Soyer trained as a",
-    #             "Born in California, Soyer trained as a",
-    #         ],
-    #         length_params={
-    #             "max_length": 100,
-    #             "min_length": 100,
-    #         },
-    #     )
 
-    #     logging.info(f'Example NeMo output before export: {response["sentences"]}"')
+    def _get_decoder_type(self, config: llm.GPTConfig):
+        return self.export_config.get("decoder_type", None) or get_modelopt_decoder_type(config)
 
-    def quantize(self, model, forward_loop):
+
+
+    def quantize(self, model: llm.GPTConfig, forward_loop):
         """Quantize the model and calibrate using given forward loop."""
-        assert self.quant_cfg is not None, "Quantization algorithm is not set"
+        algorithm = self.quantization_config["algorithm"]
+        if algorithm is None:
+            logging.info("Quantization algorithm set to None, returning the non-quantized model")
+            return model
 
-        logging.info(f"Quantizing model to {self.quantization_config.algorithm}...")
-        # self._setup(model)
+        logging.info(f"Quantizing model to {algorithm}...")
+        
+        self._setup(model)
+        decoder_type = self._get_decoder_type(model.config)
+        quant_cfg = QUANT_CFG_CHOICES[algorithm]
+        if "awq" in algorithm:
+            weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
+            if isinstance(weight_quantizer, list):
+                weight_quantizer = weight_quantizer[0]
+            weight_quantizer["block_sizes"][-1] = self.quantization_config["awq_block_size"]
 
-        model = mtq.quantize(model, self.quant_cfg, forward_loop)
+        # Always turn on FP8 kv cache to save memory footprint.
+        # For int8_sq, we use int8 kv cache.
+        # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
+        enable_quant_kv_cache = self.quantization_config.get("enable_kv_cache", None)
+        if enable_quant_kv_cache is None:
+            enable_quant_kv_cache = (
+                "int8" not in algorithm and decoder_type != "gptnext"
+            )
+        logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
+        quant_cfg["quant_cfg"]["*output_quantizer"] = {
+            "num_bits": 8 if algorithm == "int8_sq" else (4, 3),
+            "axis": None,
+            "enable": enable_quant_kv_cache,
+        }
+        if algorithm == "int8_sq":
+            sq_alpha = self.quantization_config["sq_alpha"]
+            logging.info(f"Using int8_sq alpha = {sq_alpha}")
+            quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": sq_alpha}
 
-        if self.quantization_config.decoder_type == "gptnext":
+
+        model = mtq.quantize(model, quant_cfg, forward_loop)
+
+        if decoder_type == "gptnext":
             # We found squared_relu may have an under-calibration problem.
             # Clamp the scaling_factor with a min threshold to avoid under-calibration.
-            maxbound = 0
-            if self.quantization_config.algorithm == "fp8":
-                maxbound = 448
-            elif self.quantization_config.algorithm == "int8_sq":
-                maxbound = 127
+            match algorithm:
+                case "fp8":         maxbound = 448
+                case "int8_sq":     maxbound = 127
+                case _:             maxbound = 0
+
             model = mtq.postprocess_amax(
                 model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
             )
@@ -322,61 +246,48 @@ class Quantizer:
 
         return model
 
-    def export(self, model, nemo_checkpoint_path = None):
+
+    def export(self, model: llm.GPTModel, nemo_checkpoint_path: Optional[str] = None) -> None:
         """Export model to '.qnemo' format for TensorRT-LLM engine build."""
         assert self.export_config is not None, "Export config is not set"
-        torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
-
-        # TODO: add with generate
-        # if self.export_config.get("sample_output", True):
-        #     self._sample_output(model)
-
-
-        # TODO: Support compressing to .qnemo
-        
-        # TODO: SUPPORT NeMo 2:
+        torch_dtype = torch_dtype_from_precision(self.export_config["dtype"])
+        # TODO: Add sample generate
+        # TODO: Support NeMo 2:
         # if model.cfg.megatron_amp_O2:
         #     model.model = unwrap_model(model.model, Float16Module)
 
-        # with export_handler as export_dir:
-        mtq.print_quant_summary(model)
-        export_dir = self.export_config.path
+        export_dir = self.export_config["path"]
         export_tensorrt_llm_checkpoint(
             model=model,
-            decoder_type=self.export_config.decoder_type,
+            decoder_type=self._get_decoder_type(model.config),
             dtype=torch_dtype,
             export_dir=export_dir,
-            inference_tensor_parallel=self.export_config.inference_tensor_parallel,
-            inference_pipeline_parallel=self.export_config.inference_pipeline_parallel,
-
-            # TODO: What happens in NeMo 2?
-            # use_nfs_workspace=model.trainer.num_nodes > 1,
+            inference_tensor_parallel=self.export_config["inference_tensor_parallel"],
+            inference_pipeline_parallel=self.export_config["inference_pipeline_parallel"],
+            use_nfs_workspace=model.trainer._fabric.__io__.num_nodes > 1,   # TODO: check it
         )
+
         dist.barrier()  # Wait until all ranks complete export_model_config step
         logging.info(
-            f"Exporting quantized weights, model artifacts, and tokenizer config to {self.export_config.path}..."
+            f"Exporting quantized weights, model artifacts, and tokenizer config to {export_dir}..."
         )
 
-        
         if dist.get_rank() == 0:
             self.nemo_checkpoint_path = nemo_checkpoint_path or self.nemo_checkpoint_path
-
+            
             if self.nemo_checkpoint_path is not None:
                 tokenizer_src = os.path.join(self.nemo_checkpoint_path, 'nemo_tokenizer')
-                tokenizer_dst = os.path.join(self.export_config.path, 'tokenizer')
+                tokenizer_dst = os.path.join(export_dir, 'tokenizer')
 
-                if os.path.exists(tokenizer_src):
+                if os.path.exists(tokenizer_src) and not os.path.exists(tokenizer_dst):
                     shutil.copytree(tokenizer_src, tokenizer_dst)
                 else:
-                    print("Could not find copy tokenizer from NeMo checkpoint")
-
-            # TODO Support for NeMo 2?
-            # save_artifacts(model, export_dir)
+                    logging.info("Could not copy tokenizer from NeMo checkpoint")
 
 
 
-def get_calib_data_iter(data="cnn_dailymail", batch_size=64, calib_size=512, max_sequence_length=512):
-    from datasets import load_dataset
+def get_calib_data_iter(data: str = "cnn_dailymail", batch_size: int = 64, calib_size: int = 512, max_sequence_length: int = 512):
+    """Creates a sample data iterator for calibration"""
     if data == "wikitext":
         dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
         text_column = "text"

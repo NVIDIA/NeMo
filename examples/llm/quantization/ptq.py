@@ -12,13 +12,91 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import sys
 import torch
 from tqdm import tqdm
 
 from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
-# TODO: Support PP
+
+
 # TODO: Inference TP/PP != Calibration TP/PP
+def get_args():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="NeMo PTQ argument parser",
+    )
+    parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
+    parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
+    parser.add_argument(
+        "-tps",
+        "--tensor_parallelism_size",
+        type=int,
+        default=1
+    )
+    parser.add_argument(
+        '-out',
+        '--output_path',
+        type=str,
+        help='Path for the exported engine'
+    )
+    parser.add_argument(
+        '-algo',
+        '--algorithm',
+        type=str,
+        default="no_quant",
+        choices=["no_quant", "int8", "int8_sq", "fp8", "int4_awq", "w4a8_awq", "int4"],
+        help='TensorRT-Model-Optimizer quantization algorithm'
+    )
+    parser.add_argument(
+        '-awq_bs',
+        '--awq_block_size',
+        type=int,
+        default=128,
+        help='Block size for AWQ quantization algorithms'
+    )
+    parser.add_argument(
+        '--sq_alpha',
+        type=float,
+        default=1.0,
+        help='Smooth-Quant alpha parameter'
+    )
+    parser.add_argument(
+        '--enable_kv_cache',
+        type=bool,
+        help='Enables KV-cache quantization'
+    )
+    parser.add_argument(
+        '-dt',
+        '--dtype',
+        default="bf16",
+        choices=["16", "bf16"],
+        help='Default precision for non-quantized layers'
+    )
+    
+    return parser.parse_args(sys.argv[1:])
+
+
+def get_quantizer_config(args):
+    if args.output_path is None:
+        args.output_path = f"./trt_llm_{args.algorithm}_tp{args.tensor_parallelism_size}"
+
+    quantization_config = {
+        "algorithm": None if args.algorithm == "no_quant" else args.algorithm,
+        "awq_block_size": args.awq_block_size,
+        "sq_alpha": args.sq_alpha,
+        "enable_kv_cache": args.enable_kv_cache,
+    }
+
+    export_config = {
+        "path": args.output_path,
+        "decoder_type": args.decoder_type,
+        "inference_tensor_parallel": args.tensor_parallelism_size,
+        "inference_pipeline_parallel": 1,
+        "dtype": args.dtype,
+    }
+    return quantization_config, export_config
+
 
 # TODO: maybe use llm.generate (#10471)
 def forward_loop(model):
@@ -41,15 +119,12 @@ def forward_loop(model):
 
 
 def main():
-    parser = Quantizer.create_argparser()
-    params = parser.parse_args(sys.argv[1:])
-    params = Quantizer.postprocess_argparse(params)
+    params = get_args()
+    quantization_config, export_config = get_quantizer_config(params)
 
-    quantizer = Quantizer(params.quantization_config, params.export_config)
+    quantizer = Quantizer(quantization_config, export_config)
     model = quantizer.load_quantizable_model(params.nemo_checkpoint, params.tensor_parallelism_size)
-
-    if params.quant_algo != "no_quant":
-        model = quantizer.quantize(model, forward_loop)
+    model = quantizer.quantize(model, forward_loop)
     quantizer.export(model)
 
 

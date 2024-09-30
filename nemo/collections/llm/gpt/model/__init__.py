@@ -58,6 +58,7 @@ from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
+    MixtralConfig,
     MixtralModel,
 )
 from nemo.collections.llm.gpt.model.nemotron import (
@@ -104,6 +105,7 @@ __all__ = [
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
+    "MixtralConfig",
     "MixtralModel",
     "Starcoder2Config",
     "Starcoder2Model",
