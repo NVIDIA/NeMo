@@ -86,12 +86,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from typing import Any, List, Optional
-from tqdm import tqmd
 
 import numpy as np
 import soundfile
 from joblib import Parallel, delayed
 from omegaconf import DictConfig, OmegaConf, open_dict
+from tqdm import tqmd
 
 try:
     import create_dali_tarred_dataset_index as dali_index
@@ -321,6 +321,7 @@ class ASRTarredDatasetBuilder:
     def estimate_dynamic_bucketing_duration_bins(self, manifest_path: str, num_buckets: int = 30) -> dict:
         from lhotse import CutSet
         from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
+
         from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
 
         cuts = CutSet(LazyNeMoIterator(manifest_path, metadata_only=True))
@@ -611,7 +612,7 @@ class ASRTarredDatasetBuilder:
             tar = tarfile.open(tar_filepath, mode='w', dereference=True)
 
         count = dict()
-        for entry in tqdm(entries, desc = "Creating shard.."):
+        for entry in tqdm(entries, desc="Creating shard.."):
             # We squash the filename since we do not preserve directory structure of audio files in the tarball.
             if os.path.exists(entry["audio_filepath"]):
                 audio_filepath = entry["audio_filepath"]
