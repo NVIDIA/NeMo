@@ -170,14 +170,6 @@ class PackingArgs:
         self.seed = cfg.get("seed", 0)
         return self
 
-def print_sample_data(data):
-    for key, val in data.items():
-        if key in {"input_ids","context_ids", "loss_mask"}:
-            print("{} length: {}".format(key, len(val)))
-        else:
-            print(key, val)
-    return
-
 @hydra_runner(
     config_path="../../examples/nlp/language_modeling/tuning/conf", config_name="megatron_gpt_finetuning_config"
 )
@@ -188,9 +180,6 @@ def main(cfg: 'DictConfig') -> None:
     for pack_size in args.pack_sizes:
         assignments = create_packing_strategy(histogram, pack_size, args.packing_algorithm)
         output_data = fill_packing_strategy(assignments, sequences, pack_size)
-
-        for i in range(5):
-            print_sample_data(output_data[i])
 
         # save output data
         os.makedirs(args.output_dir, exist_ok=True)

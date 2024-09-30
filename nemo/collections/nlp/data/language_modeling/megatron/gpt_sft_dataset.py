@@ -627,15 +627,11 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             # set last seq to the max seq len because rope and attn kernels expect no padding
             cu_seqlens[-1][-1] = max_length
             
-            #print(item['seq_boundaries'])
             for i in range(len(item['seq_boundaries']) - 1):
-                #print(np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]))
                 seqlen_unpadded = np.argmin(np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]))
                 cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
             cu_seqlens_unpadded[-1][-1] = max_length
-        #print(cu_seqlens)
-        #print(cu_seqlens_unpadded)
-        #print("##########################")
+
         assert len(input_ids[0]) == len(
             position_ids[0]
         ), "Dataset problem: input_ids and position_ids lengths don't match"
@@ -661,14 +657,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
             seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
             max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
-            
-            # convert to pytorch tensor
             cu_seqlens_unpadded = torch.IntTensor(cu_seqlens_unpadded)
             
-            #print(cu_seqlens)
-            #print(cu_seqlens_unpadded)
-            #print("##########################")
-
             processed_batch.update(
                 {
                     'attention_mask': torch.LongTensor(
