@@ -119,6 +119,14 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
     max_num_tiles: int = 4
     text_hidden_size: int = 4096
     gated: bool = False
+    supported_aspect_ratios: Tuple[Tuple[int, int], ...] = (
+        (1, 1), (1, 2), (1, 3), (1, 4),
+        (2, 1), (2, 2), (3, 1), (4, 1)
+    )
+
+    @property
+    def max_aspect_ratio_id(self) -> int:
+        return len(self.supported_aspect_ratios)
 
     def configure_model(self) -> "CrossAttentionVisionModel":
         return CrossAttentionVisionModel(
@@ -414,12 +422,10 @@ class MLlamaBaseModel(MegatronModule):
                 vision_tokens = torch.zeros(
                     vision_orig_shape, device="cuda", dtype=torch.bfloat16,
                 )
-            # else:
-            #     vision_tokens = self.encoder_hidden_state
             else:
                 stacked_images = stacked_images.cuda(non_blocking=True)
-                aspect_ratios = aspect_ratios.cuda(non_blocking=True)
-                vision_tokens = self.vision_model(stacked_images, aspect_ratios)
+                aspect_ratio_ids = aspect_ratio_ids.cuda(non_blocking=True)
+                vision_tokens = self.vision_model(stacked_images, aspect_ratio_ids)
             vision_tokens = rearrange(vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim").contiguous()
         return vision_tokens, vision_orig_shape, num_chunks
 
