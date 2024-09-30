@@ -29,6 +29,7 @@ from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, 
 from nemo.collections.common.data.lhotse.text_adapters import (
     LhotseTextAdapter,
     LhotseTextPairAdapter,
+    NeMoMultimodalConversationJsonlAdapter,
     NeMoSFTJsonlAdapter,
 )
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -173,6 +174,9 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     elif grp_cfg.type == "nemo_sft_jsonl":
         is_tarred = True
         cuts = read_nemo_sft_jsonl(grp_cfg)
+    elif grp_cfg.type == "multimodal_conversation":
+        is_tarred = True
+        cuts = read_multimodal_conversation_jsonl(grp_cfg)
     elif grp_cfg.type == "group":
         cuts, is_tarred = parse_and_combine_datasets(
             grp_cfg.input_cfg,
@@ -221,6 +225,21 @@ def read_nemo_sft_jsonl(config: DictConfig) -> CutSet:
             shard_seed=config.shard_seed,
         )
     ).repeat()
+
+
+def read_multimodal_conversation_jsonl(config: DictConfig) -> CutSet:
+    cuts = CutSet(
+        NeMoMultimodalConversationJsonlAdapter(
+            manifest_filepath=config.manifest_filepath,
+            tarred_audio_filepaths=config.tarred_audio_filepaths,
+            audio_locator_tag=config.audio_locator_tag,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat()
+    return cuts
 
 
 def attach_tags(cut, tags: dict):

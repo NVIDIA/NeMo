@@ -20,11 +20,14 @@ from typing import Iterator, Literal, Optional, Union
 
 import numpy as np
 import torch
+from lhotse import Recording
+from lhotse.cut import Cut
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
 from lhotse.utils import Pathlike
 
 from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_filepaths
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer, TokenizerWrapper
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
@@ -304,6 +307,130 @@ class NeMoSFTJsonlAdapter:
         for path in paths:
             for data in load_jsonl(path):
                 yield NeMoSFTExample(data, language=self.language)
+
+
+@dataclass
+class TextTurn:
+    value: str
+    role: str
+
+
+@dataclass
+class AudioTurn:
+    cut: Cut
+    role: str
+    audio_locator_tag: str
+
+
+@dataclass
+class NeMoMultimodalConversation:
+    id: str
+    turns: list[TextTurn | AudioTurn]
+    input_ids: np.ndarray | None = None
+    context_ids: np.ndarray | None = None
+    answer_ids: np.ndarray | None = None
+    mask: np.ndarray | None = None
+
+    def tokenize(
+        self,
+        tokenizer: TokenizerWrapper | TokenizerSpec,
+        prompt: PromptFormatter = None,
+    ) -> "NeMoMultimodalConversation":
+        """
+        Create a tokenized variant of this example given a tokenizer (i.e. fill the optional fields).
+        Supports BPE tokenizers and aggregate tokenizers.
+
+        The tokenization is compatible with Megatron's :class:`GPTSFTChatDataset`.
+        """
+        if isinstance(tokenizer, TokenizerWrapper):
+            tokenizer = tokenizer._tokenizer
+        if isinstance(tokenizer, AggregateTokenizer):
+            raise NotImplementedError("NeMoMultimodalConversation does not support AggregateTokenizer yet.")
+        if prompt is None:
+            prompt = PromptFormatter.resolve("plain")(tokenizer)
+
+        ans = prompt.encode_dialog(
+            [
+                {
+                    "role": turn.role,
+                    "slots": {"message": turn.value if isinstance(turn, TextTurn) else turn.audio_locator_token},
+                }
+                for turn in self.turns
+            ]
+        )
+        self.input_ids = ans["input_ids"]
+        self.context_ids = ans["context_ids"]
+        self.answer_ids = ans["answer_ids"]
+        self.mask = ans["mask"]
+
+        return self
+
+
+@dataclass
+class NeMoMultimodalConversationJsonlAdapter:
+    """
+    ``NeMoMultimodalConversationJsonlAdapter`` is used to read a NeMo multimodal conversation JSONL
+    and yield objects of type ``NeMoMultimodalConversation`` that can be sampled with Lhotse.
+
+    We expect the following schema (contained in a single line per example)::
+
+        {
+            "id": str,
+            "conversations": [
+                {
+                    "value": str,  # text message or path to audio
+                    "from": "User" | "Assistant",
+                    "type": "text" | "audio",
+                    "duration": float,  # only for audio
+                },
+                ...
+            ],
+        }
+    """
+
+    manifest_filepath: str | list[str]
+    audio_locator_tag: str
+    tarred_audio_filepaths: str | list[str] = None
+    shuffle_shards: bool = False
+    shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
+
+    def __post_init__(self):
+        self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
+        if self.tarred_audio_filepaths is not None:
+            raise NotImplementedError(
+                "Tarred manifests are currently not supported yet for NeMoMultimodalConversation."
+            )
+            self.tarred_audio_filepaths = expand_sharded_filepaths(self.tarred_audio_filepaths)
+
+    def __iter__(self) -> Iterator[NeMoMultimodalConversation]:
+        paths = self.manifest_filepath
+        if self.shuffle_shards:
+            seed = resolve_seed(self.shard_seed)
+            random.Random(seed).shuffle(paths)
+        for path in paths:
+            for data in load_jsonl(path):
+                yield NeMoMultimodalConversation(
+                    id=data["id"],
+                    turns=[
+                        (
+                            TextTurn(
+                                value=turn["value"],
+                                role=turn[
+                                    "from"
+                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                            )
+                            if turn["type"] == "text"
+                            else AudioTurn(
+                                cut=Recording.from_file(turn["value"]).to_cut(),
+                                role=turn[
+                                    "from"
+                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                                audio_locator_tag=self.audio_locator_tag,
+                            )
+                        )
+                        for turn in data["conversations"]
+                    ],
+                )
 
 
 """
