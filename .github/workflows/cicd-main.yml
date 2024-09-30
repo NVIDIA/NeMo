@@ -112,6 +112,7 @@ jobs:
           # Basic Import Checks
           python -c "import nemo.collections.asr as nemo_asr"
           python -c "import nemo.collections.nlp as nemo_nlp"
+          python -c "import nemo.collections.nlp as nemo_nlp; nemo_nlp.modules.get_tokenizer_list()"
           python -c "import nemo.collections.tts as nemo_tts"
 
           python setup.py style
@@ -5223,6 +5224,18 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_sft/${{ github.run_id }}
 
+  L2_NeMo_2_HF_MODEL_IMPORT:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/gpt/model/test_model_import.py
+
+      AFTER_SCRIPT: |
+        rm -rf ~/.cache/nemo/models
+
   L2_NeMo_2_T5_Pretraining:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -5233,13 +5246,19 @@ jobs:
         NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_pretraining.py \
         --devices=2 \
         --max-steps=3 \
-        --experiment-dir=tests/collections/llm/t5_pretrain_results \
+        --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
         --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
-        --index-mapping-dir=tests/collections/llm/t5_index_mappings
+        --index-mapping-dir=tests/collections/llm/t5_index_mappings/${{ github.run_id }}
 
+        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_pretraining.py \
+        --devices=2 \
+        --max-steps=6 \
+        --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
+        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
+        --index-mapping-dir=tests/collections/llm/t5_index_mappings/${{ github.run_id }}
       AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_pretrain_results
-        rm -rf tests/collections/llm/t5_index_mappings
+        rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
+        rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
 
   Nemo_CICD_Test:
     needs: 
@@ -5375,6 +5394,7 @@ jobs:
       #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
       - L2_NeMo_2_GPT_DDP_Param_Parity_check
+      - L2_NeMo_2_HF_MODEL_IMPORT
       - L2_NeMo_2_SSM_Pretraining
       - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_T5_Pretraining
