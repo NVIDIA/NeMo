@@ -15,8 +15,16 @@ from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncode
 
 
 @dataclass
-class LlamaImageTextRawBatch(ImageTextRawBatch):
-    vision_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+class LlamaImageTextRawBatch:
+    __keys__: List[str] = field(default_factory=list)
+
+    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
+    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
+    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+
+    batch_images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    batch_masks: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+
     aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     num_tiles: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
@@ -56,11 +64,11 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
         batch_num_tiles = torch.tensor(num_tiles)
         return LlamaImageTextRawBatch(
             __keys__=batch_keys,
-            images=batch_images,
+            batch_images=batch_images,
+            batch_masks=batch_vision_mask,
             tokens=batch_tokens,
             labels=batch_labels,
             loss_mask=batch_loss_mask,
-            vision_mask=batch_vision_mask,
             aspect_ratio_ids=batch_aspect_ratio_ids,
             aspect_ratio_mask=batch_aspect_ratio_mask,
             num_tiles=batch_num_tiles,

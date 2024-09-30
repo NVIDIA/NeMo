@@ -143,15 +143,15 @@ class Llama3SampleEncoder(VQASampleEncoder):
 
     def encode(self, input_sample: VQASample, output_sample: LlamaImageTextSample):
         conversation_prompt = self.apply_prompt_template(input_sample)
-        logging.debug(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
+        logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
 
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        logging.debug(f"task encoder encode_sample after tokenize prompt tokens {tokens}")
-        logging.debug(f"task encoder encode_sample lables {labels}")
+        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(f"[Energon] task encoder encode_sample labels {labels}")
         loss_mask = self.compute_loss_mask(labels)
         vision_mask = self.create_vision_mask_tensor(tokens=tokens, vision_token_id=self.image_token.token_id)
         processed_image_dict = self.process_image(input_sample.image)
