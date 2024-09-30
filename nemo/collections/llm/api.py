@@ -427,7 +427,51 @@ def evaluate(
 
     from lm_eval import tasks, evaluator
     from lm_eval.api.model import LM
+    import time
     import requests
+    from requests.exceptions import RequestException
+
+    def wait_for_rest_service(rest_url, max_retries=30, retry_interval=2):
+        """
+        Wait for REST service to be ready.
+
+        Args:
+        rest_url (str): URL of the REST service's health endpoint
+        max_retries (int): Maximum number of retry attempts
+        retry_interval (int): Time to wait between retries in seconds
+
+        Returns:
+        bool: True if rest service is ready, False otherwise
+        """
+        for _ in range(max_retries):
+            rest_ready = check_service(rest_url)
+
+            if rest_ready:
+                print("REST service is ready.")
+                return True
+
+            print(f"REST Service not ready yet. Retrying in {retry_interval} seconds...")
+            time.sleep(retry_interval)
+
+        print("Timeout: One or both services did not become ready.")
+        return False
+
+    def check_service(url):
+        """
+        Check if a service is ready by making a GET request to its health endpoint.
+
+        Args:
+        url (str): URL of the service's health endpoint
+
+        Returns:
+        bool: True if the service is ready, False otherwise
+        """
+        try:
+            response = requests.get(url, timeout=5)
+            return response.status_code == 200
+        except RequestException:
+            return False
+
     class CustomModel(LM):
         def __init__(self, model_name, api_url, max_tokens_to_generate, temperature, top_p, top_k):
             self.model_name = model_name
@@ -475,8 +519,9 @@ def evaluate(
                 results.append(generated_text)
 
             return results
-    model = CustomModel(model_name, url, temperature, top_p, top_k)
 
+    wait_for_rest_service(rest_url=f"{url}/health")
+    model = CustomModel(model_name, url, max_tokens_to_generate, temperature, top_p, top_k)
     results = evaluator.simple_evaluate(
         model=model,
         tasks=eval_task,
