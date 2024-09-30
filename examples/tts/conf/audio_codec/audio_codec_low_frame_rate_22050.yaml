@@ -123,6 +123,7 @@ model:
     encoded_dim: ${encoder_out_dim}
     base_channels: 48
     activation: "lrelu"
+    resblock_dilation_sizes: [1,]
 
   audio_decoder:
     _target_: nemo.collections.tts.modules.audio_codec_modules.HiFiGANDecoder

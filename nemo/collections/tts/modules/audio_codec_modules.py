@@ -68,8 +68,7 @@ class SSLModel(NeuralModule):
 
 
 class SLMDiscriminator(NeuralModule):
-    """SLM Discriminator as in StyleTTS2 paper.
-    Adapted from https://github.com/yl4579/StyleTTS2/blob/5cedc71c333f8d8b8551ca59378bdcc7af4c9529/losses.py#L193
+    """SLM Discriminator, as described in both the StyleTTS2 and Low Frame-Rate Speech Codec papers.
 
     Args:
         slm_model_name: Hugging Face Speech Language Models name.
@@ -130,6 +129,23 @@ class SLMDiscriminator(NeuralModule):
 
         return x, fmap
 
+    @property
+    def input_types(self):
+        return {
+            "audio_real": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_gen": NeuralType(('B', 'T_audio'), AudioSignal()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores_real": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "scores_gen": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "fmaps_real": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
+            "fmaps_gen": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
+        }
+
+    @typecheck()
     def forward(self, audio_real, audio_gen):
 
         y_d_r, fmap_r = self._forward(audio_real)
