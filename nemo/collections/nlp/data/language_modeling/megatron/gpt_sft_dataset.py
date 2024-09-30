@@ -628,12 +628,14 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 # length minus 1 because input_ids is truncated by 1 for labels
                 position_ids[-1].extend(list(range(l - 1)))
                 cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
-                
+
             # set last seq to the max seq len because rope and attn kernels expect no padding
             cu_seqlens[-1][-1] = max_length
-            
+
             for i in range(len(item['seq_boundaries']) - 1):
-                seqlen_unpadded = np.argmin(np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]))
+                seqlen_unpadded = np.argmin(
+                    np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1])
+                )
                 cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
             cu_seqlens_unpadded[-1][-1] = max_length
 
@@ -656,14 +658,16 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         if self.return_cu_seqlen:
             cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
-            cu_seqlens_unpadded = self._collate_item(cu_seqlens_unpadded, max_length=max(len(l) for l in cu_seqlens_unpadded) + 1, pad_id=-1)
+            cu_seqlens_unpadded = self._collate_item(
+                cu_seqlens_unpadded, max_length=max(len(l) for l in cu_seqlens_unpadded) + 1, pad_id=-1
+            )
             # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
             cu_seqlens = torch.IntTensor(cu_seqlens)
             cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
             seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
             max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
             cu_seqlens_unpadded = torch.IntTensor(cu_seqlens_unpadded)
-            
+
             processed_batch.update(
                 {
                     'attention_mask': torch.LongTensor(

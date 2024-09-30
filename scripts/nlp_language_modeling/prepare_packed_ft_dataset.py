@@ -134,6 +134,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
     pad_seq_length_to_mult = dataset.pad_seq_length_to_mult
     dataset = np.array([dataset[i] for i in range(len(dataset))])
     if cp_size > 1:
+
         def pre_pad_dataset(data, max_length, pad_id):
             '''
             pad each individual data point to the length of max_length
@@ -145,6 +146,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
                     val = val + [pad_id] * (max_length - len(val) + 1)
                     data[key] = val
             return
+
         ceil_to_nearest = lambda n, m: (n + m - 1) // m * m
         for data in dataset:
             max_length = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
@@ -169,6 +171,7 @@ class PackingArgs:
         self.packing_algorithm = cfg.get("packing_algorithm", "first_fit_shuffle")
         self.seed = cfg.get("seed", 0)
         return self
+
 
 @hydra_runner(
     config_path="../../examples/nlp/language_modeling/tuning/conf", config_name="megatron_gpt_finetuning_config"
