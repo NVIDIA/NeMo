@@ -622,7 +622,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
 
 @io.model_importer(MLlamaModel, "pytorch")
-class PytorchLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
+class PytorchMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
     def init(self) -> MLlamaModel:
         return MLlamaModel(self.config, tokenizer=self.tokenizer)
 
@@ -889,6 +889,40 @@ def _import_text_qkv(ctx: io.TransformCTX, q, k, v):
     head_size = text_config.kv_channels
     hidden_size = text_config.hidden_size
     return _merge_qkv(q, k, v, head_num, num_query_groups, head_size, hidden_size)
+
+
+def _import_text_kv(ctx: io.TransformCTX, k, v):
+    text_config = ctx.target.config.language_model_config
+
+    head_num = text_config.num_attention_heads
+    num_query_groups = text_config.num_query_groups
+    head_size = text_config.kv_channels
+    hidden_size = text_config.hidden_size
+    return _merge_kv(k, v, head_num, num_query_groups, head_size, hidden_size)
+
+
+def _merge_kv(k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_size: int, hidden_size: int):
+    old_tensor_shape = k.size()
+    new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
+
+    k = k.view(*new_kv_tensor_shape)
+    v = v.view(*new_kv_tensor_shape)
+
+    kv_weights_l = []
+    for i in range(num_query_groups):
+        kv_weights_l.append(k[i: i + 1, :, :])
+        kv_weights_l.append(v[i: i + 1, :, :])
+    qkv_weights = torch.cat(kv_weights_l)
+    kv_weights = torch.stack((k, v), dim=0)
+    kv_weights = kv_weights.reshape(-1, *new_kv_tensor_shape[1:])
+    import pdb; pdb.set_trace()
+    assert kv_weights.ndim == 3, kv_weights.shape
+    assert kv_weights.shape[0] == 2 * num_query_groups, kv_weights.shape
+    assert kv_weights.shape[1] == head_size, kv_weights.shape
+    assert kv_weights.shape[2] == old_tensor_shape[1], kv_weights.shape
+
+    kv_weights = kv_weights.reshape([head_size * 2 * num_query_groups, hidden_size])
+    return kv_weights
 
 
 def _merge_qkv(q: Tensor, k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_size: int, hidden_size: int):
