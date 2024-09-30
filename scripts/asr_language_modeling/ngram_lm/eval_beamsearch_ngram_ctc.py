@@ -213,7 +213,9 @@ def beam_search_eval(
                 )
 
             _, beams_batch = decoding.ctc_decoder_predictions_tensor(
-                packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
+                packed_batch,
+                decoder_lengths=probs_lens,
+                return_hypotheses=True,
             )
 
         for beams_idx, beams in enumerate(beams_batch):
@@ -362,7 +364,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
             autocast = default_autocast
 
-        with autocast():
+        with autocast(asr_model.device.type, enabled=cfg.amp):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'

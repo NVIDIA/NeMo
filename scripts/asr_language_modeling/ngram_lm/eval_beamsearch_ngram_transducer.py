@@ -314,7 +314,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
             autocast = default_autocast
 
         # manual calculation of encoder_embeddings
-        with autocast():
+        with torch.amp.autocast(asr_model.device.type, enabled=cfg.use_amp):
             with torch.no_grad():
                 asr_model.eval()
                 asr_model.encoder.freeze()
