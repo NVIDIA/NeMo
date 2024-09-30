@@ -47,7 +47,7 @@ from nemo.collections.vlm.llama.model.vision import (
     _get_full_row_masked_out_mask, _stack_images, _pad_masks, VisionEncoder
 )
 from nemo.lightning import io, teardown
-from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 
@@ -549,16 +549,16 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     @property
-    def training_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
+    def training_loss_reduction(self) -> MaskedTokenLossReduction:
         if not self._training_loss_reduction:
-            self._training_loss_reduction = MaskedTokenLossReductionWithLossMask()
+            self._training_loss_reduction = MaskedTokenLossReduction()
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
+    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
+            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
 
