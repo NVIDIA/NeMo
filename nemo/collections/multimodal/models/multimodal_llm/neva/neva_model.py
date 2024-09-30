@@ -15,7 +15,7 @@
 import os
 from functools import partial
 from itertools import chain
-from typing import Any, Optional, List
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -64,6 +64,11 @@ from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPr
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+
+from torch import nn
+from transformers import PixtralPreTrainedModel
+from transformers.utils import ModelOutput
+from dataclasses import dataclass
 
 try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
@@ -120,6 +125,426 @@ class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
 
         self.eval()
         self.frozen = True
+
+from torch import nn
+from typing import List, Optional, Tuple, Union
+from transformers import PixtralPreTrainedModel
+from transformers.utils import ModelOutput
+from dataclasses import dataclass
+@dataclass
+class BaseModelOutput(ModelOutput):
+    """
+    Base class for model's outputs, with potential hidden states and attentions.
+
+    Args:
+        last_hidden_state (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
+            Sequence of hidden-states at the output of the last layer of the model.
+        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
+            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
+            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
+
+            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
+        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
+            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
+            sequence_length)`.
+
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    last_hidden_state: torch.FloatTensor = None
+    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
+    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
+
+def _reshape_for_broadcast(freqs_cis: torch.Tensor,
+                           x: torch.Tensor) -> torch.Tensor:
+    """
+    freqs_cis: complex - (seq_len, head_dim / 2)
+    x: complex - (bsz, seq_len, head_dim / 2)
+    """
+    ndim = x.ndim
+    assert ndim > 1
+    assert freqs_cis.shape == (x.shape[1], x.shape[-1]), (
+        freqs_cis.shape,
+        (x.shape[1], x.shape[-1]),
+    )
+    shape = [
+        d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)
+    ]
+    return freqs_cis.view(*shape)
+
+def position_ids_in_meshgrid(patch_embeds_list: list[torch.Tensor], ) -> torch.Tensor:
+    positions = torch.cat([
+        torch.stack(
+            torch.meshgrid(
+                torch.arange(p.shape[-2]),
+                torch.arange(p.shape[-1]),
+                indexing="ij",
+            ),
+            dim=-1,
+        ).reshape(-1, 2) for p in patch_embeds_list
+    ])
+    return positions
+
+def apply_rotary_emb_vit(
+    xq: torch.Tensor,
+    xk: torch.Tensor,
+    freqs_cis: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
+    xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
+    assert freqs_cis.dtype == torch.complex64
+    freqs_cis = _reshape_for_broadcast(freqs_cis, xq_)
+    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
+    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
+    return xq_out.type_as(xq), xk_out.type_as(xk)
+
+def generate_block_attention_mask(patch_embeds_list, tensor):
+    dtype = tensor.dtype
+    device = tensor.device
+    seq_len = tensor.shape[1]
+    d_min = torch.finfo(dtype).min
+    causal_mask = torch.full((seq_len, seq_len), fill_value=d_min, dtype=dtype, device=device)
+
+    block_end_idx = torch.tensor(patch_embeds_list).cumsum(-1)
+    block_start_idx = torch.tensor([0] + patch_embeds_list[:-1]).cumsum(-1)
+    for start, end in zip(block_start_idx, block_end_idx):
+        causal_mask[start:end, start:end] = 0
+
+    causal_mask = causal_mask[None, None, :, :].expand(tensor.shape[0], 1, -1, -1)
+    return causal_mask
+
+class PixtralRotaryEmbedding(torch.nn.Module):
+    """
+    The key with pixtral embedding is just that you have a frequency for each pixel positions.
+    If you have height x width pixels (or embedding pixels), then the frequency used for ROPE
+    is given by indexing the pre_computed frequency on the width and height.
+
+    What you output is of dimension (batch, height * width, dim) with dim the embed dim.
+
+    This simply means that for each image hidden state, you are going to add
+    a corresponding positional embedding, based on its index in the grid.
+    """
+
+    def __init__(self, config, device):
+        super().__init__()
+        self.device = device
+        self.rope_type = "default"
+        self.dim = config.head_dim
+        self.theta = config.rope_theta
+        max_patches_per_side = config.image_size // config.patch_size
+ 
+        freqs = 1.0 / (self.theta ** (torch.arange(0, self.dim, 2).float() / self.dim))
+
+        h = torch.arange(max_patches_per_side, device=freqs.device)
+        w = torch.arange(max_patches_per_side, device=freqs.device)
+
+        freqs_h = torch.outer(h, freqs[::2]).float()
+        freqs_w = torch.outer(w, freqs[1::2]).float()
+        inv_freq = torch.cat(
+            [
+                freqs_h[:, None, :].repeat(1, max_patches_per_side, 1),
+                freqs_w[None, :, :].repeat(max_patches_per_side, 1, 1),
+            ],
+            dim=-1,
+        )
+
+        # TODO maybe make it torch compatible later on. We can also just slice
+        inv_freq = torch.polar(torch.ones_like(inv_freq), inv_freq)
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+
+    @torch.no_grad()
+    def forward(self, x, y):
+        freqs_cis = self.inv_freq[x, y]
+        if freqs_cis.device != x.device:
+            freqs_cis = freqs_cis.to(x.device)
+        
+        return freqs_cis
+
+    def to_device(self, device):
+        # Move the inv_freq to the correct device, without changing its dtype
+        if self.inv_freq.device != device:
+            self.inv_freq = self.inv_freq.to(device)
+
+# Copied from transformers.models.llama.modeling_llama.LlamaRMSNorm with Llama->Pixtral
+class PixtralRMSNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-6):
+        """
+        PixtralRMSNorm is equivalent to T5LayerNorm
+        """
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states):
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(input_dtype)
+
+    def extra_repr(self):
+        return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
+
+class PixtralMLP(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.hidden_size = config.hidden_size
+        self.intermediate_size = config.intermediate_size
+        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
+        self.act_fn = nn.SiLU()
+
+    def forward(self, hidden_state):
+        return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
+    
+class PixtralAttention(nn.Module):
+    """Multi-headed attention from 'Attention Is All You Need' paper"""
+
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.embed_dim = config.hidden_size
+        self.num_heads = config.num_attention_heads
+        self.head_dim = self.embed_dim // self.num_heads
+
+        self.scale = self.head_dim**-0.5
+
+        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
+        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
+        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
+        self.o_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_embeddings: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Input shape: Batch x Time x Channel"""
+
+        batch_size, patches, _ = hidden_states.size()
+
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+        query_states = query_states.view(batch_size, patches, self.num_heads, self.head_dim)#.transpose(1, 2)
+        key_states = key_states.view(batch_size, patches, self.num_heads, self.head_dim)#.transpose(1, 2)
+        value_states = value_states.view(batch_size, patches, self.num_heads, self.head_dim).transpose(1, 2)
+
+        query_states, key_states = apply_rotary_emb_vit(query_states, key_states, freqs_cis=position_embeddings)
+
+        query_states = query_states.transpose(1, 2)
+        key_states = key_states.transpose(1, 2)
+ 
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) * self.scale
+
+        if attention_mask is not None:
+            attn_weights = attn_weights + attention_mask
+
+        # upcast attention to fp32
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        attn_output = torch.matmul(attn_weights, value_states)
+
+        attn_output = attn_output.transpose(1, 2).contiguous()
+        attn_output = attn_output.reshape(batch_size, patches, -1)
+        
+        attn_output = self.o_proj(attn_output)
+        return attn_output, attn_weights
+
+class PixtralAttentionLayer(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.attention_norm = PixtralRMSNorm(config.hidden_size, eps=1e-5)
+        self.feed_forward = PixtralMLP(config)
+        self.attention = PixtralAttention(config)
+        self.ffn_norm = PixtralRMSNorm(config.hidden_size, eps=1e-5)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: torch.Tensor,
+        position_embeddings: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = False,
+    ) -> Tuple[torch.FloatTensor]:
+        """
+        Args:
+            hidden_states (`torch.FloatTensor`):
+                Input to the layer of shape `(batch, seq_len, embed_dim)`.
+            attention_mask (`torch.FloatTensor`):
+                Attention mask of shape `(batch, 1, q_len, k_v_seq_len)` where padding elements are indicated by very large negative values.
+            output_attentions (`bool`, *optional*, defaults to `False`):
+                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
+                returned tensors for more detail.
+        """
+        residual = hidden_states
+        hidden_states = self.attention_norm(hidden_states)
+        hidden_states, attn_weights = self.attention(
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            position_embeddings=position_embeddings,
+            output_attentions=output_attentions,
+        )
+        hidden_states = residual + hidden_states
+
+        residual = hidden_states
+        hidden_states = self.ffn_norm(hidden_states)
+        hidden_states = self.feed_forward(hidden_states)
+        hidden_states = residual + hidden_states
+
+        outputs = (hidden_states,)
+
+        if output_attentions:
+            outputs += (attn_weights,)
+        return outputs
+    
+class PixtralTransformer(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.layers = torch.nn.ModuleList()
+        for _ in range(config.num_hidden_layers):
+            self.layers.append(PixtralAttentionLayer(config))
+        self.gradient_checkpointing = False
+
+    def forward(
+        self,
+        inputs_embeds,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_embeddings: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple, BaseModelOutput]:
+        r"""
+        Args:
+            inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
+                Embeddings which serve as input to the Transformer.
+            attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`:
+
+                - 1 for tokens that are **not masked**,
+                - 0 for tokens that are **masked**.
+
+                [What are attention masks?](../glossary#attention-mask)
+            output_attentions (`bool`, *optional*):
+                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
+                returned tensors for more detail.
+            output_hidden_states (`bool`, *optional*):
+                Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors
+                for more detail.
+            return_dict (`bool`, *optional*):
+                Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
+        """
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        encoder_states = () if output_hidden_states else None
+        all_attentions = () if output_attentions else None
+
+        hidden_states = inputs_embeds
+        for layer_no, encoder_layer in enumerate(self.layers):
+            if output_hidden_states:
+                encoder_states = encoder_states + (hidden_states,)
+            if self.gradient_checkpointing and self.training:
+                layer_outputs = self._gradient_checkpointing_func(
+                    encoder_layer.__call__,
+                    hidden_states,
+                    attention_mask,
+                    position_embeddings,
+                    output_attentions,
+                )
+            else:
+                layer_outputs = encoder_layer(
+                    hidden_states,
+                    attention_mask,
+                    position_embeddings=position_embeddings,
+                    output_attentions=output_attentions,
+                )
+
+            hidden_states = layer_outputs[0]
+            if output_attentions:
+                all_attentions = all_attentions + (layer_outputs[1],)
+
+        if output_hidden_states:
+            encoder_states = encoder_states + (hidden_states,)
+
+        if not return_dict:
+            return tuple(v for v in [hidden_states, encoder_states, all_attentions] if v is not None)
+        return BaseModelOutput(
+            last_hidden_state=hidden_states, hidden_states=[hidden_states], attentions=all_attentions
+        )
+
+class PixtralVisionModel(PixtralPreTrainedModel):
+    base_model_prefix = "vision_encoder"
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+        self.patch_conv = nn.Conv2d(
+            in_channels=config.num_channels,
+            out_channels=config.hidden_size,
+            kernel_size=config.patch_size,
+            stride=config.patch_size,
+            bias=False,
+        )
+        self.ln_pre = PixtralRMSNorm(config.hidden_size, eps=1e-5)
+        self.transformer = PixtralTransformer(config)
+        self.patch_positional_embedding = PixtralRotaryEmbedding(config, device=self.device)
+
+    def forward(
+        self,
+        pixel_values: List[torch.Tensor],
+        output_hidden_states: Optional[bool] = False,
+        output_attentions: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        *args,
+        **kwargs,
+    ) -> Union[Tuple, BaseModelOutput]:
+        """
+        Returns:
+            pixel_values: tensor of token features for
+                all tokens of all images of shape (N_toks, D)
+        """
+        # pass images through initial convolution independently
+        patch_embeds_list = [self.patch_conv(img.unsqueeze(0).to(self.dtype)) for img in pixel_values]
+
+        # flatten to a single sequence
+        patch_embeds = torch.cat([p.flatten(2).permute(0, 2, 1) for p in patch_embeds_list], dim=1)
+        patch_embeds = self.ln_pre(patch_embeds)
+
+        # positional embeddings
+        positions = position_ids_in_meshgrid(patch_embeds_list).to(self.device)
+        position_embedding = self.patch_positional_embedding(positions[:, 0], positions[:, 1])
+
+        attention_mask = generate_block_attention_mask(
+            [p.shape[-2] * p.shape[-1] for p in patch_embeds_list], patch_embeds
+        )
+
+        out = self.transformer(patch_embeds, attention_mask, position_embedding)
+        return out
+
+    # Override this to avoid casting patch embeddings
+    def to(self, *args, **kwargs):
+        # Manually cast each part of the model except inv_freq
+        # Call the super().to() for everything except inv_freq
+        dtype = kwargs.get('dtype', args[0] if len(args) > 0 else None)
+
+        # If a dtype conversion is requested, apply it to all submodules
+        if dtype is not None:
+            for name, module in self.named_children():
+                if name != "patch_positional_embedding":
+                    module.to(*args, **kwargs)
+
+            # Manually move the positional embedding to the correct device without changing dtype
+            self.patch_positional_embedding.to_device(self.device)
+
+        return self
 
 
 class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
@@ -465,7 +890,8 @@ class NevaBaseModel:
                     vision_encoder = vision_encoder.eval()
             elif config.architectures[0] == "PixtralVisionModel":
                 from safetensors.torch import load_file
-                vision_encoder = AutoModel.from_config(config)
+                config.vision_config.hidden_act = 'silu'
+                vision_encoder = PixtralVisionModel(config.vision_config).to(torch.bfloat16)
                 safetensor_file = "model.safetensors"
                 ckpt_file = os.path.join(mm_cfg.vision_encoder.from_pretrained, safetensor_file)
                 vision_encoder.load_state_dict(load_file(ckpt_file))
