@@ -24,3 +24,14 @@ def fp16_mixed_plugin() -> Config[MegatronMixedPrecision]:
         autocast_enabled=False,
         grad_reduce_in_fp32=False,
     )
+
+
+def bf16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
+    """FP8 recipes are experimental and have not been tested for training convergence."""
+    cfg = bf16_mixed_plugin()
+    cfg.fp8 = 'hybrid'
+    cfg.fp8_margin = 0
+    cfg.fp8_amax_history_len = 1024
+    cfg.fp8_amax_compute_algo = "max"
+    cfg.fp8_params = True
+    return cfg
