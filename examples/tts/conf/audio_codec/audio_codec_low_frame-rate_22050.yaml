@@ -39,10 +39,11 @@ model:
   sample_rate: ${sample_rate}
   samples_per_frame: ${samples_per_frame}
 
-  mel_loss_l1_scale: 10.0
+  mel_loss_l1_scale: 1.0
   mel_loss_l2_scale: 0.0
-  stft_loss_scale: 10.0
+  stft_loss_scale: 20.0
   time_domain_loss_scale: 0.0
+  codebook_loss_scale: 0.0
   commit_loss_scale: 0.0
 
   # Probability of updating the discriminator during each training step
@@ -52,9 +53,9 @@ model:
 
   # All resolutions for mel reconstruction loss, ordered [num_fft, hop_length, window_length]
   loss_resolutions: [
-    [32, 8, 32], [64, 16, 64], [128, 32, 128], [256, 64, 256], [512, 128, 512], [1024, 256, 1024]
+    [32, 8, 32], [64, 16, 64], [128, 32, 128], [256, 64, 256], [512, 128, 512], [1024, 256, 1024], [2048, 512, 2048]
   ]
-  mel_loss_dims: [5, 10, 20, 40, 80, 160]
+  mel_loss_dims: [5, 10, 20, 40, 80, 160, 320]
   mel_loss_log_guard: 1.0
   stft_loss_log_guard: 1.0
   feature_loss_type: absolute
@@ -92,8 +93,8 @@ model:
   # Remove this section to disable logging.
   log_config:
     log_dir: ${log_dir}
-    log_epochs: [10, 50]
-    epoch_frequency: 50
+    log_epochs: [1, 5, 7]
+    epoch_frequency: 4
     log_tensorboard: false
     log_wandb: false
 
@@ -134,7 +135,9 @@ model:
   vector_quantizer:
     _target_: nemo.collections.tts.modules.audio_codec_modules.GroupFiniteScalarQuantizer
     num_groups: ${num_codebooks}
-    num_levels_per_group: [9, 8, 8, 7]
+    num_levels_per_group: [8, 7, 6, 6] # 2k codes
+    # num_levels: [9, 8, 8, 7] # 4k  codes
+
 
   discriminator:
     _target_: nemo.collections.tts.modules.audio_codec_modules.Discriminator
@@ -177,7 +180,7 @@ trainer:
   enable_checkpointing: False # Provided by exp_manager
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
-  check_val_every_n_epoch: 5
+  check_val_every_n_epoch: 2
   benchmark: false
 
 exp_manager:
