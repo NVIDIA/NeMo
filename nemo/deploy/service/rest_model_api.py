@@ -20,7 +20,6 @@ from pydantic_settings import BaseSettings
 
 from nemo.deploy.nlp import NemoQueryLLM
 
-
 class TritonSettings(BaseSettings):
     _triton_service_port: int
     _triton_service_ip: str
@@ -63,7 +62,6 @@ class TritonSettings(BaseSettings):
 app = FastAPI()
 triton_settings = TritonSettings()
 
-
 class CompletionRequest(BaseModel):
     model: str
     prompt: str
@@ -76,15 +74,15 @@ class CompletionRequest(BaseModel):
     frequency_penalty: float = 1.0
 
 
-@app.get("/hello")
-def root():
-    return {"message": "Hello World"}
+@app.get("/v1/health")
+def health_check():
+    return {"status": "ok"}
 
-@app.get("/triton_health")
+@app.get("/v1/triton_health")
 async def check_triton_health():
     """
     This method exposes endpoint "/triton_health" which can be used to verify if Triton server is accessible while running the REST or FastAPI application.
-    Verify by running: curl http://service_http_address:service_port/triton_health and the returned status should inform if the server is accessible.
+    Verify by running: curl http://service_http_address:service_port/v1/triton_health and the returned status should inform if the server is accessible.
     """
     triton_url = f"http://{triton_settings.triton_service_ip}:{str(triton_settings.triton_service_port)}/v2/health/ready"
     print(f"Attempting to connect to Triton server at: {triton_url}")
