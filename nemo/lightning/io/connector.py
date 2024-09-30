@@ -8,7 +8,7 @@ from typing import Generic, Optional, Tuple, TypeVar
 import pytorch_lightning as pl
 from filelock import FileLock, Timeout
 from pytorch_lightning.trainer.states import TrainerFn
-
+from nemo.utils.model_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
@@ -152,7 +152,11 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             accelerator="cpu",
             strategy=MegatronStrategy(ckpt_save_optimizer=False, always_save_context=True),
         )
+        # Note: set trainer to fitting state to avoid the following code path. Feel free to refactor if we no longer
+        #  need to avoid this:
+        #  https://github.com/NVIDIA/NeMo/blob/e35a6592f53ee34b1ec2fc3f1e009dd1ebc79e65/nemo/lightning/pytorch/strategies/megatron_strategy.py#L346-L349
         _trainer.state.fn = TrainerFn.FITTING  # needed for proper save.
+
         _trainer.strategy.connect(model)
         _trainer.strategy.setup_environment()
 
@@ -172,19 +176,18 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             dump_io (bool): If True, the IO configuration will be saved to the output path.
         """
         # Import here to avoid circular import
-        from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 
         trainer.strategy._setup_optimizers = False
         trainer.strategy._init_model_parallel = False
         trainer.strategy.setup(trainer)
         output_path = Path(output_path)
-        trainer.save_checkpoint(output_path / ModelCheckpoint.WEIGHTS_PATH)
+        trainer.save_checkpoint(ckpt_to_weights_subdir(output_path))
 
         from nemo.lightning.io.pl import TrainerContext
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero() and dump_io:
-            TrainerContext.from_trainer(trainer).io_dump(output_path / ModelCheckpoint.CONTEXT_PATH)
+            TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path))
 
     def nemo_load(
         self, path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True

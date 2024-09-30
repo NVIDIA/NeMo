@@ -47,6 +47,11 @@ except ModuleNotFoundError:
 MODEL_CONFIG = "model_config.yaml"
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
 
+# NeMo2 checkpoint structure is a checkpoint directory, with a WEIGHTS_PATH and CONTEXT_PATH subdirectory structure.
+#  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
+WEIGHTS_PATH: str = "weights"
+CONTEXT_PATH: str = "context"
+
 
 class ArtifactPathType(Enum):
     """
@@ -468,7 +473,7 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
 
 
 def _convert_config(cfg: 'OmegaConf'):
-    """ Recursive function convertint the configuration from old hydra format to the new one. """
+    """Recursive function convertint the configuration from old hydra format to the new one."""
     if not _HAS_HYDRA:
         logging.error("This function requires Hydra/Omegaconf and it was not installed.")
         exit(1)
@@ -671,9 +676,9 @@ def inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=False):
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
-    """ PTL considers checkpoints as .ckpt files.
-        This method removes the extension and returns a path
-        to be used as a directory for distributed checkpoints
+    """PTL considers checkpoints as .ckpt files.
+    This method removes the extension and returns a path
+    to be used as a directory for distributed checkpoints
     """
 
     filepath = Path(filepath)
@@ -689,6 +694,16 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     checkpoint_dir = filepath.with_name(filepath.stem)
 
     return checkpoint_dir
+
+
+def ckpt_to_weights_subdir(filepath: Union[str, Path]) -> Path:
+    """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory."""
+    return ckpt_to_dir(filepath=filepath) / WEIGHTS_PATH
+
+
+def ckpt_to_context_subdir(filepath: Union[str, Path]) -> Path:
+    """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the context subdirectory."""
+    return ckpt_to_dir(filepath=filepath) / CONTEXT_PATH
 
 
 def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
