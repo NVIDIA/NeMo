@@ -86,6 +86,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from typing import Any, List, Optional
+from tqdm import tqmd
 
 import numpy as np
 import soundfile
@@ -610,7 +611,7 @@ class ASRTarredDatasetBuilder:
             tar = tarfile.open(tar_filepath, mode='w', dereference=True)
 
         count = dict()
-        for entry in entries:
+        for entry in tqdm(entries, desc = "Creating shard.."):
             # We squash the filename since we do not preserve directory structure of audio files in the tarball.
             if os.path.exists(entry["audio_filepath"]):
                 audio_filepath = entry["audio_filepath"]
