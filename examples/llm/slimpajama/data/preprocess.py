@@ -50,7 +50,7 @@ def preprocess_data(
         else:
             num_tasks = 1
             task_id = 0
-    shards_to_extract = get_shard_list(data_dir, num_tasks, extension="*.jsonl")
+    shards_to_extract = get_shard_list(data_dir, num_tasks, extension="concatenated*.jsonl")
     shard_files = shards_to_extract[task_id]
     cmd = [
         "python",
@@ -71,6 +71,7 @@ def preprocess_data(
             f"--dataset-impl={dataset_impl}",
             f"--tokenizer-library={tokenizer_library}",
             f"--tokenizer-type={tokenizer_type}",
+            f"--workers={multiprocessing.cpu_count()}",
         ]
 
         if vocab_file_path and merges_file_path:
@@ -85,5 +86,5 @@ def preprocess_data(
             final_cmd += extra_args
         final_cmds.append((final_cmd, task_id))
 
-    with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
-        pool.map(execute_cmd, final_cmds)
+    for cmd in final_cmds:
+        execute_cmd(cmd)
