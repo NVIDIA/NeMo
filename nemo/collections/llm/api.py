@@ -332,6 +332,7 @@ def deploy(
     rest_service_http_address: str = "0.0.0.0",
     rest_service_port: int = 8000,
     openai_format_response: bool = False,
+    ckpt_type: str = "nemo",
 ):
     from nemo.deploy import DeployPyTriton
 
@@ -342,18 +343,30 @@ def deploy(
         # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
         store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
 
-    triton_deployable = get_trtllm_deployable(
-        nemo_checkpoint,
-        model_type,
-        triton_model_repository,
-        num_gpus,
-        tensor_parallelism_size,
-        pipeline_parallelism_size,
-        max_input_len,
-        max_output_len,
-        max_batch_size,
-        dtype,
-    )
+    # TODO: directly support deploy of trtllm engine wo exporting to TRTLLM
+    if ckpt_type == "trtllm":
+        triton_deployable = get_trtllm_deployable(
+            nemo_checkpoint,
+            model_type,
+            triton_model_repository,
+            num_gpus,
+            tensor_parallelism_size,
+            pipeline_parallelism_size,
+            max_input_len,
+            max_output_len,
+            max_batch_size,
+            dtype,
+        )
+    elif ckpt_type == "nemo":
+        if nemo_checkpoint is None:
+            raise ValueError("In-Framework deployment requires a .nemo checkpoint")
+        try:
+            from nemo.deploy.nlp import MegatronLLMDeployable
+        except Exception as e:
+            raise ValueError(
+                "MegatronLLMDeployable is not supported in this environment as it was not imported.{type(e).__name__}: {e}"
+            )
+        triton_deployable = MegatronLLMDeployable(nemo_checkpoint, num_gpus)
 
     try:
         nm = DeployPyTriton(
@@ -399,8 +412,9 @@ def deploy(
     logging.info("Model serving will be stopped.")
     nm.stop()
 
+
 def evaluate(
-    url: str = "http://0.0.0.0:1234/v1", 
+    url: str = "http://0.0.0.0:1234/v1",
     model_name: str = "xxxx",
     eval_task: str = "gsm8k",
     num_fewshot: Optional[int] = None,
@@ -411,12 +425,13 @@ def evaluate(
     temperature: Optional[float] = None,
     top_p: Optional[float] = 0.0,
     top_k: Optional[int] = 1,
-    ):
+):
 
-    from lm_eval import tasks, evaluator
-    from lm_eval.api.model import LM
     import time
+
     import requests
+    from lm_eval import evaluator, tasks
+    from lm_eval.api.model import LM
     from requests.exceptions import RequestException
 
     def wait_for_rest_service(rest_url, max_retries=30, retry_interval=2):
@@ -485,7 +500,9 @@ def evaluate(
                 prompt = instance.arguments[0]  # This should be the prompt string
 
                 # Extract default temperature from instance of the benchmark or use the uder defined value
-                temperature = instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
+                temperature = (
+                    instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
+                )
 
                 payload = {
                     "model": self.model_name,
@@ -493,7 +510,7 @@ def evaluate(
                     "max_tokens": self.max_tokens_to_generate,
                     "temperature": temperature,
                     "top_p": self.top_p,
-                    "top_k": self.top_k
+                    "top_k": self.top_k,
                 }
 
                 response = requests.post(f"{self.api_url}/completions/", json=payload)
@@ -511,15 +528,11 @@ def evaluate(
     wait_for_rest_service(rest_url=f"{url}/health")
     model = CustomModel(model_name, url, max_tokens_to_generate, temperature, top_p, top_k)
     results = evaluator.simple_evaluate(
-        model=model,
-        tasks=eval_task,
-        limit=limit,
-        num_fewshot=num_fewshot,
-        bootstrap_iters=bootstrap_iters
-        )
+        model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+    )
 
-    print("--score---",results['results']['gsm8k'])
->>>>>>> a1832c40f... Add inference params to evaluate method
+    print("--score---", results['results'][eval_task])
+
 
 @run.cli.entrypoint(name="import", namespace="llm")
 def import_ckpt(
