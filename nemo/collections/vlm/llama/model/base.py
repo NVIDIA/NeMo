@@ -496,6 +496,7 @@ class MLlamaBaseModel(MegatronModule):
                 batch_images = batch_images.cuda(non_blocking=True)
                 aspect_ratios = aspect_ratios.cuda(non_blocking=True)
                 vision_tokens = self.vision_model(batch_images, aspect_ratios)
+                vision_tokens = rearrange(vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim").contiguous()
             else:
                 vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
                     batch_images=batch_images,
@@ -517,7 +518,7 @@ class MLlamaBaseModel(MegatronModule):
         # TODO(yuya): check, fix position_ids[0]
         language_embeddings = None
         if self.pre_process:
-            language_embeddings = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids[0]])
+            language_embeddings = self.language_model.get_partially_trainable_embedding(tokens) #[:, position_ids[0]])
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [text_seq_len, b, h_language]
 
         output = self.language_model(
@@ -568,7 +569,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
-            self.module: MCoreMLlamaModel = self.config.configure_model(self.tokenizer)
+            self.module: MLlamaBaseModel = self.config.configure_model(self.tokenizer)
 
     def forward(
         self,

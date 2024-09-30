@@ -633,7 +633,7 @@ class VisionEncoder(MegatronModule):
             attention_mask=attn_mask,
             return_intermediate=self.return_intermediate,
         )
-        x, int_x = x.transpose(0, 1), int_x.transpose(1, 2)
+        x, int_x = x.transpose(0, 1).contiguous(), int_x.transpose(1, 2)
         x = self.ln_post(x)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
         x = self.post_tile_pos_embed(x, ar)
