@@ -10,11 +10,10 @@
 import copy
 import math
 import types
-from megatron.core.transformer.attention import Attention
+import collections
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 
-from nemo.utils import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.packed_seq_params import PackedSeqParams
 from torch import Tensor
@@ -30,8 +29,6 @@ from megatron.core.utils import (
     make_viewless_tensor,
 )
 from torch import nn
-
-from nemo.collections.vlm.llama.utils import get_negative_inf_value, to_2tuple
 
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
@@ -85,6 +82,16 @@ def _get_full_row_masked_out_mask(
     contains negative infinity values, otherwise it's 1.
     """
     return (attn_bias != negative_inf_value).any(dim=-1).type_as(attn_bias)[..., None]
+
+
+def get_negative_inf_value(dtype):
+    return torch.finfo(dtype).min
+
+
+def to_2tuple(x):
+    if isinstance(x, collections.abc.Iterable):
+        return x
+    return (x, x)
 
 
 def apply_scaling(freqs: torch.Tensor):
@@ -506,6 +513,7 @@ class VisionEncoder(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
 
+        self.max_aspect_ratio_id = self.config.max_aspect_ratio_id
         self.max_num_tiles = config.max_num_tiles
         width = config.hidden_size
         self.conv1 = ColumnParallelConv2dPatch(
@@ -551,18 +559,11 @@ class VisionEncoder(MegatronModule):
             config=config,
             gated=True,
         )
-        self.gated_tile_positional_embedding = nn.Parameter(
-            scale
-            * torch.randn(
-                self.max_num_tiles,
-                self.max_num_tiles,
-                self.grid_size[0] * self.grid_size[1] + 1,
-                width,
-            )
+        self.gated_tile_positional_embedding = nn.Embedding(
+            self.max_aspect_ratio_id + 1,
+            self.max_num_tiles * (self.grid_size[0] * self.grid_size[1] + 1) * width
         )
-        self.gated_positional_embedding_gate = nn.Embedding(
-            self.max_aspect_ratio_id + 1, self.max_num_tiles * self.num_patches * self.hidden_size
-        )
+        self.gated_positional_embedding_gate = nn.Parameter(torch.zeros(1))
 
     def apply_positional_embedding(self, x, aspect_ratio_ids):
         # apply regular position embedding
@@ -576,7 +577,7 @@ class VisionEncoder(MegatronModule):
         tile_position_embedding = tile_position_embedding.reshape(
             bsz, num_chunks, num_tokens, dim
         )
-        x = x + self.gate.tanh() * tile_position_embedding
+        x = x + self.gated_positional_embedding_gate.tanh() * tile_position_embedding
         return x
 
     def apply_class_embedding(self, x):
@@ -592,7 +593,7 @@ class VisionEncoder(MegatronModule):
         )  # shape = [*, grid ** 2 + 1, width]
         return x
 
-    def forward(self, images: torch.Tensor, ar: torch.Tensor) -> torch.Tensor:
+    def forward(self, images: torch.Tensor, ar_ids: torch.Tensor) -> torch.Tensor:
         if images.ndim == 5:
             num_concurrent_media = 1
             bsz, num_chunks, nch, w, h = images.shape
@@ -600,7 +601,7 @@ class VisionEncoder(MegatronModule):
             bsz, num_concurrent_media, num_chunks, nch, w, h = images.shape
 
         images = images.reshape(bsz * num_concurrent_media * num_chunks, nch, w, h)
-        ar = ar.reshape(bsz * num_concurrent_media, 2)
+        ar_ids = ar_ids.reshape(bsz * num_concurrent_media, 1)
 
         # patch embedding
         x = images.reshape(bsz * num_concurrent_media * num_chunks, nch, w, h)
@@ -609,7 +610,7 @@ class VisionEncoder(MegatronModule):
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok, dim)
 
         # tile embeddings
-        x = self.pre_tile_pos_embed(x, ar)
+        x = self.pre_tile_pos_embed(x, ar_ids)
         x = x.reshape(bsz * num_concurrent_media * num_chunks, ntok, dim)
 
         # apply cls token
@@ -618,7 +619,7 @@ class VisionEncoder(MegatronModule):
 
         # apply position embeddings
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok, dim)
-        x = self.apply_positional_embedding(x, ar)
+        x = self.apply_positional_embedding(x, ar_ids)
 
         x = self.ln_pre(x)
         npad, attn_mask = 0, None
@@ -636,7 +637,7 @@ class VisionEncoder(MegatronModule):
         x, int_x = x.transpose(0, 1).contiguous(), int_x.transpose(1, 2)
         x = self.ln_post(x)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
-        x = self.post_tile_pos_embed(x, ar)
+        x = self.post_tile_pos_embed(x, ar_ids)
         x = x.reshape(bsz * num_concurrent_media, num_chunks * (ntok + npad), dim)
         x = x.transpose(0, 1).contiguous()
         x = self.global_transformer(

@@ -42,12 +42,10 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
-from nemo.collections.vlm.llama.image_transform import VariableSizeImageTransform
 from nemo.collections.vlm.llama.model.vision import (
     precompute_freqs_cis,
     _get_full_row_masked_out_mask, _stack_images, _pad_masks, VisionEncoder
 )
-from nemo.collections.vlm.llama.utils import get_negative_inf_value
 from nemo.lightning import io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -73,11 +71,11 @@ def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.update(("attention_mask", "tokens",))
+    required_keys.update(("attention_mask", "tokens", "batch_masks", "position_ids",))
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("batch_images", "batch_masks", "total_len", "position_ids"))
+        required_keys.update(("batch_images", "aspect_ratio_ids",))
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask"))
+        required_keys.update(("labels", "loss_mask",))
 
     _batch = {
         key: val.cuda(non_blocking=True)
@@ -94,9 +92,9 @@ def llama_forward_step(model, batch) -> torch.Tensor:
     forward_config = {
         "batch_images": batch["batch_images"],
         "batch_masks": batch["batch_masks"],
-        "total_len": batch["total_len"],
         "tokens": batch["tokens"],
         "position_ids": batch["position_ids"],
+        "aspect_ratio_ids": batch["aspect_ratio_ids"],
         "labels": batch.get("labels", None),
     }
 
@@ -297,13 +295,13 @@ class CrossAttentionVisionModel(MegatronModule):
         self.vision_projection.encoder.skip_bias_add = False  # Temporary fix for a MCore side bug
 
     def forward(
-            self, images: torch.Tensor, aspect_ratios: torch.Tensor
+            self, images: torch.Tensor, aspect_ratio_ids: torch.Tensor
     ) -> torch.Tensor:
         # vision_tokens: (B, T, D)
-        # aspect_ratios: (B, T)
+        # aspect_ratio_ids: (B, 1)
         # h: (B, T, D)
         vision_tokens = self.vision_encoder(
-            images.to(dtype=torch.bfloat16), aspect_ratios
+            images.to(dtype=torch.bfloat16), aspect_ratio_ids
         )
         vision_shape = vision_tokens.shape
         vision_tokens = self.vision_projection(vision_tokens.reshape(-1, *vision_shape[-2:]))
@@ -356,78 +354,10 @@ class MLlamaBaseModel(MegatronModule):
         self.patch_size = 14
         self.image_res = config.vision_model_config.vision_chunk_size
         self.max_num_chunks = config.vision_model_config.vision_max_num_chunks
-        self.image_transform = partial(
-            VariableSizeImageTransform(size=self.image_res),
-            max_num_chunks=self.max_num_chunks,
-        )
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
         self.language_model.setup_cache(max_batch_size, dtype)
 
-    def compute_vision_tokens(
-            self,
-            batch_images: List[List[PIL_Image.Image]],
-            batch_masks: List[List[List[int]]],
-    ) -> Tuple[torch.Tensor, torch.Size, List[List[int]]]:
-        skip_vision_encoder = self.vision_model is None
-
-        assert len(batch_images) == len(
-            batch_masks
-        ), "Images and masks must have the same length"
-
-        max_num_images = max(len(x) for x in batch_images)
-        bsz = len(batch_images)
-
-        if max_num_images == 0:
-            num_chunks = [[self.max_num_chunks] for _ in batch_images]
-            skip_vision_encoder = True
-        else:
-            images_and_aspect_ratios = [
-                [self.image_transform(im) for im in row] for row in batch_images
-            ]
-            transformed_images = [
-                [x[0] for x in row] for row in images_and_aspect_ratios
-            ]
-
-            aspect_ratios = torch.ones(bsz, max_num_images, 2, dtype=torch.int64)
-            for i, row in enumerate(images_and_aspect_ratios):
-                if len(row) > 0:
-                    aspect_ratios[i, : len(row)] = torch.stack(
-                        [torch.tensor(x[1]) for x in row]
-                    )
-
-            stacked_images, num_chunks = _stack_images(
-                transformed_images,
-                max_num_chunks=self.max_num_chunks,
-                image_res=self.image_res,
-                max_num_images=max_num_images,
-            )
-        # bsz, nimg, nchunk, ntok, image_token_dim e.g. [2, 1, 4, 1025, 4096]
-        vision_orig_shape = (
-            bsz,
-            max_num_images,
-            self.max_num_chunks,
-            int(
-                (self.image_res / self.patch_size)
-                ** 2
-                + 1
-            ),
-            self.config.hidden_size,
-        )
-
-        if self.encoder_hidden_state is not None:
-            vision_tokens = self.encoder_hidden_state
-        else:
-            if skip_vision_encoder:
-                vision_tokens = torch.zeros(
-                    vision_orig_shape, device="cuda", dtype=torch.bfloat16,
-                )
-            else:
-                stacked_images = stacked_images.cuda(non_blocking=True)
-                aspect_ratio_ids = aspect_ratio_ids.cuda(non_blocking=True)
-                vision_tokens = self.vision_model(stacked_images, aspect_ratio_ids)
-            vision_tokens = rearrange(vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim").contiguous()
-        return vision_tokens, vision_orig_shape, num_chunks
 
     def compute_xattn_caches_masks(
         self,
@@ -470,38 +400,43 @@ class MLlamaBaseModel(MegatronModule):
         position_ids: torch.Tensor,
         tokens: torch.Tensor,
         labels: Optional[torch.Tensor] = None,
-        batch_images: Optional[Union[List[List[PIL_Image.Image]], Tensor]] = None,
+        batch_images: Optional[torch.Tensor] = None,
         batch_masks: Optional[List[List[List[int]]]] = None,
-        aspect_ratios: Optional[torch.Tensor] = None,
+        aspect_ratio_ids: Optional[torch.Tensor] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
         if xattn_caches is None:
-            if isinstance(batch_images, Tensor):
-                assert aspect_ratios is not None
+            assert aspect_ratio_ids is not None
+            num_chunks = [[self.max_num_chunks] for _ in batch_images]
+            bsz, max_num_images = batch_images.size(0), batch_images.size(1)
+            vision_orig_shape = (
+                bsz,
+                max_num_images,
+                self.max_num_chunks,
+                int(
+                    (self.image_res / self.patch_size)
+                    ** 2
+                    + 1
+                ),
+                self.config.hidden_size,
+            )
+            skip_vision_encoder = False
+            if max_num_images == 0:
                 num_chunks = [[self.max_num_chunks] for _ in batch_images]
-                bsz, max_num_images = batch_images.size(0), batch_images.size(1)
-                vision_orig_shape = (
-                    bsz,
-                    max_num_images,
-                    self.max_num_chunks,
-                    int(
-                        (self.image_res / self.patch_size)
-                        ** 2
-                        + 1
-                    ),
-                    self.config.hidden_size,
-                )
-                batch_images = batch_images.cuda(non_blocking=True)
-                aspect_ratios = aspect_ratios.cuda(non_blocking=True)
-                vision_tokens = self.vision_model(batch_images, aspect_ratios)
-                vision_tokens = rearrange(vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim").contiguous()
+                skip_vision_encoder = True
+
+            if self.encoder_hidden_state is not None:
+                vision_tokens = self.encoder_hidden_state
             else:
-                vision_tokens, vision_orig_shape, num_chunks = self.compute_vision_tokens(
-                    batch_images=batch_images,
-                    batch_masks=batch_masks,
-                )
+                if skip_vision_encoder:
+                    vision_tokens = torch.zeros(
+                        vision_orig_shape, device="cuda", dtype=torch.bfloat16,
+                    )
+                else:
+                    vision_tokens = self.vision_model(batch_images, aspect_ratio_ids)
+                    vision_tokens = rearrange(vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim").contiguous()
 
             if not self.add_decoder:
                 return vision_tokens
@@ -577,7 +512,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         tokens: torch.LongTensor,
         position_ids: torch.LongTensor,
         batch_masks: Optional[List[List[List[int]]]] = None,
-        aspect_ratios: Optional[torch.Tensor] = None,
+        aspect_ratio_ids: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
@@ -589,7 +524,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             tokens=tokens,
             batch_images=batch_images,
             batch_masks=batch_masks,
-            aspect_ratios=aspect_ratios,
+            aspect_ratio_ids=aspect_ratio_ids,
             labels=labels,
             cross_attention_masks=cross_attention_masks,
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
