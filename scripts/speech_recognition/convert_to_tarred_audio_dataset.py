@@ -91,7 +91,7 @@ import numpy as np
 import soundfile
 from joblib import Parallel, delayed
 from omegaconf import DictConfig, OmegaConf, open_dict
-from tqdm import tqmd
+from tqdm import tqdm
 
 try:
     import create_dali_tarred_dataset_index as dali_index
