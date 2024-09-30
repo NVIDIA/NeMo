@@ -401,10 +401,12 @@ class PromptFormatterTextProcessing:
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
         prompt_format: Optional[str] = None,
         audio_locator: Optional[str] = None,
+        max_seq_length: Optional[int] = 8192,
     ):
         self.prompt_format_fn = get_prompt_format_fn(prompt_format)
         self.tokenizer = tokenizer
         self.audio_locator = audio_locator
+        self.max_seq_length = max_seq_length
         self.audio_locator_id = (
             torch.as_tensor(self.tokenizer.text_to_ids(audio_locator)) if audio_locator is not None else None
         )
@@ -424,6 +426,17 @@ class PromptFormatterTextProcessing:
                 context_start_idx = (ans["context_ids"] == self.audio_locator_id).nonzero().flatten()
             else:  # slow case, no dedicated token, got tokenized into multiple tokens; substring search
                 context_start_idx = _find_substring_indices(ans["context_ids"], self.audio_locator_id)
+        if len(ans["input_ids"]) > self.max_seq_length:
+            truncation_length = len(ans["input_ids"]) - self.max_seq_length
+            logging.warning(
+                f'Input ids length {len(ans["input_ids"])} exceed max sequence length {self.max_seq_length}'
+            )
+            ans["input_ids"] = ans["input_ids"][: self.max_seq_length]
+            if truncation_length < len(ans["answer_ids"]):
+                ans["answer_ids"] = ans["answer_ids"][:-truncation_length]
+            else:
+                ans["answer_ids"] = ans["answer_ids"][: -min(truncation_length, len(ans["answer_ids"]))]
+                ans["context_ids"] = ans["context_ids"][: -min(truncation_length, len(ans["context_ids"]))]
         return {
             'input_ids': ans["input_ids"],
             'answer_start_idx': len(ans["context_ids"]),
