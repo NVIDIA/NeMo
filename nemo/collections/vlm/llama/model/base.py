@@ -33,7 +33,7 @@ from megatron.core.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn, Tensor
 
-from nemo.collections.vlm.llama.model.text import CrossAttentionTextModel, CrossAttentionTransformerLayer
+from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel, CrossAttentionTransformerLayer
 from megatron.core.transformer.spec_utils import ModuleSpec
 from nemo.lightning import get_vocab_size, MegatronStrategy, Trainer
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
