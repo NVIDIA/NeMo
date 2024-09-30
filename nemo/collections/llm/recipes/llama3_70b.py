@@ -233,17 +233,20 @@ def pretrain_recipe_performance(
     return recipe
 
 
-def hf_resume() -> run.Config[nl.AutoResume]:
+def nemo_resume() -> run.Config[nl.AutoResume]:
     """
-    Configure automatic resumption from a Hugging Face checkpoint for Llama3 70B model.
+    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for Meta LLama 3 70B.
 
-    This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint.
+    More info about the Huggingface model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3-70B.
 
-    More info about the model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3-70B
+    This NeMo checkpoint should be converted from Huggingface beforehand, using nemo.collections.llm.import_ckpt.
+    When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
+
+    This function sets up the configuration to resume training from path nemo://meta-llama/Meta-Llama-3-70B.
+    This translates to the full path {NEMO_HOME}/models/meta-llama/Meta-Llama-3-70B.
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+        run.Config[nl.AutoResume]: Configuration for resuming from NeMo checkpoint.
 
     Note:
         This is particularly useful for fine-tuning scenarios where you want to
@@ -292,7 +295,7 @@ def finetune_recipe(
         requires substantial computational resources.
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
-    recipe.resume = hf_resume()
+    recipe.resume = nemo_resume()
     recipe.peft = run.Config(LoRA)
     recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe

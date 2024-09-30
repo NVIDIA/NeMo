@@ -225,15 +225,18 @@ def pretrain_recipe_performance(
 
 def hf_resume() -> run.Config[nl.AutoResume]:
     """
-    Configure automatic resumption from a Hugging Face checkpoint for Mixtral 8x7B model.
+    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for Mixtral 8x7B model.
 
-    This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint.
+    More info about the Huggingface model can be found at: https://huggingface.co/mistralai/Mixtral-8x7B-v0.1.
 
-    More info about the model can be found at: https://huggingface.co/mistralai/Mixtral-8x7B-v0.1
+    This NeMo checkpoint should be converted from Huggingface beforehand, using nemo.collections.llm.import_ckpt.
+    When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
+
+    This function sets up the configuration to resume training from path nemo://mistralai/Mixtral-8x7B-v0.1.
+    This translates to the full path {NEMO_HOME}/models/mistralai/Mixtral-8x7B-v0.1.
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+        run.Config[nl.AutoResume]: Configuration for resuming from NeMo checkpoint.
 
     Note:
         This is particularly useful for fine-tuning scenarios where you want to

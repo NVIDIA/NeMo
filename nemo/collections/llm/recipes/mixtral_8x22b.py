@@ -224,17 +224,20 @@ def pretrain_recipe_performance(
     return recipe
 
 
-def hf_resume() -> run.Config[nl.AutoResume]:
+def nemo_resume() -> run.Config[nl.AutoResume]:
     """
-    Configure automatic resumption from a Hugging Face checkpoint for Mixtral 8x22B model.
+    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for Mixtral 8x22B model.
 
-    This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint.
+    More info about the Huggingface model can be found at: https://huggingface.co/mistralai/Mixtral-8x22B-v0.1.
 
-    More info about the model can be found at: https://huggingface.co/mistralai/Mixtral-8x22B-v0.1
+    This NeMo checkpoint should be converted from Huggingface beforehand, using nemo.collections.llm.import_ckpt.
+    When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
+
+    This function sets up the configuration to resume training from path nemo://mistralai/Mixtral-8x22B-v0.1.
+    This translates to the full path {NEMO_HOME}/models/mistralai/Mixtral-8x22B-v0.1.
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+        run.Config[nl.AutoResume]: Configuration for resuming from NeMo checkpoint.
 
     Note:
         This is particularly useful for fine-tuning scenarios where you want to
@@ -282,7 +285,7 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning.
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
-    recipe.resume = hf_resume()
+    recipe.resume = nemo_resume()
     recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
     recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe

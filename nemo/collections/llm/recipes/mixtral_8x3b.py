@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Callable, Optional
+from typing import Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -227,23 +227,16 @@ def pretrain_recipe_performance(
     return recipe
 
 
-def hf_resume() -> run.Config[nl.AutoResume]:
+def nemo_resume() -> run.Config[nl.AutoResume]:
     """
-    Configure the Hugging Face model resuming for Mixtral 8x3B model.
+    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for Mistral 8x3B.
 
-    This function sets up the configuration for resuming training from a Hugging Face model.
+    This NeMo checkpoint should be converted from Huggingface beforehand, using nemo.collections.llm.import_ckpt.
+    When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from a Hugging Face model.
+        run.Config[nl.AutoResume]: Configuration for resuming from a NeMo model.
 
-    Examples:
-        CLI usage:
-            $ nemo llm finetune --factory "mixtral_8x3b(resume=hf_resume())"
-
-        Python API usage:
-            >>> recipe = finetune_recipe(name="mixtral_8x3b_finetune", num_nodes=2)
-            >>> recipe.resume = hf_resume()
-            >>> print(recipe)
     """
     return run.Config(
         nl.AutoResume,
@@ -284,7 +277,7 @@ def finetune_recipe(
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
 
-    recipe.resume = hf_resume()
+    recipe.resume = nemo_resume()
     recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
     recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe
