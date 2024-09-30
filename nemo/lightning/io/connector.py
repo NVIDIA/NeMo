@@ -181,6 +181,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         trainer.strategy._init_model_parallel = False
         trainer.strategy.setup(trainer)
         output_path = Path(output_path)
+        output_path.mkdir(parents=True, exist_ok=True)
         trainer.save_checkpoint(ckpt_to_weights_subdir(output_path))
 
         from nemo.lightning.io.pl import TrainerContext
