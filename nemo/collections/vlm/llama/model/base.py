@@ -746,7 +746,7 @@ class PytorchMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
                         source_key=("text_model.cross_attention_layers.*.attention.wk.weight",
                                     "text_model.cross_attention_layers.*.attention.wv.weight"),
                         target_key="language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
-                        fn=_import_simple_concat,
+                        fn=_import_text_kv,
                     ),
                     io.state_transform(
                         source_key=("text_model.cross_attention_layers.*.feed_forward.w1.weight",
@@ -908,14 +908,8 @@ def _merge_kv(k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_s
     k = k.view(*new_kv_tensor_shape)
     v = v.view(*new_kv_tensor_shape)
 
-    kv_weights_l = []
-    for i in range(num_query_groups):
-        kv_weights_l.append(k[i: i + 1, :, :])
-        kv_weights_l.append(v[i: i + 1, :, :])
-    qkv_weights = torch.cat(kv_weights_l)
-    kv_weights = torch.stack((k, v), dim=0)
+    kv_weights = torch.stack((k, v), dim=1)
     kv_weights = kv_weights.reshape(-1, *new_kv_tensor_shape[1:])
-    import pdb; pdb.set_trace()
     assert kv_weights.ndim == 3, kv_weights.shape
     assert kv_weights.shape[0] == 2 * num_query_groups, kv_weights.shape
     assert kv_weights.shape[1] == head_size, kv_weights.shape
