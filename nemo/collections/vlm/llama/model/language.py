@@ -643,36 +643,19 @@ class MLlamaCrossAttention(Attention):
         )
 
     def get_key_value_tensors(self, key_value_states):
-        # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
         mixed_kv, _ = self.linear_kv(key_value_states)
-        (key, value) = tensor_parallel.split_tensor_along_last_dim(mixed_kv, 2)
-
-        # [sk, b, (np * hn)] --> [sk, b, np, hn]
-        new_tensor_shape = mixed_kv.size()[:-1] + (
-            self.num_query_groups_per_partition,  # TODO(yuya): check TP
-            self.hidden_size_per_attention_head,
-        )
-        key = key.view(*new_tensor_shape)
-        value = value.view(*new_tensor_shape)
-
-        # Apply LayerNorm
-        key = self.k_layernorm(key.contiguous())
-
-        mixed_kv2, _ = self.linear_kv(key_value_states)
 
         # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
-        new_tensor_shape2 = mixed_kv2.size()[:-1] + (
+        new_tensor_shape = mixed_kv.size()[:-1] + (
             self.num_query_groups_per_partition,
             2 * self.hidden_size_per_attention_head,
         )
-        mixed_kv2 = mixed_kv2.view(*new_tensor_shape)
+        mixed_kv = mixed_kv.view(*new_tensor_shape)
 
         # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
-        (key2, value2) = tensor_parallel.split_tensor_along_last_dim(mixed_kv2, 2)
+        (key, value) = tensor_parallel.split_tensor_along_last_dim(mixed_kv, 2)
         # Apply LayerNorm
-        key2 = self.k_layernorm(key2.contiguous())
-
-
+        key = self.k_layernorm(key.contiguous())
         return key, value
 
     def get_query_tensor(self, hidden_states):

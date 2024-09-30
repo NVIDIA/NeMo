@@ -504,7 +504,7 @@ class MLlamaBaseModel(MegatronModule):
                 vision_orig_shape=vision_orig_shape,
                 batch_masks=batch_masks,
                 num_chunks=num_chunks,
-                total_len=self.language_model.config.seq_length,
+                total_len=self.config.language_model_config.seq_length,
             )
 
         assert self.add_decoder, "Language model required for forward pass."
