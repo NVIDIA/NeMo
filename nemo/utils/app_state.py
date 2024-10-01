@@ -217,7 +217,7 @@ class AppState(metaclass=Singleton):
         """
         return self._partial_data_parallel_shard_factor
 
-    @use_tp_pp_dp_mapping.setter
+    @partial_data_parallel_shard_factor.setter
     def partial_data_parallel_shard_factor(self, shard_factor):
         """Property sets the factor by which the Partial DistOpt is sharded.
         Args:
