@@ -14,7 +14,7 @@
 import dataclasses
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, List, Tuple, Literal, Union
+from typing import Optional, List, Tuple, Literal, Union
 
 import torch
 from torch import Tensor
@@ -35,7 +35,6 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import (
     make_viewless_tensor,
 )
-from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.transformer.utils import sharded_state_dict_default
@@ -43,11 +42,6 @@ from megatron.core.transformer.utils import sharded_state_dict_default
 from torch import nn
 from contextlib import nullcontext
 
-from nemo.collections.llm import Llama31Config8B, LlamaConfig
-from nemo.collections.llm.gpt.model.base import GPTModel
-from nemo.collections.llm.utils import Config
-from nemo.lightning import OptimizerModule, io, teardown
-from nemo.lightning import get_vocab_size
 from nemo.utils import logging
 
 from megatron.core.transformer.transformer_block import TransformerBlock
@@ -79,9 +73,6 @@ except ImportError:
         from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
 
         LayerNormImpl = WrappedTorchLayerNorm
-
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass

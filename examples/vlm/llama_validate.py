@@ -1,9 +1,5 @@
-import nemo_run as run
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from megatron.core.optimizer import OptimizerConfig
-import torch
-from pytorch_lightning.loggers import WandbLogger
 import pytorch_lightning as pl
 import argparse
 
@@ -64,7 +60,7 @@ def squad() -> pl.LightningDataModule:
 # @run.factory
 def llama32() -> pl.LightningModule:
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
+    tokenizer = AutoTokenizer.from_pretrained("hf://meta-llama/Llama-3.2-11B-Vision")
     # set language_model_config or vision_model_config to None to load only one part
     return vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
@@ -80,7 +76,8 @@ def llama32() -> pl.LightningModule:
 def resume() -> nl.AutoResume:
     return nl.AutoResume(
         restore_config=nl.RestoreConfig(
-            path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-final_vv1/consolidated.pth",
+            # path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-final_vv1/consolidated.pth",
+            path="hf://meta-llama/Llama-3.2-11B-Vision",
         ),
         resume_if_exists=True,
     )

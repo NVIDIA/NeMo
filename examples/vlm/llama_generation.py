@@ -12,17 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 
-import requests
 import torch
-from PIL import Image
-from transformers import AutoProcessor
-from nemo.collections import llm, vlm
+
+from nemo.collections import vlm
 
 from nemo import lightning as nl
-from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
-from nemo.utils import logging
+
 
 
 def main() -> None:

@@ -15,25 +15,21 @@ import copy
 import math
 import re
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple
 from einops import rearrange
 
 import pytorch_lightning as L
 import torch
 import torch.distributed
-import torch.nn.functional as F
 from PIL import Image as PIL_Image
-from megatron.core import dist_checkpointing
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.tensor_parallel.mappings import gather_from_tensor_model_parallel_region
 from megatron.core.transformer import MegatronModule
 from megatron.core.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn, Tensor
 
-from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel, CrossAttentionTransformerLayer
+from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
 from megatron.core.transformer.spec_utils import ModuleSpec
 from nemo.lightning import get_vocab_size, MegatronStrategy, Trainer
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
@@ -42,10 +38,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
-from nemo.collections.vlm.llama.model.vision import (
-    precompute_freqs_cis,
-    _get_full_row_masked_out_mask, _stack_images, _pad_masks, VisionEncoder
-)
+from nemo.collections.vlm.llama.model.vision import _pad_masks, VisionEncoder
 from nemo.lightning import io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -564,7 +557,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self._validation_loss_reduction
 
 @io.model_importer(MLlamaModel, "hf")
-class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
+class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
     def init(self) -> MLlamaModel:
         return MLlamaModel(self.config, tokenizer=self.tokenizer)
 
@@ -744,8 +737,7 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        # TODO: switch to using actual tokenizer of llama 3.2
-        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Meta-Llama-3.1-8B"))
+        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Llama-3.2-11B-Vision"))
 
     @property
     def config(self) -> MLlamaModelConfig:
@@ -760,13 +752,6 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
 
     def _language_model_config(self, source) -> Optional[CrossAttentionTextModelConfig]:
         if not self.convert_text: return None
-
-        def _calculate_ffn_size(dim, ffn_dim_multiplier, multiple_of):
-            hidden_dim = dim * 4
-            hidden_dim = int(2 * hidden_dim / 3)
-            if ffn_dim_multiplier is not None:
-                hidden_dim = int(ffn_dim_multiplier * hidden_dim)
-            return multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
 
         def _calculate_num_layers(num_hidden_layers, cross_attention_layers):
             return num_hidden_layers - len(cross_attention_layers)
