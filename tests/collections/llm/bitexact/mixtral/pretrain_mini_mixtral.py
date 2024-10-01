@@ -3,6 +3,7 @@ from pathlib import Path
 
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig as McoreDDPConfig
+from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
 from nemo.collections.llm import MixtralConfig8x7B, MixtralModel, PreTrainingDataModule
 from nemo.collections.llm.api import train
@@ -10,11 +11,11 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import MegatronStrategy, NeMoLogger, Trainer
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule as MegatronOptim
 from nemo.lightning.pytorch.optim.megatron import OptimizerConfig
-from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
 VOCAB_PATH = '/mnt/4tb/gpt_tokenizer/vocab.json'
 MERGES_PATH = '/mnt/4tb/gpt_tokenizer/merges.txt'
 DATA_PATH = '/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document'
+
 
 def tokenizer(vocab_path, merges_path):
     return get_nmt_tokenizer(
@@ -23,6 +24,7 @@ def tokenizer(vocab_path, merges_path):
         vocab_file=vocab_path,
         merges_file=merges_path,
     )
+
 
 def main(args):
     strategy = MegatronStrategy(
@@ -34,14 +36,14 @@ def main(args):
         autocast_dtype=torch.float32,
         precision=torch.bfloat16,
         ddp=McoreDDPConfig(
-                grad_reduce_in_fp32=True,
-                overlap_grad_reduce=False,
-                use_distributed_optimizer=True,
-                check_for_nan_in_grad=True,
-                # mcore bucket_size is based on num of parameters, therefore not
-                # using bucket_cap_mb to configure bucket_size here
-                bucket_size=None,
-            )
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=False,
+            use_distributed_optimizer=True,
+            check_for_nan_in_grad=True,
+            # mcore bucket_size is based on num of parameters, therefore not
+            # using bucket_cap_mb to configure bucket_size here
+            bucket_size=None,
+        ),
     )
 
     trainer = Trainer(
@@ -58,7 +60,7 @@ def main(args):
     init_method = scaled_init_method_normal(0.008, num_layers=2)
     mixtral_config = MixtralConfig8x7B(
         init_method_std=0.008,
-        output_layer_init_method = init_method,
+        output_layer_init_method=init_method,
         init_method=init_method_normal(0.008),
         kv_channels=8,
         layernorm_zero_centered_gamma=True,
@@ -114,7 +116,6 @@ def main(args):
         log_num_zeros_in_grad=True,
         barrier_with_L1_time=True,
     )
-
 
     opt = MegatronOptim(config=optim_config)
     model = MixtralModel(mixtral_config, optim=opt, tokenizer=data.tokenizer)
