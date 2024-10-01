@@ -64,9 +64,9 @@ def llama32() -> pl.LightningModule:
     # set language_model_config or vision_model_config to None to load only one part
     return vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
-            language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=True, apply_rope_fusion=False),
+            language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=False, apply_rope_fusion=False),
             vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280,
-                                                                    num_attention_heads=16, vision_chunk_size=448,
+                                                                    num_attention_heads=16, vision_chunk_size=560,
                                                                     vision_max_num_chunks=4, ),
         ),
         tokenizer=tokenizer)
