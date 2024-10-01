@@ -42,11 +42,12 @@ def get_aspect_ratio(aspect_ratio_ids):
 
 
 def get_data_module():
-    data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/energon_datasets/LLaVA-Instruct-150K/'
+    data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/yash/wds'
     # model_directory = "/lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-instruct-final-hf_vv1/"
     # model_id = "evian3-11b-vision-instruct-final-hf_vv1"
     model_directory = "meta-llama/Llama-3.2-11B-Vision-Instruct"
     processor = AutoProcessor.from_pretrained(model_directory)
+    import pdb; pdb.set_trace()
     image_processor = processor.image_processor
     image_processor.size = {'height': 448, 'width': 448}
 

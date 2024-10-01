@@ -1,50 +1,52 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
-# This source code is licensed under the terms described in the LICENSE file in
-# top-level folder for each specific model found within the models/ directory at
-# the top-level of this source tree.
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+import collections
 import copy
 import math
 import types
-import collections
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-
-from typing import List, Optional, Tuple, Union
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
-from megatron.core.packed_seq_params import PackedSeqParams
-from torch import Tensor
 from contextlib import nullcontext
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
 from PIL import Image as PIL_Image
+from megatron.core import InferenceParams, parallel_state
 from megatron.core import tensor_parallel
-from megatron.core.transformer.module import MegatronModule
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.utils import (
-    make_viewless_tensor,
-)
-from torch import nn
-
-from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
-    TENorm,
     TERowParallelLinear,
 )
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+from megatron.core.transformer.spec_utils import build_module
 from megatron.core.transformer.transformer_block import TransformerBlock
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+from megatron.core.utils import (
+    make_viewless_tensor,
+)
+from torch import Tensor
+from torch import nn
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -119,39 +121,6 @@ def apply_scaling(freqs: torch.Tensor):
     return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
 
 
-def precompute_freqs_cis(
-        dim: int, end: int, theta: float = 10000.0, use_scaled: bool = False
-):
-    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
-    t = torch.arange(end, device=freqs.device, dtype=torch.float32)
-    if use_scaled:
-        freqs = apply_scaling(freqs)
-    freqs = torch.outer(t, freqs)
-    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
-    return freqs_cis
-
-
-def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
-    ndim = x.ndim
-    assert 0 <= 1 < ndim
-    assert freqs_cis.shape == (x.shape[1], x.shape[-1])
-    shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
-    return freqs_cis.view(*shape)
-
-
-def apply_rotary_emb(
-        xq: torch.Tensor,
-        xk: torch.Tensor,
-        freqs_cis: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
-    xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
-    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
-    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
-    return xq_out.type_as(xq), xk_out.type_as(xk)
-
-
 # Use this spec for an implementation using modules in TE
 def get_image_transformer_layer_spec() -> ModuleSpec:
     image_transformer_submodules = TransformerLayerSubmodules(
@@ -195,21 +164,6 @@ def forward_with_return_intermediate(
         # See set_input_tensor()
         hidden_states = self.input_tensor
 
-    # Viewless tensor.
-    # - We only need to create a viewless tensor in the case of micro batch
-    #   size (mbs) == 1, since in this case, 'hidden_states.transpose()'
-    #   above creates a view tensor, and '.contiguous()' is a pass-through.
-    #   For mbs >= 2, '.contiguous()' creates a new tensor, eliminating
-    #   the need to make it viewless.
-    #
-    #   However, we don't explicitly check mbs == 1 here because
-    #   make_viewless_tensor() has negligible overhead when its input
-    #   is already viewless.
-    #
-    # - For the 'else' case above, calling make_viewless_tensor() here is
-    #   likely redundant, since p2p_communication.py (likely originator)
-    #   already creates viewless tensors. That said, make_viewless_tensor()
-    #   is called here to be future-proof and corner-case-proof.
     hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
 
     if self.config.sequence_parallel:
@@ -356,6 +310,33 @@ class ColumnParallelConv2dPatch(MegatronModule):
         x = F.linear(x, self._linear.weight)
         x = tensor_parallel.gather_from_tensor_model_parallel_region(x)
         return x
+
+
+class PrecomputedTilePositionEmbedding(torch.nn.Module):
+    def __init__(
+            self,
+            config: TransformerConfig,
+            gated: bool = False,
+    ):
+        super().__init__()
+        self.max_num_tiles = config.max_num_tiles
+        self.hidden_size = config.hidden_size
+        self.max_aspect_ratio_id = config.max_aspect_ratio_id
+
+        self.embedding = nn.Embedding(self.max_aspect_ratio_id + 1, self.max_num_tiles * self.hidden_size)
+        self.gated = gated
+        if gated:
+            self.gate = nn.Parameter(torch.zeros(1))
+
+    def forward(self, hidden_states: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
+        embeddings = self.embedding(aspect_ratio_ids)
+        embeddings = embeddings.reshape(-1, self.max_num_tiles, 1, self.hidden_size)
+
+        if self.gated:
+            embeddings = embeddings * self.gate.tanh()
+
+        hidden_states = hidden_states + embeddings
+        return hidden_states
 
 
 class SelfAttentionNoBias(SelfAttention):
@@ -655,33 +636,6 @@ class VisionEncoder(MegatronModule):
         int_x = int_x.reshape(bsz, num_concurrent_media, num_chunks, ntok, -1)
         x = torch.cat([x, int_x], dim=-1)
         return x
-
-
-class PrecomputedTilePositionEmbedding(torch.nn.Module):
-    def __init__(
-            self,
-            config: TransformerConfig,
-            gated: bool = False,
-    ):
-        super().__init__()
-        self.max_num_tiles = config.max_num_tiles
-        self.hidden_size = config.hidden_size
-        self.max_aspect_ratio_id = config.max_aspect_ratio_id
-
-        self.embedding = nn.Embedding(self.max_aspect_ratio_id + 1, self.max_num_tiles * self.hidden_size)
-        self.gated = gated
-        if gated:
-            self.gate = nn.Parameter(torch.zeros(1))
-
-    def forward(self, hidden_states: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
-        embeddings = self.embedding(aspect_ratio_ids)
-        embeddings = embeddings.reshape(-1, self.max_num_tiles, 1, self.hidden_size)
-
-        if self.gated:
-            embeddings = embeddings * self.gate.tanh()
-
-        hidden_states = hidden_states + embeddings
-        return hidden_states
 
 
 def _stack_images(

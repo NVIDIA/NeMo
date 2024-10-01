@@ -11,14 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import dataclasses
+
 import math
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Optional, List, Tuple, Literal, Union
 
 import torch
-from torch import Tensor
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.packed_seq_params import PackedSeqParams
@@ -30,27 +33,22 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TELayerNormColumnParallelLinear,
 )
 from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.utils import (
-    make_viewless_tensor,
-)
-from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
-from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core.transformer.utils import sharded_state_dict_default
-
-from torch import nn
-from contextlib import nullcontext
-
-from nemo.utils import logging
-
-from megatron.core.transformer.transformer_block import TransformerBlock
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.transformer_block import TransformerBlock
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.utils import sharded_state_dict_default
+from megatron.core.utils import (
+    make_viewless_tensor,
+)
+from torch import Tensor
+from torch import nn
+
 from nemo.collections.vlm.llama.model.vision import _get_full_row_masked_out_mask, get_negative_inf_value
+from nemo.utils import logging
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (

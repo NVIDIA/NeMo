@@ -1,17 +1,31 @@
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch
-from nemo.collections.vlm.llama.data.sample_encoder import Llama3SampleEncoder, LlamaImageTextSample
-import dataclasses
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass, field
 from typing import Dict, List
-from torch.nn.utils.rnn import pad_sequence
+
 import torch
 from megatron.energon import (
     VQASample,
     batch_list,
     batch_pad_stack,
 )
+from torch.nn.utils.rnn import pad_sequence
+
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
+from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.vlm.llama.data.sample_encoder import Llama3SampleEncoder, LlamaImageTextSample
 
 
 @dataclass
