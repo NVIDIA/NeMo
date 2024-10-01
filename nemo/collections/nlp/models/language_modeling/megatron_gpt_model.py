@@ -176,15 +176,37 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
     return name_spec_dict[spec_name]
 
 
+def drop_layers(model, layers_to_drop: List[int]):
+    def noop_forward_patch(
+        hidden_states,
+        attention_mask,
+        context_mask=None,
+        context=None,
+        rotary_pos_emb=None,
+        inference_params=None,
+        packed_seq_params=None,
+    ):
+        return hidden_states.clone(), context
+
+    num_layers = len(model.decoder.layers)
+    for layer_id in layers_to_drop:
+        assert layer_id > 0 and layer_id <= num_layers, f"Layers to drop should be in range (1, {num_layers})"
+        logging.info(f"Patching layer {layer_id} to noop-layer in forward pass")
+        model.decoder.layers[layer_id - 1].forward = noop_forward_patch
+
+
 def mcore_model_customize(cfg, model):
     if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
         extend_instance(model.embedding, EmbeddingScalingMixin)
-    if cfg.get('scale_positional_embedding', False):
+    if cfg.get("scale_positional_embedding", False):
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(model.rotary_pos_emb.inv_freq)
     if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
         from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
 
         extend_instance(model.output_layer, Gemma2OutputLayer)
+    if cfg.get("drop_layers"):
+        assert cfg.get("skip_train", False), "Dropping layers allowed only for validation runs (forward pass)"
+        drop_layers(model, cfg.get("drop_layers"))
 
 
 class EmbeddingScalingMixin(torch.nn.Module):
@@ -832,6 +854,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     module = module.module
                 if not self.mcore_gpt:
                     module = module.language_model
+
                 if hasattr(module, 'embedding'):
                     for param in module.embedding.parameters():
                         param.data_ptr()
@@ -1599,6 +1622,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 dataset_type = GPTFIMDataset
             else:
                 dataset_config = GPTDatasetConfig(**kwargs)
+                dataset_config.mock = mock_dataset
                 dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
             self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
@@ -2115,6 +2139,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
 
+        if self.cfg.get('enable_cuda_graph', False):
+            assert HAVE_TE, "Transformer Engine is required for cudagraphs."
+            assert self.cfg.get(
+                'use_te_rng_tracker', False
+            ), "Transformer engine's RNG tracker is required for cudagraphs, this can be enabled with \
+                'use_te_rng_tracker=True'."
+
         # any configs that are not in the nemo model config will be added here
         model_specific_configs = {
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
@@ -2132,6 +2163,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_z_loss_coeff': self.cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
+            'enable_cuda_graph': self.cfg.get('enable_cuda_graph', False),
         }
         if model_specific_configs['num_moe_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'

@@ -63,6 +63,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import torch
+import torch.amp
 import yaml
 from omegaconf import DictConfig, OmegaConf
 from torch.profiler import ProfilerActivity, profile, record_function
@@ -83,14 +84,6 @@ from nemo.collections.asr.parts.utils.vad_utils import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-
-    @contextlib.contextmanager
-    def autocast(enabled=None):
-        yield
 
 
 @dataclass
@@ -278,7 +271,7 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
     with record_fn("feat_extract_loop"):
         for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
             test_batch = [x.to(vad_model.device) for x in test_batch]
-            with autocast():
+            with torch.amp.autocast(vad_model.device.type):
                 with record_fn("feat_extract_infer"):
                     processed_signal, processed_signal_length = vad_model.preprocessor(
                         input_signal=test_batch[0],
@@ -445,7 +438,7 @@ def generate_vad_frame_pred(
     with record_fn("vad_infer_loop"):
         for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
             test_batch = [x.to(vad_model.device) for x in test_batch]
-            with autocast():
+            with torch.amp.autocast(vad_model.device.type):
                 with record_fn("vad_infer_model"):
                     if use_feat:
                         log_probs = vad_model(processed_signal=test_batch[0], processed_signal_length=test_batch[1])
@@ -579,7 +572,7 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
     hypotheses = []
     all_hypotheses = []
     t0 = time.time()
-    with autocast():
+    with torch.amp.autocast(asr_model.device.type):
         with torch.no_grad():
             with record_fn("asr_infer_loop"):
                 for test_batch in tqdm(dataloader, desc="Transcribing"):
