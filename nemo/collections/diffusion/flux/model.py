@@ -2,7 +2,7 @@ import torch
 
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.models.dit.dit_layer_spec import (
-    get_mm_dit_block_with_transformer_engine_spec,
+    get_flux_double_transformer_engine_spec,
     get_flux_single_transformer_engine_spec,
     MMDiTLayer,
     FluxSingleTransformerBlock,
@@ -55,18 +55,18 @@ class Flux(nn.Module):
                                                use_cpu_initialization=True, activation_func=config.activation_func,
                                                hidden_dropout=0, attention_dropout=0, layernorm_epsilon=1e-6,
                                                add_qkv_bias=config.add_qkv_bias)
+        self.transformer_config = transformer_config
 
-
-        self.transformer_blocks = nn.ModuleList([
+        self.double_blocks = nn.ModuleList([
             MMDiTLayer(
                 config=transformer_config,
-                submodules=get_mm_dit_block_with_transformer_engine_spec().submodules,
+                submodules=get_flux_double_transformer_engine_spec().submodules,
                 layer_number=i,
                 context_pre_only=False)
             for i in range(config.num_joint_layers)
         ])
 
-        self.single_transformer_blocks = nn.ModuleList([
+        self.single_blocks = nn.ModuleList([
             FluxSingleTransformerBlock(
                 config=transformer_config,
                 submodules=get_flux_single_transformer_engine_spec().submodules,
