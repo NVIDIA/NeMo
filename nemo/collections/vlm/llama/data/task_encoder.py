@@ -55,7 +55,7 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
         batch_images = batch_pad_stack(images)
 
         batch_tokens = pad_sequence(tokens, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        batch_labels = pad_sequence(labels, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+        batch_labels = pad_sequence(labels, batch_first=True, padding_value=-100)  # Hard-coded ignore index.
 
         batch_loss_mask = batch_pad_stack(loss_mask)
         batch_vision_mask = batch_pad_stack(vision_mask)
