@@ -16,7 +16,7 @@ from io import BytesIO
 from itertools import islice
 from pathlib import Path
 from typing import Dict, List, Tuple
-
+import random
 import lhotse
 import numpy as np
 import pytest
@@ -183,6 +183,22 @@ def nemo_tarred_manifest_path_multi(nemo_tarred_manifest_path: tuple[str, str]) 
             mft_writer.write(item)
     return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p
 
+@pytest.fixture(scope="session")
+def nemo_tarred_manifest_subset_path(nemo_tarred_manifest_path: Tuple[str, str]) -> Tuple[str, str]:
+    """Create a shard manifests with randomly chosen 50% percent of tarred contents."""
+    from lhotse.serialization import load_jsonl
+    from lhotse.shar.writers import JsonlShardWriter
+    json_p, tar_p = nemo_tarred_manifest_path
+    json_dir = json_p.parent / "shard_manifests"
+    json_dir.mkdir(exist_ok=True)
+    all_items = list(load_jsonl(json_p))
+    tarr_0_data = all_items[:5]
+    tarr_1_data = all_items[5:]
+    subset_items = random.sample(tarr_0_data, 3) + random.sample(tarr_1_data, 3)
+    with JsonlShardWriter(f"{json_dir}/manifest_%d.jsonl", shard_size=3) as mft_writer:
+        for item in subset_items:
+            mft_writer.write(item)
+    return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p, subset_items
 
 class UnsupervisedAudioDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: lhotse.CutSet) -> Dict[str, torch.Tensor]:
@@ -596,7 +612,6 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-
 
 def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred_manifest_path_multi: tuple[str, str]):
     json_mft, tar_mft = nemo_tarred_manifest_path_multi
@@ -1905,3 +1920,41 @@ def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_p
     np.testing.assert_equal(
         audio, full_audio[:, compute_num_samples(4.0, cut.sampling_rate) : compute_num_samples(9.0, cut.sampling_rate)]
     )
+
+def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset_path: tuple[str, str]):
+    json_mft, tar_mft, subset_items = nemo_tarred_manifest_subset_path
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            # lhotse specific
+            "use_bucketing": True,
+            "concurrent_bucketing": False,
+            "num_buckets": 2,
+            "drop_last": False,
+            "batch_duration": 4.0,  # seconds
+            "quadratic_duration": 15.0,  # seconds
+            "shuffle_buffer_size": 10,
+            "bucket_buffer_size": 100,
+            "seed": 0,
+            "shard_seed": 0,
+            "tarred_random_access": True,
+            "force_finite": True,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+    seen_ids = set()
+    for batch in dl:
+        current_ids = batch["ids"]
+        current_ids_set = set(current_ids)
+        assert len(current_ids_set) == len(current_ids), "Duplicate IDs found in the batch."
+        seen_ids.update(current_ids_set)
+    expected_ids = set([data['audio_filepath'] for data in subset_items])
+    assert seen_ids == expected_ids, "The set of IDs in the batches does not match the input JSON manifests."
+    
