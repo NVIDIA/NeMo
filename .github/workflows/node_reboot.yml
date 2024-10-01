@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Reboot
         run: |
-          echo ${{ secrets.VM_KEY }} | sudo -S reboot -h now
+          echo ${{ secrets.VM_KEY }} | sudo -S reboot -h now || true
 
   test:
     needs: main
