@@ -114,21 +114,31 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # print out params in more details
         self.summarize(max_depth=2)
 
-    def parameters(self):
+    def parameters(self, requires_grad_only=False):
         # override the same method in MegatronGPT model to include parameters ouside of LM
         all_names = []
         all_params = []
         for name, param in self.named_parameters(recurse=True):
+            if requires_grad_only:
+                if not param.requires_grad:
+                    continue
             all_names.append(name)
             all_params.append(param)
 
         if isinstance(self.model, list):
             for module in self.model:
                 for name, param in module.named_parameters(recurse=True):
+                    if requires_grad_only:
+                        if not param.requires_grad:
+                            continue
                     all_names.append(name)
                     all_params.append(param)
 
         return itertools.chain(all_params)
+
+    def configure_optimizers(self):
+        self.setup_optimizer_param_groups()
+        return super().configure_optimizers()
 
     def setup_optimizer_param_groups(self):
         """

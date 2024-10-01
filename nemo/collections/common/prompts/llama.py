@@ -47,13 +47,18 @@ def llama2(cuts: CutSet, tokenizer: TokenizerSpec):
     for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut.first_non_padding_cut
-        assert cut.has_custom("context"), f"Missing mandatory metadata key 'context' in {cut=}"
+        if cut.has_custom("context"):
+            context = cut.context
+        elif cut.has_custom("question"):
+            context = cut.question
+        else:
+            context = cut.default_context
 
         turns = []
         if cut.has_custom("system_prompt"):
-            turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": cut.context}})
+            turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": context}})
         else:
-            turns.append({"role": "user", "slots": {"message": cut.context}})
+            turns.append({"role": "user", "slots": {"message": context}})
         if (answer := cut.supervisions[0].text) is not None:
             turns.append({"role": "assistant", "slots": {"message": answer}})
 

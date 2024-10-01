@@ -144,9 +144,9 @@ def collate_text_data(
     def get_max_len(input_list):
         return max([len(x) for x in input_list])
 
-    input_id_maxlen = tokens_to_generate + get_max_len(fields["input_ids"])
+    input_id_maxlen = get_max_len(fields["input_ids"])
     context_id_maxlen = tokens_to_generate + get_max_len(fields["context_ids"])
-    answer_id_maxlen = tokens_to_generate + get_max_len(fields["answer_ids"])
+    answer_id_maxlen = get_max_len(fields["answer_ids"])
     if pad_to_max_length:
         input_id_maxlen = max_seq_length
         context_id_maxlen = max_seq_length

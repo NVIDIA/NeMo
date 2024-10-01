@@ -58,6 +58,7 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             model_instance.tokenizer,
             prompt_format=data_cfg.get("prompt_format", "plain"),
             audio_locator=data_cfg.get("audio_locator"),
+            max_seq_length=data_cfg.get("max_seq_length", 8192),
         )
         return LhotseAudioQuestionAnswerDataset(
             tp,

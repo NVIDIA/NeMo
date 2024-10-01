@@ -886,7 +886,7 @@ class MegatronBaseModel(NLPModel):
                     ]
                 for bucket in buckets:
                     self._optimizer.init_params_bucket(bucket)
-                self._optimizer.init_params_bucket(self.parameters())
+                self._optimizer.init_params_bucket(self.parameters(requires_grad_only=True))
             if hasattr(self, 'distributed_adam_buckets'):
                 del self.distributed_adam_buckets
 
