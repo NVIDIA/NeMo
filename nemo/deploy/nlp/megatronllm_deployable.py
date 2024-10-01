@@ -157,6 +157,8 @@ class MegatronLLMDeployable(ITritonDeployable):
             custom_config.activations_checkpoint_granularity = None
             custom_config.activations_checkpoint_method = None
             custom_config.dist_ckpt_load_strictness = StrictHandling.LOG_ALL.value
+            if custom_config.get("fp8", False):
+                custom_config.fp8 = False
 
             self.model = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, override_config_path=custom_config
