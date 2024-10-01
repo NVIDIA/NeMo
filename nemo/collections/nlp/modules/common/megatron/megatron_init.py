@@ -104,6 +104,7 @@ def initialize_model_parallel_for_nemo(
     apex_transformer_log_level=30,
     use_tp_pp_dp_mapping=False,
     use_te_rng_tracker=False,
+    partial_data_parallel_shard_factor = 1,
 ):
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -115,6 +116,7 @@ def initialize_model_parallel_for_nemo(
     app_state.world_size = world_size
     app_state.local_rank = local_rank
     app_state.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
+    app_state.partial_data_parallel_shard_factor = partial_data_parallel_shard_factor
     app_state.expert_model_parallel_size = expert_model_parallel_size
     app_state.tensor_model_parallel_size = tensor_model_parallel_size
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
