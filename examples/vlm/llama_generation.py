@@ -41,7 +41,7 @@ def main() -> None:
 
     # Decide whether to import or load the model based on the input arguments
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision-Instruct")
     model = vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
             language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=True, apply_rope_fusion=False),
@@ -52,7 +52,7 @@ def main() -> None:
         ),
         tokenizer=tokenizer)
     # local_model_path = "/root/.cache/nemo/models/evian3-11b-vision-final_vv1_zarr/"
-    local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/meta-llama/Llama-3.2-11B-Vision_zarr"
+    local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/meta-llama/Llama-3.2-11B-Vision-Instruct_zarr"
     # local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-early_vv1_vision_only/"
     model = fabric.load_model(local_model_path, model)
 
