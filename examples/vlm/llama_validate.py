@@ -60,7 +60,7 @@ def squad() -> pl.LightningDataModule:
 # @run.factory
 def llama32() -> pl.LightningModule:
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("hf://meta-llama/Llama-3.2-11B-Vision")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision")
     # set language_model_config or vision_model_config to None to load only one part
     return vlm.MLlamaModel(
         vlm.MLlamaModelConfig(

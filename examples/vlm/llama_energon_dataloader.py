@@ -70,7 +70,7 @@ def get_model() -> vlm.MLlamaModel:
         limit_val_batches=50,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision")
     model = vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
             language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=True, apply_rope_fusion=False),
@@ -82,7 +82,8 @@ def get_model() -> vlm.MLlamaModel:
         tokenizer=tokenizer)
 
     fabric = trainer.to_fabric()
-    local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-final_vv1_zarr/"
+    # local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-final_vv1_zarr/"
+    local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/meta-llama/Llama-3.2-11B-Vision_zarr"
     model = fabric.load_model(local_model_path, model)
 
     model = model.module.cuda()
