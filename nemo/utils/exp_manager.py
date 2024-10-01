@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 import warnings
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -37,7 +38,6 @@ from pytorch_lightning.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLo
 from pytorch_lightning.loops import _TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
-
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -214,6 +214,7 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    log_on_train_end: Optional[bool] = False
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
@@ -292,6 +293,65 @@ class TimingCallback(Callback):
 
     def on_after_backward(self, trainer, pl_module):
         self._on_batch_end("train_backward_timing", pl_module)
+
+
+class DeltaTimingCallback(Callback):
+    def __init__(self, timer_kwargs={}):
+        self._sync_cuda = timer_kwargs.get("sync_cuda", False)
+        self.timers = defaultdict(defaultdict)
+
+    def tb_logger(self, trainer):
+        if not trainer.loggers:
+            return None
+        for logger in trainer.loggers:
+            if isinstance(logger, TensorBoardLogger):
+                return logger.experiment
+        return None
+
+    def setup(self, trainer, pl_module, stage):
+        self._tb_logger = self.tb_logger(trainer)
+        if self._tb_logger is None:
+            logging.warning("TensorBoard Logger is not enabled. Skipping logging of train metrics.")
+
+    def _on_epoch_start(self, name, trainer, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if self._sync_cuda and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        self.timers[name]["values"] = [0, []]
+        self.timers[name]["start"] = time.time()
+
+    def _on_batch_end(self, name, trainer, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if self._sync_cuda and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        end = time.time()
+        dt = end - self.timers[name]["start"]
+        logging.info(f'Step {self.timers[name]["values"][0]}: {name} in s={dt}')
+        self.timers[name]["values"][1].append(dt)
+        self.timers[name]["values"][0] += 1
+        self.timers[name]["start"] = end
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        self._on_epoch_start("train_step_timing", trainer, pl_module)
+
+    def on_validation_epoch_start(self, trainer, pl_module):
+        self._on_epoch_start("validation_step_timing", trainer, pl_module)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_end("train_step_timing", trainer, pl_module)
+
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_end("validation_step_timing", trainer, pl_module)
+
+    def on_train_end(self, trainer, pl_module):
+        for timer_name, timer_data in self.timers.items():
+            step_times = timer_data["values"][1]
+            logging.info(f"{timer_name} in s: {step_times}")
+            if self._tb_logger is not None:
+                metric_dict = {f"step_{i}": val for i, val in enumerate(step_times)}
+                self._tb_logger.add_scalars(timer_name + " in s", metric_dict)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
@@ -512,7 +572,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     # add loggers timing callbacks
-    if cfg.log_step_timing:
+    if cfg.log_on_train_end:
+        timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        trainer.callbacks.insert(0, timing_callback)
+    elif cfg.log_step_timing:
         timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
