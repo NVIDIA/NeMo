@@ -129,7 +129,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "lang_field": config.lang_field,
         "metadata_only": config.metadata_only,
         "force_finite": config.force_finite,
-        "max_open_streams": config.max_open_streams,  
+        "max_open_streams": config.max_open_streams,
         "tarred_random_access": config.tarred_random_access,
     }
     input_cfg = config.input_cfg
