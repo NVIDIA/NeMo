@@ -13,9 +13,11 @@
 # limitations under the License.
 from typing import Literal
 
-from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
-from megatron.energon import get_train_dataset, DefaultTaskEncoder
+from megatron.energon import DefaultTaskEncoder, get_train_dataset
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS
+
+from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
+
 
 class DiffusionDataModule(SimpleMultiModalDataModule):
     """
@@ -66,7 +68,17 @@ class DiffusionDataModule(SimpleMultiModalDataModule):
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
         """
 
-        super().__init__(path=path, tokenizer=None, image_processor=None, seq_length=seq_length, micro_batch_size=micro_batch_size, global_batch_size=global_batch_size, num_workers=num_workers, pin_memory=pin_memory, task_encoder=task_encoder)
+        super().__init__(
+            path=path,
+            tokenizer=None,
+            image_processor=None,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            task_encoder=task_encoder,
+        )
         self.use_train_split_for_val = use_train_split_for_val
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
@@ -96,7 +108,7 @@ class DiffusionDataModule(SimpleMultiModalDataModule):
             shuffle_buffer_size=100,
             split_part=split,
             batch_drop_last=True,
-            virtual_epoch_length=1_000_000_000, # a hack to avoid energon end of epoch warning
+            virtual_epoch_length=1_000_000_000,  # a hack to avoid energon end of epoch warning
         )
         return _dataset
 
