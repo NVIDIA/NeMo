@@ -3,7 +3,7 @@ name: Reboots VMs in a controlled way
 on:
   schedule:
     - cron: 0 0 * * *
-  pull_request:
+  # pull_request:
 
 jobs:
   main:
@@ -42,6 +42,24 @@ jobs:
           - azure-gpu-vm-runner6
           - azure-gpu-vm-runner7
     steps:
+      - name: Check nvidia-smi
+        run: nvidia-smi
+
+      - name: Re-install docker interface
+        run: |
+          for pkg in nvidia-docker2 nvidia-container-toolkit docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove -y $pkg; done
+
+          echo ${{ secrets.VM_KEY }} | sudo -S apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+          echo ${{ secrets.VM_KEY }} | sudo -S apt-get update
+          echo ${{ secrets.VM_KEY }} | sudo -S apt-get install -y nvidia-container-toolkit
+          
+          echo ${{ secrets.VM_KEY }} | sudo -S nvidia-ctk runtime configure --runtime=docker
+          echo ${{ secrets.VM_KEY }} | sudo -S systemctl restart docker
+          
+          echo ${{ secrets.VM_KEY }} | sudo -S apt-get install nvidia-docker2
+          echo ${{ secrets.VM_KEY }} | sudo -S systemctl restart docker
+
       - name: Check nvidia-smi
         run: |
           docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
