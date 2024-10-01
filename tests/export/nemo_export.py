@@ -677,8 +677,8 @@ def get_args():
     )
     parser.add_argument(
         "--ptuning",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--lora_checkpoint",
@@ -686,8 +686,8 @@ def get_args():
     )
     parser.add_argument(
         "--lora",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--top_k",
