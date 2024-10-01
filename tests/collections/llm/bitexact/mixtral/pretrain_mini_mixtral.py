@@ -1,5 +1,4 @@
 import argparse
-import os
 from pathlib import Path
 
 import torch
@@ -11,7 +10,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import MegatronStrategy, NeMoLogger, Trainer
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule as MegatronOptim
 from nemo.lightning.pytorch.optim.megatron import OptimizerConfig
-import torch.nn.functional as F
 from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
 VOCAB_PATH = '/mnt/4tb/gpt_tokenizer/vocab.json'
