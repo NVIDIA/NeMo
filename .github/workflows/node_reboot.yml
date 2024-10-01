@@ -12,7 +12,13 @@ jobs:
     strategy:
       matrix:
         vm: 
+          - azure-gpu-vm-runner1
           - azure-gpu-vm-runner-1gpu-a
+          - azure-gpu-vm-runner-1gpu-c
+          - azure-gpu-vm-runner1-h100
+          - azure-gpu-vm-runner2
+          - azure-gpu-vm-runner6
+          - azure-gpu-vm-runner7
     steps:
       - name: Reboot
         run: |
@@ -27,13 +33,20 @@ jobs:
         run: sleep 300
 
   test:
+    needs: wait
     runs-on: ${{ matrix.vm }}
     # environment: main
     if: always()
     strategy:
       matrix:
         vm: 
+          - azure-gpu-vm-runner1
           - azure-gpu-vm-runner-1gpu-a
+          - azure-gpu-vm-runner-1gpu-c
+          - azure-gpu-vm-runner1-h100
+          - azure-gpu-vm-runner2
+          - azure-gpu-vm-runner6
+          - azure-gpu-vm-runner7
     steps:
       - name: Check nvidia-smi
         run: |
