@@ -66,16 +66,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
-
-try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
+from nemo.utils.import_utils import safe_import, safe_import_from
 
 try:
     from megatron.core import InferenceParams, parallel_state
@@ -97,17 +88,20 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     TransformerConfig = ApexGuardDefaults
+    RetroConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
 try:
-    import transformer_engine
-    from transformer_engine.pytorch import module as te_module
-
-    HAVE_TE = True
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+transformer_engine, HAVE_TE = safe_import("transformer_engine")
+te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", "module")
+HAVE_TE = HAVE_TE and HAVE_TE_MODULE
 
 
 class MegatronRetroModel(MegatronGPTModel):
@@ -409,7 +403,7 @@ class MegatronRetroModel(MegatronGPTModel):
         return fwd_output_only_func
 
     def build_retro_config(self) -> RetroConfig:
-        """ This method build RetroConfig from the already built TransformerConfig
+        """This method build RetroConfig from the already built TransformerConfig
         by adding Retro relevant variables. This method runs after running build_transformer_config() method.
         """
         retro_config = self.transformer_config
@@ -433,7 +427,7 @@ class MegatronRetroModel(MegatronGPTModel):
         # Validate Transformer Engine version.
         from importlib.metadata import version
 
-        from pkg_resources import packaging
+        import packaging
 
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version >= packaging.version.Version("1.3"):
@@ -445,7 +439,10 @@ class MegatronRetroModel(MegatronGPTModel):
             except Exception as e:
                 raise Exception(
                     "When using Transformer Engine >= 1.3, environment vars NVTE_FLASH_ATTN and NVTE_FUSED_ATTN most both be defined and set to '0'. Currently, NVTE_FLASH_ATTN == %s, NVTE_FUSED_ATTN == %s."
-                    % (os.getenv("NVTE_FLASH_ATTN", "[unset]"), os.getenv("NVTE_FUSED_ATTN", "[unset]"),)
+                    % (
+                        os.getenv("NVTE_FLASH_ATTN", "[unset]"),
+                        os.getenv("NVTE_FUSED_ATTN", "[unset]"),
+                    )
                 )
 
         return retro_config
@@ -469,9 +466,9 @@ class MegatronRetroModel(MegatronGPTModel):
         ]
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[
-                1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration
+            train_valid_test_num_samples[1] = (
+                1  # This is to make sure we only have one epoch on every validation iteration
+            )
 
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self.cfg,
@@ -539,8 +536,11 @@ class MegatronRetroModel(MegatronGPTModel):
         no_sync_func = None
         grad_sync_func = None
         param_sync_func = None
-        if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+        if not forward_only and self.with_distributed_adam and not self.use_mcore_dist_optim:
+            no_sync_func = partial(
+                self._optimizer.no_sync,
+                greedy_grad_copy=self.megatron_amp_O2,
+            )
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
@@ -596,10 +596,10 @@ class MegatronRetroModel(MegatronGPTModel):
 
     def validation_step(self, dataloader_iter, dataloader_idx=0):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.

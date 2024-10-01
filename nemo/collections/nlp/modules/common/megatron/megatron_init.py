@@ -21,10 +21,9 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer.log_util import set_logging_level
-    from apex.transformer.microbatches import ConstantNumMicroBatches
-    from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
@@ -44,12 +43,40 @@ try:
         set_virtual_pipeline_model_parallel_rank,
     )
 
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
 try:
-    from apex.transformer.parallel_state import set_virtual_pipeline_model_parallel_world_size
+    from megatron.core.num_microbatches_calculator import (
+        ConstantNumMicroBatchesCalculator,
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+        init_num_microbatches_calculator,
+    )
+
+    MCORE_MB_CALCULATOR = True
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.microbatches import ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
+    from apex.transformer.pipeline_parallel.utils import (
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
+    from apex.transformer.pipeline_parallel.utils import (
+        setup_microbatch_calculator as init_num_microbatches_calculator,
+    )
+
+    MCORE_MB_CALCULATOR = False
+
+
+try:
+    from megatron.core.parallel_state import set_virtual_pipeline_model_parallel_world_size
 
     HAVE_INTERLEAVED = True
 
@@ -76,6 +103,7 @@ def initialize_model_parallel_for_nemo(
     seed=1234,
     apex_transformer_log_level=30,
     use_tp_pp_dp_mapping=False,
+    use_te_rng_tracker=False,
 ):
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -128,35 +156,58 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
+    tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
     if seed is not None:
         # @chcui not setting seed is for model conversion. always set seed for training/inference.
         _set_random_seed(seed)
 
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
-        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        if MCORE_MB_CALCULATOR:
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
-        if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
-            setup_microbatch_calculator(
-                rank=global_rank,
-                global_batch_size=global_batch_size,
-                micro_batch_size=micro_batch_size,
-                data_parallel_size=app_state.data_parallel_size,
-                rampup_batch_size=rampup_batch_size,
-            )
-        else:
-            if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatches):
-                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size == global_batch_size
-                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size == micro_batch_size
-                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches == global_batch_size // (
-                    micro_batch_size * app_state.data_parallel_size
+            if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
+                init_num_microbatches_calculator(
+                    rank=global_rank,
+                    global_batch_size=global_batch_size,
+                    micro_batch_size=micro_batch_size,
+                    data_parallel_size=app_state.data_parallel_size,
+                    rampup_batch_size=rampup_batch_size,
                 )
             else:
-                raise Exception("Microbatch calculator already initialized.")
+                if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
+                    assert get_current_global_batch_size() == global_batch_size
+                    assert get_micro_batch_size() == micro_batch_size
+                    assert get_num_microbatches() == global_batch_size // (
+                        micro_batch_size * app_state.data_parallel_size
+                    )
+                else:
+                    raise Exception("Microbatch calculator already initialized.")
+        else:
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+            if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
+                init_num_microbatches_calculator(
+                    rank=global_rank,
+                    global_batch_size=global_batch_size,
+                    micro_batch_size=micro_batch_size,
+                    data_parallel_size=app_state.data_parallel_size,
+                    rampup_batch_size=rampup_batch_size,
+                )
+            else:
+                if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
+                    assert get_current_global_batch_size() == global_batch_size
+                    assert get_micro_batch_size() == micro_batch_size
+                    assert get_num_microbatches() == global_batch_size // (
+                        micro_batch_size * app_state.data_parallel_size
+                    )
+                else:
+                    raise Exception("Microbatch calculator already initialized.")
 
     app_state._is_megatron_initialized = True
 
-    set_logging_level(apex_transformer_log_level)
+    if HAVE_APEX:
+        set_logging_level(apex_transformer_log_level)
 
 
 def _set_random_seed(seed_):
@@ -315,7 +366,7 @@ def fake_initialize_model_parallel(
     if expert_model_parallel_size_ is not None and expert_model_parallel_size_ > 1:
         for ranks in rank_generator.get_ranks('ep', independent_ep=True):
             if rank in ranks:
-                expert_model_parallel_rank = list(ranks).index(rank) // tensor_model_parallel_size
+                expert_model_parallel_rank = list(ranks).index(rank)
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).

@@ -16,7 +16,7 @@ NeMo is built on top of NVIDIA's powerful Megatron-LM and Transformer Engine for
 
 `NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ features separate collections for Large Language Models (LLMs), Multimodal Models (MMs), Computer Vision (CV), Automatic Speech Recognition (ASR), and Text-to-Speech (TTS) models. Each collection comprises prebuilt modules that include everything needed to train on your data. These modules can be easily customized, extended, and composed to create new generative AI model architectures.
 
-(TODO: Still valid? LLM is not included here.) `Pre-trained NeMo models <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ are available in 14+ languages.
+Pre-trained NeMo models are available to download on `NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`__ and `HuggingFace Hub <https://huggingface.co/nvidia>`__.
 
 Prerequisites
 -------------
@@ -96,13 +96,13 @@ This section details the steps to clone and install the Megatron Core.
     git checkout a5415fcfacef2a37416259bd38b7c4b673583675 && \
     pip install .
 
-AMMO Installation
+TensorRT Model Optimizer Installation
 
-This final step involves installing the AMMO package.
+This final step involves installing the TensorRT Model Optimizer package.
 
 .. code-block:: bash
 
-    pip install nvidia-ammo~=0.7.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
+    pip install nvidia-modelopt[torch]~=0.17.0 --extra-index-url https://pypi.nvidia.com
 
 
 .. code-block:: bash

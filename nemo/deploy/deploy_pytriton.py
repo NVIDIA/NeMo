@@ -24,13 +24,12 @@ from nemo.deploy.deploy_base import DeployBase
 
 
 class DeployPyTriton(DeployBase):
-
     """
     Deploys any models to Triton Inference Server that implements ITritonDeployable interface in nemo.deploy.
 
     Example:
         from nemo.deploy import DeployPyTriton, NemoQueryLLM
-        from nemo.export import TensorRTLLM
+        from nemo.export.tensorrt_llm import TensorRTLLM
 
         trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
         trt_llm_exporter.export(
@@ -102,7 +101,6 @@ class DeployPyTriton(DeployBase):
         )
 
     def deploy(self):
-
         """
         Deploys any models to Triton Inference Server.
         """
@@ -148,7 +146,6 @@ class DeployPyTriton(DeployBase):
             print(e)
 
     def serve(self):
-
         """
         Starts serving the model and waits for the requests
         """
@@ -163,7 +160,6 @@ class DeployPyTriton(DeployBase):
             print(e)
 
     def run(self):
-
         """
         Starts serving the model asynchronously.
         """

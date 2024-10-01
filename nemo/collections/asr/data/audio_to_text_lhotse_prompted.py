@@ -11,17 +11,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Sequence
+from dataclasses import dataclass
+from typing import Callable, Optional, Union
 
-import omegaconf
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.cut import MixedCut, MonoCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
-from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
+from nemo.collections.common.tokenizers import TokenizerSpec
+
+
+@dataclass
+class PromptedAudioToTextMiniBatch:
+    audio: torch.Tensor
+    audio_lens: torch.Tensor
+    transcript: torch.Tensor
+    transcript_lens: torch.Tensor
+    prompt: torch.Tensor
+    prompt_lens: torch.Tensor
+    prompted_transcript: torch.Tensor
+    prompted_transcript_lens: torch.Tensor
+    cuts: Optional[CutSet] = None
+
+    def get_decoder_inputs_outputs(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Returns the inputs and outputs of transformer decoder for training.
+        The input is ``prompted_transcript`` (minus last token),
+        and the output is ``prompted_transcript`` (minus first token).
+        """
+        return self.prompted_transcript[:, :-1], self.prompted_transcript[:, 1:]
 
 
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
@@ -44,204 +63,50 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         tokenizer: TokenizerSpec,
-        prompt_format_fn: Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]],
-        inference: bool = False,
+        prompt_format_fn: Callable[
+            [CutSet, TokenizerSpec], tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]
+        ],
     ):
         super().__init__()
-        self.tokenizer = TokenizerWrapper(tokenizer)
+        self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
-        self.padding_value = self.tokenizer._tokenizer.pad_id
+        self.padding_value = self.tokenizer.pad
         self.prompt_format_fn = prompt_format_fn
-        self.inference = inference
 
-    def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        tokens, prompt_tokens = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
+        # Fast-path: the tokenization and prompt formatting was already done before sampling.
+        attrs = ("tokenized_prompt", "tokenized_transcript", "tokenized_prompted_transcript")
+        pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
+        if pre_formatted:
+            prompts_with_answers, prompts, answers = zip(
+                *((c.tokenized_prompted_transcript, c.tokenized_prompt, c.tokenized_transcript) for c in cuts)
+            )
+        else:
+            prompts_with_answers, prompts, answers = self.prompt_format_fn(cuts, self.tokenizer)
 
+        transcript, transcript_lens = self._collate_tokens(answers)
+        prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)
+        prompts, prompt_lens = self._collate_tokens(prompts)
+
+        return PromptedAudioToTextMiniBatch(
+            audio=audio,
+            audio_lens=audio_lens,
+            transcript=transcript,
+            transcript_lens=transcript_lens,
+            prompt=prompts,
+            prompt_lens=prompt_lens,
+            prompted_transcript=prompts_with_answers,
+            prompted_transcript_lens=prompts_with_answers_lens,
+            cuts=cuts.drop_in_memory_data(),
+        )
+
+    def _collate_tokens(self, tokens: list[Union[list[int], torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         tokens = [torch.as_tensor(t) for t in tokens]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
-
-        if self.inference:
-            prompt_tokens = [torch.as_tensor(t) for t in prompt_tokens]
-            prompt_token_lens = torch.tensor([t.size(0) for t in prompt_tokens], dtype=torch.long)
-            prompt_tokens = collate_vectors(prompt_tokens, padding_value=self.padding_value)
-        else:
-            prompt_tokens = None
-            prompt_token_lens = None
-
-        return audio, audio_lens, tokens, token_lens, prompt_tokens, prompt_token_lens
-
-
-# Mapping from a string name to a known prompt formatter function.
-PROMPT_FORMAT_FNS = {}
-
-
-def registered_prompt_format_fn(prompt_fn: Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]]):
-    """
-    Decorator for registering prompt functions under a name.
-
-    Example::
-
-        >>> @registered_prompt_format_fn
-        ... def my_prompt(cuts, tokenizer):
-        ...     pass
-        ...
-        ... prompt_fn = get_prompt_format_fn("my_prompt")
-    """
-    global PROMPT_FORMAT_FNS
-
-    PROMPT_FORMAT_FNS[prompt_fn.__name__] = prompt_fn
-    return prompt_fn
-
-
-def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]]:
-    if name not in PROMPT_FORMAT_FNS:
-        raise ValueError(
-            f"Unknown prompt format function name: {name} " f"(must be one of: {list(PROMPT_FORMAT_FNS.keys())}"
-        )
-    return PROMPT_FORMAT_FNS[name]
-
-
-@registered_prompt_format_fn
-def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -> Sequence[Sequence[int]]:
-    """
-    Prepend and append control tokens to the token sequence as per Canary format.
-
-    We use the following special tokens:
-    * <|startoftranscript|>
-    * <|transcribe|>
-    * <|translate|>
-    * <|nopnc|>
-    * <|pnc|>
-    * <|endoftext|>
-    * <|LANG|> - for each supported language.
-    * <|nospeech|>
-
-    The prompt format syntax is as follows:
-
-        <|startoftranscript|> [ <|nospeech|> | <|LANG|> [ <|transcribe|> | <|translate|> ] <|LANG|> [ <|pnc|> | <|nopnc|> ] TEXT <|endoftext|> ]
-
-    Where expression ``[ a | b ]`` denotes expression ``a`` or expression ``b``, and can be nested.
-    Note that ``<|LANG|>`` appears twice: the first occurrence is for the "source" language
-    (i.e., spoken language in the recording) and the second occurrence is for the "target" language
-    (i.e., the language in which we are going to output the text).
-    """
-
-    assert isinstance(
-        tokenizer._tokenizer, CanaryTokenizer
-    ), "To use 'canary' prompt format, you must use the CanaryTokenizer."
-    tokenizer = tokenizer._tokenizer
-
-    tokens, prompts = [], []
-    for cut in cuts:
-        if isinstance(cut, MixedCut):
-            cut = cut._first_non_padding_cut
-        assert isinstance(cut, MonoCut), "Expected MonoCut."
-
-        # first, validate the utterance
-        missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in cut.custom]
-        if missing_keys:
-            raise RuntimeError(
-                f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
-                f"Please ensure that every utterance in the input manifests contains these keys."
-            )
-
-        # Actual tokenization. If a cut has multiple supervisions, we'll stitch their tokenized texts together.
-        texts = [sup.text for sup in cut.supervisions]
-        langs = [sup.language for sup in cut.supervisions]
-        taskname = cut.custom['taskname']
-        pnc = cut.custom['pnc']
-        source_lang = cut.custom['source_lang']
-        target_lang = cut.custom['target_lang']
-
-        tokens.append(canary_prompt(tokenizer, texts, langs, source_lang, target_lang, taskname, pnc))
-        if inference:
-            prompts.append(canary_prompt(tokenizer, None, None, source_lang, target_lang, taskname, pnc))
-    return tokens, prompts
-
-
-def canary_prompt(
-    tokenizer: CanaryTokenizer,
-    text: str | list[str] | None,
-    language: str | list[str] | None,
-    source_language: str,
-    target_language: str,
-    taskname: str,
-    pnc: str,
-) -> list[int]:
-    if isinstance(text, str):
-        text = [text]
-    if isinstance(language, str):
-        language = [language]
-
-    if text is not None:
-        try:
-            tokens = sum((tokenizer.text_to_ids(text_, lang_) for text_, lang_ in zip(text, language)), start=[])
-        except omegaconf.errors.KeyValidationError as e:
-            raise ProbablyIncorrectLanguageKeyError(
-                "We couldn't select the right tokenizer, which could be due to issues with reading "
-                "the language from the manifest. "
-                "If you're training, try setting lang_field='' to a different value (probably 'target_lang' or 'lang'). "
-                "If you're using model.transcribe() directly, please use override_config kwarg to set this. "
-                "If you're using transcribe_speech.py, use option gt_lang_attr_name='...' "
-            ) from e
-    else:
-        tokens = None  # create prompt for inference
-
-    # bos
-    prompted_tokens = [tokenizer.bos_id]
-
-    if tokens is not None and len(tokens) == 0:
-        # no speech token
-        prompted_tokens.append(tokenizer.nospeech_id)
-    else:
-        # first, validate the utterance
-        if source_language is None or target_language is None or taskname is None or pnc is None:
-            raise RuntimeError(
-                f"Missing keys provided to prompt: "
-                f"source_langauge={source_language},\n"
-                f"target_language={target_language},\n"
-                f"taskname={taskname},\n"
-                f"pnc={pnc}\n"
-                f"Please ensure that every utterance in the input manifests contains these keys."
-            )
-
-        # src_lang_id/no_speech
-        src_lang_id = tokenizer.spl_token_to_id(source_language)
-        prompted_tokens.append(src_lang_id)
-
-        # task
-        task = taskname
-        if task == 'asr' or task == "transcribe":
-            prompted_tokens.append(tokenizer.spl_token_to_id("transcribe"))
-        elif task == 's2t_translation' or task == 'ast' or task == "translate":
-            prompted_tokens.append(tokenizer.spl_token_to_id("translate"))
-        else:
-            raise ValueError(f"Unknown task: {task}")
-
-        # tgt_lang_id
-        tgt_lang_id = tokenizer.spl_token_to_id(target_language)
-        prompted_tokens.append(tgt_lang_id)
-
-        # PnC
-        pnc = f"{pnc}".lower().strip()  # to account for bool or str
-        if pnc in {'yes', 'true'}:
-            prompted_tokens.append(tokenizer.spl_token_to_id("pnc"))
-        elif pnc in {'no', 'false'}:
-            prompted_tokens.append(tokenizer.spl_token_to_id("nopnc"))
-        else:
-            raise ValueError(f"Unknown value for key 'pnc': {pnc}")
-
-        # text (only in training)
-        if tokens is not None:
-            prompted_tokens.extend(tokens)
-
-    # eos (only in training)
-    if tokens is not None:
-        prompted_tokens.append(tokenizer.eos_id)
-    return prompted_tokens
+        return tokens, token_lens
 
 
 class ProbablyIncorrectLanguageKeyError(RuntimeError):

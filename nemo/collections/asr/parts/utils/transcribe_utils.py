@@ -17,6 +17,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -25,7 +26,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
+from nemo.collections.asr.models import ASRModel, EncDecMultiTaskModel
 from nemo.collections.asr.parts.utils import manifest_utils, rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchMultiTaskAED
 from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate
@@ -41,6 +42,7 @@ def get_buffered_pred_feat_rnnt(
     batch_size: int,
     manifest: str = None,
     filepaths: List[list] = None,
+    accelerator: Optional[str] = 'cpu',
 ) -> List[rnnt_utils.Hypothesis]:
     """
     Moved from examples/asr/asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py
@@ -66,7 +68,7 @@ def get_buffered_pred_feat_rnnt(
                     refs.append(row['text'])
 
     with torch.inference_mode():
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cpu' if accelerator == 'cpu' else 'cuda'):
             batch = []
             asr.sample_offset = 0
             for idx in tqdm(range(len(filepaths)), desc='Sample:', total=len(filepaths)):
@@ -232,7 +234,7 @@ def get_buffered_pred_feat_multitaskAED(
 
 
 def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
-    """ Wrap transcription to the expected format in func write_transcription """
+    """Wrap transcription to the expected format in func write_transcription"""
     wrapped_hyps = []
     for hyp in hyps:
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)
@@ -241,7 +243,7 @@ def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
 
 
 def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, str]:
-    """ Setup model from cfg and return model and model name for next step """
+    """Setup model from cfg and return model and model name for next step"""
     if cfg.model_path is not None and cfg.model_path != "None":
         # restore model from .nemo file path
         model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
@@ -249,13 +251,15 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location,
+            restore_path=cfg.model_path,
+            map_location=map_location,
         )  # type: ASRModel
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location,
+            model_name=cfg.pretrained_name,
+            map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
@@ -269,30 +273,53 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
 
 
 def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
-    """ Prepare audio data and decide whether it's partial_audio condition. """
-    # this part may need refactor alongsides with refactor of transcribe
-    partial_audio = False
+    """
+    Prepare audio data for transcription.
+    Args:
+        cfg (DictConfig): Configuration dictionary containing the following parameters:
+            - audio_dir (str): Path to the directory containing audio files.
+            - append_pred (bool): Flag indicating whether to append predictions to an existing dataset.
+            - audio_type (str): Type of audio files to consider.
+            - dataset_manifest (str): Path to the dataset manifest file.
+            - audio_key (str, optional): Key in the manifest file specifying the audio file path. Defaults to 'audio_filepath'.
+            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file. Defaults to True.
+    Returns:
+        Tuple[List[str], bool]: A tuple containing the following:
+            - filepaths (List[str]): List of filepaths to the audio files if path to the directory containing audio files is provided.
+            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset manifest file is provided.
+    """
+
+    filepaths = None
+    sorted_manifest_path = None
 
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
-        # get filenames from manifest
         filepaths = []
         if os.stat(cfg.dataset_manifest).st_size == 0:
             logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
 
-        all_entries_have_offset_and_duration = True
-        for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
-            if not ("offset" in item and "duration" in item):
-                all_entries_have_offset_and_duration = False
-            audio_key = cfg.get('audio_key', 'audio_filepath')
-            audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
-            filepaths.append(audio_file)
-        partial_audio = all_entries_have_offset_and_duration
-    logging.info(f"\nTranscribing {len(filepaths)} files...\n")
+        audio_key = cfg.get('audio_key', 'audio_filepath')
 
-    return filepaths, partial_audio
+        with open(cfg.dataset_manifest, "rt") as fh:
+            for line in fh:
+                item = json.loads(line)
+                item[audio_key] = get_full_path(item[audio_key], cfg.dataset_manifest)
+                if item.get("duration") is None and cfg.presort_manifest:
+                    raise ValueError(
+                        f"Requested presort_manifest=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
+                    )
+
+        with NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
+                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+                item[audio_key] = audio_file
+                filepaths.append(audio_file)
+                f.write(json.dumps(item) + "\n")
+        sorted_manifest_path = f.name
+
+    return filepaths, sorted_manifest_path
 
 
 def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> List[dict]:
@@ -322,7 +349,7 @@ def restore_transcription_order(manifest_path: str, transcriptions: list) -> lis
 
 
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
-    """ Compute filename of output manifest and update cfg"""
+    """Compute filename of output manifest and update cfg"""
     if cfg.output_filename is None:
         # create default output filename
         if cfg.audio_dir is not None:
@@ -363,7 +390,7 @@ def write_transcription(
     compute_langs: bool = False,
     compute_timestamps: bool = False,
 ) -> Tuple[str, str]:
-    """ Write generated transcription to output file. """
+    """Write generated transcription to output file."""
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
         if cfg.pred_name_postfix is not None:
@@ -452,113 +479,6 @@ def write_transcription(
     return cfg.output_filename, pred_text_attr_name
 
 
-def transcribe_partial_audio(
-    asr_model,
-    path2manifest: str = None,
-    batch_size: int = 4,
-    logprobs: bool = False,
-    return_hypotheses: bool = False,
-    num_workers: int = 0,
-    channel_selector: Optional[int] = None,
-    augmentor: DictConfig = None,
-    decoder_type: Optional[str] = None,
-) -> List[str]:
-    """
-    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py and nemo/collections/asr/models/rnnt_models.py
-    """
-
-    if return_hypotheses and logprobs:
-        raise ValueError(
-            "Either `return_hypotheses` or `logprobs` can be True at any given time."
-            "Returned hypotheses will contain the logprobs."
-        )
-    if num_workers is None:
-        num_workers = min(batch_size, os.cpu_count() - 1)
-
-    # We will store transcriptions here
-    hypotheses = []
-    # Model's mode and device
-    mode = asr_model.training
-    device = next(asr_model.parameters()).device
-    dither_value = asr_model.preprocessor.featurizer.dither
-    pad_to_value = asr_model.preprocessor.featurizer.pad_to
-
-    if decoder_type is not None:  # Hybrid model
-        decode_function = (
-            asr_model.decoding.rnnt_decoder_predictions_tensor
-            if decoder_type == 'rnnt'
-            else asr_model.ctc_decoding.ctc_decoder_predictions_tensor
-        )
-    elif hasattr(asr_model, 'joint'):  # RNNT model
-        decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
-    else:  # CTC model
-        decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
-
-    try:
-        asr_model.preprocessor.featurizer.dither = 0.0
-        asr_model.preprocessor.featurizer.pad_to = 0
-        # Switch model to evaluation mode
-        asr_model.eval()
-        # Freeze the encoder and decoder modules
-        asr_model.encoder.freeze()
-        asr_model.decoder.freeze()
-        logging_level = logging.get_verbosity()
-        logging.set_verbosity(logging.WARNING)
-
-        config = {
-            'manifest_filepath': path2manifest,
-            'batch_size': batch_size,
-            'num_workers': num_workers,
-            'channel_selector': channel_selector,
-        }
-        if augmentor:
-            config['augmentor'] = augmentor
-
-        temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-        for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-            outputs = asr_model.forward(
-                input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
-            )
-            logits, logits_len = outputs[0], outputs[1]
-
-            if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
-                logits = asr_model.ctc_decoder(encoder_output=logits)
-
-            logits = logits.cpu()
-
-            if logprobs:
-                logits = logits.numpy()
-                # dump log probs per file
-                for idx in range(logits.shape[0]):
-                    lg = logits[idx][: logits_len[idx]]
-                    hypotheses.append(lg)
-            else:
-                current_hypotheses, _ = decode_function(logits, logits_len, return_hypotheses=return_hypotheses,)
-
-                if return_hypotheses:
-                    # dump log probs per file
-                    for idx in range(logits.shape[0]):
-                        current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
-                        if current_hypotheses[idx].alignments is None:
-                            current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
-
-                hypotheses += current_hypotheses
-
-            del logits
-            del test_batch
-
-    finally:
-        # set mode back to its original value
-        asr_model.train(mode=mode)
-        asr_model.preprocessor.featurizer.dither = dither_value
-        asr_model.preprocessor.featurizer.pad_to = pad_to_value
-        if mode is True:
-            asr_model.encoder.unfreeze()
-            asr_model.decoder.unfreeze()
-        logging.set_verbosity(logging_level)
-    return hypotheses
-
-
 def compute_metrics_per_sample(
     manifest_path: str,
     reference_field: str = "text",
@@ -567,10 +487,9 @@ def compute_metrics_per_sample(
     punctuation_marks: List[str] = [".", ",", "?"],
     output_manifest_path: str = None,
 ) -> dict:
-
     '''
     Computes metrics per sample for given manifest
-    
+
     Args:
         manifest_path: str, Required - path to dataset JSON manifest file (in NeMo format)
         reference_field: str, Optional - name of field in .json manifest with the reference text ("text" by default).
@@ -578,7 +497,7 @@ def compute_metrics_per_sample(
         metrics: list[str], Optional - list of metrics to be computed (currently supported "wer", "cer", "punct_er")
         punctuation_marks: list[str], Optional - list of punctuation marks for computing punctuation error rate ([".", ",", "?"] by default).
         output_manifest_path: str, Optional - path where .json manifest with calculated metrics will be saved.
-    
+
     Returns:
         samples: dict - Dict of samples with calculated metrics
     '''

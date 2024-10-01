@@ -83,6 +83,8 @@ model:
   mcore_gpt: True # required to be True for newer versions of Megatron-LM based models
   use_flash_attention: True
   precision: bf16
+  apply_rope_fusion: False
+  reward_model_loss: False  # Set this to true to perform RLHF style reward model loss -log(sigmoid(accept_logit - reject_logit))
 
   peft:
     peft_scheme: "lora"  # can be either adapter,ia3, or ptuning
@@ -125,7 +127,6 @@ model:
       tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
 
   data:
-    return_output_tensors: True
     train_ds:
       # Example of how to specify paths to multiple datasets
       # file_names:

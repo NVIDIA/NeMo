@@ -17,7 +17,6 @@ from inspect import isfunction
 
 import torch
 import torch.nn.functional as F
-from apex.contrib.group_norm import GroupNorm
 from einops import rearrange, repeat
 from torch import einsum, nn
 from torch._dynamo import disable
@@ -25,9 +24,13 @@ from torch._dynamo import disable
 if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
     from nemo.gn_native import GroupNormNormlization as GroupNorm
 else:
-    from apex.contrib.group_norm import GroupNorm
+    try:
+        from apex.contrib.group_norm import GroupNorm
 
-from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
+        OPT_GROUP_NORM = True
+    except Exception:
+        print('Fused optimized group norm has not been installed.')
+        OPT_GROUP_NORM = False
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -36,6 +39,12 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core import adapter_mixins
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
+
+DotProductAttention, HAVE_DPA = safe_import_from("transformer_engine.pytorch.attention", "DotProductAttention")
+LayerNormLinear, HAVE_LN_LINEAR = safe_import_from("transformer_engine.pytorch.module", "LayerNormLinear")
+LayerNormMLP, HAVE_LN_MLP = safe_import_from("transformer_engine.pytorch.module", "LayerNormMLP")
+HAVE_TE = HAVE_DPA and HAVE_LN_LINEAR and HAVE_LN_MLP
 
 
 def check_cuda():
@@ -45,10 +54,9 @@ def check_cuda():
     dprops = torch.cuda.get_device_properties(cur_device)
 
     is_sm75 = dprops.major == 7 and dprops.minor == 5
-    is_sm8x = dprops.major == 8 and dprops.minor >= 0
-    is_sm90 = dprops.major == 9 and dprops.minor >= 0
+    is_sm8x_or_later = dprops.major >= 8
 
-    return is_sm8x or is_sm75 or is_sm90
+    return is_sm75 or is_sm8x_or_later
 
 
 try:
@@ -56,7 +64,6 @@ try:
     from flash_attn.modules.mha import FlashCrossAttention, FlashSelfAttention
 
     flash_attn_installed = check_cuda()
-    print("FlashAttention Installed")
 
     # Disable TorchDynamo on FlashAttention
     FlashSelfAttention.forward = disable(FlashSelfAttention.forward)
@@ -112,7 +119,11 @@ class FeedForward(nn.Module):
         if use_te:
             activation = 'gelu' if not glu else 'geglu'
             # TODO: more parameters to be confirmed, dropout, seq_length
-            self.net = LayerNormMLP(hidden_size=dim, ffn_hidden_size=inner_dim, activation=activation,)
+            self.net = LayerNormMLP(
+                hidden_size=dim,
+                ffn_hidden_size=inner_dim,
+                activation=activation,
+            )
         else:
             norm = nn.LayerNorm(dim)
             project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
@@ -213,6 +224,10 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
     def forward(self, x):
         mixed_x = super().forward(x)
         if self.is_adapter_available():
+            # return this output if lora is not enabled
+            cfg = self.get_adapter_cfg(AdapterName.PARALLEL_LINEAR_ADAPTER)
+            if not cfg['enabled']:
+                return mixed_x
             lora_linear_adapter = self.get_adapter_module(AdapterName.PARALLEL_LINEAR_ADAPTER)
             lora_mixed_x = lora_linear_adapter(x)
             # This value has the same meaning as the `--network_alpha` option in the kohya-ss trainer script.
@@ -238,10 +253,20 @@ class CrossAttention(nn.Module):
         dim_head=64,
         dropout=0.0,
         use_flash_attention=False,
+        use_te_dpa=False,
         lora_network_alpha=None,
         use_te=False,
     ):
         super().__init__()
+
+        assert not (
+            use_te_dpa and use_flash_attention
+        ), 'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
+
+        if use_flash_attention:
+            assert flash_attn_installed, 'Flash-attention must be installed.'
+        if use_te_dpa:
+            assert HAVE_TE, 'TransformerEngine is required to run with TE DPA.'
 
         self.inner_dim = dim_head * heads
         if context_dim is None:
@@ -254,12 +279,13 @@ class CrossAttention(nn.Module):
         self.query_dim = query_dim
         self.dim_head = dim_head
 
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.heads = heads
 
         self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
         self.to_v = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
 
+        self.use_te_dpa = use_te_dpa
         self.use_te = use_te
         if use_te:
             return_layernorm_output = True if self.is_self_attn else False
@@ -275,11 +301,21 @@ class CrossAttention(nn.Module):
         )
         self.use_flash_attention = use_flash_attention
 
-        if dim_head <= 160 and (dim_head % 8) == 0 and flash_attn_installed:
-            if context_dim == query_dim:
-                self.flash_attn = FlashSelfAttention(softmax_scale=self.scale)
-            else:
-                self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
+        if dim_head <= 160 and (dim_head % 8) == 0:
+            if self.use_flash_attention:
+                if context_dim == query_dim:
+                    self.flash_attn = FlashSelfAttention(softmax_scale=self.scale)
+                else:
+                    self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
+            elif self.use_te_dpa:
+                self.te_dpa = DotProductAttention(
+                    kv_channels=dim_head,
+                    num_attention_heads=self.inner_dim // dim_head,
+                    attn_mask_type='no_mask',
+                    attention_type='self' if context_dim == query_dim else 'cross',
+                    qkv_format='bshd',  # `sbhd`, `bshd`, `thd`
+                    softmax_scale=self.scale,
+                )
 
     def forward(self, x, context=None, mask=None, additional_tokens=None, n_times_crossframe_attn_in_self=0):
         h = self.heads
@@ -321,7 +357,7 @@ class CrossAttention(nn.Module):
 
         if (
             not flash_attn_installed
-            or not self.use_flash_attention
+            or (not self.use_flash_attention and not self.use_te_dpa)
             or q.dtype == torch.float32
             or (self.dim_head > 160 or (self.dim_head % 8) != 0)
             or mask is not None
@@ -348,6 +384,13 @@ class CrossAttention(nn.Module):
 
             # (b h) n d -> b n (h d)
             out = rearrange_heads_inner(out, h)
+
+        elif self.use_te_dpa:
+            b, s_kv, hd = k.shape
+            s_q = q.shape[1]
+            d = hd // h
+            out = self.te_dpa(q.view(b, s_q, h, d), k.view(b, s_kv, h, d), v.view(b, s_kv, h, d))
+
         elif self.context_dim == self.query_dim:
             # self-attention
             qkv = torch.stack([q, k, v], dim=2)
@@ -387,6 +430,7 @@ class BasicTransformerBlock(nn.Module):
         gated_ff=True,
         use_checkpoint=False,
         use_flash_attention=False,
+        use_te_dpa=False,
         disable_self_attn=False,
         lora_network_alpha=None,
         use_te=False,
@@ -399,6 +443,7 @@ class BasicTransformerBlock(nn.Module):
             dim_head=d_head,
             dropout=dropout,
             use_flash_attention=use_flash_attention,
+            use_te_dpa=use_te_dpa,
             context_dim=context_dim if self.disable_self_attn else None,
             lora_network_alpha=lora_network_alpha,
             use_te=use_te,
@@ -411,6 +456,7 @@ class BasicTransformerBlock(nn.Module):
             dim_head=d_head,
             dropout=dropout,
             use_flash_attention=use_flash_attention,
+            use_te_dpa=use_te_dpa,
             lora_network_alpha=lora_network_alpha,
             use_te=use_te,
         )  # is self-attn if context is none
@@ -468,6 +514,7 @@ class SpatialTransformer(nn.Module):
         use_linear=False,
         use_checkpoint=False,
         use_flash_attention=False,
+        use_te_dpa=False,
         lora_network_alpha=None,
         use_te=False,
     ):
@@ -510,6 +557,7 @@ class SpatialTransformer(nn.Module):
                     context_dim=context_dim[d],
                     use_checkpoint=use_checkpoint,
                     use_flash_attention=use_flash_attention,
+                    use_te_dpa=use_te_dpa,
                     disable_self_attn=disable_self_attn,
                     lora_network_alpha=lora_network_alpha,
                     use_te=use_te,

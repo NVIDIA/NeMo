@@ -22,6 +22,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.core.utils.neural_type_utils import get_io_names
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
@@ -218,6 +219,26 @@ class ASRModel(ModelPT, ABC):
         """
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": tuple,
+            "inputs": [
+                {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
+            ],
+        }
+
 
 class ExportableEncDecModel(Exportable):
     """
@@ -240,12 +261,12 @@ class ExportableEncDecModel(Exportable):
         if getattr(self.input_module, 'export_cache_support', False):
             in_types = self.input_module.output_types
             otypes = {n: t for (n, t) in list(otypes.items())[:1]}
-            for (n, t) in list(in_types.items())[1:]:
+            for n, t in list(in_types.items())[1:]:
                 otypes[n] = t
         return get_io_names(otypes, self.disabled_deployment_output_names)
 
     def forward_for_export(
-        self, input, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
         """
         This forward is used when we need to export the model to ONNX format.
@@ -264,12 +285,12 @@ class ExportableEncDecModel(Exportable):
         """
         enc_fun = getattr(self.input_module, 'forward_for_export', self.input_module.forward)
         if cache_last_channel is None:
-            encoder_output = enc_fun(audio_signal=input, length=length)
+            encoder_output = enc_fun(audio_signal=audio_signal, length=length)
             if isinstance(encoder_output, tuple):
                 encoder_output = encoder_output[0]
         else:
             encoder_output, length, cache_last_channel, cache_last_time, cache_last_channel_len = enc_fun(
-                audio_signal=input,
+                audio_signal=audio_signal,
                 length=length,
                 cache_last_channel=cache_last_channel,
                 cache_last_time=cache_last_time,

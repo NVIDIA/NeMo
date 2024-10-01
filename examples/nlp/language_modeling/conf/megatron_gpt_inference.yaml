@@ -1,3 +1,4 @@
+# NOTE : This config and megatron_gpt_eval.py will be deprecated soon. Use megatron_gpt_inference_batch_mcore.yaml
 inference:
   greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
@@ -31,6 +32,7 @@ hparams_file: null # model configuration file, only used for PTL checkpoint load
 prompts: # prompts for GPT inference
   - "Q: How are you?"
   - "Q: How big is the universe?"
+prompts_jsonl: null
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
 web_server: False # whether launch the web inference server

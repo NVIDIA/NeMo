@@ -26,10 +26,6 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-# FP8 related import
-import transformer_engine
-from apex.contrib.group_norm import GroupNorm
-
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     avg_pool_nd,
@@ -44,6 +40,17 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     zero_module,
 )
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
+
+transformer_engine, HAVE_TE = safe_import("transformer_engine")
+
+try:
+    from apex.contrib.group_norm import GroupNorm
+
+    OPT_GROUP_NORM = True
+except Exception:
+    print('Fused optimized group norm has not been installed.')
+    OPT_GROUP_NORM = False
 
 
 def convert_module_to_dtype(module, dtype, enable_norm_layers=False):
@@ -102,10 +109,14 @@ class AttentionPool2d(nn.Module):
     """
 
     def __init__(
-        self, spacial_dim: int, embed_dim: int, num_heads_channels: int, output_dim: int = None,
+        self,
+        spacial_dim: int,
+        embed_dim: int,
+        num_heads_channels: int,
+        output_dim: int = None,
     ):
         super().__init__()
-        self.positional_embedding = nn.Parameter(th.randn(embed_dim, spacial_dim ** 2 + 1) / embed_dim ** 0.5)
+        self.positional_embedding = nn.Parameter(th.randn(embed_dim, spacial_dim**2 + 1) / embed_dim**0.5)
         self.qkv_proj = conv_nd(1, embed_dim, 3 * embed_dim, 1)
         self.c_proj = conv_nd(1, embed_dim, output_dim or embed_dim, 1)
         self.num_heads = embed_dim // num_heads_channels
@@ -319,7 +330,10 @@ class ResBlock(TimestepBlock):
             self.emb_layers = None
             self.exchange_temb_dims = False
         else:
-            self.emb_layers = nn.Sequential(nn.SiLU(), linear(emb_channels, self.emb_out_channels),)
+            self.emb_layers = nn.Sequential(
+                nn.SiLU(),
+                linear(emb_channels, self.emb_out_channels),
+            )
         self.out_layers = nn.Sequential(
             normalization(self.out_channels, act="silu", gn_groups=resblock_gn_groups),
             nn.Dropout(p=dropout),
@@ -387,7 +401,12 @@ class AttentionBlock(nn.Module):
     """
 
     def __init__(
-        self, channels, num_heads=1, num_head_channels=-1, use_checkpoint=False, use_new_attention_order=False,
+        self,
+        channels,
+        num_heads=1,
+        num_head_channels=-1,
+        use_checkpoint=False,
+        use_new_attention_order=False,
     ):
         super().__init__()
         self.channels = channels
@@ -438,7 +457,7 @@ def count_flops_attn(model, _x, y):
     # We perform two matmuls with the same number of ops.
     # The first computes the weight matrix, the second computes
     # the combination of the value vectors.
-    matmul_ops = 2 * b * (num_spatial ** 2) * c
+    matmul_ops = 2 * b * (num_spatial**2) * c
     model.total_ops += th.DoubleTensor([matmul_ops])
 
 
@@ -584,6 +603,7 @@ class UNetModel(nn.Module):
         from_NeMo=False,
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
+        use_te_dpa: bool = False,
         unet_precision: str = "fp32",
         lora_network_alpha=None,
         timesteps=1000,
@@ -640,7 +660,10 @@ class UNetModel(nn.Module):
         if num_attention_blocks is not None:
             assert len(num_attention_blocks) == len(self.num_res_blocks)
             assert all(
-                map(lambda i: self.num_res_blocks[i] >= num_attention_blocks[i], range(len(num_attention_blocks)),)
+                map(
+                    lambda i: self.num_res_blocks[i] >= num_attention_blocks[i],
+                    range(len(num_attention_blocks)),
+                )
             )
             logging.info(
                 f"Constructor of UNetModel received num_attention_blocks={num_attention_blocks}. "
@@ -661,7 +684,9 @@ class UNetModel(nn.Module):
         self.predict_codebook_ids = n_embed is not None
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
-            linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
+            linear(model_channels, time_embed_dim),
+            nn.SiLU(),
+            linear(time_embed_dim, time_embed_dim),
         )
 
         self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps))
@@ -678,7 +703,9 @@ class UNetModel(nn.Module):
                 self.label_emb = nn.Sequential(
                     Timestep(model_channels),
                     nn.Sequential(
-                        linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
+                        linear(model_channels, time_embed_dim),
+                        nn.SiLU(),
+                        linear(time_embed_dim, time_embed_dim),
                     ),
                 )
             elif self.num_classes == "sequential":
@@ -686,7 +713,9 @@ class UNetModel(nn.Module):
                 self.adm_in_channels = adm_in_channels
                 self.label_emb = nn.Sequential(
                     nn.Sequential(
-                        linear(adm_in_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
+                        linear(adm_in_channels, time_embed_dim),
+                        nn.SiLU(),
+                        linear(time_embed_dim, time_embed_dim),
                     )
                 )
             else:
@@ -748,6 +777,7 @@ class UNetModel(nn.Module):
                                 use_linear=use_linear_in_transformer,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
+                                use_te_dpa=use_te_dpa,
                                 lora_network_alpha=lora_network_alpha,
                                 use_te=self.use_te_fp8,
                             )
@@ -755,6 +785,7 @@ class UNetModel(nn.Module):
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
                 self._feature_size += ch
                 input_block_chans.append(ch)
+
             if level != len(channel_mult) - 1:
                 out_ch = ch
                 self.input_blocks.append(
@@ -797,26 +828,29 @@ class UNetModel(nn.Module):
                 use_scale_shift_norm=use_scale_shift_norm,
                 resblock_gn_groups=resblock_gn_groups,
             ),
-            AttentionBlock(
-                ch,
-                use_checkpoint=use_checkpoint,
-                num_heads=num_heads,
-                num_head_channels=dim_head,
-                use_new_attention_order=use_new_attention_order,
-            )
-            if not use_spatial_transformer
-            else SpatialTransformer(
-                ch,
-                num_heads,
-                dim_head,
-                depth=transformer_depth_middle,
-                context_dim=context_dim,
-                disable_self_attn=disable_middle_self_attn,
-                use_linear=use_linear_in_transformer,
-                use_checkpoint=use_checkpoint,
-                use_flash_attention=use_flash_attention,
-                use_te=self.use_te_fp8,
-                lora_network_alpha=lora_network_alpha,
+            (
+                AttentionBlock(
+                    ch,
+                    use_checkpoint=use_checkpoint,
+                    num_heads=num_heads,
+                    num_head_channels=dim_head,
+                    use_new_attention_order=use_new_attention_order,
+                )
+                if not use_spatial_transformer
+                else SpatialTransformer(
+                    ch,
+                    num_heads,
+                    dim_head,
+                    depth=transformer_depth_middle,
+                    context_dim=context_dim,
+                    disable_self_attn=disable_middle_self_attn,
+                    use_linear=use_linear_in_transformer,
+                    use_checkpoint=use_checkpoint,
+                    use_flash_attention=use_flash_attention,
+                    use_te_dpa=use_te_dpa,
+                    use_te=self.use_te_fp8,
+                    lora_network_alpha=lora_network_alpha,
+                )
             ),
             ResBlock(
                 ch,
@@ -881,6 +915,7 @@ class UNetModel(nn.Module):
                                 use_linear=use_linear_in_transformer,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
+                                use_te_dpa=use_te_dpa,
                                 lora_network_alpha=lora_network_alpha,
                                 use_te=self.use_te_fp8,
                             )
@@ -918,6 +953,7 @@ class UNetModel(nn.Module):
             )
 
         if from_pretrained is not None:
+            logging.info(f"Attempting to load pretrained unet from {from_pretrained}")
             if from_pretrained.endswith('safetensors'):
                 from safetensors.torch import load_file as load_safetensors
 
@@ -933,13 +969,15 @@ class UNetModel(nn.Module):
                 )
                 logging.info(f"Missing keys: {missing_key}")
                 logging.info(f"Unexpected keys: {unexpected_keys}")
+            else:
+                logging.info(f"There are no missing keys, model loaded properly!")
 
         if unet_precision == "fp16-mixed":  # AMP O2
             self.convert_to_fp16()
         elif unet_precision == 'fp16':
             self.convert_to_fp16(enable_norm_layers=True)
-        elif self.use_te_fp8:
-            assert unet_precision != 'fp16', "fp8 training can't work with fp16 O2 amp recipe"
+        if self.use_te_fp8:
+            assert unet_precision == 'fp16', "fp8 training can't work with fp16 O2 amp recipe"
             convert_module_to_fp8(self)
 
             fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
@@ -962,6 +1000,7 @@ class UNetModel(nn.Module):
                 amax_history_len=fp8_amax_history_len,
                 amax_compute_algo=fp8_amax_compute_algo,
                 override_linear_precision=(False, False, not fp8_wgrad),
+                # fp8_dpa=use_te_dpa, # TODO; fp8 DPA kernel is not supported now.
             )
             old_state_dict = self.state_dict()
             new_state_dict = self.te_fp8_key_mapping(old_state_dict)
@@ -985,6 +1024,16 @@ class UNetModel(nn.Module):
                     .replace('conv2', 'out_layers.3')
                     .replace('conv_shortcut', 'skip_connection')
                 )
+                ## Rohit: I've changed this to make sure it is compatible
+                # post_fix = (
+                #     key_[25:]
+                #     .replace('time_emb_proj', 'emb_layers.1')
+                #     .replace('norm1', 'in_layers.0')
+                #     .replace('norm2', 'out_layers.0')
+                #     .replace('conv1', 'in_layers.1')
+                #     .replace('conv2', 'out_layers.2')
+                #     .replace('conv_shortcut', 'skip_connection')
+                # )
                 res_dict["input_blocks." + str(target_id) + '.0.' + post_fix] = value_
             elif "attentions" in key_:
                 id_1 = int(key_[26])
@@ -1110,9 +1159,15 @@ class UNetModel(nn.Module):
             # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
             # norm_to_q.weight -> to_q.weight
             new_key = key.replace('attn1.norm.', 'attn1.norm_to_q.layer_norm_')
-            new_key = new_key.replace('attn1.to_q.weight', 'attn1.norm_to_q.weight',)
+            new_key = new_key.replace(
+                'attn1.to_q.weight',
+                'attn1.norm_to_q.weight',
+            )
             new_key = new_key.replace('attn2.norm.', 'attn2.norm_to_q.layer_norm_')
-            new_key = new_key.replace('attn2.to_q.weight', 'attn2.norm_to_q.weight',)
+            new_key = new_key.replace(
+                'attn2.to_q.weight',
+                'attn2.norm_to_q.weight',
+            )
 
             ### LayerNormMLP
             # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
@@ -1126,7 +1181,7 @@ class UNetModel(nn.Module):
         return new_state_dict
 
     def _state_key_mapping(self, state_dict: dict):
-
+        # state_dict is a HF model
         res_dict = {}
         input_dict = {}
         mid_dict = {}
@@ -1163,6 +1218,7 @@ class UNetModel(nn.Module):
     def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
+            logging.info("creating state key mapping from HF")
             state_dict = self._state_key_mapping(state_dict)
         state_dict = self._legacy_unet_ckpt_mapping(state_dict)
 
@@ -1201,7 +1257,10 @@ class UNetModel(nn.Module):
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
         def _find_mismatched_keys(
-            state_dict, model_state_dict, loaded_keys, ignore_mismatched_sizes,
+            state_dict,
+            model_state_dict,
+            loaded_keys,
+            ignore_mismatched_sizes,
         ):
             mismatched_keys = []
             if ignore_mismatched_sizes:
@@ -1221,7 +1280,10 @@ class UNetModel(nn.Module):
         if state_dict is not None:
             # Whole checkpoint
             mismatched_keys = _find_mismatched_keys(
-                state_dict, model_state_dict, original_loaded_keys, ignore_mismatched_sizes,
+                state_dict,
+                model_state_dict,
+                original_loaded_keys,
+                ignore_mismatched_sizes,
             )
             error_msgs = self._load_state_dict_into_model(state_dict)
         return missing_keys, unexpected_keys, mismatched_keys, error_msgs
@@ -1294,9 +1356,10 @@ class UNetModel(nn.Module):
             if context is not None:
                 context = context.type(torch.float16)
 
-        t_emb = timestep_embedding(
-            timesteps, self.model_channels, cached_embedding=self.time_embeddings.to(timesteps.device)
-        )
+        if self.time_embeddings.device != timesteps.device:
+            self.time_embeddings = self.time_embeddings.to(timesteps.device)
+
+        t_emb = timestep_embedding(timesteps, self.model_channels, cached_embedding=self.time_embeddings)
         emb = self.time_embed(t_emb)
         if self.num_classes is not None:
             assert y.shape[0] == x.shape[0]
@@ -1316,9 +1379,14 @@ class UNetModel(nn.Module):
             return self.out(h)
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
-        with transformer_engine.pytorch.fp8_autocast(
-            enabled=self.use_te_fp8, fp8_recipe=self.fp8_recipe,
-        ) if self.use_te_fp8 else nullcontext():
+        with (
+            transformer_engine.pytorch.fp8_autocast(
+                enabled=self.use_te_fp8,
+                fp8_recipe=self.fp8_recipe,
+            )
+            if self.use_te_fp8
+            else nullcontext()
+        ):
             out = self._forward(x, timesteps, context, y, **kwargs)
         return out
 
@@ -1374,7 +1442,9 @@ class EncoderUNetModel(nn.Module):
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
-            linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
+            linear(model_channels, time_embed_dim),
+            nn.SiLU(),
+            linear(time_embed_dim, time_embed_dim),
         )
 
         self.input_blocks = nn.ModuleList(
@@ -1476,11 +1546,15 @@ class EncoderUNetModel(nn.Module):
         elif pool == "attention":
             assert num_head_channels != -1
             self.out = nn.Sequential(
-                normalization(ch), nn.SiLU(), AttentionPool2d((image_size // ds), ch, num_head_channels, out_channels),
+                normalization(ch),
+                nn.SiLU(),
+                AttentionPool2d((image_size // ds), ch, num_head_channels, out_channels),
             )
         elif pool == "spatial":
             self.out = nn.Sequential(
-                nn.Linear(self._feature_size, 2048), nn.ReLU(), nn.Linear(2048, self.out_channels),
+                nn.Linear(self._feature_size, 2048),
+                nn.ReLU(),
+                nn.Linear(2048, self.out_channels),
             )
         elif pool == "spatial_v2":
             self.out = nn.Sequential(

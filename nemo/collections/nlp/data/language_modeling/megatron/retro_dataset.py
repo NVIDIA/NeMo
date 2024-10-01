@@ -40,15 +40,19 @@ try:
         MultiSplitGPTDatasetConfig,
     )
     from megatron.core.datasets.retro.query.retro_dataset import get_retro_datasets
+    from megatron.core.datasets.utils import get_blend_from_list
     from megatron.core.models.retro import RetroConfig
 
     from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
-    HAVE_MEGATRON_CORE = True
+    HAVE_TE_AND_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_MEGATRON_CORE = False
+    HAVE_TE_AND_MEGATRON_CORE = False
+    from typing import Any
+
+    RetroConfig = Any
 
 
 class RETRODataset(Dataset):
@@ -121,57 +125,71 @@ class RETRODataset(Dataset):
 
 
 def build_train_valid_test_datasets(
-    cfg, retro_config: RetroConfig, train_valid_test_num_samples, seq_length, tokenizer,
+    cfg,
+    retro_config: RetroConfig,
+    train_valid_test_num_samples,
+    seq_length,
+    tokenizer,
 ):
 
-    # gpt dataset
-    train_ds, valid_ds, test_ds = gpt_train_valid_test_datasets_provider(cfg, train_valid_test_num_samples, tokenizer)
+    if HAVE_TE_AND_MEGATRON_CORE:
 
-    gpt_datasets = {
-        "train": (train_ds, train_valid_test_num_samples[0]),
-        "valid": (valid_ds, train_valid_test_num_samples[1]),
-        "test": (test_ds, train_valid_test_num_samples[2]),
-    }
-
-    retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
-        config=retro_config, gpt_datasets=gpt_datasets, sample_length=seq_length, eod_token_id=tokenizer.eos_id,
-    )
-
-    train_ds = (
-        RETRODataset(
-            cfg=cfg,
-            retro_config=retro_config,
-            tokenizer=tokenizer,
-            mcore_retro_dataset=retro_train_ds,
-            number_samples_with_neighbors=train_valid_test_num_samples[0],
+        # gpt dataset
+        train_ds, valid_ds, test_ds = gpt_train_valid_test_datasets_provider(
+            cfg, train_valid_test_num_samples, tokenizer
         )
-        if retro_train_ds
-        else None
-    )
-    valid_ds = (
-        RETRODataset(
-            cfg=cfg,
-            retro_config=retro_config,
-            tokenizer=tokenizer,
-            mcore_retro_dataset=retro_valid_ds,
-            number_samples_with_neighbors=train_valid_test_num_samples[1],
-        )
-        if retro_valid_ds
-        else None
-    )
-    test_ds = (
-        RETRODataset(
-            cfg=cfg,
-            retro_config=retro_config,
-            tokenizer=tokenizer,
-            mcore_retro_dataset=retro_test_ds,
-            number_samples_with_neighbors=train_valid_test_num_samples[2],
-        )
-        if retro_test_ds
-        else None
-    )
 
-    return train_ds, valid_ds, test_ds
+        gpt_datasets = {
+            "train": (train_ds, train_valid_test_num_samples[0]),
+            "valid": (valid_ds, train_valid_test_num_samples[1]),
+            "test": (test_ds, train_valid_test_num_samples[2]),
+        }
+
+        retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
+            config=retro_config,
+            gpt_datasets=gpt_datasets,
+            sample_length=seq_length,
+            eod_token_id=tokenizer.eos_id,
+        )
+
+        train_ds = (
+            RETRODataset(
+                cfg=cfg,
+                retro_config=retro_config,
+                tokenizer=tokenizer,
+                mcore_retro_dataset=retro_train_ds,
+                number_samples_with_neighbors=train_valid_test_num_samples[0],
+            )
+            if retro_train_ds
+            else None
+        )
+        valid_ds = (
+            RETRODataset(
+                cfg=cfg,
+                retro_config=retro_config,
+                tokenizer=tokenizer,
+                mcore_retro_dataset=retro_valid_ds,
+                number_samples_with_neighbors=train_valid_test_num_samples[1],
+            )
+            if retro_valid_ds
+            else None
+        )
+        test_ds = (
+            RETRODataset(
+                cfg=cfg,
+                retro_config=retro_config,
+                tokenizer=tokenizer,
+                mcore_retro_dataset=retro_test_ds,
+                number_samples_with_neighbors=train_valid_test_num_samples[2],
+            )
+            if retro_test_ds
+            else None
+        )
+
+        return train_ds, valid_ds, test_ds
+    else:
+        logging.warn('Megatron core is not installed. Returning None')
+        return
 
 
 def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, tokenizer):
@@ -190,7 +208,7 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
     data_config = MultiSplitGPTDatasetConfig(
         random_seed=cfg.seed,
         sequence_length=cfg.data.seq_length,
-        blend=cfg.data.data_prefix,
+        blend=get_blend_from_list(cfg.data.data_prefix),
         split=cfg.data.splits_string,
         split_preprocessing=cfg.data.retro_data.retro_split_preprocessing,
         path_to_cache=None,

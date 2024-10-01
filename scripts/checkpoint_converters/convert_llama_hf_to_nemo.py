@@ -18,6 +18,8 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
     python convert_llama_hf_to_nemo.py \
      --input_name_or_path <path_to_hf_checkpoints_folder> \
      --output_path <path_to_output_nemo_file>
+     --precision bf16 \
+     --llama31 True 
 """
 
 import os
@@ -27,7 +29,7 @@ from collections import OrderedDict
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import LlamaForCausalLM, LlamaTokenizer
+from transformers import AutoTokenizer, LlamaForCausalLM, LlamaTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -44,7 +46,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
@@ -55,6 +61,13 @@ def get_args():
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
+    )
+    parser.add_argument(
+        "--llama31",
+        type=bool,
+        default=True,
+        required=False,
+        help="Whether the model is from LLaMa 3.1 family. LLaMa 3.1 enables scaling for RoPE frequencies.",
     )
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
@@ -78,9 +91,24 @@ def load_config(args, llama_config):
         nemo_config.num_query_groups = llama_config['num_key_value_heads']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
-    nemo_config.tokenizer.model = llama_config['tokenizer_model']
+
+    # Tokenizer config
+    if 'tokenizer_model' in llama_config:
+        nemo_config.tokenizer.model = llama_config['tokenizer_model']
+    else:
+        # Llama3 uses converted TikToken Tokenizer
+        tokenizer_dict = {
+            'library': 'huggingface',
+            'type': args.input_name_or_path,
+            'use_fast': True,
+        }
+        nemo_config.tokenizer = tokenizer_dict
+
     if llama_config['rope_scaling'] is not None:
-        if llama_config['rope_scaling']['type'] == 'linear':
+        rope_type = llama_config['rope_scaling'].get('rope_type')
+        if rope_type is None:
+            rope_type = llama_config['rope_scaling'].get('type')
+        if rope_type in ('linear', 'llama3'):
             nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
         else:
             raise ValueError("Only linear rope scaling type is supported now")
@@ -91,6 +119,7 @@ def load_config(args, llama_config):
     while llama_config['vocab_size'] % base != 0:
         base //= 2
     nemo_config.make_vocab_size_divisible_by = base
+    nemo_config.scale_positional_embedding = args.llama31
 
     return nemo_config
 
@@ -98,9 +127,12 @@ def load_config(args, llama_config):
 def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
     model = LlamaForCausalLM.from_pretrained(args.input_name_or_path)
-    tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
     hf_config = vars(model.config)
-    hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
+    if os.path.exists(f'{args.input_name_or_path}/tokenizer.model'):
+        tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
+        hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path)
     print(f"hf_config: {hf_config}")
     print("named parameters:")
     for name, param in model.named_parameters():
@@ -124,7 +156,7 @@ def convert(args):
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )
@@ -139,6 +171,7 @@ def convert(args):
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     nemo_config.precision = precision
+    nemo_config.micro_batch_size = 1
     print(f"nemo_config: {nemo_config}")
 
     # Remove precision arg, since with PTL >= 2.1 both precision and precision plugin cannot exist together.
@@ -273,6 +306,25 @@ def convert(args):
     model = load_state_dict_helper(MegatronGPTModel, nemo_config, trainer, checkpoint['state_dict'])
 
     model._save_restore_connector = NLPSaveRestoreConnector()
+
+    # We make sure that the tokenizer can be instantiated later regardless of args.input_name_or_path
+    if 'tokenizer_model' not in hf_config:
+        if args.llama31:
+            if hf_config['num_hidden_layers'] == 32:
+                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-8B')
+            elif hf_config['num_hidden_layers'] == 80:
+                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-70B')
+            elif hf_config['num_hidden_layers'] == 126:
+                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-8B')  # 405B tokenizer is the same as 8B
+            else:
+                logging.warning("Unexpected model config for Llama3. Tokenizer config has not been modified.")
+        else:
+            if hf_config['num_hidden_layers'] == 32:
+                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3-8B')
+            elif hf_config['num_hidden_layers'] == 80:
+                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3-70B')
+            else:
+                logging.warning("Unexpected model config for Llama3. Tokenizer config has not been modified.")
 
     # cast to target precision and disable cpu init
     dtype = torch_dtype_from_precision(precision)

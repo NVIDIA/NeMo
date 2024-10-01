@@ -45,7 +45,10 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType
 from nemo.utils import logging
 
 
-def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
+def pack_hypotheses(
+    hypotheses: List[rnnt_utils.Hypothesis],
+    logitlen: torch.Tensor,
+) -> List[rnnt_utils.Hypothesis]:
 
     if hasattr(logitlen, 'cpu'):
         logitlen_cpu = logitlen.to('cpu')
@@ -139,8 +142,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -149,8 +151,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -382,14 +383,13 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
             hypotheses = []
             # Process each sequence independently
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                for batch_idx in range(encoder_output.size(0)):
-                    inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
-                    logitlen = encoded_lengths[batch_idx]
+            for batch_idx in range(encoder_output.size(0)):
+                inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
+                logitlen = encoded_lengths[batch_idx]
 
-                    partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
-                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
-                    hypotheses.append(hypothesis)
+                partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+                hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
+                hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, encoded_lengths)
@@ -578,6 +578,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
             to prediction network (with maximum possible batch size),
             which makes it especially useful for scaling the prediction network.
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
     """
 
     def __init__(
@@ -718,12 +719,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             self.decoder.eval()
             self.joint.eval()
 
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                inseq = encoder_output  # [B, T, D]
+            inseq = encoder_output  # [B, T, D]
 
-                hypotheses = self._greedy_decode(
-                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
-                )
+            hypotheses = self._greedy_decode(
+                inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+            )
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
@@ -2504,14 +2504,13 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
 
             hypotheses = []
             # Process each sequence independently
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                for batch_idx in range(encoder_output.size(0)):
-                    inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
-                    logitlen = encoded_lengths[batch_idx]
+            for batch_idx in range(encoder_output.size(0)):
+                inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
+                logitlen = encoded_lengths[batch_idx]
 
-                    partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
-                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
-                    hypotheses.append(hypothesis)
+                partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+                hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
+                hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, encoded_lengths)
@@ -2714,6 +2713,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 Supported values:
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
+
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
     """
 
     def __init__(
@@ -2790,11 +2791,10 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             self.decoder.eval()
             self.joint.eval()
 
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                inseq = encoder_output  # [B, T, D]
-                hypotheses = self._greedy_decode(
-                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
-                )
+            inseq = encoder_output  # [B, T, D]
+            hypotheses = self._greedy_decode(
+                inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+            )
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)

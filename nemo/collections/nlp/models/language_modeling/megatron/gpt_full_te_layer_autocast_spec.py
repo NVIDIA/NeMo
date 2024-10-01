@@ -15,27 +15,24 @@
 from importlib.metadata import version
 from typing import Any, Callable, Optional
 
+import packaging
 import torch
-from pkg_resources import packaging
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.utils.import_utils import safe_import_from
 
-try:
-    from transformer_engine.pytorch import TransformerLayer
-
-    HAVE_TE = True
-
-except (ImportError, ModuleNotFoundError) as e:
+TransformerLayer, HAVE_TE = safe_import_from("transformer_engine.pytorch", "TransformerLayer")
+if not HAVE_TE:
 
     TransformerLayer = ApexGuardDefaults
 
-    HAVE_TE = False
-    IMPORT_ERROR = e
-
 try:
     from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+    from megatron.core.transformer.cuda_graphs import CudaGraphManager
     from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
@@ -86,8 +83,9 @@ class AutocastTransformerLayer(TransformerLayer):
         device: str = 'cuda',
         **kwargs,
     ) -> None:
-        if not HAVE_MEGATRON_CORE or not HAVE_TE:
-            raise ImportError(IMPORT_ERROR)
+        assert (
+            HAVE_MEGATRON_CORE and HAVE_TE
+        ), "AutocastTransformerLayer requires Megatron Core and Transformer Engine to be installed."
 
         transformer_layer_args = {
             "hidden_size": hidden_size,
@@ -149,7 +147,7 @@ class AutocastTransformerLayer(TransformerLayer):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: torch.Tensor,
+        attention_mask: torch.Tensor = None,
         encoder_output: Optional[torch.Tensor] = None,
         enc_dec_attn_mask: Optional[torch.Tensor] = None,
         inference_params: Optional[Any] = None,
@@ -169,7 +167,7 @@ class AutocastTransformerLayer(TransformerLayer):
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
                 hidden_states,
-                attention_mask,
+                attention_mask=attention_mask,
                 encoder_output=encoder_output,
                 enc_dec_attn_mask=enc_dec_attn_mask,
                 inference_params=inference_params,
@@ -180,8 +178,9 @@ class AutocastTransformerLayer(TransformerLayer):
 
 class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
-        if not HAVE_MEGATRON_CORE or not HAVE_TE:
-            raise ImportError(IMPORT_ERROR)
+        assert (
+            HAVE_MEGATRON_CORE and HAVE_TE
+        ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
 
         self.config = config
         self.is_first_microbatch = True
@@ -237,30 +236,39 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             transformer_layer_args["ub_atomic_gemm_rs"] = config.tp_comm_atomic_rs
         super().__init__(**transformer_layer_args)
 
+        if self.config.enable_cuda_graph and self.training:
+            assert not config.cpu_offloading and config.recompute_granularity is None, "Cudagraphs not supported"
+            self.add_module('cudagraph_manager', CudaGraphManager())
+
     # Called by MCore's TransformerBlock.forward
     # megatron/core/transformer/transformer_block.py
     def forward(
         self,
         hidden_states,
-        attention_mask,
+        is_first_microbatch=None,
+        attention_mask=None,
         context=None,
         context_mask=None,
         rotary_pos_emb=None,
         inference_params=None,
         packed_seq_params=None,  # TODO: handle this
     ):
+        # Use is_first_microbatch argument during CUDA graph capture. Use self.is_first_microbatch otherwise.
         hidden_states = super().forward(
             hidden_states,
             attention_mask=attention_mask,
             encoder_output=context,
             enc_dec_attn_mask=context_mask,
             inference_params=inference_params,
-            is_first_microbatch=self.is_first_microbatch,
+            is_first_microbatch=is_first_microbatch if is_first_microbatch is not None else self.is_first_microbatch,
             # checkpoint_core_attention,
         )
         self.is_first_microbatch = False
         context = None
 
+        # External CUDA graph requires returned values to be Tensors
+        if hasattr(self.config, 'external_cuda_graph') and self.config.external_cuda_graph and self.training:
+            return hidden_states
         return hidden_states, context
 
     def _get_layer_offset(self):
@@ -315,10 +323,16 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
         return sharded_state_dict
 
+    def __call__(self, *args, **kwargs):
+        if hasattr(self, 'cudagraph_manager'):
+            return self.cudagraph_manager(self, args, kwargs)
+        return super().__call__(*args, **kwargs)
+
 
 # Use this spec to use the full Transformer layer from Transformer Engine
-def get_gpt_full_te_layer_autocast_spec() -> ModuleSpec:
-    if not HAVE_MEGATRON_CORE or not HAVE_TE:
-        raise ImportError(IMPORT_ERROR)
-
-    return ModuleSpec(module=TETransformerLayerAutocast)
+def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
+    assert HAVE_MEGATRON_CORE and HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
+    num_layers = get_num_layers_to_build(transformer_config)
+    return TransformerBlockSubmodules(
+        layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=FusedLayerNorm
+    )

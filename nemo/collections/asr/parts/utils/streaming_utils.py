@@ -21,11 +21,11 @@ import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
-from nemo.collections.asr.data.audio_to_text_lhotse_prompted import canary_prompt
+from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
-from nemo.collections.asr.parts.utils.audio_utils import get_samples
+from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 
@@ -444,7 +444,10 @@ class StreamingFeatureBufferer:
         device = self.asr_model.device
         audio_signal = samples.unsqueeze_(0).to(device)
         audio_signal_len = torch.Tensor([samples.shape[1]]).to(device)
-        features, features_len = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+        features, features_len = self.raw_preprocessor(
+            input_signal=audio_signal,
+            length=audio_signal_len,
+        )
         features = features.squeeze()
         self._update_feature_buffer(features[:, -self.feature_chunk_len :])
 
@@ -479,7 +482,10 @@ class AudioFeatureIterator(IterableDataset):
         self._feature_frame_len = frame_len / timestep_duration
         audio_signal = torch.from_numpy(self._samples).unsqueeze_(0).to(device)
         audio_signal_len = torch.Tensor([self._samples.shape[0]]).to(device)
-        self._features, self._features_len = preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+        self._features, self._features_len = preprocessor(
+            input_signal=audio_signal,
+            length=audio_signal_len,
+        )
         self._features = self._features.squeeze()
 
     def __iter__(self):
@@ -701,7 +707,12 @@ class FrameBatchASR:
     """
 
     def __init__(
-        self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4, pad_to_buffer_len=True,
+        self,
+        asr_model,
+        frame_len=1.6,
+        total_buffer=4.0,
+        batch_size=4,
+        pad_to_buffer_len=True,
     ):
         '''
         Args:
@@ -1183,7 +1194,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         del best_hyp, pred
 
     def transcribe(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         """
         Performs "middle token" alignment prediction using the buffered audio chunk.
@@ -1210,7 +1223,12 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                 if len(ids) > 0 and a_idx < signal_end_idx:
-                    self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,)
+                    self.unmerged[idx] = inplace_buffer_merge(
+                        self.unmerged[idx],
+                        ids,
+                        delay,
+                        model=self.asr_model,
+                    )
 
         output = []
         for idx in range(self.batch_size):
@@ -1276,7 +1294,9 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
         self.alignment_basepath = alignment_basepath
 
     def transcribe(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         if self.lcs_delay < 0:
             raise ValueError(
@@ -1302,7 +1322,10 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
 
                     if len(ids) > 0:
                         self.unmerged[idx] = inplace_buffer_merge(
-                            self.unmerged[idx], ids, delay, model=self.asr_model,
+                            self.unmerged[idx],
+                            ids,
+                            delay,
+                            model=self.asr_model,
                         )
 
                 else:
@@ -1588,15 +1611,17 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                     f"We found sample that is missing the following keys: {missing_keys}"
                     f"Please ensure that every utterance in the input manifests contains these keys. Sample: {sample}"
                 )
-            tokens = canary_prompt(
-                tokenizer=self.asr_model.tokenizer,
-                text=None,
-                language=None,
-                source_language=sample['source_lang'],
-                target_language=sample['target_lang'],
-                taskname=sample['taskname'],
-                pnc=sample['pnc'],
-            )
+            tokens = self.asr_model.prompt.encode_dialog(
+                turns=[
+                    {
+                        "role": "user",
+                        "slots": {
+                            **sample,
+                            self.asr_model.prompt.PROMPT_LANGUAGE_SLOT: "spl_tokens",
+                        },
+                    }
+                ]
+            )["context_ids"]
         else:
             raise ValueError(f"Unknown prompt format: {self.asr_model.prompt_format}")
         return torch.tensor(tokens, dtype=torch.long, device=self.asr_model.device).unsqueeze(0)  # [1, T]
@@ -1619,7 +1644,16 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             tokens = self.input_tokens.to(device).repeat(feat_signal.size(0), 1)
             tokens_len = torch.tensor([tokens.size(1)] * tokens.size(0), device=device).long()
 
-            batch_input = (feat_signal, feat_signal_len, None, None, tokens, tokens_len)
+            batch_input = PromptedAudioToTextMiniBatch(
+                audio=feat_signal,
+                audio_lens=feat_signal_len,
+                transcript=None,
+                transcript_lens=None,
+                prompt=tokens,
+                prompt_lens=tokens_len,
+                prompted_transcript=None,
+                prompted_transcript_lens=None,
+            )
             predictions = self.asr_model.predict_step(batch_input, has_processed_signal=True)
             self.all_preds.extend(predictions)
             del predictions
@@ -1712,12 +1746,16 @@ class FrameBatchChunkedCTC(FrameBatchASR):
                 encoded, encoded_len = results
                 log_probs = self.asr_model.ctc_decoder(encoder_output=encoded)
                 transcribed_texts, _ = self.asr_model.ctc_decoding.ctc_decoder_predictions_tensor(
-                    decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+                    decoder_outputs=log_probs,
+                    decoder_lengths=encoded_len,
+                    return_hypotheses=False,
                 )
             else:
                 log_probs, encoded_len, predictions = results
                 transcribed_texts, _ = self.asr_model.decoding.ctc_decoder_predictions_tensor(
-                    decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+                    decoder_outputs=log_probs,
+                    decoder_lengths=encoded_len,
+                    return_hypotheses=False,
                 )
 
             self.all_preds.extend(transcribed_texts)

@@ -29,8 +29,8 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -133,9 +133,6 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         augmentor: DictConfig = None,
     ) -> List[str]:
         """
-        If modify this function, please remember update transcribe_partial_audio() in
-        nemo/collections/asr/parts/utils/trancribe_utils.py
-
         Uses greedy decoding to transcribe video files. Use this method for debugging and prototyping.
 
         Args:
@@ -210,7 +207,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                             hypotheses.append(lg.cpu().numpy())
                     else:
                         current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-                            logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
+                            logits,
+                            decoder_lengths=logits_len,
+                            return_hypotheses=return_hypotheses,
                         )
 
                         if return_hypotheses:
@@ -579,7 +578,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         )
 
         transcribed_texts, _ = self.wer.decoding.ctc_decoder_predictions_tensor(
-            decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+            decoder_outputs=log_probs,
+            decoder_lengths=encoded_len,
+            return_hypotheses=False,
         )
 
         sample_id = sample_id.cpu().detach().numpy()
@@ -598,7 +599,12 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         loss_value, metrics = self.add_interctc_losses(
-            loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
+            loss_value,
+            transcript,
+            transcript_len,
+            compute_wer=True,
+            log_wer_num_denom=True,
+            log_prefix="val_",
         )
 
         self.wer.update(
