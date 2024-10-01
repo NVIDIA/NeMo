@@ -32,12 +32,11 @@ import random
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.asr.data.audio_to_eesd_label_lhotse import LhotseSpeechToDiarizationLabelDataset
-from nemo.collections.asr.data.audio_to_eesd_label import AudioToSpeechMSDDTrainDataset, get_sample_frames
+from nemo.collections.asr.data.audio_to_eesd_label import AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.utils.multiscale_utils import MultiScaleLayer
 
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -145,7 +144,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.original_audio_offsets = {}
         self.eps = 1e-3
         self.emb_dim = self._cfg.diarizer_module.emb_dim
-        # self._init_frame_lengths() 
 
         if trainer is not None:
             self.loss = instantiate(self._cfg.loss)
@@ -175,11 +173,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.pil_weight = pil_weight/(pil_weight + ats_weight)
         self.ats_weight = ats_weight/(pil_weight + ats_weight)
         logging.info(f"Normalized weights for PIL {self.pil_weight} and ATS {self.ats_weight}")
-         
-    def _init_frame_lengths(self):
-        self.n_memory_frame = self.sortformer_diarizer.mem_len*self.n_feat_fr
-        self.n_step_frame = self.sortformer_diarizer.step_len*self.n_feat_fr
-        import ipdb; ipdb.set_trace()
         
     def _init_eval_metrics(self):
         self._accuracy_test = MultiBinaryAccuracy()
@@ -225,7 +218,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         logging.info("AAB: Starting Dataloader Instance loading... Step A")
         
         AudioToSpeechDiarTrainDataset = AudioToSpeechMSDDTrainDataset
-        # self._init_segmentation_info()
         
         preprocessor = EncDecSpeakerLabelModel.from_config_dict(self._cfg.preprocessor)
         dataset = AudioToSpeechDiarTrainDataset(
