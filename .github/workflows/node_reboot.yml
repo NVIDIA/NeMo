@@ -10,6 +10,7 @@ jobs:
     runs-on: ${{ matrix.vm }}
     # environment: main
     strategy:
+      fail-fast: false
       matrix:
         vm: 
           - azure-gpu-vm-runner1
@@ -38,6 +39,7 @@ jobs:
     # environment: main
     if: always()
     strategy:
+      fail-fast: false
       matrix:
         vm: 
           - azure-gpu-vm-runner1
