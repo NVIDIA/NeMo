@@ -85,6 +85,7 @@ class MultiMLMLoss(Loss):
     """
     Masked language model loss for multiple decoders, where cross-entropy loss is applied separately on each decoder.
     This loss can be used with `nemo.collections.asr.modules.ssl_modules.MultiSoftmaxDecoder` to train a model with multiple targets per frame.
+    Reference: https://arxiv.org/abs/2202.01855
     """
 
     @property

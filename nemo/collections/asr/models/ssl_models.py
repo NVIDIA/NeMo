@@ -896,10 +896,10 @@ class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
         input_signal_length=None,
         processed_signal=None,
         processed_signal_length=None,
-        noise_signal=None,
-        noise_signal_length=None,
-        processed_noise_signal=None,
-        processed_noise_signal_length=None,
+        noise_signal=None,  # noqa
+        noise_signal_length=None,  # noqa
+        processed_noise_signal=None,  # noqa
+        processed_noise_signal_length=None,  # noqa
         noisy_input_signal=None,
         noisy_input_signal_length=None,
         processed_noisy_input_signal=None,
@@ -919,18 +919,20 @@ class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
                 length=input_signal_length,
             )
 
-        has_noise_signal = noise_signal is not None and noise_signal_length is not None
-        has_processed_noise_signal = processed_noise_signal is not None and processed_noise_signal_length is not None
-        if (has_noise_signal ^ has_processed_noise_signal) == False:
-            raise ValueError(
-                f"{self} Arguments ``noise_signal`` and ``noise_signal_length`` are mutually exclusive "
-                " with ``processed_noise_signal`` and ``processed_noise_signal_len`` arguments."
-            )
-        if not has_processed_noise_signal:
-            processed_noise_signal, processed_noise_signal_length = self.preprocessor(
-                input_signal=noise_signal,
-                length=noise_signal_length,
-            )
+        ### Following code snipet is not used but kept for future reference
+        #
+        # has_noise_signal = noise_signal is not None and noise_signal_length is not None
+        # has_processed_noise_signal = processed_noise_signal is not None and processed_noise_signal_length is not None
+        # if (has_noise_signal ^ has_processed_noise_signal) == False:
+        #     raise ValueError(
+        #         f"{self} Arguments ``noise_signal`` and ``noise_signal_length`` are mutually exclusive "
+        #         " with ``processed_noise_signal`` and ``processed_noise_signal_len`` arguments."
+        #     )
+        # if not has_processed_noise_signal:
+        #     processed_noise_signal, processed_noise_signal_length = self.preprocessor(
+        #         input_signal=noise_signal,
+        #         length=noise_signal_length,
+        #     )
 
         has_noisy_input_signal = noisy_input_signal is not None and noisy_input_signal_length is not None
         has_processed_noisy_input_signal = (
