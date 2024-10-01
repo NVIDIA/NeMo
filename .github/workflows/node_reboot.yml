@@ -25,16 +25,8 @@ jobs:
         run: |
           echo ${{ secrets.VM_KEY }} | sudo -S reboot -h now
 
-  wait:
-    needs: main
-    runs-on: ubuntu-latest
-    if: always()
-    steps: 
-      - name: Wait for VMs to come back
-        run: sleep 300
-
   test:
-    needs: wait
+    needs: main
     runs-on: ${{ matrix.vm }}
     # environment: main
     if: always()
