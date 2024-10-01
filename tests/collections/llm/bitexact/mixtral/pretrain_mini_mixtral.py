@@ -5,15 +5,14 @@ from pathlib import Path
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig as McoreDDPConfig
 
-from nemo.collections.llm import MixtralConfig8x3B, MixtralModel, PreTrainingDataModule
+from nemo.collections.llm import MixtralConfig8x7B, MixtralModel, PreTrainingDataModule
 from nemo.collections.llm.api import train
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import MegatronStrategy, NeMoLogger, Trainer
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule as MegatronOptim
 from nemo.lightning.pytorch.optim.megatron import OptimizerConfig
-from nemo.collections.llm import PreTrainingDataModule, MixtralConfig8x7B, MixtralModel
 import torch.nn.functional as F
-
+from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
 VOCAB_PATH = '/mnt/4tb/gpt_tokenizer/vocab.json'
 MERGES_PATH = '/mnt/4tb/gpt_tokenizer/merges.txt'
@@ -37,13 +36,13 @@ def main(args):
         autocast_dtype=torch.float32,
         precision=torch.bfloat16,
         ddp=McoreDDPConfig(
-                grad_reduce_in_fp32=True, #(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
-                overlap_grad_reduce=False, #self.cfg.optim.get('overlap_grad_sync', False),
+                grad_reduce_in_fp32=True,
+                overlap_grad_reduce=False,
                 use_distributed_optimizer=True,
-                check_for_nan_in_grad=True, #self.cfg.optim.get('check_for_nan_in_grad', False),
+                check_for_nan_in_grad=True,
                 # mcore bucket_size is based on num of parameters, therefore not
                 # using bucket_cap_mb to configure bucket_size here
-                bucket_size=None, #self.cfg.optim.get('ddp_bucket_size', None),
+                bucket_size=None,
             )
     )
 
@@ -58,7 +57,6 @@ def main(args):
         limit_val_batches=1,
     )
 
-    from megatron.core.utils import init_method_normal, scaled_init_method_normal
     init_method = scaled_init_method_normal(0.008, num_layers=2)
     mixtral_config = MixtralConfig8x7B(
         init_method_std=0.008,
@@ -100,7 +98,6 @@ def main(args):
         num_workers=1,
         split='99,1,0',
         tokenizer=tokenizer(args.vocab_path, args.merges_path),
-        config_logger_dir = mixtral_config.config_logger_dir,
     )
 
     optim_config = OptimizerConfig(
@@ -129,8 +126,6 @@ def main(args):
         use_datetime_version=False,
         explicit_log_dir=args.exp_dir,
     )
-
-    output_path = Path(args.exp_dir)
 
     train(
         model=model,
