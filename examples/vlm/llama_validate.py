@@ -60,7 +60,7 @@ def squad() -> pl.LightningDataModule:
 # @run.factory
 def llama32() -> pl.LightningModule:
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision-Instruct")
     # set language_model_config or vision_model_config to None to load only one part
     return vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
@@ -77,7 +77,7 @@ def resume() -> nl.AutoResume:
     return nl.AutoResume(
         restore_config=nl.RestoreConfig(
             # path="pytorch:///lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-final_vv1/consolidated.pth",
-            path="hf://meta-llama/Llama-3.2-11B-Vision",
+            path="hf://meta-llama/Llama-3.2-11B-Vision-Instruct",
         ),
         resume_if_exists=True,
     )
