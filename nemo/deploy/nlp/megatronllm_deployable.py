@@ -46,6 +46,7 @@ except (ImportError, ModuleNotFoundError) as e:
         f" Exact error: {e}"
     )
 
+
 @wrapt.decorator
 def noop_decorator(func):
     def wrapper(*args, **kwargs):
