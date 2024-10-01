@@ -587,6 +587,7 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
         from transformers import MllamaForConditionalGeneration
 
         source = MllamaForConditionalGeneration.from_pretrained(str(self))
+        source = source.to(torch.bfloat16)
 
         class ModelState:
             def __init__(self, state_dict):
@@ -702,7 +703,6 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
                 "vision_model.transformer.layers.*.mlp.fc2.bias": f"{v}.transformer.layers.*.mlp.linear_fc2.bias",
                 "vision_model.transformer.layers.*.mlp.fc2.weight": f"{v}.transformer.layers.*.mlp.linear_fc2.weight",
                 "vision_model.class_embedding": f"{v}.class_embedding",
-                "vision_model.patch_embedding.weight": f"{v}.conv1._linear.weight",
                 "vision_model.gated_positional_embedding.tile_embedding.weight": f"{v}.gated_positional_embedding",
                 "vision_model.gated_positional_embedding.gate": f"{v}.gated_positional_embedding_gate",
                 "vision_model.layernorm_post.bias": f"{v}.ln_post.bias",
@@ -732,6 +732,11 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
                     target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
                     fn=_import_vision_qkv
                 ),
+                io.state_transform(
+                    source_key="vision_model.patch_embedding.weight",
+                    target_key=f"{v}.conv1._linear.weight",
+                    fn=_import_patch_embedding_hf
+                )
             ])
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
@@ -818,6 +823,8 @@ def _rename_xattn_layer_nums_hf(source: Dict):
 def _import_embedding_hf(a):
     return torch.split(a, a.shape[0]-8, dim=0)
 
+def _import_patch_embedding_hf(a):
+    return a.reshape(a.shape[0], -1)
 
 @io.model_importer(MLlamaModel, "pytorch")
 class PytorchMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
