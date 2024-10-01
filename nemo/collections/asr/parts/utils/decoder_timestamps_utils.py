@@ -352,6 +352,17 @@ class ASRDecoderTimeStamps:
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 4)
             self.model_stride_in_secs = 0.02
 
+        elif 'fastconformer' in self.ASR_model_name.lower():
+            self.run_ASR = self.run_ASR_BPE_CTC
+            self.encdec_class = EncDecCTCModelBPE
+            self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.08)
+            self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
+            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
+            self.model_stride_in_secs = 0.08
+            # FastConformer requires buffered inference and the parameters for buffered processing.
+            self.chunk_len_in_sec = 15
+            self.total_buffer_in_secs = 30
+
         elif 'conformer' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_BPE_CTC
             self.encdec_class = EncDecCTCModelBPE
@@ -438,7 +449,7 @@ class ASRDecoderTimeStamps:
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast(asr_model.device.type):
             transcript_hyps_list = asr_model.transcribe(
                 self.audio_file_list, batch_size=self.asr_batch_size, return_hypotheses=True
             )  # type: List[nemo_asr.parts.Hypothesis]
@@ -566,7 +577,7 @@ class ASRDecoderTimeStamps:
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast(asr_model.device.type):
             transcript_hyps_list = asr_model.transcribe(
                 self.audio_file_list, batch_size=self.asr_batch_size, return_hypotheses=True
             )  # type: List[nemo_asr.parts.Hypothesis]
@@ -660,7 +671,7 @@ class ASRDecoderTimeStamps:
         onset_delay, mid_delay, tokens_per_chunk = self.set_buffered_infer_params(asr_model)
         onset_delay_in_sec = round(onset_delay * self.model_stride_in_secs, 2)
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast(asr_model.device.type):
             logging.info(f"Running ASR model {self.ASR_model_name}")
 
             for idx, audio_file_path in enumerate(self.audio_file_list):

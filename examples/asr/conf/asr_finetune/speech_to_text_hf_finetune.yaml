@@ -11,7 +11,7 @@ model:
   # configs for huggingface load_dataset function
   data_path: "librispeech_asr"
   data_name: null  # name for the specific dataset to load, e.g., 'en' for MCV datasets, but some datasets don't require this field.
-  streaming: false # set True to use streaming mode, which doesn't wait for data downloading but each training step takes longer in the first epoch. If True, you'll need to specify trainer.max_steps instead of trainer.max_epochs.
+  streaming: false # set True to use streaming mode, which doesn't wait for data downloading but each training step takes longer in the first epoch. If True, you'll need to specify trainer.max_steps and trainer.limit_train_batches, instead of trainer.max_epochs.
 
   # keys for audio, sample_rate and transcription in the huggingface dataset, keys seperated by `.` for nested fields. See example at the bottom of this file.
   audio_key: "audio.array"
@@ -35,14 +35,17 @@ model:
         name: ${model.data_name}
         split: 'train.clean.360'
         streaming: ${model.streaming}
+        trust_remote_code: true
       - path: ${model.data_path}
         name: ${model.data_name}
         split: 'train.clean.100'
         streaming: ${model.streaming}
+        trust_remote_code: true
       - path: ${model.data_path}
         name: ${model.data_name}
         split: 'train.other.500'
         streaming: ${model.streaming}
+        trust_remote_code: true
   
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
@@ -65,6 +68,7 @@ model:
       name: ${model.data_name}
       split: 'validation.other'
       streaming: ${model.streaming}
+      trust_remote_code: true
 
     sample_rate: ${model.sample_rate}
     batch_size: 8
@@ -87,10 +91,12 @@ model:
         name: ${model.data_name}
         split: 'test.other'
         streaming: ${model.streaming}
+        trust_remote_code: true
       - path: ${model.data_path}
         name: ${model.data_name}
         split: 'test.clean'
         streaming: ${model.streaming}
+        trust_remote_code: true
 
     sample_rate: ${model.sample_rate}
     batch_size: 8

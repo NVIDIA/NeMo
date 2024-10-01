@@ -70,9 +70,9 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
             loss = closure()
 
         # return unused update_successful, grad_norm, num_zeros_in_grad
-        self.mcore_optimizer.step()
+        _, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
 
-        return loss
+        return loss, grad_norm, num_zeros_in_grad
 
     # Promote state so it can be retrieved or set via
     # "optimizer_instance.state"
@@ -106,9 +106,6 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         self.mcore_optimizer.param_groups = value
 
     param_groups = property(_get_param_groups, _set_param_groups)
-
-    def finish_param_sync(self, model_index):
-        self.mcore_optimizer.finish_param_sync(model_index)
 
     def disable_pre_hook(self):
         self.mcore_optimizer.disable_pre_hook()
