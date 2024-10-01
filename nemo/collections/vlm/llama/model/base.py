@@ -703,9 +703,9 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
                 "vision_model.layernorm_pre.bias": f"{v}.ln_pre.bias",
                 "vision_model.layernorm_pre.weight": f"{v}.ln_pre.weight",
                 "vision_model.gated_positional_embedding.embedding": f"{v}.positional_embedding",
-                "vision_model.post_tile_positional_embedding.embedding.weight": f"{v}.post_tile_pos_embed.embedding",
+                "vision_model.post_tile_positional_embedding.embedding.weight": f"{v}.post_tile_pos_embed.embedding.weight",
                 "vision_model.post_tile_positional_embedding.gate": f"{v}.post_tile_pos_embed.gate",
-                "vision_model.pre_tile_positional_embedding.embedding.weight": f"{v}.pre_tile_pos_embed.embedding",
+                "vision_model.pre_tile_positional_embedding.embedding.weight": f"{v}.pre_tile_pos_embed.embedding.weight",
                 "vision_model.pre_tile_positional_embedding.gate": f"{v}.pre_tile_pos_embed.gate",
                 "multi_modal_projector.bias": "vision_model.vision_projection.encoder.bias",
                 "multi_modal_projector.weight": "vision_model.vision_projection.encoder.weight",
@@ -1012,8 +1012,7 @@ class PytorchMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        # TODO: switch to using actual tokenizer of llama 3.2
-        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Meta-Llama-3.1-8B"))
+        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Llama-3.2-11B-Vision"))
 
     @property
     def config(self) -> MLlamaModelConfig:
