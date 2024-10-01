@@ -15,6 +15,7 @@
 import copy
 import random
 from dataclasses import dataclass
+from itertools import groupby
 from pathlib import Path
 from typing import Iterator, Literal, Optional, Union
 
@@ -352,15 +353,22 @@ class NeMoMultimodalConversation:
         elif isinstance(prompt, str):
             prompt = PromptFormatter.resolve(prompt)(tokenizer)
 
-        ans = prompt.encode_dialog(
+        # Collapse consecutive same-role turns into single turn for proper prompt formatting.
+        turns = groupby(
             [
                 {
                     "role": turn.role,
                     "slots": {"message": turn.value if isinstance(turn, TextTurn) else turn.audio_locator_tag},
                 }
                 for turn in self.turns
-            ]
+            ],
+            key=lambda turn: turn["role"],
         )
+        turns = [
+            {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
+            for role, turn_grp in turns
+        ]
+        ans = prompt.encode_dialog(turns)
         self.input_ids = ans["input_ids"]
         self.context_ids = ans["context_ids"]
         self.answer_ids = ans["answer_ids"]

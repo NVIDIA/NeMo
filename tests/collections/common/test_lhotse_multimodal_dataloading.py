@@ -189,17 +189,17 @@ def test_multimodal_conversation_input_with_prompt(multimodal_conversations_path
     assert isinstance(ex, NeMoMultimodalConversation)
 
     assert torch.is_tensor(ex.input_ids)
-    assert ex.input_ids.shape == (111,)
+    assert ex.input_ids.shape == (105,)
     assert (
         tokenizer.ids_to_text(ex.input_ids)
-        == "[INST] Can you help summarize the following? [/INST] [INST] [audio] [/INST] I'm glad to assist you with your request. Here's a summary: [audio] [INST] Can you further shorten it? [/INST] Of course!"
+        == "[INST] Can you help summarize the following? [audio] [/INST] I'm glad to assist you with your request. Here's a summary: [audio] [INST] Can you further shorten it? [/INST] Of course!"
     )
 
     assert torch.is_tensor(ex.context_ids)
-    assert ex.context_ids.shape == (101,)
+    assert ex.context_ids.shape == (95,)
     assert (
         tokenizer.ids_to_text(ex.context_ids)
-        == "[INST] Can you help summarize the following? [/INST] [INST] [audio] [/INST] I'm glad to assist you with your request. Here's a summary: [audio] [INST] Can you further shorten it? [/INST]"
+        == "[INST] Can you help summarize the following? [audio] [/INST] I'm glad to assist you with your request. Here's a summary: [audio] [INST] Can you further shorten it? [/INST]"
     )
 
     assert torch.is_tensor(ex.answer_ids)
@@ -207,8 +207,8 @@ def test_multimodal_conversation_input_with_prompt(multimodal_conversations_path
     assert tokenizer.ids_to_text(ex.answer_ids) == "Of course!"
 
     assert torch.is_tensor(ex.mask)
-    assert ex.mask.shape == (111,)
-    assert (ex.mask[:35] == False).all()  # user turn
-    assert (ex.mask[35:78] == True).all()  # assistant turn
-    assert (ex.mask[78:101] == False).all()  # user turn
-    assert (ex.mask[101:] == True).all()  # assistant turn
+    assert ex.mask.shape == (105,)
+    assert (ex.mask[:30] == False).all()  # user turn
+    assert (ex.mask[30:72] == True).all()  # assistant turn
+    assert (ex.mask[72:95] == False).all()  # user turn
+    assert (ex.mask[95:] == True).all()  # assistant turn
