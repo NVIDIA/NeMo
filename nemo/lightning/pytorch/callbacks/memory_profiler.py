@@ -89,10 +89,10 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         # It's disabled
         if self.interval is None or self.interval <= 0:
             return
-        if self.step == self.interval - 1:
+        if self.step % self.interval == 0:
             if self.enable_on_rank():
-                self._dump_memory_snapshot()
-        self.step = (self.step + 1) % self.interval
+                self._dump_memory_snapshot(f"{self.dir}/memory_snapshot-rank{rank}_iter{self.step}.pickle")
+        self.step += 1
 
     def on_train_end(self, trainer, pl_module) -> None:
         """PyTorch Lightning hook:
