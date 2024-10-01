@@ -17,3 +17,24 @@ jobs:
       - name: Reboot
         run: |
           echo ${{ secrets.VM_KEY }} | sudo -S reboot -h now
+
+  wait:
+    needs: main
+    runs-on: ubuntu-latest
+    if: always()
+    steps: 
+      - name: Wait for VMs to come back
+        run: sleep 300
+
+  test:
+    runs-on: ${{ matrix.vm }}
+    # environment: main
+    if: always()
+    strategy:
+      matrix:
+        vm: 
+          - azure-gpu-vm-runner-1gpu-a
+    steps:
+      - name: Check nvidia-smi
+        run: |
+          docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
