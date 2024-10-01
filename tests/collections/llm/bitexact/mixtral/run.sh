@@ -9,7 +9,7 @@ NEMO_OUTPUT_PATH="/tmp/bex_mixtral_nemo_output/"
 
 # Run Mcore
 CUDA_DEVICE_MAX_CONNECTIONS=1 CUDA_LAUNCH_BLOCKING=1 TORCH_COMPILE_DISABLE=1 NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 \
-torchrun --nproc-per-node 1 --nnodes 1 /opt/megatron-lm/pretrain_gpt.py \
+torchrun --nproc-per-node 1 --nnodes 1 /workspace/megatron-lm/pretrain_gpt.py \
     --apply-layernorm-1p --rotary-percent 1.0 --rotary-base 1000000 \
     --no-position-embedding --position-embedding-type rope \
     --swiglu \
