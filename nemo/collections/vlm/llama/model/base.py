@@ -776,9 +776,9 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
         if not self.convert_vision: return None
 
         return CrossAttentionVisionModelConfig(
-            num_layers=32,  # source['n_layers'],
-            hidden_size=1280,
-            num_attention_heads=16,  # source['n_heads'],
+            num_layers=source.vision_config.num_hidden_layers,
+            hidden_size=source.vision_config.hidden_size,
+            num_attention_heads=source.vision_config.attention_heads,
             vision_chunk_size=source.vision_config.image_size,
             vision_max_num_chunks=source.vision_config.max_num_tiles,
             fp16=(dtype_from_hf(source) == torch.float16),
