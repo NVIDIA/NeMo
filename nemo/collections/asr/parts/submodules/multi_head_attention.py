@@ -79,7 +79,9 @@ class MultiHeadAttention(nn.Module):
         if use_pytorch_sdpa_backends is None or len(use_pytorch_sdpa_backends) == 0:
             use_pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
         else:
-            use_pytorch_sdpa_backends = list(map(lambda backend_name: getattr(SDPBackend, backend_name), use_pytorch_sdpa_backends))
+            use_pytorch_sdpa_backends = list(
+                map(lambda backend_name: getattr(SDPBackend, backend_name), use_pytorch_sdpa_backends)
+            )
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
         self.cache_drop_size = None
         self.use_bias = use_bias
