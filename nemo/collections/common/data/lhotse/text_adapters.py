@@ -349,12 +349,14 @@ class NeMoMultimodalConversation:
             raise NotImplementedError("NeMoMultimodalConversation does not support AggregateTokenizer yet.")
         if prompt is None:
             prompt = PromptFormatter.resolve("plain")(tokenizer)
+        elif isinstance(prompt, str):
+            prompt = PromptFormatter.resolve(prompt)(tokenizer)
 
         ans = prompt.encode_dialog(
             [
                 {
                     "role": turn.role,
-                    "slots": {"message": turn.value if isinstance(turn, TextTurn) else turn.audio_locator_token},
+                    "slots": {"message": turn.value if isinstance(turn, TextTurn) else turn.audio_locator_tag},
                 }
                 for turn in self.turns
             ]
