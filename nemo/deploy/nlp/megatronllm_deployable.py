@@ -33,6 +33,18 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
 
+try:
+    from megatron.core.dist_checkpointing.validation import StrictHandling
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError) as e:
+
+    HAVE_MEGATRON_CORE = False
+    IMPORT_ERROR = (
+        "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-core."
+        f" Exact error: {e}"
+    )
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -99,6 +111,8 @@ class MegatronLLMDeployable(ITritonDeployable):
         num_nodes: int = 1,
         existing_model: MegatronGPTModel = None,
     ):
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(IMPORT_ERROR)
         if nemo_checkpoint_filepath is None and existing_model is None:
             raise ValueError(
                 "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None"
@@ -142,6 +156,7 @@ class MegatronLLMDeployable(ITritonDeployable):
             # had to override these to make Nemotron3-22B work, see sample_sequence_batch() in text_generation_utils.py
             custom_config.activations_checkpoint_granularity = None
             custom_config.activations_checkpoint_method = None
+            custom_config.dist_ckpt_load_strictness = StrictHandling.LOG_ALL.value
 
             self.model = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, override_config_path=custom_config
