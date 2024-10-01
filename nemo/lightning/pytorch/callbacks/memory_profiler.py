@@ -34,16 +34,18 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         dir (Optional[str]): Directory to store the memory profile dump
         warn_cycles (Optional[bool]): Whether to enable [reference cycle detection](https://pytorch.org/blog/understanding-gpu-memory-2/)
         rank (Optional[list[int]]): List of ranks to collect snapshot on, defaults to all if list is empty
-
+        interval (int): How frequently (in number of batches) to dump memory profile. Default to 0 (off).
     Example:
         >>> callback = MemoryProfileCallback(dir="/mem_profile", ranks=[0])
         >>> trainer = Trainer(callbacks=[callback])
     """
 
-    def __init__(self, dir: str = "/mem_profile", warn_cycles=True, ranks=[]):
+    def __init__(self, dir: str = "/mem_profile", warn_cycles=True, ranks=[], interval: int = 0):
 
         self.dir = dir
         self.ranks = ranks
+        self.interval = interval
+        self.step = 0
 
         os.makedirs(self.dir, exist_ok=True)
         logging.info(f"Torch memory profiles will be written to: {self.dir}")
@@ -53,7 +55,7 @@ class MemoryProfileCallback(Callback, io.IOMixin):
             warn_tensor_cycles()
 
     def enable_on_rank(self) -> bool:
-        if not self.ranks:
+        if not self.ranks or not torch.distributed.is_initialized():
             return True
         return get_rank() in self.ranks
 
@@ -73,6 +75,25 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         if torch.distributed.is_initialized() and self.enable_on_rank():
             torch.cuda.memory._record_memory_history(max_entries=100000)
 
+    def _dump_memory_snapshot(self, _snapshot_path=None, rank=None):
+        if rank is None:
+            rank = get_rank()
+        if _snapshot_path is None:
+            _snapshot_path = f"{self.dir}/memory_snapshot-rank{rank}.pickle"
+        logging.info(f"Writing memory profile snapshot to {_snapshot_path}")
+        torch.cuda.memory._dump_snapshot(f"{_snapshot_path}")
+        torch.cuda.memory._record_memory_history(enabled=None)
+        logging.info(f"Finished writing memory profile snapshot: {_snapshot_path}")
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, unused=0) -> None:
+        # It's disabled
+        if self.interval is None or self.interval <= 0:
+            return
+        if self.step == self.interval - 1:
+            if self.enable_on_rank():
+                self._dump_memory_snapshot()
+        self.step = (self.step + 1) % self.interval
+
     def on_train_end(self, trainer, pl_module) -> None:
         """PyTorch Lightning hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-end
@@ -82,11 +103,5 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         logging.info(
             f"on_train_batch_end rank: {get_rank()} mem: {torch.cuda.memory_allocated()/1024/1024/1024} / {torch.cuda.max_memory_reserved()/1024/1024/1024}"
         )
-
-        if torch.distributed.is_initialized() and self.enable_on_rank():
-            rank = get_rank()
-            _snapshot_path = f"{self.dir}/memory_snapshot-rank{rank}.pickle"
-            logging.info(f"Writing memory profile snapshot to {_snapshot_path}")
-            torch.cuda.memory._dump_snapshot(f"{_snapshot_path}")
-            torch.cuda.memory._record_memory_history(enabled=None)
-            logging.info(f"Finished writing memory profile snapshot: {_snapshot_path}")
+        if self.enable_on_rank():
+            self._dump_memory_snapshot()
