@@ -289,7 +289,7 @@ class Attention(nn.Module):
         batch, patches, _ = x.shape
 
         q, k, v = self.wq(x), self.wk(x), self.wv(x)
-        #q = q * self.scaling
+
         q = q.reshape(batch, patches, self.n_heads, self.head_dim)
         k = k.reshape(batch, patches, self.n_heads, self.head_dim)
         v = v.reshape(batch, patches, self.n_heads, self.head_dim)
