@@ -63,7 +63,17 @@ def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
 
 
 KNOWN_DATASET_CONFIG_TYPES = frozenset(
-    ("nemo", "nemo_tarred", "lhotse", "lhotse_shar", "txt", "txt_pair", "nemo_sft_jsonl", "group")
+    (
+        "nemo",
+        "nemo_tarred",
+        "lhotse",
+        "lhotse_shar",
+        "txt",
+        "txt_pair",
+        "nemo_sft_jsonl",
+        "multimodal_conversation",
+        "group",
+    )
 )
 
 
@@ -231,7 +241,7 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> CutSet:
     cuts = CutSet(
         NeMoMultimodalConversationJsonlAdapter(
             manifest_filepath=config.manifest_filepath,
-            tarred_audio_filepaths=config.tarred_audio_filepaths,
+            tarred_audio_filepaths=config.get("tarred_audio_filepaths"),
             audio_locator_tag=config.audio_locator_tag,
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,

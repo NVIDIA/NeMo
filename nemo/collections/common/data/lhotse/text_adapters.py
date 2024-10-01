@@ -27,6 +27,7 @@ from lhotse.serialization import load_jsonl
 from lhotse.utils import Pathlike
 
 from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_filepaths
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer, TokenizerWrapper
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -421,7 +422,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                             )
                             if turn["type"] == "text"
                             else AudioTurn(
-                                cut=Recording.from_file(turn["value"]).to_cut(),
+                                cut=Recording.from_file(get_full_path(turn["value"], path)).to_cut(),
                                 role=turn[
                                     "from"
                                 ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
