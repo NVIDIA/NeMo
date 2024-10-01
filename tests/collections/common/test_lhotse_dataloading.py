@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 from collections import Counter
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
 from typing import Dict, List, Tuple
-import random
+
 import lhotse
 import numpy as np
 import pytest
@@ -183,11 +184,13 @@ def nemo_tarred_manifest_path_multi(nemo_tarred_manifest_path: tuple[str, str]) 
             mft_writer.write(item)
     return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p
 
+
 @pytest.fixture(scope="session")
 def nemo_tarred_manifest_subset_path(nemo_tarred_manifest_path: Tuple[str, str]) -> Tuple[str, str]:
     """Create a shard manifests with randomly chosen 50% percent of tarred contents."""
     from lhotse.serialization import load_jsonl
     from lhotse.shar.writers import JsonlShardWriter
+
     json_p, tar_p = nemo_tarred_manifest_path
     json_dir = json_p.parent / "shard_manifests"
     json_dir.mkdir(exist_ok=True)
@@ -199,6 +202,7 @@ def nemo_tarred_manifest_subset_path(nemo_tarred_manifest_path: Tuple[str, str])
         for item in subset_items:
             mft_writer.write(item)
     return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p, subset_items
+
 
 class UnsupervisedAudioDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: lhotse.CutSet) -> Dict[str, torch.Tensor]:
@@ -612,6 +616,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
+
 
 def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred_manifest_path_multi: tuple[str, str]):
     json_mft, tar_mft = nemo_tarred_manifest_path_multi
@@ -1921,6 +1926,7 @@ def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_p
         audio, full_audio[:, compute_num_samples(4.0, cut.sampling_rate) : compute_num_samples(9.0, cut.sampling_rate)]
     )
 
+
 def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset_path: tuple[str, str]):
     json_mft, tar_mft, subset_items = nemo_tarred_manifest_subset_path
     config = OmegaConf.create(
@@ -1957,4 +1963,3 @@ def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset
         seen_ids.update(current_ids_set)
     expected_ids = set([data['audio_filepath'] for data in subset_items])
     assert seen_ids == expected_ids, "The set of IDs in the batches does not match the input JSON manifests."
-    
