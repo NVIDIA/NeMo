@@ -49,6 +49,7 @@ from nemo.collections.vlm.llama.model.vision import (
 from nemo.lightning import io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 from megatron.core.transformer.mlp import MLPSubmodules
@@ -586,8 +587,7 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
     def apply(self, output_path: Path) -> Path:
         from transformers import MllamaForConditionalGeneration
 
-        source = MllamaForConditionalGeneration.from_pretrained(str(self))
-        source = source.to(torch.bfloat16)
+        source = MllamaForConditionalGeneration.from_pretrained(str(self), torch_dtype='auto')
 
         class ModelState:
             def __init__(self, state_dict):
@@ -749,13 +749,13 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
 
     @property
     def config(self) -> MLlamaModelConfig:
-        import json
-        with open(self / "config.json") as f:
-            source = json.load(f)
+        from transformers import AutoConfig
+
+        source = AutoConfig.from_pretrained(str(self))
 
         return MLlamaModelConfig(
-            language_model_config=self._language_model_config(source['text_config']),
-            vision_model_config=self._vision_model_config(source['vision_config']),
+            language_model_config=self._language_model_config(source),
+            vision_model_config=self._vision_model_config(source),
         )
 
     def _language_model_config(self, source) -> Optional[CrossAttentionTextModelConfig]:
@@ -771,17 +771,20 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
         def _calculate_num_layers(num_hidden_layers, cross_attention_layers):
             return num_hidden_layers - len(cross_attention_layers)
 
+        text = source.text_config
+
         return CrossAttentionTextModelConfig(
-            rotary_base=source['rope_theta'],
+            rotary_base=text.rope_theta,
             seq_length=8192,
-            num_layers=_calculate_num_layers(source['num_hidden_layers'], source['cross_attention_layers']),
-            hidden_size=source['hidden_size'],
-            ffn_hidden_size=source['intermediate_size'],
-            num_attention_heads=source['num_attention_heads'],
-            num_query_groups=source['num_key_value_heads'],
-            vocab_size=source['vocab_size'],
-            bf16=True,
-            params_dtype=torch.bfloat16,
+            num_layers=_calculate_num_layers(text.num_hidden_layers, text.cross_attention_layers),
+            hidden_size=text.hidden_size,
+            ffn_hidden_size=text.intermediate_size,
+            num_attention_heads=text.num_attention_heads,
+            num_query_groups=text.num_key_value_heads,
+            vocab_size=text.vocab_size,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
     def _vision_model_config(self, source) -> Optional[CrossAttentionVisionModelConfig]:
@@ -791,10 +794,11 @@ class HFLlamaCrossAttentionImporter(io.ModelConnector["MLlamaModel", MLlamaModel
             num_layers=32, #source['n_layers'],
             hidden_size=1280,
             num_attention_heads=16,  # source['n_heads'],
-            vision_chunk_size=source['image_size'],
-            vision_max_num_chunks=source['max_num_tiles'],
-            bf16=True,
-            params_dtype=torch.bfloat16,
+            vision_chunk_size=source.vision_config.image_size,
+            vision_max_num_chunks=source.vision_config.max_num_tiles,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
 
