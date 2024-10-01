@@ -7,8 +7,12 @@ on:
 
 jobs:
   main:
-    runs-on: azure-gpu-vm-runner-1gpu-a
+    runs-on: ${{ matrix.vm }}
     # environment: main
+    strategy:
+      matrix:
+        vm: 
+          - azure-gpu-vm-runner-1gpu-a
     steps:
       - name: Reboot
         run: |
