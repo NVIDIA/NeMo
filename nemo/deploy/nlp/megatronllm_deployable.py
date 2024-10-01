@@ -159,6 +159,8 @@ class MegatronLLMDeployable(ITritonDeployable):
             custom_config.activations_checkpoint_method = None
             custom_config.dist_ckpt_load_strictness = StrictHandling.LOG_ALL.value
             if custom_config.get("fp8", False):
+                # Need to disable FP8 for in-framework inference due to shape constraints imposed by TE,
+                # see https://github.com/NVIDIA/TransformerEngine/blob/v1.8/transformer_engine/pytorch/utils.py#L229
                 custom_config.fp8 = False
 
             self.model = MegatronGPTModel.restore_from(
