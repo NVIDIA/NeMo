@@ -784,6 +784,8 @@ def get_args():
         s = s.lower()
         true_strings = ["true", "1"]
         false_strings = ["false", "0"]
+        if s == '':
+            return False
         if s in true_strings:
             return True
         if s in false_strings:
