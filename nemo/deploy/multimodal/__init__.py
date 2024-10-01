@@ -13,4 +13,5 @@
 # limitations under the License.
 
 
-from nemo.deploy.multimodal.query_multimodal import NemoQueryMultimodal
+from nemo.deploy.multimodal.megatronneva_deployable import MediaType, MegatronNevaDeployable
+from nemo.deploy.multimodal.query_multimodal import NemoQueryMultimodal, NemoQueryMultimodalPyTorch
