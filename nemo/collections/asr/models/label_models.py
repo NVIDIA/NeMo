@@ -452,7 +452,21 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         cosine_sim = torch.cosine_similarity(audio_emb1, audio_emb2)
         loss_value = torch.nn.functional.mse_loss(cosine_sim, loss_labels)
 
-        output = {f"{tag}_loss": loss_value, f"{tag}_scores": cosine_sim, f"{tag}_labels": labels}
+        logits = torch.stack([1 - cosine_sim, cosine_sim], dim=-1)
+        acc_top_k = self._accuracy(logits=logits, labels=labels)
+        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        self._macro_accuracy.update(preds=logits, target=labels)
+        stats = self._macro_accuracy._final_state()
+
+        output = {
+            f'{tag}_loss': loss_value,
+            f'{tag}_correct_counts': correct_counts,
+            f'{tag}_total_counts': total_counts,
+            f'{tag}_acc_micro_top_k': acc_top_k,
+            f'{tag}_acc_macro_stats': stats,
+            f"{tag}_scores": cosine_sim,
+            f"{tag}_labels": labels,
+        }
 
         if tag == 'val':
             if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
@@ -479,7 +493,27 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             logging.warning(f"Got ValueError while calculating EER: {e}")
             eer = 100.0
 
+        correct_counts = torch.stack([x[f'{tag}_correct_counts'] for x in outputs]).sum(axis=0)
+        total_counts = torch.stack([x[f'{tag}_total_counts'] for x in outputs]).sum(axis=0)
+
+        self._accuracy.correct_counts_k = correct_counts
+        self._accuracy.total_counts_k = total_counts
+        topk_scores = self._accuracy.compute()
+
+        self._macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
+        macro_accuracy_score = self._macro_accuracy.compute()
+
+        self._accuracy.reset()
+        self._macro_accuracy.reset()
+
         tensorboard_logs = {f'{tag}_loss': loss_mean, f"{tag}_eer": eer}
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            tensorboard_logs[f'{tag}_acc_micro_top_{top_k}'] = score
+        tensorboard_logs[f'{tag}_acc_macro'] = macro_accuracy_score
+
         return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
 
     def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
