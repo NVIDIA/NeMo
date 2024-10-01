@@ -1,0 +1,15 @@
+# Regularly updates the CI container
+name: Reboots VMs in a controlled way
+on:
+  schedule:
+    - cron: 0 0 * * *
+  pull_request:
+
+jobs:
+  main:
+    runs-on: azure-gpu-vm-runner-1gpu-a
+    # environment: main
+    steps:
+      - name: Reboot
+        run: |
+          echo ${{ secrets.VM_KEY }} | sudo -S reboot -h now
