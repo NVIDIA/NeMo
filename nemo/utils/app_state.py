@@ -225,7 +225,6 @@ class AppState(metaclass=Singleton):
         """
         self._partial_data_parallel_shard_factor = shard_factor
 
-
     @property
     def virtual_pipeline_model_parallel_size(self):
         """Property returns the number of GPUs in each model parallel group.
