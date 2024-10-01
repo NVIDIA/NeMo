@@ -45,7 +45,7 @@ def get_train_dataloader() -> TRAIN_DATALOADERS:
         tokenizer=tokenizer,
         image_processor=image_processor,
         num_workers=0,
-        micro_batch_size=16,
+        micro_batch_size=2,
         multimodal_sample_config=multimodal_sample_config,
         task_encoder=task_encoder,
     )
@@ -56,12 +56,12 @@ def get_train_dataloader() -> TRAIN_DATALOADERS:
 
 def get_model() -> vlm.MLlamaModel:
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=2,
+        tensor_model_parallel_size=1,
         ckpt_load_optimizer=False,
         ckpt_save_optimizer=False,
     )
     trainer = nl.Trainer(
-        devices=2,
+        devices=1,
         max_steps=1000,
         accelerator="gpu",
         strategy=strategy,
@@ -73,7 +73,7 @@ def get_model() -> vlm.MLlamaModel:
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision")
     model = vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
-            language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=True, apply_rope_fusion=False),
+            language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=False, apply_rope_fusion=False),
             vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280,
                                                                     num_attention_heads=16, vision_chunk_size=448,
                                                                     vision_max_num_chunks=4, ),
@@ -100,9 +100,9 @@ if __name__ == '__main__':
     with torch.no_grad():
         for i, batch in enumerate(train_loader):
             output = model(
-                batch_images=batch["media"].cuda(non_blocking=True),
-                batch_masks=batch["vision_mask"].cuda(non_blocking=True),
-                aspect_ratios=get_aspect_ratio(batch["aspect_ratio_ids"]).cuda(non_blocking=True),
+                batch_images=batch["batch_images"].cuda(non_blocking=True),
+                batch_masks=batch["batch_masks"].cuda(non_blocking=True),
+                aspect_ratio_ids=batch["aspect_ratio_ids"].cuda(non_blocking=True),
                 tokens=batch["tokens"].cuda(non_blocking=True),
                 position_ids=batch["position_ids"].cuda(non_blocking=True),
             )

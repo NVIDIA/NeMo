@@ -41,7 +41,7 @@ def main() -> None:
 
     # Decide whether to import or load the model based on the input arguments
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision")
     model = vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
             language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=True, apply_rope_fusion=False),
@@ -51,7 +51,8 @@ def main() -> None:
             # vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
         ),
         tokenizer=tokenizer)
-    local_model_path = "/root/.cache/nemo/models/evian3-11b-vision-final_vv1_zarr/"
+    # local_model_path = "/root/.cache/nemo/models/evian3-11b-vision-final_vv1_zarr/"
+    local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/meta-llama/Llama-3.2-11B-Vision_zarr"
     # local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/evian3-11b-vision-early_vv1_vision_only/"
     model = fabric.load_model(local_model_path, model)
 
@@ -59,14 +60,13 @@ def main() -> None:
     model.eval()
     model = model.to(torch.bfloat16)
 
-    input = torch.load("/lustre/fsw/coreai_dlalgo_genai/yuya/evian3/evian3_input.pt")
+    # input = torch.load("/lustre/fsw/coreai_dlalgo_genai/yuya/evian3/evian3_input.pt")
+    batch = torch.load("/lustre/fsw/coreai_dlalgo_llm/chcui/tmp/mllama_energon_batch.pt")
 
-    input_ids = input["tokens"]
-    position_ids = input["position_ids"].unsqueeze(0)
+    input_ids = batch["tokens"].cuda(non_blocking=True)
+    position_ids = batch["position_ids"].cuda(non_blocking=True)
 
-    prev_pos = 0
     min_prompt_len = position_ids.shape[-1]
-    total_len = input["total_len"]
 
     input_ids = input_ids[:, :min_prompt_len]
     generated_ids = input_ids.clone()
@@ -78,22 +78,22 @@ def main() -> None:
             ).reshape(1, -1)
 
             output = model(
-                batch_images=[input["images"]],
-                batch_masks=[input["mask"]],
-                total_len=total_len,
+                batch_images=batch["batch_images"].cuda(non_blocking=True),
+                batch_masks=batch["batch_masks"].cuda(non_blocking=True),
+                aspect_ratio_ids=batch["aspect_ratio_ids"].cuda(non_blocking=True),
                 tokens=generated_ids,
                 position_ids=position_ids,
             )
 
             next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
             generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
-            if next_token_ids == tokenizer.eos_token_id:
+            if (next_token_ids == tokenizer.eos_token_id).all():
                 break
-            prev_pos = cur_pos
 
     generated_ids = generated_ids.tolist()
-    print(generated_ids)
+    # print(generated_ids)
     print(tokenizer.decode(generated_ids[0][min_prompt_len:]))
+    print(tokenizer.decode(generated_ids[1][min_prompt_len:]))
 
 
 if __name__ == "__main__":
