@@ -57,11 +57,10 @@ class MixtralConfig(GPTConfig):
     # MoE
     num_moe_experts: int = 8
     moe_aux_loss_coeff: float = 0.01
-    moe_expert_capacity_factor: float = 1.0
-    moe_pad_expert_input_to_capacity: bool = True
     moe_router_topk: int = 2
     moe_router_pre_softmax: bool = True
     moe_token_dispatcher_type: str = "alltoall"
+    moe_router_load_balancing_type: str = 'aux_loss'
 
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
@@ -269,8 +268,10 @@ def _import_moe_w1_w3(gate_proj, up_proj):
 class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
     def init(self) -> "MixtralForCausalLM":
         from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
 
-        return AutoModelForCausalLM.from_config(self.config)
+        with no_init_weights(True):
+            return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         # TODO: Make it work with lazy init
@@ -384,3 +385,12 @@ def _export_moe_w1_w3(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
+
+
+__all__ = [
+    "MixtralConfig",
+    "MixtralConfig8x3B",
+    "MixtralConfig8x7B",
+    "MixtralConfig8x22B",
+    "MixtralModel",
+]
