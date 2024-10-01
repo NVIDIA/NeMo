@@ -149,7 +149,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to False.
         use_pytorch_sdpa (bool): use torch sdpa instead of manual attention.
             Defaults to False.
-        use_pytorch_sdpa_backends (list[SDPBackend]): list of backends to use in sdpa. None or empty list means all backends.
+        use_pytorch_sdpa_backends (list[str]): list of backend names to use in sdpa. None or empty list means all backends. e.g. ["MATH"]
             Defaults to None
 
     """

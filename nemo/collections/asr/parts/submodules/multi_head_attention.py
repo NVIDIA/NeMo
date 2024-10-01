@@ -49,7 +49,7 @@ __all__ = [
     'PositionalEncoding',
 ]
 
-inf_val = 10000.0
+INF_VAL = 10000.0
 
 
 class MultiHeadAttention(nn.Module):
@@ -59,6 +59,8 @@ class MultiHeadAttention(nn.Module):
         n_feat (int): size of the features
         dropout_rate (float): dropout rate
         use_bias (bool): whether to remove bias in linear and conv layers
+        use_pytorch_sdpa (bool): use torch sdpa instead of manual attention
+        use_pytorch_sdpa_backends list[str]: list of backend names to use in sdpa. None or empty list means all backends. e.g. ["MATH"]
     """
 
     def __init__(
@@ -76,6 +78,8 @@ class MultiHeadAttention(nn.Module):
         self.use_pytorch_sdpa = use_pytorch_sdpa
         if use_pytorch_sdpa_backends is None or len(use_pytorch_sdpa_backends) == 0:
             use_pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
+        else:
+            use_pytorch_sdpa_backends = list(map(lambda backend_name: getattr(SDPBackend, backend_name), use_pytorch_sdpa_backends))
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
         self.cache_drop_size = None
         self.use_bias = use_bias
@@ -126,7 +130,7 @@ class MultiHeadAttention(nn.Module):
         n_batch = value.size(0)
         if mask is not None:
             mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
-            scores = scores.masked_fill(mask, -inf_val)
+            scores = scores.masked_fill(mask, -INF_VAL)
             attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
         else:
             attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
@@ -306,7 +310,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
                 if mask is not None:
                     mask = mask.unsqueeze(1)
-                    matrix_bd.masked_fill_(mask, -inf_val)
+                    matrix_bd.masked_fill_(mask, -INF_VAL)
 
                 dropout_rate = self.dropout_rate if self.training else 0
                 with sdpa_kernel(self.use_pytorch_sdpa_backends):
@@ -459,14 +463,14 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             # (batch, head, time, 2w + 1)
 
             # mask invalid positions
-            scores[:, :, :, :start_pos] = -inf_val
-            scores[:, :, :, end_pos + 1 :] = -inf_val
+            scores[:, :, :, :start_pos] = -INF_VAL
+            scores[:, :, :, end_pos + 1 :] = -INF_VAL
 
             # This implementation is fast and takes very little memory because num_heads x hidden_size = 1
             # from (bsz x seq_len) to (bsz x num_heads x seqlen x hidden_size)
             mask = mask.unsqueeze(dim=1).unsqueeze(dim=-1)
             # cast to float/half then replace 1's with -inf
-            float_mask = mask.type_as(scores).masked_fill(mask, -inf_val)
+            float_mask = mask.type_as(scores).masked_fill(mask, -INF_VAL)
             ones = float_mask.new_ones(size=float_mask.size())  # tensor of ones
             # diagonal mask with zeros everywhere and -inf inplace of padding
             d_mask = self.sliding_chunks_matmul_qk(ones, float_mask, w, padding_value=0.0)
@@ -999,7 +1003,7 @@ class PositionalEncoding(torch.nn.Module):
         pe = torch.zeros(pos_length, self.d_model, device=positions.device)
         div_term = torch.exp(
             torch.arange(0, self.d_model, 2, dtype=torch.float32, device=positions.device)
-            * -(math.log(inf_val) / self.d_model)
+            * -(math.log(INF_VAL) / self.d_model)
         )
         pe[:, 0::2] = torch.sin(positions * div_term)
         pe[:, 1::2] = torch.cos(positions * div_term)
