@@ -1332,7 +1332,7 @@ class AudioPairToLabelDataset(AudioToSpeechLabelDataset):
         "audio_filepath": ["/path/to/audio_wav_0.wav", "/path/to/audio_wav_1.wav"],
         "duration": null,  # not used, will load the whole audio
         "offset": 0.0,  # not used, will load the whole audio
-        "label": "0"
+        "label": "0"  # label for the pair, can be a string or an integer
     }
 
     """
