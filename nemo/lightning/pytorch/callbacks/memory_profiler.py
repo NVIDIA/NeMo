@@ -44,6 +44,7 @@ class MemoryProfileCallback(Callback, io.IOMixin):
 
         self.dir = dir
         self.ranks = ranks
+        assert isinstance(self.interval, int), "Expected interval to be an integer"
         self.interval = interval
         self.step = 0
 
@@ -87,7 +88,7 @@ class MemoryProfileCallback(Callback, io.IOMixin):
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, unused=0) -> None:
         # It's disabled
-        if self.interval is None or self.interval <= 0:
+        if self.interval <= 0:
             return
         if self.step % self.interval == 0:
             if self.enable_on_rank():
