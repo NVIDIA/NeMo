@@ -70,7 +70,7 @@ def get_model() -> vlm.MLlamaModel:
         limit_val_batches=50,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision-Instruct")
     model = vlm.MLlamaModel(
         vlm.MLlamaModelConfig(
             language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=False, apply_rope_fusion=False),

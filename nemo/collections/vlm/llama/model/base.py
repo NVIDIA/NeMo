@@ -737,7 +737,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Llama-3.2-11B-Vision"))
+        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Llama-3.2-11B-Vision-Instruct"))
 
     @property
     def config(self) -> MLlamaModelConfig:

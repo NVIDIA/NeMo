@@ -52,7 +52,7 @@ class MockDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             from transformers import AutoProcessor
 
-            processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
+            processor = AutoProcessor.from_pretrained("meta-llama/Llama-3.2-11B-Vision-Instruct")
             self.tokenizer = tokenizer or processor.tokenizer
             self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
@@ -63,13 +63,13 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        self._train_ds = _MockNevaDataset(
+        self._train_ds = _MockMLlamaDataset(
             self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length
         )
-        self._validation_ds = _MockNevaDataset(
+        self._validation_ds = _MockMLlamaDataset(
             self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
         )
-        self._test_ds = _MockNevaDataset(
+        self._test_ds = _MockMLlamaDataset(
             self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length
         )
 
@@ -99,7 +99,7 @@ class MockDataModule(pl.LightningDataModule):
         )
 
 
-class _MockNevaDataset(Dataset):
+class _MockMLlamaDataset(Dataset):
     def __init__(
             self,
             tokenizer,
@@ -115,7 +115,7 @@ class _MockNevaDataset(Dataset):
 
         self.vocab_size = tokenizer.vocab_size
 
-        crop_size = image_processor.crop_size
+        crop_size = image_processor.size
         self.image_height, self.image_width = crop_size["height"], crop_size["width"]
 
         self.length = num_samples
