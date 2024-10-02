@@ -31,6 +31,46 @@ class LlamaImageTextSample(ImageTextSample):
     num_tiles: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
 
 
+def create_vision_mask_tensor(tokens: torch.Tensor, vision_token_id: int) -> torch.Tensor:
+    """
+    Create a vision mask from a tensor of tokens and a vision token ID.
+
+    Args:
+        tokens (torch.Tensor): A 1D tensor of token IDs.
+        vision_token_id (int): The ID of the vision token.
+
+    Returns:
+        torch.Tensor: A tensor containing vision masks in the format [start, end].
+    """
+    # Get the locations of the vision tokens
+    vision_token_locations = (tokens == vision_token_id).nonzero(as_tuple=False).squeeze()
+
+    # If no vision token found, return an empty tensor
+    if vision_token_locations.numel() == 0:
+        return torch.empty(0, 2, dtype=torch.long)
+
+    vision_masks = []
+
+    # Handle case with only one vision token
+    if vision_token_locations.numel() == 1:
+        vision_masks.append([vision_token_locations.item(), len(tokens)])
+    else:
+        # Multiple vision tokens, pairwise masks
+        for i in range(len(vision_token_locations) - 1):
+            vision_masks.append([vision_token_locations[i].item(), vision_token_locations[i + 1].item()])
+        # Last vision token attends to all subsequent text
+        vision_masks.append([vision_token_locations[-1].item(), len(tokens)])
+
+    # Handle consecutive vision tokens
+    last_mask_end = vision_masks[-1][1]
+    for vision_mask in reversed(vision_masks):
+        if vision_mask[0] == vision_mask[1] - 1:
+            vision_mask[1] = last_mask_end
+        last_mask_end = vision_mask[1]
+
+    return torch.tensor(vision_masks, dtype=torch.long)
+
+
 class Llama3SampleEncoder(VQASampleEncoder):
     def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
         """
@@ -116,45 +156,6 @@ class Llama3SampleEncoder(VQASampleEncoder):
 
         return torch.tensor(tokenized_chunks, dtype=torch.long)
 
-    def create_vision_mask_tensor(self, tokens: torch.Tensor, vision_token_id: int) -> torch.Tensor:
-        """
-        Create a vision mask from a tensor of tokens and a vision token ID.
-
-        Args:
-            tokens (torch.Tensor): A 1D tensor of token IDs.
-            vision_token_id (int): The ID of the vision token.
-
-        Returns:
-            torch.Tensor: A tensor containing vision masks in the format [start, end].
-        """
-        # Get the locations of the vision tokens
-        vision_token_locations = (tokens == vision_token_id).nonzero(as_tuple=False).squeeze()
-
-        # If no vision token found, return an empty tensor
-        if vision_token_locations.numel() == 0:
-            return torch.empty(0, 2, dtype=torch.long)
-
-        vision_masks = []
-
-        # Handle case with only one vision token
-        if vision_token_locations.numel() == 1:
-            vision_masks.append([vision_token_locations.item(), len(tokens)])
-        else:
-            # Multiple vision tokens, pairwise masks
-            for i in range(len(vision_token_locations) - 1):
-                vision_masks.append([vision_token_locations[i].item(), vision_token_locations[i + 1].item()])
-            # Last vision token attends to all subsequent text
-            vision_masks.append([vision_token_locations[-1].item(), len(tokens)])
-
-        # Handle consecutive vision tokens
-        last_mask_end = vision_masks[-1][1]
-        for vision_mask in reversed(vision_masks):
-            if vision_mask[0] == vision_mask[1] - 1:
-                vision_mask[1] = last_mask_end
-            last_mask_end = vision_mask[1]
-
-        return torch.tensor(vision_masks, dtype=torch.long)
-
     def encode(self, input_sample: VQASample, output_sample: LlamaImageTextSample):
         conversation_prompt = self.apply_prompt_template(input_sample)
         logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
@@ -167,7 +168,7 @@ class Llama3SampleEncoder(VQASampleEncoder):
         logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
         logging.debug(f"[Energon] task encoder encode_sample labels {labels}")
         loss_mask = self.compute_loss_mask(labels)
-        vision_mask = self.create_vision_mask_tensor(tokens=tokens, vision_token_id=self.image_token.token_id)
+        vision_mask = create_vision_mask_tensor(tokens=tokens, vision_token_id=self.image_token.token_id)
         processed_image_dict = self.process_image(input_sample.image)
         output_sample.__key__ = input_sample.__key__
         output_sample.images = processed_image_dict['pixel_values'][0]

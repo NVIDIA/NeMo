@@ -672,8 +672,8 @@ def _pad_masks(
         all_num_chunks: List[List[int]],
         total_len: int,
         max_num_chunks: int,
+        dtype=torch.bfloat16,
 ) -> torch.Tensor:
-    dtype = torch.bfloat16
     inf_value = get_negative_inf_value(dtype)
 
     bsz = len(all_masks)

@@ -28,7 +28,7 @@ inputs = processor(
     add_special_tokens=False,
     return_tensors="pt"
 ).to(model.device)
-
-output = model(**inputs)
-print(output)
+# output = model(**inputs)
+output = model.generate(**inputs, max_new_tokens=30, do_sample=False, temperature=0)
+print(processor.decode(output[0]))
 # print(processor.decode(output[0]))

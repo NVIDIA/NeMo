@@ -562,11 +562,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
         # note: this entire function is for debugging
-        self.zarr = True
-
         output_path = super().local_path(base_path)
-        if self.zarr:
-            output_path = Path(str(output_path) + '_zarr')
         return output_path
 
     def apply(self, output_path: Path) -> Path:
@@ -587,7 +583,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
         dummy_trainer = Trainer(
             devices=1, accelerator="cpu", strategy=MegatronStrategy(
                 store_optimizer_states=False,
-                save_ckpt_format='zarr' if self.zarr else 'torch_dist',  # use zarr before torch_dist issue is resolved
+                save_ckpt_format='torch_dist',
             )
         )
         trainer = self.nemo_setup(target, dummy_trainer)
@@ -728,7 +724,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Llama-3.2-11B-Vision-Instruct"))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> MLlamaModelConfig:
@@ -745,17 +741,16 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
         def _calculate_num_layers(num_hidden_layers, cross_attention_layers):
             return num_hidden_layers - len(cross_attention_layers)
 
-        text = source.text_config
-
         return CrossAttentionTextModelConfig(
-            rotary_base=text.rope_theta,
+            rotary_base=source.text_config.rope_theta,
             seq_length=8192,
-            num_layers=_calculate_num_layers(text.num_hidden_layers, text.cross_attention_layers),
-            hidden_size=text.hidden_size,
-            ffn_hidden_size=text.intermediate_size,
-            num_attention_heads=text.num_attention_heads,
-            num_query_groups=text.num_key_value_heads,
-            vocab_size=text.vocab_size,
+            num_layers=_calculate_num_layers(source.text_config.num_hidden_layers, source.text_config.cross_attention_layers),
+            num_cross_attention_layers=len(source.text_config.cross_attention_layers),
+            hidden_size=source.text_config.hidden_size,
+            ffn_hidden_size=source.text_config.intermediate_size,
+            num_attention_heads=source.text_config.num_attention_heads,
+            num_query_groups=source.text_config.num_key_value_heads,
+            vocab_size=source.text_config.vocab_size,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -768,6 +763,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
             num_attention_heads=source.vision_config.attention_heads,
             vision_chunk_size=source.vision_config.image_size,
             vision_max_num_chunks=source.vision_config.max_num_tiles,
+            text_hidden_size=source.text_config.hidden_size,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
