@@ -334,9 +334,49 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
     try:
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
-        dist_ckpt_folder = nemo_dir / "model_weights"
-        if dist_ckpt_folder.exists():
+        nemo_ckpt_type = None
+        dist_ckpt_folder = None
+        if (nemo_dir / "model_weights").exists():
+            dist_ckpt_folder = nemo_dir / "model_weights"
+            nemo_ckpt_type = "nemo_1.0"
+        elif nemo_dir.exists():
+            dist_ckpt_folder = nemo_dir
+            nemo_ckpt_type = "nemo_2.0"
+
+        if dist_ckpt_folder is not None:
             model = load_sharded_metadata(dist_ckpt_folder)
+            if nemo_ckpt_type == "nemo_2.0":
+                from omegaconf import OmegaConf
+                from nemo.lightning import io
+
+                # ctx = io.load_context(dist_ckpt_folder, build=False)
+                # print(ctx)
+                config = io.load_context(dist_ckpt_folder, subpath="model.config")
+
+                config_dict = {}
+                for k, v in config.__dict__.items():
+                    if isinstance(v, (float, int, str, bool)):
+                        config_dict[k] = v
+                    elif k == "activation_func":
+                        config_dict["activation"] = v.__name__
+
+                if config_dict.get("num_moe_experts") is None:
+                    config_dict["num_moe_experts"] = 0
+                    config_dict["moe_router_topk"] = 0
+                if config_dict["activation"] == "silu":
+                    config_dict["activation"] = "fast-swiglu"
+
+                config_dict["mcore_gpt"] = True
+                config_dict["max_position_embeddings"] = config_dict.get("seq_length")
+                config_dict["tokenizer"] = {
+                    "library": "huggingface",
+                    "type": "meta-llama/Meta-Llama-3.1-8B",
+                    "use_fast": True,
+                }
+
+                yaml_config = OmegaConf.create(config_dict)
+                OmegaConf.save(config=yaml_config, f=os.path.join(dist_ckpt_folder, "model_config.yaml"))
+
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
             if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
