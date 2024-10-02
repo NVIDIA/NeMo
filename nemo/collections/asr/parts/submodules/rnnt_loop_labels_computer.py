@@ -539,14 +539,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
         else:
             self.decoder.batch_replace_states_all(
-                src_states=prev_state, dst_states=self.state.decoder_state,
+                src_states=prev_state, dst_states=self.state.decoder_state, batch_size=current_batch_size,
             )
 
         if prev_labels is None:
             # last found labels - initially <SOS> (<blank>) symbol
             self.state.labels.fill_(self._SOS)
         else:
-            self.state.labels.copy_(prev_labels, non_blocking=True)
+            self.state.labels[:current_batch_size].copy_(prev_labels[:current_batch_size], non_blocking=True)
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.full_graph.replay()

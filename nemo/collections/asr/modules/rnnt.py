@@ -390,10 +390,13 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor],
+        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
-        dst_states[0].copy_(src_states[0])
+        if batch_size is None:
+            dst_states[0].copy_(src_states[0])
+        else:
+            dst_states[0][:batch_size].copy_(src_states[0][:batch_size])
 
     @classmethod
     def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
@@ -1110,11 +1113,15 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: Tuple[torch.Tensor, torch.Tensor], dst_states: Tuple[torch.Tensor, torch.Tensor],
+        cls, src_states: Tuple[torch.Tensor, torch.Tensor], dst_states: Tuple[torch.Tensor, torch.Tensor], batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
-        dst_states[0].copy_(src_states[0])
-        dst_states[1].copy_(src_states[1])
+        if batch_size is None:
+            dst_states[0].copy_(src_states[0])
+            dst_states[1].copy_(src_states[1])
+        else:
+            dst_states[0][:, :batch_size].copy_(src_states[0][:, :batch_size])
+            dst_states[1][:, :batch_size].copy_(src_states[1][:, :batch_size])
 
     @classmethod
     def batch_split_states(
