@@ -21,6 +21,7 @@ from megatron.energon import VQASample
 
 from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import VQASampleEncoder
+from nemo.collections.vlm.llama.model.vision import create_vision_mask_tensor
 from nemo.utils import logging
 
 
@@ -29,46 +30,6 @@ class LlamaImageTextSample(ImageTextSample):
     aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     num_tiles: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-
-
-def create_vision_mask_tensor(tokens: torch.Tensor, vision_token_id: int) -> torch.Tensor:
-    """
-    Create a vision mask from a tensor of tokens and a vision token ID.
-
-    Args:
-        tokens (torch.Tensor): A 1D tensor of token IDs.
-        vision_token_id (int): The ID of the vision token.
-
-    Returns:
-        torch.Tensor: A tensor containing vision masks in the format [start, end].
-    """
-    # Get the locations of the vision tokens
-    vision_token_locations = (tokens == vision_token_id).nonzero(as_tuple=False).squeeze()
-
-    # If no vision token found, return an empty tensor
-    if vision_token_locations.numel() == 0:
-        return torch.empty(0, 2, dtype=torch.long)
-
-    vision_masks = []
-
-    # Handle case with only one vision token
-    if vision_token_locations.numel() == 1:
-        vision_masks.append([vision_token_locations.item(), len(tokens)])
-    else:
-        # Multiple vision tokens, pairwise masks
-        for i in range(len(vision_token_locations) - 1):
-            vision_masks.append([vision_token_locations[i].item(), vision_token_locations[i + 1].item()])
-        # Last vision token attends to all subsequent text
-        vision_masks.append([vision_token_locations[-1].item(), len(tokens)])
-
-    # Handle consecutive vision tokens
-    last_mask_end = vision_masks[-1][1]
-    for vision_mask in reversed(vision_masks):
-        if vision_mask[0] == vision_mask[1] - 1:
-            vision_mask[1] = last_mask_end
-        last_mask_end = vision_mask[1]
-
-    return torch.tensor(vision_masks, dtype=torch.long)
 
 
 class Llama3SampleEncoder(VQASampleEncoder):
@@ -94,7 +55,8 @@ class Llama3SampleEncoder(VQASampleEncoder):
             self.tokenizer.chat_template = self.conversation_template_config.chat_template
         elif self.tokenizer.chat_template is None:
             raise ValueError(
-                "Both tokenizer and conversation template does not have chat template defined. Refer to https://huggingface.co/docs/transformers/main/en/chat_templating"
+                "Both tokenizer and conversation template does not have chat template defined. Refer to "
+                "https://huggingface.co/docs/transformers/main/en/chat_templating "
             )
         logging.debug(f"apply_conversation_template context {input_text.context} answer {input_text.answers}")
 
