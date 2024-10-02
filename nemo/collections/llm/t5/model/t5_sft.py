@@ -1,6 +1,6 @@
-import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+import copy
 
 import pytorch_lightning as L
 import torch
@@ -32,6 +32,9 @@ if TYPE_CHECKING:
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
+
+    # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_t5.py#L87
+    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_t5_model.py#L828-L842
 
     batch = next(dataloader_iter)
 
@@ -70,6 +73,9 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         required_keys.update(("text_enc", "text_dec"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
+    # if self.get_attention_mask_from_fusion:
+    #     required_keys.remove('attention_mask')
+
 
     output = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
 
@@ -91,8 +97,8 @@ def t5_forward_step(model, batch) -> torch.Tensor:
 
 def transformer_engine_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
     from megatron.core.models.T5.t5_spec import (
-        get_t5_decoder_with_transformer_engine_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
+        get_t5_decoder_with_transformer_engine_block_spec,
     )
 
     en_block_spec = get_t5_encoder_with_transformer_engine_block_spec(encoder_config.num_layers)
@@ -103,14 +109,15 @@ def transformer_engine_layer_spec(encoder_config: "T5Config", decoder_config: "T
 
 def local_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
     from megatron.core.models.T5.t5_spec import (
-        get_t5_decoder_with_local_block_spec,
         get_t5_encoder_with_local_block_spec,
+        get_t5_decoder_with_local_block_spec,
     )
 
     en_block_spec = get_t5_encoder_with_local_block_spec(encoder_config.num_layers)
     de_block_spec = get_t5_decoder_with_local_block_spec(decoder_config.num_layers)
 
     return [en_block_spec, de_block_spec]
+
 
 
 def default_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
@@ -132,18 +139,9 @@ class T5Config(TransformerConfig, io.IOMixin):
     max_position_embeddings: int = 512
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
-    encoder_pipeline_model_parallel_size: int = 0
-    attention_softmax_in_fp32: float = False
-    bias_activation_fusion: bool = True
-    masked_softmax_fusion: bool = True
-    persist_layer_norm: bool = True
-    bias_dropout_fusion: bool = True
-    deallocate_pipeline_outputs: bool = True
-    pipeline_model_parallel_split_rank: int = 0
-    num_moe_experts: int = 1
-    recompute_num_layers: int = 1
-    distribute_saved_activations: bool = False
-    enable_autocast: bool = False
+
+    # TODO: Move this to better places?
+    get_attention_mask_from_fusion: bool = False
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["T5Config"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = t5_forward_step
@@ -160,11 +158,30 @@ class T5Config(TransformerConfig, io.IOMixin):
         from megatron.core import parallel_state
         from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 
+
+        # DEBUGGING
+        if torch.distributed.get_rank()==0:
+            print("Debugging: matching NeMo 1.0 Transformers config.")
+        self.enable_autocast=True
+        self.autocast_dtype=torch.bfloat16
+        self.deallocate_pipeline_outputs=True
+        self.pipeline_model_parallel_split_rank=0
+        self.attention_softmax_in_fp32=False
+        self.bias_activation_fusion=True
+        self.masked_softmax_fusion=True
+        self.persist_layer_norm=True
+        self.bias_dropout_fusion=True
+        self.recompute_num_layers=1
+        self.num_moe_experts=1
+        self.distribute_saved_activations=False
+
+
         encoder_config = copy.deepcopy(self)
         encoder_config.num_layers = self.encoder_num_layers
-        if self.pipeline_model_parallel_size > 1:
-            assert self.encoder_pipeline_model_parallel_size > 0, "Need to know how to shard the encoder & decoder."
-            encoder_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+        # move this check to strategies?
+        # if args.pipeline_model_parallel_size > 1:
+        #     assert args.encoder_pipeline_model_parallel_size > 0, "Need to know how to shard the encoder & decoder."
+        #     encoder_config.pipeline_model_parallel_size = args.encoder_pipeline_model_parallel_size
 
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
@@ -187,22 +204,14 @@ class T5Config(TransformerConfig, io.IOMixin):
             post_process=parallel_state.is_pipeline_last_stage(),
         )
 
+
         # DEBUGGING
-        print("model: ")
-        print(model)
-        print("encoder_config: ", encoder_config)
-        torch.set_printoptions(precision=20)
         if torch.distributed.get_rank()==0:
+            print("model: ")
+            print(model)
             for name, param in model.named_parameters():
                 print("{}: {} - {}".format(name, param.shape, torch.norm(param)))
-                if "embedding.position_embeddings.weight" in name:
-                    print(name)
-                    print(param)
-                    print(param.dtype)
-                    print(param.shape)
-                    print(param.mean())
-                    print(param.std())
-        print(stop_here)        
+
 
         return model
 
@@ -229,6 +238,10 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
 
+            # DEBUGGING
+            from megatron.core.enums import ModelType
+            self.module.model_type = ModelType.encoder_and_decoder
+
     def forward(
         self,
         encoder_input_ids: torch.Tensor,
@@ -239,7 +252,6 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         lm_labels: Optional[torch.Tensor] = None,
         inference_params=None,
     ) -> torch.Tensor:
-
         output_tensor = self.module(
             encoder_input_ids=encoder_input_ids,
             decoder_input_ids=decoder_input_ids,
@@ -280,7 +292,6 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
-
 
 __all__ = [
     "T5Model",
