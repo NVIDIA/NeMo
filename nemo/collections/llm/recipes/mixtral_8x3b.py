@@ -29,7 +29,7 @@ def model() -> Config[pl.LightningModule]:
 def trainer(
     tensor_parallelism: int = 1,
     pipeline_parallelism: int = 1,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
@@ -67,6 +67,9 @@ def trainer(
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
             >>> print(trainer_config)
+
+    Note:
+        This configuration uses extensive parallelism to handle the large model size efficiently.
     """
     strategy = Config(
         nl.MegatronStrategy,
@@ -191,7 +194,6 @@ def pretrain_recipe_performance(
         It may not be suitable for all hardware configurations or use cases.
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-
     recipe.trainer.callbacks.extend(
         [
             Config(MegatronTokenDropCallback),
@@ -200,30 +202,6 @@ def pretrain_recipe_performance(
     )
 
     return recipe
-
-
-def hf_resume() -> Config[nl.AutoResume]:
-    """
-    Configure the Hugging Face model resuming for Mixtral 8x3B model.
-
-    This function sets up the configuration for resuming training from a Hugging Face model.
-
-    Returns:
-        Config[nl.AutoResume]: Configuration for resuming from a Hugging Face model.
-
-    Examples:
-        CLI usage:
-            $ nemo llm finetune --factory "mixtral_8x3b(resume=hf_resume())"
-
-        Python API usage:
-            >>> recipe = finetune_recipe(name="mixtral_8x3b_finetune", num_nodes=2)
-            >>> recipe.resume = hf_resume()
-            >>> print(recipe)
-    """
-    return Config(
-        nl.AutoResume,
-        restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
-    )
 
 
 def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:

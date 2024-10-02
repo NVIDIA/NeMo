@@ -2,6 +2,7 @@ from typing import Callable, Optional
 
 import pytorch_lightning as pl
 import torch
+from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -82,6 +83,13 @@ def trainer(
         gradient_as_bucket_view=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
+        ddp=Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+        ),
     )
 
     trainer = Config(
@@ -129,7 +137,7 @@ def pretrain_recipe(
             $ nemo llm pretrain --factory "mixtral_8x22b(num_nodes=16, name='my_mixtral_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="mixtral_pretrain", num_nodes=16)
+            >>> recipe = pretrain_recipe(name="mixtral_8x22b_pretrain", num_nodes=16)
             >>> print(recipe)
     """
     return Partial(

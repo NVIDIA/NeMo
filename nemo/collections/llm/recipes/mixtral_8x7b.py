@@ -2,6 +2,7 @@ from typing import Callable, Optional
 
 import pytorch_lightning as pl
 import torch
+from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -31,13 +32,45 @@ def trainer(
     pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = 8,
     context_parallelism: int = 1,
-    sequence_parallelism: bool = False,
+    sequence_parallelism: bool = True,
     expert_parallelism: int = 8,
     num_nodes: int = 8,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[Config[Callback]]] = None,
 ) -> Config[nl.Trainer]:
+    """
+    Configure the NeMo Lightning Trainer for Mixtral 8x7B model.
+
+    This function sets up the distributed training strategy optimized for the large Mixtral 8x22B model.
+
+    Args:
+        tensor_parallelism (int): Degree of tensor model parallelism.
+        pipeline_parallelism (int): Degree of pipeline model parallelism.
+        pipeline_parallelism_type (Optional[torch.dtype]): Data type for pipeline parallelism.
+        virtual_pipeline_parallelism (Optional[int]): Size of virtual pipeline parallelism.
+        context_parallelism (int): Degree of context parallelism.
+        sequence_parallelism (bool): Whether to use sequence parallelism.
+        expert_parallelism (int): Degree of expert parallelism.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        max_steps (int): Maximum number of training steps.
+        callbacks (Optional[list[Config[Callback]]]): List of callback configurations.
+
+    Returns:
+        Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain trainer=mixtral_8x7b ...
+
+        Python API usage:
+            >>> trainer_config = trainer(num_nodes=16, num_gpus_per_node=8)
+            >>> print(trainer_config)
+
+    Note:
+        This configuration uses extensive parallelism to handle the large model size efficiently.
+    """
     strategy = Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
@@ -150,10 +183,10 @@ def pretrain_recipe_performance(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory "mixtral_8x3b.pretrain_recipe_performance(num_nodes=8, name='perf_pretrain')"
+            $ nemo llm pretrain --factory "mixtral_8x7b.pretrain_recipe_performance(num_nodes=8, name='perf_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="mixtral_8x3b_perf", num_nodes=8)
+            >>> recipe = pretrain_recipe_performance(name="mixtral_8x7b_perf", num_nodes=8)
             >>> print(recipe)
 
     Note:
