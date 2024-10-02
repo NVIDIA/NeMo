@@ -9,22 +9,14 @@ from nemo.lightning.io.pl import TrainerContext
 
 
 @overload
-def load_context(
-    path: Path, subpath: Optional[str] = None, build: bool = True
-) -> TrainerContext:
-    ...
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = True) -> TrainerContext: ...
 
 
 @overload
-def load_context(
-    path: Path, subpath: Optional[str] = None, build: bool = False
-) -> fdl.Config[TrainerContext]:
-    ...
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = False) -> fdl.Config[TrainerContext]: ...
 
 
-def load_context(
-    path: Path, subpath: Optional[str] = None, build: bool = True
-):
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = True):
     """
     Loads a TrainerContext from a json-file or directory.
 
