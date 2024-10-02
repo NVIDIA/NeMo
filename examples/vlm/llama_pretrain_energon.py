@@ -13,44 +13,36 @@
 # limitations under the License.
 
 import argparse
-
 import torch
 from megatron.core.optimizer import OptimizerConfig
-
+from transformers import AutoProcessor
 from nemo import lightning as nl
-from nemo.collections import llm, vlm
-from nemo.collections.vlm.llama.data.mock import MockDataModule
-from nemo.collections.vlm.neva.model.base import MultimodalProjectorConfig
-from nemo.collections.vlm import ImageDataConfig
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
-from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.vlm.llama.data.task_encoder import LlamaTaskEncoder
-
-from transformers import MllamaForConditionalGeneration, AutoProcessor
-from transformers.models.mllama.image_processing_mllama import get_all_supported_aspect_ratios
-from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
-
-
-def get_aspect_ratio(aspect_ratio_ids):
-    max_image_tiles = 4
-    mapping = get_all_supported_aspect_ratios(max_image_tiles)
-    aspect_ratio = [mapping[i.item() - 1] for i in aspect_ratio_ids]
-    return torch.tensor(aspect_ratio)
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.utils.exp_manager import TimingCallback
 
 
-def get_data_module():
-    data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/yash/wds'
-    # model_directory = "/lustre/fsw/coreai_dlalgo_llm/aot/checkpoints/evian3/evian3-11b-vision-instruct-final-hf_vv1/"
-    # model_id = "evian3-11b-vision-instruct-final-hf_vv1"
-    model_directory = "meta-llama/Llama-3.2-11B-Vision-Instruct"
-    processor = AutoProcessor.from_pretrained(model_directory)
-    import pdb; pdb.set_trace()
+def get_data_module(data_path, micro_batch_size, global_batch_size):
+    """
+    Initializes and returns a data module configured for multimodal training.
+
+    This function sets up the data paths, tokenizers, image processors,
+    and other configurations necessary for multimodal training.
+
+    Args:
+        data_path (str): Path to the dataset.
+        micro_batch_size (int): Micro batch size.
+        global_batch_size (int): Global batch size.
+
+    Returns:
+        tuple: Contains the data module and tokenizer.
+    """
+    model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
+    processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
-    image_processor.size = {'height': 448, 'width': 448}
-
     tokenizer = processor.tokenizer
 
     multimodal_sample_config = MultiModalSampleConfig()
@@ -60,64 +52,46 @@ def get_data_module():
     multimodal_sample_config.conversation_template_config.stop_string = '<|eot_id|>'
 
     task_encoder = LlamaTaskEncoder(
-        tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config
+        tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config,
+        seq_length=None,
     )
     data_module = SimpleMultiModalDataModule(
         path=data_path,
         tokenizer=tokenizer,
         image_processor=image_processor,
-        num_workers=0,
-        micro_batch_size=2,
-        global_batch_size=8,
+        num_workers=8,
+        micro_batch_size=micro_batch_size,
+        global_batch_size=global_batch_size,
         multimodal_sample_config=multimodal_sample_config,
         task_encoder=task_encoder,
     )
-    return data_module
+    return data_module, tokenizer
 
 
 def main(args):
-    # Global and micro batch sizes
-    gbs = 8
+    """
+    Main function for setting up and training the MLLama model.
+
+    This function prepares the data module, model, training strategy,
+    logger, checkpointing, and optimizer configuration. It then starts
+    the training loop using PyTorch Lightning's trainer.
+
+    Args:
+        args (argparse.Namespace): The command-line arguments passed to the script.
+    """
+    gbs = 32
     mbs = 2
-    seq_length = 512
-
-    # Data configuration
-    # data_config = ImageDataConfig(
-    #     image_folder=args.image_folder,
-    #     conv_template="plain",
-    # )
-
-    # Data module setup
-    # data = vlm.NevaLazyDataModule(
-    #     paths=args.data_path,
-    #     data_config=data_config,
-    #     seq_length=seq_length,
-    #     global_batch_size=gbs,
-    #     micro_batch_size=mbs,
-    #     tokenizer=None,
-    #     image_processor=None,
-    #     num_workers=8,
-    # )
-    from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-11B-Vision-Instruct")
-    # data = MockDataModule(
-    #     seq_length=seq_length,
-    #     global_batch_size=gbs,
-    #     micro_batch_size=mbs,
-    #     tokenizer=tokenizer,
-    #     image_processor=None,
-    #     num_workers=0,
-    # )
-    data = get_data_module()
+    data, tokenizer = get_data_module(args.data_path, mbs, gbs)
 
     from nemo.collections.vlm.llama.model.base import MLlamaModel, CrossAttentionVisionModelConfig, \
-        MLlamaModelConfig, CrossAttentionTextModelConfig, CrossAttentionTextModelConfig8B
+        MLlamaModelConfig, CrossAttentionTextModelConfig8B
 
+    # Model configuration
     vision_config = CrossAttentionVisionModelConfig(
-        num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,
+        num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=560, vision_max_num_chunks=4,
     )
     text_config = CrossAttentionTextModelConfig8B(
-        num_layers=2,
+        num_layers=32,
     )
 
     llama_config = MLlamaModelConfig(
@@ -139,19 +113,19 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=1000,
+        every_n_train_steps=20,
         dirpath=args.log_dir,
     )
 
     # Trainer setup
     trainer = nl.Trainer(
         devices=args.devices,
-        max_steps=2170,
+        max_steps=5190,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=100,
+        val_check_interval=1000,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -165,33 +139,32 @@ def main(args):
         name=args.name,
         wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )
-    nemo_logger.setup(
-        trainer,
-        resume_if_exists=True,
-    )
+    nemo_logger.setup(trainer, resume_if_exists=True)
 
     # Auto resume setup
+    from nemo.lightning.pytorch.strategies.utils import RestoreConfig
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
+        restore_config=RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
     resume.setup(trainer, model)
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
         optimizer='adam',
-        lr=0.001,
+        lr=2.0e-05,
         adam_beta1=0.9,
         adam_beta2=0.95,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
     )
     sched = CosineAnnealingScheduler(
         max_steps=trainer.max_steps,
-        warmup_steps=70,
+        warmup_steps=150,
         constant_steps=0,
-        min_lr=2.0e-05,
+        min_lr=2.0e-07,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
     opt.connect(model)
@@ -201,11 +174,11 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NEVA Model Training Script")
+    parser = argparse.ArgumentParser(description="Mllama Model Training Script")
 
-    # Argument parsing
-    parser.add_argument("--data_path", type=str, required=False, help="Path to the dataset JSON file")
-    parser.add_argument("--image_folder", type=str, required=False, help="Path to the image folder")
+    parser.add_argument("--restore_path", type=str, required=False, default=None,
+                        help="Path to restore model from checkpoint")
+    parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset")
     parser.add_argument("--log_dir", type=str, required=False, default="./nemo_experiments",
                         help="Directory for logging and checkpoints")
     parser.add_argument("--language_model_path", type=str, required=False, default=None,
