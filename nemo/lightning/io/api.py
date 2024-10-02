@@ -1,22 +1,38 @@
 from pathlib import Path
-from typing import Any, Callable, Optional, Type, TypeVar
+from typing import Callable, Optional, Type, overload
 
 import fiddle as fdl
 import pytorch_lightning as pl
-from fiddle._src.experimental import serialization
 
 from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load
 from nemo.lightning.io.pl import TrainerContext
 
 
-def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
+@overload
+def load_context(
+    path: Path, subpath: Optional[str] = None, build: bool = True
+) -> TrainerContext:
+    ...
+
+
+@overload
+def load_context(
+    path: Path, subpath: Optional[str] = None, build: bool = False
+) -> fdl.Config[TrainerContext]:
+    ...
+
+
+def load_context(
+    path: Path, subpath: Optional[str] = None, build: bool = True
+):
     """
     Loads a TrainerContext from a json-file or directory.
 
     Args:
         path (Path): The path to the json-file or directory containing 'io.json'.
         subpath (Optional[str]): Subpath to selectively load only specific objects inside the TrainerContext. Defaults to None.
-
+        build (bool): Whether to build the TrainerContext. Defaults to True.
+            Otherwise, the TrainerContext is returned as a Config[TrainerContext] object.
     Returns
     -------
         TrainerContext: The loaded TrainerContext instance.
@@ -29,7 +45,7 @@ def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
         checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint", subpath="model.config")
 
     """
-    return load(path, output_type=TrainerContext, subpath=subpath)
+    return load(path, output_type=TrainerContext, subpath=subpath, build=build)
 
 
 def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
