@@ -30,8 +30,8 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
-from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.llm.utils import Config, Partial
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mistral"
 
@@ -200,9 +200,7 @@ def hf_resume() -> Config[nl.AutoResume]:
         This is particularly useful for fine-tuning scenarios where you want to
         start from the pre-trained Mistral 7B model.
     """
-    return Config(
-        nl.AutoResume, restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3")
-    )
+    return Config(nl.AutoResume, restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3"))
 
 
 def finetune_recipe(
@@ -239,7 +237,9 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = pretrain_recipe(name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
+    recipe = pretrain_recipe(
+        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
+    )
     recipe.resume = hf_resume()
     recipe.peft = Config(LoRA)
     recipe.data = Config(SquadDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1)
