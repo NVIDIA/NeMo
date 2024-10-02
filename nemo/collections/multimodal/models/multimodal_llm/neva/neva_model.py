@@ -525,12 +525,13 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         with torch.no_grad():
             if self.from_hf:
                 image_outputs = self.vision_encoder(vision_x, output_hidden_states=True)
-                selected_image_feature = image_outputs.hidden_states[self.vision_select_layer]
+                selected_image_feature = image_outputs.hidden_states[self.vision_select_layer]                
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 selected_image_feature = self.vision_encoder(vision_x)
         if self.vision_select_feature == "patch":
             selected_image_feature = selected_image_feature[:, self.class_token_length :]
+
         elif self.vision_select_feature != "cls_patch":
             raise ValueError(f"Unsupported vision_select_feature {self.vision_select_feature}")
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
@@ -541,16 +542,37 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     def replace_media_embeddings(self, input_ids, inputs_embeds, media):
         if media is None:
             return inputs_embeds
+        
         batch_size, sequence_length, hidden_size = inputs_embeds.shape
+        # Encode media features with gradients
+        media_features = self.encode_vision_x(media)  # Shape: (batch_size, num_media_tokens, hidden_size)
+    
+        # Create mask for media tokens
+        special_image_mask = (input_ids == self.media_token_id)  # Shape: (batch_size, sequence_length)
+    
+        # Find indices of media tokens
+        media_indices = special_image_mask.nonzero(as_tuple=False)  # Shape: (num_media_tokens, 2)
+    
+        # Ensure the number of media tokens matches the media features
+        if media_indices.size(0) != media_features.size(1):
+            raise ValueError(f"Mismatch between number of media tokens and media features: {media_indices.size(0) = }\t{media_features.size(1) = }\t{media[0].shape = }")
+    
+        # Clone inputs_embeds to maintain gradient flow
+        updated_embeds = inputs_embeds.clone()
+    
+        # Replace the embeddings at media token positions
+        updated_embeds[media_indices[:, 0], media_indices[:, 1], :] = media_features
+    
+        return updated_embeds
 
-        # calculate media features without gradients
-        media_features = self.encode_vision_x(media)  # b T F S(eq) H(idden)
-        special_image_mask = (
-                    (input_ids == self.media_token_id).unsqueeze(-1).expand_as(inputs_embeds)
-                )
-        media_features = media_features.to(inputs_embeds.device, inputs_embeds.dtype)
-        inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, media_features)
-        return inputs_embeds
+    def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
+        sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
+
+        state_dict = self.state_dict(prefix='', keep_vars=True)
+        state_dict.pop('weight')
+        # duplicate everything else
+        sharded_state_dict.update(make_sharded_tensors_for_checkpoint(state_dict, prefix=prefix))
+        return sharded_state_dict
 
     def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
         sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
