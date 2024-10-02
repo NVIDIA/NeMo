@@ -1,4 +1,3 @@
-fiddle
 huggingface_hub>=0.24
 numba
 numpy>=1.22
@@ -6,7 +5,7 @@ onnx>=1.7.0
 python-dateutil
 ruamel.yaml
 scikit-learn
-setuptools>=65.5.1
+setuptools>=70.0.0
 tensorboard
 text-unidecode
 torch

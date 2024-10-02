@@ -1,3 +1,16 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import json
 import shutil
 from typing import TYPE_CHECKING, List, Optional
@@ -40,6 +53,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
+        pad_to_max_length: bool = False,
     ):
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
@@ -56,6 +70,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             num_workers=num_workers,
             pin_memory=pin_memory,
             persistent_workers=persistent_workers,
+            pad_to_max_length=pad_to_max_length,
         )
 
     def prepare_data(self) -> None:
