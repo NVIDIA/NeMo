@@ -44,7 +44,7 @@ def default_log(
         name=name,
         tensorboard=tensorboard_logger,
         wandb=wandb_logger,
-        log_dir=dir,
+        log_dir=ckpt_dir,
     )
 
 
