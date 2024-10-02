@@ -154,10 +154,13 @@ class MegatronLLMDeployable(ITritonDeployable):
             # had to override these to make Nemotron3-22B work, see sample_sequence_batch() in text_generation_utils.py
             custom_config.activations_checkpoint_granularity = None
             custom_config.activations_checkpoint_method = None
+            # Models trained with TE < 1.10 and loaded with TE >= 1.10 require
+            # special handling on loading checkpoint due to structural updates
             custom_config.dist_ckpt_load_strictness = StrictHandling.LOG_ALL.value
             if custom_config.get("fp8", False):
                 # Need to disable FP8 for in-framework inference due to shape constraints imposed by TE,
-                # see https://github.com/NVIDIA/TransformerEngine/blob/v1.8/transformer_engine/pytorch/utils.py#L229
+                # see https://github.com/NVIDIA/TransformerEngine/blob/v1.10/transformer_engine/pytorch/utils.py#L229
+                LOGGER.warning("Disabling FP8 inference due to shape constraints imposed by Transformer Engine.")
                 custom_config.fp8 = False
 
             self.model = MegatronGPTModel.restore_from(
