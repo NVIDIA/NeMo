@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from dataclasses import dataclass, field
 from typing import List, Literal
 
@@ -102,6 +103,7 @@ class LoRA(PEFT):
     dropout_position: Literal['pre', 'post'] = 'post'
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
+    freeze_base_model: bool = True
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -117,8 +119,14 @@ class LoRA(PEFT):
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
+        def wildcard_match(pattern, key):
+            regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
+            match = regex_pattern.match(key)
+            return match is not None
+
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        if name in self.target_modules:
+        full_name = f"{prefix}.{name}" if prefix else name
+        if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
             # m.in_features and m.out_features are divided by tp_size already,
             # but in_features and out_features passed to ParallelLinearAdapter are not.
             if name in ['linear_qkv', 'linear_fc1']:
@@ -137,7 +145,7 @@ class LoRA(PEFT):
                 in_features = m.in_features * tp_size
                 out_features = m.out_features
 
-            logging.info(f"Adding lora to: {prefix}.{name}")
+            logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
                 out_features,

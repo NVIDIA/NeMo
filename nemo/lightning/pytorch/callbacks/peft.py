@@ -90,8 +90,8 @@ class PEFT(ABC, ModelTransform):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
-
-        model.freeze()
+        if self.freeze_base_model:
+            model.freeze()
         model.walk(self.transform)
 
         return model
