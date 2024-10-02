@@ -5,10 +5,12 @@ Llama 3.1 WikiText Pruning and Distillation with NeMo Framework
 
 `NVIDIA NeMo Framework <https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html>`_ provides tools to perform teacher finetuning, pruning and distillation on Llama 3.1 to fit your use case.
 
+`LLM Pruning and Distillation in Practice: The Minitron Approach <https://arxiv.org/abs/2408.11796>`_ provides tools to perform teacher finetuning, pruning and distillation on Llama 3.1 as described in the tech report.
+
 Objectives
 ----------
 
-This tutorial shows how to perform depth-pruning, teacher finetuning and distillation on **Llama 3.1 8B Instruct** using the `WikiText-103-v1 <https://huggingface.co/datasets/Salesforce/wikitext/viewer/wikitext-103-v1>`_ dataset with NeMo Framework. The `WikiText-103-v1 <https://huggingface.co/datasets/Salesforce/wikitext/viewer/wikitext-103-v1>`_ language modeling dataset is a collection of over 100 million tokens extracted from the set of verified Good and Featured articles on Wikipedia. For this demonstration, we will perform a light finetuning procedure on the ``Meta Llama 3.1 8B Instruct`` teacher model to generate a finetuned teacher model ``megatron_llama_ft.nemo``. This finetuned teacher model is then depth-pruned to create a trimmed model ``4b_trimmed_model.nemo``. These models will serve as a starting point for distillation to create a final distilled 4B model.
+This tutorial shows how to perform depth-pruning, teacher finetuning and distillation on **Llama 3.1 8B Instruct** using the `WikiText-103-v1 <https://huggingface.co/datasets/Salesforce/wikitext/viewer/wikitext-103-v1>`_ dataset with NeMo Framework. The `WikiText-103-v1 <https://huggingface.co/datasets/Salesforce/wikitext/viewer/wikitext-103-v1>`_ language modeling dataset is a collection of over 100 million tokens extracted from the set of verified Good and Featured articles on Wikipedia. For this demonstration, we will perform a light finetuning procedure on the ``Meta Llama 3.1 8B Instruct`` teacher model to generate a finetuned teacher model ``megatron_llama_ft.nemo`` needed for optimal distillation. This finetuned teacher model is then depth-pruned to create a trimmed model ``4b_trimmed_model.nemo``. These models will serve as a starting point for distillation to create a final distilled 4B model.
 We are using models utilizing the ``meta-llama/Meta-Llama-3.1-8B`` tokenizer for this demonstration.
 
 Requirements
