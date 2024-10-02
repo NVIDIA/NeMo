@@ -249,9 +249,6 @@ class FluxInferencePipeline(nn.Module):
             generator,
             latents
         )
-        print(f"latens shape : {latents.shape}")
-        print(f"encoder hidden shape : {prompt_embeds.shape}")
-        print(f"pooled encoder hidden shape : {pooled_prompt_embeds.shape}")
         # prepare timesteps
         sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps)
         image_seq_len = latents.shape[0]
@@ -273,7 +270,7 @@ class FluxInferencePipeline(nn.Module):
             for i, t in tqdm(enumerate(timesteps)):
                 timestep = t.expand(latents.shape[1]).to(device=latents.device, dtype=latents.dtype)
                 if self.transformer.config.guidance_embed:
-                    guidance = torch.tensor([guidance_scale], device=device).expand(latents.shape[0])
+                    guidance = torch.tensor([guidance_scale], device=device).expand(latents.shape[1])
                 else:
                     guidance = None
 
@@ -302,7 +299,7 @@ class FluxInferencePipeline(nn.Module):
                 image = self.vae.decode(latents)
                 if offload:
                     self.vae.to('cpu')
-
+                image = (image / 2 + 0.5).clamp(0, 1)
                 image = FluxInferencePipeline.torch_to_numpy(image)
                 image = FluxInferencePipeline.numpy_to_pil(image)
         if save_to_disk:

@@ -28,7 +28,7 @@ configs = {
             context_dim=4096,
             model_channels=256,
             patch_size=1,
-            guidance_embed=True,
+            guidance_embed=False,
             vec_in_dim=768,
         ),
         vae_params=AutoEncoderParams(
@@ -42,14 +42,15 @@ configs = {
             z_channels=16,
             scale_factor=0.3611,
             shift_factor=0.1159,
+            ckpt='/ckpts/ae.safetensors'
         ),
         clip_params={
-            'version':"openai/clip-vit-large-patch14",
+            'version':"/ckpts/text_encoder",
             'max_length': 77,
             'always_return_pooled': True,
         },
         t5_params={
-            'version': "google/t5-v1_1-xxl",
+            'version': "/ckpts/text_encoder_2",
             'max_length':  512,
         },
         scheduler_params={

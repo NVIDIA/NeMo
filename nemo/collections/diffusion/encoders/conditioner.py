@@ -102,7 +102,7 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
         dtype=torch.float,
     ):
         super().__init__(enable_lora_finetune, target_block=["CLIPAttention", "CLIPMLP"], target_module=["Linear"])
-        self.tokenizer = CLIPTokenizer.from_pretrained(version)
+        self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
         self.transformer = CLIPTextModel.from_pretrained(version, torch_dtype=dtype).to(device)
         self.device = device
         self.max_length = max_length
@@ -162,7 +162,7 @@ class FrozenT5Embedder(AbstractEmbModel):
         dtype=torch.float,
     ):
         super().__init__()
-        self.tokenizer = T5Tokenizer.from_pretrained(version, max_length=max_length)
+        self.tokenizer = T5Tokenizer.from_pretrained("google/t5-v1_1-xxl", max_length=max_length)
         self.transformer = T5EncoderModel.from_pretrained(version, torch_dtype=dtype).to(device)
         self.max_length = max_length
         self.freeze()

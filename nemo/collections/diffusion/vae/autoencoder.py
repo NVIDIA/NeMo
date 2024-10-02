@@ -20,6 +20,7 @@ class AutoEncoderParams:
     attn_type: str = 'vanilla'
     double_z: bool = True
     dropout: float = 0.0
+    ckpt: str = None
 
 
 
@@ -293,6 +294,8 @@ class AutoEncoder(nn.Module):
         self.shift_factor = params.shift_factor
         self.params = params
 
+        self.load_from_checkpoint(params.ckpt)
+
     def encode(self, x: Tensor) -> Tensor:
         z = self.reg(self.encoder(x))
         z = self.scale_factor * (z - self.shift_factor)
@@ -305,12 +308,12 @@ class AutoEncoder(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self.decode(self.encode(x))
 
-    # def load_from_checkpoint(self, ckpt_path: Dict[str, Any]) -> None:
-    #     from safetensors.torch import load_file as load_sft
-    #     state_dict = load_sft(ckpt_path)
-    #     missing, unexpected = self.load_from_checkpoint(state_dict)
-    #     if len(missing) > 0:
-    #         logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
+    def load_from_checkpoint(self, ckpt_path):
+        from safetensors.torch import load_file as load_sft
+        state_dict = load_sft(ckpt_path)
+        missing, unexpected = self.load_state_dict(state_dict)
+        if len(missing) > 0:
+            logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
 
 
 
