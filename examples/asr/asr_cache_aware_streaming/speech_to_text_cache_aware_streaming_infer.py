@@ -286,6 +286,8 @@ def main():
         help="Sets the att_context_size for the models which support multiple lookaheads",
     )
 
+    parser.add_argument("--strategy", type=str, default="greedy_batch", help="decoding strategy to use")
+
     args = parser.parse_args()
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
@@ -318,9 +320,9 @@ def main():
     # configure the decoding config
     decoding_cfg = asr_model.cfg.decoding
     with open_dict(decoding_cfg):
-        decoding_cfg.strategy = "greedy_batch"
+        decoding_cfg.strategy = args.strategy
         decoding_cfg.preserve_alignments = False
-        if hasattr(asr_model, 'joint'):  # if an RNNT model
+        if hasattr(asr_model, 'joint') and args.strategy in {"greedy", "greedy_batch"}:  # if an RNNT model
             decoding_cfg.greedy.max_symbols = 10
             decoding_cfg.greedy.use_cuda_graph_decoder = False  # TODO: remove
             decoding_cfg.fused_batch_size = -1
