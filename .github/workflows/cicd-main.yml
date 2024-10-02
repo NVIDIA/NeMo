@@ -89,6 +89,9 @@ jobs:
         # trivial (non-multi-stage) builds.
         driver: docker
 
+    - name: Restore cache
+      run: docker pull nemoci.azurecr.io/nemo_container:latest
+
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
@@ -5409,14 +5412,14 @@ jobs:
           echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
 
           # Mark as successful if no job was cancelled:
-          SUCCESS=${{ !contains(needs.*.result, 'cancelled') }}
+          SUCCESS=${{ !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
           echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
 
       # This should depend on all the tests so we block/unblock based on all tests passing
       - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
         run: exit 0
 
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.number }}
