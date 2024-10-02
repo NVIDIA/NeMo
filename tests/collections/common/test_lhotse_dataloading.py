@@ -195,8 +195,8 @@ def nemo_tarred_manifest_subset_path(nemo_tarred_manifest_path: Tuple[str, str])
     json_dir = json_p.parent / "shard_manifests"
     json_dir.mkdir(exist_ok=True)
     all_items = list(load_jsonl(json_p))
-    tarr_0_data = all_items[:5]  
-    tarr_1_data = all_items[5:]  
+    tarr_0_data = all_items[:5]
+    tarr_1_data = all_items[5:]
 
     subset_items = tarr_0_data[-3:] + tarr_1_data[-3:]
     with JsonlShardWriter(f"{json_dir}/manifest_%d.jsonl", shard_size=3) as mft_writer:
@@ -1960,9 +1960,8 @@ def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset
     for batch in dl:
         current_ids = batch["ids"]
         seen_ids += current_ids
-    
+
     expected_ids = set([data['audio_filepath'] for data in subset_items])
     seen_ids_set = set(seen_ids)
     assert len(seen_ids_set) == len(seen_ids), "Duplicate IDs found in the batch."
     assert seen_ids_set == expected_ids, "The set of IDs in the batches does not match the input JSON manifests."
-    
