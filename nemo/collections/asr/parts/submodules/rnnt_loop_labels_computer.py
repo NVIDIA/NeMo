@@ -76,6 +76,7 @@ class LoopLabelsState:
     advance_mask_any: torch.Tensor  # 0-dim bool tensor, condition for inner loop ('should advance any index')
 
     last_decoder_state: Any  # last state from the decoder, needed for the output
+    prev_decoder_state: Any  # previous decoder state (to return and reuse in streaming mode)
     decoder_state: Any  # current decoder state
     decoder_output: torch.Tensor  # output from the decoder (projected)
 
@@ -634,6 +635,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
         self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
+        self.state.prev_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         decoder_output, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
@@ -696,6 +698,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         """Compile full graph for decoding"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
+        stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
         self.full_graph = torch.cuda.CUDAGraph()
         with (
             torch.cuda.stream(stream_for_graph),
@@ -765,6 +768,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
     def _before_inner_loop_get_decoder_output(self):
         """Get decoder output"""
         # stage 1: get decoder (prediction network) output
+        self.decoder.batch_replace_states_all(src_states=self.state.decoder_state, dst_states=self.state.prev_decoder_state)
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
@@ -879,7 +883,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # this seems to be redundant, but used in the `loop_frames` output
         torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
         self.decoder.batch_replace_states_mask(
-            src_states=self.state.decoder_state,
+            src_states=self.state.prev_decoder_state,
             dst_states=self.state.last_decoder_state,
             mask=self.state.became_inactive_mask,
         )

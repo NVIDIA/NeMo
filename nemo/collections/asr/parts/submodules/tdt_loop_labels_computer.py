@@ -78,6 +78,7 @@ class LoopLabelsState:
     advance_mask_any: torch.Tensor  # 0-dim bool tensor, condition for inner loop ('should advance any index')
 
     last_decoder_state: Any  # last state from the decoder, needed for the output
+    prev_decoder_state: Any  # previous decoder state (to return and reuse in streaming mode)
     decoder_state: Any  # current decoder state
     decoder_output: torch.Tensor  # output from the decoder (projected)
 
@@ -694,6 +695,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
 
         self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
+        self.state.prev_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         decoder_output, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
@@ -770,6 +772,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
+            # capture: while self.active_mask_any:
             (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
             outer_loop_kernel = self._create_outer_while_loop_kernel()
             active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
@@ -777,14 +780,13 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
                 [outer_loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data],
                 dtype=np.uint64,
             )
-
             # loop while there are active utterances
-            # while self.active_mask_any:
             with with_conditional_node(
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
                 self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
+                # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
@@ -795,8 +797,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
                     ],
                     dtype=np.uint64,
                 )
-                # while self.advance_mask_any.item():
-
                 with with_conditional_node(
                     inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
                 ):
@@ -828,6 +828,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     def _before_inner_loop_get_decoder_output(self):
         """Get decoder output"""
         # stage 1: get decoder (prediction network) output
+        self.decoder.batch_replace_states_all(src_states=self.state.decoder_state, dst_states=self.state.prev_decoder_state)
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
@@ -987,7 +988,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         # this seems to be redundant, but used in the `loop_frames` output
         torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
         self.decoder.batch_replace_states_mask(
-            src_states=self.state.decoder_state,
+            src_states=self.state.prev_decoder_state,
             dst_states=self.state.last_decoder_state,
             mask=self.state.became_inactive_mask,
         )
