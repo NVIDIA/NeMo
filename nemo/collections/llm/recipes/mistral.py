@@ -1,3 +1,21 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+from typing import Optional
+
+import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -5,24 +23,52 @@ from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.gpt.data.api import squad
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.peft.api import gpt_lora
-from nemo.collections.llm.recipes.log.default import default_log
+from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.utils import Config, Partial, factory
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
+from nemo.utils.exp_manager import TimingCallback
+from nemo.collections.llm.utils import Config, Partial
 
 NAME = "mistral"
 
 
-@factory(name=NAME)
-def model() -> pl.LightningModule:
-    return MistralModel(MistralConfig7B())
-
-
-@factory(name=NAME)
-def trainer(devices=8) -> nl.Trainer:
+def model() -> Config[pl.LightningModule]:
     """
+    Factory function to create a Mistral 7B model configuration.
+
+    Returns:
+        Config[pl.LightningModule]: Configuration for the Mistral 7B model.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain model=mistral ...
+
+        Python API usage:
+            >>> model_config = model()
+            >>> print(model_config)
+    """
+    return Config(MistralModel, config=Config(MistralConfig7B))
+
+
+def trainer(
+    tensor_parallelism: int = 1,
+    pipeline_parallelism: int = 1,
+    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    virtual_pipeline_parallelism: Optional[int] = None,
+    context_parallelism: int = 2,
+    sequence_parallelism: bool = False,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    max_steps: int = 100,
+    callbacks: Optional[list[Config[Callback]]] = None,
+) -> Config[nl.Trainer]:
+    """
+    Configure the NeMo Lightning Trainer for Mistral 7B model.
+
     This function sets up the distributed training strategy and other training parameters.
 
     Args:
@@ -72,37 +118,129 @@ def trainer(devices=8) -> nl.Trainer:
     trainer = Config(
         nl.Trainer,
         accelerator="gpu",
+        accumulate_grad_batches=1,
+        callbacks=callbacks,
+        devices=num_gpus_per_node,
+        limit_test_batches=50,
+        limit_val_batches=32,
+        log_every_n_steps=10,
+        max_steps=max_steps,
+        num_nodes=num_nodes,
+        plugins=bf16_mixed_plugin(),
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+        use_distributed_sampler=False,
+        val_check_interval=2000,
     )
 
-
-@factory(name=NAME + "_hf")
-def hf_resume() -> nl.AutoResume:
-    return nl.AutoResume(restore_config=nl.RestoreConfig(path="hf://mistralai/Mistral-7B-v0.3"))
+    return trainer
 
 
-@factory(name=NAME, for_task="llm.pretrain")
-def pretrain_recipe() -> Partial:
+def pretrain_recipe(
+    ckpt_dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+) -> Partial:
+    """
+    Create a pre-training recipe for Mistral 7B model.
+
+    This function sets up a complete configuration for pre-training, including
+    model, trainer, data, logging, optimization, and resumption settings.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        fn (Callable): The pre-training function to use.
+
+    Returns:
+        Partial: Partial configuration for pre-training.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory mistral
+            $ nemo llm pretrain --factory "mistral(num_nodes=2, name='my_mistral_pretrain')"
+
+        Python API usage:
+            >>> recipe = pretrain_recipe(name="mistral_pretrain", num_nodes=2)
+            >>> print(recipe)
+    """
     return Partial(
-        pretrain,
-        model=model,
-        trainer=trainer,
-        data=squad,
-        log=default_log,
-        optim=distributed_fused_adam_with_cosine_annealing(),
+        fn,
+        model=model(),
+        trainer=trainer(
+            tensor_parallelism=1,
+            pipeline_parallelism=1,
+            pipeline_parallelism_type=None,
+            virtual_pipeline_parallelism=None,
+            context_parallelism=2,
+            sequence_parallelism=False,
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            callbacks=[Config(TimingCallback)],
+        ),
+        data=Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
+        resume=default_resume(),
     )
 
 
-@factory(name=NAME, for_task="llm.finetune")
-def finetune_recipe() -> Partial:
-    return Partial(
-        finetune,
-        model=model,
-        trainer=trainer,
-        data=squad,
-        log=default_log,
-        optim=distributed_fused_adam_with_cosine_annealing(),
-        peft=gpt_lora,
-        resume=hf_resume,
+def hf_resume() -> Config[nl.AutoResume]:
+    """
+    Configure automatic resumption from a Hugging Face checkpoint for Mistral 7B model.
+
+    This function sets up the configuration to resume training from a pre-trained
+    Hugging Face model checkpoint.
+
+    More info about the model can be found at: https://huggingface.co/mistralai/Mistral-7B-v0.3
+
+    Returns:
+        Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+
+    Note:
+        This is particularly useful for fine-tuning scenarios where you want to
+        start from the pre-trained Mistral 7B model.
+    """
+    return Config(
+        nl.AutoResume, restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3")
     )
+
+
+def finetune_recipe(
+    ckpt_dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+) -> Partial:
+    """
+    Create a fine-tuning recipe for Mistral 7B model.
+
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, data, logging, optimization, and resumption settings.
+    It uses LoRA (Low-Rank Adaptation) for efficient fine-tuning.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the fine-tuning run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        Partial: Partial configuration for fine-tuning.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune --factory mistral
+            $ nemo llm finetune --factory "mistral(num_nodes=2, name='my_mistral_finetune')"
+
+        Python API usage:
+            >>> recipe = finetune_recipe(name="mistral_finetune", num_nodes=2)
+            >>> print(recipe)
+
+    Note:
+        This recipe uses the SQuAD dataset for fine-tuning.
+    """
+    recipe = pretrain_recipe(name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
+    recipe.resume = hf_resume()
+    recipe.peft = Config(LoRA)
+    recipe.data = Config(SquadDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1)
+    return recipe
