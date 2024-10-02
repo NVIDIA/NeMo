@@ -83,14 +83,14 @@ def main(args):
     mbs = 2
     data, tokenizer = get_data_module(args.data_path, mbs, gbs)
 
-    from nemo.collections.vlm.llama.model.base import MLlamaModel, CrossAttentionVisionModelConfig, \
-        MLlamaModelConfig, CrossAttentionTextModelConfig8B
+    from nemo.collections.vlm.llama.model.base import MLlamaModel, CrossAttentionVisionConfig, \
+        MLlamaModelConfig, CrossAttentionTextConfig
 
     # Model configuration
-    vision_config = CrossAttentionVisionModelConfig(
+    vision_config = CrossAttentionVisionConfig(
         num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=560, vision_max_num_chunks=4,
     )
-    text_config = CrossAttentionTextModelConfig8B(
+    text_config = CrossAttentionTextConfig(
         num_layers=32,
     )
 
