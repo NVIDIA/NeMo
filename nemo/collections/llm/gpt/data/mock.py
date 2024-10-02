@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 import numpy as np
@@ -8,6 +22,9 @@ from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_TE = safe_import("transformer_engine")
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -27,6 +44,7 @@ class MockDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
+        create_attention_mask: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -36,6 +54,7 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
+        self.create_attention_mask = create_attention_mask or not HAVE_TE
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -48,9 +67,15 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        self._train_ds = _MockGPTDataset(self.tokenizer, "train", self.num_train_samples, self.seq_length)
-        self._validation_ds = _MockGPTDataset(self.tokenizer, "valid", self.num_val_samples, self.seq_length)
-        self._test_ds = _MockGPTDataset(self.tokenizer, "test", self.num_test_samples, self.seq_length)
+        self._train_ds = _MockGPTDataset(
+            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask
+        )
+        self._validation_ds = _MockGPTDataset(
+            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask
+        )
+        self._test_ds = _MockGPTDataset(
+            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
+        )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not hasattr(self, "_train_ds"):
@@ -86,6 +111,7 @@ class _MockGPTDataset(Dataset):
         num_samples: int,
         seq_length: int,
         seed: int = 42,
+        create_attention_mask: bool = False,
     ) -> None:
         super().__init__()
         self.name = name
@@ -93,9 +119,12 @@ class _MockGPTDataset(Dataset):
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
         self.seed = seed
+        self.create_attention_mask = create_attention_mask
 
-        self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
-        self.attention_mask = self.attention_mask < 0.5
+        if create_attention_mask:
+            self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length), device='cpu')).unsqueeze(0)
+            self.attention_mask = self.attention_mask < 0.5
+
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
@@ -112,13 +141,17 @@ class _MockGPTDataset(Dataset):
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
-        return {
+        batch = {
             "tokens": tokens,
             "labels": labels,
-            "attention_mask": self.attention_mask,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
         }
+
+        if self.create_attention_mask:
+            batch["attention_mask"] = self.attention_mask
+
+        return batch
 
     def _collate_fn(self, batch):
         """
