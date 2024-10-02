@@ -324,7 +324,6 @@ def main():
         decoding_cfg.preserve_alignments = False
         if hasattr(asr_model, 'joint') and args.strategy in {"greedy", "greedy_batch"}:  # if an RNNT model
             decoding_cfg.greedy.max_symbols = 10
-            decoding_cfg.greedy.use_cuda_graph_decoder = False  # TODO: remove
             decoding_cfg.fused_batch_size = -1
         asr_model.change_decoding_strategy(decoding_cfg)
 
