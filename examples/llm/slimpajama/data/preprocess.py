@@ -34,9 +34,10 @@ def execute_cmd(cmd_tuple: tuple):
 def preprocess_data(
     data_dir: str,
     output_dir: str,
-    dataset_impl: str = "mmap",
-    tokenizer_type: str = "GPT2BPETokenizer",
-    tokenizer_library: str = "megatron",
+    dataset_impl: str = "",
+    tokenizer_type: str = "",
+    tokenizer_library: str = "sentencepiece",
+    tokenizer_model: str = "",
     vocab_file_path: Optional[str] = None,
     merges_file_path: Optional[str] = None,
     num_tasks: Optional[int] = None,
@@ -68,18 +69,24 @@ def preprocess_data(
         flags = [
             f"--input={split}",
             f"--output-prefix={output_arg}",
-            f"--dataset-impl={dataset_impl}",
             f"--tokenizer-library={tokenizer_library}",
-            f"--tokenizer-type={tokenizer_type}",
+            f"--tokenizer-type={tokenizer_type}" if tokenizer_type else f"--tokenizer-model={tokenizer_model}",
             f"--workers={multiprocessing.cpu_count()}",
+            "--log-interval=100000",
+            "--apply-ftfy",
         ]
 
-        if vocab_file_path and merges_file_path:
+        if dataset_impl:
+            flags += [f"--dataset-impl={dataset_impl}"]
+
+        if vocab_file_path:
             flags += [
-                f"--vocab={vocab_file_path}",
-                f"--merge-file={merges_file_path}",
+                f"--vocab-file={vocab_file_path}",
                 "--append-eod",
             ]
+
+            if merges_file_path:
+                flags += [f"--merges-file={merges_file_path}"]
 
         final_cmd = cmd + flags
         if extra_args:

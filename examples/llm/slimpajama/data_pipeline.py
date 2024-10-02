@@ -19,6 +19,7 @@ def slurm_executor(
     custom_env_vars: Optional[dict[str, str]] = None,
     container_image: str = "nvcr.io/nvidia/nemo:dev",
     retries: int = 0,
+    ssh_key_file_path: Optional[str] = None,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and tasks_per_node):
         raise RuntimeError(
@@ -29,6 +30,7 @@ def slurm_executor(
     if custom_mounts:
         mounts.extend(custom_mounts)
 
+    # Required to run on CPU nodes
     env_vars = {"NVIDIA_VISIBLE_DEVICES": "void"}
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -40,6 +42,7 @@ def slurm_executor(
             user=user,
             host=host,
             job_dir=remote_job_dir,
+            identity=ssh_key_file_path,
         ),
         nodes=nodes,
         ntasks_per_node=tasks_per_node,
@@ -83,13 +86,20 @@ def run_data_pipeline():
         )
 
         # Use NeMo image for the remaining tasks
-        executor.container_image = "nvcr.io/nvidia/nemo:dev"
+        executor.container_image = "nvcr.io/nvidia/nemo:nightly"
         exp.add(run.Partial(run_extraction, data_dir="/data/slimpajama"), executor=executor)
 
         # examples/llm/slimpajama is automatically mounted to /nemo_run/code
         exp.add(run.Script("/nemo_run/code/data/concat.sh", args=["/data/slimpajama/train", "1"]), executor=executor)
         exp.add(
-            run.Partial(preprocess_data, data_dir="/data/slimpajama", output_dir="/data/slimpajama_megatron"),
+            run.Partial(
+                preprocess_data,
+                data_dir="/data/slimpajama",
+                output_dir="/data/slimpajama_megatron",
+                tokenizer_model="/data/tokenizer/tokenizer.model",
+                tokenizer_library="sentencepiece",
+                vocab_file_path="/data/tokenizer/tokenizer.vocab",
+            ),
             executor=executor,
         )
 
