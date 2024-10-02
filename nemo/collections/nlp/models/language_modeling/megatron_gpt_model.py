@@ -367,6 +367,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     'Expert parallelism is currently not supporting Apex distributed optimizer, use Mcore distributed optimizer instead'
                 )
 
+        if self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False):
+            assert self.cfg.optim.get(
+                'overlap_param_sync', False
+            ), "must use overlap_param_gather_with_optimizer_step with overlap_param_sync"
+            assert (
+                self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None
+            ), "must use overlap_param_gather_with_optimizer_step with interleaved pipeline parallelism"
+
+        if self.cfg.optim.get('overlap_param_sync', False) and not self.cfg.optim.get('overlap_grad_sync', False):
+            raise ValueError('Must use overlap_param_sync together with overlap_grad_sync')
+
         self.transformer_engine = cfg.get('transformer_engine', False)
         if self.megatron_amp_O2 and not self.transformer_engine:
             logging.warning('megatron_amp_O2 is enabled but transformer-engine is not.')
