@@ -60,7 +60,7 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
     from nemo.lightning.run import plugins
 
     recipe_config = getattr(getattr(llm, module), recipe)(
-        name=name, dir=BASE_CHECKPOINT_DIR, num_nodes=1, num_gpus_per_node=8
+        name=name, ckpt_dir=BASE_CHECKPOINT_DIR, num_nodes=1, num_gpus_per_node=8
     )
     run_plugins = [
         plugins.PreemptionPlugin(),
