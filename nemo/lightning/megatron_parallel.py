@@ -18,6 +18,7 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -428,7 +429,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
             # PEFT with num_sanity_val_steps > 0 this is necessary.
-            with torch.enable_grad():
+            init_ddp_context = nullcontext if all(x.requires_grad for x in module.parameters()) else torch.enable_grad
+            with init_ddp_context():
                 ddp = DDP(
                     module.config,
                     self.ddp_config,
