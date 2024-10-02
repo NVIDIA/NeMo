@@ -112,6 +112,7 @@ jobs:
           # Basic Import Checks
           python -c "import nemo.collections.asr as nemo_asr"
           python -c "import nemo.collections.nlp as nemo_nlp"
+          python -c "import nemo.collections.nlp as nemo_nlp; nemo_nlp.modules.get_tokenizer_list()"
           python -c "import nemo.collections.tts as nemo_tts"
 
           python setup.py style
@@ -5408,7 +5409,7 @@ jobs:
           echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
 
           # Mark as successful if no job was cancelled:
-          SUCCESS=${{ !contains(needs.*.result, 'cancelled') }}
+          SUCCESS=${{ !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
           echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
 
       # This should depend on all the tests so we block/unblock based on all tests passing
