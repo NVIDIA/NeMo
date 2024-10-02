@@ -5,7 +5,7 @@ Llama 3.1 WikiText Pruning and Distillation with NeMo Framework
 
 `NVIDIA NeMo Framework <https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html>`_ provides tools to perform teacher finetuning, pruning and distillation on Llama 3.1 to fit your use case.
 
-`LLM Pruning and Distillation in Practice: The Minitron Approach <https://arxiv.org/abs/2408.11796>`_ provides tools to perform teacher finetuning, pruning and distillation on Llama 3.1 as described in the tech report.
+`LLM Pruning and Distillation in Practice: The Minitron Approach <https://arxiv.org/abs/2408.11796>`_ provides tools to perform teacher finetuning, pruning and distillation on Llama 3.1 as described in the `tech report <https://arxiv.org/abs/2408.11796>`_.
 
 Objectives
 ----------
