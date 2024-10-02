@@ -36,7 +36,7 @@
 import math
 import os
 import random
-from typing import Iterable, Optional, Union
+from typing import Iterable, List, Optional, Union
 
 import librosa
 import numpy as np
@@ -171,7 +171,7 @@ class AudioSegment(object):
         channel_selector=None,
         normalize_db: Optional[float] = None,
         ref_channel: Optional[int] = None,
-        audio_file: Optional[str] = None,
+        audio_file: Optional[Union[str, List[str]]] = None,
         offset: Optional[float] = None,
         duration: Optional[float] = None,
     ):
@@ -327,7 +327,6 @@ class AudioSegment(object):
                 channel_selector=channel_selector,
                 normalize_db=normalize_db,
                 ref_channel=ref_channel,
-                audio_file=audio_file,
             )
 
         if not isinstance(audio_file, str) or os.path.splitext(audio_file)[-1] in sf_supported_formats:
@@ -428,7 +427,7 @@ class AudioSegment(object):
         for a_file in audio_file_list:
             # Load audio from the current file
             a_segment = cls.from_file(
-                a_file,
+                audio_file=a_file,
                 target_sr=target_sr,
                 int_values=int_values,
                 offset=offset,
@@ -474,6 +473,7 @@ class AudioSegment(object):
             target_sr=target_sr,
             trim=trim,
             channel_selector=channel_selector,
+            audio_file=audio_file_list,
             *args,
             **kwargs,
         )

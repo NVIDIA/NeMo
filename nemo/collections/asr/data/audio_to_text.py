@@ -648,6 +648,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     @property
@@ -675,6 +676,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -724,6 +726,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             trim=trim,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
@@ -1246,6 +1249,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     def __init__(
@@ -1266,6 +1270,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -1319,6 +1324,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
