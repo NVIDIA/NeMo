@@ -373,6 +373,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ), "must use overlap_param_gather_with_optimizer_step with overlap_param_sync"
             assert (
                 self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None
+                and self.cfg.get('virtual_pipeline_model_parallel_size', None) > 1
             ), "must use overlap_param_gather_with_optimizer_step with interleaved pipeline parallelism"
 
         if self.cfg.optim.get('overlap_param_sync', False) and not self.cfg.optim.get('overlap_grad_sync', False):
