@@ -214,7 +214,6 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
-    @pytest.mark.pleasefixme
     @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit

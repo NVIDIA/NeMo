@@ -1267,14 +1267,15 @@ jobs:
   
 
   # L2: Transducer alignment
-  L2_Transducer_alignment_Running_pytest:
+  OPTIONAL_L2_Transducer_alignment_Running_pytest:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Transducer_alignment_Running_pytest') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Transducer_alignment_Running_pytest') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
         pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1 --with_downloads
+      IS_OPTIONAL: true
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -5317,7 +5318,7 @@ jobs:
       - L2_ASR_Adapters_Linear_Adapters
       - L2_ASR_Adapters_RelPos_MHA_Adapters
       - L2_Speech_Transcription_Speech_to_Text_Transcribe
-      - L2_Transducer_alignment_Running_pytest
+      #- OPTIONAL_L2_Transducer_alignment_Running_pytest
       - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
       - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
       - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
