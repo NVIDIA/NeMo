@@ -341,7 +341,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         self._speaker_model.eval()
         self.time_stamps = {}
 
-        all_embs = torch.empty([0])
+        all_embs = torch.empty([0], device=self._speaker_model.device)
         for test_batch in tqdm(
             self._speaker_model.test_dataloader(),
             desc=f'[{scale_idx+1}/{num_scales}] extract embeddings',
@@ -354,7 +354,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
                 embs = embs.view(-1, emb_shape)
-                all_embs = torch.cat((all_embs, embs.cpu().detach()), dim=0)
+                all_embs = torch.cat((all_embs, embs.detach()), dim=0)
             del test_batch
 
         with open(manifest_file, 'r', encoding='utf-8') as manifest:
