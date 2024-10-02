@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import inspect
 from typing import Callable, List, Optional
 
@@ -111,13 +125,10 @@ class MegatronOptimizerModule(OptimizerModule):
         )
 
         if getattr(model.ddp_config, "overlap_param_sync", False) and getattr(
-            model.ddp_config, "delay_param_gather", False
+            model.ddp_config, "align_param_gather", False
         ):
-            param_sync_func = [
-                lambda x, model_index=model_index: mcore_opt.finish_param_sync(model_index, x)
-                for model_index in range(len(pipeline))
-            ]
-            param_sync_func = param_sync_func[0] if len(pipeline) == 1 else param_sync_func
+            param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
+            param_sync_func = param_sync_func[0] if len(model) == 1 else param_sync_func
             for module in model:
                 module.config.param_sync_func = param_sync_func
 

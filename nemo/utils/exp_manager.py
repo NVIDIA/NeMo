@@ -116,7 +116,7 @@ class CallbackParams:
     auto_insert_metric_name: bool = True
     every_n_epochs: Optional[int] = 1
     every_n_train_steps: Optional[int] = None
-    train_time_interval: Optional[str] = None
+    train_time_interval: Optional[Any] = None
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
@@ -125,6 +125,7 @@ class CallbackParams:
     model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
     save_on_train_epoch_end: Optional[bool] = False  # Save after training, not after validation
     async_save: Optional[bool] = False  # save the checkpoint asynchronously
+    save_last_n_optim_states: Optional[int] = -1  # a number of last checkpoints to be saved with optimizer states
 
 
 @dataclass
@@ -373,6 +374,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
             - seconds_to_sleep (float): seconds to sleep non rank 0 processes for. Used to give enough time for rank 0 to initialize
+            - train_time_interval (timedelta): pass an object of timedelta to save the model every timedelta. Defaults to None.
+                (use _target_ with hydra to achieve this)
 
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
@@ -748,11 +751,29 @@ def check_resume(
                 end_checkpoints = (
                     end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
                 )
+                end_chkpt_cnt = len(end_checkpoints)
                 end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
+                finished_end_chkpt_cnt = len(end_checkpoints)
+                if end_chkpt_cnt > 0 and finished_end_chkpt_cnt == 0:
+                    raise ValueError(
+                        "End checkpoint is unfinished and cannot be used to resume the training."
+                        " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                        " restarting from scratch."
+                    )
+
                 last_checkpoints = (
                     last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
                 )
+                last_chkpt_cnt = len(last_checkpoints)
                 last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
+                finished_last_chkpt_cnt = len(last_checkpoints)
+                if last_chkpt_cnt > 0 and finished_last_chkpt_cnt == 0:
+                    raise ValueError(
+                        "Last checkpoint is unfinished and cannot be used to resume the training."
+                        " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                        " restarting from scratch. Hint: Iteration number can be added to the checkpoint name pattern"
+                        " to maximize chance that there is at least one finished last checkpoint to resume from."
+                    )
 
             if not checkpoint_dir_exists or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
                 if resume_ignore_no_checkpoint:
@@ -933,8 +954,8 @@ def get_git_hash():
             True,
             subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT).decode(),
         )
-    except subprocess.CalledProcessError as err:
-        return False, "{}\n".format(err.output.decode("utf-8"))
+    except (subprocess.CalledProcessError, FileNotFoundError) as err:
+        return False, "{}\n".format(err)
 
 
 def get_git_diff():
