@@ -14,11 +14,12 @@
 
 from typing import List, Optional
 
+from vllm.config import TokenizerPoolConfig
 from vllm.lora.request import LoRARequest
 from vllm.transformers_utils.tokenizer_group.base_tokenizer_group import BaseTokenizerGroup
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
-from vllm.config import TokenizerPoolConfig
+
 
 class NemoTokenizerGroup(BaseTokenizerGroup):
     """
@@ -28,14 +29,10 @@ class NemoTokenizerGroup(BaseTokenizerGroup):
     def __init__(self, tokenizer: SentencePieceTokenizer, add_bos_token: bool = False):
         self.tokenizer = tokenizer
         self.add_bos_token = add_bos_token
-    
+
     @classmethod
     def from_config(cls, tokenizer_pool_config: Optional[TokenizerPoolConfig] = None, **init_kwargs):
-        #dummy code, needs actual implementation
-        tokenizer = init_kwargs.get('tokenizer')
-        add_bos_token = init_kwargs.get('add_bos_token', False)
-
-        return cls(tokenizer=tokenizer, add_bos_token=add_bos_token)
+        raise NotImplementedError
 
     def ping(self) -> bool:
         return True

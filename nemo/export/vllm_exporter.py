@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os.path
 from typing import Iterable, List, Optional, Union
-import json
 
 import numpy
 import wrapt
@@ -152,7 +152,7 @@ class vLLMExporter(ITritonDeployable):
         if model_config.model and not os.path.exists(os.path.join(model_config.model, 'config.json')):
             with open(os.path.join(model_config.model, 'config.json'), "w") as f:
                 json.dump(model_config.hf_text_config.to_dict(), f)
-    
+
         # See if we have an up-to-date safetensors file
         safetensors_file = os.path.join(model_config.model, 'model.safetensors')
         safetensors_file_valid = os.path.exists(safetensors_file) and os.path.getmtime(
@@ -300,7 +300,9 @@ class vLLMExporter(ITritonDeployable):
         if top_p <= 0.0:
             top_p = 1.0
 
-        sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=int(top_k), top_p=top_p)
+        sampling_params = SamplingParams(
+            max_tokens=max_output_len, temperature=temperature, top_k=int(top_k), top_p=top_p
+        )
 
         if lora_uid is not None and lora_uid >= 0 and lora_uid < len(self.lora_checkpoints):
             lora_request = LoRARequest(

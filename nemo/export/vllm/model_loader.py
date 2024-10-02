@@ -74,7 +74,6 @@ class NemoModelLoader(BaseModelLoader):
         model_config: NemoModelConfig,
         device_config: DeviceConfig,
         lora_config: Optional[LoRAConfig],
-        #multimodal_config: Optional[MultiModalConfig],
         parallel_config: ParallelConfig,
         scheduler_config: SchedulerConfig,
         cache_config: CacheConfig,
