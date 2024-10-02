@@ -649,7 +649,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
                 source_key=("language_model.model.xattn_layers.*.cross_attn.k_proj.weight",
                             "language_model.model.xattn_layers.*.cross_attn.v_proj.weight"),
                 target_key="language_model.decoder.xattn_layers.*.cross_attention.linear_kv.weight",
-                fn=_import_simple_concat,
+                fn=_import_text_kv,
             ),
             io.state_transform(
                 source_key=("language_model.model.xattn_layers.*.mlp.gate_proj.weight",
