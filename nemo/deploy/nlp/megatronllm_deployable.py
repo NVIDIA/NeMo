@@ -41,10 +41,7 @@ try:
 except (ImportError, ModuleNotFoundError) as e:
 
     HAVE_MEGATRON_CORE = False
-    IMPORT_ERROR = (
-        "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-core."
-        f" Exact error: {e}"
-    )
+    IMPORT_ERROR = e
 
 
 @wrapt.decorator
@@ -113,7 +110,7 @@ class MegatronLLMDeployable(ITritonDeployable):
         existing_model: MegatronGPTModel = None,
     ):
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(IMPORT_ERROR)
+            raise IMPORT_ERROR
         if nemo_checkpoint_filepath is None and existing_model is None:
             raise ValueError(
                 "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None"
