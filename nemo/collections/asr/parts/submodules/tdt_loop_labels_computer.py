@@ -378,6 +378,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         while active_mask.any():
             active_mask_prev.copy_(active_mask, non_blocking=True)
             # stage 1: get decoder (prediction network) output
+            prev_state = state  # save to return state before last label if utterance is fully decoded
             decoder_output, state, *_ = self.decoder.predict(
                 labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
             )
@@ -505,7 +506,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             # this seems to be redundant, but used in the `loop_frames` output
             torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
             self.decoder.batch_replace_states_mask(
-                src_states=state,
+                src_states=prev_state,
                 dst_states=last_decoder_state,
                 mask=became_inactive_mask,
             )
