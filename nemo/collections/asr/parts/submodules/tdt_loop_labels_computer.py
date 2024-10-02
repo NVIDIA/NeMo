@@ -597,7 +597,9 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
         else:
             self.decoder.batch_replace_states_all(
-                src_states=prev_state, dst_states=self.state.decoder_state, batch_size=current_batch_size,
+                src_states=prev_state,
+                dst_states=self.state.decoder_state,
+                batch_size=current_batch_size,
             )
 
         if prev_labels is None:
@@ -828,7 +830,9 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     def _before_inner_loop_get_decoder_output(self):
         """Get decoder output"""
         # stage 1: get decoder (prediction network) output
-        self.decoder.batch_replace_states_all(src_states=self.state.decoder_state, dst_states=self.state.prev_decoder_state)
+        self.decoder.batch_replace_states_all(
+            src_states=self.state.decoder_state, dst_states=self.state.prev_decoder_state
+        )
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )

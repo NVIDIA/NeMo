@@ -74,8 +74,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -84,8 +83,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -382,7 +380,10 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_mask(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
+        mask: torch.Tensor,
     ):
         """Replace states in dst_states with states from src_states using the mask"""
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
@@ -390,7 +391,10 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], batch_size: int | None = None,
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
         if batch_size is None:
@@ -595,8 +599,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -605,8 +608,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -1022,19 +1024,19 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """
-        Create batch of decoder states.
+         Create batch of decoder states.
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([L x (B, H)], [L x (B, H)])
-
-           decoder_states (list of list): list of decoder states
-               [B x ([L x (1, H)], [L x (1, H)])]
-
-       Returns:
-           batch_states (tuple): batch of decoder states
+        Args:
+            batch_states (list): batch of decoder states
                ([L x (B, H)], [L x (B, H)])
-       """
+
+            decoder_states (list of list): list of decoder states
+                [B x ([L x (1, H)], [L x (1, H)])]
+
+        Returns:
+            batch_states (tuple): batch of decoder states
+                ([L x (B, H)], [L x (B, H)])
+        """
         # LSTM has 2 states
         new_states = [[] for _ in range(len(decoder_states[0]))]
         for layer in range(self.pred_rnn_layers):
@@ -1113,7 +1115,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: Tuple[torch.Tensor, torch.Tensor], dst_states: Tuple[torch.Tensor, torch.Tensor], batch_size: int | None = None,
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        dst_states: Tuple[torch.Tensor, torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
         if batch_size is None:
@@ -1284,8 +1289,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "decoder_outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
@@ -1297,8 +1301,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         if not self._fuse_loss_wer:
             return {
                 "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
@@ -2078,7 +2081,11 @@ class SampledRNNTJoint(RNNTJoint):
         return losses, wer, wer_num, wer_denom
 
     def sampled_joint(
-        self, f: torch.Tensor, g: torch.Tensor, transcript: torch.Tensor, transcript_lengths: torch.Tensor,
+        self,
+        f: torch.Tensor,
+        g: torch.Tensor,
+        transcript: torch.Tensor,
+        transcript_lengths: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute the sampled joint step of the network.
