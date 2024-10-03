@@ -29,6 +29,10 @@ from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralMo
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.utils import Config, Partial
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x22b"
@@ -54,18 +58,18 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 8,
-    pipeline_parallelism: int = 8,
+    tensor_parallelism: int = 2,
+    pipeline_parallelism: int = 4,
     pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
-    virtual_pipeline_parallelism: Optional[int] = 7,
-    context_parallelism: int = 1,
+    virtual_pipeline_parallelism: Optional[int] = 14,
+    context_parallelism: int = 2,
     sequence_parallelism: bool = True,
-    expert_parallelism: int = 1,
-    num_nodes: int = 8,
+    expert_parallelism: int = 8,
+    num_nodes: int = 16,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
-) -> run.Config[nl.Trainer]:
+) -> Config[nl.Trainer]:
     """
     Configure the NeMo Lightning Trainer for Mixtral 8x22B model.
 
@@ -82,6 +86,7 @@ def trainer(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
+
         callbacks (Optional[list[run.Config[Callback]]]): List of callback configurations.
 
     Returns:
@@ -92,7 +97,7 @@ def trainer(
             $ nemo llm pretrain trainer=mixtral_8x22b ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=8, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=16, num_gpus_per_node=8)
             >>> print(trainer_config)
 
     Note:
@@ -114,6 +119,8 @@ def trainer(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
         ),
     )
 
@@ -172,11 +179,55 @@ def pretrain_recipe(
         trainer=trainer(
             num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
+
+
+def pretrain_recipe_performance(
+    name: str = "default", dir: Optional[str] = None, num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
+) -> Partial:
+    """
+    Create a performance-optimized pre-training recipe for Mixtral 8x22B model.
+
+    This recipe enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        fn (Callable): The pre-training function to use.
+
+    Returns:
+        Partial: Partial configuration for performance-optimized pre-training.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory "mixtral_8x22b.pretrain_recipe_performance(num_nodes=8, name='perf_pretrain')"
+
+        Python API usage:
+            >>> recipe = pretrain_recipe_performance(name="mixtral_8x22b_perf", num_nodes=8)
+            >>> print(recipe)
+
+    Note:
+        Use this recipe with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    recipe = pretrain_recipe(
+        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            Config(MegatronTokenDropCallback),
+            Config(MegatronCommOverlapCallback),
+        ]
+    )
+
+    return recipe
 
 
 def hf_resume() -> run.Config[nl.AutoResume]:
@@ -239,5 +290,5 @@ def finetune_recipe(
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
     recipe.resume = hf_resume()
     recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
-    recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    recipe.data = run.Config(SquadDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1)
     return recipe
