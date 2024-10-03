@@ -5542,6 +5542,7 @@ jobs:
       - name: "Pipeline not successful and not cancelled: Write summary"
         if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
         env: 
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
