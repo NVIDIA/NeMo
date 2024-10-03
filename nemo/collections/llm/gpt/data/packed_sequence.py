@@ -24,6 +24,19 @@ from nemo.utils.sequence_packing_utils import create_hist, create_packing_strate
 
 
 def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int):
+    """
+    Tokenizes a dataset from the provided path using the specified tokenizer
+    and prepares it for further processing.
+
+    Args:
+        path (Path): Path to the dataset file.
+        tokenizer (TokenizerSpec): The tokenizer to use for tokenization.
+        max_seq_length (int): Maximum sequence length for the tokens.
+        seed (int): Random seed for shuffling the dataset (optional).
+
+    Returns:
+        np.ndarray: A NumPy array containing the tokenized data.
+    """
     dataset = create_sft_dataset(
         path=path,
         tokenizer=tokenizer,
@@ -43,6 +56,23 @@ def prepare_packed_sequence_data(
     seed: Optional[int] = 0,
     packing_algorithm: str = "first_fit_shuffle",
 ):
+    """
+    Prepares a packed sequence dataset from a given input file and saves it to an output file.
+
+    Args:
+        input_path (Path): Path to the input dataset file.
+        output_path (Path): Path to save the packed sequence data.
+        packed_sequence_size (int): The maximum size for each packed sequence.
+        tokenizer (TokenizerSpec): The tokenizer to use for tokenization.
+        max_seq_length (int): Maximum sequence length for the tokens.
+        seed (Optional[int]): Random seed for shuffling (optional).
+        packing_algorithm (str): The algorithm used for packing sequences
+                currently supports "first_fit_shuffle" and "first_fit_decreasing".
+
+    Returns:
+        None: Saves the packed sequence data to the specified output path.
+    """
+
     logging.info(f"Preparing packed sequence from {input_path}")
     dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed)
     sequences, histogram = create_hist(dataset, max_seq_length)
