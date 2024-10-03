@@ -49,9 +49,9 @@ jobs:
           - vm: azure-gpu-vm-runner1
             n_gpus: 2
           - vm: azure-gpu-vm-runner-1gpu-a
-            n_gpus: 2
+            n_gpus: 1
           - vm: azure-gpu-vm-runner-1gpu-c
-            n_gpus: 2
+            n_gpus: 1
           - vm: azure-gpu-vm-runner1-h100
             n_gpus: 2
           - vm: azure-gpu-vm-runner2
