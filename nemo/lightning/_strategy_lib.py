@@ -176,6 +176,7 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
         return kwargs
 
     _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
+
     _orig_perform_initialization = config.perform_initialization
     _orig_use_cpu_initialization = config.use_cpu_initialization
 

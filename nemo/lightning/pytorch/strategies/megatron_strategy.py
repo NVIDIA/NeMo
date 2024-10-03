@@ -61,6 +61,7 @@ from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
+    _MegatronBatchProgress,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -154,6 +155,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             that prints the metrics to stdout. Suitable for non-interactive settings.
         progress_interval (int): How frequently to print progress to stdout. Only used when
             replace_progress_bar is True.
+        overwrite_batch_progress (bool): Whether to overwrite _BatchProgress class used in PTL by default with
+            _MegatronBatchProgress. This should be True whenever you're using a Megatron-based dataset.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -198,6 +201,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
         restore_config: Optional[RestoreConfig] = None,
+        overwrite_batch_progress: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -240,6 +244,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
+        self.overwrite_batch_progress = overwrite_batch_progress
 
         self.restore_config = restore_config
 
@@ -337,6 +342,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.configure_ddp()
 
             trainer.fit_loop.epoch_loop.automatic_optimization = _MegatronAutomaticOptimization(trainer)
+            if self.overwrite_batch_progress:
+                trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
 
             import torch.distributed.algorithms.ddp_comm_hooks.post_localSGD_hook as post_localSGD
 
@@ -410,7 +417,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.setup_optimizers(trainer)
 
         self.model = self.megatron_parallel
-        self.model.callbacks.add(getattr(trainer, "callbacks"))
+        trainer_callbacks = getattr(trainer, "callbacks", None)
+        if trainer_callbacks:
+            self.model.callbacks.add(*trainer_callbacks)
 
         if self.data_sampler:
             self.model.callbacks.add(self.data_sampler)
@@ -479,6 +488,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             out = self.model(dataloader_iter, forward_only=False, *args, **kwargs)
 
+            if torch.is_tensor(out):
+                reduced_train_loss = out
+            else:
+                if not isinstance(out, dict):
+                    raise ValueError(f"Expected dict or tensor for reduced_train_loss, got {type(out)}")
+
+                if "loss" not in out:
+                    raise ValueError(f"Expected 'loss' in output dict, got {out.keys()}")
+
+                reduced_train_loss = out["loss"]
+
             self.lightning_module.log(
                 "global_step",
                 self.trainer.global_step,
@@ -510,8 +530,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.log_train_loss:
                 # p2p now, broadcast later at ckpt. only with pp, some ranks will log 0.0
                 # WHICH IS OK because we broadcast later at checkpoint time
-                _strategy_lib._sync_from_last_pipeline_stage(out, broadcast=False)
-                self.lightning_module.log("reduced_train_loss", out, prog_bar=True, batch_size=1, sync_dist=False)
+                _strategy_lib._sync_from_last_pipeline_stage(reduced_train_loss, broadcast=False)
+                self.lightning_module.log(
+                    "reduced_train_loss", reduced_train_loss, prog_bar=True, batch_size=1, sync_dist=False
+                )
 
             return out
 
@@ -527,7 +549,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if isinstance(optimizer, McoreDistributedOptimizer):
             optimizer_output, grad_norm, num_zeros_in_grad = optimizer_output
-            self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
+            if grad_norm is not None:
+                self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
             if num_zeros_in_grad is not None:
                 self.lightning_module.log('num_zeros_in_grad', num_zeros_in_grad, batch_size=1)
 
@@ -599,7 +622,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             kwargs["forward_step"] = self._get_forward_step(step_name)
         if "loss_reduction" not in kwargs:
             kwargs["loss_reduction"] = self._get_loss_reduction(step_name)
-        kwargs.update(self._data_config_kwargs(dataloader_iter))
 
         return kwargs
 
@@ -707,15 +729,21 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             _optimizer_to_device(optimizer, self.root_device)
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        ckpt = ckpt_to_dir(filepath)
         if self.is_global_zero:
-            shutil.rmtree(ckpt_to_dir(filepath))
+            if os.path.islink(ckpt):
+                os.unlink(ckpt)
+            else:
+                shutil.rmtree(ckpt)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
-        for opt in self.optimizers:
-            opt.reload_model_params()
+
+        if not 'optimizer' in checkpoint:
+            for opt in self.optimizers:
+                opt.reload_model_params()
 
     @property
     @override
@@ -776,13 +804,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 return _ModuleStepFunction(fn_name, is_property=True)
 
         return None
-
-    def _data_config_kwargs(self, dataloader_iter) -> Dict[str, Any]:
-        if not hasattr(dataloader_iter, "data_config") and self.data_sampler:
-            if hasattr(self.data_sampler, "megatron_data_kwargs"):
-                return self.data_sampler.megatron_data_kwargs
-
-        return {}
 
     @property
     def distributed_sampler_kwargs(self) -> Dict[str, Any]:

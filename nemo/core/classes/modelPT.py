@@ -615,8 +615,9 @@ class ModelPT(LightningModule, Model):
             adam_beta2=optim_config['betas'][1],
             clip_grad=self.trainer.gradient_clip_val,
             use_distributed_optimizer=self.use_mcore_dist_optim,
-            overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
-            overlap_param_gather=self.cfg.optim.get('overlap_param_sync', False),
+            overlap_param_gather_with_optimizer_step=self.cfg.optim.get(
+                'overlap_param_gather_with_optimizer_step', False
+            ),
         )
         return megatron_optim_config
 
@@ -1637,6 +1638,16 @@ class ModelPT(LightningModule, Model):
         # TODO: Remove in NeMo 1.7 (or when PTL fixes this on their end)
         if hasattr(self, '_hparams_initial') and 'cfg' in self._hparams_initial:
             self._hparams_initial['cfg'] = OmegaConf.to_object(self._cfg)
+
+    @property
+    def hparams(self):
+        """
+        Overwrite default hparams property to return the lastest model config.
+        Without this change, the hparams property would return the old config if there was a direct change to
+        self._cfg (e.g., in self.setup_optimization()) that was not done via `self.cfg = new_cfg`.
+        """
+        self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
+        return super().hparams
 
     @property
     def validation_step_outputs(self):

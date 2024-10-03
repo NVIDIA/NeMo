@@ -62,6 +62,7 @@ class ExampleConfig(ModelParallelConfig):
     """
 
     calculate_per_token_loss: bool = False
+    fp8: bool = False
 
     def configure_model(self) -> nn.Module:
         """This function is called by the strategy to construct the model.
@@ -508,7 +509,7 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
             tb_logger = TensorBoardLogger(save_dir=str(save_dir), name=name)
             # Setup the logger and train the model
             nemo_logger = NeMoLogger(
-                dir=str(root_dir),  # WARNING: passing a path in here results in mutating the Path class.
+                log_dir=str(root_dir),  # WARNING: passing a path in here results in mutating the Path class.
                 name=name,
                 tensorboard=tb_logger,
                 ckpt=checkpoint_callback,
