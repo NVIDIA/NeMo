@@ -3,7 +3,6 @@ from torch import nn, Tensor
 import numpy as np
 from nemo.collections.diffusion.vae.blocks import ResnetBlock, Upsample, Downsample, AttnBlock, make_attn, Normalize
 from dataclasses import dataclass
-#from nemo.utils import logging
 
 @dataclass
 class AutoEncoderParams:
@@ -294,7 +293,8 @@ class AutoEncoder(nn.Module):
         self.shift_factor = params.shift_factor
         self.params = params
 
-        self.load_from_checkpoint(params.ckpt)
+        if params.ckpt is not None:
+            self.load_from_checkpoint(params.ckpt)
 
     def encode(self, x: Tensor) -> Tensor:
         z = self.reg(self.encoder(x))

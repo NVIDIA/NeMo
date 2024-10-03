@@ -1,15 +1,18 @@
 import torch
+import os
 from torch import nn
 from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderParams
 from nemo.collections.diffusion.flux.model import Flux, FluxParams
 from nemo.collections.diffusion.schedulers.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from nemo.collections.diffusion.utils.flux_pipeline_utils import FluxModelParams
+from nemo.collections.diffusion.recipes.ckpt_converter import flux_transformer_converter
 from typing import Any, Callable, Dict, List, Optional, Union
 from tqdm import tqdm
 import numpy as np
 from PIL import Image
-
+from safetensors.torch import save_file as save_safetensors
+from safetensors.torch import load_file as load_safetensors
 
 
 
@@ -26,6 +29,22 @@ class FluxInferencePipeline(nn.Module):
         self.transformer = Flux(params.flux_params).to(self.device).eval()
         self.vae_scale_factor = 2**(len(self.vae.params.ch_mult))
         self.scheduler = FlowMatchEulerDiscreteScheduler(**params.scheduler_params)
+        self.params = params
+
+    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model=None):
+        if do_convert_from_hf:
+            ckpt = flux_transformer_converter(ckpt_path)
+            if save_converted_model is not None:
+                save_path = os.path.join(ckpt_path, 'nemo_flux_transformer.safetensors')
+                save_safetensors(ckpt_path, save_path)
+                print(f'saving converted transformer checkpoint to {save_path}')
+        else:
+            ckpt = load_safetensors(ckpt_path)
+        missing, unexpected = self.transformer.load_state_dict(ckpt, strict=False)
+        missing = [k for k in missing if not k.endswith('_extra_state')] # These keys are mcore specific and should not affect the model performance
+        if len(missing) > 0:
+            print(f"The folloing keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}")
+            print(f"Found unexepected keys: \n {unexpected}")
 
     def encoder_prompt(
             self,
