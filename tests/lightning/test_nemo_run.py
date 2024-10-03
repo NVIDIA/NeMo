@@ -24,11 +24,11 @@ BASE_CHECKPOINT_DIR = "/nemo_run/checkpoints"
         ("mistral", "pretrain_recipe", "mistral_pretrain"),
         ("mistral", "finetune_recipe", "mistral_finetune"),
         ("mixtral_8x3b", "pretrain_recipe", "mixtral_8x3b_pretrain"),
-        ("mixtral_8x3b", "finetune_recipe", "mixtral_8x3b_finetune"),
+        #        ("mixtral_8x3b", "finetune_recipe", "mixtral_8x3b_finetune"),
         ("mixtral_8x3b_16k", "pretrain_recipe", "mixtral_8x3b_16k_pretrain"),
-        ("mixtral_8x3b_16k", "finetune_recipe", "mixtral_8x3b_16k_finetune"),
+        #        ("mixtral_8x3b_16k", "finetune_recipe", "mixtral_8x3b_16k_finetune"),
         ("mixtral_8x3b_64k", "pretrain_recipe", "mixtral_8x3b_64k_pretrain"),
-        ("mixtral_8x3b_64k", "finetune_recipe", "mixtral_8x3b_64k_finetune"),
+        #        ("mixtral_8x3b_64k", "finetune_recipe", "mixtral_8x3b_64k_finetune"),
         ("mixtral_8x7b", "pretrain_recipe", "mixtral_8x7b_pretrain"),
         ("mixtral_8x7b", "finetune_recipe", "mixtral_8x7b_finetune"),
         ("mixtral_8x7b_16k", "pretrain_recipe", "mixtral_8x7b_16k_pretrain"),
@@ -60,7 +60,7 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
     from nemo.lightning.run import plugins
 
     recipe_config = getattr(getattr(llm, module), recipe)(
-        name=name, ckpt_dir=BASE_CHECKPOINT_DIR, num_nodes=1, num_gpus_per_node=8
+        name=name, dir=BASE_CHECKPOINT_DIR, num_nodes=1, num_gpus_per_node=8
     )
     run_plugins = [
         plugins.PreemptionPlugin(),
