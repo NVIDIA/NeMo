@@ -5541,4 +5541,14 @@ jobs:
 
       - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
         run: |
+          echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
+          while IFS= read -r JOB; do
+            JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
+            JOB_ID=$(echo $JOBS | jq --arg job_name "$JOB_NAME" '.[] | select(.name == $job_name) | .id')
+            JOB_URL="https://github.com/$REPOSITORY/actions/runs/$RUN_ID/job/$JOB_ID"
+            
+            echo "* [$JOB_NAME]($JOB_URL)" | tee -a $GITHUB_STEP_SUMMARY
+            
+          done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
+
           exit 1
