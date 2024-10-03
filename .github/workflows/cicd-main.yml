@@ -5489,6 +5489,7 @@ jobs:
             }
           '
 
+          # Since this workflow contains more than 100 jobs, we need to iterate over job pages
           JOBS='[]'
           PAGE=1
           while : ; do
@@ -5501,8 +5502,6 @@ jobs:
               PAGE=$(( PAGE + 1))
             fi
           done
-
-          # We are close to reaching 100 jobs: Once we break that barrier, we have to iterate pages
           
           SUMMARY="[]"
           while IFS= read -r JOB; do
