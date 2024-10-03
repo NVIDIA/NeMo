@@ -12,16 +12,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        vm: 
-          - azure-gpu-vm-runner1
-          - azure-gpu-vm-runner-1gpu-a
-          - azure-gpu-vm-runner-1gpu-c
-          - azure-gpu-vm-runner1-h100
-          - azure-gpu-vm-runner2
-          - azure-gpu-vm-runner6
-          - azure-gpu-vm-runner7
-          - azure-gpu-vm-runner8
-          - azure-gpu-vm-runner9
+        include:
+          - vm: azure-gpu-vm-runner1
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner-1gpu-a
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner-1gpu-c
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner1-h100
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner2
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner6
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner7
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner8
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner9
+            n_gpus: 2
     steps:
       - name: Reboot
         run: |
@@ -35,16 +44,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        vm: 
-          - azure-gpu-vm-runner1
-          - azure-gpu-vm-runner-1gpu-a
-          - azure-gpu-vm-runner-1gpu-c
-          - azure-gpu-vm-runner1-h100
-          - azure-gpu-vm-runner2
-          - azure-gpu-vm-runner6
-          - azure-gpu-vm-runner7
-          - azure-gpu-vm-runner8
-          - azure-gpu-vm-runner9
+        include:
+          - vm: azure-gpu-vm-runner1
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner-1gpu-a
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner-1gpu-c
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner1-h100
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner2
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner6
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner7
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner8
+            n_gpus: 2
+          - vm: azure-gpu-vm-runner9
+            n_gpus: 2
     steps:
       - name: Check nvidia-smi
         run: nvidia-smi
@@ -89,6 +107,12 @@ jobs:
       - name: Check nvidia-smi
         run: |
           docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
+
+          NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+
+          if [[ $NUM_GPUS -ne ${{ matrix.n_gpus }} ]]; then
+            exit 1
+          fi
       
       - name: Shut runner down on failure
         if: failure()
