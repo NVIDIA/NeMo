@@ -12,17 +12,19 @@ from safetensors.torch import load_file as load_safetensors
 
 
 if __name__ == '__main__':
+    print('Initializing model parallel config')
     Utils.initialize_distributed(1,1,1)
-    params = configs['flux']
 
+    print('Initializing flux inference pipeline')
+    params = configs['flux']
     pipe = FluxInferencePipeline(params)
 
+
     ckpt = flux_transformer_converter('/ckpts/transformer', transformer_config=pipe.transformer.transformer_config)
-
-    save_safetensors(ckpt ,"nemo_flux.safetensors")
-
+    #ckpt = load_safetensors("/ckpts/nemo_flux.safetensors")
     missing, unexpected = pipe.transformer.load_state_dict(ckpt, strict=False)
-    print('missing', missing)
-    text = ['a cat']
-    pipe(text, max_sequence_length=256, height=1024, width=1024, num_inference_steps=4,num_images_per_prompt=1, offload=True)
+
+
+    text = ["A cat holding a sign that says hello world"]
+    pipe(text, max_sequence_length=256, height=1024, width=1024, num_inference_steps=12,num_images_per_prompt=1, offload=False, guidance_scale=0.0)
 

@@ -28,7 +28,7 @@ configs = {
             context_dim=4096,
             model_channels=256,
             patch_size=1,
-            guidance_embed=False,
+            guidance_embed=True,
             vec_in_dim=768,
         ),
         vae_params=AutoEncoderParams(

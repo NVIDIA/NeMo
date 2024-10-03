@@ -54,7 +54,7 @@ class Flux(nn.Module):
         transformer_config = TransformerConfig(num_layers=1, hidden_size=self.hidden_size, num_attention_heads=self.num_attention_heads,
                                                use_cpu_initialization=True, activation_func=config.activation_func,
                                                hidden_dropout=0, attention_dropout=0, layernorm_epsilon=1e-6,
-                                               add_qkv_bias=config.add_qkv_bias)
+                                               add_qkv_bias=config.add_qkv_bias, rotary_interleaved=True)
         self.transformer_config = transformer_config
 
         self.double_blocks = nn.ModuleList([
@@ -100,7 +100,6 @@ class Flux(nn.Module):
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
         rotary_pos_emb = self.pos_embed(ids)
-
         for id_block, block in enumerate(self.double_blocks):
             hidden_states, encoder_hidden_states = block(
                 hidden_states=hidden_states,
