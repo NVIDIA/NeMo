@@ -3,7 +3,7 @@ name: Reboots VMs in a controlled way
 on:
   schedule:
     - cron: 0 0 * * *
-  # pull_request:
+  pull_request:
 
 jobs:
   main:
@@ -65,3 +65,8 @@ jobs:
       - name: Check nvidia-smi
         run: |
           docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
+      
+      - name: Shut runner down on failure
+        if: failure()
+        run: |
+          echo ${{ secrets.VM_KEY }} | sudo -S /home/azureuser/action-runner/svc.sh stop
