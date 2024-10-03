@@ -37,7 +37,7 @@ class GemmaPromptFormatter(PromptFormatter):
 
 
 @registered_prompt_format_fn
-def gemma1(cuts: CutSet, tokenizer: TokenizerSpec):
+def gemma(cuts: CutSet, tokenizer: TokenizerSpec):
     prompt = GemmaPromptFormatter(tokenizer)
     ans = defaultdict(list)
     for cut in cuts:

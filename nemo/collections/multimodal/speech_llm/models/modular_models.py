@@ -22,6 +22,7 @@ import hydra
 import sacrebleu
 import torch
 from hydra.utils import get_class
+from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -345,6 +346,146 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             text_embeddings = text_embeddings + position_embeddings
         return text_embeddings.transpose(0, 1)
 
+    def prepare_llm_input_conv(self, audio_batch):
+        """Prepare input for the LLM."""
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=audio_batch['audio_signal'],
+            input_signal_length=audio_batch['audio_signal_length'],
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+
+        input_ids, input_length, loss_mask, audio_locator_ids = (
+            audio_batch['tokens'],  # this includes bos and eos
+            audio_batch['tokens_length'],
+            audio_batch['loss_mask'],  # this includes bos and eos
+            audio_batch['audio_locator_ids'],
+        )
+
+        encoder_input, encoder_length, labels, loss_mask, attention_mask, position_ids = (
+            self.inject_perception_input_conv(
+                encoded=encoded,
+                encoded_len=encoded_len,
+                input_ids=input_ids,
+                input_length=input_length,
+                loss_mask=loss_mask,
+                audio_locator_ids=audio_locator_ids,
+                remove_bos_or_eos=True,
+            )
+        )
+
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length
+
+    def inject_perception_input_conv(
+        self,
+        encoded: Union[torch.Tensor, List[torch.Tensor]],
+        encoded_len: Union[torch.Tensor, List[torch.Tensor]],
+        input_ids: torch.Tensor,
+        input_length: torch.Tensor,
+        loss_mask: torch.Tensor,
+        audio_locator_ids: torch.Tensor,
+        remove_bos_or_eos: bool = True,
+    ):
+        """Inject audio features into the text input and return the final input embeddings to LLM."""
+
+        if hasattr(self.model, 'language_model'):
+            lm_embedding = self.model.language_model.embedding
+        elif hasattr(self.model, 'embedding'):
+            lm_embedding = self.model.embedding
+        elif hasattr(self.model, 'module') and hasattr(self.model.module, "embedding"):
+            lm_embedding = self.model.module.embedding
+        else:
+            raise NotImplementedError("Failed to get lm embedding")
+
+        # lm_embedding = (
+        #     self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
+        # )
+        input_embeds = lm_embedding.word_embeddings(input_ids)  # [b, t, c]
+
+        PAD_ID = self.tokenizer.pad_id
+        audio_cnt = 0
+        all_input_embeds = []
+        all_input_ids = []
+        all_loss_mask = []
+        for idx, (cur_input_ids, cur_input_length, cur_loss_mask) in enumerate(
+            zip(input_ids, input_length, loss_mask)
+        ):
+            cur_input_ids = cur_input_ids[:cur_input_length]
+            cur_loss_mask = cur_loss_mask[:cur_input_length]
+
+            # replace audio locators with audio embeddings
+            new_input_embeds = []
+            new_input_ids = []
+            new_loss_mask = []
+            start_pos = 0
+            for pos in range(cur_input_length - len(audio_locator_ids) + 1):
+                if (cur_input_ids[pos : pos + len(audio_locator_ids)] == audio_locator_ids).all():
+                    # add previous text embeddings
+                    new_input_embeds.append(input_embeds[idx, start_pos:pos])
+                    new_input_ids.append(cur_input_ids[start_pos:pos])
+                    new_loss_mask.append(cur_loss_mask[start_pos:pos])
+
+                    # add current audio embeddings
+                    new_input_embeds.append(encoded[audio_cnt, : encoded_len[audio_cnt]])
+                    new_input_ids.append(torch.empty(encoded_len[audio_cnt]).to(cur_input_ids).fill_(PAD_ID))
+                    new_loss_mask.append(torch.empty(encoded_len[audio_cnt]).to(cur_loss_mask).fill_(0))
+
+                    audio_cnt += 1
+                    start_pos = pos + len(audio_locator_ids)
+
+            # add the last segment of text embeddings
+            new_input_embeds.append(input_embeds[idx, start_pos:cur_input_length])
+            new_input_ids.append(cur_input_ids[start_pos:])
+            new_loss_mask.append(cur_loss_mask[start_pos:])
+
+            new_input_embeds = torch.cat(new_input_embeds)
+            new_input_ids = torch.cat(new_input_ids)
+            new_loss_mask = torch.cat(new_loss_mask)
+
+            all_input_embeds.append(new_input_embeds)
+            all_input_ids.append(new_input_ids)
+            all_loss_mask.append(new_loss_mask)
+
+        assert audio_cnt == len(encoded), (audio_cnt, len(encoded))
+
+        encoder_length = torch.LongTensor([len(x) for x in all_input_embeds]).to(input_ids.device)
+        max_length = encoder_length.max().item()
+        encoder_input = torch.stack(
+            [torch.nn.functional.pad(f, (0, 0, 0, max_length - f.size(0))) for f in all_input_embeds]
+        )
+
+        input_ids = collate_vectors_lhotse(all_input_ids, padding_value=PAD_ID)
+        loss_mask = collate_vectors_lhotse(all_loss_mask, padding_value=0)
+
+        if remove_bos_or_eos:  # for training, the input is an entire sentence including context and answer
+            encoder_input = encoder_input[:, :-1]
+            encoder_length = encoder_length - 1
+            labels = input_ids[:, 1:]
+            loss_mask = loss_mask[:, 1:]
+        else:  # for inference, the input is just the context without eos
+            labels = input_ids
+            loss_mask = loss_mask
+
+        attention_mask = self._create_attention_mask(encoder_input)
+        position_ids = build_position_ids(encoder_input[:, :, 0])
+
+        # Add position embeddings
+        if (
+            getattr(lm_embedding, "position_embeddings", None) is not None
+            and lm_embedding.position_embedding_type == 'learned_absolute'
+        ):
+            position_embeddings = lm_embedding.position_embeddings(position_ids)
+            encoder_input = encoder_input + position_embeddings
+
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
+            encoder_input = encoder_input.transpose(0, 1).contiguous()
+        if self.cfg.get("sequence_parallel", False):
+            encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
+
+        return encoder_input, encoder_length, labels, loss_mask, attention_mask, position_ids
+
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
         input_signal = audio_batch['audio_signal']
@@ -424,6 +565,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
+        conv_batch = batch.get("multimodal_conversation", None)
 
         output, loss_mask = None, None
 
@@ -443,7 +585,13 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 input_ids, None, None, attention_mask, labels, checkpoint_activations_all_layers
             )
             multimodal_output['text'] = (output, loss_mask)
-        if not audio_batch and not text_batch:
+        if conv_batch:
+            encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input_conv(conv_batch)
+            output = self._gpt_forward(
+                None, None, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
+            )
+            multimodal_output['multimodal_conversation'] = (output, loss_mask)
+        if not audio_batch and not text_batch and not conv_batch:
             raise ValueError("No input data found for the model.")
 
         return multimodal_output
@@ -465,6 +613,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
+        conv_batch = batch.get("multimodal_conversation", None)
 
         # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
         # log_token_counts = self.cfg.get('log_token_counts', False)
@@ -476,7 +625,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         #       hold the activations from one modality in memory while running
         #       forward for the other.
         batch_losses = []
-        for batch in (audio_batch, text_batch):
+        for batch in (audio_batch, text_batch, conv_batch):
             if not batch:
                 continue
 
@@ -1380,6 +1529,15 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             # for megatron_gpt_eval.py
             if isinstance(batch, list):
                 inference_config['inputs'] = batch
+            elif 'multimodal_convo_examples' in batch:
+                in_batch = batch['multimodal_convo_examples']
+                inference_config['inputs'] = (
+                    in_batch['contexts'].cuda(),
+                    in_batch['context_lengths'].cuda(),
+                    in_batch['audio_signal'].cuda(),
+                    in_batch['audio_signal_length'].cuda(),
+                    in_batch['audio_locator_ids'].cuda(),
+                )
             elif 'num_audios' in batch:
                 # peft_eval.py
                 inference_config['inputs'] = (

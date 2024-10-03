@@ -222,6 +222,7 @@ def synced_generate(
     min_tokens_to_generate=0,
     num_audios: Optional[torch.Tensor] = None,
     context_start_idx: Optional[List[List[int]]] = None,
+    audio_locator_ids: Optional[torch.Tensor] = None,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -250,6 +251,7 @@ def synced_generate(
             },
             num_audios=num_audios,
             context_start_idx=context_start_idx,
+            audio_locator_ids=audio_locator_ids,
         )
 
     for tokens, lengths, output_logits, full_logits, audio_feat_lens in batch_token_iterator:
@@ -348,11 +350,21 @@ def generate(
     has_multi_audios = False
     num_audios = None
     context_start_idx = None
+    audio_locator_ids = None
     audio_signal, audio_signal_length = None, None
     if isinstance(inputs, tuple) and len(inputs) == 2:
         context_tokens_tensor, context_length_tensor = inputs
     elif isinstance(inputs, tuple) and len(inputs) == 4:
         context_tokens_tensor, context_length_tensor, audio_signal, audio_signal_length = inputs
+    elif isinstance(inputs, tuple) and len(inputs) == 5:  # multi-audio
+        has_multi_audios = True
+        (
+            context_tokens_tensor,
+            context_length_tensor,
+            audio_signal,
+            audio_signal_length,
+            audio_locator_ids,
+        ) = inputs
     elif isinstance(inputs, tuple) and len(inputs) == 6:  # multi-audio
         has_multi_audios = True
         (
@@ -447,6 +459,7 @@ def generate(
         min_tokens_to_generate=min_tokens_to_generate,
         num_audios=num_audios,
         context_start_idx=context_start_idx,
+        audio_locator_ids=audio_locator_ids,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -537,6 +550,7 @@ def sample_sequence_batch(
     extra={},
     num_audios: Optional[torch.Tensor] = None,
     context_start_idx: Optional[List[List[int]]] = None,
+    audio_locator_ids: Optional[torch.Tensor] = None,
 ):
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
@@ -569,6 +583,8 @@ def sample_sequence_batch(
             compute_attention_mask,
             num_audios,
             context_start_idx,
+            audio_locator_ids,
+            tokens_to_generate,
         )
         audio_text_context_lengths = context_lengths + audio_feat_lens
         context_length = audio_text_context_lengths.min().item()
