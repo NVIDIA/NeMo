@@ -206,7 +206,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return output
         # Load the best model and then re-save it
         app_state = AppState()
-        if (pp_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
         if app_state.context_parallel_size is not None and app_state.context_parallel_size > 1:
             logging.warning(f'always_save_nemo will slow down training for context_parallel > 1.')
