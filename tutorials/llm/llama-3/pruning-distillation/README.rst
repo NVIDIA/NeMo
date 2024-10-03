@@ -67,7 +67,7 @@ For pruning and distilling the model, you will use the NeMo Framework which is a
 
 Results
 ------------------------------------------------------------------------------
-``NOTE:`` This notebook demonstrates the use of the teacher finetuning, pruning and the distillation script. These scripts should ideally be run on a multi-node cluster with a larger GLOBAL_BATCH_SIZE and STEPS to see improvement in the validation loss.
+``NOTE:`` This notebook demonstrates the use of the teacher finetuning, pruning and the distillation script. These scripts should ideally be run on a multi-node cluster with a larger ``GLOBAL_BATCH_SIZE`` and ``STEPS`` to see improvement in the validation loss.
 
 Here is the validation loss over 30 steps of running the training step in the distillation script (at the end of the `notebook <./llama3-pruning-distillation-nemofw.ipynb>`_).
 
