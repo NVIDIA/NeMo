@@ -64,6 +64,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         pin_memory: bool = True,
         multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
+        decoder_seq_length: Optional[int] = None,
     ) -> None:
         """
         Initialize the SimpleMultiModalDataModule.
@@ -85,6 +86,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.seq_length = seq_length
+        self.decoder_seq_length = decoder_seq_length
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.num_workers = num_workers
@@ -97,7 +99,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         )
         self.init_global_step = 0
         self.data_sampler = SequentialMegatronSampler(
-            seq_len=self.seq_length, micro_batch_size=self.micro_batch_size, global_batch_size=self.global_batch_size
+            seq_len=self.seq_length, decoder_seq_len=self.decoder_seq_length, micro_batch_size=self.micro_batch_size, global_batch_size=self.global_batch_size
         )
         self.train_dataloader_object = None
         self.val_dataloader_object = None
@@ -313,6 +315,7 @@ class SequentialMegatronSampler(MegatronDataSampler):
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         init_consumed_samples: int = 0,
+        decoder_seq_len: Optional[int] = None,
         init_global_step=0,
     ):
         """
@@ -326,6 +329,7 @@ class SequentialMegatronSampler(MegatronDataSampler):
         """
         super().__init__(
             seq_len=seq_len,
+            decoder_seq_len=decoder_seq_len,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             init_consumed_samples=init_consumed_samples,
