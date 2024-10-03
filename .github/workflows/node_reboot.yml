@@ -4,7 +4,8 @@ on:
   schedule:
     - cron: 0 0 * * *
   pull_request:
-
+  workflow_dispatch:
+  
 jobs:
   main:
     runs-on: ${{ matrix.vm }}
@@ -117,4 +118,5 @@ jobs:
       - name: Shut runner down on failure
         if: failure()
         run: |
-          echo ${{ secrets.VM_KEY }} | sudo -S /home/azureuser/actions-runner/svc.sh stop
+          cd /home/azureuser/actions-runner
+          echo ${{ secrets.VM_KEY }} | sudo -S ./svc.sh stop
