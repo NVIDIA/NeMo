@@ -30,18 +30,18 @@ class TestMixtral8x22B:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 8
+        assert trainer_config.num_nodes == 16
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
         assert trainer_config.strategy.__fn_or_cls__.__name__ == "MegatronStrategy"
-        assert trainer_config.strategy.tensor_model_parallel_size == 8
-        assert trainer_config.strategy.pipeline_model_parallel_size == 8
+        assert trainer_config.strategy.tensor_model_parallel_size == 2
+        assert trainer_config.strategy.pipeline_model_parallel_size == 4
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
-        assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 7
-        assert trainer_config.strategy.context_parallel_size == 1
+        assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 14
+        assert trainer_config.strategy.context_parallel_size == 2
         assert trainer_config.strategy.sequence_parallel is True
-        assert trainer_config.strategy.expert_model_parallel_size == 1
+        assert trainer_config.strategy.expert_model_parallel_size == 8
 
         # Check DDP configuration
         assert isinstance(trainer_config.strategy.ddp, run.Config)
@@ -59,7 +59,7 @@ class TestMixtral8x22B:
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == MockDataModule
-        assert recipe.data.seq_length == 8192
+        assert recipe.data.seq_length == 4096
         assert recipe.data.global_batch_size == 512
         assert recipe.data.micro_batch_size == 1
 
@@ -73,7 +73,7 @@ class TestMixtral8x22B:
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == SquadDataModule
-        assert recipe.data.seq_length == 8192
+        assert recipe.data.seq_length == 4096
         assert recipe.data.global_batch_size == 512
         assert recipe.data.micro_batch_size == 1
         assert isinstance(recipe.peft, run.Config)
