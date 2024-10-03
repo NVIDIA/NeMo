@@ -35,13 +35,14 @@ Part of this code is adopted from https://github.com/espnet/espnet
 import math
 from functools import lru_cache
 from typing import List, Tuple
-from packaging.version import Version
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from packaging.version import Version
 
 from nemo.utils import avoid_float16_autocast_context
+
 __all__ = [
     'RelPositionMultiHeadAttention',
     'RelPositionalEncoding',
@@ -103,10 +104,12 @@ class MultiHeadAttention(nn.Module):
         if self.use_pytorch_sdpa_backends is None or len(self.use_pytorch_sdpa_backends) == 0:
             use_pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
         else:
-            use_pytorch_sdpa_backends = list(map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends))
+            use_pytorch_sdpa_backends = list(
+                map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends)
+            )
 
         return lambda: sdpa_kernel(use_pytorch_sdpa_backends)
-    
+
     def get_old_sdpa_context(self):
         if self.use_pytorch_sdpa_backends is None or len(self.use_pytorch_sdpa_backends) == 0:
             return lambda: torch.backends.cuda.sdp_kernel()
@@ -115,9 +118,13 @@ class MultiHeadAttention(nn.Module):
         enable_flash = "FLASH_ATTENTION" in self.use_pytorch_sdpa_backends
         enable_mem_efficient = "EFFICIENT_ATTENTION" in self.use_pytorch_sdpa_backends
         enable_cudnn = "CUDNN_ATTENTION" in self.use_pytorch_sdpa_backends
-        
-        return lambda: torch.backends.cuda.sdp_kernel(enable_math=enable_math, enable_flash=enable_flash, enable_mem_efficient=enable_mem_efficient, enable_cudnn=enable_cudnn)
 
+        return lambda: torch.backends.cuda.sdp_kernel(
+            enable_math=enable_math,
+            enable_flash=enable_flash,
+            enable_mem_efficient=enable_mem_efficient,
+            enable_cudnn=enable_cudnn,
+        )
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
