@@ -27,6 +27,13 @@ from nemo.collections.vlm.llama.model.base import (
     CrossAttentionVisionConfig,
 )
 
+from nemo.collections.vlm.llama.model.mllama import (
+    MLlamaConfig11B,
+    MLlamaConfig11BInstruct,
+    MLlamaConfig90B,
+    MLlamaConfig90BInstruct,
+)
+
 from nemo.collections.vlm.peft import LoRA
 
 __all__ = [
@@ -51,4 +58,8 @@ __all__ = [
     "MLlamaModelConfig",
     "CrossAttentionTextConfig",
     "CrossAttentionVisionConfig",
+    "MLlamaConfig11B",
+    "MLlamaConfig11BInstruct",
+    "MLlamaConfig90B",
+    "MLlamaConfig90BInstruct",
 ]

@@ -104,6 +104,9 @@ def set_input_tensor(self, tensor):
 @dataclass
 class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
     # vision model params
+    num_layers: int = 32
+    hidden_size: int = 1280
+    num_attention_heads: int = 16
     vision_chunk_size: int = -1  # image resolution for image models
     vision_max_num_chunks: int = 4
     num_global_layers: int = 8

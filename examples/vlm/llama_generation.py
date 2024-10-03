@@ -22,7 +22,7 @@ from nemo.collections import vlm
 from nemo import lightning as nl
 
 
-model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
+model_id = "meta-llama/Llama-3.2-11B-Vision"
 
 def main(args) -> None:
     strategy = nl.MegatronStrategy(
@@ -64,20 +64,6 @@ def main(args) -> None:
         return_tensors="pt"
     )
 
-    model = vlm.MLlamaModel(
-        vlm.MLlamaModelConfig(
-            language_model_config=vlm.CrossAttentionTextModelConfig8B(parallel_output=False),
-            vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280,
-                                                                    num_attention_heads=16, vision_chunk_size=560,
-                                                                    vision_max_num_chunks=4, ),
-            # vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,),
-        ),
-        tokenizer=tokenizer)
-    # import pdb; pdb.set_trace()
-    # local_model_path = "/root/.cache/nemo/models/evian3-11b-vision-final_vv1_zarr/"
-    # local_model_path = "/root/.cache/nemo/models/meta-llama/Llama-3.2-11B-Vision-Instruct_zarr/"
-    # local_model_path = "/lustre/fsw/coreai_dlalgo_llm/nemo_home/models/meta-llama/Llama-3.2-11B-Vision-Instruct_zarr/"
-    # model = fabric.load_model(local_model_path, model)
     model = fabric.import_model(f"hf://{model_id}", vlm.MLlamaModel)
     model = model.module.cuda()
     model.eval()

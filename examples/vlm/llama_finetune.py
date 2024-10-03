@@ -134,12 +134,7 @@ if __name__ == '__main__':
 
     tokenizer = AutoTokenizer.from_pretrained(args.restore_path)
     model = vlm.MLlamaModel(
-        vlm.MLlamaModelConfig(
-            language_model_config=vlm.CrossAttentionTextModelConfig8B(rotary_interleaved=False, apply_rope_fusion=False),
-            vision_model_config=vlm.CrossAttentionVisionModelConfig(num_layers=32, hidden_size=1280,
-                                                                    num_attention_heads=16, vision_chunk_size=vision_chunk_size,
-                                                                    vision_max_num_chunks=4, ),
-        ),
+        vlm.MLlamaConfig11B(),
         tokenizer=tokenizer)
     resume = nl.AutoResume(
         restore_config=nl.RestoreConfig(path=f"hf://{args.restore_path}"),

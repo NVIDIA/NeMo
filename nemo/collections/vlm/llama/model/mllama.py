@@ -19,13 +19,32 @@ from typing import Dict, Optional
 import torch
 import torch.distributed
 from torch import Tensor
-
+from megatron.core.transformer import TransformerConfig
 from nemo.collections.vlm.llama.model.base import MLlamaModel, MLlamaModelConfig, CrossAttentionVisionConfig, \
     CrossAttentionTextConfig
 from nemo.lightning import MegatronStrategy, Trainer
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
+
+
+class MLlamaConfig11B(MLlamaModelConfig):
+    language_model_config: Optional[TransformerConfig] = CrossAttentionTextConfig(),
+    vision_model_config: Optional[TransformerConfig] = CrossAttentionVisionConfig(vision_chunk_size=448)
+
+class MLlamaConfig11BInstruct(MLlamaModelConfig):
+    language_model_config: Optional[TransformerConfig] = CrossAttentionTextConfig(),
+    vision_model_config: Optional[TransformerConfig] = CrossAttentionVisionConfig(vision_chunk_size=560)
+
+
+class MLlamaConfig90B(MLlamaModelConfig):
+    language_model_config: Optional[TransformerConfig] = CrossAttentionTextConfig(
+        hidden_size=8192, ffn_hidden_size=28672, num_attention_heads=64, num_layers=80
+    ),
+    vision_model_config: Optional[TransformerConfig] = CrossAttentionVisionConfig(vision_chunk_size=560)
+
+class MLlamaConfig90BInstruct(MLlamaConfig90B):
+    pass
 
 @io.model_importer(MLlamaModel, "hf")
 class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
