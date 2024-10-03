@@ -5429,7 +5429,7 @@ jobs:
           echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
 
       # This should depend on all the tests so we block/unblock based on all tests passing
-      - name: Pipeline successful, add PR comment 
+      - name: Pipeline successful, set exit code to 0 
         if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
         run: exit 0
 
@@ -5438,12 +5438,14 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         env: 
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
         with:
           issue-number: ${{ github.event.number }}
           body: |
             [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
             
-            I just wanted to let you know that, you know, a [CICD pipeline](https://github.com/$REPOSITORY/actions/runs/${{ github.run_id }}) for this PR just finished successfully ✨
+            I just wanted to let you know that, you know, a [CICD pipeline](https://github.com/$REPOSITORY/actions/runs/$RUN_ID) for this PR just finished successfully ✨
 
             So it might be time to merge this PR or like to get some approvals 🚀
 
@@ -5453,7 +5455,7 @@ jobs:
 
             //cc @ko3n1g
 
-      - name: "Pipeline not successful and not cancelled: Send Slack alert"
+      - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
         if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
         env: 
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -5504,13 +5506,16 @@ jobs:
           done
           
           SUMMARY="[]"
+          echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
           while IFS= read -r JOB; do
             JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
             JOB_ID=$(echo $JOBS | jq --arg job_name "$JOB_NAME" '.[] | select(.name == $job_name) | .id')
             JOB_URL="https://github.com/$REPOSITORY/actions/runs/$RUN_ID/job/$JOB_ID"
 
-            LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
+            echo "* [$JOB_NAME]($JOB_URL)" | tee -a $GITHUB_STEP_SUMMARY
 
+            LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
+            
             SUMMARY=$(echo "$SUMMARY" | jq \
               --arg pr "<$PR_URL|$PR_TITLE>" \
               --arg job "<$JOB_URL|$JOB_NAME>" \
@@ -5539,40 +5544,6 @@ jobs:
 
           curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK
 
-      - name: "Pipeline not successful and not cancelled: Write summary"
-        if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
-        env: 
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          PR_NUMBER: ${{ github.event.number }}
-          SERVER_URL: ${{ github.server_url }}
-        run: |
-          # Since this workflow contains more than 100 jobs, we need to iterate over job pages
-          JOBS='[]'
-          PAGE=1
-          while : ; do
-            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
-            RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
-            JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
-            if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
-              break
-            else
-              PAGE=$(( PAGE + 1))
-            fi
-          done
-          
-          echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
-          while IFS= read -r JOB; do
-            JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
-            JOB_ID=$(echo $JOBS | jq --arg job_name "$JOB_NAME" '.[] | select(.name == $job_name) | .id')
-            JOB_URL="https://github.com/$REPOSITORY/actions/runs/$RUN_ID/job/$JOB_ID"
-            
-            echo "* [$JOB_NAME]($JOB_URL)" | tee -a $GITHUB_STEP_SUMMARY
-            
-          done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
-
-      - name: "Pipeline not successful"
+      - name: "Pipeline not successful, set exit code to 1"
         if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
         run: exit 1
