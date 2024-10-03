@@ -96,6 +96,106 @@ def to_2tuple(x):
     return (x, x)
 
 
+def _stack_images(
+        images: List[List[PIL_Image.Image]],
+        max_num_chunks: int,
+        image_res: int,
+        max_num_images: int,
+) -> Tuple[torch.Tensor, List[int]]:
+    """
+    Takes a list of list of images and stacks them into a tensor.
+    This function is needed since images can be of completely
+    different resolutions and aspect ratios.
+    """
+    out_images, out_num_chunks = [], []
+    for imgs_sample in images:
+        out_images_i = torch.zeros(
+            max_num_images,
+            max_num_chunks,
+            3,
+            image_res,
+            image_res,
+        )
+        _num_chunks = []
+        for j, chunks_image in enumerate(imgs_sample):
+            out_images_i[j, : chunks_image.shape[0]] = chunks_image
+            _num_chunks.append(chunks_image.shape[0])
+        out_images.append(out_images_i)
+        out_num_chunks.append(_num_chunks)
+    return torch.stack(out_images), out_num_chunks
+
+
+def _pad_masks(
+        all_masks: List[List[List[int]]],
+        all_num_chunks: List[List[int]],
+        total_len: int,
+        max_num_chunks: int,
+        dtype=torch.bfloat16,
+) -> torch.Tensor:
+    inf_value = get_negative_inf_value(dtype)
+
+    bsz = len(all_masks)
+    max_num_media = max([len(m) for m in all_masks])
+
+    out_masks = torch.full(
+        (bsz, total_len, max_num_media, max_num_chunks),
+        inf_value,
+        dtype=dtype,
+    )
+
+    for idx, (mask, num_chunks) in enumerate(zip(all_masks, all_num_chunks)):
+        for mask_idx, (mask_elem, mask_num_chunks) in enumerate(zip(mask, num_chunks)):
+            if len(mask_elem) == 2:
+                mask_elem[1] = min(mask_elem[1], total_len)
+                if mask_elem[1] == -1:
+                    mask_elem[1] = total_len
+                out_masks[
+                idx, mask_elem[0]: mask_elem[1], mask_idx, :mask_num_chunks
+                ].fill_(0.0)
+
+    return out_masks
+
+
+def create_vision_mask_tensor(tokens: torch.Tensor, vision_token_id: int) -> torch.Tensor:
+    """
+    Create a vision mask from a tensor of tokens and a vision token ID.
+
+    Args:
+        tokens (torch.Tensor): A 1D tensor of token IDs.
+        vision_token_id (int): The ID of the vision token.
+
+    Returns:
+        torch.Tensor: A tensor containing vision masks in the format [start, end].
+    """
+    # Get the locations of the vision tokens
+    vision_token_locations = (tokens == vision_token_id).nonzero(as_tuple=False).squeeze()
+
+    # If no vision token found, return an empty tensor
+    if vision_token_locations.numel() == 0:
+        return torch.empty(0, 2, dtype=torch.long)
+
+    vision_masks = []
+
+    # Handle case with only one vision token
+    if vision_token_locations.numel() == 1:
+        vision_masks.append([vision_token_locations.item(), len(tokens)])
+    else:
+        # Multiple vision tokens, pairwise masks
+        for i in range(len(vision_token_locations) - 1):
+            vision_masks.append([vision_token_locations[i].item(), vision_token_locations[i + 1].item()])
+        # Last vision token attends to all subsequent text
+        vision_masks.append([vision_token_locations[-1].item(), len(tokens)])
+
+    # Handle consecutive vision tokens
+    last_mask_end = vision_masks[-1][1]
+    for vision_mask in reversed(vision_masks):
+        if vision_mask[0] == vision_mask[1] - 1:
+            vision_mask[1] = last_mask_end
+        last_mask_end = vision_mask[1]
+
+    return torch.tensor(vision_masks, dtype=torch.long)
+
+
 def apply_scaling(freqs: torch.Tensor):
     # Values obtained from grid search
     scale_factor = 8
@@ -636,63 +736,3 @@ class VisionEncoder(MegatronModule):
         int_x = int_x.reshape(bsz, num_concurrent_media, num_chunks, ntok, -1)
         x = torch.cat([x, int_x], dim=-1)
         return x
-
-
-def _stack_images(
-        images: List[List[PIL_Image.Image]],
-        max_num_chunks: int,
-        image_res: int,
-        max_num_images: int,
-) -> Tuple[torch.Tensor, List[int]]:
-    """
-    Takes a list of list of images and stacks them into a tensor.
-    This function is needed since images can be of completely
-    different resolutions and aspect ratios.
-    """
-    out_images, out_num_chunks = [], []
-    for imgs_sample in images:
-        out_images_i = torch.zeros(
-            max_num_images,
-            max_num_chunks,
-            3,
-            image_res,
-            image_res,
-        )
-        _num_chunks = []
-        for j, chunks_image in enumerate(imgs_sample):
-            out_images_i[j, : chunks_image.shape[0]] = chunks_image
-            _num_chunks.append(chunks_image.shape[0])
-        out_images.append(out_images_i)
-        out_num_chunks.append(_num_chunks)
-    return torch.stack(out_images), out_num_chunks
-
-
-def _pad_masks(
-        all_masks: List[List[List[int]]],
-        all_num_chunks: List[List[int]],
-        total_len: int,
-        max_num_chunks: int,
-        dtype=torch.bfloat16,
-) -> torch.Tensor:
-    inf_value = get_negative_inf_value(dtype)
-
-    bsz = len(all_masks)
-    max_num_media = max([len(m) for m in all_masks])
-
-    out_masks = torch.full(
-        (bsz, total_len, max_num_media, max_num_chunks),
-        inf_value,
-        dtype=dtype,
-    )
-
-    for idx, (mask, num_chunks) in enumerate(zip(all_masks, all_num_chunks)):
-        for mask_idx, (mask_elem, mask_num_chunks) in enumerate(zip(mask, num_chunks)):
-            if len(mask_elem) == 2:
-                mask_elem[1] = min(mask_elem[1], total_len)
-                if mask_elem[1] == -1:
-                    mask_elem[1] = total_len
-                out_masks[
-                idx, mask_elem[0]: mask_elem[1], mask_idx, :mask_num_chunks
-                ].fill_(0.0)
-
-    return out_masks

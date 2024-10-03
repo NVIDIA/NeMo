@@ -48,6 +48,8 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
+        self.tokenizer = tokenizer
+        self.image_processor = image_processor
 
         if tokenizer is None or image_processor is None:
             from transformers import AutoProcessor
@@ -135,7 +137,7 @@ class _MockMLlamaDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        images = torch.from_numpy(np_gen.standard_normal((1, 4, 3, 448, 448)))
+        images = torch.from_numpy(np_gen.standard_normal((1, 4, 3, self.image_height, self.image_width)))
         aspect_ratio_ids = torch.from_numpy(np_gen.integers(8, size=[1], dtype=np.int64)) + 1
 
         labels = tokens.clone()

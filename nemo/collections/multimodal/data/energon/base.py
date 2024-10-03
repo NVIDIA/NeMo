@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
+
+from typing import Any, Dict, Literal, Optional
 
 import pytorch_lightning as pl
 from megatron.core import parallel_state
@@ -24,9 +25,6 @@ from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTask
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):

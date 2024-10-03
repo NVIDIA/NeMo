@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 import torch
+import torch.nn.functional as F
 from megatron.energon import (
     VQASample,
     batch_list,
@@ -26,6 +27,18 @@ from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm.llama.data.sample_encoder import Llama3SampleEncoder, LlamaImageTextSample
+
+
+def pad_or_truncate(sequence_batch, seq_length: int, padding_value: int):
+    # Pad the sequence if it's shorter than seq_length
+    if sequence_batch.size(1) < seq_length:
+        pad_size = seq_length - sequence_batch.size(1)
+        sequence_batch = F.pad(sequence_batch, (0, pad_size), value=padding_value)
+    else:
+        # Truncate the sequence if it's longer than seq_length
+        sequence_batch = sequence_batch[:, :seq_length]
+
+    return sequence_batch
 
 
 @dataclass
@@ -45,13 +58,16 @@ class LlamaImageTextRawBatch:
 
 
 class LlamaTaskEncoder(MultiModalTaskEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config, seq_length=None):
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: Llama3SampleEncoder(tokenizer, image_processor, multimodal_sample_config)
         }
+        self.seq_length = seq_length
+        self.ignore_index = multimodal_sample_config.ignore_place_holder
 
     def batch(self, samples: List[LlamaImageTextSample]) -> LlamaImageTextRawBatch:
+
         keys, images, tokens, labels, loss_mask, vision_mask = [], [], [], [], [], []
         aspect_ratio_ids, aspect_ratio_mask, num_tiles = [], [], []
         for sample in samples:
@@ -69,9 +85,16 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
         batch_images = batch_pad_stack(images)
 
         batch_tokens = pad_sequence(tokens, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        batch_labels = pad_sequence(labels, batch_first=True, padding_value=-100)  # Hard-coded ignore index.
-
+        batch_labels = pad_sequence(labels, batch_first=True, padding_value=self.ignore_index)
         batch_loss_mask = batch_pad_stack(loss_mask)
+        if self.seq_length is not None:
+            seq_length = self.seq_length
+        else:
+            seq_length = (batch_tokens.size(1) - 1) // 64 * 64 + 64
+        batch_tokens = pad_or_truncate(batch_tokens, seq_length, self.tokenizer.pad_token_id)
+        batch_labels = pad_or_truncate(batch_labels, seq_length, self.ignore_index)
+        batch_loss_mask = pad_or_truncate(batch_loss_mask, seq_length, 0)
+        assert batch_loss_mask.sum() > 0, "This batch has nothing to predict! Will trigger a nan loss."
         batch_vision_mask = batch_pad_stack(vision_mask)
         batch_aspect_ratio_ids = batch_pad_stack(aspect_ratio_ids)
         batch_aspect_ratio_mask = batch_pad_stack(aspect_ratio_mask)
