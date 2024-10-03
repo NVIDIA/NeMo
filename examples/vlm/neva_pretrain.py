@@ -117,7 +117,7 @@ def main(args):
     from pytorch_lightning.loggers import WandbLogger
 
     nemo_logger = nl.NeMoLogger(
-        dir=args.log_dir,
+        explicit_log_dir=args.log_dir,
         name=args.name,
         wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )

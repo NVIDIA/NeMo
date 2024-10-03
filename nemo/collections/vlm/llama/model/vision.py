@@ -576,7 +576,7 @@ class VisionEncoder(MegatronModule):
     def __init__(
             self,
             config: TransformerConfig,
-            image_size: int = 224,
+            image_size: int = 560,
             patch_size: int = 14,
             in_channels: int = 3,
             pre_process: bool = True,

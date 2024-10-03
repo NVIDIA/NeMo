@@ -25,48 +25,6 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
 
-def get_data_module(data_path, micro_batch_size, global_batch_size):
-    """
-    Initializes and returns a data module configured for multimodal training.
-
-    This function sets up the data paths, tokenizers, image processors,
-    and other configurations necessary for multimodal training.
-
-    Args:
-        data_path (str): Path to the dataset.
-        micro_batch_size (int): Micro batch size.
-        global_batch_size (int): Global batch size.
-
-    Returns:
-        tuple: Contains the data module and tokenizer.
-    """
-    model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
-    processor = AutoProcessor.from_pretrained(model_id)
-    image_processor = processor.image_processor
-    tokenizer = processor.tokenizer
-
-    multimodal_sample_config = MultiModalSampleConfig()
-    multimodal_sample_config.conversation_template_config.system = ""
-    multimodal_sample_config.conversation_template_config.chat_template = None
-    multimodal_sample_config.image_token.token_id = 128256
-    multimodal_sample_config.conversation_template_config.stop_string = '<|eot_id|>'
-
-    task_encoder = LlamaTaskEncoder(
-        tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config
-    )
-    data_module = SimpleMultiModalDataModule(
-        path=data_path,
-        tokenizer=tokenizer,
-        image_processor=image_processor,
-        num_workers=8,
-        micro_batch_size=micro_batch_size,
-        global_batch_size=global_batch_size,
-        multimodal_sample_config=multimodal_sample_config,
-        task_encoder=task_encoder,
-    )
-    return data_module, tokenizer
-
-
 def main(args):
     """
     Main function for setting up and training the MLLama model.
@@ -78,9 +36,12 @@ def main(args):
     Args:
         args (argparse.Namespace): The command-line arguments passed to the script.
     """
-    gbs = 128
+    gbs = 2
     mbs = 2
-    seq_length = 512
+    # encoder (vision) seq length
+    # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
+    seq_length = 6404
+    decoder_seq_length = 512  # decoder (llm) seq length
     model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
     processor = AutoProcessor.from_pretrained(model_id)
@@ -90,6 +51,7 @@ def main(args):
     from nemo.collections.vlm.llama.data.mock import MockDataModule
     data = MockDataModule(
         seq_length=seq_length,
+        decoder_seq_length=decoder_seq_length,
         global_batch_size=gbs,
         micro_batch_size=mbs,
         tokenizer=tokenizer,
@@ -105,7 +67,7 @@ def main(args):
         num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=560, vision_max_num_chunks=4,
     )
     text_config = CrossAttentionTextConfig(
-        num_layers=32,
+        num_layers=4,
     )
 
     llama_config = MLlamaModelConfig(
@@ -127,7 +89,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=1000,
+        every_n_train_steps=4,
         dirpath=args.log_dir,
     )
 
@@ -149,7 +111,7 @@ def main(args):
     from pytorch_lightning.loggers import WandbLogger
 
     nemo_logger = nl.NeMoLogger(
-        dir=args.log_dir,
+        explicit_log_dir=args.log_dir,
         name=args.name,
         wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )
@@ -192,7 +154,6 @@ if __name__ == "__main__":
 
     parser.add_argument("--restore_path", type=str, required=False, default=None,
                         help="Path to restore model from checkpoint")
-    parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset")
     parser.add_argument("--log_dir", type=str, required=False, default="./nemo_experiments",
                         help="Directory for logging and checkpoints")
     parser.add_argument("--language_model_path", type=str, required=False, default=None,

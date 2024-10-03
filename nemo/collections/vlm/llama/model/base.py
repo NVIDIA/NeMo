@@ -438,10 +438,9 @@ class MLlamaBaseModel(MegatronModule):
             )
 
         assert self.add_decoder, "Language model required for forward pass."
-        # TODO(yuya): check, fix position_ids[0]
         language_embeddings = None
         if self.pre_process:
-            language_embeddings = self.language_model.get_partially_trainable_embedding(tokens)  # [:, position_ids[0]])
+            language_embeddings = self.language_model.get_partially_trainable_embedding(tokens)
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [text_seq_len, b, h_language]
 
         output = self.language_model(

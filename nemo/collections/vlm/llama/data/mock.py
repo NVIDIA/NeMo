@@ -28,6 +28,7 @@ class MockDataModule(pl.LightningDataModule):
     def __init__(
             self,
             seq_length: int = 2048,
+            decoder_seq_length: Optional = None,
             tokenizer: Optional = None,
             image_processor: Optional = None,
             micro_batch_size: int = 4,
@@ -42,6 +43,7 @@ class MockDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.seq_length = seq_length
+        self.decoder_seq_length = decoder_seq_length
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
@@ -59,6 +61,7 @@ class MockDataModule(pl.LightningDataModule):
             self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
+            decoder_seq_len=self.decoder_seq_length,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
@@ -66,13 +69,13 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockMLlamaDataset(
-            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length
+            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.decoder_seq_length
         )
         self._validation_ds = _MockMLlamaDataset(
-            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
+            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.decoder_seq_length
         )
         self._test_ds = _MockMLlamaDataset(
-            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length
+            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.decoder_seq_length
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:

@@ -852,6 +852,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         micro_batch_size (Optional[int]): Size of each micro-batch.
         seq_length (Optional[int]): Sequence length for the current step.
         num_microbatches (Optional[int]): Number of micro-batches in this step.
+        decoder_seq_length (Optional[int]): Sequence length of decoder (used only in encoder-decoder style models) for the current step.
 
     Type Parameters:
         ModelT: The type of the model being used.
@@ -865,6 +866,7 @@ class MegatronStep(Generic[ModelT, DataT]):
     micro_batch_size: Optional[int] = None
     seq_length: Optional[int] = None
     num_microbatches: Optional[int] = None
+    decoder_seq_length: Optional[int] = None
 
     @classmethod
     def infer(
@@ -937,6 +939,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             seq_length=self.seq_length,
             micro_batch_size=self.micro_batch_size,
             forward_only=self.forward_only,
+            decoder_seq_length=self.decoder_seq_length,
         )
 
     def to_data_iterator_list(
