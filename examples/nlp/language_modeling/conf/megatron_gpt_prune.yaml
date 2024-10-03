@@ -30,7 +30,6 @@ model:
   activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
 
 prune:
-  decoder_type: ${export.decoder_type} # gptnext, gpt2, llama
   calib_dataset: cnn_dailymail # wikitext, cnn_dailymail, or a local dataset
   num_calib_size: 512 # number of samples used for calibration
   ffn_hidden_size: 3584 # ffn_hidden_size in the pruned model, ffn_hidden_size // 4
