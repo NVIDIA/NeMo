@@ -23,7 +23,6 @@ from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.plugins.precision import Precision
 from lightning_fabric.strategies import DDPStrategy
 from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
-from lightning_fabric.utilities.imports import _TORCH_GREATER_EQUAL_2_1
 from lightning_fabric.utilities.types import _PATH, _Stateful
 from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.loops.fetchers import _DataFetcher
@@ -208,7 +207,7 @@ class FabricMegatronStrategy(DDPStrategy):
         precision_init_ctx = self.precision.module_init_context()
         module_sharded_ctx = self.megatron_context()
         stack = ExitStack()
-        if _TORCH_GREATER_EQUAL_2_1 and empty_init:
+        if empty_init:
             # Materialization happens in `setup`. When modules get wrapped by FSDP, the sequence of operations is:
             # 1) materialize module 2) call `reset_parameters()` 3) shard the module.
             # These operations are applied to each submodule 'bottom up' in the module hierarchy.
@@ -296,55 +295,14 @@ class FabricMegatronStrategy(DDPStrategy):
     def load_module_state_dict(
         self, module: Module, state_dict: Dict[str, Union[Any, Tensor]], strict: bool = True
     ) -> None:
-        from megatron.core import parallel_state
-
-        for index, p_module in enumerate(module):
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                if "state_dict" in state_dict:
-                    checkpoint_state_dict = state_dict["state_dict"][f"model_{index}"]
-                else:
-                    checkpoint_state_dict = state_dict[f"model_{index}"]
-            else:
-                if "state_dict" in state_dict:
-                    checkpoint_state_dict = state_dict["state_dict"]
-                else:
-                    checkpoint_state_dict = state_dict
-
-            mcore_model = p_module.module
-            while hasattr(mcore_model, "module"):
-                mcore_model = mcore_model.module
-
-            current = module[0]
-            n_nesting = 0
-            while current != mcore_model:
-                current = current.module
-                n_nesting += 1
-
-            _state_dict = {}
-            for key, value in checkpoint_state_dict.items():
-                # Count the number of "module." at the start of the key
-                count, _key = 0, key
-                while _key.startswith("module."):
-                    _key = _key[len("module.") :]
-                    count += 1
-
-                # Adjust the number of "module." prefixes
-                if count < n_nesting:
-                    to_add = "module." * (n_nesting - count)
-                    _state_dict[f"{to_add}{key}"] = value
-                elif count > n_nesting:
-                    to_remove = "module." * (count - n_nesting)
-                    _state_dict[key[len(to_remove) :]] = value
-            checkpoint_state_dict = _state_dict
-
-            p_module.load_state_dict(checkpoint_state_dict, strict=strict)
+        _strategy_lib.load_model_state_dict(module, state_dict, strict=strict)
 
     @contextmanager
     def megatron_context(self) -> Generator[None, None, None]:
         def monkey_patched(config):
             return {"device": "meta"}
 
-        from megatron.core.transformer.custom_layers import transformer_engine as _te
+        from megatron.core.extensions import transformer_engine as _te
 
         original = _te._get_extra_te_kwargs  # noqa: SLF001
         _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
@@ -368,9 +326,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     def parallelism(self):
-        from megatron.core.model_parallel_config import ModelParallelConfig
+        from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
 
-        return ModelParallelConfig(
+        return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,

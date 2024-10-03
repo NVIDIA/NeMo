@@ -25,6 +25,7 @@ import json
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
+from pathlib import Path
 
 import torch
 import torch.nn
@@ -54,12 +55,14 @@ def get_args():
         help="Path to Huggingface Mistral-7b checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--precision", type=str, default="bf16", help="Model precision")
+    parser.add_argument('--low-ram', '--low-mem', action='store_true', dest='low_ram')
+    parser.add_argument('--tmp-dir', default='/tmp/mistral_ckpt_parts/')
     args = parser.parse_args()
     return args
 
 
-def load_model(cls, checkpoint, strict, **kwargs):
+def restore_model_from_checkpoint(cls, checkpoint, strict, **kwargs):
     try:
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
@@ -67,7 +70,8 @@ def load_model(cls, checkpoint, strict, **kwargs):
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
                 if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
+                    # cast to target precision and
+                    module.data = checkpoint['state_dict'][name].to(dtype=module.data.dtype)
                     checkpoint['state_dict'].pop(name)
                 else:
                     print(f"Unexpected key: {name} not in checkpoint but in model.")
@@ -84,6 +88,9 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
             # register the artifacts
             cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
+            # assert os.path.exists(
+            #     cfg.tokenizer.model
+            # ), f"Expected cfg.tokenizer.model {cfg.tokenizer.model} to be present"
             if cfg.tokenizer.model is not None:
                 model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
             if cfg.tokenizer.vocab_file is not None:
@@ -95,18 +102,22 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(mistral_config, tokenizer_path):
+def load_config(mistral_config, tokenizer, config_path):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
     # akoumparouli: verify this.
-    nemo_config.encoder_seq_length = mistral_config['sliding_window']
+    if mistral_config.get('sliding_window', None) is not None:
+        nemo_config.encoder_seq_length = mistral_config['sliding_window']
+    else:
+        nemo_config.encoder_seq_length = mistral_config['max_position_embeddings']
     nemo_config.num_layers = int(mistral_config['num_hidden_layers'])
     nemo_config.hidden_size = mistral_config['hidden_size']
     nemo_config.ffn_hidden_size = mistral_config['intermediate_size']
     nemo_config.num_attention_heads = mistral_config['num_attention_heads']
     nemo_config.max_position_embeddings = mistral_config['max_position_embeddings']
-    nemo_config.window_size = [mistral_config['sliding_window'], 0]
+    if mistral_config.get('sliding_window', None) is not None:
+        nemo_config.window_size = [mistral_config['sliding_window'], 0]
     nemo_config.init_method_std = mistral_config['initializer_range']
     # RMSNorm's epsilon.
     nemo_config.layernorm_epsilon = mistral_config['rms_norm_eps']
@@ -118,7 +129,42 @@ def load_config(mistral_config, tokenizer_path):
     # Mistral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'
 
-    nemo_config.tokenizer.model = tokenizer_path
+    # Tokenizer config
+    if hasattr(tokenizer, 'vocab_file'):
+        nemo_config.tokenizer.model = tokenizer.vocab_file
+    elif os.path.exists(os.path.join(config_path, 'tekken.json')):
+        # Load tekken.json, extract the 'vocab' field & write it to file.
+        vocab_path = os.path.join(config_path, 'tekken.json')
+        assert os.path.exists(vocab_path), f"Expected {vocab_path} to exist"
+        with open(vocab_path, 'rt') as fp:
+            tok_vocab = json.load(fp)
+        vocab_output_path = '/tmp/tekken.json'
+        if os.path.exists(vocab_output_path):
+            os.remove(vocab_output_path)
+        with open(vocab_output_path, 'wt') as fp:
+            json.dump(tok_vocab['vocab'], fp)
+        assert os.path.exists(vocab_output_path), f"Expected {vocab_output_path} to exist"
+        assert os.path.getsize(vocab_output_path) > 0, f"Expected {vocab_output_path} to be non-empty"
+
+        tokenizer_dict = {
+            'library': 'tiktoken',
+            'type': 'tiktoken',
+            'vocab_file': vocab_output_path,
+            'model': None,
+            'merge_file': None,
+            'delimiter': None,
+            'sentencepiece_legacy': False,
+        }
+        nemo_config.tokenizer = tokenizer_dict
+    else:
+        # Otherwise use HF
+        tokenizer_dict = {
+            'library': 'huggingface',
+            'type': args.input_name_or_path,
+            'use_fast': True,
+        }
+        nemo_config.tokenizer = tokenizer_dict
+
     # TODO(@akoumparouli): rope_scaling.
     nemo_config['rotary_base'] = mistral_config['rope_theta']
 
@@ -130,44 +176,69 @@ def load_config(mistral_config, tokenizer_path):
     return nemo_config
 
 
-def load_mistral_ckpt(in_dir):
+class LazyStateDict:
+    def __init__(self, ckpt_index, root):
+        self.map = ckpt_index
+        self.root = root
+
+    def __getitem__(self, key):
+        from safetensors import safe_open
+
+        assert key in self.map, f'Got unknown key: {key}'
+        ckpt_part_path = os.path.join(self.root, self.map[key])
+        assert os.path.exists(ckpt_part_path), f'Expected ckpt-part to exist {ckpt_part_path}'
+        with safe_open(ckpt_part_path, framework="pt", device="cpu") as fp:
+            return fp.get_tensor(key)
+
+
+def load_mistral_ckpt(in_dir, load_model=True):
     params_file = os.path.join(in_dir, 'config.json')
     assert os.path.exists(params_file)
     with open(params_file, 'r') as fp:
         model_args = json.load(fp)
 
-    model = AutoModelForCausalLM.from_pretrained(in_dir)
-    ckpt = model.state_dict()
+    ckpt = None
+    if load_model:
+        # If it's in safetensors format, then use lazyloading
+        ckpt_parts_map_path = os.path.join(in_dir, 'model.safetensors.index.json')
+        if os.path.exists(ckpt_parts_map_path):
+            ckpt_parts_map = {}
+            with open(ckpt_parts_map_path, 'rt') as fp:
+                ckpt_parts_map = json.load(fp)
+            print('ckpt_parts_map= ', ckpt_parts_map)
+            ckpt = LazyStateDict(ckpt_parts_map['weight_map'], in_dir)
+        else:
+            model = AutoModelForCausalLM.from_pretrained(in_dir)
+            ckpt = model.state_dict()
 
     tokenizer = AutoTokenizer.from_pretrained(in_dir)
     assert tokenizer.vocab_size == model_args['vocab_size']
     return model_args, ckpt, tokenizer
 
 
-def convert(args):
-    logging.info(f"loading checkpoint {args.input_name_or_path}")
-
-    model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path)
-    nemo_config = load_config(model_args, os.path.join(args.input_name_or_path, 'tokenizer.model'))
-    logging.info(f"loaded checkpoint {args.input_name_or_path}")
-
-    if args.precision in ["32", "16"]:
-        precision = int(float(args.precision))
-    elif args.precision in ["bf16", "bf16-mixed"]:
+def parse_precision(precision):
+    if precision in ["32", "16"]:
+        return int(float(precision))
+    elif precision in ["bf16", "bf16-mixed"]:
         if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
-            precision = args.precision
+            return precision
         else:
             logging.warning("BF16 is not supported on this device. Using FP16 instead.")
-            precision = args.precision[2:]  # prune bf in string
+            return precision[2:]  # prune bf in string
     else:
-        precision = args.precision
+        return precision
 
+
+def make_trainer(args, nemo_config):
+    model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path, load_model=False)
+    nemo_config = load_config(model_args, tokenizer, args.input_name_or_path)
+    precision = parse_precision(args.precision)
     plugins = []
     if precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )
@@ -191,13 +262,24 @@ def convert(args):
         dtype = torch.float32  # fallback
 
     nemo_config.precision = precision
-    logging.info(f"nemo_config: {nemo_config}")
+    print(f"nemo_config: {nemo_config}")
 
     trainer = Trainer(plugins=plugins, accelerator='cpu', strategy=NLPDDPStrategy())
+    return trainer, dtype
+
+
+def convert(args):
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
+
+    model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path)
+    nemo_config = load_config(model_args, tokenizer, args.input_name_or_path)
+    logging.info(f"loaded checkpoint {args.input_name_or_path}")
 
     hidden_size = nemo_config.hidden_size
     head_num = nemo_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = model_args.get('head_dim', hidden_size // head_num)
+    # Set this explictly because 2407 does not use hidden_size // num_attention_heads
+    nemo_config.kv_channels = head_size
     num_layers = nemo_config.num_layers
 
     mcore_gpt = nemo_config.mcore_gpt
@@ -225,6 +307,10 @@ def convert(args):
         assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
     if mcore_gpt:
         assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
+
+    yield checkpoint
+    checkpoint = OrderedDict()
+    checkpoint['state_dict'] = OrderedDict()
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
@@ -298,6 +384,9 @@ def convert(args):
         checkpoint['state_dict'][post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
 
         print(f"done layer {l}")
+        yield checkpoint
+        checkpoint = OrderedDict()
+        checkpoint['state_dict'] = OrderedDict()
 
     final_ln_weight = ckpt[f'model.norm.weight']
     if mcore_gpt:
@@ -314,20 +403,72 @@ def convert(args):
     checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
+    yield checkpoint
     del ckpt
+
+
+def merge(a: dict, b: dict, path=[]):
+    is_dict = lambda x: isinstance(x, OrderedDict) or isinstance(x, dict)
+    for key in b:
+        if key in a:
+            if is_dict(a[key]) and is_dict(b[key]):
+                merge(a[key], b[key], path + [str(key)])
+            elif a[key] != b[key]:
+                raise Exception('Value conflict: ' + '.'.join(path + [str(key)]))
+        else:
+            a[key] = b[key]
+    return a
+
+
+def save_to_nemo(args, checkpoint):
+
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
+    model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path, load_model=False)
+    nemo_config = load_config(model_args, tokenizer, args.input_name_or_path)
+
+    nemo_config.precision = parse_precision(args.precision)
+    nemo_config.megatron_amp_O2 = True
+
+    hidden_size = nemo_config.hidden_size
+    head_num = nemo_config.num_attention_heads
+    head_size = model_args.get('head_dim', hidden_size // head_num)
+    # Set this explictly because 2407 does not use hidden_size // num_attention_heads
+    nemo_config.kv_channels = head_size
+
+    trainer, dtype = make_trainer(args, nemo_config)
+
+    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
+    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY].use_cpu_initialization = True
+    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY].perform_initialization = False
 
     if nemo_config.get('megatron_amp_O2', False):
         keys = list(checkpoint['state_dict'].keys())
         for key in keys:
             checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
 
-    model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
+    model = restore_model_from_checkpoint(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
-    # cast to target precision and disable cpu init
-    model = model.to(dtype=dtype)
+    # disable cpu init
     model.cfg.use_cpu_initialization = False
+    model.cfg.perform_initialization = True
+    if getattr(tokenizer, 'chat_template', None) is not None:
+        import hashlib
+
+        template_hash = hashlib.md5(tokenizer.chat_template.encode('utf-8')).hexdigest()
+        if template_hash != "0b629f783db54e02509999196956ff40":
+            logging.warning("Got unkown chat template")
+        else:
+            from omegaconf import OmegaConf, open_dict
+
+            with open_dict(model.cfg):
+                model.cfg.tokenizer.chat_template = OmegaConf.create(
+                    {
+                        'prefix': "{_bos_}",
+                        'roles': {'User': "[INST] {_content_} [/INST]", 'Assistant': "{_content_}{_eos_}"},
+                    }
+                )
 
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
@@ -335,4 +476,20 @@ def convert(args):
 
 if __name__ == '__main__':
     args = get_args()
-    convert(args)
+    if args.low_ram:
+        os.makedirs(args.tmp_dir, exist_ok=True)
+
+    checkpoint = OrderedDict()
+    for i, ckpt_part in enumerate(convert(args)):
+        if args.low_ram:
+            torch.save(ckpt_part, f'{args.tmp_dir}/nemo_ckpt_part_{i}.pth')
+        else:
+            checkpoint = merge(checkpoint, ckpt_part)
+
+    if args.low_ram:
+        print("Loading partial checkpoints")
+        for path in map(str, Path(args.tmp_dir).rglob("*.pth")):
+            print(f"Loading checkpoint: {path}")
+            checkpoint = merge(checkpoint, torch.load(path, mmap=True))
+
+    save_to_nemo(args, checkpoint)

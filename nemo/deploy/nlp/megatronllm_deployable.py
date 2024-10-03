@@ -15,6 +15,7 @@
 import logging
 from enum import IntEnum, auto
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import torch
@@ -31,6 +32,16 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
+
+try:
+    from megatron.core.dist_checkpointing.validation import StrictHandling
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError) as e:
+
+    HAVE_MEGATRON_CORE = False
+    IMPORT_ERROR = e
 
 
 @wrapt.decorator
@@ -98,6 +109,8 @@ class MegatronLLMDeployable(ITritonDeployable):
         num_nodes: int = 1,
         existing_model: MegatronGPTModel = None,
     ):
+        if not HAVE_MEGATRON_CORE:
+            raise IMPORT_ERROR
         if nemo_checkpoint_filepath is None and existing_model is None:
             raise ValueError(
                 "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None"
@@ -129,12 +142,26 @@ class MegatronLLMDeployable(ITritonDeployable):
                 nemo_checkpoint_filepath, trainer=trainer, return_config=True
             )
             # transformer_engine should always be true according to EricH, but GPT-2B model will fail if it is enabled
+            if not custom_config.transformer_engine:
+                LOGGER.warning(
+                    "MegatronLLMDeployable expects model config transformer_engine=True, but this model has it =False. "
+                    "Overriding it to =True, but this may break certain checkpoints converted on older Nemo versions. "
+                    "If your model breaks, please try re-converting the checkpoint on the current Nemo version."
+                )
             custom_config.transformer_engine = True
             # using multi-gpu for tensor parallelism directly for now, could do pipeline parallel instead or a combination
             custom_config.tensor_model_parallel_size = num_devices
             # had to override these to make Nemotron3-22B work, see sample_sequence_batch() in text_generation_utils.py
             custom_config.activations_checkpoint_granularity = None
             custom_config.activations_checkpoint_method = None
+            # Models trained with TE < 1.10 and loaded with TE >= 1.10 require
+            # special handling on loading checkpoint due to structural updates
+            custom_config.dist_ckpt_load_strictness = StrictHandling.LOG_ALL.value
+            if custom_config.get("fp8", False):
+                # Need to disable FP8 for in-framework inference due to shape constraints imposed by TE,
+                # see https://github.com/NVIDIA/TransformerEngine/blob/v1.10/transformer_engine/pytorch/utils.py#L229
+                LOGGER.warning("Disabling FP8 inference due to shape constraints imposed by Transformer Engine.")
+                custom_config.fp8 = False
 
             self.model = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, override_config_path=custom_config
@@ -233,9 +260,7 @@ class MegatronLLMDeployable(ITritonDeployable):
                 length_params[length_param_field] = inputs.pop(length_param_field)[0][0]
         return length_params
 
-    @batch
-    def triton_infer_fn(self, **inputs: np.ndarray):
-        """Triton server inference function that actually runs the model"""
+    def generate(self, inputs: List[str], length_params: LengthParam, sampling_params: SamplingParam):
         if torch.distributed.is_initialized():
             distributed_rank = torch.distributed.get_rank()
             if distributed_rank != 0:
@@ -245,13 +270,16 @@ class MegatronLLMDeployable(ITritonDeployable):
             signal_value = ServerSync.SIGNAL.to_long_tensor()
             torch.distributed.broadcast(signal_value, 0)
 
+        return self.model.generate(inputs=inputs, length_params=length_params, sampling_params=sampling_params)
+
+    @batch
+    def triton_infer_fn(self, **inputs: np.ndarray):
+        """Triton server inference function that actually runs the model"""
         input_strings = str_ndarray2list(inputs.pop("prompts"))
         sampling_params = self._sampling_params_from_triton_inputs(**inputs)
         length_params = self._length_params_from_triton_inputs(**inputs)
 
-        model_output = self.model.generate(
-            inputs=input_strings, length_params=length_params, sampling_params=sampling_params
-        )
+        model_output = self.generate(input_strings, length_params, sampling_params)
         '''
             model_output['sentences'] will be a list of strings (one per prompt)
             other fields will either be a list of lists (tokens, for example)

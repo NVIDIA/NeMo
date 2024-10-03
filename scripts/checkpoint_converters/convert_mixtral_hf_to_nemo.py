@@ -17,7 +17,8 @@ Conversion script to convert Huggingface Mixtral checkpoints into NeMo checkpoin
   Example to run this conversion script:
     python3 convert_mixtral_hf_to_nemo.py \
      --input_name_or_path <path_to_mixtral_checkpoints_folder> \
-     --output_path <path_to_output_nemo_file> 
+     --output_path <path_to_output_nemo_file> \
+     --precision=bf16
 """
 
 import json
@@ -50,11 +51,17 @@ torch.set_grad_enabled(False)
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface Mixtral checkpoints",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface Mixtral checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
-    valid_precision_values = [16, '16', 'bf16', '16-mixed', 'bf16-mixed', 32, '32']
-    parser.add_argument("--precision", type=str, default="32", choices=valid_precision_values, help="Model precision")
+    valid_precision_values = [16, '16', 'bf16', '16-mixed', 'bf16-mixed']
+    parser.add_argument(
+        "--precision", type=str, default="bf16", choices=valid_precision_values, help="Model precision"
+    )
     parser.add_argument('--low-ram', action='store_true')
     parser.add_argument('--tmp-dir', default='/tmp/mixtral_ckpt_parts/')
     args = parser.parse_args()
@@ -126,6 +133,7 @@ def load_config(mixtral_config, tokenizer_path):
     assert nemo_config.num_moe_experts > 0, "num_experts must be greater than zero."
     nemo_config.moe_router_topk = int(mixtral_config['num_experts_per_tok'])
     assert nemo_config.moe_router_topk > 0, "moe_router_topk must be greater than zero."
+    nemo_config.moe_router_pre_softmax = True
     nemo_config.use_cpu_initialization = True
     # Mixtral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'
@@ -185,7 +193,7 @@ def make_trainer(args, nemo_config):
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )

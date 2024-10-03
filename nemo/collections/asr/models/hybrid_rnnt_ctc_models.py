@@ -157,7 +157,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         super()._transcribe_on_end(trcfg)
 
         if hasattr(self, 'ctc_decoder'):
-            self.ctc_decoder.unfreeze()
+            self.ctc_decoder.unfreeze(partial=True)
 
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
         if self.cur_decoder == "rnnt":
@@ -667,4 +667,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             List of available pre-trained models.
         """
         results = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="parakeet-tdt_ctc-110m",
+            description="For details on this model, please refer to https://ngc.nvidia.com/catalog/models/nvidia:nemo:parakeet-tdt_ctc-110m",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/parakeet-tdt_ctc-110m/versions/v1/files/parakeet-tdt_ctc-110m.nemo",
+        )
+        results.append(model)
         return results

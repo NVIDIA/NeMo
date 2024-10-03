@@ -230,6 +230,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=self.tokenizer,
                 ),
+                tokenizer=self.tokenizer,
             )
 
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
@@ -633,4 +634,4 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         super()._transcribe_on_end(trcfg)
 
         # Unfreeze the encoder and decoder modules
-        self.transf_decoder.unfreeze()
+        self.transf_decoder.unfreeze(partial=True)

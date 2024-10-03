@@ -1,3 +1,18 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import inspect
 from typing import Callable, List, Optional
 
 import pytorch_lightning as pl
@@ -54,7 +69,7 @@ class MegatronOptimizerModule(OptimizerModule):
         self.scale_lr_cond = scale_lr_cond
         self.lr_mult = lr_mult
 
-    def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str):
+    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"):
         """We will add the finalize_model_grads function to the model config.
 
         Args:
@@ -90,12 +105,14 @@ class MegatronOptimizerModule(OptimizerModule):
                 model_sharded_state_dict,
                 optimizer_state_dict=None,
                 is_loading=False,
-                # dist_ckpt_parallel_save=False, ## TODO: fix!
+                sharding_type='fully_sharded_model_space',
             ):
-                # sharding_type = 'fully_sharded_model_space' if dist_ckpt_parallel_save else 'dp_zero_gather_scatter'
-                sharding_type = 'dp_zero_gather_scatter'
+                mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
+                distrib_optim_kwargs = {}
+                if "sharding_type" in mcore_optimizer_sig:
+                    distrib_optim_kwargs["sharding_type"] = sharding_type
                 state_dict = self.mcore_optimizer.sharded_state_dict(
-                    model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
+                    model_sharded_state_dict, is_loading=is_loading, **distrib_optim_kwargs
                 )
                 return state_dict
 
@@ -106,6 +123,14 @@ class MegatronOptimizerModule(OptimizerModule):
             scale_lr_cond=self.scale_lr_cond,
             lr_mult=self.lr_mult,
         )
+
+        if getattr(model.ddp_config, "overlap_param_sync", False) and getattr(
+            model.ddp_config, "align_param_gather", False
+        ):
+            param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
+            param_sync_func = param_sync_func[0] if len(model) == 1 else param_sync_func
+            for module in model:
+                module.config.param_sync_func = param_sync_func
 
         return [McoreOpt(mcore_opt)]
 

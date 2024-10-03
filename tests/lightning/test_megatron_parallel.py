@@ -1,4 +1,19 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from collections import defaultdict
+from unittest.mock import MagicMock
 
 import pytest
 from megatron.core import parallel_state
@@ -123,13 +138,14 @@ class TestCallbackConnector:
         assert callback in callback_connector.callbacks["on_megatron_step_start"]
         assert callback in callback_connector.callbacks["on_megatron_microbatch_start"]
 
-    def test_event(self, mocker) -> None:
+    def test_event(self) -> None:
         callback_connector = mp.CallbackConnector()
         callback = TestCallback()
         callback_connector.add(callback)
 
-        mocker.spy(callback, "on_megatron_step_start")
-        mocker.spy(callback, "on_megatron_microbatch_start")
+        # Replace mocker.spy with manual mocking
+        callback.on_megatron_step_start = MagicMock()
+        callback.on_megatron_microbatch_start = MagicMock()
 
         callback_connector.event("on_megatron_step_start")
         callback_connector.event("on_megatron_microbatch_start")

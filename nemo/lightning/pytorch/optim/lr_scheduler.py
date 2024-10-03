@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Optional
 
 from nemo.core.optim.lr_scheduler import (
@@ -25,7 +39,7 @@ class WarmupPolicyScheduler(LRSchedulerModule):
         warmup_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -48,9 +62,11 @@ class WarmupPolicyScheduler(LRSchedulerModule):
         )
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -66,7 +82,7 @@ class WarmupHoldPolicyScheduler(LRSchedulerModule):
         hold_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -93,9 +109,11 @@ class WarmupHoldPolicyScheduler(LRSchedulerModule):
         )
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -107,7 +125,7 @@ class SquareAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 1e-5,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -122,9 +140,11 @@ class SquareAnnealingScheduler(LRSchedulerModule):
         lr_scheduler = SquareAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -136,7 +156,7 @@ class SquareRootAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -151,9 +171,11 @@ class SquareRootAnnealingScheduler(LRSchedulerModule):
         lr_scheduler = SquareRootAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -168,7 +190,7 @@ class NoamAnnealingScheduler(LRSchedulerModule):
         warmup_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -193,9 +215,11 @@ class NoamAnnealingScheduler(LRSchedulerModule):
         )
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -208,7 +232,7 @@ class NoamHoldAnnealingScheduler(LRSchedulerModule):
         max_steps: int = 10,
         decay_rate: float = 0.5,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -226,9 +250,11 @@ class NoamHoldAnnealingScheduler(LRSchedulerModule):
         )
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -238,13 +264,17 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
 
     def __init__(
         self,
+        warmup_steps: int = 750,
+        warmup_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
         super().__init__()
+        self.warmup_steps = warmup_steps
+        self.warmup_ratio = warmup_ratio
         self.max_steps = max_steps
         self.min_lr = min_lr
         self.interval = interval
@@ -252,12 +282,20 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, model, optimizer):
-        lr_scheduler = WarmupAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = WarmupAnnealing(
+            optimizer,
+            warmup_steps=self.warmup_steps,
+            warmup_ratio=self.warmup_ratio,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+        )
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -269,7 +307,7 @@ class InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -284,9 +322,11 @@ class InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         lr_scheduler = InverseSquareRootAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -298,7 +338,7 @@ class T5InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         self,
         max_steps: int = 10,
         min_lr: float = 0.0,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -313,9 +353,11 @@ class T5InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         lr_scheduler = T5InverseSquareRootAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -329,7 +371,7 @@ class PolynomialDecayAnnealingScheduler(LRSchedulerModule):
         min_lr: float = 0.0,
         power: float = 1.0,
         cycle: bool = False,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -348,9 +390,11 @@ class PolynomialDecayAnnealingScheduler(LRSchedulerModule):
         )
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -364,7 +408,7 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
         min_lr: float = 0.0,
         power: float = 1.0,
         cycle: bool = False,
-        interval: str = "epoch",
+        interval: str = "step",
         frequency: int = 1,
         monitor: str = "val_loss",
     ):
@@ -383,9 +427,11 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
         )
         return {
             "optimizer": optimizer,
-            "scheduler": lr_scheduler,
-            "interval": self.interval,
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }
 
@@ -393,13 +439,13 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
 class CosineAnnealingScheduler(LRSchedulerModule):
     def __init__(
         self,
-        max_steps=10,
-        warmup_steps=750,
-        constant_steps=80000,
-        min_lr=int(6e-5),
-        interval="epoch",
-        frequency=1,
-        monitor="val_loss",
+        max_steps: int = 10,
+        warmup_steps: int = 750,
+        constant_steps: int = 80000,
+        min_lr: float = 6e-5,
+        interval: str = "step",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -423,16 +469,18 @@ class CosineAnnealingScheduler(LRSchedulerModule):
 
         return {
             "optimizer": optimizer,
-            # REQUIRED: The scheduler instance
-            "scheduler": lr_scheduler,
-            # The unit of the scheduler's step size, could also be 'step'.
-            # 'epoch' updates the scheduler on epoch end whereas 'step'
-            # updates it after a optimizer update.
-            "interval": self.interval,
-            # How many epochs/steps should pass between calls to
-            # `scheduler.step()`. 1 corresponds to updating the learning
-            # rate after every epoch/step.
-            "frequency": self.frequency,
+            "lr_scheduler": {
+                # REQUIRED: The scheduler instance
+                "scheduler": lr_scheduler,
+                # The unit of the scheduler's step size, could also be 'step'.
+                # 'epoch' updates the scheduler on epoch end whereas 'step'
+                # updates it after a optimizer update.
+                "interval": self.interval,
+                # How many epochs/steps should pass between calls to
+                # `scheduler.step()`. 1 corresponds to updating the learning
+                # rate after every epoch/step.
+                "frequency": self.frequency,
+            },
             # Metric to to monitor for schedulers like `ReduceLROnPlateau`
             "monitor": self.monitor,
         }
