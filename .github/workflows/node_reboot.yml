@@ -84,7 +84,6 @@ jobs:
           
           apt-get install -y nvidia-docker2
           systemctl restart docker
-          DOF
           EOF
 
       - name: Check nvidia-smi
