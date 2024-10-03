@@ -49,6 +49,18 @@ try:
         ],
     )
     __all__.append("AutoTokenizer")
+    
+    
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer as HFTokenizer
+    
+    track_io(
+        HFTokenizer,
+        artifacts=[
+            FileArtifact("vocab_file", required=False),
+            FileArtifact("merges_file", required=False),
+            DirOrStringArtifact("pretrained_model_name", required=False),
+        ],
+    )
 except ImportError:
     pass
 
