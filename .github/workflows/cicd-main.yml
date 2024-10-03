@@ -5540,7 +5540,27 @@ jobs:
           curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK
 
       - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          PR_NUMBER: ${{ github.event.number }}
+          SERVER_URL: ${{ github.server_url }}
         run: |
+          # Since this workflow contains more than 100 jobs, we need to iterate over job pages
+          JOBS='[]'
+          PAGE=1
+          while : ; do
+            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
+            RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
+            JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
+            if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
+              break
+            else
+              PAGE=$(( PAGE + 1))
+            fi
+          done
+          
           echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
           while IFS= read -r JOB; do
             JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
