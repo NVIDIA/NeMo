@@ -739,32 +739,33 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         return optimizer_state_dict
 
+
 def load_state_dict(self, state_dict):
-        """
-        There is currently a difference between Apex FusedAdam and Apex DistributedFusedAdam's state_dict.
-        This function adjusts the state_dict to be compatible with DistributedFusedAdam.
-        """
-        adjust_state_dict = False
+    """
+    There is currently a difference between Apex FusedAdam and Apex DistributedFusedAdam's state_dict.
+    This function adjusts the state_dict to be compatible with DistributedFusedAdam.
+    """
+    adjust_state_dict = False
 
-        for i, group in enumerate(state_dict['param_groups']):
-            if list(group.keys()) == ['params']:
-                adjust_state_dict = True
-                break
+    for i, group in enumerate(state_dict['param_groups']):
+        if list(group.keys()) == ['params']:
+            adjust_state_dict = True
+            break
 
-        if adjust_state_dict:
-            optimizer_param_groups = state_dict["optimizer"]["param_groups"]
-            param_groups = state_dict.get("param_groups", [])
-            for group, optimizer_group in zip(param_groups, optimizer_param_groups):
-                group.update(optimizer_group)
-            #Update state_dict's param group to be compatible with Apex's distributed fused adam
-            state_dict["param_groups"] = param_groups
+    if adjust_state_dict:
+        optimizer_param_groups = state_dict["optimizer"]["param_groups"]
+        param_groups = state_dict.get("param_groups", [])
+        for group, optimizer_group in zip(param_groups, optimizer_param_groups):
+            group.update(optimizer_group)
+        # Update state_dict's param group to be compatible with Apex's distributed fused adam
+        state_dict["param_groups"] = param_groups
 
-            #Add step to state.step to be compatible with Apex's distributed fused adam
-            state_dict["state"]["step"] = state_dict["optimizer"]["param_groups"][0]['step']
+        # Add step to state.step to be compatible with Apex's distributed fused adam
+        state_dict["state"]["step"] = state_dict["optimizer"]["param_groups"][0]['step']
 
-            state_dict = {
-                "state": state_dict['state'],
-                "param_groups": state_dict["param_groups"],
-                    }
-            
-        super().load_state_dict(state_dict)
+        state_dict = {
+            "state": state_dict['state'],
+            "param_groups": state_dict["param_groups"],
+        }
+
+    super().load_state_dict(state_dict)
