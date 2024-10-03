@@ -115,7 +115,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": ":alert: VM bot 🤖: Hey <@${{ secrets.SLACK_WEBHOOK_ADMIN }}>: Some VMs are having not a great day, maybe bring them an apple or so."
+                  "text": ":alert: VM bot 🤖: Hey <@${{ secrets.SLACK_WEBHOOK_ADMIN }}>: Some VMs are having not the best day of their life, maybe bring them an apple or so."
                 }
               }
             ]
