@@ -531,7 +531,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             output (torch.Tensor): Loss of shape [b, s] if labels are provided, otherwise logits of shape [b, s, vocab_size].
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
-        
+
         use_inference_kv_cache = (
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
@@ -651,7 +651,6 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         labels: Optional[torch.Tensor] = None,
         inference_params: InferenceParams = None,
         num_media_tiles: Optional[List[int]] = None,
-        
     ) -> torch.Tensor:
         output_tensor = self.module(
             media=media,
@@ -661,7 +660,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             attention_mask=attention_mask,
             labels=labels,
             inference_params=inference_params,
-            num_media_tiles = num_media_tiles
+            num_media_tiles=num_media_tiles,
         )
 
         return output_tensor

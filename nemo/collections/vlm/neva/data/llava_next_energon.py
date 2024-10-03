@@ -1,24 +1,17 @@
 import re
 from abc import ABC, abstractmethod
-from dataclasses import field
+from dataclasses import dataclass, field
+from typing import Dict, List, Tuple
+
 import torch
 from einops import rearrange
-from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
-from typing import Dict, List, Tuple
-from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
-from nemo.utils import logging
-from nemo.collections.multimodal.data.energon.sample_encoder import VQASampleEncoder
-from typing import Dict, List
+from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample, batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
+
+from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch
-from dataclasses import dataclass, field
-from megatron.energon import (
-    VQASample,
-    batch_list,
-    batch_pad_stack,
-)
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
+from nemo.utils import logging
 
 
 class LlavaNextTextSample(ImageTextSample):
@@ -95,7 +88,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         batch_labels = pad_sequence(labels, batch_first=True)
 
         batch_loss_mask = batch_pad_stack(loss_mask)
-        batch_num_media_tiles = torch.tensor(batch_list(num_media_tiles),dtype=torch.int)
+        batch_num_media_tiles = torch.tensor(batch_list(num_media_tiles), dtype=torch.int)
         return LlavaNextTextRawBatch(
             __keys__=batch_keys,
             images=batch_images,
