@@ -110,7 +110,7 @@ def trainer(
         gradient_as_bucket_view=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
-        ddp=Config(
+        ddp=run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,

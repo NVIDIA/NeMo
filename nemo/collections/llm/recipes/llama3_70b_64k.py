@@ -18,6 +18,7 @@ from typing import Optional
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
+from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
