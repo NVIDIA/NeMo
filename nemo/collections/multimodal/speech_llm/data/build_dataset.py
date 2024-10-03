@@ -57,6 +57,7 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
         tp = PromptFormatterTextProcessing(
             model_instance.tokenizer,
             prompt_format=data_cfg.get("prompt_format", "plain"),
+            # TODO: remove this and only keep audio_locator_tag flag in input_cfg
             audio_locator=data_cfg.get("audio_locator"),
             max_seq_length=data_cfg.get("max_seq_length", 8192),
         )

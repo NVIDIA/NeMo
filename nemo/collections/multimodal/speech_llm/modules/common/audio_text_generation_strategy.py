@@ -54,7 +54,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         # Move to GPU.
         if audio_locator_ids is not None:
             encoder_input, encoder_length, labels, loss_mask, attention_mask, position_ids = (
-                self.model.inject_perception_input(
+                self.model.inject_perception_input_conv(
                     encoded=audio_feats,
                     encoded_len=audio_feat_lens,
                     input_ids=context_tokens,
@@ -78,7 +78,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             self.attention_mask = self.model._create_attention_mask(encoder_input.transpose(0, 1))
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
 
-            return labels, encoder_input, encoder_length
+            return labels, encoder_input, encoder_length - context_lengths
         else:
 
             if num_audios is not None:

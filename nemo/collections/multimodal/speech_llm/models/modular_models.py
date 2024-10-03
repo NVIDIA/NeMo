@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import itertools
 import json
 import os
@@ -563,7 +564,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
         """
-        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_") and k != 'multimodal_conversation'}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
         conv_batch = batch.get("multimodal_conversation", None)
 
@@ -611,7 +612,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         else:
             batch = next(dataloader_iter)
 
-        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_") and k != 'multimodal_conversation'}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
         conv_batch = batch.get("multimodal_conversation", None)
 
@@ -1411,6 +1412,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        if "multimodal_conversation" in batch:
+            batch = batch["multimodal_conversation"]
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
@@ -1529,14 +1532,13 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             # for megatron_gpt_eval.py
             if isinstance(batch, list):
                 inference_config['inputs'] = batch
-            elif 'multimodal_convo_examples' in batch:
-                in_batch = batch['multimodal_convo_examples']
+            elif 'audio_locator_ids' in batch:  # multimodal_convo_examples
                 inference_config['inputs'] = (
-                    in_batch['contexts'].cuda(),
-                    in_batch['context_lengths'].cuda(),
-                    in_batch['audio_signal'].cuda(),
-                    in_batch['audio_signal_length'].cuda(),
-                    in_batch['audio_locator_ids'].cuda(),
+                    batch['contexts'].cuda(),
+                    batch['context_lengths'].cuda(),
+                    batch['audio_signal'].cuda(),
+                    batch['audio_signal_length'].cuda(),
+                    batch['audio_locator_ids'].cuda(),
                 )
             elif 'num_audios' in batch:
                 # peft_eval.py

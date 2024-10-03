@@ -61,7 +61,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         max_seq_length: int,
         context_key: str = "context",
         default_context_key: str = "default_context",
-        audio_locator: str = "[audio]",
     ):
         super().__init__()
         self.text_processor = text_processor
@@ -73,7 +72,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.default_context = default_context
         self.context_key = context_key
         self.default_context_key = default_context_key
-        self.audio_locator_ids = text_processor.tokenizer.text_to_ids(audio_locator)
 
     def __getitem__(self, all_cuts: CutSet) -> dict[str, torch.Tensor | list[str] | dict]:
         ans = {}
@@ -143,7 +141,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     ans.answer_ids = ans.answer_ids[:-truncation_length]
                 else:
                     logging.warning(
-                        f'Input ids length {len(ans.input_ids)} exceed max sequence length {self.max_seq_length} {truncation_length} > {ans(ans.answer_ids)} may cause losing audio context'
+                        f'Input ids length {len(ans.input_ids)} exceed max sequence length {self.max_seq_length} {truncation_length} > {len(ans.answer_ids)} may cause losing audio context'
                     )
                     ans.answer_ids = ans.answer_ids[: -min(truncation_length, len(ans.answer_ids))]
                     ans.context_ids = ans.context_ids[: -min(truncation_length, len(ans.context_ids))]
@@ -168,8 +166,12 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 max_seq_length=self.max_seq_length,
                 pad_id=self.text_processor.pad_id,
             )
-            audio_locator_ids = torch.LongTensor(self.audio_locator_ids)
-            # TODO: check audio dim in multi audio cases
+            audio_locator_tag = [
+                [turn.audio_locator_tag for turn in example.turns if isinstance(turn, AudioTurn)]
+                for example in multimodal_convo_examples
+            ]
+            assert all(i[0] == audio_locator_tag[0][0] for i in audio_locator_tag)
+            audio_locator_ids = torch.LongTensor(self.text_processor.tokenizer.text_to_ids(audio_locator_tag[0][0]))
             ans["multimodal_conversation"] = {
                 "sample_ids": list(cuts.ids),
                 "audio_signal": audio,
@@ -177,7 +179,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 'audio_locator_ids': audio_locator_ids,
             }
             ans["multimodal_conversation"].update(formatted_chats)
-
         return ans
 
 
