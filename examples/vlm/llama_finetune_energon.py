@@ -40,13 +40,18 @@ def get_data_module(data_path, micro_batch_size, global_batch_size):
     Returns:
         tuple: Contains the data module and tokenizer.
     """
+    # encoder (vision) seq length
+    # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
+    seq_length = 6404
+    decoder_seq_length = 512  # decoder (llm) seq length
+
     model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
     processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
     tokenizer = processor.tokenizer
 
     multimodal_sample_config = MultiModalSampleConfig()
-    multimodal_sample_config.conversation_template_config.system = "You are a helpful assistant"
+    multimodal_sample_config.conversation_template_config.system = None
     multimodal_sample_config.conversation_template_config.chat_template = None
     multimodal_sample_config.image_token.token_id = 128256
     multimodal_sample_config.conversation_template_config.stop_string = '<|eot_id|>'
@@ -59,11 +64,13 @@ def get_data_module(data_path, micro_batch_size, global_batch_size):
         path=data_path,
         tokenizer=tokenizer,
         image_processor=image_processor,
-        num_workers=8,
+        num_workers=16,
         micro_batch_size=micro_batch_size,
         global_batch_size=global_batch_size,
         multimodal_sample_config=multimodal_sample_config,
         task_encoder=task_encoder,
+        seq_length=seq_length,
+        decoder_seq_length=decoder_seq_length,
     )
     return data_module, tokenizer
 
@@ -79,7 +86,7 @@ def main(args):
     Args:
         args (argparse.Namespace): The command-line arguments passed to the script.
     """
-    gbs = 32
+    gbs = 128
     mbs = 2
     data, tokenizer = get_data_module(args.data_path, mbs, gbs)
 
@@ -113,7 +120,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=20,
+        every_n_train_steps=1000,
         dirpath=args.log_dir,
     )
 
@@ -135,7 +142,7 @@ def main(args):
     from pytorch_lightning.loggers import WandbLogger
 
     nemo_logger = nl.NeMoLogger(
-        dir=args.log_dir,
+        explicit_log_dir=args.log_dir,
         name=args.name,
         wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )
@@ -154,7 +161,7 @@ def main(args):
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
         optimizer='adam',
-        lr=2.0e-05,
+        lr=1.0e-05,
         adam_beta1=0.9,
         adam_beta2=0.95,
         use_distributed_optimizer=True,
@@ -162,9 +169,9 @@ def main(args):
     )
     sched = CosineAnnealingScheduler(
         max_steps=trainer.max_steps,
-        warmup_steps=150,
+        warmup_steps=200,
         constant_steps=0,
-        min_lr=2.0e-07,
+        min_lr=1.0e-07,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
     opt.connect(model)
