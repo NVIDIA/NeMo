@@ -29,19 +29,19 @@ from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
-from nemo.collections.llm.utils import Config, Partial
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mistral"
 
 
-def model() -> Config[pl.LightningModule]:
+@run.cli.factory(name=NAME)
+def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Mistral 7B model configuration.
 
     Returns:
-        Config[pl.LightningModule]: Configuration for the Mistral 7B model.
+        run.Config[pl.LightningModule]: Configuration for the Mistral 7B model.
 
     Examples:
         CLI usage:
@@ -51,7 +51,7 @@ def model() -> Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return Config(MistralModel, config=Config(MistralConfig7B))
+    return run.Config(MistralModel, config=run.Config(MistralConfig7B))
 
 
 def trainer(
@@ -64,8 +64,8 @@ def trainer(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 100,
-    callbacks: Optional[list[Config[Callback]]] = None,
-) -> Config[nl.Trainer]:
+    callbacks: Optional[list[run.Config[Callback]]] = None,
+) -> run.Config[nl.Trainer]:
     """
     Configure the NeMo Lightning Trainer for Mistral 7B model.
 
@@ -81,10 +81,10 @@ def trainer(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
-        callbacks (Optional[list[Config[Callback]]]): List of callback configurations.
+        callbacks (Optional[list[run.Config[Callback]]]): List of callback configurations.
 
     Returns:
-        Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
+        run.Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
 
     Examples:
         CLI usage:
@@ -94,7 +94,7 @@ def trainer(
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
             >>> print(trainer_config)
     """
-    strategy = Config(
+    strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
         pipeline_model_parallel_size=pipeline_parallelism,
@@ -106,7 +106,7 @@ def trainer(
         ckpt_include_optimizer=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
-        ddp=Config(
+        ddp=run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
@@ -115,7 +115,7 @@ def trainer(
         ),
     )
 
-    trainer = Config(
+    trainer = run.Config(
         nl.Trainer,
         accelerator="gpu",
         accumulate_grad_batches=1,
@@ -126,7 +126,7 @@ def trainer(
         log_every_n_steps=10,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_mixed_plugin(),
+        plugins=bf16_mixed(),
         strategy=strategy,
         use_distributed_sampler=False,
         val_check_interval=2000,
@@ -135,9 +135,10 @@ def trainer(
     return trainer
 
 
+@run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    ckpt_dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
-) -> Partial:
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+) -> run.Partial:
     """
     Create a pre-training recipe for Mistral 7B model.
 
@@ -152,7 +153,7 @@ def pretrain_recipe(
         fn (Callable): The pre-training function to use.
 
     Returns:
-        Partial: Partial configuration for pre-training.
+        run.Partial: Partial configuration for pre-training.
 
     Examples:
         CLI usage:
@@ -163,7 +164,7 @@ def pretrain_recipe(
             >>> recipe = pretrain_recipe(name="mistral_pretrain", num_nodes=2)
             >>> print(recipe)
     """
-    return Partial(
+    return run.Partial(
         fn,
         model=model(),
         trainer=trainer(
@@ -175,16 +176,17 @@ def pretrain_recipe(
             sequence_parallelism=False,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
-            callbacks=[Config(TimingCallback)],
+            callbacks=[run.Config(TimingCallback)],
         ),
-        data=Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
-        log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
 
-def hf_resume() -> Config[nl.AutoResume]:
+@run.cli.factory(name=NAME + "_hf")
+def hf_resume() -> run.Config[nl.AutoResume]:
     """
     Configure automatic resumption from a Hugging Face checkpoint for Mistral 7B model.
 
@@ -194,21 +196,24 @@ def hf_resume() -> Config[nl.AutoResume]:
     More info about the model can be found at: https://huggingface.co/mistralai/Mistral-7B-v0.3
 
     Returns:
-        Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
 
     Note:
         This is particularly useful for fine-tuning scenarios where you want to
         start from the pre-trained Mistral 7B model.
     """
-    return Config(nl.AutoResume, restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3"))
+    return run.Config(
+        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3")
+    )
 
 
+@run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
-    ckpt_dir: Optional[str] = None,
+    dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-) -> Partial:
+) -> run.Partial:
     """
     Create a fine-tuning recipe for Mistral 7B model.
 
@@ -223,7 +228,7 @@ def finetune_recipe(
         num_gpus_per_node (int): Number of GPUs per node.
 
     Returns:
-        Partial: Partial configuration for fine-tuning.
+        run.Partial: Partial configuration for fine-tuning.
 
     Examples:
         CLI usage:
@@ -237,10 +242,8 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
-    )
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
     recipe.resume = hf_resume()
-    recipe.peft = Config(LoRA)
-    recipe.data = Config(SquadDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1)
+    recipe.peft = run.Config(LoRA)
+    recipe.data = run.Config(SquadDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1)
     return recipe
