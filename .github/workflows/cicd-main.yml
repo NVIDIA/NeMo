@@ -5416,7 +5416,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:  
-      - if: ${{ always() }}
+      - name: Evaluate conclusion
+        if: ${{ always() }}
         id: pipeline-conclusion
         run: |
           # Slack notifications are send only on test failure (not cancelled):
@@ -5428,10 +5429,12 @@ jobs:
           echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
 
       # This should depend on all the tests so we block/unblock based on all tests passing
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
+      - name: Pipeline successful, add PR comment 
+        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
         run: exit 0
 
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
+      - name: Pipeline successful, add PR comment 
+        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
         uses: peter-evans/create-or-update-comment@v4
         env: 
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -5450,11 +5453,8 @@ jobs:
 
             //cc @ko3n1g
 
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' }}
-        name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
+      - name: "Pipeline not successful and not cancelled: Send Slack alert"
+        if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
         env: 
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -5539,7 +5539,8 @@ jobs:
 
           curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK
 
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
+      - name: "Pipeline not successful and not cancelled: Write summary"
+        if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
         env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
@@ -5571,4 +5572,6 @@ jobs:
             
           done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
 
-          exit 1
+      - name: "Pipeline not successful"
+        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
+        run: exit 1
