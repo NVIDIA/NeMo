@@ -273,6 +273,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         inference_params=None,
         packed_seq_params=None,
     ) -> torch.Tensor:
+        extra_kwargs = {'packed_seq_params': packed_seq_params} if packed_seq_params is not None else {}
         output_tensor = self.module(
             input_ids,
             position_ids,
@@ -280,7 +281,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             decoder_input=decoder_input,
             labels=labels,
             inference_params=inference_params,
-            packed_seq_params=packed_seq_params,
+            **extra_kwargs
         )
 
         return output_tensor
