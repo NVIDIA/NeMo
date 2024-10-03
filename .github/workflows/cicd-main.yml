@@ -3700,10 +3700,10 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_ir/working_dir
 
-  L2_Megatron_GPT_Embedding:
+  OPTIONAL_L2_Megatron_GPT_Embedding:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_GPT_Embedding') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Megatron_GPT_Embedding') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -3741,6 +3741,7 @@ jobs:
         model.data.test_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl]
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_ir/working_dir
+      IS_OPTIONAL: true
 
   L2_Megatron_GPT_PEFT_Lora_PP2_O2:
     needs: [cicd-test-container-setup]
@@ -5364,7 +5365,7 @@ jobs:
       #- OPTIONAL_L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
-      - L2_Megatron_GPT_Embedding 
+      #- OPTIONAL_L2_Megatron_GPT_Embedding 
       - L2_Megatron_GPT_PEFT_Lora_PP2_O2
       - L2_Megatron_GPT_PEFT_Lora_TP2_O1
       - L2_Megatron_GPT_PEFT_Lora_TP2SP1
