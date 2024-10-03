@@ -2,12 +2,12 @@ from nemo.collections.vlm.neva.data import (
     DataConfig,
     ImageDataConfig,
     ImageToken,
+    LlavaNextTaskEncoder,
     MockDataModule,
     MultiModalToken,
     NevaLazyDataModule,
     VideoDataConfig,
     VideoToken,
-    LlavaNextTaskEncoder,
 )
 from nemo.collections.vlm.neva.model import (
     CLIPViTConfig,
