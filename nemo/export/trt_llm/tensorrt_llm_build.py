@@ -53,6 +53,7 @@ def build_and_save_engine(
     multiple_profiles: bool = False,
     gpt_attention_plugin: str = "auto",
     gemm_plugin: str = "auto",
+    reduce_fusion: bool = False,
 ):
     architecture = "LLaMAForCausalLM" if model_config.architecture == "LlamaForCausalLM" else model_config.architecture
     try:
@@ -71,6 +72,7 @@ def build_and_save_engine(
     plugin_config.remove_input_padding = remove_input_padding
     plugin_config.use_paged_context_fmha = paged_context_fmha
     plugin_config.multiple_profiles = multiple_profiles
+    plugin_config.reduce_fusion = reduce_fusion
 
     max_num_tokens, opt_num_tokens = check_max_num_tokens(
         max_num_tokens=max_num_tokens,
@@ -105,13 +107,14 @@ def build_and_save_engine(
 
     if use_lora_plugin is not None:
         # build_config.plugin_config.set_lora_plugin(use_lora_plugin)
-        # build_config.plugin_config._lora_plugin = use_lora_plugin
+        build_config.plugin_config._lora_plugin = use_lora_plugin
         lora_config = LoraConfig(
             lora_dir=lora_ckpt_list,
             lora_ckpt_source='nemo',
             max_lora_rank=max_lora_rank,
-            lora_target_modules=lora_target_modules,
         )
+        if lora_target_modules is not None:
+            lora_config.lora_target_modules = lora_target_modules
         build_config.lora_config = lora_config
 
     model = model_cls.from_config(model_config)

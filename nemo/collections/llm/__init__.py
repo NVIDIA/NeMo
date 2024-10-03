@@ -18,7 +18,6 @@ from nemo.utils.import_utils import safe_import
 safe_import("transformer_engine")
 
 from nemo.collections.llm import peft, tokenizer
-from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -102,14 +101,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.recipes import *  # noqa
-from nemo.utils import logging
-
-try:
-    from nemo.collections.llm.api import deploy
-except ImportError as error:
-    deploy = None
-    logging.warning(f"The deploy module could not be imported: {error}")
+from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 
 __all__ = [
     "MockDataModule",
@@ -117,6 +109,10 @@ __all__ = [
     "GPTConfig",
     "gpt_data_step",
     "gpt_forward_step",
+    "T5Model",
+    "T5Config",
+    "t5_data_step",
+    "t5_forward_step",
     "MaskedTokenLossReduction",
     "MistralConfig7B",
     "MistralModel",
@@ -179,12 +175,6 @@ __all__ = [
     "FineTuningDataModule",
     "SquadDataModule",
     "DollyDataModule",
-    "train",
-    "import_ckpt",
-    "export_ckpt",
-    "pretrain",
-    "validate",
-    "finetune",
     "tokenizer",
     "mock",
     "squad",
@@ -192,6 +182,31 @@ __all__ = [
     "peft",
 ]
 
-# add 'deploy' to __all__ if it was successfully imported
-if deploy is not None:
+
+from nemo.utils import logging
+
+try:
+    import nemo_run as run
+
+    from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
+    from nemo.collections.llm.recipes import *  # noqa
+
+    __all__.extend(
+        [
+            "train",
+            "import_ckpt",
+            "export_ckpt",
+            "pretrain",
+            "validate",
+            "finetune",
+        ]
+    )
+except ImportError as error:
+    logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
+
+try:
+    from nemo.collections.llm.api import deploy
+
     __all__.append("deploy")
+except ImportError as error:
+    logging.warning(f"The deploy module could not be imported: {error}")
