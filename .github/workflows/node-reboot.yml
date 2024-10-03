@@ -14,23 +14,14 @@ jobs:
       matrix:
         include:
           - vm: azure-gpu-vm-runner1
-            n_gpus: 2
           - vm: azure-gpu-vm-runner-1gpu-a
-            n_gpus: 1
           - vm: azure-gpu-vm-runner-1gpu-c
-            n_gpus: 1
           - vm: azure-gpu-vm-runner1-h100
-            n_gpus: 2
           - vm: azure-gpu-vm-runner2
-            n_gpus: 2
           - vm: azure-gpu-vm-runner6
-            n_gpus: 2
           - vm: azure-gpu-vm-runner7
-            n_gpus: 2
           - vm: azure-gpu-vm-runner8
-            n_gpus: 2
           - vm: azure-gpu-vm-runner9
-            n_gpus: 2
     steps:
       - name: Reboot
         run: |
