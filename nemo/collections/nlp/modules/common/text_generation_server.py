@@ -60,7 +60,34 @@ class MegatronGenerate(Resource):
     def send_do_generate():
         choice = torch.cuda.LongTensor([GENERATE_NUM])
         torch.distributed.broadcast(choice, 0)
+    
+    def post(self):
+        # Access the request data if needed
+        data = request.get_json()
 
+        # Return a response mimicking the OpenAI ChatCompletion API format
+        return jsonify({
+            "id": "chatcmpl-12345",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": data.get("model", "unknown"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "I'm just a flask server."
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 5,
+                "completion_tokens": 5,
+                "total_tokens": 10
+            }
+        })
+        
     def put(self):
         logging.info("request IP: " + str(request.remote_addr))
         logging.info(json.dumps(request.get_json()))
@@ -231,7 +258,10 @@ class MegatronServer(object):
     def __init__(self, model, inference_strategy=None):
         self.app = Flask(__name__, static_url_path='')
         api = Api(self.app)
-        api.add_resource(MegatronGenerate, '/generate', resource_class_args=[model, inference_strategy])
+        api.add_resource(MegatronGenerate, '/generate', endpoint="generate", resource_class_kwargs={"model": model, "inference_strategy": inference_strategy})
+        api.add_resource(MegatronGenerate, '/v1/completions', endpoint="oai_completions", resource_class_kwargs={"model": model, "inference_strategy": inference_strategy})
+        api.add_resource(MegatronGenerate, '/v1/chat/completions', endpoint="oai_chat_completions", resource_class_kwargs={"model": model, "inference_strategy": inference_strategy})
 
     def run(self, url, port=5000):
         self.app.run(url, threaded=True, port=port, debug=False)
+
