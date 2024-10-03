@@ -28,6 +28,8 @@ from nemo.collections.vlm.llama.model.base import (
     CrossAttentionVisionModelConfig,
 )
 
+from nemo.collections.vlm.peft import LoRA
+
 __all__ = [
     "MockDataModule",
     "NevaLazyDataModule",

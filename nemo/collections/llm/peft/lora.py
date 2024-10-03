@@ -71,6 +71,9 @@ class LoRA(PEFT):
                 - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention modules.
                 - 'linear_fc1': Apply LoRA to the first fully-connected layer in MLP.
                 - 'linear_fc2': Apply LoRA to the second fully-connected layer in MLP.
+            Target modules can also contain wildcards. For example, you can specify
+                target_modules=['*.layers.0.*.linear_qkv', '*.layers.1.*.linear_qkv'] to add LoRA to only linear_qkv
+                on the first two layers.
         dim (int): Dimension of the low-rank projection space. Defaults to 32.
         alpha (int): Weighting factor for the low-rank projection. Defaults to 32.
         dropout (float): Dropout rate for the low-rank projection. Defaults to 0.0.
@@ -103,7 +106,6 @@ class LoRA(PEFT):
     dropout_position: Literal['pre', 'post'] = 'post'
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
-    freeze_base_model: bool = True
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -120,6 +122,7 @@ class LoRA(PEFT):
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
         def wildcard_match(pattern, key):
+            if key is None: return None
             regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
             match = regex_pattern.match(key)
             return match is not None
