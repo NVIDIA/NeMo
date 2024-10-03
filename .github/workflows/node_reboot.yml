@@ -69,4 +69,4 @@ jobs:
       - name: Shut runner down on failure
         if: failure()
         run: |
-          echo ${{ secrets.VM_KEY }} | sudo -S /home/azureuser/action-runner/svc.sh stop
+          echo ${{ secrets.VM_KEY }} | sudo -S /home/azureuser/actions-runner/svc.sh stop
