@@ -360,7 +360,6 @@ jobs:
          --ignore=tests/hydra \
          --ignore=tests/lightning \
          --ignore=tests/utils
-       IS_OPTIONAL: true
 
 
   L0_Setup_Test_Data_And_Models:
@@ -5082,10 +5081,10 @@ jobs:
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
-  OPTIONAL_L2_Stable_Diffusion_Training:
+  L2_Stable_Diffusion_Training:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Stable_Diffusion_Training') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Stable_Diffusion_Training') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
@@ -5131,7 +5130,6 @@ jobs:
         model.data.synthetic_data=True
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
-      IS_OPTIONAL: true
 
   L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
     needs: [cicd-test-container-setup]
@@ -5395,7 +5393,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
-      #- OPTIONAL_L2_Stable_Diffusion_Training
+      #- L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
       - L2_NeMo_2_GPT_DDP_Param_Parity_check
       - L2_NeMo_2_HF_MODEL_IMPORT
