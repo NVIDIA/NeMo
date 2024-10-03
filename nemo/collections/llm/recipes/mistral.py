@@ -224,7 +224,9 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = default_finetune_recipe(model(), "nemo://mistralai/Mistral-7B-v0.3", dir, name, num_nodes, num_gpus_per_node)
+    recipe = default_finetune_recipe(
+        model(), "nemo://mistralai/Mistral-7B-v0.3", dir, name, num_nodes, num_gpus_per_node
+    )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
