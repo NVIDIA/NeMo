@@ -64,9 +64,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
-    breakpoint()
     batch = next(dataloader_iter)
-
     _batch: dict
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]
@@ -75,6 +73,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     required_keys = set()
     required_keys.add("attention_mask")
+    required_keys.add("num_media_tiles")
     if parallel_state.is_pipeline_first_stage():
         required_keys.update(("media", "tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
@@ -91,7 +90,6 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
-    breakpoint()
     forward_args = {
         "media": batch["media"],
         "input_ids": batch["tokens"],
@@ -533,7 +531,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             output (torch.Tensor): Loss of shape [b, s] if labels are provided, otherwise logits of shape [b, s, vocab_size].
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
-        breakpoint()
+        
         use_inference_kv_cache = (
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
@@ -592,7 +590,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Assume 1 tile per image if the number of tiles is not provided.
             if num_media_tiles is None:
                 num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
-
+            elif isinstance(num_media_tiles, list):
+                num_media_tiles = torch.tensor(num_media_tiles, dtype=torch.int, device=input_ids.device)
             # Preprocess input, labels and loss mask.
             combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
                 media_embeddings,
@@ -651,6 +650,8 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         media: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         inference_params: InferenceParams = None,
+        num_media_tiles: Optional[List[int]] = None,
+        
     ) -> torch.Tensor:
         output_tensor = self.module(
             media=media,
@@ -660,6 +661,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             attention_mask=attention_mask,
             labels=labels,
             inference_params=inference_params,
+            num_media_tiles = num_media_tiles
         )
 
         return output_tensor

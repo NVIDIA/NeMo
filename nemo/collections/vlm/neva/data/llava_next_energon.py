@@ -95,7 +95,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         batch_labels = pad_sequence(labels, batch_first=True)
 
         batch_loss_mask = batch_pad_stack(loss_mask)
-        batch_num_media_tiles = batch_list(num_media_tiles)
+        batch_num_media_tiles = torch.tensor(batch_list(num_media_tiles),dtype=torch.int)
         return LlavaNextTextRawBatch(
             __keys__=batch_keys,
             images=batch_images,
