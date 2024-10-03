@@ -49,10 +49,9 @@ try:
         ],
     )
     __all__.append("AutoTokenizer")
-    
-    
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer as HFTokenizer
-    
+
     track_io(
         HFTokenizer,
         artifacts=[
