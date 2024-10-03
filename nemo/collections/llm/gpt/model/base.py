@@ -281,7 +281,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             decoder_input=decoder_input,
             labels=labels,
             inference_params=inference_params,
-            **extra_kwargs
+            **extra_kwargs,
         )
 
         return output_tensor
