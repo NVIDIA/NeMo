@@ -84,7 +84,7 @@ class AutoResume:
 
     WEIGHTS_PATH = "weights"
 
-    def get_model_weights_path(self, path):
+    def get_weights_path(self, path):
         return Path(path) / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
@@ -119,17 +119,16 @@ class AutoResume:
 
         if model is None:
             raise ValueError("Model is needed to import checkpoint from HF or other non-NeMo checkpoint format.")
-        try:
+        if '://' in path:
             new_path = model.import_ckpt(path)
-        except (ValueError, AttributeError):
-            # This is reached when the model connector does not exist for the particular path.
+        else:
             new_path = path
 
         if adapter_path:
 
-            maybe_model_weights_path = self.get_model_weights_path(adapter_path)
-            if os.path.isdir(maybe_model_weights_path):
-                adapter_path = maybe_model_weights_path
+            maybe_weights_path = self.get_weights_path(adapter_path)
+            if maybe_weights_path.is_dir():
+                adapter_path = maybe_weights_path
 
             new_path = AdapterPath(Path(adapter_path), base_model_path=new_path)
 
@@ -143,9 +142,6 @@ class AutoResume:
             metadata = json.load(f)
 
         assert self.restore_config, "PEFT resume requires specifying restore_config"
-        assert (
-            "://" in self.restore_config.path
-        ), "For now PEFT resume requires specifying the import path instead of local path"
         base_model_path = self._try_import_model(model, self.restore_config.path)
         if base_model_path != Path(metadata['model_ckpt_path']):
             raise ValueError(
@@ -244,15 +240,15 @@ class AutoResume:
             checkpoint = self._find_trainer_ckpt_path()
 
         if checkpoint:
-            maybe_model_weights_path = Path(checkpoint) / "context"
-            if os.path.isdir(maybe_model_weights_path):
-                checkpoint = maybe_model_weights_path
+            maybe_context_path = Path(checkpoint) / "context"
+            if maybe_context_path.is_dir():
+                checkpoint = maybe_context_path
         return checkpoint
 
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
         if self.resume_from_path:
-            maybe_model_weights_path = self.get_model_weights_path(self.resume_from_path)
-            return maybe_model_weights_path if os.path.isdir(maybe_model_weights_path) else self.resume_from_path
+            maybe_weights_path = self.get_weights_path(self.resume_from_path)
+            return maybe_weights_path if maybe_weights_path.is_dir() else self.resume_from_path
 
         checkpoint = None
         app_state = AppState()
@@ -261,9 +257,9 @@ class AutoResume:
             checkpoint = self._find_trainer_ckpt_path()
 
         if checkpoint:
-            maybe_model_weights_path = self.get_model_weights_path(checkpoint)
-            if os.path.isdir(maybe_model_weights_path):
-                checkpoint = maybe_model_weights_path
+            maybe_weights_path = self.get_weights_path(checkpoint)
+            if maybe_weights_path.is_dir():
+                checkpoint = maybe_weights_path
 
         if checkpoint:
             if self.adapter_path:
