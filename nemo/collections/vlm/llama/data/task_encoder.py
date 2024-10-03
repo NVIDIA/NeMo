@@ -54,7 +54,7 @@ class LlamaImageTextRawBatch:
 
     aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    num_tiles: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    num_chunks: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
 
 
 class LlamaTaskEncoder(MultiModalTaskEncoder):
@@ -108,5 +108,5 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
             loss_mask=batch_loss_mask,
             aspect_ratio_ids=batch_aspect_ratio_ids,
             aspect_ratio_mask=batch_aspect_ratio_mask,
-            num_tiles=batch_num_tiles,
+            num_chunks=batch_num_tiles,
         )

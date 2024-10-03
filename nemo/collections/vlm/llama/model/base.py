@@ -64,7 +64,7 @@ def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.update(("attention_mask", "tokens", "batch_masks", "position_ids",))
+    required_keys.update(("attention_mask", "tokens", "batch_masks", "position_ids", "num_chunks",))
     if parallel_state.is_pipeline_first_stage():
         required_keys.update(("batch_images", "aspect_ratio_ids",))
     if parallel_state.is_pipeline_last_stage():
@@ -88,6 +88,7 @@ def llama_forward_step(model, batch) -> torch.Tensor:
         "tokens": batch["tokens"],
         "position_ids": batch["position_ids"],
         "aspect_ratio_ids": batch["aspect_ratio_ids"],
+        "num_chunks": batch["num_chunks"],
         "labels": batch.get("labels", None),
     }
 
@@ -392,6 +393,7 @@ class MLlamaBaseModel(MegatronModule):
             labels: Optional[torch.Tensor] = None,
             batch_images: Optional[torch.Tensor] = None,
             batch_masks: Optional[List[List[List[int]]]] = None,
+            num_chunks: Optional[List[List[int]]] = None,
             aspect_ratio_ids: Optional[torch.Tensor] = None,
             cross_attention_masks: Optional[torch.Tensor] = None,
             full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
@@ -399,7 +401,6 @@ class MLlamaBaseModel(MegatronModule):
     ) -> torch.Tensor:
         if xattn_caches is None:
             assert aspect_ratio_ids is not None
-            num_chunks = [[self.max_num_chunks] for _ in batch_images]
             bsz, max_num_images = batch_images.size(0), batch_images.size(1)
             vision_orig_shape = (
                 bsz,
@@ -502,6 +503,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             tokens: torch.LongTensor,
             position_ids: torch.LongTensor,
             batch_masks: Optional[List[List[List[int]]]] = None,
+            num_chunks: Optional[List[List[int]]] = None,
             aspect_ratio_ids: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
             cross_attention_masks: Optional[torch.Tensor] = None,
@@ -514,6 +516,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             tokens=tokens,
             batch_images=batch_images,
             batch_masks=batch_masks,
+            num_chunks=num_chunks,
             aspect_ratio_ids=aspect_ratio_ids,
             labels=labels,
             cross_attention_masks=cross_attention_masks,

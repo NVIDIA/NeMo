@@ -67,7 +67,7 @@ def main(args):
         num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=560, vision_max_num_chunks=4,
     )
     text_config = CrossAttentionTextConfig(
-        num_layers=4,
+        num_layers=2,
     )
 
     llama_config = MLlamaModelConfig(
@@ -89,7 +89,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=4,
+        every_n_train_steps=1000,
         dirpath=args.log_dir,
     )
 
