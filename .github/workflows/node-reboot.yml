@@ -8,7 +8,7 @@ on:
 jobs:
   main:
     runs-on: ${{ matrix.vm }}
-    # environment: main
+    environment: main
     strategy:
       fail-fast: false
       matrix:
@@ -30,7 +30,7 @@ jobs:
   test:
     needs: main
     runs-on: ${{ matrix.vm }}
-    # environment: main
+    environment: main
     if: always()
     strategy:
       fail-fast: false
@@ -108,3 +108,17 @@ jobs:
         run: |
           cd /home/azureuser/actions-runner
           echo ${{ secrets.VM_KEY }} | sudo -S ./svc.sh stop
+
+          MESSAGE='{
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": ":alert: VM bot 🤖: Hey <@${{ secrets.SLACK_WEBHOOK_ADMIN }}>: Some VMs are having not a great day, maybe bring them an apple or so."
+                }
+              }
+            ]
+          }'
+
+          curl -X POST -H "Content-type: application/json" --data "$MESSAGE" ${{ secrets.SLACK_WEBHOOK }}
