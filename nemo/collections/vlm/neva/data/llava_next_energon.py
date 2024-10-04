@@ -1,13 +1,22 @@
-import re
-from abc import ABC, abstractmethod
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
-
+from typing import Dict, List
 import torch
-from einops import rearrange
-from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample, batch_list, batch_pad_stack
+from megatron.energon import VQASample, batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
-
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
@@ -35,7 +44,6 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
             Defaults to MultiModalSampleConfig().
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
-        self.conversation_template_config = multimodal_sample_config.conversation_template_config
 
     def process_image(self, image):
         image_array = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
