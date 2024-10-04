@@ -16,7 +16,6 @@ BASE_CHECKPOINT_DIR = "/nemo_run/checkpoints"
         ("llama3_70b", "finetune_recipe", "llama3_70b_finetune"),
         ("llama3_70b_16k", "pretrain_recipe", "llama3_70b_16k_pretrain"),
         ("llama3_70b_64k", "pretrain_recipe", "llama3_70b_64k_pretrain"),
-        ("llama31_405b", "pretrain_recipe", "llama31_405b_pretrain"),
         #        ("llama31_405b", "pretrain_recipe", "llama31_405b_pretrain"),
         ("mistral", "pretrain_recipe", "mistral_pretrain"),
         ("mistral", "finetune_recipe", "mistral_finetune"),
