@@ -14,7 +14,6 @@ python /lustre/fsw/coreai_dlalgo_genai/yuya/LLaVA/llava/eval/eval_science_qa.py 
     --output-result /lustre/fsw/coreai_dlalgo_genai/datasets/eval/scienceqa/answers/${NAME}_result.json
 """
 
-
 import argparse
 import json
 import math
@@ -28,8 +27,8 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import vlm
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 def generate(model, batch, tokenizer, max_length=20):
@@ -56,17 +55,17 @@ def generate(model, batch, tokenizer, max_length=20):
     generated_ids = input_ids.clone()
 
     predicted_ids = torch.tensor([], dtype=input_ids.dtype, device=generated_ids.device)
-    for cur_pos in range(min_prompt_len, min_prompt_len+max_length):
+    for cur_pos in range(min_prompt_len, min_prompt_len + max_length):
         with torch.no_grad():
-            position_ids = torch.arange(
-                0, cur_pos, dtype=torch.long, device="cuda"
-            ).reshape(1, -1)
+            position_ids = torch.arange(0, cur_pos, dtype=torch.long, device="cuda").reshape(1, -1)
 
             output = model(
                 batch_images=batch["pixel_values"].cuda(non_blocking=True) if "pixel_values" in batch else None,
                 batch_masks=[[[5, 512]]] if "pixel_values" in batch else [[]],
                 num_chunks=[[4]],
-                aspect_ratio_ids=batch["aspect_ratio_ids"].cuda(non_blocking=True) if "aspect_ratio_ids" in batch else None,
+                aspect_ratio_ids=(
+                    batch["aspect_ratio_ids"].cuda(non_blocking=True) if "aspect_ratio_ids" in batch else None
+                ),
                 tokens=generated_ids,
                 position_ids=position_ids,
             )
@@ -100,7 +99,6 @@ def main(args) -> None:
         limit_val_batches=50,
     )
 
-
     model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
     # Load processor and tokenizer
@@ -125,7 +123,7 @@ def main(args) -> None:
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i: i + chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -183,25 +181,13 @@ def predict_answers(args, model, processor):
 
         cur_prompt = cur_prompt + '\n' + "Answer with the option's letter from the given choices directly."
         # Tokenize the input prompt and prepare input tensors
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": cur_prompt}
-                ]
-            }
-        ]
+        messages = [{"role": "user", "content": [{"type": "text", "text": cur_prompt}]}]
         if image:
             messages[0]["content"].insert(0, {"type": "image"})
         prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
 
         # Prepare the input tensors for the model
-        batch = processor(
-            image,
-            prompt,
-            add_special_tokens=False,
-            return_tensors="pt"
-        )
+        batch = processor(image, prompt, add_special_tokens=False, return_tensors="pt")
 
         # Generate the response using the model
         generated_ids, predicted_ids = generate(model, batch, tokenizer, max_length=args.max_length)
@@ -213,6 +199,7 @@ def predict_answers(args, model, processor):
         # If global rank zero, write the response to the answers file
         if is_global_rank_zero():
             import shortuuid
+
             ans_id = shortuuid.uuid()
             ans_file.write(
                 json.dumps(
