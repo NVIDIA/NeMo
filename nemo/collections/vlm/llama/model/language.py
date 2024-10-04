@@ -83,6 +83,43 @@ class MLlamaCrossAttentionSubmodules:
     k_layernorm: Union[ModuleSpec, type] = None
 
 
+def _get_xattn_mask(
+        num_tokens,
+        text_device,
+        text_dtype,
+        vision_tokens,
+        cross_attention_masks,
+) -> Tuple[Tensor, Tensor]:
+    assert vision_tokens is not None, "Vision tokens must be provided"
+    vision_seqlen = vision_tokens.shape[3]
+    assert (
+            vision_tokens.shape[1] == cross_attention_masks.shape[2]
+    ), f"Mismatch in number of images given and number of masks given {vision_tokens.shape} {cross_attention_masks.shape}"
+    assert (
+            vision_tokens.shape[2] == cross_attention_masks.shape[3]
+    ), f"Vision tokens shape {vision_tokens.shape} mismatch with xattn shape {cross_attention_masks.shape}"
+    assert (
+            num_tokens == cross_attention_masks.shape[1]
+    ), f"Mismatch in text sequence length and cross attention mask sequence length {num_tokens} {cross_attention_masks.shape}"
+    _, _, _, num_image_tokens, image_token_dim = tuple(vision_tokens.shape)
+    bsz, ntext, nimg, nchunks = cross_attention_masks.shape
+    cross_attention_masks = (
+        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
+        .view(bsz, ntext, -1)
+        .unsqueeze(1)
+    )
+    full_text_row_masked_out_mask = _get_full_row_masked_out_mask(
+        cross_attention_masks,
+        get_negative_inf_value(cross_attention_masks.dtype),
+    )
+    cross_attention_masks *= full_text_row_masked_out_mask
+
+    return (
+        cross_attention_masks.to(device=text_device, dtype=text_dtype),
+        full_text_row_masked_out_mask.to(device=text_device, dtype=text_dtype),
+    )
+
+
 class CrossAttentionTextModel(MCoreGPTModel):
     def __init__(
             self,
@@ -124,43 +161,6 @@ class CrossAttentionTextModel(MCoreGPTModel):
 
             self.num_frozen_embeddings = self.embedding.word_embeddings.num_embeddings
             self._thresh = self.num_frozen_embeddings - 1
-
-    def _get_xattn_mask(
-            self,
-            num_tokens,
-            text_device,
-            text_dtype,
-            vision_tokens,
-            cross_attention_masks,
-    ) -> Tuple[Tensor, Tensor]:
-        assert vision_tokens is not None, "Vision tokens must be provided"
-        vision_seqlen = vision_tokens.shape[3]
-        assert (
-                vision_tokens.shape[1] == cross_attention_masks.shape[2]
-        ), f"Mismatch in number of images given and number of masks given {vision_tokens.shape} {cross_attention_masks.shape}"
-        assert (
-                vision_tokens.shape[2] == cross_attention_masks.shape[3]
-        ), f"Vision tokens shape {vision_tokens.shape} mismatch with xattn shape {cross_attention_masks.shape}"
-        assert (
-                num_tokens == cross_attention_masks.shape[1]
-        ), f"Mismatch in text sequence length and cross attention mask sequence length {num_tokens} {cross_attention_masks.shape}"
-        _, _, _, num_image_tokens, image_token_dim = tuple(vision_tokens.shape)
-        bsz, ntext, nimg, nchunks = cross_attention_masks.shape
-        cross_attention_masks = (
-            cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
-            .view(bsz, ntext, -1)
-            .unsqueeze(1)
-        )
-        full_text_row_masked_out_mask = _get_full_row_masked_out_mask(
-            cross_attention_masks,
-            get_negative_inf_value(cross_attention_masks.dtype),
-        )
-        cross_attention_masks *= full_text_row_masked_out_mask
-
-        return (
-            cross_attention_masks.to(device=text_device, dtype=text_dtype),
-            full_text_row_masked_out_mask.to(device=text_device, dtype=text_dtype),
-        )
 
     def get_partially_trainable_embedding(self, x):
         xz = torch.zeros_like(x, device=x.device)

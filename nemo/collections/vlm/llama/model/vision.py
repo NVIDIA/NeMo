@@ -156,6 +156,28 @@ def _pad_masks(
     return out_masks
 
 
+def build_encoder_attention_mask(
+        x: torch.Tensor,
+        ar_ids: torch.Tensor,
+        ntok: int,
+        num_chunks: int,
+        supported_aspect_ratios: List[List[int]]
+):
+    """
+    Build vision encoder attention mask that omits padding tiles and tokens.
+    """
+    masks = []
+    for ar_id in ar_ids:
+        arx = supported_aspect_ratios[ar_id-1]
+        mask_i = torch.ones((num_chunks, x.shape[1] // num_chunks), dtype=torch.bool, device=x.device)
+        mask_i[: arx[0] * arx[1], :ntok] = 0
+        mask_i = mask_i.view(num_chunks * x.shape[1] // num_chunks)
+        mask_i = mask_i.unsqueeze(0).unsqueeze(0)
+        masks.append(mask_i)
+    masks = torch.stack(masks)
+    return masks
+
+
 def create_vision_mask_tensor(tokens: torch.Tensor, vision_token_id: int) -> torch.Tensor:
     """
     Create a vision mask from a tensor of tokens and a vision token ID.
@@ -227,7 +249,7 @@ def get_image_transformer_layer_spec() -> ModuleSpec:
         input_layernorm=TENorm,
         self_attention=ModuleSpec(
             module=SelfAttentionNoBias,
-            params={"attn_mask_type": AttnMaskType.no_mask},
+            params={"attn_mask_type": AttnMaskType.padding},
             submodules=SelfAttentionSubmodules(
                 linear_qkv=TEColumnParallelLinear,
                 core_attention=TEDotProductAttention,
@@ -704,11 +726,10 @@ class VisionEncoder(MegatronModule):
 
         x = self.ln_pre(x)
         npad, attn_mask = 0, None
-        # TODO(yuya): padding for parallism and perf
-        # x, npad = expand_num_tokens_to_mult8(x)
-        # attn_mask = build_encoder_attention_mask(x, ar, ntok, num_chunks, 1)
         x = x.view(bsz * num_concurrent_media, -1, dim)
-        # TODO(yuya): optimize the transposes
+        # [b, 1, 1, sq]
+        attn_mask = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
+
         x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
             hidden_states=x,
@@ -727,7 +748,6 @@ class VisionEncoder(MegatronModule):
         )
         x = x.transpose(0, 1)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
-        # x = contract_num_tokens_from_mult8(x, npad)
 
         # adding back intermediate layer outputs
         x = x.reshape(bsz, num_concurrent_media, num_chunks, ntok, dim)
