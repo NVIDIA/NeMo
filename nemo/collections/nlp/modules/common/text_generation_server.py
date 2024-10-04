@@ -20,6 +20,7 @@ import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import get_prompt_template_example, _get_header_conversation_type_mask_role
 from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroModelTextGenerationStrategy,
     RetroQAModelTextGenerationStrategy,
@@ -60,12 +61,82 @@ class MegatronGenerate(Resource):
     def send_do_generate():
         choice = torch.cuda.LongTensor([GENERATE_NUM])
         torch.distributed.broadcast(choice, 0)
+
+    def convert_messages(self, input_list):
+        output_dict = {
+            'system': '',
+            'conversations': [],
+            'mask': 'User',
+            'type': 'VALUE_TO_TEXT',
+        }
+
+        # Extract the system message
+        for msg in input_list:
+            if msg['role'] == 'system':
+                output_dict['system'] = msg['content']
+                break  # Assuming only one system message
+
+        # Build the conversations list
+        for msg in input_list:
+            if msg['role'] != 'system':
+                conversation_entry = {
+                    'from': msg['role'].capitalize(),  # Capitalize 'user' and 'assistant'
+                    'value': msg['content'],
+                    'label': None,
+                }
+                output_dict['conversations'].append(conversation_entry)
+
+        return output_dict
     
     def post(self):
         # Access the request data if needed
         data = request.get_json()
-
+        print(data['messages'])
+        data['messages'] = data['messages'] + [{'role': 'assistant', 'content': ''}] # adding trailing assistant message so that prompt ends with Assistant tag.
+        special_tokens = self.model.cfg.data.chat_prompt_tokens
+        nemo_source = self.convert_messages(data['messages'])
+        header, conversation, data_type, mask_role  =  _get_header_conversation_type_mask_role(nemo_source, special_tokens)
+        conversation = conversation[:-14] ##FIXME
+        print(conversation)
         # Return a response mimicking the OpenAI ChatCompletion API format
+        with lock:  # Need to get lock to keep multiple threads from hitting code
+            MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
+            extra = {}
+            if self.inference_strategy is not None:
+                extra['strategy'] = self.inference_strategy
+            
+            all_probs = False
+            add_BOS = False
+            top_k = 0
+            greedy = data['temperature'] == 0.
+            end_strings = ['<|endoftext|>']
+            random_seed = None
+
+            output = generate(
+                self.model,
+                [conversation],
+                data['max_tokens'],
+                all_probs=all_probs,
+                temperature=data['temperature'],
+                add_BOS=add_BOS,
+                top_k=top_k,
+                top_p=data['top_p'],
+                greedy=greedy,
+                repetition_penalty=1.0,
+                end_strings=end_strings,
+                min_tokens_to_generate=0,
+                compute_logprob=False,
+                random_seed=random_seed,
+                **extra,
+            )
+            for k in output:
+                if isinstance(output[k], torch.Tensor):
+                    output[k] = output[k].tolist()
+        if not all_probs:
+            del output['full_logprob']
+
+        output_sentence = output['sentences'][0][len(conversation):]
+            
         return jsonify({
             "id": "chatcmpl-12345",
             "object": "chat.completion",
@@ -76,7 +147,7 @@ class MegatronGenerate(Resource):
                     "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": "I'm just a flask server."
+                        "content": output_sentence
                     },
                     "finish_reason": "stop"
                 }
@@ -162,7 +233,7 @@ class MegatronGenerate(Resource):
             if not (0.0 <= top_p <= 1.0):
                 return "top_p must be a positive number less than or equal to 1.0"
 
-        repetition_penalty = 1.2
+        repetition_penalty = 1.0
         if "repetition_penalty" in request.get_json():
             repetition_penalty = request.get_json()["repetition_penalty"]
             if not (type(repetition_penalty) == int or type(repetition_penalty) == float):

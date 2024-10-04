@@ -126,7 +126,7 @@ model:
       tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
 
   data:
-    chat: True # whether use chatbot data or not
+    chat: False # whether use chatbot data or not
     chat_prompt_tokens:  # special tokens for the chat prompts, a dictionary of {token_type: token}. note that some tokenizer may combine the characters at the junction between {end_of_turn}{turn_start}. e.g. '<im end><im start>', the '><' sometimes is merged to be a single token. This is not supported, try to avoid
       system_turn_start: "\x00"
       turn_start: "\x11"
