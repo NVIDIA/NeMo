@@ -13,18 +13,20 @@
 # limitations under the License.
 
 import argparse
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.loggers import WandbLogger
 from transformers import AutoProcessor
+
 from nemo import lightning as nl
+from nemo.collections import llm, vlm
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections import vlm, llm
 from nemo.collections.vlm.llama.data.task_encoder import LlamaTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from pytorch_lightning.loggers import WandbLogger
 
 
 def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=None):
@@ -60,7 +62,9 @@ def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=Non
     multimodal_sample_config.conversation_template_config.stop_string = '<|eot_id|>'
 
     task_encoder = LlamaTaskEncoder(
-        tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config,
+        tokenizer=tokenizer,
+        image_processor=image_processor,
+        multimodal_sample_config=multimodal_sample_config,
         seq_length=None,
     )
     data_module = SimpleMultiModalDataModule(
@@ -92,7 +96,7 @@ def main(args):
     gbs = 128
     mbs = 2
     if args.restore_path.startswith("hf://"):
-        model_id = args.restore_path[len("hf://"):]
+        model_id = args.restore_path[len("hf://") :]
     else:
         model_id = None
     data, tokenizer = get_data_module(args.data_path, mbs, gbs, model_id=model_id)
@@ -191,11 +195,17 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mllama Model Training Script")
 
-    parser.add_argument("--restore_path", type=str, required=False, default=None,
-                        help="Path to restore model from checkpoint")
+    parser.add_argument(
+        "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
+    )
     parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset")
-    parser.add_argument("--log_dir", type=str, required=False, default="./nemo_experiments",
-                        help="Directory for logging and checkpoints")
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        required=False,
+        default="./nemo_experiments",
+        help="Directory for logging and checkpoints",
+    )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)

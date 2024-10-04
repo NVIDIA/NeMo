@@ -15,7 +15,7 @@
 import math
 from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Optional, List, Tuple, Literal, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import torch
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
@@ -29,8 +29,8 @@ from megatron.core.transformer.attention import Attention
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
-    TERowParallelLinear,
     TELayerNormColumnParallelLinear,
+    TERowParallelLinear,
 )
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
@@ -41,11 +41,8 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.utils import sharded_state_dict_default
-from megatron.core.utils import (
-    make_viewless_tensor,
-)
-from torch import Tensor
-from torch import nn
+from megatron.core.utils import make_viewless_tensor
+from torch import Tensor, nn
 
 from nemo.collections.vlm.llama.model.vision import _get_full_row_masked_out_mask, get_negative_inf_value
 from nemo.utils import logging
@@ -84,29 +81,27 @@ class MLlamaCrossAttentionSubmodules:
 
 
 def _get_xattn_mask(
-        num_tokens,
-        text_device,
-        text_dtype,
-        vision_tokens,
-        cross_attention_masks,
+    num_tokens,
+    text_device,
+    text_dtype,
+    vision_tokens,
+    cross_attention_masks,
 ) -> Tuple[Tensor, Tensor]:
     assert vision_tokens is not None, "Vision tokens must be provided"
     vision_seqlen = vision_tokens.shape[3]
     assert (
-            vision_tokens.shape[1] == cross_attention_masks.shape[2]
+        vision_tokens.shape[1] == cross_attention_masks.shape[2]
     ), f"Mismatch in number of images given and number of masks given {vision_tokens.shape} {cross_attention_masks.shape}"
     assert (
-            vision_tokens.shape[2] == cross_attention_masks.shape[3]
+        vision_tokens.shape[2] == cross_attention_masks.shape[3]
     ), f"Vision tokens shape {vision_tokens.shape} mismatch with xattn shape {cross_attention_masks.shape}"
     assert (
-            num_tokens == cross_attention_masks.shape[1]
+        num_tokens == cross_attention_masks.shape[1]
     ), f"Mismatch in text sequence length and cross attention mask sequence length {num_tokens} {cross_attention_masks.shape}"
     _, _, _, num_image_tokens, image_token_dim = tuple(vision_tokens.shape)
     bsz, ntext, nimg, nchunks = cross_attention_masks.shape
     cross_attention_masks = (
-        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
-        .view(bsz, ntext, -1)
-        .unsqueeze(1)
+        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3).view(bsz, ntext, -1).unsqueeze(1)
     )
     full_text_row_masked_out_mask = _get_full_row_masked_out_mask(
         cross_attention_masks,
@@ -122,25 +117,36 @@ def _get_xattn_mask(
 
 class CrossAttentionTextModel(MCoreGPTModel):
     def __init__(
-            self,
-            config: TransformerConfig,
-            transformer_layer_spec: ModuleSpec,
-            vocab_size: int,
-            max_sequence_length: int,
-            pre_process: bool = True,
-            post_process: bool = True,
-            fp16_lm_cross_entropy: bool = False,
-            parallel_output: bool = True,
-            share_embeddings_and_output_weights: bool = False,
-            position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'learned_absolute',
-            rotary_percent: float = 1.0,
-            rotary_base: int = 10000,
-            seq_len_interpolation_factor: Optional[float] = None,
+        self,
+        config: TransformerConfig,
+        transformer_layer_spec: ModuleSpec,
+        vocab_size: int,
+        max_sequence_length: int,
+        pre_process: bool = True,
+        post_process: bool = True,
+        fp16_lm_cross_entropy: bool = False,
+        parallel_output: bool = True,
+        share_embeddings_and_output_weights: bool = False,
+        position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'learned_absolute',
+        rotary_percent: float = 1.0,
+        rotary_base: int = 10000,
+        seq_len_interpolation_factor: Optional[float] = None,
     ):
-        super().__init__(config, transformer_layer_spec, vocab_size, max_sequence_length, pre_process, post_process,
-                         fp16_lm_cross_entropy, parallel_output,
-                         share_embeddings_and_output_weights, position_embedding_type, rotary_percent, rotary_base,
-                         seq_len_interpolation_factor)
+        super().__init__(
+            config,
+            transformer_layer_spec,
+            vocab_size,
+            max_sequence_length,
+            pre_process,
+            post_process,
+            fp16_lm_cross_entropy,
+            parallel_output,
+            share_embeddings_and_output_weights,
+            position_embedding_type,
+            rotary_percent,
+            rotary_base,
+            seq_len_interpolation_factor,
+        )
 
         # Overwrite the self.decoder
         self.decoder = CrossAttentionTransformerBlock(
@@ -166,10 +172,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         xz = torch.zeros_like(x, device=x.device)
         oz = torch.ones_like(x, device=x.device)
         x_orig = torch.minimum(x, torch.tensor(self._thresh, device=x.device))
-        x_new = (
-                torch.maximum(x, torch.tensor(self._thresh + 1, device=x.device))
-                - self.num_frozen_embeddings
-        )
+        x_new = torch.maximum(x, torch.tensor(self._thresh + 1, device=x.device)) - self.num_frozen_embeddings
 
         mask_orig = torch.where(x >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
         mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
@@ -179,18 +182,18 @@ class CrossAttentionTextModel(MCoreGPTModel):
         return x_orig * mask_orig.type_as(x_orig) + x_new * mask_new.type_as(x_new)
 
     def forward(
-            self,
-            input_ids: Tensor,
-            position_ids: Tensor,
-            attention_mask: Tensor,
-            decoder_input: Tensor = None,
-            cross_attention_masks: Tensor = None,
-            full_text_row_masked_out_mask: Tensor = None,
-            xattn_caches: Optional[List] = None,
-            labels: Tensor = None,
-            inference_params: InferenceParams = None,
-            packed_seq_params: PackedSeqParams = None,
-            extra_block_kwargs: dict = None,
+        self,
+        input_ids: Tensor,
+        position_ids: Tensor,
+        attention_mask: Tensor,
+        decoder_input: Tensor = None,
+        cross_attention_masks: Tensor = None,
+        full_text_row_masked_out_mask: Tensor = None,
+        xattn_caches: Optional[List] = None,
+        labels: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
+        extra_block_kwargs: dict = None,
     ) -> Tensor:
 
         # Decoder embedding.
@@ -292,20 +295,20 @@ class CrossAttentionTransformerBlock(TransformerBlock):
     def _get_layer_offset(self):
         encoder_pipeline_model_parallel_size = getattr(self.config, "encoder_pipeline_model_parallel_size", 0)
         decoder_pipeline_model_parallel_rank = (
-                parallel_state.get_pipeline_model_parallel_rank() - encoder_pipeline_model_parallel_size
+            parallel_state.get_pipeline_model_parallel_rank() - encoder_pipeline_model_parallel_size
         )
         return decoder_pipeline_model_parallel_rank * self.num_layers_per_pipeline_rank
 
     def forward(
-            self,
-            hidden_states: Tensor,
-            attention_mask: Tensor,
-            xattn_caches: Optional[List] = None,
-            cross_attention_masks: Tensor = None,
-            full_text_row_masked_out_mask: Tensor = None,
-            rotary_pos_emb: Tensor = None,
-            inference_params: InferenceParams = None,
-            packed_seq_params: PackedSeqParams = None,
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        xattn_caches: Optional[List] = None,
+        cross_attention_masks: Tensor = None,
+        full_text_row_masked_out_mask: Tensor = None,
+        rotary_pos_emb: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
     ):
         # hidden_states (float): [s, b, h]
         # attention_mask (bool): [1, 1, s, s]
@@ -375,37 +378,31 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                                 packed_seq_params=packed_seq_params,
                             )
                             # CUDA graph doesn't output context and is expected to be None
-                            assert (
-                                    (context is None)
-                                    or (not self.config.enable_cuda_graph)
-                                    or (not self.training)
-                            )
+                            assert (context is None) or (not self.config.enable_cuda_graph) or (not self.training)
                         else:
                             assert (len(self.cuda_graphs) > l_no) and (
-                                    self.current_microbatch < len(self.cuda_graphs[l_no])
+                                self.current_microbatch < len(self.cuda_graphs[l_no])
                             )
                             hidden_states = self.cuda_graphs[l_no][self.current_microbatch](
                                 hidden_states, is_first_microbatch=(self.current_microbatch == 0)
                             )
 
                     if (
-                            torch.is_grad_enabled()
-                            and self.config.cpu_offloading
-                            and self.group_prefetch_offload_commit_async is not None
+                        torch.is_grad_enabled()
+                        and self.config.cpu_offloading
+                        and self.group_prefetch_offload_commit_async is not None
                     ):
                         hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
 
         # Final layer norm.
         if self.final_layernorm is not None:
             hidden_states = self.final_layernorm(hidden_states)
-            hidden_states = make_viewless_tensor(
-                inp=hidden_states, requires_grad=True, keep_graph=True
-            )
+            hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
 
         return hidden_states
 
     def sharded_state_dict(
-            self, prefix: str = '', sharded_offsets: tuple = (), metadata: dict = None
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: dict = None
     ) -> ShardedStateDict:
         sharded_state_dict = {}
 
@@ -416,12 +413,8 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             global_layer_offset = layer.layer_number - 1  # self.layer_number starts at 1
             state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = layer_prefix
-            sharded_pp_offset = [
-                (0, global_layer_offset, num_layers)
-            ]  # PP sharding offset for ShardedTensors
-            layer_sharded_state_dict = layer.sharded_state_dict(
-                state_dict_prefix, sharded_pp_offset, metadata
-            )
+            sharded_pp_offset = [(0, global_layer_offset, num_layers)]  # PP sharding offset for ShardedTensors
+            layer_sharded_state_dict = layer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
             replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
             sharded_state_dict.update(layer_sharded_state_dict)
 
@@ -434,9 +427,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             state_dict_prefix = f'{xlayer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = f'{xlayer_prefix}{global_layer_offset}.'
             sharded_pp_offset = []
-            xlayer_sharded_state_dict = xlayer.sharded_state_dict(
-                state_dict_prefix, sharded_pp_offset, metadata
-            )
+            xlayer_sharded_state_dict = xlayer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
             replace_prefix_for_sharding(xlayer_sharded_state_dict, state_dict_prefix, sharded_prefix)
             sharded_state_dict.update(xlayer_sharded_state_dict)
 
@@ -444,9 +435,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         for name, module in self.named_children():
             if not module is self.layers and not module is self.xattn_layers:
                 sharded_state_dict.update(
-                    sharded_state_dict_default(
-                        module, f'{prefix}{name}.', sharded_offsets, metadata
-                    )
+                    sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
                 )
 
         return sharded_state_dict
@@ -454,11 +443,11 @@ class CrossAttentionTransformerBlock(TransformerBlock):
 
 class CrossAttentionTransformerLayer(TransformerLayer):
     def __init__(
-            self,
-            config: TransformerConfig,
-            submodules: TransformerLayerSubmodules,
-            layer_number: int = 1,
-            hidden_dropout: float = None,
+        self,
+        config: TransformerConfig,
+        submodules: TransformerLayerSubmodules,
+        layer_number: int = 1,
+        hidden_dropout: float = None,
     ):
         super().__init__(
             config=config,
@@ -474,14 +463,14 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         return self.cross_attention._compute_xattn_kv_cache(xattn_tokens)
 
     def forward(
-            self,
-            hidden_states,
-            cross_attention_masks,
-            xattn_cache=None,
-            full_text_row_masked_out_mask=None,
-            rotary_pos_emb=None,
-            inference_params=None,
-            packed_seq_params=None,
+        self,
+        hidden_states,
+        cross_attention_masks,
+        xattn_cache=None,
+        full_text_row_masked_out_mask=None,
+        rotary_pos_emb=None,
+        inference_params=None,
+        packed_seq_params=None,
     ):
         # hidden_states: [s, b, h]
 
@@ -502,11 +491,11 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         )
 
         _gate_attn = self.gate_attn.tanh()
-        assert isinstance(attention_output_with_bias,
-                          tuple), "`attention_output_with_bias` needs to be tuple for gating."
+        assert isinstance(
+            attention_output_with_bias, tuple
+        ), "`attention_output_with_bias` needs to be tuple for gating."
         attention_output_with_bias = tuple(
-            _gate_attn * output if output is not None else None
-            for output in attention_output_with_bias
+            _gate_attn * output if output is not None else None for output in attention_output_with_bias
         )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
@@ -526,11 +515,9 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
         _gate_ffn = self.gate_ffn.tanh() * full_text_row_masked_out_mask[:, 0].transpose(0, 1)
-        assert isinstance(mlp_output_with_bias,
-                          tuple), "`mlp_output_with_bias` needs to be tuple for gating."
+        assert isinstance(mlp_output_with_bias, tuple), "`mlp_output_with_bias` needs to be tuple for gating."
         mlp_output_with_bias = tuple(
-            _gate_ffn * output if output is not None else None
-            for output in mlp_output_with_bias
+            _gate_ffn * output if output is not None else None for output in mlp_output_with_bias
         )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
@@ -546,9 +533,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(
-            inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
-        )
+        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return output, None  # context
 
@@ -557,10 +542,10 @@ class DummyCrossAttentionTransformerLayer(MegatronModule):
     """Dummy cross-attention transformer block with tanh-gated attention and feedforward."""
 
     def __call__(
-            self,
-            hidden_states: Tensor,
-            *args,
-            **kwargs,
+        self,
+        hidden_states: Tensor,
+        *args,
+        **kwargs,
     ):
         return hidden_states, None
 
@@ -576,11 +561,11 @@ class MLlamaCrossAttention(Attention):
     """
 
     def __init__(
-            self,
-            config: TransformerConfig,
-            submodules: MLlamaCrossAttentionSubmodules,
-            layer_number: int,
-            attn_mask_type=AttnMaskType.padding,
+        self,
+        config: TransformerConfig,
+        submodules: MLlamaCrossAttentionSubmodules,
+        layer_number: int,
+        attn_mask_type=AttnMaskType.padding,
     ):
         super().__init__(
             config=config,
@@ -670,14 +655,14 @@ class MLlamaCrossAttention(Attention):
         return query, key, value
 
     def forward(
-            self,
-            hidden_states,
-            cross_attention_masks,
-            xattn_cache=None,
-            full_text_row_masked_out_mask=None,
-            inference_params=None,
-            rotary_pos_emb=None,
-            packed_seq_params=None,
+        self,
+        hidden_states,
+        cross_attention_masks,
+        xattn_cache=None,
+        full_text_row_masked_out_mask=None,
+        inference_params=None,
+        rotary_pos_emb=None,
+        packed_seq_params=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -757,11 +742,11 @@ class MLlamaCrossAttention(Attention):
 
 
 def apply_rope_scaling(
-        inv_freq,
-        factor: int = 8,
-        low_freq_factor: int = 1,
-        high_freq_factor: int = 4,
-        old_context_len: int = 8192,
+    inv_freq,
+    factor: int = 8,
+    low_freq_factor: int = 1,
+    high_freq_factor: int = 4,
+    old_context_len: int = 8192,
 ):
     logging.info(
         f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."

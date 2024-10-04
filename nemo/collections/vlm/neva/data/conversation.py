@@ -155,8 +155,7 @@ class Conversation:
             ret = self.process_chat_template(tokenizer_name_or_path, messages)
 
         elif self.sep_style == SeparatorStyle.MLLAMA:
-            """
-            """
+            """ """
             tokenizer_name_or_path = self.tokenizer_name_or_path or "meta-llama/Llama-3.2-11B-Vision-Instruct"
             ret = self.process_chat_template(tokenizer_name_or_path, messages)
 

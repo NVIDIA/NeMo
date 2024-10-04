@@ -14,7 +14,6 @@ python /lustre/fsw/coreai_dlalgo_genai/yuya/LLaVA/llava/eval/eval_science_qa.py 
     --output-result /lustre/fsw/coreai_dlalgo_genai/datasets/eval/scienceqa/answers/${NAME}_result.json
 """
 
-
 import argparse
 import json
 import math
@@ -27,9 +26,9 @@ from tqdm import tqdm
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
-from nemo.collections.vlm import LlavaModel, Llava1_5Config7B
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
+from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 def generate(model, input_ids, media, position_ids, tokenizer, max_length=20, attention_mask=None):
@@ -112,7 +111,7 @@ def main(args) -> None:
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i: i + chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -173,29 +172,39 @@ def predict_answers(args, model, processor):
 
         cur_prompt = cur_prompt + '\n' + "Answer with the option's letter from the given choices directly."
         # Tokenize the input prompt and prepare input tensors
-        prompt = processor.apply_chat_template([
-            {
-                "role": "system",
-                "content": [{"type": "text", "text": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions."}],
-            },
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": cur_prompt}]
-            }
-        ], add_generation_prompt=True)
+        prompt = processor.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.",
+                        }
+                    ],
+                },
+                {"role": "user", "content": [{"type": "text", "text": cur_prompt}]},
+            ],
+            add_generation_prompt=True,
+        )
 
         # Prepare the input tensors for the model
         inputs = processor(prompt, image, return_tensors='pt').to(0, torch.float16)
         input_ids = inputs['input_ids'][:, 1:].cuda()  # strip bos token
         input_ids[input_ids == 32000] = -200  # Handle specific token in the input
         media = inputs['pixel_values'].cuda().reshape(inputs['pixel_values'].size(0), 3, 336, 336) if image else None
-        position_ids = torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(
-            0).expand_as(input_ids)
+        position_ids = (
+            torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+            .unsqueeze(0)
+            .expand_as(input_ids)
+        )
 
         attention_mask = inputs.get('attention_mask', None).cuda() if 'attention_mask' in inputs else None
 
         # Generate the response using the model
-        generated_ids, predicted_ids = generate(model, input_ids, media, position_ids, tokenizer, attention_mask=attention_mask, max_length=args.max_length)
+        generated_ids, predicted_ids = generate(
+            model, input_ids, media, position_ids, tokenizer, attention_mask=attention_mask, max_length=args.max_length
+        )
 
         # Post-process and decode the generated response
         generated_texts = tokenizer.batch_decode(predicted_ids, skip_special_tokens=False)
@@ -204,6 +213,7 @@ def predict_answers(args, model, processor):
         # If global rank zero, write the response to the answers file
         if is_global_rank_zero():
             import shortuuid
+
             ans_id = shortuuid.uuid()
             ans_file.write(
                 json.dumps(

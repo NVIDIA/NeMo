@@ -13,16 +13,17 @@
 # limitations under the License.
 
 import argparse
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.loggers import WandbLogger
 from transformers import AutoProcessor
-from nemo import lightning as nl
-from nemo.collections import vlm, llm
 
+from nemo import lightning as nl
+from nemo.collections import llm, vlm
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from pytorch_lightning.loggers import WandbLogger
 
 
 def main(args):
@@ -43,7 +44,7 @@ def main(args):
     seq_length = 6404
     decoder_seq_length = 512  # decoder (llm) seq length
     if args.restore_path.startswith("hf://"):
-        model_id = args.restore_path[len("hf://"):]
+        model_id = args.restore_path[len("hf://") :]
     else:
         # default
         model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
@@ -52,6 +53,7 @@ def main(args):
     tokenizer = processor.tokenizer
 
     from nemo.collections.vlm.llama.data.mock import MockDataModule
+
     data = MockDataModule(
         seq_length=seq_length,
         decoder_seq_length=decoder_seq_length,
@@ -156,10 +158,16 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mllama Model Training Script")
 
-    parser.add_argument("--restore_path", type=str, required=False, default=None,
-                        help="Path to restore model from checkpoint")
-    parser.add_argument("--log_dir", type=str, required=False, default="./nemo_experiments",
-                        help="Directory for logging and checkpoints")
+    parser.add_argument(
+        "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
+    )
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        required=False,
+        default="./nemo_experiments",
+        help="Directory for logging and checkpoints",
+    )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)

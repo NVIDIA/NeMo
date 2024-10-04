@@ -19,15 +19,12 @@ import nemo_run as run
 import pytorch_lightning as pl
 import torch
 
-from nemo.collections.llm.recipes.finetune_default import nemo_resume
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-
-from nemo.collections.llm.recipes.log.default import tensorboard_logger
-
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.llm.recipes.finetune_default import nemo_resume
+from nemo.collections.llm.recipes.log.default import tensorboard_logger
+from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.vlm.llama.data.mock import MockDataModule
 
 NAME = "mllama_11b"
@@ -95,7 +92,7 @@ def finetune_recipe(
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
         encoder_pipeline_model_parallel_size=0,
-        pipeline_dtype=torch.bfloat16
+        pipeline_dtype=torch.bfloat16,
     )
 
     trainer = run.Config(
@@ -135,14 +132,18 @@ def finetune_recipe(
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 2e-05
     elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(vlm.LoRA, freeze_vision_model=False, target_modules=[
+        recipe.peft = run.Config(
+            vlm.LoRA,
+            freeze_vision_model=False,
+            target_modules=[
                 "*.language_model.*.linear_qkv",
                 "*.language_model.*.linear_q",
                 "*.language_model.*.linear_kv",
                 "*.language_model.*.linear_proj",
                 "*.language_model.*.linear_fc1",
                 "*.language_model.*.linear_fc2",
-            ])
+            ],
+        )
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

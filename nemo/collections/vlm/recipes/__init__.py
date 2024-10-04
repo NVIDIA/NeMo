@@ -13,6 +13,4 @@
 # limitations under the License.
 
 
-from nemo.collections.vlm.recipes import (
-    mllama_11b,
-)
+from nemo.collections.vlm.recipes import mllama_11b

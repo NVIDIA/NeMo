@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.vlm.llama.model.base import (
-    MLlamaModel,
-    MLlamaModelConfig,
     CrossAttentionTextConfig,
     CrossAttentionVisionConfig,
+    MLlamaModel,
+    MLlamaModelConfig,
 )
