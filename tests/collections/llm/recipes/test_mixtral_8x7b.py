@@ -40,7 +40,7 @@ class TestMixtral8x7B:
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
         assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 8
         assert trainer_config.strategy.context_parallel_size == 1
-        assert trainer_config.strategy.sequence_parallel is True
+        assert trainer_config.strategy.sequence_parallel is False
         assert trainer_config.strategy.expert_model_parallel_size == 8
 
         # Check DDP configuration

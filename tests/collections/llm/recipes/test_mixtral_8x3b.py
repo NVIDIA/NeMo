@@ -38,8 +38,8 @@ class TestMixtral8x3B:
         assert trainer_config.strategy.pipeline_model_parallel_size == 1
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
         assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
-        assert trainer_config.strategy.context_parallel_size == 1
-        assert trainer_config.strategy.sequence_parallel is True
+        assert trainer_config.strategy.context_parallel_size == 2
+        assert trainer_config.strategy.sequence_parallel is False
         assert trainer_config.strategy.expert_model_parallel_size == 4
 
     def test_pretrain_recipe(self, recipe_module):
