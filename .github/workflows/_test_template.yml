@@ -32,11 +32,11 @@ on:
         value: ${{ jobs.main.outputs.conclusion }}
       log:
         description: Last 2000 characters of the test step's log
-        value: ${{ jobs.main.outputs.log }} 
+        value: ${{ jobs.main.outputs.log }}
 jobs:
-  
+
   main:
-    runs-on: ${{ inputs.RUNNER }} 
+    runs-on: ${{ inputs.RUNNER }}
     outputs:
       conclusion: ${{ steps.main.conclusion }}
       log: ${{ steps.main.outputs.log }}
@@ -55,22 +55,28 @@ jobs:
           run: |
             mkdir -p ${{ github.run_id }}
             cd ${{ github.run_id }}/
-            set +e 
-            (  
+            set +e
+            (
               set -e
 
-              docker run --rm --runtime=nvidia --gpus all --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
+              docker run --rm --runtime=nvidia --gpus all --shm-size=64g \
+                --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 \
+                --volume /mnt/datadrive/TestData:/home/TestData:ro \
+                nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
             ) 2> >(tee err.log)
 
             EXIT_CODE=$?
-            
+
             echo "log=$(tail -c 2000 err.log |  base64 -w 0)" >> "$GITHUB_OUTPUT"
-            
+
             exit $EXIT_CODE
-            
+
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: failure() && inputs.IS_OPTIONAL == false
         - name: after_script
           if: always() && inputs.AFTER_SCRIPT != ':'
           run: |
-            docker run --rm --runtime=nvidia --gpus all --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
+            docker run --rm --runtime=nvidia --gpus all --shm-size=64g \
+              --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 \
+              --volume /mnt/datadrive/TestData:/home/TestData:ro \
+              nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
