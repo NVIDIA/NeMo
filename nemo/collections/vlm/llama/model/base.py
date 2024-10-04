@@ -365,15 +365,14 @@ class MLlamaBaseModel(MegatronModule):
             for layer in self.language_model.decoder.xattn_layers
         ]
 
-
-        vision_tokens = rearrange(vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg,
-                                  nchk=nchunk, ntok=ntok)
         padded_masks = _pad_masks(
             batch_masks,
             num_chunks,
             total_len,
             self.max_num_chunks,
         )
+        vision_tokens = rearrange(vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg,
+                                  nchk=nchunk, ntok=ntok)
         cross_attention_masks, full_text_row_masked_out_mask = (
             _get_xattn_mask(
                 num_tokens=total_len,

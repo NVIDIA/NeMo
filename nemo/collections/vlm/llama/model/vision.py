@@ -171,7 +171,7 @@ def build_encoder_attention_mask(
         arx = supported_aspect_ratios[ar_id-1]
         mask_i = torch.ones((num_chunks, x.shape[1] // num_chunks), dtype=torch.bool, device=x.device)
         mask_i[: arx[0] * arx[1], :ntok] = 0
-        mask_i = mask_i.view(num_chunks * x.shape[1] // num_chunks)
+        mask_i = mask_i.view(x.shape[1])
         mask_i = mask_i.unsqueeze(0).unsqueeze(0)
         masks.append(mask_i)
     masks = torch.stack(masks)
