@@ -288,11 +288,11 @@ def main():
         OmegaConf.from_dotlist([f"input_cfg={args.input}"]),
     )
     cuts, _ = read_cutset_from_config(config)
+    cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None)
+    if hasattr(cuts, "prefetch"):
+        cuts = cuts.prefetch()  # to be released in lhotse 1.27
     token_filter = RejectionsCounter(TokenCountFilter(args.min_tokens, args.max_tokens), "Token count filtering")
     cuts = cuts.filter(token_filter)
-    cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None)
-    # if hasattr(cuts, "prefetch"):
-    #     cuts = cuts.prefetch()  # to be released in lhotse 1.27
     tpt_filter = RejectionsCounter(TokenPerTokenFilter(-1, args.max_tpt), "Output tokens per input token filtering")
     cuts = cuts.filter(tpt_filter)
     if (N := args.num_examples) > 0:
