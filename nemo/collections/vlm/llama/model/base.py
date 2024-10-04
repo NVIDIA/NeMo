@@ -428,7 +428,7 @@ class MLlamaBaseModel(MegatronModule):
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
-        if xattn_caches is None:
+        if xattn_caches is None and batch_images is not None:
             assert aspect_ratio_ids is not None
             bsz, max_num_images = batch_images.size(0), batch_images.size(1)
             vision_orig_shape = (
@@ -481,8 +481,8 @@ class MLlamaBaseModel(MegatronModule):
             labels=labels,
             decoder_input=language_embeddings,
             attention_mask=None,
-            cross_attention_masks=cross_attention_masks[:, :, position_ids[0]],
-            full_text_row_masked_out_mask=full_text_row_masked_out_mask[:, :, position_ids[0]],
+            cross_attention_masks=cross_attention_masks[:, :, position_ids[0]] if cross_attention_masks is not None else None,
+            full_text_row_masked_out_mask=full_text_row_masked_out_mask[:, :, position_ids[0]] if cross_attention_masks is not None else None,
             xattn_caches=xattn_caches,
         )
         return output
