@@ -14,8 +14,9 @@
 
 from dataclasses import dataclass
 
-from nemo.collections.llm.peft.lora import LoRA as LLMLoRA
 from torch import nn
+
+from nemo.collections.llm.peft.lora import LoRA as LLMLoRA
 
 
 @dataclass
@@ -45,6 +46,7 @@ class LoRA(LLMLoRA):
     )
 
     """
+
     freeze_language_model: bool = True
     freeze_vision_model: bool = False
 

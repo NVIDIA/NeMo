@@ -19,9 +19,7 @@ from typing import List, Optional
 class BaseConversationTemplateConfig:
     """Conversation template config related parameters"""
 
-    system: Optional[str] = (
-        "".format()
-    )  # fmt: off
+    system: Optional[str] = "".format()  # fmt: off
     roles: List[str] = field(default_factory=lambda: ['user', 'assistant'])
     stop_string: Optional[str] = None
     chat_template = None

@@ -17,11 +17,7 @@ from typing import Dict, List
 
 import torch
 import torch.nn.functional as F
-from megatron.energon import (
-    VQASample,
-    batch_list,
-    batch_pad_stack,
-)
+from megatron.energon import VQASample, batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder

@@ -22,7 +22,6 @@ from typing import Callable, Dict, List, Optional, Tuple
 import pytorch_lightning as L
 import torch
 import torch.distributed
-from PIL import Image as PIL_Image
 from einops import rearrange
 from megatron.core.enums import ModelType
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector
@@ -32,7 +31,8 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn, Tensor
+from PIL import Image as PIL_Image
+from torch import Tensor, nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
@@ -40,9 +40,8 @@ from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel, _get_xattn_mask
-from nemo.collections.vlm.llama.model.vision import _pad_masks, VisionEncoder
-from nemo.lightning import get_vocab_size, MegatronStrategy, Trainer
-from nemo.lightning import io, teardown
+from nemo.collections.vlm.llama.model.vision import VisionEncoder, _pad_masks
+from nemo.lightning import MegatronStrategy, Trainer, get_vocab_size, io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.lightning.pytorch.utils import dtype_from_hf
@@ -64,15 +63,32 @@ def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.update(("attention_mask", "tokens", "batch_masks", "position_ids", "num_chunks",))
+    required_keys.update(
+        (
+            "attention_mask",
+            "tokens",
+            "batch_masks",
+            "position_ids",
+            "num_chunks",
+        )
+    )
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("batch_images", "aspect_ratio_ids",))
+        required_keys.update(
+            (
+                "batch_images",
+                "aspect_ratio_ids",
+            )
+        )
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask",))
+        required_keys.update(
+            (
+                "labels",
+                "loss_mask",
+            )
+        )
 
     _batch = {
-        key: val.cuda(non_blocking=True)
-        if key in required_keys and isinstance(val, torch.Tensor) else val
+        key: val.cuda(non_blocking=True) if key in required_keys and isinstance(val, torch.Tensor) else val
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
@@ -115,8 +131,14 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
     text_hidden_size: int = 4096
     gated: bool = False
     supported_aspect_ratios: Tuple[Tuple[int, int], ...] = (
-        (1, 1), (1, 2), (1, 3), (1, 4),
-        (2, 1), (2, 2), (3, 1), (4, 1)
+        (1, 1),
+        (1, 2),
+        (1, 3),
+        (1, 4),
+        (2, 1),
+        (2, 2),
+        (3, 1),
+        (4, 1),
     )
 
     @property
@@ -153,8 +175,8 @@ class CrossAttentionTextConfig(Llama31Config):
         if vp_size:
             p_size = self.pipeline_model_parallel_size
             assert (
-                           self.num_layers // p_size
-                   ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
+                self.num_layers // p_size
+            ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
@@ -213,14 +235,30 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
 
     def __post_init__(self):
         model_config_attr = [
-            'num_layers', 'hidden_size', 'num_attention_heads', 'num_query_groups',
-            'ffn_hidden_size', 'kv_channels', 'hidden_dropout', 'attention_dropout',
-            'fp32_residual_connection', 'apply_residual_connection_post_layernorm',
-            'layernorm_epsilon', 'layernorm_zero_centered_gamma', 'add_bias_linear',
-            'add_qkv_bias', 'gated_linear_unit', 'activation_func',
-            'activation_func_fp8_input_store', 'num_moe_experts', 'rotary_interleaved',
-            'window_size', 'normalization', 'qk_layernorm', 'test_mode',
-            'calculate_per_token_loss'
+            'num_layers',
+            'hidden_size',
+            'num_attention_heads',
+            'num_query_groups',
+            'ffn_hidden_size',
+            'kv_channels',
+            'hidden_dropout',
+            'attention_dropout',
+            'fp32_residual_connection',
+            'apply_residual_connection_post_layernorm',
+            'layernorm_epsilon',
+            'layernorm_zero_centered_gamma',
+            'add_bias_linear',
+            'add_qkv_bias',
+            'gated_linear_unit',
+            'activation_func',
+            'activation_func_fp8_input_store',
+            'num_moe_experts',
+            'rotary_interleaved',
+            'window_size',
+            'normalization',
+            'qk_layernorm',
+            'test_mode',
+            'calculate_per_token_loss',
         ]
 
         if self.language_model_config is not None:
@@ -246,10 +284,12 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
             language_model_config=self.language_model_config,
             vision_model_config=self.vision_model_config,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage() or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            pre_process=ps.is_pipeline_first_stage()
+            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
-            add_decoder=ps.is_pipeline_last_stage() or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            add_decoder=ps.is_pipeline_last_stage()
+            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
         )
 
         return model
@@ -264,9 +304,7 @@ class CrossAttentionVisionModel(MegatronModule):
         self.max_num_chunks = config.vision_max_num_chunks
         if return_intermediate is not None:
             return_intermediate = [int(l) for l in return_intermediate.split(",")]
-            self.vision_input_dim = (
-                                            len(return_intermediate) + 1
-                                    ) * self.vision_input_dim
+            self.vision_input_dim = (len(return_intermediate) + 1) * self.vision_input_dim
         self.patch_size = 14
         self.vision_encoder = VisionEncoder(
             config=config,
@@ -286,15 +324,11 @@ class CrossAttentionVisionModel(MegatronModule):
         )
         self.vision_projection.encoder.skip_bias_add = False  # Temporary fix for a MCore side bug
 
-    def forward(
-            self, images: torch.Tensor, aspect_ratio_ids: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, images: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
         # vision_tokens: (B, T, D)
         # aspect_ratio_ids: (B, 1)
         # h: (B, T, D)
-        vision_tokens = self.vision_encoder(
-            images.to(dtype=torch.bfloat16), aspect_ratio_ids
-        )
+        vision_tokens = self.vision_encoder(images.to(dtype=torch.bfloat16), aspect_ratio_ids)
         vision_shape = vision_tokens.shape
         vision_tokens = self.vision_projection(vision_tokens.reshape(-1, *vision_shape[-2:]))
         vision_tokens = vision_tokens.reshape(*vision_shape[:-1], -1)
@@ -306,15 +340,15 @@ class CrossAttentionVisionModel(MegatronModule):
 
 class MLlamaBaseModel(MegatronModule):
     def __init__(
-            self,
-            config: TransformerConfig,
-            language_model_config: CrossAttentionTextConfig,
-            vision_model_config: CrossAttentionVisionConfig,
-            tokenizer: Optional = None,
-            pre_process: bool = True,
-            post_process: bool = True,
-            add_encoder: bool = True,
-            add_decoder: bool = True,
+        self,
+        config: TransformerConfig,
+        language_model_config: CrossAttentionTextConfig,
+        vision_model_config: CrossAttentionVisionConfig,
+        tokenizer: Optional = None,
+        pre_process: bool = True,
+        post_process: bool = True,
+        add_encoder: bool = True,
+        add_decoder: bool = True,
     ) -> None:
         super().__init__(config=config)
 
@@ -333,9 +367,7 @@ class MLlamaBaseModel(MegatronModule):
             self.language_model = language_model_config.configure_model(
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
-            self.share_embeddings_and_output_weights = (
-                self.language_model.share_embeddings_and_output_weights
-            )
+            self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
 
         if self.add_encoder:
             self.vision_model = vision_model_config.configure_model()
@@ -351,18 +383,17 @@ class MLlamaBaseModel(MegatronModule):
         self.language_model.setup_cache(max_batch_size, dtype)
 
     def compute_xattn_caches_masks(
-            self,
-            vision_tokens: torch.Tensor,
-            vision_orig_shape: torch.Size,
-            batch_masks: List[List[List[int]]],
-            num_chunks: List[List[int]],
-            total_len: int
+        self,
+        vision_tokens: torch.Tensor,
+        vision_orig_shape: torch.Size,
+        batch_masks: List[List[List[int]]],
+        num_chunks: List[List[int]],
+        total_len: int,
     ) -> Tuple[List, torch.Tensor, torch.Tensor]:
         bsz, nimg, nchunk, ntok, image_token_dim = vision_orig_shape
 
         xattn_caches = [
-            layer.compute_xattn_kv_cache(vision_tokens)
-            for layer in self.language_model.decoder.xattn_layers
+            layer.compute_xattn_kv_cache(vision_tokens) for layer in self.language_model.decoder.xattn_layers
         ]
 
         padded_masks = _pad_masks(
@@ -371,32 +402,31 @@ class MLlamaBaseModel(MegatronModule):
             total_len,
             self.max_num_chunks,
         )
-        vision_tokens = rearrange(vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg,
-                                  nchk=nchunk, ntok=ntok)
-        cross_attention_masks, full_text_row_masked_out_mask = (
-            _get_xattn_mask(
-                num_tokens=total_len,
-                text_device="cuda",
-                text_dtype=next(self.language_model.parameters()).dtype,
-                vision_tokens=vision_tokens,
-                cross_attention_masks=padded_masks,
-            )
+        vision_tokens = rearrange(
+            vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg, nchk=nchunk, ntok=ntok
+        )
+        cross_attention_masks, full_text_row_masked_out_mask = _get_xattn_mask(
+            num_tokens=total_len,
+            text_device="cuda",
+            text_dtype=next(self.language_model.parameters()).dtype,
+            vision_tokens=vision_tokens,
+            cross_attention_masks=padded_masks,
         )
 
         return (xattn_caches, cross_attention_masks, full_text_row_masked_out_mask)
 
     def forward(
-            self,
-            position_ids: torch.Tensor,
-            tokens: torch.Tensor,
-            labels: Optional[torch.Tensor] = None,
-            batch_images: Optional[torch.Tensor] = None,
-            batch_masks: Optional[List[List[List[int]]]] = None,
-            num_chunks: Optional[List[List[int]]] = None,
-            aspect_ratio_ids: Optional[torch.Tensor] = None,
-            cross_attention_masks: Optional[torch.Tensor] = None,
-            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
-            xattn_caches: Optional[List] = None,
+        self,
+        position_ids: torch.Tensor,
+        tokens: torch.Tensor,
+        labels: Optional[torch.Tensor] = None,
+        batch_images: Optional[torch.Tensor] = None,
+        batch_masks: Optional[List[List[List[int]]]] = None,
+        num_chunks: Optional[List[List[int]]] = None,
+        aspect_ratio_ids: Optional[torch.Tensor] = None,
+        cross_attention_masks: Optional[torch.Tensor] = None,
+        full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+        xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
         if xattn_caches is None:
             assert aspect_ratio_ids is not None
@@ -405,11 +435,7 @@ class MLlamaBaseModel(MegatronModule):
                 bsz,
                 max_num_images,
                 self.max_num_chunks,
-                int(
-                    (self.image_res / self.patch_size)
-                    ** 2
-                    + 1
-                ),
+                int((self.image_res / self.patch_size) ** 2 + 1),
                 self.config.hidden_size,
             )
             skip_vision_encoder = False
@@ -422,12 +448,15 @@ class MLlamaBaseModel(MegatronModule):
             else:
                 if skip_vision_encoder:
                     vision_tokens = torch.zeros(
-                        vision_orig_shape, device="cuda", dtype=torch.bfloat16,
+                        vision_orig_shape,
+                        device="cuda",
+                        dtype=torch.bfloat16,
                     )
                 else:
                     vision_tokens = self.vision_model(batch_images, aspect_ratio_ids)
-                    vision_tokens = rearrange(vision_tokens,
-                                              "b nimg nchk ntok dim -> (nimg nchk ntok) b dim").contiguous()
+                    vision_tokens = rearrange(
+                        vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim"
+                    ).contiguous()
 
             if not self.add_decoder:
                 return vision_tokens
@@ -453,9 +482,7 @@ class MLlamaBaseModel(MegatronModule):
             decoder_input=language_embeddings,
             attention_mask=None,
             cross_attention_masks=cross_attention_masks[:, :, position_ids[0]],
-            full_text_row_masked_out_mask=full_text_row_masked_out_mask[
-                                          :, :, position_ids[0]
-                                          ],
+            full_text_row_masked_out_mask=full_text_row_masked_out_mask[:, :, position_ids[0]],
             xattn_caches=xattn_caches,
         )
         return output
@@ -477,11 +504,11 @@ class MLlamaBaseModel(MegatronModule):
 
 class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-            self,
-            config: MLlamaModelConfig,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: MLlamaModelConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -497,17 +524,17 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self.module: MLlamaBaseModel = self.config.configure_model(self.tokenizer)
 
     def forward(
-            self,
-            batch_images: List[List[PIL_Image.Image]],
-            tokens: torch.LongTensor,
-            position_ids: torch.LongTensor,
-            batch_masks: Optional[List[List[List[int]]]] = None,
-            num_chunks: Optional[List[List[int]]] = None,
-            aspect_ratio_ids: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            cross_attention_masks: Optional[torch.Tensor] = None,
-            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
-            xattn_caches: Optional[torch.Tensor] = None,
+        self,
+        batch_images: List[List[PIL_Image.Image]],
+        tokens: torch.LongTensor,
+        position_ids: torch.LongTensor,
+        batch_masks: Optional[List[List[List[int]]]] = None,
+        num_chunks: Optional[List[List[int]]] = None,
+        aspect_ratio_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        cross_attention_masks: Optional[torch.Tensor] = None,
+        full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+        xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         output_tensor = self.module(

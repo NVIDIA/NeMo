@@ -122,7 +122,8 @@ class LoRA(PEFT):
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
         def wildcard_match(pattern, key):
-            if key is None: return None
+            if key is None:
+                return None
             regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
             match = regex_pattern.match(key)
             return match is not None

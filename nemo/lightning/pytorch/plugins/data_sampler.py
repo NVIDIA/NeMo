@@ -44,7 +44,7 @@ class MegatronDataSampler(DataSampler):
         init_consumed_samples: int = 0,
         init_global_step: int = 0,
         output_log: bool = True,
-        decoder_seq_len: Optional[int] = None
+        decoder_seq_len: Optional[int] = None,
     ):
         self.seq_len = seq_len
         self.decoder_seq_len = decoder_seq_len

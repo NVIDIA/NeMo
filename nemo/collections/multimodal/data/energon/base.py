@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Literal, Optional
-from typing_extensions import Self
 from copy import deepcopy
+from typing import Any, Dict, Literal, Optional
+
 import fiddle as fdl
 import pytorch_lightning as pl
 from megatron.core import parallel_state
 from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader
+from typing_extensions import Self
 
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.lightning.io.mixin import IOMixin , serialization, track_io
+from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
@@ -101,7 +102,10 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         )
         self.init_global_step = 0
         self.data_sampler = SequentialMegatronSampler(
-            seq_len=self.seq_length, decoder_seq_len=self.decoder_seq_length, micro_batch_size=self.micro_batch_size, global_batch_size=self.global_batch_size
+            seq_len=self.seq_length,
+            decoder_seq_len=self.decoder_seq_length,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
         )
         self.train_dataloader_object = None
         self.val_dataloader_object = None

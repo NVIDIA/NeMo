@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+
 import requests
 import torch
 from PIL import Image
-import argparse
-
-from nemo.collections import vlm
 
 from nemo import lightning as nl
-
+from nemo.collections import vlm
 
 model_id = "meta-llama/Llama-3.2-11B-Vision"
+
 
 def main(args) -> None:
     strategy = nl.MegatronStrategy(
@@ -44,6 +44,7 @@ def main(args) -> None:
 
     # Decide whether to import or load the model based on the input arguments
     from transformers import AutoProcessor
+
     processor = AutoProcessor.from_pretrained(model_id)
     tokenizer = processor.tokenizer
 
@@ -51,18 +52,16 @@ def main(args) -> None:
     image = Image.open(requests.get(url, stream=True).raw)
 
     messages = [
-        {"role": "user", "content": [
-            {"type": "image"},
-            {"type": "text", "text": "If I had to write a haiku for this one, it would be: "}
-        ]}
+        {
+            "role": "user",
+            "content": [
+                {"type": "image"},
+                {"type": "text", "text": "If I had to write a haiku for this one, it would be: "},
+            ],
+        }
     ]
     input_text = processor.apply_chat_template(messages, add_generation_prompt=True)
-    batch = processor(
-        image,
-        input_text,
-        add_special_tokens=False,
-        return_tensors="pt"
-    )
+    batch = processor(image, input_text, add_special_tokens=False, return_tensors="pt")
 
     model = fabric.import_model(f"hf://{model_id}", vlm.MLlamaModel)
     model = model.module.cuda()
@@ -82,11 +81,9 @@ def main(args) -> None:
     input_ids = input_ids[:, :min_prompt_len]
     generated_ids = input_ids.clone()
 
-    for cur_pos in range(min_prompt_len, min_prompt_len+50):
+    for cur_pos in range(min_prompt_len, min_prompt_len + 50):
         with torch.no_grad():
-            position_ids = torch.arange(
-                0, cur_pos, dtype=torch.long, device="cuda"
-            ).reshape(1, -1)
+            position_ids = torch.arange(0, cur_pos, dtype=torch.long, device="cuda").reshape(1, -1)
 
             output = model(
                 batch_images=batch["pixel_values"].cuda(non_blocking=True),
@@ -116,7 +113,6 @@ if __name__ == "__main__":
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
-
 
     args = parser.parse_args()
     main(args)

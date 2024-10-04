@@ -44,8 +44,8 @@ from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from pytorch_lightning.utilities import move_data_to_device
 from pytorch_lightning.trainer.states import TrainerFn
+from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
 
