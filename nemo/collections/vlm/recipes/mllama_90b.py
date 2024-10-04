@@ -115,8 +115,8 @@ def finetune_recipe(
         trainer=trainer,
         data=run.Config(
             MockDataModule,
-            seq_length=6404, # encoder (vision) seq length
-            decoder_seq_length=512, # decoder (llm) seq length
+            seq_length=6404,  # encoder (vision) seq length
+            decoder_seq_length=512,  # decoder (llm) seq length
             global_batch_size=16,
             micro_batch_size=2,
             vocab_size=128256,
