@@ -14,8 +14,10 @@
 
 import os
 
+
 def set_env():
     os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '1'
+
 
 from pathlib import Path
 

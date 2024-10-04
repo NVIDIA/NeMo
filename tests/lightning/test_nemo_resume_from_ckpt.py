@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
 import os
+
+import pytest
+
 
 def set_env():
     os.environ['NVTE_FLASH_ATTN'] = '0'
@@ -25,6 +27,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 from megatron.core.optimizer import OptimizerConfig
 
 import nemo.lightning as nl
@@ -35,7 +38,6 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
 DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
