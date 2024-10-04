@@ -27,26 +27,26 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.vlm.llama.data.mock import MockDataModule
 
-NAME = "mllama_11b"
+NAME = "mllama_90b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama-3.2-Vision 11B model configuration.
+    Factory function to create a Llama-3.2-Vision 90B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama-3.2-Vision 11B model.
+        run.Config[pl.LightningModule]: Configuration for the Llama-3.2-Vision 90B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=mllama_11b ...
+            $ nemo llm pretrain model=mllama_90b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(vlm.MLlamaModel, config=run.Config(vlm.MLlamaConfig11B))
+    return run.Config(vlm.MLlamaModel, config=run.Config(vlm.MLlamaConfig90B))
 
 
 @run.cli.factory(target=llm.finetune, name=NAME)
@@ -58,7 +58,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'lora',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama3.2 11B model.
+    Create a fine-tuning recipe for Llama3.2 90B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -75,10 +75,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory mllama_11b
+            $ nemo llm finetune --factory mllama_90b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="mllama_11b_finetune", num_nodes=1)
+            >>> recipe = finetune_recipe(name="mllama_90b_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
@@ -89,7 +89,7 @@ def finetune_recipe(
 
     strategy = run.Config(
         nl.MegatronStrategy,
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=8,
         pipeline_model_parallel_size=1,
         encoder_pipeline_model_parallel_size=0,
         pipeline_dtype=torch.bfloat16,
@@ -115,22 +115,21 @@ def finetune_recipe(
         trainer=trainer,
         data=run.Config(
             MockDataModule,
-            seq_length=4100, # encoder (vision) seq length
+            seq_length=6404, # encoder (vision) seq length
             decoder_seq_length=512, # decoder (llm) seq length
             global_batch_size=16,
             micro_batch_size=2,
             vocab_size=128256,
-            crop_size=(448, 448),
+            crop_size=(560, 560),
             num_workers=0,
         ),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=2.0e-07, warmup_steps=150),
-        resume=nemo_resume("meta-llama/Llama-3.2-11B-Vision"),
+        resume=nemo_resume("meta-llama/Llama-3.2-90B-Vision"),
     )
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 2
-        recipe.optim.config.lr = 2e-05
+        raise ValueError("Full finetuning recipe for Llama-3.2-90B model will be supported soon.")
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(
             vlm.LoRA,

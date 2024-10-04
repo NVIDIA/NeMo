@@ -56,10 +56,11 @@ class MLlamaConfig90B(MLlamaModelConfig):
             ffn_hidden_size=28672,
             num_attention_heads=64,
             num_layers=80,
+            num_cross_attention_layers=20,
         )
     )
     vision_model_config: Optional[TransformerConfig] = field(
-        default_factory=lambda: CrossAttentionVisionConfig(vision_chunk_size=560)
+        default_factory=lambda: CrossAttentionVisionConfig(vision_chunk_size=560, text_hidden_size=8192)
     )
 
 

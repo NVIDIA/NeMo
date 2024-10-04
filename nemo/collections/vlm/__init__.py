@@ -61,4 +61,5 @@ __all__ = [
     "MLlamaConfig90B",
     "MLlamaConfig90BInstruct",
     "mllama_11b",
+    "mllama_90b",
 ]
