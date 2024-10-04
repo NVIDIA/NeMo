@@ -21,7 +21,7 @@ from PIL import Image
 from nemo import lightning as nl
 from nemo.collections import vlm
 
-model_id = "meta-llama/Llama-3.2-11B-Vision"
+model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
 
 def main(args) -> None:
@@ -75,6 +75,9 @@ def main(args) -> None:
     position_ids = (
         torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
     )
+    num_tiles = (
+        processor.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)["num_tiles"]
+    )
 
     min_prompt_len = position_ids.shape[-1]
 
@@ -88,6 +91,7 @@ def main(args) -> None:
             output = model(
                 batch_images=batch["pixel_values"].cuda(non_blocking=True),
                 batch_masks=[[[5, 512]]],
+                num_chunks=num_tiles,
                 aspect_ratio_ids=batch["aspect_ratio_ids"].cuda(non_blocking=True),
                 tokens=generated_ids,
                 position_ids=position_ids,
@@ -95,15 +99,14 @@ def main(args) -> None:
 
             next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
             # Broadcast the tensor from rank 0 to all other ranks
-            # torch.distributed.broadcast(next_token_ids, src=0)
+            torch.distributed.broadcast(next_token_ids, src=0)
             generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
             if (next_token_ids == tokenizer.eos_token_id).all():
                 break
 
     generated_ids = generated_ids.tolist()
-    # print(generated_ids)
-    print(tokenizer.decode(generated_ids[0][min_prompt_len:]))
-    # print(tokenizer.decode(generated_ids[1][min_prompt_len:]))
+    if torch.distributed.get_rank() == 0:
+        print(tokenizer.decode(generated_ids[0][min_prompt_len:]))
 
 
 if __name__ == "__main__":
