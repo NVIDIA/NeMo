@@ -223,8 +223,8 @@ class NLPAdapterModelMixin:
             peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
         """
 
-        if self.cfg.optim.name == "distributed_fused_adam":
-            raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
+        # if self.cfg.optim.name == "distributed_fused_adam":
+        #     raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
 
         self.use_peft = True
         if not isinstance(peft_cfgs, List):
