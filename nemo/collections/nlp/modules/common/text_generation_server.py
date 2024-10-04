@@ -91,13 +91,12 @@ class MegatronGenerate(Resource):
     def post(self):
         # Access the request data if needed
         data = request.get_json()
-        print(data['messages'])
         data['messages'] = data['messages'] + [{'role': 'assistant', 'content': ''}] # adding trailing assistant message so that prompt ends with Assistant tag.
         special_tokens = self.model.cfg.data.chat_prompt_tokens
         nemo_source = self.convert_messages(data['messages'])
         header, conversation, data_type, mask_role  =  _get_header_conversation_type_mask_role(nemo_source, special_tokens)
-        conversation = conversation[:-14] ##FIXME
-        print(conversation)
+        len_strip = len(special_tokens['end_of_turn']+special_tokens['turn_start'])
+        conversation = conversation[:-len_strip] 
         # Return a response mimicking the OpenAI ChatCompletion API format
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
