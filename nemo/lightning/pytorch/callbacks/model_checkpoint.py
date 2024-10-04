@@ -15,13 +15,13 @@
 import os
 import re
 import shutil
+from _weakref import proxy
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import pytorch_lightning
 import torch
-from _weakref import proxy
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
@@ -290,7 +290,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context", yaml_attrs=["model"])
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -488,7 +488,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             trainer.save_checkpoint(ckpt_filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context", yaml_attrs=["model"])
 
             if self.async_save:
                 self._last_checkpoint_saved = filepath
