@@ -359,8 +359,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         )
 
         input_ids, input_length, loss_mask, audio_locator_ids = (
-            audio_batch['tokens'],  # this includes bos and eos
-            audio_batch['tokens_length'],
+            audio_batch['input_ids'],  # this includes bos and eos
+            audio_batch['input_id_lengths'],
             audio_batch['loss_mask'],  # this includes bos and eos
             audio_batch['audio_locator_ids'],
         )
@@ -566,7 +566,11 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_") and k != 'multimodal_conversation'}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
-        conv_batch = batch.get("multimodal_conversation", None)
+        if 'audio_locator_ids' in audio_batch:
+            conv_batch = audio_batch
+            audio_batch = {}
+        else:
+            conv_batch = None
 
         output, loss_mask = None, None
 

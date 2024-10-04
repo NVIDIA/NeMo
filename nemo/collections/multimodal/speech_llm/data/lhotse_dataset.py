@@ -202,10 +202,12 @@ def collate_text_data_conv(fields, tokens_to_generate, pad_to_max_length, max_se
     assert input_id_maxlen <= max_seq_length, f"{input_id_maxlen=} <= {max_seq_length=}"
 
     return {
+        "input_ids": all_tokens,
+        "input_id_lengths": full_lengths,
         "tokens": all_tokens[:, :-1],
         "tokens_length": full_lengths - 1,
         "labels": all_tokens[:, 1:],
-        "loss_mask": collate_vectors(fields['mask'], max_length=input_id_maxlen - 1, padding_value=0),
+        "loss_mask": collate_vectors(fields['mask'], max_length=input_id_maxlen, padding_value=0),
         "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(batch_size, 1),
         "contexts": collate_vectors(fields["context_ids"], max_length=context_id_maxlen, padding_value=pad_id),
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
