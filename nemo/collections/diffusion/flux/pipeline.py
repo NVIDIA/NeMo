@@ -20,7 +20,7 @@ from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderP
 from nemo.collections.diffusion.flux.model import Flux, FluxParams
 from nemo.collections.diffusion.schedulers.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from nemo.collections.diffusion.utils.flux_pipeline_utils import FluxModelParams
-from nemo.collections.diffusion.recipes.ckpt_converter import flux_transformer_converter
+from nemo.collections.diffusion.recipes.flux_ckpt_converter import flux_transformer_converter
 from typing import Any, Callable, Dict, List, Optional, Union
 from tqdm import tqdm
 import numpy as np
