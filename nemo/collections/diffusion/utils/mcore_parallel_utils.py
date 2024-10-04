@@ -1,5 +1,16 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
-
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Megatron Model Parallel Initialization
@@ -31,21 +42,6 @@ class Utils:
         # Megatron core distributed training initialization
         ps.initialize_model_parallel(tensor_model_parallel_size, pipeline_model_parallel_size,
                                      context_parallel_size=context_parallel_size)
-
-    # def initialize_distributed():
-    #     if not torch.distributed.is_initialized() and Utils.rank >= 0:
-    #         print(f"Initializing torch.distributed with rank: {Utils.rank}, world_size: {Utils.world_size}")
-    #         torch.cuda.set_device(Utils.rank % torch.cuda.device_count())
-    #         init_method = "tcp://"
-    #         master_ip = os.getenv("MASTER_ADDR", "localhost")
-    #         master_port = os.getenv("MASTER_PORT", "6000")
-    #         init_method += master_ip + ":" + master_port
-    #         print('before init proc group')
-    #         torch.distributed.init_process_group(
-    #             backend="nccl", world_size=Utils.world_size, rank=Utils.rank, init_method=init_method
-    #         )
-    #         print('after init proc group')
-    #         torch.distributed.barrier()
 
     @staticmethod
     def set_world_size(world_size=None, rank=None):
