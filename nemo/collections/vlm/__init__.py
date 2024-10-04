@@ -36,6 +36,8 @@ from nemo.collections.vlm.llama.model.mllama import (
 
 from nemo.collections.vlm.peft import LoRA
 
+from nemo.collections.vlm.recipes import *
+
 __all__ = [
     "MockDataModule",
     "NevaLazyDataModule",
@@ -62,4 +64,5 @@ __all__ = [
     "MLlamaConfig11BInstruct",
     "MLlamaConfig90B",
     "MLlamaConfig90BInstruct",
+    "mllama_11b",
 ]

@@ -49,7 +49,6 @@ def main(args):
         model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
     processor = AutoProcessor.from_pretrained(model_id)
-    image_processor = processor.image_processor
     tokenizer = processor.tokenizer
 
     from nemo.collections.vlm.llama.data.mock import MockDataModule
@@ -58,8 +57,8 @@ def main(args):
         decoder_seq_length=decoder_seq_length,
         global_batch_size=gbs,
         micro_batch_size=mbs,
-        tokenizer=tokenizer,
-        image_processor=image_processor,
+        vocab_size=128256,
+        crop_size=(448, 448),
         num_workers=0,
     )
 

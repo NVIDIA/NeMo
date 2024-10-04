@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pytorch_lightning as pl
@@ -29,8 +29,8 @@ class MockDataModule(pl.LightningDataModule):
             self,
             seq_length: int = 2048,
             decoder_seq_length: Optional = None,
-            tokenizer: Optional = None,
-            image_processor: Optional = None,
+            vocab_size: int = 128256,
+            crop_size: Tuple[int, int] = (560, 560),
             micro_batch_size: int = 4,
             global_batch_size: int = 8,
             rampup_batch_size: Optional[List[int]] = None,
@@ -50,15 +50,9 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
-        self.tokenizer = tokenizer
-        self.image_processor = image_processor
+        self.vocab_size = vocab_size
+        self.crop_size = crop_size
 
-        if tokenizer is None or image_processor is None:
-            from transformers import AutoProcessor
-
-            processor = AutoProcessor.from_pretrained("meta-llama/Llama-3.2-11B-Vision-Instruct")
-            self.tokenizer = tokenizer or processor.tokenizer
-            self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             decoder_seq_len=self.decoder_seq_length,
@@ -69,13 +63,13 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockMLlamaDataset(
-            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.decoder_seq_length
+            self.vocab_size, self.crop_size, "train", self.num_train_samples, self.decoder_seq_length
         )
         self._validation_ds = _MockMLlamaDataset(
-            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.decoder_seq_length
+            self.vocab_size, self.crop_size, "valid", self.num_val_samples, self.decoder_seq_length
         )
         self._test_ds = _MockMLlamaDataset(
-            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.decoder_seq_length
+            self.vocab_size, self.crop_size, "test", self.num_test_samples, self.decoder_seq_length
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -107,8 +101,8 @@ class MockDataModule(pl.LightningDataModule):
 class _MockMLlamaDataset(Dataset):
     def __init__(
             self,
-            tokenizer,
-            image_processor,
+            vocab_size,
+            crop_size,
             name: str,
             num_samples: int,
             seq_length: int,
@@ -118,10 +112,9 @@ class _MockMLlamaDataset(Dataset):
         self.name = name
         self.seq_length = seq_length
 
-        self.vocab_size = tokenizer.vocab_size
+        self.vocab_size = vocab_size
 
-        crop_size = image_processor.size
-        self.image_height, self.image_width = crop_size["height"], crop_size["width"]
+        self.image_height, self.image_width = crop_size
 
         self.length = num_samples
         self.seed = seed
