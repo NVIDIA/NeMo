@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+import torch
 from lhotse import CutSet
 from lhotse.cut import MixedCut
 from lhotse.utils import ifnone
@@ -41,7 +42,7 @@ class Llama2PromptFormatter(PromptFormatter):
 
 
 @registered_prompt_format_fn
-def llama2(cuts: CutSet, tokenizer: TokenizerSpec):
+def llama2(cuts: CutSet, tokenizer: TokenizerSpec) -> dict[str, torch.Tensor]:
     prompt = Llama2PromptFormatter(tokenizer)
     ans = defaultdict(list)
     for cut in cuts:

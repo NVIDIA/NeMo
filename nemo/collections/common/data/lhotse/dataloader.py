@@ -750,17 +750,10 @@ def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str | Promp
     if isinstance(example, Cut):
         prompt_format_fn = get_prompt_format_fn(prompt_format)
         ans = prompt_format_fn(CutSet([example]), tokenizer)
-        if isinstance(ans, tuple):
-            (tokenized_prompted_transcript,), (tokenized_prompt,), (tokenized_transcript,) = ans
-            example.tokenized_prompted_transcript = tokenized_prompted_transcript
-            example.tokenized_prompt = tokenized_prompt
-            example.tokenized_transcript = tokenized_transcript
-        elif isinstance(ans, dict):
-            example.tokenized_prompted_transcript = ans["input_ids"][0]
-            example.tokenized_prompt = ans["context_ids"][0]
-            example.tokenized_transcript = ans["answer_ids"][0]
-        else:
-            raise RuntimeError(f"Unexpected return type from prompt_format_fn (must be dict or tuple): {ans}")
+        example.input_ids = ans["input_ids"][0]
+        example.context_ids = ans["context_ids"][0]
+        example.answer_ids = ans["answer_ids"][0]
+        example.answer_mask = ans["mask"][0]
     elif isinstance(example, NeMoMultimodalConversation):
         example = example.tokenize(tokenizer, prompt_format)
     else:
@@ -846,8 +839,8 @@ class TokenPerTokenFilter:
 
 
 def _measure_tokens(cut: Cut) -> int:
-    if hasattr(cut, "tokenized_prompted_transcript"):
-        return len(cut.tokenized_prompted_transcript)  # tokenized with prompt formatter
+    if hasattr(cut, "input_ids"):
+        return len(cut.input_ids)  # tokenized with prompt formatter
     supervisions_with_tokens = [s for s in cut.supervisions if hasattr(s, "tokens")]
     assert len(supervisions_with_tokens) > 0, (
         "Cannot measure tokens-per-second with untokenized supervisions. "

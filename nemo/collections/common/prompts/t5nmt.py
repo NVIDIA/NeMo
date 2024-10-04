@@ -1,3 +1,4 @@
+from collections import defaultdict
 import torch
 from lhotse import CutSet, MonoCut
 from lhotse.cut import MixedCut
@@ -17,7 +18,7 @@ class T5NMTPromptFormatter(PromptFormatter):
     OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "user": {
-            "template": f"|target_lang||message|",
+            "template": f"|target_lang| |message|",
             "slots": {
                 "target_lang": Modality.Text,
                 "message": Modality.Text,
@@ -43,10 +44,10 @@ class T5NMTPromptFormatter(PromptFormatter):
 
 
 @registered_prompt_format_fn
-def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
-    formatter = T5NMTPromptFormatter(tokenizer)
+def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> dict[str, torch.Tensor]:
+    prompt = T5NMTPromptFormatter(tokenizer)
 
-    prompts_with_answers, prompts, answers = [], [], []
+    ans = defaultdict(list)
     for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
@@ -76,12 +77,7 @@ def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> tuple[list[torch.Tensor], l
                     slots={"message": cut.supervisions[0].text},
                 )
             )
-        encoded = formatter.encode_dialog(turns)
-        prompts_with_answers.append(encoded["input_ids"])
-        prompts.append(encoded["context_ids"])
-        if "answer_ids" in encoded:
-            answers.append(encoded["answer_ids"])
-        else:
-            answers.append([])
+        for k, v in prompt.encode_dialog(turns).items():
+            ans[k].append(v)
 
-    return prompts_with_answers, prompts, answers
+    return ans

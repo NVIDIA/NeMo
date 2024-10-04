@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Any
 
 import torch
@@ -95,9 +96,7 @@ def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[s
 
 
 @registered_prompt_format_fn
-def canary(
-    cuts: CutSet, tokenizer: TokenizerSpec
-) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
+def canary(cuts: CutSet, tokenizer: TokenizerSpec) -> dict[str, torch.Tensor]:
     """
     Prepend and append control tokens to the token sequence as per Canary format.
 
@@ -120,9 +119,9 @@ def canary(
     (i.e., spoken language in the recording) and the second occurrence is for the "target" language
     (i.e., the language in which we are going to output the text).
     """
-    formatter = CanaryPromptFormatter(tokenizer)
+    prompt = CanaryPromptFormatter(tokenizer)
 
-    prompts_with_answers, prompts, answers = [], [], []
+    ans = defaultdict(list)
     for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
@@ -132,7 +131,7 @@ def canary(
             )
 
         # first, validate the utterance
-        expected_slots = set(formatter.get_slots("user"))
+        expected_slots = set(prompt.get_slots("user"))
         missing_keys = expected_slots - set(cut.custom)
         if "task" in missing_keys and "taskname" in cut.custom:
             # Compatibility with "old" Canary manifest format.
@@ -150,7 +149,7 @@ def canary(
                 role="user",
                 slots={
                     **{slot: cut.custom[slot] for slot in expected_slots},
-                    formatter.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER,
+                    prompt.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER,
                 },
             )
         ]
@@ -161,21 +160,18 @@ def canary(
                 role="assistant",
                 slots={
                     "text": text,
-                    formatter.PROMPT_LANGUAGE_SLOT: ifnone(
-                        cut.supervisions[0].language, cut.custom.get("target_lang")
-                    ),
+                    prompt.PROMPT_LANGUAGE_SLOT: ifnone(cut.supervisions[0].language, cut.custom.get("target_lang")),
                 },
             ),
         )
-        encoded = formatter.encode_dialog(turns)
-        prompts_with_answers.append(encoded["input_ids"])
-        prompts.append(encoded["context_ids"])
-        if "answer_ids" in encoded:
-            assert (
-                encoded["answer_ids"][-1].item() == formatter.tokenizer.eos
-            ), f"Expected the last token in answer_ids to be EOS, but we got {encoded['answer_ids']=}"
-            answers.append(encoded["answer_ids"][:-1])  # Strip Canary's EOS
-        else:
-            answers.append([])
 
-    return prompts_with_answers, prompts, answers
+        for k, v in prompt.encode_dialog(turns).items():
+            if k == "answer_ids":
+                assert (
+                    v[-1].item() == prompt.tokenizer.eos
+                ), f"Expected the last token in answer_ids to be EOS, but we got {v}"
+                ans[k].append(v[:-1])  # Strip Canary's EOS
+            else:
+                ans[k].append(v)
+
+    return ans
