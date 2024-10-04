@@ -15,7 +15,7 @@ class FluxModelParams:
     device: str | torch.device
 
 configs = {
-    "flux": FluxModelParams(
+    "dev": FluxModelParams(
         flux_params=FluxParams(
             num_joint_layers=19,
             num_single_layers=38,
@@ -42,15 +42,13 @@ configs = {
             z_channels=16,
             scale_factor=0.3611,
             shift_factor=0.1159,
-            ckpt='/ckpts/ae.safetensors'
+            ckpt=None,
         ),
         clip_params={
-            'version':"/ckpts/text_encoder",
             'max_length': 77,
             'always_return_pooled': True,
         },
         t5_params={
-            'version': "/ckpts/text_encoder_2",
             'max_length':  512,
         },
         scheduler_params={

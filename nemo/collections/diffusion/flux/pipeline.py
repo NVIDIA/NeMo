@@ -33,10 +33,10 @@ class FluxInferencePipeline(nn.Module):
 
     def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model=None):
         if do_convert_from_hf:
-            ckpt = flux_transformer_converter(ckpt_path)
-            if save_converted_model is not None:
+            ckpt = flux_transformer_converter(ckpt_path, self.transformer.transformer_config)
+            if save_converted_model:
                 save_path = os.path.join(ckpt_path, 'nemo_flux_transformer.safetensors')
-                save_safetensors(ckpt_path, save_path)
+                save_safetensors(ckpt, save_path)
                 print(f'saving converted transformer checkpoint to {save_path}')
         else:
             ckpt = load_safetensors(ckpt_path)
@@ -328,6 +328,7 @@ class FluxInferencePipeline(nn.Module):
                 image = FluxInferencePipeline.torch_to_numpy(image)
                 image = FluxInferencePipeline.numpy_to_pil(image)
         if save_to_disk:
+            print('Saving to disk')
             assert len(image) == int(len(prompt) * num_images_per_prompt)
             prompt = [p[:40] + f'_{idx}' for p in prompt for idx in range(num_images_per_prompt)]
             for file_name, image in zip(prompt, image):
