@@ -19,13 +19,15 @@ from transformers import AutoProcessor
 from nemo import lightning as nl
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections import vlm, llm
 from nemo.collections.vlm.llama.data.task_encoder import LlamaTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+from pytorch_lightning.loggers import WandbLogger
 
 
-def get_data_module(data_path, micro_batch_size, global_batch_size):
+def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=None):
     """
     Initializes and returns a data module configured for multimodal training.
 
@@ -45,7 +47,8 @@ def get_data_module(data_path, micro_batch_size, global_batch_size):
     seq_length = 6404
     decoder_seq_length = 512  # decoder (llm) seq length
 
-    model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
+    if model_id is None:
+        model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
     processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
     tokenizer = processor.tokenizer
@@ -88,24 +91,13 @@ def main(args):
     """
     gbs = 128
     mbs = 2
-    data, tokenizer = get_data_module(args.data_path, mbs, gbs)
+    if args.restore_path.startswith("hf://"):
+        model_id = args.restore_path[len("hf://"):]
+    else:
+        model_id = None
+    data, tokenizer = get_data_module(args.data_path, mbs, gbs, model_id=model_id)
 
-    from nemo.collections.vlm.llama.model.base import MLlamaModel, CrossAttentionVisionConfig, \
-        MLlamaModelConfig, CrossAttentionTextConfig
-
-    # Model configuration
-    vision_config = CrossAttentionVisionConfig(
-        num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=560, vision_max_num_chunks=4,
-    )
-    text_config = CrossAttentionTextConfig(
-        num_layers=32,
-    )
-
-    llama_config = MLlamaModelConfig(
-        language_model_config=text_config,
-        vision_model_config=vision_config,
-    )
-    model = MLlamaModel(llama_config, tokenizer=tokenizer)
+    model = vlm.MLlamaModel(vlm.MLlamaConfig11B(), tokenizer=tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
@@ -127,7 +119,7 @@ def main(args):
     # Trainer setup
     trainer = nl.Trainer(
         devices=args.devices,
-        max_steps=5190,
+        max_steps=args.max_steps,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
@@ -139,24 +131,19 @@ def main(args):
     )
 
     # Logger setup
-    from pytorch_lightning.loggers import WandbLogger
-
     nemo_logger = nl.NeMoLogger(
         explicit_log_dir=args.log_dir,
         name=args.name,
         wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )
-    nemo_logger.setup(trainer, resume_if_exists=True)
 
     # Auto resume setup
-    from nemo.lightning.pytorch.strategies.utils import RestoreConfig
     resume = nl.AutoResume(
-        resume_if_exists=True,
+        resume_if_exists=False,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
-    resume.setup(trainer, model)
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
@@ -174,10 +161,31 @@ def main(args):
         min_lr=1.0e-07,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
-    opt.connect(model)
 
-    # Start training
-    trainer.fit(model, data)
+    # PEFT setup
+    if args.peft == 'lora':
+        peft = vlm.peft.LoRA(
+            target_modules=[
+                "*.language_model.*.linear_qkv",
+                "*.language_model.*.linear_q",
+                "*.language_model.*.linear_kv",
+                "*.language_model.*.linear_proj",
+                "*.language_model.*.linear_fc1",
+                "*.language_model.*.linear_fc2",
+            ]
+        )
+    else:
+        peft = None
+
+    llm.finetune(
+        model=model,
+        data=data,
+        trainer=trainer,
+        peft=peft,
+        log=nemo_logger,
+        optim=opt,
+        resume=resume,
+    )
 
 
 if __name__ == "__main__":
@@ -188,13 +196,13 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset")
     parser.add_argument("--log_dir", type=str, required=False, default="./nemo_experiments",
                         help="Directory for logging and checkpoints")
-    parser.add_argument("--language_model_path", type=str, required=False, default=None,
-                        help="Path to the pretrained language model")
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
+    parser.add_argument('--peft', type=str, default='none', help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
 
     args = parser.parse_args()
