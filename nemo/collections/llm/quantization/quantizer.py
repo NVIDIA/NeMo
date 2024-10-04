@@ -59,8 +59,8 @@ def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
         (llm.MistralConfig7B,   "llama"),
         (llm.MixtralConfig,     "llama"),
         (llm.NemotronConfig,    "gptnext"),
-        # TODO: (llm.Qwen2Config,       ""),
-        # (llm.StarcoderConfig,   ""),
+        (llm.Qwen2Config,       "qwen"),
+        # TODO: (llm.StarcoderConfig,   ""),
         (llm.Starcoder2Config,  "gptnext"),
     ]
 
@@ -130,12 +130,12 @@ class Quantizer:
 
 
 
-    def load_quantizable_model(self, nemo_checkpoint_path: str, tensor_parallelism_size: int = 1) -> llm.GPTModel:
+    def load_quantizable_model(self, nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
         trainer = nl.Trainer(
-            devices=tensor_parallelism_size,
+            devices=calib_tp * calib_pp,
             strategy=nl.MegatronStrategy(
-                tensor_model_parallel_size=tensor_parallelism_size,
-                pipeline_model_parallel_size=1,
+                tensor_model_parallel_size=calib_tp,
+                pipeline_model_parallel_size=calib_pp,
                 ),
             plugins=nl.MegatronMixedPrecision(precision='16-mixed'),
         )
@@ -146,8 +146,7 @@ class Quantizer:
         model.config.transformer_layer_spec = get_gpt_layer_modelopt_spec()
         model.config = self.modify_model_config(model.config)
 
-        # TODO: [0] works only for PP=1
-        model = fabric.load_model(nemo_checkpoint_path, model=model)[0]
+        model = fabric.load_model(nemo_checkpoint_path, model=model)
 
         self.nemo_checkpoint_path = nemo_checkpoint_path
         return model
@@ -157,6 +156,7 @@ class Quantizer:
     @staticmethod
     def _setup(model: llm.GPTModel) -> None:
         """Setup model for quantization."""
+        model.config.vocab_size = model.tokenizer.vocab_size
         model.freeze()
 
         # TODO: update for NeMo 2.0
@@ -183,22 +183,22 @@ class Quantizer:
         return model_cfg
 
 
-
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.get("decoder_type", None) or get_modelopt_decoder_type(config)
 
 
-
-    def quantize(self, model: llm.GPTConfig, forward_loop):
+    def quantize(self, wrapped_model: llm.GPTConfig, forward_loop):
         """Quantize the model and calibrate using given forward loop."""
         algorithm = self.quantization_config["algorithm"]
         if algorithm is None:
             logging.info("Quantization algorithm set to None, returning the non-quantized model")
-            return model
+            return wrapped_model.module
 
         logging.info(f"Quantizing model to {algorithm}...")
         
-        self._setup(model)
+        self._setup(wrapped_model)
+        model = wrapped_model.module.module
+        model.config.pipeline_dtype = wrapped_model.pipeline.dtype
         decoder_type = self._get_decoder_type(model.config)
         quant_cfg = QUANT_CFG_CHOICES[algorithm]
         if "awq" in algorithm:
@@ -244,37 +244,65 @@ class Quantizer:
         if dist.get_rank() == 0:
             mtq.print_quant_summary(model)
 
-        return model
+        return wrapped_model
+
+
+    def create_megatron_forward_loop(self, get_dataloader, num_batches, seq_length=None, micro_batch_size=None, decoder_seq_length=None):
+        from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+        forward_backward_func = get_forward_backward_func()
+
+        def forward_step_func(data_iterator, model):
+            data = next(data_iterator)
+            batch_len, seq_len = data.shape
+            position_ids = torch.arange(seq_len, device=data.device).expand((batch_len, seq_len))
+            output_tensor = model(data, position_ids, None)
+
+            def _mock_loss_function(tensor):
+                return 0, {}
+            return output_tensor, _mock_loss_function
+
+
+        def loop(model):
+            dataloader = get_dataloader()
+            forward_backward_func(
+                forward_step_func=forward_step_func,
+                data_iterator=dataloader,
+                model=model,
+                num_microbatches=num_batches,
+                seq_length=seq_length,
+                micro_batch_size=micro_batch_size,
+                decoder_seq_length=decoder_seq_length,
+                forward_only=True)
+
+        return loop
 
 
     def export(self, model: llm.GPTModel, nemo_checkpoint_path: Optional[str] = None) -> None:
-        """Export model to '.qnemo' format for TensorRT-LLM engine build."""
         assert self.export_config is not None, "Export config is not set"
         torch_dtype = torch_dtype_from_precision(self.export_config["dtype"])
         # TODO: Add sample generate
         # TODO: Support NeMo 2:
         # if model.cfg.megatron_amp_O2:
         #     model.model = unwrap_model(model.model, Float16Module)
-
         export_dir = self.export_config["path"]
+        use_nfs_workspace = (model.trainer._fabric.__io__.num_nodes > 1) or (model.config.pipeline_model_parallel_size > 1)
         export_tensorrt_llm_checkpoint(
-            model=model,
+            model=model.module.module,
             decoder_type=self._get_decoder_type(model.config),
             dtype=torch_dtype,
             export_dir=export_dir,
             inference_tensor_parallel=self.export_config["inference_tensor_parallel"],
             inference_pipeline_parallel=self.export_config["inference_pipeline_parallel"],
-            use_nfs_workspace=model.trainer._fabric.__io__.num_nodes > 1,   # TODO: check it
+            use_nfs_workspace=use_nfs_workspace,
         )
 
         dist.barrier()  # Wait until all ranks complete export_model_config step
         logging.info(
-            f"Exporting quantized weights, model artifacts, and tokenizer config to {export_dir}..."
+            f"Export succeeded, model has been exported to {export_dir}. Saving tokenizer if possible..."
         )
 
         if dist.get_rank() == 0:
             self.nemo_checkpoint_path = nemo_checkpoint_path or self.nemo_checkpoint_path
-            
             if self.nemo_checkpoint_path is not None:
                 tokenizer_src = os.path.join(self.nemo_checkpoint_path, 'nemo_tokenizer')
                 tokenizer_dst = os.path.join(export_dir, 'tokenizer')

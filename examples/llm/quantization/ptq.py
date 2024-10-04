@@ -20,7 +20,6 @@ from tqdm import tqdm
 from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
 
 
-# TODO: Inference TP/PP != Calibration TP/PP
 def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -29,8 +28,26 @@ def get_args():
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
     parser.add_argument(
+        "-ctp",
+        "--calib_tp",
+        type=int,
+        default=1
+    )
+    parser.add_argument(
+        "-cpp",
+        "--calib_pp",
+        type=int,
+        default=1
+    )
+    parser.add_argument(
         "-tps",
         "--tensor_parallelism_size",
+        type=int,
+        default=1
+    )
+    parser.add_argument(
+        "-pps",
+        "--pipeline_parallelism_size",
         type=int,
         default=1
     )
@@ -58,7 +75,7 @@ def get_args():
     parser.add_argument(
         '--sq_alpha',
         type=float,
-        default=1.0,
+        default=0.5,
         help='Smooth-Quant alpha parameter'
     )
     parser.add_argument(
@@ -73,13 +90,42 @@ def get_args():
         choices=["16", "bf16"],
         help='Default precision for non-quantized layers'
     )
+    parser.add_argument(
+        '-bs',
+        '--batch_size',
+        default=64,
+        type=int,
+        help='Calibration batch size'
+    )
+    parser.add_argument(
+        '-sl',
+        '--seq_len',
+        default=128,
+        type=int,
+        help='Length of the tokenized text'
+    )
+    parser.add_argument(
+        '-calib_size',
+        '--calibration_dataset_size',
+        default=512,
+        type=int,
+        help='Size of calibration dataset'
+    )
+    parser.add_argument(
+        '-calib_ds',
+        '--calibration_dataset',
+        default="cnn_dailymail",
+        choices=["wikitext", "cnn_dailymail"],
+        type=str,
+        help='Calibration dataset to be used'
+    )
     
     return parser.parse_args(sys.argv[1:])
 
 
 def get_quantizer_config(args):
     if args.output_path is None:
-        args.output_path = f"./trt_llm_{args.algorithm}_tp{args.tensor_parallelism_size}"
+        args.output_path = f"./qnemo_{args.algorithm}_tp{args.tensor_parallelism_size}_pp{args.pipeline_parallelism_size}"
 
     quantization_config = {
         "algorithm": None if args.algorithm == "no_quant" else args.algorithm,
@@ -87,43 +133,54 @@ def get_quantizer_config(args):
         "sq_alpha": args.sq_alpha,
         "enable_kv_cache": args.enable_kv_cache,
     }
-
     export_config = {
         "path": args.output_path,
         "decoder_type": args.decoder_type,
         "inference_tensor_parallel": args.tensor_parallelism_size,
-        "inference_pipeline_parallel": 1,
+        "inference_pipeline_parallel": args.pipeline_parallelism_size,
         "dtype": args.dtype,
     }
+
     return quantization_config, export_config
 
 
-# TODO: maybe use llm.generate (#10471)
-def forward_loop(model):
-    tokenizer = model.tokenizer
-    dataloader = get_calib_data_iter()
-    dataloader = [data for data in dataloader]
+def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration_size):
+    def _iterator():
+        CHARACTERS_PER_TOKEN = 4
 
-    for batch in tqdm(dataloader):
-        batch = [tokenizer.text_to_ids(text) for text in batch]
-        max_len = max([len(text) for text in batch])
-        batch = [ids + (max_len - len(ids)) * [tokenizer.eos] for ids in batch]
-        position_ids = torch.arange(max_len, device=model.device).expand((len(batch), max_len))
-        batch = torch.tensor(batch, device=model.device)
-        model_input = {
-            "input_ids": batch,
-            "position_ids": position_ids,
-            "attention_mask": None,
-        }
-        model(**model_input)
+        dataloader = get_calib_data_iter(data=dataset, max_sequence_length=CHARACTERS_PER_TOKEN*seq_len, batch_size=batch_size, calib_size=calibration_size)
+        for batch in dataloader:
+            batch = [model.tokenizer.text_to_ids(text)[:seq_len] for text in batch]
+            batch = [ids + (seq_len - len(ids)) * [model.tokenizer.eos] for ids in batch]
+            yield torch.tensor(batch, device=model.device)
+    
+    def _iterator_getter():
+        dataloader = _iterator()
+        dataloader = [data for data in dataloader]
+        return iter(tqdm(dataloader))
 
+    return _iterator_getter
+    
 
 def main():
     params = get_args()
     quantization_config, export_config = get_quantizer_config(params)
-
     quantizer = Quantizer(quantization_config, export_config)
-    model = quantizer.load_quantizable_model(params.nemo_checkpoint, params.tensor_parallelism_size)
+    model = quantizer.load_quantizable_model(params.nemo_checkpoint, params.calib_tp, params.calib_pp)
+    
+    get_dataloader = create_data_iterator_getter(model,
+                                dataset=params.calibration_dataset,
+                                seq_len=params.seq_len,
+                                batch_size=params.batch_size,
+                                calibration_size=params.calibration_dataset_size)
+
+    forward_loop = quantizer.create_megatron_forward_loop(
+        get_dataloader,
+        num_batches=params.calibration_dataset_size // params.batch_size,
+        seq_length=params.seq_len,
+        micro_batch_size=params.batch_size,
+    )
+
     model = quantizer.quantize(model, forward_loop)
     quantizer.export(model)
 
