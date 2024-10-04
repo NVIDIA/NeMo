@@ -29,7 +29,7 @@ from pytorch_lightning.utilities import rank_zero_info
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.model_utils import ckpt_to_context_subdir, ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_dir
 
 
 class ModelCheckpoint(PTLModelCheckpoint):
@@ -57,7 +57,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         async_save: Whether to enable asynchronous checkpointing.
     """
 
-    UNFINISHED_CHECKPOINT_SUFFIX: str = "-unfinished"
+    UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
+    WEIGHTS_PATH = "weights"
 
     def __init__(
         self,
@@ -289,7 +290,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(self.last_model_path))
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -433,7 +434,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
-        ckpt_filepath = ckpt_to_weights_subdir(filepath)
+        ckpt_filepath = ckpt_to_dir(filepath) / ModelCheckpoint.WEIGHTS_PATH
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
 
@@ -487,7 +488,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             trainer.save_checkpoint(ckpt_filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(filepath))
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
 
             if self.async_save:
                 self._last_checkpoint_saved = filepath

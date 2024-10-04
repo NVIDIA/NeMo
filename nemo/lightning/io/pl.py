@@ -25,7 +25,7 @@ from typing_extensions import Self, override
 
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
-from nemo.utils.model_utils import ckpt_to_dir
+from nemo.lightning.ckpt_utils import ckpt_to_dir
 
 try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO

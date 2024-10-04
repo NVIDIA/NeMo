@@ -8,7 +8,7 @@ from typing import Generic, Optional, Tuple, TypeVar
 import pytorch_lightning as pl
 from filelock import FileLock, Timeout
 from pytorch_lightning.trainer.states import TrainerFn
-from nemo.utils.model_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
