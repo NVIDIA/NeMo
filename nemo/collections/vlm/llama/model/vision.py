@@ -169,10 +169,11 @@ def build_encoder_attention_mask(
     masks = []
     for ar_id in ar_ids:
         arx = supported_aspect_ratios[ar_id-1]
-        mask_i = torch.ones((num_chunks, x.shape[1] // num_chunks), dtype=torch.bool, device=x.device)
+        mask_i = torch.ones((num_chunks, x.shape[1] // num_chunks), device=x.device)
         mask_i[: arx[0] * arx[1], :ntok] = 0
-        mask_i = mask_i.view(x.shape[1])
-        mask_i = mask_i.unsqueeze(0).unsqueeze(0)
+        mask_i = mask_i.view(num_chunks * x.shape[1] // num_chunks, -1)
+        mask_i = (mask_i @ mask_i.T).type(torch.bool)
+        mask_i = mask_i.unsqueeze(0)
         masks.append(mask_i)
     masks = torch.stack(masks)
     return masks
@@ -249,7 +250,7 @@ def get_image_transformer_layer_spec() -> ModuleSpec:
         input_layernorm=TENorm,
         self_attention=ModuleSpec(
             module=SelfAttentionNoBias,
-            params={"attn_mask_type": AttnMaskType.padding},
+            params={"attn_mask_type": AttnMaskType.arbitrary},
             submodules=SelfAttentionSubmodules(
                 linear_qkv=TEColumnParallelLinear,
                 core_attention=TEDotProductAttention,
