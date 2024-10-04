@@ -30,6 +30,9 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.utils import Config, Partial
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x3b"
@@ -55,18 +58,18 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 4,
+    tensor_parallelism: int = 1,
     pipeline_parallelism: int = 1,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = True,
-    expert_parallelism: int = 1,
-    num_nodes: int = 1,
+    expert_parallelism: int = 4,
+    num_nodes: int = 2,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
-) -> run.Config[nl.Trainer]:
+) -> Config[nl.Trainer]:
     """
     Configure the NeMo Lightning Trainer for Mixtral 8x3B model.
 
@@ -108,7 +111,7 @@ def trainer(
         gradient_as_bucket_view=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
-        ddp=Config(
+        ddp=run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
@@ -174,71 +177,52 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
 
-def hf_resume() -> run.Config[nl.AutoResume]:
+def pretrain_recipe_performance(
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 2, num_gpus_per_node: int = 8, fn=pretrain
+) -> Partial:
     """
-    Configure the Hugging Face model resuming for Mixtral 8x3B model.
+    Create a performance-optimized pre-training recipe for Mixtral 8x3B model.
 
-    This function sets up the configuration for resuming training from a Hugging Face model.
-
-    Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from a Hugging Face model.
-
-    Examples:
-        CLI usage:
-            $ nemo llm finetune --factory "mixtral_8x3b(resume=hf_resume())"
-
-        Python API usage:
-            >>> recipe = finetune_recipe(name="mixtral_8x3b_finetune", num_nodes=2)
-            >>> recipe.resume = hf_resume()
-            >>> print(recipe)
-    """
-    return run.Config(
-        nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
-    )
-
-
-@run.cli.factory(target=finetune, name=NAME)
-def finetune_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-) -> run.Partial:
-    """
-    Create a fine-tuning recipe for Mixtral 8x3B model.
-
-    This function sets up a complete configuration for fine-tuning, including
-    model, trainer, and data settings.
+    This recipe enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the fine-tuning run.
+        name (str): Name of the pre-training run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
+        fn (Callable): The pre-training function to use.
 
     Returns:
-        run.Partial: Partial configuration for fine-tuning.
+        Partial: Partial configuration for performance-optimized pre-training.
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory mixtral_8x3b
-            $ nemo llm finetune --factory "mixtral_8x3b(num_nodes=2, name='my_finetune')"
+            $ nemo llm pretrain --factory "mixtral_8x3b.pretrain_recipe_performance(num_nodes=2, name='perf_pretrain')"
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="mixtral_8x3b_finetune", num_nodes=2)
+            >>> recipe = pretrain_recipe_performance(name="mixtral_8x3b", num_nodes=4)
             >>> print(recipe)
-    """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
 
-    recipe.resume = hf_resume()
-    recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
-    recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    Note:
+        Use this recipe with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    recipe = pretrain_recipe(
+        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            Config(MegatronTokenDropCallback),
+            Config(MegatronCommOverlapCallback),
+        ]
+    )
+
     return recipe

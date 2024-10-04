@@ -528,7 +528,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if isinstance(optimizer, McoreDistributedOptimizer):
             optimizer_output, grad_norm, num_zeros_in_grad = optimizer_output
-            self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
+            if grad_norm is not None:
+                self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
             if num_zeros_in_grad is not None:
                 self.lightning_module.log('num_zeros_in_grad', num_zeros_in_grad, batch_size=1)
 
@@ -715,8 +716,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
-        for opt in self.optimizers:
-            opt.reload_model_params()
+
+        if not 'optimizer' in checkpoint:
+            for opt in self.optimizers:
+                opt.reload_model_params()
 
     @property
     @override
