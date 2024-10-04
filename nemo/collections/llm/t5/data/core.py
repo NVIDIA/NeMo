@@ -20,7 +20,7 @@ def create_sft_dataset(
     tokenizer: "TokenizerSpec",
     seq_length: int = 512,
     seq_length_dec: int = 128,
-    add_bos: bool = False,
+    add_bos: bool = True,
     add_eos: bool = True,
     replace_bos_with_pad: bool = False,
     seed: int = 1234,

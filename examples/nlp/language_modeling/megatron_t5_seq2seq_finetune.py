@@ -241,7 +241,7 @@ def main(cfg) -> None:
                 print(param.shape)
                 print(param.mean())
                 print(param.std())
-    print(stop_here)
+    # print(stop_here)
 
     trainer.fit(model)
     if hasattr(cfg.model.data, 'test_ds'):

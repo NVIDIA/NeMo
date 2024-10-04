@@ -32,27 +32,7 @@ def main(cfg) -> None:
 
     model = MegatronT5Model(cfg.model, trainer)
 
-    # DEBUGGING
-    import torch
-    print("model (before): ")
-    print(model)
-    for name, param in model.named_parameters():
-        print("{} (before): {} - {}".format(name, param.shape, torch.norm(param)))
-
-    # DEBUGGING
-    output_path = cfg.exp_manager.explicit_log_dir + "/initial_model_checkpoint.nemo"
-    model.save_to(output_path)
-    logging.info(f'NeMo model saved to: {output_path}')
-
     trainer.fit(model)
-
-    # DEBUGGING
-    if torch.distributed.get_rank()==0:
-        print("model (after): ")
-        print(model)
-        for name, param in model.named_parameters():
-            print("{} (after): {} - {}".format(name, param.shape, torch.norm(param)))
-
 
 if __name__ == '__main__':
     main()

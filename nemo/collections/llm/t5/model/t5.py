@@ -202,7 +202,7 @@ class T5Config(TransformerConfig, io.IOMixin):
                     print(param.shape)
                     print(param.mean())
                     print(param.std())
-        print(stop_here)        
+        # print(stop_here)        
 
         return model
 

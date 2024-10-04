@@ -9,7 +9,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.api import train
+from nemo.collections.llm.api import finetune
 from nemo.collections.llm.t5.data import SquadDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
@@ -46,7 +46,7 @@ if __name__ == '__main__':
         seq_length=512, 
         seq_length_dec=128, 
         micro_batch_size=16, 
-        global_batch_size=128,
+        global_batch_size=16,
         tokenizer=tokenizer,
         num_workers=4,
     )
@@ -67,16 +67,10 @@ if __name__ == '__main__':
     )
     model = llm.t5.model.t5.T5Model(t5_config, tokenizer=data.tokenizer)
 
-    # # DEBUGGING
-    # print("model: ")
-    # print(model)
-    # for name, param in model.named_parameters():
-    #     print("{}: {} - {}".format(name, param.shape, torch.norm(param)))
-
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
-        pipeline_dtype=torch.bfloat16,
+        pipeline_dtype=torch.float32,
         ckpt_load_optimizer=False,
     )
     checkpoint_callback = ModelCheckpoint(
@@ -91,10 +85,10 @@ if __name__ == '__main__':
 
     opt_config = OptimizerConfig(
         optimizer='adam',
-        lr=5e-6,
+        lr=2.0e-5,
         use_distributed_optimizer=False,
-        bf16=True,
-        weight_decay=0.0,
+        bf16=False,
+        weight_decay=0.1,
     )
     opt = MegatronOptimizerModule(
         config=opt_config,
@@ -109,7 +103,7 @@ if __name__ == '__main__':
         log_every_n_steps=1,
         limit_val_batches=2,
         val_check_interval=100,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+        plugins=nl.MegatronMixedPrecision(precision="32"),
     )
 
     if args.wandb_project is not None:
@@ -127,22 +121,11 @@ if __name__ == '__main__':
         wandb=wandb_logger,
     )
 
-    # train(
-    #     model=model,
-    #     resume=resume,
-    #     data=data,
-    #     trainer=trainer,
-    #     log=nemo_logger,
-    #     tokenizer='data',
-    #     optim=opt,
-    # )
-
     finetune(
         model=model,
         resume=resume,
         data=data,
         trainer=trainer,
         log=nemo_logger,
-        tokenizer='data',
         optim=opt,
     )
