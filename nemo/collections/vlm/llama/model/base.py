@@ -481,8 +481,12 @@ class MLlamaBaseModel(MegatronModule):
             labels=labels,
             decoder_input=language_embeddings,
             attention_mask=None,
-            cross_attention_masks=cross_attention_masks[:, :, position_ids[0]] if cross_attention_masks is not None else None,
-            full_text_row_masked_out_mask=full_text_row_masked_out_mask[:, :, position_ids[0]] if cross_attention_masks is not None else None,
+            cross_attention_masks=(
+                cross_attention_masks[:, :, position_ids[0]] if cross_attention_masks is not None else None
+            ),
+            full_text_row_masked_out_mask=(
+                full_text_row_masked_out_mask[:, :, position_ids[0]] if cross_attention_masks is not None else None
+            ),
             xattn_caches=xattn_caches,
         )
         return output
