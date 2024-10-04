@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from torch import nn, Tensor
-import numpy as np
-from nemo.collections.diffusion.vae.blocks import ResnetBlock, Upsample, Downsample, AttnBlock, make_attn, Normalize
 from dataclasses import dataclass
+
+import numpy as np
+import torch
+from torch import Tensor, nn
+
+from nemo.collections.diffusion.vae.blocks import AttnBlock, Downsample, Normalize, ResnetBlock, Upsample, make_attn
+
 
 @dataclass
 class AutoEncoderParams:
@@ -36,10 +39,10 @@ class AutoEncoderParams:
     ckpt: str = None
 
 
-
 def nonlinearity(x):
     # swish
     return torch.nn.functional.silu(x)
+
 
 class Encoder(nn.Module):
     def __init__(
@@ -286,7 +289,7 @@ class AutoEncoder(nn.Module):
             attn_type=params.attn_type,
             dropout=params.dropout,
             out_ch=params.out_ch,
-            attn_resolutions=params.attn_resolutions
+            attn_resolutions=params.attn_resolutions,
         )
         self.decoder = Decoder(
             resolution=params.resolution,
@@ -324,10 +327,8 @@ class AutoEncoder(nn.Module):
 
     def load_from_checkpoint(self, ckpt_path):
         from safetensors.torch import load_file as load_sft
+
         state_dict = load_sft(ckpt_path)
         missing, unexpected = self.load_state_dict(state_dict)
         if len(missing) > 0:
             logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
-
-
-

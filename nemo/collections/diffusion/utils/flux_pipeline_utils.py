@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+
+import torch
+from megatron.core.transformer.utils import openai_gelu
+
 from nemo.collections.diffusion.flux.model import FluxParams
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderParams
-import torch
-from dataclasses import dataclass
-from megatron.core.transformer.utils import openai_gelu
 
 
 @dataclass
@@ -27,6 +29,7 @@ class FluxModelParams:
     t5_params: dict | None
     scheduler_params: dict | None
     device: str | torch.device
+
 
 configs = {
     "dev": FluxModelParams(
@@ -46,7 +49,7 @@ configs = {
             vec_in_dim=768,
         ),
         vae_params=AutoEncoderParams(
-            ch_mult=[1,2,4,4],
+            ch_mult=[1, 2, 4, 4],
             attn_resolutions=[],
             resolution=256,
             in_channels=3,
@@ -63,13 +66,11 @@ configs = {
             'always_return_pooled': True,
         },
         t5_params={
-            'max_length':  512,
+            'max_length': 512,
         },
         scheduler_params={
-            'num_train_timesteps':1000,
+            'num_train_timesteps': 1000,
         },
         device='cpu',
-
     )
-
 }

@@ -12,22 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import os
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import numpy as np
+import torch
+from PIL import Image
+from safetensors.torch import load_file as load_safetensors
+from safetensors.torch import save_file as save_safetensors
 from torch import nn
+from tqdm import tqdm
+
 from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderParams
 from nemo.collections.diffusion.flux.model import Flux, FluxParams
+from nemo.collections.diffusion.recipes.ckpt_converter import flux_transformer_converter
 from nemo.collections.diffusion.schedulers.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from nemo.collections.diffusion.utils.flux_pipeline_utils import FluxModelParams
-from nemo.collections.diffusion.recipes.flux_ckpt_converter import flux_transformer_converter
-from typing import Any, Callable, Dict, List, Optional, Union
-from tqdm import tqdm
-import numpy as np
-from PIL import Image
-from safetensors.torch import save_file as save_safetensors
-from safetensors.torch import load_file as load_safetensors
-
+from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderParams
 
 
 class FluxInferencePipeline(nn.Module):
@@ -41,7 +42,7 @@ class FluxInferencePipeline(nn.Module):
         self.clip_encoder = FrozenCLIPEmbedder(**params.clip_params)
         self.t5_encoder = FrozenT5Embedder(**params.t5_params)
         self.transformer = Flux(params.flux_params).to(self.device).eval()
-        self.vae_scale_factor = 2**(len(self.vae.params.ch_mult))
+        self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
         self.scheduler = FlowMatchEulerDiscreteScheduler(**params.scheduler_params)
         self.params = params
 
@@ -55,20 +56,24 @@ class FluxInferencePipeline(nn.Module):
         else:
             ckpt = load_safetensors(ckpt_path)
         missing, unexpected = self.transformer.load_state_dict(ckpt, strict=False)
-        missing = [k for k in missing if not k.endswith('_extra_state')] # These keys are mcore specific and should not affect the model performance
+        missing = [
+            k for k in missing if not k.endswith('_extra_state')
+        ]  # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
-            print(f"The folloing keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}")
+            print(
+                f"The folloing keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+            )
             print(f"Found unexepected keys: \n {unexpected}")
 
     def encoder_prompt(
-            self,
-            prompt: Union[str, List[str]],
-            num_images_per_prompt: int = 1,
-            prompt_embeds: Optional[torch.FloatTensor] = None,
-            pooled_prompt_embeds: Optional[torch.FloatTensor] = None,
-            max_sequence_length: int = 512,
-            device: Optional[torch.device] = 'cuda',
-            dtype: Optional[torch.dtype] = torch.float,
+        self,
+        prompt: Union[str, List[str]],
+        num_images_per_prompt: int = 1,
+        prompt_embeds: Optional[torch.FloatTensor] = None,
+        pooled_prompt_embeds: Optional[torch.FloatTensor] = None,
+        max_sequence_length: int = 512,
+        device: Optional[torch.device] = 'cuda',
+        dtype: Optional[torch.dtype] = torch.float,
     ):
         if prompt is not None:
             batch_size = len(prompt)
@@ -84,22 +89,19 @@ class FluxInferencePipeline(nn.Module):
         prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1)
         prompt_embeds = prompt_embeds.view(batch_size * num_images_per_prompt, seq_len, -1).to(dtype=dtype)
 
-
         if device == 'cuda' and self.clip_encoder.device != device:
             self.clip_encoder.to(device)
         if pooled_prompt_embeds is None:
             _, pooled_prompt_embeds = self.clip_encoder(prompt)
 
-
         pooled_prompt_embeds = pooled_prompt_embeds.repeat(1, num_images_per_prompt, 1)
-        pooled_prompt_embeds = pooled_prompt_embeds.view(batch_size*num_images_per_prompt, -1).to(dtype=dtype)
-
+        pooled_prompt_embeds = pooled_prompt_embeds.view(batch_size * num_images_per_prompt, -1).to(dtype=dtype)
 
         dtype = dtype if dtype is not None else self.t5_encoder.dtype
         text_ids = torch.zeros(batch_size, prompt_embeds.shape[1], 3).to(device=device, dtype=dtype)
         text_ids = text_ids.repeat(num_images_per_prompt, 1, 1)
 
-        return prompt_embeds.transpose(0,1), pooled_prompt_embeds, text_ids
+        return prompt_embeds.transpose(0, 1), pooled_prompt_embeds, text_ids
 
     @staticmethod
     def _prepare_latent_image_ids(batch_size: int, height: int, width: int, device: torch.device, dtype: torch.dtype):
@@ -182,7 +184,7 @@ class FluxInferencePipeline(nn.Module):
 
         latent_image_ids = self._prepare_latent_image_ids(batch_size, height, width, device, dtype)
 
-        return latents.transpose(0,1), latent_image_ids
+        return latents.transpose(0, 1), latent_image_ids
 
     @staticmethod
     def _generate_rand_latents(
@@ -248,7 +250,6 @@ class FluxInferencePipeline(nn.Module):
         height = height
         width = width
 
-
         if prompt is not None and isinstance(prompt, str):
             batch_size = 1
             prompt = [prompt]
@@ -274,18 +275,10 @@ class FluxInferencePipeline(nn.Module):
             self.clip_encoder.to('cpu')
             torch.cuda.empty_cache()
 
-
         ## prepare image latents
         num_channels_latents = self.transformer.config.in_channels // 4
         latents, latent_image_ids = self.prepare_latents(
-            batch_size * num_images_per_prompt,
-            num_channels_latents,
-            height,
-            width,
-            dtype,
-            device,
-            generator,
-            latents
+            batch_size * num_images_per_prompt, num_channels_latents, height, width, dtype, device, generator, latents
         )
         # prepare timesteps
         sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps)
@@ -302,7 +295,7 @@ class FluxInferencePipeline(nn.Module):
         self.scheduler.set_timesteps(sigmas=sigmas, device=device, mu=mu)
         timesteps = self.scheduler.timesteps
 
-        if device =='cuda' and device != self.device:
+        if device == 'cuda' and device != self.device:
             self.transformer.to(device)
         with torch.no_grad():
             for i, t in tqdm(enumerate(timesteps)):
@@ -311,15 +304,15 @@ class FluxInferencePipeline(nn.Module):
                     guidance = torch.tensor([guidance_scale], device=device).expand(latents.shape[1])
                 else:
                     guidance = None
-                with torch.autocast(device_type = 'cuda', dtype = latents.dtype):
+                with torch.autocast(device_type='cuda', dtype=latents.dtype):
                     pred = self.transformer(
-                        img = latents,
-                        txt = prompt_embeds,
-                        y = pooled_prompt_embeds,
-                        timesteps = timestep / 1000,
-                        img_ids = latent_image_ids,
-                        txt_ids = text_ids,
-                        guidance = guidance,
+                        img=latents,
+                        txt=prompt_embeds,
+                        y=pooled_prompt_embeds,
+                        timesteps=timestep / 1000,
+                        img_ids=latent_image_ids,
+                        txt_ids=text_ids,
+                        guidance=guidance,
                     )
                     latents = self.scheduler.step(pred, t, latents)[0]
             if offload:
@@ -327,13 +320,13 @@ class FluxInferencePipeline(nn.Module):
                 torch.cuda.empty_cache()
 
             if output_type == "latent":
-                return latents.transpose(0,1)
+                return latents.transpose(0, 1)
             elif output_type == "pil":
-                latents = self._unpack_latents(latents.transpose(0,1), height, width, self.vae_scale_factor)
+                latents = self._unpack_latents(latents.transpose(0, 1), height, width, self.vae_scale_factor)
                 latents = (latents / self.vae.params.scale_factor) + self.vae.params.shift_factor
                 if device == 'cuda' and device != self.device:
                     self.vae.to(device)
-                with torch.autocast(device_type = 'cuda', dtype = latents.dtype):
+                with torch.autocast(device_type='cuda', dtype=latents.dtype):
                     image = self.vae.decode(latents)
                 if offload:
                     self.vae.to('cpu')
@@ -349,8 +342,3 @@ class FluxInferencePipeline(nn.Module):
                 image.save(f'{file_name}.png')
 
         return image
-
-
-
-
-
