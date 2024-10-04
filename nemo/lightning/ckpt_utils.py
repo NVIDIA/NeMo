@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Union
 
 # NeMo2 checkpoint structure is a checkpoint directory, with a WEIGHTS_PATH and CONTEXT_PATH subdirectory structure.
 #  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
