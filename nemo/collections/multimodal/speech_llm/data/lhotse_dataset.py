@@ -132,7 +132,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             )
             ans.update(text_minibatch)
 
-        def truncate_seq(ans):
+        def post_process_seq(ans):
             if len(ans.input_ids) > self.max_seq_length:
                 truncation_length = len(ans.input_ids) - self.max_seq_length
                 ans.input_ids = ans.input_ids[: self.max_seq_length]
@@ -145,6 +145,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     )
                     ans.answer_ids = ans.answer_ids[: -min(truncation_length, len(ans.answer_ids))]
                     ans.context_ids = ans.context_ids[: -min(truncation_length, len(ans.context_ids))]
+            # add eos
+            eos_id = self.text_processor.tokenizer.eos_id
+            ans.input_ids = torch.cat([ans.input_ids, torch.tensor([eos_id])])
+            ans.answer_ids = torch.cat([ans.answer_ids, torch.tensor([eos_id])])
+            ans.mask = torch.cat([ans.mask, torch.tensor([1])])
 
         multimodal_convo_examples = all_cuts.filter(lambda c: isinstance(c, NeMoMultimodalConversation))
         if multimodal_convo_examples:
@@ -153,7 +158,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             for example in multimodal_convo_examples:
                 # input_ids / context_ids / etc. will be pre-populated when you specify train_ds.prompt_format
                 audio_turn_cuts.extend([turn.cut for turn in example.turns if isinstance(turn, AudioTurn)])
-                truncate_seq(example)
+                post_process_seq(example)
                 formatted_chats['input_ids'].append(example.input_ids)
                 formatted_chats['context_ids'].append(example.context_ids)
                 formatted_chats['answer_ids'].append(example.answer_ids)
