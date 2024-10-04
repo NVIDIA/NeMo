@@ -33,7 +33,9 @@ from nemo.collections.common.data.lhotse.dataloader import (
     LhotseDataLoadingConfig,
     MultimodalFixedBucketBatchSizeConstraint2D,
     MultimodalSamplingConstraint,
+    TokenCountFilter,
     TokenPerSecondFilter,
+    TokenPerTokenFilter,
     tokenize,
     tokenize_with_prompt,
 )
@@ -87,26 +89,26 @@ def parse_args():
         help="The number of examples (utterances) to estimate the bins. -1 means use all data "
         "(be careful: it could be iterated over infinitely).",
     )
-    # parser.add_argument(
-    #     "-l",
-    #     "--min_tokens",
-    #     type=float,
-    #     default=-float("inf"),
-    #     help="If specified, we'll filter out examples with less tokens than this number.",
-    # )
-    # parser.add_argument(
-    #     "-u",
-    #     "--max_tokens",
-    #     type=float,
-    #     default=float("inf"),
-    #     help="If specified, we'll filter out examples with more tokens than this number.",
-    # )
-    # parser.add_argument(
-    #     "--max_tpt",
-    #     type=float,
-    #     default=float("inf"),
-    #     help="If specified, we'll filter out examples with more output tokens per input token than this. "
-    # )
+    parser.add_argument(
+        "-l",
+        "--min_tokens",
+        type=float,
+        default=-float("inf"),
+        help="If specified, we'll filter out examples with less tokens than this number.",
+    )
+    parser.add_argument(
+        "-u",
+        "--max_tokens",
+        type=float,
+        default=float("inf"),
+        help="If specified, we'll filter out examples with more tokens than this number.",
+    )
+    parser.add_argument(
+        "--max_tpt",
+        type=float,
+        default=float("inf"),
+        help="If specified, we'll filter out examples with more output tokens per input token than this. ",
+    )
     parser.add_argument(
         "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
     )
@@ -286,13 +288,13 @@ def main():
         OmegaConf.from_dotlist([f"input_cfg={args.input}"]),
     )
     cuts, _ = read_cutset_from_config(config)
-    # duration_filter = RejectionsCounter(DurationFilter(args.min_duration, args.max_duration), "Duration filtering")
-    # cuts = cuts.filter(duration_filter)
+    token_filter = RejectionsCounter(TokenCountFilter(args.min_tokens, args.max_tokens), "Token count filtering")
+    cuts = cuts.filter(token_filter)
     cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None)
-    if hasattr(cuts, "prefetch"):
-        cuts = cuts.prefetch()  # to be released in lhotse 1.27
-    # tpt_filter = RejectionsCounter(TokensPerTokenFilter(-1, args.max_tpt), "Output tokens per input token filtering")
-    # cuts = cuts.filter(tpt_filter)
+    # if hasattr(cuts, "prefetch"):
+    #     cuts = cuts.prefetch()  # to be released in lhotse 1.27
+    tpt_filter = RejectionsCounter(TokenPerTokenFilter(-1, args.max_tpt), "Output tokens per input token filtering")
+    cuts = cuts.filter(tpt_filter)
     if (N := args.num_examples) > 0:
         cuts = islice(cuts, N)
 
@@ -309,8 +311,8 @@ def main():
     if args.quiet:
         print(token_bins)
         return
-    # duration_filter.print_report()
-    # tps_filter.print_report()
+    token_filter.print_report()
+    tpt_filter.print_report()
     print("Use the following options in your config:")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={token_bins}")
