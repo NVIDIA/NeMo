@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import os
-from safetensors.torch import load_file as load_safetensors
+
 import torch
+from safetensors.torch import load_file as load_safetensors
 
 
 def _import_qkv_bias(transformer_config, qb, kb, vb):
@@ -79,61 +80,60 @@ def _import_qkv(transformer_config, q, k, v):
 
 
 key_mapping = {
-    'double_blocks':
-        {
-            'norm1.linear.weight':'adaln.adaLN_modulation.1.weight',
-            'norm1.linear.bias':'adaln.adaLN_modulation.1.bias',
-            'norm1_context.linear.weight': 'adaln_context.adaLN_modulation.1.weight',
-            'norm1_context.linear.bias': 'adaln_context.adaLN_modulation.1.bias',
-            'attn.norm_q.weight':'self_attention.q_layernorm.weight',
-            'attn.norm_k.weight':'self_attention.k_layernorm.weight',
-            'attn.norm_added_q.weight': 'self_attention.added_q_layernorm.weight',
-            'attn.norm_added_k.weight': 'self_attention.added_k_layernorm.weight',
-            'attn.to_out.0.weight': 'self_attention.linear_proj.weight',
-            'attn.to_out.0.bias': 'self_attention.linear_proj.bias',
-            'attn.to_add_out.weight': 'self_attention.added_linear_proj.weight',
-            'attn.to_add_out.bias': 'self_attention.added_linear_proj.bias',
-            'ff.net.0.proj.weight': 'mlp.linear_fc1.weight',
-            'ff.net.0.proj.bias': 'mlp.linear_fc1.bias',
-            'ff.net.2.weight': 'mlp.linear_fc2.weight',
-            'ff.net.2.bias': 'mlp.linear_fc2.bias',
-            'ff_context.net.0.proj.weight': 'context_mlp.linear_fc1.weight',
-            'ff_context.net.0.proj.bias': 'context_mlp.linear_fc1.bias',
-            'ff_context.net.2.weight': 'context_mlp.linear_fc2.weight',
-            'ff_context.net.2.bias': 'context_mlp.linear_fc2.bias',
-        } ,
-    'single_blocks':
-        {
-            'norm.linear.weight':'adaln.adaLN_modulation.1.weight',
-            'norm.linear.bias':'adaln.adaLN_modulation.1.bias',
-            'proj_mlp.weight':'proj_in.weight',
-            'proj_mlp.bias':'proj_in.bias',
-            'proj_out.weight':'proj_out.weight',
-            'proj_out.bias':'proj_out.bias',
-            'attn.norm_q.weight':'self_attention.q_layernorm.weight',
-            'attn.norm_k.weight':'self_attention.k_layernorm.weight',
-        },
-    'norm_out.linear.bias':'norm_out.adaLN_modulation.1.bias',
-    'norm_out.linear.weight':'norm_out.adaLN_modulation.1.weight',
-    'proj_out.bias':'proj_out.bias',
-    'proj_out.weight':'proj_out.weight',
-    'time_text_embed.guidance_embedder.linear_1.bias':'guidance_embedding.in_layer.bias',
-    'time_text_embed.guidance_embedder.linear_1.weight':'guidance_embedding.in_layer.weight',
-    'time_text_embed.guidance_embedder.linear_2.bias':'guidance_embedding.out_layer.bias',
-    'time_text_embed.guidance_embedder.linear_2.weight':'guidance_embedding.out_layer.weight',
-    'x_embedder.bias':'img_embed.bias',
-    'x_embedder.weight':'img_embed.weight',
-    'time_text_embed.timestep_embedder.linear_1.bias':'timestep_embedding.time_embedder.in_layer.bias',
-    'time_text_embed.timestep_embedder.linear_1.weight':'timestep_embedding.time_embedder.in_layer.weight',
-    'time_text_embed.timestep_embedder.linear_2.bias':'timestep_embedding.time_embedder.out_layer.bias',
-    'time_text_embed.timestep_embedder.linear_2.weight':'timestep_embedding.time_embedder.out_layer.weight',
-    'context_embedder.bias':'txt_embed.bias',
-    'context_embedder.weight':'txt_embed.weight',
-    'time_text_embed.text_embedder.linear_1.bias':'vector_embedding.in_layer.bias',
-    'time_text_embed.text_embedder.linear_1.weight':'vector_embedding.in_layer.weight',
-    'time_text_embed.text_embedder.linear_2.bias':'vector_embedding.out_layer.bias',
-    'time_text_embed.text_embedder.linear_2.weight':'vector_embedding.out_layer.weight',
+    'double_blocks': {
+        'norm1.linear.weight': 'adaln.adaLN_modulation.1.weight',
+        'norm1.linear.bias': 'adaln.adaLN_modulation.1.bias',
+        'norm1_context.linear.weight': 'adaln_context.adaLN_modulation.1.weight',
+        'norm1_context.linear.bias': 'adaln_context.adaLN_modulation.1.bias',
+        'attn.norm_q.weight': 'self_attention.q_layernorm.weight',
+        'attn.norm_k.weight': 'self_attention.k_layernorm.weight',
+        'attn.norm_added_q.weight': 'self_attention.added_q_layernorm.weight',
+        'attn.norm_added_k.weight': 'self_attention.added_k_layernorm.weight',
+        'attn.to_out.0.weight': 'self_attention.linear_proj.weight',
+        'attn.to_out.0.bias': 'self_attention.linear_proj.bias',
+        'attn.to_add_out.weight': 'self_attention.added_linear_proj.weight',
+        'attn.to_add_out.bias': 'self_attention.added_linear_proj.bias',
+        'ff.net.0.proj.weight': 'mlp.linear_fc1.weight',
+        'ff.net.0.proj.bias': 'mlp.linear_fc1.bias',
+        'ff.net.2.weight': 'mlp.linear_fc2.weight',
+        'ff.net.2.bias': 'mlp.linear_fc2.bias',
+        'ff_context.net.0.proj.weight': 'context_mlp.linear_fc1.weight',
+        'ff_context.net.0.proj.bias': 'context_mlp.linear_fc1.bias',
+        'ff_context.net.2.weight': 'context_mlp.linear_fc2.weight',
+        'ff_context.net.2.bias': 'context_mlp.linear_fc2.bias',
+    },
+    'single_blocks': {
+        'norm.linear.weight': 'adaln.adaLN_modulation.1.weight',
+        'norm.linear.bias': 'adaln.adaLN_modulation.1.bias',
+        'proj_mlp.weight': 'proj_in.weight',
+        'proj_mlp.bias': 'proj_in.bias',
+        'proj_out.weight': 'proj_out.weight',
+        'proj_out.bias': 'proj_out.bias',
+        'attn.norm_q.weight': 'self_attention.q_layernorm.weight',
+        'attn.norm_k.weight': 'self_attention.k_layernorm.weight',
+    },
+    'norm_out.linear.bias': 'norm_out.adaLN_modulation.1.bias',
+    'norm_out.linear.weight': 'norm_out.adaLN_modulation.1.weight',
+    'proj_out.bias': 'proj_out.bias',
+    'proj_out.weight': 'proj_out.weight',
+    'time_text_embed.guidance_embedder.linear_1.bias': 'guidance_embedding.in_layer.bias',
+    'time_text_embed.guidance_embedder.linear_1.weight': 'guidance_embedding.in_layer.weight',
+    'time_text_embed.guidance_embedder.linear_2.bias': 'guidance_embedding.out_layer.bias',
+    'time_text_embed.guidance_embedder.linear_2.weight': 'guidance_embedding.out_layer.weight',
+    'x_embedder.bias': 'img_embed.bias',
+    'x_embedder.weight': 'img_embed.weight',
+    'time_text_embed.timestep_embedder.linear_1.bias': 'timestep_embedding.time_embedder.in_layer.bias',
+    'time_text_embed.timestep_embedder.linear_1.weight': 'timestep_embedding.time_embedder.in_layer.weight',
+    'time_text_embed.timestep_embedder.linear_2.bias': 'timestep_embedding.time_embedder.out_layer.bias',
+    'time_text_embed.timestep_embedder.linear_2.weight': 'timestep_embedding.time_embedder.out_layer.weight',
+    'context_embedder.bias': 'txt_embed.bias',
+    'context_embedder.weight': 'txt_embed.weight',
+    'time_text_embed.text_embedder.linear_1.bias': 'vector_embedding.in_layer.bias',
+    'time_text_embed.text_embedder.linear_1.weight': 'vector_embedding.in_layer.weight',
+    'time_text_embed.text_embedder.linear_2.bias': 'vector_embedding.out_layer.bias',
+    'time_text_embed.text_embedder.linear_2.weight': 'vector_embedding.out_layer.weight',
 }
+
 
 def flux_transformer_converter(ckpt_path=None, transformer_config=None):
     diffuser_state_dict = {}
@@ -172,28 +172,35 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
     for i in range(num_double_blocks + 1):
         new_key = f'double_blocks.{str(i)}.self_attention.linear_qkv.weight'
         qk, kk, vk = [f'transformer_blocks.{str(i)}.attn.to_{n}.weight' for n in ('q', 'k', 'v')]
-        new_state_dict[new_key] = _import_qkv(transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk])
+        new_state_dict[new_key] = _import_qkv(
+            transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
+        )
         new_key = f'double_blocks.{str(i)}.self_attention.linear_qkv.bias'
         qk, kk, vk = [f'transformer_blocks.{str(i)}.attn.to_{n}.bias' for n in ('q', 'k', 'v')]
-        new_state_dict[new_key] = _import_qkv_bias(transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk],
-                                              diffuser_state_dict[vk])
+        new_state_dict[new_key] = _import_qkv_bias(
+            transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
+        )
         new_key = f'double_blocks.{str(i)}.self_attention.added_linear_qkv.weight'
         qk, kk, vk = [f'transformer_blocks.{str(i)}.attn.add_{n}_proj.weight' for n in ('q', 'k', 'v')]
-        new_state_dict[new_key] = _import_qkv(transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk],
-                                              diffuser_state_dict[vk])
+        new_state_dict[new_key] = _import_qkv(
+            transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
+        )
         new_key = f'double_blocks.{str(i)}.self_attention.added_linear_qkv.bias'
         qk, kk, vk = [f'transformer_blocks.{str(i)}.attn.add_{n}_proj.bias' for n in ('q', 'k', 'v')]
-        new_state_dict[new_key] = _import_qkv_bias(transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk],
-                                                   diffuser_state_dict[vk])
+        new_state_dict[new_key] = _import_qkv_bias(
+            transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
+        )
 
     for i in range(num_single_blocks + 1):
         new_key = f'single_blocks.{str(i)}.self_attention.linear_qkv.weight'
         qk, kk, vk = [f'single_transformer_blocks.{str(i)}.attn.to_{n}.weight' for n in ('q', 'k', 'v')]
-        new_state_dict[new_key] = _import_qkv(transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk],
-                                              diffuser_state_dict[vk])
+        new_state_dict[new_key] = _import_qkv(
+            transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
+        )
         new_key = f'single_blocks.{str(i)}.self_attention.linear_qkv.bias'
         qk, kk, vk = [f'single_transformer_blocks.{str(i)}.attn.to_{n}.bias' for n in ('q', 'k', 'v')]
-        new_state_dict[new_key] = _import_qkv_bias(transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk],
-                                              diffuser_state_dict[vk])
+        new_state_dict[new_key] = _import_qkv_bias(
+            transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
+        )
 
     return new_state_dict

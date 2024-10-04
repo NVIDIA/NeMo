@@ -12,21 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Union
 
-from megatron.core.transformer.transformer_config import TransformerConfig
+import torch
 from megatron.core.models.dit.dit_layer_spec import (
+    AdaLNContinuous,
+    FluxSingleTransformerBlock,
+    MMDiTLayer,
     get_flux_double_transformer_engine_spec,
     get_flux_single_transformer_engine_spec,
-    MMDiTLayer,
-    FluxSingleTransformerBlock,
-    AdaLNContinuous)
+)
+from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
+from torch import nn
 
 from nemo.collections.diffusion.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
-from torch import nn
-from typing import Any, Callable, Dict, List, Optional, Union
-from dataclasses import dataclass
+
+
 @dataclass
 class FluxParams:
     num_joint_layers: int = 19
@@ -44,10 +47,6 @@ class FluxParams:
     vec_in_dim: int = 768
 
 
-
-
-
-
 class Flux(nn.Module):
     def __init__(self, config: FluxParams):
         super().__init__()
@@ -56,38 +55,54 @@ class Flux(nn.Module):
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
         self.patch_size = config.patch_size
-        self.pos_embed = EmbedND(dim = self.hidden_size, theta=10000, axes_dim=[16, 56, 56])
+        self.pos_embed = EmbedND(dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56])
         self.img_embed = nn.Linear(config.in_channels, self.hidden_size)
         self.txt_embed = nn.Linear(config.context_dim, self.hidden_size)
         self.timestep_embedding = TimeStepEmbedder(config.model_channels, self.hidden_size)
         self.vector_embedding = MLPEmbedder(in_dim=config.vec_in_dim, hidden_dim=self.hidden_size)
         if self.config.guidance_embed:
-            self.guidance_embedding = MLPEmbedder(in_dim=config.model_channels,
-                                                  hidden_dim=self.hidden_size) if config.guidance_embed else nn.Identity()
+            self.guidance_embedding = (
+                MLPEmbedder(in_dim=config.model_channels, hidden_dim=self.hidden_size)
+                if config.guidance_embed
+                else nn.Identity()
+            )
 
-        transformer_config = TransformerConfig(num_layers=1, hidden_size=self.hidden_size, num_attention_heads=self.num_attention_heads,
-                                               use_cpu_initialization=True, activation_func=config.activation_func,
-                                               hidden_dropout=0, attention_dropout=0, layernorm_epsilon=1e-6,
-                                               add_qkv_bias=config.add_qkv_bias, rotary_interleaved=True)
+        transformer_config = TransformerConfig(
+            num_layers=1,
+            hidden_size=self.hidden_size,
+            num_attention_heads=self.num_attention_heads,
+            use_cpu_initialization=True,
+            activation_func=config.activation_func,
+            hidden_dropout=0,
+            attention_dropout=0,
+            layernorm_epsilon=1e-6,
+            add_qkv_bias=config.add_qkv_bias,
+            rotary_interleaved=True,
+        )
         self.transformer_config = transformer_config
 
-        self.double_blocks = nn.ModuleList([
-            MMDiTLayer(
-                config=transformer_config,
-                submodules=get_flux_double_transformer_engine_spec().submodules,
-                layer_number=i,
-                context_pre_only=False)
-            for i in range(config.num_joint_layers)
-        ])
+        self.double_blocks = nn.ModuleList(
+            [
+                MMDiTLayer(
+                    config=transformer_config,
+                    submodules=get_flux_double_transformer_engine_spec().submodules,
+                    layer_number=i,
+                    context_pre_only=False,
+                )
+                for i in range(config.num_joint_layers)
+            ]
+        )
 
-        self.single_blocks = nn.ModuleList([
-            FluxSingleTransformerBlock(
-                config=transformer_config,
-                submodules=get_flux_single_transformer_engine_spec().submodules,
-                layer_number=i
-            )
-            for i in range(config.num_single_layers)
-        ])
+        self.single_blocks = nn.ModuleList(
+            [
+                FluxSingleTransformerBlock(
+                    config=transformer_config,
+                    submodules=get_flux_single_transformer_engine_spec().submodules,
+                    layer_number=i,
+                )
+                for i in range(config.num_single_layers)
+            ]
+        )
 
         self.norm_out = AdaLNContinuous(config=transformer_config, conditioning_embedding_dim=self.hidden_size)
         self.proj_out = nn.Linear(self.hidden_size, self.patch_size * self.patch_size * self.out_channels, bias=True)
@@ -118,8 +133,8 @@ class Flux(nn.Module):
             hidden_states, encoder_hidden_states = block(
                 hidden_states=hidden_states,
                 encoder_hidden_states=encoder_hidden_states,
-                rotary_pos_emb = rotary_pos_emb,
-                emb = vec_emb,
+                rotary_pos_emb=rotary_pos_emb,
+                emb=vec_emb,
             )
 
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
@@ -127,14 +142,13 @@ class Flux(nn.Module):
         for id_block, block in enumerate(self.single_blocks):
             hidden_states = block(
                 hidden_states=hidden_states,
-                rotary_pos_emb = rotary_pos_emb,
-                emb = vec_emb,
+                rotary_pos_emb=rotary_pos_emb,
+                emb=vec_emb,
             )
 
-        hidden_states = hidden_states[encoder_hidden_states.shape[0]:, ...]
+        hidden_states = hidden_states[encoder_hidden_states.shape[0] :, ...]
 
         hidden_states = self.norm_out(hidden_states, vec_emb)
         output = self.proj_out(hidden_states)
 
         return output
-

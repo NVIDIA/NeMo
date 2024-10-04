@@ -12,19 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from transformers import (
-    CLIPTextModel,
-    CLIPTokenizer,
-    T5EncoderModel,
-    T5Tokenizer,
-)
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Union
+
 import torch
 import torch.nn as nn
-from typing import Any, Callable, Dict, List, Optional, Union
-from dataclasses import dataclass
-
-
-
+from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
 
 
 class AbstractEmbModel(nn.Module):
@@ -99,6 +92,7 @@ class AbstractEmbModel(nn.Module):
                     lora_name = f'{sub_name}_lora'
                     module.add_module(lora_name, lora_layer)
 
+
 class FrozenCLIPEmbedder(AbstractEmbModel):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
 
@@ -167,6 +161,7 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
     def encode(self, text):
         return self(text)
 
+
 class FrozenT5Embedder(AbstractEmbModel):
     def __init__(
         self,
@@ -182,7 +177,6 @@ class FrozenT5Embedder(AbstractEmbModel):
         self.freeze()
         self.device = device
         self.dtype = dtype
-
 
     def freeze(self):
         self.transformer = self.transformer.eval()

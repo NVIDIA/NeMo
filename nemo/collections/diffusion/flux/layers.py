@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from torch import nn, Tensor
 import math
 
+import torch
+from torch import Tensor, nn
 
 
 def rope(pos: torch.Tensor, dim: int, theta: int) -> torch.Tensor:
@@ -30,7 +30,6 @@ def rope(pos: torch.Tensor, dim: int, theta: int) -> torch.Tensor:
     omega = 1.0 / (theta**scale)
 
     out = torch.einsum("...n,d->...nd", pos, omega)
-
 
     return out.float()
 
@@ -48,8 +47,9 @@ class EmbedND(nn.Module):
             [rope(ids[..., i], self.axes_dim[i], self.theta) for i in range(n_axes)],
             dim=-1,
         )
-        emb = emb.unsqueeze(1).permute(2,0,1,3)
+        emb = emb.unsqueeze(1).permute(2, 0, 1, 3)
         return torch.stack([emb, emb], dim=-1).reshape(*emb.shape[:-1], -1)
+
 
 class MLPEmbedder(nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int):
@@ -117,18 +117,21 @@ def get_timestep_embedding(
 
 
 class Timesteps(nn.Module):
-    def __init__(self,
-                embedding_dim: int,
-                flip_sin_to_cos: bool = True,
-                downscale_freq_shift: float = 0,
-                scale: float = 1,
-                max_period: int = 10000,):
+    def __init__(
+        self,
+        embedding_dim: int,
+        flip_sin_to_cos: bool = True,
+        downscale_freq_shift: float = 0,
+        scale: float = 1,
+        max_period: int = 10000,
+    ):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.flip_sin_to_cos = flip_sin_to_cos
         self.downscale_freq_shift = downscale_freq_shift
         self.scale = scale
         self.max_period = max_period
+
     def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
         t_emb = get_timestep_embedding(
             timesteps,
@@ -137,22 +140,30 @@ class Timesteps(nn.Module):
             downscale_freq_shift=self.downscale_freq_shift,
             scale=self.scale,
             max_period=self.max_period,
-
         )
         return t_emb
 
+
 class TimeStepEmbedder(nn.Module):
-    def __init__(self,
-                 embedding_dim: int,
-                 hidden_dim: int,
-                 flip_sin_to_cos: bool = True,
-                 downscale_freq_shift: float = 0,
-                 scale: float = 1,
-                 max_period: int = 10000,):
+    def __init__(
+        self,
+        embedding_dim: int,
+        hidden_dim: int,
+        flip_sin_to_cos: bool = True,
+        downscale_freq_shift: float = 0,
+        scale: float = 1,
+        max_period: int = 10000,
+    ):
 
         super().__init__()
 
-        self.time_proj = Timesteps(embedding_dim=embedding_dim, flip_sin_to_cos=flip_sin_to_cos,downscale_freq_shift=downscale_freq_shift,scale=scale,max_period=max_period)
+        self.time_proj = Timesteps(
+            embedding_dim=embedding_dim,
+            flip_sin_to_cos=flip_sin_to_cos,
+            downscale_freq_shift=downscale_freq_shift,
+            scale=scale,
+            max_period=max_period,
+        )
         self.time_embedder = MLPEmbedder(in_dim=embedding_dim, hidden_dim=hidden_dim)
 
     def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
@@ -160,7 +171,3 @@ class TimeStepEmbedder(nn.Module):
         timesteps_emb = self.time_embedder(timesteps_proj)
 
         return timesteps_emb
-
-
-
-

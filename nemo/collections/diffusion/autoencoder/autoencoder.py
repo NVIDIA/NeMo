@@ -12,11 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from torch import nn, Tensor
-import numpy as np
-from nemo.collections.diffusion.autoencoder.blocks import ResnetBlock, Upsample, Downsample, AttnBlock, make_attn, Normalize
 from dataclasses import dataclass
+
+import numpy as np
+import torch
+from torch import Tensor, nn
+
+from nemo.collections.diffusion.autoencoder.blocks import (
+    AttnBlock,
+    Downsample,
+    Normalize,
+    ResnetBlock,
+    Upsample,
+    make_attn,
+)
+
 
 @dataclass
 class AutoEncoderParams:
@@ -35,10 +45,10 @@ class AutoEncoderParams:
     dropout: float = 0.0
 
 
-
 def nonlinearity(x):
     # swish
     return torch.nn.functional.silu(x)
+
 
 class Encoder(nn.Module):
     def __init__(
@@ -285,7 +295,7 @@ class AutoEncoder(nn.Module):
             attn_type=params.attn_type,
             dropout=params.dropout,
             out_ch=params.out_ch,
-            attn_resolutions=params.attn_resolutions
+            attn_resolutions=params.attn_resolutions,
         )
         self.decoder = Decoder(
             resolution=params.resolution,
@@ -316,6 +326,3 @@ class AutoEncoder(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return self.decode(self.encode(x))
-
-
-

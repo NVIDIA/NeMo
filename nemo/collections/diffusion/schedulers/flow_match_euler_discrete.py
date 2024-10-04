@@ -21,7 +21,6 @@ import numpy as np
 import torch
 
 
-
 class FlowMatchEulerDiscreteScheduler(ABC):
     """
     Euler scheduler.
@@ -280,7 +279,6 @@ class FlowMatchEulerDiscreteScheduler(ABC):
         self._step_index += 1
 
         return (prev_sample,)
-
 
     def __len__(self):
         return self.num_train_timesteps

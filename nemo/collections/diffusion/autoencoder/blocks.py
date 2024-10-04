@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import torch
-from torch import nn, Tensor
 from einops import rearrange
-
+from torch import Tensor, nn
 
 try:
     from apex.contrib.group_norm import GroupNorm
@@ -28,6 +27,7 @@ except Exception:
 
 def Normalize(in_channels, num_groups=32, act=""):
     return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
+
 
 class ResnetBlock(nn.Module):
     def __init__(self, in_channels, out_channels=None, conv_shortcut=False, dropout=0.0, temb_channels=0):
@@ -70,6 +70,7 @@ class ResnetBlock(nn.Module):
 
         return x + h
 
+
 class Upsample(nn.Module):
     def __init__(self, in_channels, with_conv):
         super().__init__()
@@ -108,6 +109,7 @@ class Downsample(nn.Module):
         else:
             x = torch.nn.functional.avg_pool2d(x, kernel_size=2, stride=2)
         return x
+
 
 class AttnBlock(nn.Module):
     def __init__(self, in_channels: int):
@@ -157,6 +159,7 @@ class LinearAttention(nn.Module):
         out = rearrange(out, 'b heads c (h w) -> b (heads c) h w', heads=self.heads, h=h, w=w)
         return self.to_out(out)
 
+
 class LinAttnBlock(LinearAttention):
     """
     to match AttnBlock usage
@@ -164,6 +167,7 @@ class LinAttnBlock(LinearAttention):
 
     def __init__(self, in_channels):
         super().__init__(dim=in_channels, heads=1, dim_head=in_channels)
+
 
 def make_attn(in_channels, attn_type="vanilla"):
     assert attn_type in ["vanilla", "linear", "none"], f'attn_type {attn_type} unknown'
@@ -174,5 +178,3 @@ def make_attn(in_channels, attn_type="vanilla"):
         return nn.Identity(in_channels)
     else:
         return LinAttnBlock(in_channels)
-
-
