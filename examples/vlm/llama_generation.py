@@ -75,9 +75,7 @@ def main(args) -> None:
     position_ids = (
         torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
     )
-    num_tiles = (
-        processor.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)["num_tiles"]
-    )
+    num_tiles = processor.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)["num_tiles"]
 
     min_prompt_len = position_ids.shape[-1]
 
