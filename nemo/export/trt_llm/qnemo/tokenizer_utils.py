@@ -25,6 +25,7 @@ from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 TOKENIZER_CONFIG_FILE = "tokenizer_config.yaml"
 TOKENIZER_DIR = "tokenizer"
 
+
 def get_nmt_tokenizer(nemo_checkpoint_path: str):
     """Build tokenizer from Nemo tokenizer config."""
 

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shutil
 import os
+import shutil
 from typing import Optional
 
 import torch
@@ -22,9 +22,9 @@ from datasets import load_dataset
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 
 try:
     import modelopt.torch.quantization as mtq
@@ -52,16 +52,16 @@ SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized laye
 def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
     """Infers the modelopt decoder type from GPTConfig class"""
     mapping = [
-        (llm.Baichuan2Config,   "baichuan"),
-        (llm.ChatGLMConfig,     "chatglm"),
-        (llm.GemmaConfig,       "gemma"),
-        (llm.LlamaConfig,       "llama"),
-        (llm.MistralConfig7B,   "llama"),
-        (llm.MixtralConfig,     "llama"),
-        (llm.NemotronConfig,    "gptnext"),
-        (llm.Qwen2Config,       "qwen"),
+        (llm.Baichuan2Config, "baichuan"),
+        (llm.ChatGLMConfig, "chatglm"),
+        (llm.GemmaConfig, "gemma"),
+        (llm.LlamaConfig, "llama"),
+        (llm.MistralConfig7B, "llama"),
+        (llm.MixtralConfig, "llama"),
+        (llm.NemotronConfig, "gptnext"),
+        (llm.Qwen2Config, "qwen"),
         # TODO: (llm.StarcoderConfig,   ""),
-        (llm.Starcoder2Config,  "gptnext"),
+        (llm.Starcoder2Config, "gptnext"),
     ]
 
     for config_class, decoder_type in mapping:
@@ -123,12 +123,10 @@ class Quantizer:
         dtype = export_config["dtype"]
 
         # Quantization sanity checks
-        assert (algorithm is None or algorithm in QUANT_CFG_CHOICES), f"Unsupported quantization algorithm: {algorithm}"
+        assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
         # Export sanity checks
         if export_config is not None:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
-
-
 
     def load_quantizable_model(self, nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
         trainer = nl.Trainer(
@@ -136,7 +134,7 @@ class Quantizer:
             strategy=nl.MegatronStrategy(
                 tensor_model_parallel_size=calib_tp,
                 pipeline_model_parallel_size=calib_pp,
-                ),
+            ),
             plugins=nl.MegatronMixedPrecision(precision='16-mixed'),
         )
         fabric = trainer.to_fabric()
@@ -151,8 +149,6 @@ class Quantizer:
         self.nemo_checkpoint_path = nemo_checkpoint_path
         return model
 
-
-    
     @staticmethod
     def _setup(model: llm.GPTModel) -> None:
         """Setup model for quantization."""
@@ -164,8 +160,6 @@ class Quantizer:
         #     model.model.module.language_model.encoder.activations_checkpoint_method = None
         # except AttributeError:
         #     pass
-
-    
 
     @staticmethod
     def modify_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
@@ -182,10 +176,8 @@ class Quantizer:
         model_cfg.apply_rope_fusion = False
         return model_cfg
 
-
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.get("decoder_type", None) or get_modelopt_decoder_type(config)
-
 
     def quantize(self, wrapped_model: llm.GPTConfig, forward_loop):
         """Quantize the model and calibrate using given forward loop."""
@@ -195,7 +187,7 @@ class Quantizer:
             return wrapped_model.module
 
         logging.info(f"Quantizing model to {algorithm}...")
-        
+
         self._setup(wrapped_model)
         model = wrapped_model.module.module
         model.config.pipeline_dtype = wrapped_model.pipeline.dtype
@@ -212,9 +204,7 @@ class Quantizer:
         # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
         enable_quant_kv_cache = self.quantization_config.get("enable_kv_cache", None)
         if enable_quant_kv_cache is None:
-            enable_quant_kv_cache = (
-                "int8" not in algorithm and decoder_type != "gptnext"
-            )
+            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gptnext"
         logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
         quant_cfg["quant_cfg"]["*output_quantizer"] = {
             "num_bits": 8 if algorithm == "int8_sq" else (4, 3),
@@ -226,16 +216,18 @@ class Quantizer:
             logging.info(f"Using int8_sq alpha = {sq_alpha}")
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": sq_alpha}
 
-
         model = mtq.quantize(model, quant_cfg, forward_loop)
 
         if decoder_type == "gptnext":
             # We found squared_relu may have an under-calibration problem.
             # Clamp the scaling_factor with a min threshold to avoid under-calibration.
             match algorithm:
-                case "fp8":         maxbound = 448
-                case "int8_sq":     maxbound = 127
-                case _:             maxbound = 0
+                case "fp8":
+                    maxbound = 448
+                case "int8_sq":
+                    maxbound = 127
+                case _:
+                    maxbound = 0
 
             model = mtq.postprocess_amax(
                 model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
@@ -246,9 +238,11 @@ class Quantizer:
 
         return wrapped_model
 
-
-    def create_megatron_forward_loop(self, get_dataloader, num_batches, seq_length=None, micro_batch_size=None, decoder_seq_length=None):
+    def create_megatron_forward_loop(
+        self, get_dataloader, num_batches, seq_length=None, micro_batch_size=None, decoder_seq_length=None
+    ):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
         forward_backward_func = get_forward_backward_func()
 
         def forward_step_func(data_iterator, model):
@@ -259,8 +253,8 @@ class Quantizer:
 
             def _mock_loss_function(tensor):
                 return 0, {}
-            return output_tensor, _mock_loss_function
 
+            return output_tensor, _mock_loss_function
 
         def loop(model):
             dataloader = get_dataloader()
@@ -272,10 +266,10 @@ class Quantizer:
                 seq_length=seq_length,
                 micro_batch_size=micro_batch_size,
                 decoder_seq_length=decoder_seq_length,
-                forward_only=True)
+                forward_only=True,
+            )
 
         return loop
-
 
     def export(self, model: llm.GPTModel, nemo_checkpoint_path: Optional[str] = None) -> None:
         assert self.export_config is not None, "Export config is not set"
@@ -285,7 +279,9 @@ class Quantizer:
         # if model.cfg.megatron_amp_O2:
         #     model.model = unwrap_model(model.model, Float16Module)
         export_dir = self.export_config["path"]
-        use_nfs_workspace = (model.trainer._fabric.__io__.num_nodes > 1) or (model.config.pipeline_model_parallel_size > 1)
+        use_nfs_workspace = (model.trainer._fabric.__io__.num_nodes > 1) or (
+            model.config.pipeline_model_parallel_size > 1
+        )
         export_tensorrt_llm_checkpoint(
             model=model.module.module,
             decoder_type=self._get_decoder_type(model.config),
@@ -297,9 +293,7 @@ class Quantizer:
         )
 
         dist.barrier()  # Wait until all ranks complete export_model_config step
-        logging.info(
-            f"Export succeeded, model has been exported to {export_dir}. Saving tokenizer if possible..."
-        )
+        logging.info(f"Export succeeded, model has been exported to {export_dir}. Saving tokenizer if possible...")
 
         if dist.get_rank() == 0:
             self.nemo_checkpoint_path = nemo_checkpoint_path or self.nemo_checkpoint_path
@@ -313,8 +307,9 @@ class Quantizer:
                     logging.info("Could not copy tokenizer from NeMo checkpoint")
 
 
-
-def get_calib_data_iter(data: str = "cnn_dailymail", batch_size: int = 64, calib_size: int = 512, max_sequence_length: int = 512):
+def get_calib_data_iter(
+    data: str = "cnn_dailymail", batch_size: int = 64, calib_size: int = 512, max_sequence_length: int = 512
+):
     """Creates a sample data iterator for calibration"""
     if data == "wikitext":
         dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
