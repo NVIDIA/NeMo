@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import pytest
 import os
 
-os.environ['NVTE_FLASH_ATTN'] = '0'
-os.environ['NVTE_FUSED_ATTN'] = '0'
-os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '0'
+def set_env():
+    os.environ['NVTE_FLASH_ATTN'] = '0'
+    os.environ['NVTE_FUSED_ATTN'] = '0'
+    os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '0'
+
 
 import sys
 from pathlib import Path
@@ -33,6 +35,7 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
 DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
@@ -59,7 +62,7 @@ def load_dcp(ckpt_dir, torch_tensor=True):
     dcp.load(
         state_dict,
         storage_reader=fs_reader,
-        no_dist=True,
+        # no_dist=True,
     )
     return state_dict
 
@@ -85,7 +88,7 @@ def compare_ckpts(a, b, path=[]):
         raise ValueError("Unexpected value type " + str(type(a)))
 
 
-def setup_data_model_optim(log_dir, n_steps, data_path):
+def setup_data_model_optim(log_dir, n_steps, data_path, gbs=2, mbs=1):
     seq_length = 2048
     tokenizer = get_nmt_tokenizer(
         "megatron",
@@ -97,13 +100,20 @@ def setup_data_model_optim(log_dir, n_steps, data_path):
     data = PreTrainingDataModule(
         paths=data_path,
         seq_length=2048,
-        micro_batch_size=1,
-        global_batch_size=2,
+        micro_batch_size=mbs,
+        global_batch_size=gbs,
         seed=1234,
         tokenizer=tokenizer,
         split='9999,1,1',
     )
-
+    # Other tests might have different configs, so need to configure explicitly.
+    reconfigure_num_microbatches_calculator(
+        0,
+        None,
+        gbs,
+        mbs,
+        data_parallel_size=1,
+    )
     gpt_config = llm.GPTConfig(
         num_layers=2,
         hidden_size=128,
@@ -249,6 +259,11 @@ class TestCkptStateRestoration:
             )
             trainer._teardown()
 
+        set_env()
+        assert os.environ['NVTE_FLASH_ATTN'] == '0'
+        assert os.environ['NVTE_FUSED_ATTN'] == '0'
+        assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '0'
+
         # Train for 40 steps
         train(
             40,
@@ -290,3 +305,4 @@ class TestCkptStateRestoration:
 
         # Verify ckpt contents
         compare_ckpts(ckpts[0], ckpts[1])
+        teardown()
