@@ -226,23 +226,6 @@ def main(cfg) -> None:
             validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
             model = load_from_checkpoint_dir(MegatronT5SFTModel, cfg, trainer, modify_confg_fn=_modify_config)
 
-    # DEBUGGING
-    import torch
-    if torch.distributed.get_rank()==0:
-        print("model: ")
-        print(model)
-        for name, param in model.named_parameters():
-            print("{}: {} - {}".format(name, param.shape, torch.norm(param)))
-            if "embedding.position_embeddings.weight" in name:
-                torch.set_printoptions(precision=20)
-                print(name)
-                print(param)
-                print(param.dtype)
-                print(param.shape)
-                print(param.mean())
-                print(param.std())
-    # print(stop_here)
-
     trainer.fit(model)
     if hasattr(cfg.model.data, 'test_ds'):
         trainer.test(model)

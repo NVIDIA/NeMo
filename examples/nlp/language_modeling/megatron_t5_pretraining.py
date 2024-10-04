@@ -31,8 +31,8 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronT5Model(cfg.model, trainer)
-
     trainer.fit(model)
+
 
 if __name__ == '__main__':
     main()

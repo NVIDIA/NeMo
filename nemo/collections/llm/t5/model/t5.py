@@ -187,23 +187,6 @@ class T5Config(TransformerConfig, io.IOMixin):
             post_process=parallel_state.is_pipeline_last_stage(),
         )
 
-        # DEBUGGING
-        print("model: ")
-        print(model)
-        print("encoder_config: ", encoder_config)
-        torch.set_printoptions(precision=20)
-        if torch.distributed.get_rank()==0:
-            for name, param in model.named_parameters():
-                print("{}: {} - {}".format(name, param.shape, torch.norm(param)))
-                if "embedding.position_embeddings.weight" in name:
-                    print(name)
-                    print(param)
-                    print(param.dtype)
-                    print(param.shape)
-                    print(param.mean())
-                    print(param.std())
-        # print(stop_here)        
-
         return model
 
 
