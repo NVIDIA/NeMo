@@ -13,8 +13,8 @@
 # limitations under the License.
 
 
-from typing import Optional
 from datetime import timedelta
+from typing import Optional
 
 from nemo_run import Config, cli
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
