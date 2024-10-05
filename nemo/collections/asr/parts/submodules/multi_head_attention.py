@@ -32,10 +32,10 @@
 Part of this code is adopted from https://github.com/espnet/espnet
 """
 
+import contextlib
 import math
 from functools import lru_cache
 from typing import List, Tuple
-import contextlib
 
 import torch
 import torch.nn as nn
