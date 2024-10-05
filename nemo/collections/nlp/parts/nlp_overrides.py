@@ -104,9 +104,10 @@ try:
         optim_state_to_sharding_state,
     )
     from megatron.core.dist_checkpointing.strategies import tensorstore
-    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate, ColumnParallelLinear
+    from megatron.core.tensor_parallel.layers import ColumnParallelLinear, param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+
     from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
     HAVE_MEGATRON_CORE = True
@@ -483,7 +484,10 @@ class NLPDDPStrategy(DDPStrategy):
         return len(model_param_groups) != len(checkpoint_param_groups)
 
     def _fix_param_groups(
-        self, checkpoint_path: Union[str, Path], sharded_state_dict: Dict[str, Any], patch_separate_lm_head_stage: bool = False
+        self,
+        checkpoint_path: Union[str, Path],
+        sharded_state_dict: Dict[str, Any],
+        patch_separate_lm_head_stage: bool = False,
     ) -> Dict[str, Any]:
         """
         Try to fix the param groups in the checkpoint.
@@ -577,10 +581,12 @@ class NLPDDPStrategy(DDPStrategy):
             if load_optimizer_states:
                 checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
-            #Check if the model has a separate LM head stage
-            def is_lm_head_separate_stage(module = None, state_dict=None):
-                if module is None or state_dict is None: return False
-                if len(state_dict) > 1: return False
+            # Check if the model has a separate LM head stage
+            def is_lm_head_separate_stage(module=None, state_dict=None):
+                if module is None or state_dict is None:
+                    return False
+                if len(state_dict) > 1:
+                    return False
                 return isinstance(getattr(module.model.module, 'output_layer', None), ColumnParallelLinear)
 
             patch_separate_lm_head_stage = is_lm_head_separate_stage(self.lightning_module, sharded_state_dict)
