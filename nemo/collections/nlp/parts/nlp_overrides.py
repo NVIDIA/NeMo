@@ -104,7 +104,7 @@ try:
         optim_state_to_sharding_state,
     )
     from megatron.core.dist_checkpointing.strategies import tensorstore
-    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate, ColumnParallelLinear
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
     from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
@@ -483,11 +483,12 @@ class NLPDDPStrategy(DDPStrategy):
         return len(model_param_groups) != len(checkpoint_param_groups)
 
     def _fix_param_groups(
-        self, checkpoint_path: Union[str, Path], sharded_state_dict: Dict[str, Any]
+        self, checkpoint_path: Union[str, Path], sharded_state_dict: Dict[str, Any], patch_separate_lm_head_stage: bool = False
     ) -> Dict[str, Any]:
         """
         Try to fix the param groups in the checkpoint.
         This is to fix the bug that in 24.03, all checkpoints store EP param group regardless of using EP or not.
+        We also need to fix a bug in param groups if the model has a separate pipeline stage for LM head.
         This function makes sure all checkpoints are compatible for loading.
         Returns:
             sharded_state_dict: Loaded dictionary for the distributed load function
@@ -498,6 +499,16 @@ class NLPDDPStrategy(DDPStrategy):
 
         model_has_expert_param = any(param.get('is_expert', False) for param in model_param_groups)
         checkpoint_has_expert_param = any(param.get('is_expert', False) for param in checkpoint_param_groups)
+
+        patch_pipeline_index = None
+        if patch_separate_lm_head_stage:
+            patch_pipeline_index = len(model_param_groups)
+            model_param_groups.insert(patch_pipeline_index, {'params': LocalNonpersitentObject([0])})
+            # Temporary empty params so that loading doesn't fail
+            if 'optimizer' in sharded_state_dict['optimizer_states'][0]:
+                sharded_state_dict['optimizer_states'][0]['optimizer']['param_groups'] = model_param_groups
+            else:
+                sharded_state_dict['optimizer_states'][0]['param_groups'] = model_param_groups
 
         expert_index = None
         if checkpoint_has_expert_param and not model_has_expert_param:
@@ -525,6 +536,15 @@ class NLPDDPStrategy(DDPStrategy):
                 loaded_state_dict['optimizer_states'][0]['optimizer']['param_groups'].pop(expert_index)
             else:
                 loaded_state_dict['optimizer_states'][0]['param_groups'].pop(expert_index)
+
+        if patch_pipeline_index is not None:
+            # Remove the temporary empty params added above
+            if patch_pipeline_index is not None:
+                if 'optimizer' in loaded_state_dict['optimizer_states'][0]:
+                    loaded_state_dict['optimizer_states'][0]['optimizer']['param_groups'].pop(patch_pipeline_index)
+                else:
+                    loaded_state_dict['optimizer_states'][0]['param_groups'].pop(patch_pipeline_index)
+
         return loaded_state_dict
 
     def load_checkpoint(self, checkpoint_path: Union[str, Path], load_optimizer_states: bool = True) -> Dict[str, Any]:
@@ -556,8 +576,17 @@ class NLPDDPStrategy(DDPStrategy):
             # Check whether to load optim states
             if load_optimizer_states:
                 checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
+
+            #Check if the model has a separate LM head stage
+            def is_lm_head_separate_stage(module = None, state_dict=None):
+                if module is None or state_dict is None: return False
+                if len(state_dict) > 1: return False
+                return isinstance(getattr(module.model.module, 'output_layer', None), ColumnParallelLinear)
+
+            patch_separate_lm_head_stage = is_lm_head_separate_stage(self.lightning_module, sharded_state_dict)
+
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
-                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint)
+                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint, patch_separate_lm_head_stage)
             else:
                 checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
 
