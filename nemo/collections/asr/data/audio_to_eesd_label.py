@@ -163,13 +163,12 @@ class _AudioMSDDTrainDataset(Dataset):
         num_spks: int,
         featurizer,
         window_stride: float,
-        num_feat_per_frame: int = 8,
         min_subsegment_duration: float = 0.03,
         global_rank: int = 0,
         dtype=torch.float16,
         round_digits: int = 2,
         soft_targets: bool = False,
-        interpolate_scale: float = 0.16,
+        subsampling_factor: int = 8,
     ):
         super().__init__()
         self.collection = DiarizationSpeechLabel(
@@ -180,11 +179,10 @@ class _AudioMSDDTrainDataset(Dataset):
         )
         self.preprocessor = preprocessor
         self.featurizer = featurizer
-        self.num_feat_per_frame = num_feat_per_frame
         self.round_digits = round_digits
-        self.diar_frame_length = round(self.num_feat_per_frame * window_stride, round_digits)
-        self.session_len_sec = session_len_sec
         self.feat_per_sec = int(1 / window_stride)
+        self.diar_frame_length = round(subsampling_factor * window_stride, round_digits)
+        self.session_len_sec = session_len_sec
         self.soft_label_thres = soft_label_thres
         self.max_spks = num_spks
         self.min_subsegment_duration = min_subsegment_duration
@@ -333,7 +331,7 @@ class _AudioMSDDTrainDataset(Dataset):
         
         # We should resolve the length mis-match from the round-off errors: `session_len_sec` and `audio_signal.shape[0]`
         session_len_sec = np.floor(audio_signal.shape[0] / self.featurizer.sample_rate * self.floor_decimal)/self.floor_decimal
-        audio_signal = audio_signal[:int(self.featurizer.sample_rate*session_len_sec)]
+        audio_signal = audio_signal[:round(self.featurizer.sample_rate*session_len_sec)]
         
         audio_signal_length = torch.tensor(audio_signal.shape[0]).long()
         audio_signal, audio_signal_length = audio_signal.to('cpu'), audio_signal_length.to('cpu')

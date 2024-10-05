@@ -63,8 +63,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
 
     This model class expects config dict for:
         * preprocessor
-        * msdd_model
-        * speaker_model
+        * Transformer Encoder
+        * FastConformer Encoder
     """
 
     @classmethod
@@ -104,15 +104,12 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         else:
             self.spec_augmentation = None
 
-        self.num_feat_per_frame = self._cfg.get("num_feat_per_frame", 8)
         self.encoder = SortformerEncLabelModel.from_config_dict(self._cfg.encoder)
         self.sortformer_diarizer = SortformerEncLabelModel.from_config_dict(self._cfg.diarizer_module)
         self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
         self._init_loss_weights()
 
         self.eps = 1e-3
-        self.emb_dim = self._cfg.diarizer_module.emb_dim
-
         if trainer is not None:
             self.loss = instantiate(self._cfg.loss)
         else:
@@ -285,7 +282,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.encoder = self.encoder.to(self.device)
         emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         emb_seq = emb_seq.transpose(1, 2)
-        if self._cfg.encoder.d_model != self._cfg.diarizer_module.emb_dim:
+        if self._cfg.encoder.d_model != self._cfg.tf_d_model:
             self.sortformer_diarizer.encoder_proj = self.sortformer_diarizer.encoder_proj.to(self.device)
             emb_seq = self.sortformer_diarizer.encoder_proj(emb_seq)   
         return emb_seq, emb_seq_length
@@ -423,16 +420,12 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy_train.reset() 
         self._accuracy_train_vad.reset()
         self._accuracy_train_ovl.reset()
-        
-    def training_step(self, batch: list, batch_idx: int):
-        audio_signal, audio_signal_length, targets, target_lens = batch
-        # apply random cutting of subsegments 
-        preds = self.forward(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
+    
+    def _get_aux_train_evaluations(self, preds, targets, target_lens):
         # Arrival-time sorted (ATS) targets
         targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
         # Optimally permuted targets for Permutation-Invariant Loss (PIL)
-        targets_pil = self.sort_targets_with_preds(targets.clone(), preds)
-
+        targets_pil = self.sort_targets_with_preds(targets.clone(), preds) 
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
         pil_loss = self.loss(probs=preds, labels=targets_pil, target_lens=target_lens)
         loss = self.ats_weight * ats_loss + self.pil_weight * pil_loss
@@ -469,7 +462,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.log('train_f1_acc_ats', f1_acc, sync_dist=True)
         self.log('train_f1_vad_acc_ats', train_f1_vad, sync_dist=True)
         self.log('train_f1_ovl_acc_ats', train_f1_ovl, sync_dist=True)
-        self._accuracy_train.reset()
+        return loss
+    
+    def training_step(self, batch: list, batch_idx: int):
+        audio_signal, audio_signal_length, targets, target_lens = batch
+        preds = self.forward(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
+        loss = self._get_aux_train_evaluations(preds, targets, target_lens)
+        self._accuracy_train.reset()        
         return {'loss': loss}
     
     def _reset_valid_f1_accs(self):
@@ -502,14 +501,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 "cum_test_f1_vad_acc": cumulative_f1_vad_acc,
                 "cum_test_f1_ovl_acc": cumulative_f1_ovl_acc,
         }
-    
-    def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
-        audio_signal, audio_signal_length, targets, target_lens = batch
-        preds = self.forward(
-            audio_signal=audio_signal,
-            audio_signal_length=audio_signal_length,
-        )
-
+    def _get_aux_validation_evaluations(self, preds, targets, target_lens):
         targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
         targets_pil = self.sort_targets_with_preds(targets.clone(), preds)
 
@@ -535,7 +527,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy_valid(preds, targets_ats, target_lens)
         f1_acc_ats = self._accuracy_valid.compute()
 
-        self.val_metrics = {
+        val_metrics = {
             'val_loss': loss,
             'val_ats_loss': ats_loss,
             'val_pil_loss': pil_loss,
@@ -549,10 +541,19 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         }
 
         if isinstance(self.trainer.val_dataloaders, list) and len(self.trainer.val_dataloaders) > 1:
-            self.validation_step_outputs[dataloader_idx].append(self.val_metrics)
+            self.validation_step_outputs[dataloader_idx].append(val_metrics)
         else:
-            self.validation_step_outputs.append(self.val_metrics)
-            
+            self.validation_step_outputs.append(val_metrics)
+        return val_metrics    
+        
+        
+    def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
+        audio_signal, audio_signal_length, targets, target_lens = batch
+        preds = self.forward(
+            audio_signal=audio_signal,
+            audio_signal_length=audio_signal_length,
+        )
+        self.val_metrics = self._get_aux_validation_evaluations(preds, targets, target_lens) 
         return self.val_metrics
     
     def on_validation_epoch_end(self):

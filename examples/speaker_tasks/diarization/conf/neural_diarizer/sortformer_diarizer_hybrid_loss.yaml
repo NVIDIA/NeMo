@@ -1,10 +1,9 @@
-# Mutiscale diarization decoder (MSDD) is a speaker diarization model based on initializing clustering and multiscale segmentation input.
-# Model name convention for MSDD: msdd_<number of scales>scl_<longest scale in decimal second (ds)>_<shortest scale in decimal second (ds)>_<overlap percentage of window shifting>Povl_<hidden layer size>x<number of LSTM layers>x<number of CNN output channels>x<repetition count of conv layer>
-# (Example) `msdd_5scl_15_05_50Povl_256x3x32x2.yaml` has 5 scales, the longest scale is 1.5 sec, the shortest scale is 0.5 sec, with 50 percent overlap, hidden layer size is 256, 3 LSTM layers, 32 CNN channels, 2 repeated Conv layers
-# MSDD model checkpoint (.ckpt) and NeMo file (.nemo) contain speaker embedding model (TitaNet) and the speaker model is loaded along with standalone MSDD moodule.
-# Note that MSDD models require more than one scale. Thus, the parameters in diarizer.speaker_embeddings.parameters should have more than one scale to function as a MSDD model.
+# Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
+# Model name convention for Sortformer Diarizer: sortformer_diarizer_<FC_layer>_<TF_layer>_<loss_type>_loss.yaml
+# (Example) `sortformer_diarizer_FC18_TF18_hybrid_loss.yaml` has 18 layers for FastConformer and 18 layers of Transformer.
+# Sortformer Diarizer model checkpoint (.ckpt) and NeMo file (.nemo) contain Fast Conformer Encoder model (NEST Encoder) and the pre-trained NEST model is loaded along with the Transformer Encoder layers.
 # Example: a manifest line for training 
-# {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 13.45, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
+# {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 90.00, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
 name: "SortFormerDiarizer"
 sample_rate: 16000
 num_workers: 18
@@ -14,22 +13,18 @@ model:
   pil_weight: 0.5
   ats_weight: 0.5
   num_workers: ${num_workers}
-  d_model: 512
+  fc_d_model: 512
+  tf_d_model: 192
   max_num_of_spks: 4 # Number of speakers per model. This is currently fixed at 6.
-  soft_label_thres: 0.5 # Threshold for creating discretized speaker label from continuous speaker label in RTTM files.
-  num_feat_per_frame: 8 # Number of feature vectors in a frame
   session_len_sec: 90
-  soft_targets: False
-  freeze_speaker_model: True # If True, speaker model is frozen and only MSDD module is trained.
-  random_flip: True
 
   train_ds:
     manifest_filepath: ???
     sample_rate: ${sample_rate}
     num_spks: ${model.max_num_of_spks}
-    soft_label_thres: ${model.soft_label_thres}
     session_len_sec: ${model.session_len_sec}
-    soft_targets: ${model.soft_targets}
+    soft_label_thres: 0.5
+    soft_targets: false
     labels: null
     batch_size: ${batch_size}
     shuffle: True
@@ -55,10 +50,9 @@ model:
     tarred_audio_filepaths: null
     sample_rate: ${sample_rate}
     num_spks: ${model.max_num_of_spks}
-    soft_label_thres: ${model.soft_label_thres}
     session_len_sec: ${model.session_len_sec}
+    soft_label_thres: 0.5
     soft_targets: False
-    random_flip: False
     labels: null
     batch_size: ${batch_size}
     shuffle: False
@@ -77,10 +71,9 @@ model:
     tarred_audio_filepaths: null
     sample_rate: 16000
     num_spks: ${model.max_num_of_spks}
-    soft_label_thres: ${model.soft_label_thres}
     session_len_sec: ${model.session_len_sec}
+    soft_label_thres: 0.5
     soft_targets: False
-    random_flip: False
     labels: null
     batch_size: ${batch_size}
     shuffle: False
@@ -109,17 +102,16 @@ model:
   diarizer_module:
     _target_: nemo.collections.asr.modules.sortformer_diarizer.SortformerDiarizer
     num_spks: ${model.max_num_of_spks} # Number of speakers per model. This is currently fixed at 2.
-    hidden_size: 192 # Hidden layer size for linear layers in MSDD module
     dropout_rate: 0.5 # Dropout rate
-    d_model: ${model.d_model}
-    emb_dim: 192 # Dimension of the speaker embedding vectors
+    fc_d_model: ${model.fc_d_model}
+    tf_d_model: ${model.tf_d_model} # Hidden layer size for linear layers in Sortformer Diarizer module
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
     feat_out: -1
     n_layers: 18
-    d_model: ${model.d_model}
+    d_model: ${model.fc_d_model}
 
     # Sub-sampling parameters
     subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
@@ -173,10 +165,6 @@ model:
     _target_: nemo.collections.asr.losses.bce_loss.BCELoss
     weight: null # Weight for binary cross-entropy loss. Either `null` or list type input. (e.g. [0.5,0.5])
     reduction: mean
-    alpha: 0.0 # Ratio between BCE loss and affinity loss
-    sorted_loss: False # If True, labels are sorted to make first-come first-serve order.
-    sorted_preds: False # If True, labels are sorted to make first-come first-serve order.
-    class_normalization: False # If True, loss is normalized by the quantity of each class.
 
   lr: 0.0001
   optim:

@@ -41,9 +41,7 @@ class SortformerDiarizer(NeuralModule, Exportable):
             Number of the stacked LSTM layers.
         dropout_rate (float):
             Dropout rate for linear layers, CNN and LSTM.
-        # cnn_output_ch (int):
-        #     Number of channels per each CNN layer.
-        emb_dim (int):
+        tf_d_model (int):
             Dimension of the embedding vectors.
         scale_n (int):
             Number of scales in multi-scale system.
@@ -91,20 +89,21 @@ class SortformerDiarizer(NeuralModule, Exportable):
     def __init__(
         self,
         num_spks: int = 4,
-        hidden_size: int = 256,
+        hidden_size: int = 192,
         dropout_rate: float = 0.5,
-        d_model: int = 512,
-        emb_dim: int = 192,
+        fc_d_model: int = 512,
+        tf_d_model: int = 192,
     ):
         super().__init__()
-        self.d_model = d_model
-        self.emb_dim = emb_dim
+        self.fc_d_model = fc_d_model
+        self.tf_d_model = tf_d_model
+        self.hidden_size = tf_d_model
         self.unit_n_spks: int = num_spks
-        self.hidden_to_spks = nn.Linear(2 * hidden_size, self.unit_n_spks)
-        self.first_hidden_to_hidden = nn.Linear(hidden_size, hidden_size)
-        self.single_hidden_to_spks = nn.Linear(hidden_size, self.unit_n_spks)
+        self.hidden_to_spks = nn.Linear(2 * self.hidden_size, self.unit_n_spks)
+        self.first_hidden_to_hidden = nn.Linear(self.hidden_size, self.hidden_size)
+        self.single_hidden_to_spks = nn.Linear(self.hidden_size, self.unit_n_spks)
         self.dropout = nn.Dropout(dropout_rate)
-        self.encoder_proj = nn.Linear(self.d_model, self.emb_dim)
+        self.encoder_proj = nn.Linear(self.fc_d_model, self.tf_d_model)
      
     def forward_speaker_sigmoids(self, hidden_out):
         hidden_out = self.dropout(F.relu(hidden_out))
