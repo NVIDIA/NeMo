@@ -5344,7 +5344,6 @@ jobs:
       - L2_NeMo_2_Mixtral_Pretraining
       - L2_PTQ_Llama2_INT8_SQ
       - L2_PTQ_Llama2_FP8
-      - L2_NeMo_2_HF_MODEL_IMPORT
       - L2_Community_LLM_Checkpoints_tests_Llama3
       - L2_PTQ_Llama2_Export_Only
       - L2_Distill_Llama2
