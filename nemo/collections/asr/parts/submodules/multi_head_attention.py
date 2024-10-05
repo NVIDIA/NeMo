@@ -35,11 +35,11 @@ Part of this code is adopted from https://github.com/espnet/espnet
 import math
 from functools import lru_cache
 from typing import List, Tuple
+import contextlib
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from packaging.version import Version
 
 from nemo.utils import avoid_float16_autocast_context
 
@@ -77,10 +77,10 @@ class MultiHeadAttention(nn.Module):
         super(MultiHeadAttention, self).__init__()
         self.use_pytorch_sdpa = use_pytorch_sdpa
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
-        if self.use_pytorch_sdpa and Version(torch.__version__) < Version("2.3.1"):
-            self.sdpa_context = self.get_old_sdpa_context()
+        if self.use_pytorch_sdpa:
+            self.sdpa_backend_context_manager = self.get_sdpa_backend_context_manager
         else:
-            self.sdpa_context = self.get_new_sdpa_context()
+            self.sdpa_backend_context_manager = contextlib.nullcontext
 
         self.cache_drop_size = None
         self.use_bias = use_bias
@@ -98,7 +98,7 @@ class MultiHeadAttention(nn.Module):
 
         self._max_cache_len = max_cache_len
 
-    def get_new_sdpa_context(self):
+    def get_sdpa_backend_context_manager(self):
         from torch.nn.attention import SDPBackend, sdpa_kernel
 
         if self.use_pytorch_sdpa_backends is None or len(self.use_pytorch_sdpa_backends) == 0:
@@ -108,23 +108,7 @@ class MultiHeadAttention(nn.Module):
                 map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends)
             )
 
-        return lambda: sdpa_kernel(use_pytorch_sdpa_backends)
-
-    def get_old_sdpa_context(self):
-        if self.use_pytorch_sdpa_backends is None or len(self.use_pytorch_sdpa_backends) == 0:
-            return lambda: torch.backends.cuda.sdp_kernel()
-
-        enable_math = "MATH" in self.use_pytorch_sdpa_backends
-        enable_flash = "FLASH_ATTENTION" in self.use_pytorch_sdpa_backends
-        enable_mem_efficient = "EFFICIENT_ATTENTION" in self.use_pytorch_sdpa_backends
-        enable_cudnn = "CUDNN_ATTENTION" in self.use_pytorch_sdpa_backends
-
-        return lambda: torch.backends.cuda.sdp_kernel(
-            enable_math=enable_math,
-            enable_flash=enable_flash,
-            enable_mem_efficient=enable_mem_efficient,
-            enable_cudnn=enable_cudnn,
-        )
+        return sdpa_kernel(use_pytorch_sdpa_backends)
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
@@ -199,7 +183,7 @@ class MultiHeadAttention(nn.Module):
                     mask = ~mask.unsqueeze(1)
 
                 dropout_rate = self.dropout_rate if self.training else 0
-                with self.sdpa_context():
+                with self.sdpa_backend_context_manager():
                     out = torch.nn.functional.scaled_dot_product_attention(
                         q, k, v, attn_mask=mask, dropout_p=dropout_rate
                     )
