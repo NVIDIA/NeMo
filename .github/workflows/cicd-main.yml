@@ -3660,10 +3660,10 @@ jobs:
         model.data.validation_ds.output_file_path_prefix="/home/TestData/nlp/megatron_ir/working_dir/val_embs" \
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl]
 
-  OPTIONAL_L2_Megatron_GPT_Embedding:
+  L2_Megatron_GPT_Embedding:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Megatron_GPT_Embedding') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_GPT_Embedding') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -3697,7 +3697,6 @@ jobs:
         model.data.test_ds.output_file_path_prefix="/tmp/gpt_embedding_workdir/test_embs" \
         model.data.test_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
         model.data.test_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl]
-      IS_OPTIONAL: true
 
   L2_Megatron_GPT_PEFT_Lora_PP2_O2:
     needs: [cicd-test-container-setup]
@@ -5223,7 +5222,7 @@ jobs:
       - L0_Unit_Tests_GPU_Hydra
       #- OPTIONAL_L0_Unit_Tests_GPU_Lightning
       - L0_Unit_Tests_GPU_Others
-      
+      - L0_Setup_Test_Data_And_Models
       - L0_Unit_Tests_CPU_ASR
       - L0_Unit_Tests_CPU_Audio
       - L0_Unit_Tests_CPU_Common
@@ -5303,10 +5302,9 @@ jobs:
       - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
-      #- OPTIONAL_L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
-      #- OPTIONAL_L2_Megatron_GPT_Embedding 
+      - L2_Megatron_GPT_Embedding
       - L2_Megatron_GPT_PEFT_Lora_PP2_O2
       - L2_Megatron_GPT_PEFT_Lora_TP2_O1
       - L2_Megatron_GPT_PEFT_Lora_TP2SP1
@@ -5337,7 +5335,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
-      #- L2_Stable_Diffusion_Training
+      - L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
       #- OPTIONAL_L2_NeMo_2_GPT_DDP_Param_Parity_check
       - L2_NeMo_2_HF_MODEL_IMPORT
