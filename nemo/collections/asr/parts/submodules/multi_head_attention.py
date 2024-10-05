@@ -77,7 +77,7 @@ class MultiHeadAttention(nn.Module):
         super(MultiHeadAttention, self).__init__()
         self.use_pytorch_sdpa = use_pytorch_sdpa
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
-        if Version(torch.__version__) < Version("2.3.1"):
+        if self.use_pytorch_sdpa and Version(torch.__version__) < Version("2.3.1"):
             self.sdpa_context = self.get_old_sdpa_context()
         else:
             self.sdpa_context = self.get_new_sdpa_context()
