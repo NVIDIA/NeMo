@@ -5161,6 +5161,7 @@ jobs:
   L2_NeMo_2_HF_MODEL_IMPORT:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_HF_MODEL_IMPORT') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
