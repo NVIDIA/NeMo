@@ -96,7 +96,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     from the `token_confidence`.
                 aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
-                tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
+                tdt_include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
                     attached to the regular frame confidence,
                     making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
@@ -210,6 +210,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
+        self.tdt_include_duration = self.cfg.get('tdt_include_duration', False)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
         self._is_tdt = self.durations is not None and self.durations != []  # this means it's a TDT model.
@@ -299,6 +300,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
+                        include_duration=self.tdt_include_duration,
                         include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                     )
@@ -345,6 +347,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
+                        include_duration=self.tdt_include_duration,
                         include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                         use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
@@ -1576,6 +1579,9 @@ class RNNTDecodingConfig:
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
+
+    # include token duration
+    tdt_include_duration: Optional[bool] = None
 
     #  confidence config
     confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
