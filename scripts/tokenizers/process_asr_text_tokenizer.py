@@ -137,6 +137,7 @@ parser.add_argument(
     '--spe_control_symbols', default=None, type=str, nargs='+', help='Control symbols for SentencePiece'
 )
 parser.add_argument('--spe_split_digits', action='store_true', help='Split digits into separate tokens.')
+parser.add_argument('--spe_remove_extra_whitespaces', action='store_true', help='Remove leading, trailing, and duplicate internal whitespace.')
 
 parser.add_argument(
     '--spe_sample_size',
@@ -225,6 +226,7 @@ def __process_data(
     spe_user_defined_symbols: Optional[List[str]],
     spe_byte_fallback: bool,
     spe_split_digits: bool,
+    spe_remove_extra_whitespaces: bool,
     lower_case: bool,
 ):
     """
@@ -252,6 +254,7 @@ def __process_data(
             These tokens remain in the decoded text and are encoded automatically when present in the input text.
         spe_byte_fallback: If <unk>, fallback to a byte sequence of the character.
         spe_split_digits: If true, digits are split into individual tokens.
+        spe_remove_extra_whitespaces: If true, removes leading, trailing, and duplicate internal whitespace.
         lower_case: whether to tokenize with lower case character set only (for english)
 
     Returns:
@@ -301,6 +304,7 @@ def __process_data(
             user_defined_symbols=spe_user_defined_symbols,
             byte_fallback=spe_byte_fallback,
             split_digits=spe_split_digits,
+            remove_extra_whitespaces=spe_remove_extra_whitespaces
         )
 
     else:
@@ -334,6 +338,7 @@ def main():
     spe_user_defined_symbols = args.spe_user_defined_symbols
     spe_byte_fallback = args.spe_byte_fallback
     spe_split_digits = args.spe_split_digits
+    spe_remove_extra_whitespaces=args.spe_remove_extra_whitespaces
     lower_case = args.lower_case
 
     if not os.path.exists(data_root):
@@ -365,6 +370,7 @@ def main():
         spe_user_defined_symbols=spe_user_defined_symbols,
         spe_byte_fallback=spe_byte_fallback,
         spe_split_digits=spe_split_digits,
+        spe_remove_extra_whitespaces=spe_remove_extra_whitespaces
     )
 
     print("Serialized tokenizer at location :", tokenizer_path)
