@@ -5,63 +5,31 @@ import fiddle as fdl
 import pytorch_lightning as pl
 from fiddle._src.experimental import serialization
 
-from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector
+from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load
 from nemo.lightning.io.pl import TrainerContext
 
-CkptType = TypeVar("CkptType")
 
-
-def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
-    """
-    Loads a configuration from a pickle file and constructs an object of the specified type.
-
-    Args:
-        path (Path): The path to the pickle file or directory containing 'io.pkl'.
-        output_type (Type[CkptType]): The type of the object to be constructed from the loaded data.
-
-    Returns
-    -------
-        CkptType: An instance of the specified type constructed from the loaded configuration.
-
-    Raises
-    ------
-        FileNotFoundError: If the specified file does not exist.
-
-    Example:
-        loaded_model = load("/path/to/model", output_type=MyModel)
-    """
-    del output_type  # Just for type-hint
-
-    _path = Path(path)
-    if hasattr(_path, 'is_dir') and _path.is_dir():
-        _path = Path(_path) / "io.json"
-    elif hasattr(_path, 'isdir') and _path.isdir:
-        _path = Path(_path) / "io.json"
-
-    if not _path.is_file():
-        raise FileNotFoundError(f"No such file: '{_path}'")
-
-    with open(_path, "rb") as f:
-        config = serialization.load_json(f.read())
-
-    return fdl.build(config)
-
-
-def load_context(path: Path) -> TrainerContext:
+def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
     """
     Loads a TrainerContext from a json-file or directory.
 
     Args:
         path (Path): The path to the json-file or directory containing 'io.json'.
+        subpath (Optional[str]): Subpath to selectively load only specific objects inside the TrainerContext. Defaults to None.
 
     Returns
     -------
         TrainerContext: The loaded TrainerContext instance.
 
     Example:
+        # Load the entire context
         checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint")
+
+        # Load a subpath of the context, for eg: model.config
+        checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint", subpath="model.config")
+
     """
-    return load(path, output_type=TrainerContext)
+    return load(path, output_type=TrainerContext, subpath=subpath)
 
 
 def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
@@ -163,7 +131,9 @@ def import_ckpt(
         raise ValueError("Model must be an instance of ConnectorMixin")
 
     importer: ModelConnector = model.importer(source)
-    return importer(overwrite=overwrite, output_path=output_path)
+    ckpt_path = importer(overwrite=overwrite, output_path=output_path)
+    importer.on_import_ckpt(model)
+    return ckpt_path
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> ModelConnector:

@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
@@ -12,6 +26,7 @@ from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import OptimizerModule
+from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM
@@ -27,7 +42,6 @@ class MistralConfig7B(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
 
     num_layers: int = 32
     hidden_size: int = 4096
@@ -35,10 +49,47 @@ class MistralConfig7B(GPTConfig):
     num_query_groups: int = 8
     ffn_hidden_size: int = 14336
     seq_length: int = 32768
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
+    share_embeddings_and_output_weights: bool = False
 
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
+
+
+@dataclass
+class MistralNeMo2407Config12B(MistralConfig7B):
+    """
+    https://mistral.ai/news/mistral-nemo/
+    """
+
+    num_layers: int = 40
+    hidden_size: int = 5120
+    kv_channels: int = 128
+    seq_length: int = 4096  # but   "max_position_embeddings": 1024000,
+
+    window_size: List[int] = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
+
+
+@dataclass
+class MistralNeMo2407Config123B(MistralConfig7B):
+    """
+    https://mistral.ai/news/mistral-large-2407/
+    """
+
+    num_layers: int = 88
+    hidden_size: int = 12288
+    ffn_hidden_size: int = 28672
+    num_attention_heads: int = 96
+    kv_channels: int = 128
+    seq_length: int = 4096  # but   "max_position_embeddings": 131072,
+
+    window_size: List[int] = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
 
 
 class MistralModel(GPTModel):
@@ -62,7 +113,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
     def apply(self, output_path: Path) -> Path:
         from transformers import MistralForCausalLM
 
-        source = MistralForCausalLM.from_pretrained(str(self))
+        source = MistralForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -92,7 +143,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(str(self))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> MistralConfig7B:
@@ -106,11 +157,15 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
                 base //= 2
             return base
 
+        window_size = None
+        if getattr(source, 'sliding_window', None) is not None:
+            window_size = [source.sliding_window, 0]
         output = MistralConfig7B(
             seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
+            kv_channels=getattr(source, 'head_dim', source.hidden_size // source.num_attention_heads),
             num_attention_heads=source.num_attention_heads,
             # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
@@ -119,8 +174,11 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            window_size=[source.sliding_window, 0],
+            window_size=window_size,
             share_embeddings_and_output_weights=False,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
         return output
@@ -130,8 +188,10 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
 class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
     def init(self) -> "MistralForCausalLM":
         from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
 
-        return AutoModelForCausalLM.from_config(self.config)
+        with no_init_weights(True):
+            return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         # TODO: Make it work with lazy init
@@ -172,7 +232,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
         from transformers import MistralConfig as HfMistralConfig
 
         return HfMistralConfig(
-            sliding_window=source.window_size[0],
+            sliding_window=source.window_size[0] if source.window_size is not None else None,
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
@@ -183,6 +243,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
+            head_dim=source.kv_channels,
         )
 
 
@@ -202,7 +263,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -244,7 +305,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
@@ -280,3 +341,11 @@ def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
+
+
+__all__ = [
+    "MistralConfig7B",
+    "MistralNeMo2407Config12B",
+    "MistralNeMo2407Config123B",
+    "MistralModel",
+]

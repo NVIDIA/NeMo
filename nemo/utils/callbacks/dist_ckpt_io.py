@@ -17,7 +17,7 @@ import shutil
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from time import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import pytorch_lightning as pl
 from lightning_fabric.plugins import CheckpointIO
@@ -44,6 +44,7 @@ try:
         FullyParallelSaveStrategyWrapper,
     )
     from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
+    from megatron.core.dist_checkpointing.validation import StrictHandling
     from megatron.core.parallel_state import get_data_parallel_group
 
     HAVE_MEGATRON_CORE = True
@@ -188,6 +189,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         load_directly_on_device (bool, optional): if True, loads the weights directly
             on GPU. Has effect only for `zarr` based checkpoints (PyT Distributed
             always loads on device). Defaults to True.
+        load_strictness (StrictHandling, optional): defines loading strictness.
+            If not None, overwrites the `strict` flag passed to `load_checkpoint`.
+            Defaults to None.
         async_save (bool): whether to save asynchronously. Should be set to True if
             this class will be wrapped with AsyncFinalizableCheckpointIO.
         torch_dist_multiproc (int, optional): number of extra processes per rank
@@ -202,10 +206,12 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         self,
         save_ckpt_format: str,
         load_directly_on_device: bool = True,
+        load_strictness: Optional['StrictHandling'] = None,
         async_save: bool = False,
         torch_dist_multiproc: Optional[int] = None,
         assume_constant_structure: bool = False,
         parallel_save: bool = False,
+        parallel_save_within_dp: bool = False,
         parallel_load: bool = False,
     ):
         super().__init__()
@@ -214,10 +220,12 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
+        self.load_strictness = load_strictness
         self.async_save = async_save
         self.torch_dist_multiproc = torch_dist_multiproc
         self.assume_constant_structure = assume_constant_structure
         self.parallel_save = parallel_save
+        self.parallel_save_within_dp = parallel_save_within_dp
         self.parallel_load = parallel_load
 
         self._save_sharded_strategy = None
@@ -234,11 +242,13 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 it should be provided separately. Defaults to False.
         """
         return cls(
-            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
+            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'torch_dist'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
+            load_strictness=model_cfg.get('dist_ckpt_load_strictness', None),
             async_save=async_save,
             torch_dist_multiproc=model_cfg.get('dist_ckpt_torch_dist_multiproc', None),
             parallel_save=model_cfg.get('dist_ckpt_parallel_save', False),
+            parallel_save_within_dp=model_cfg.get('dist_ckpt_parallel_save_within_dp', False),
             parallel_load=model_cfg.get('dist_ckpt_parallel_load', False),
         )
 
@@ -272,7 +282,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         path: _PATH,
         map_location: Optional[Any] = None,
         sharded_state_dict: Dict[str, Any] = None,
-        strict: Optional[bool] = True,
+        strict: Union[None, bool, 'StrictHandling'] = None,
         validate_access_integrity: Optional[bool] = True,
     ) -> Dict[str, Any]:
         """Loads a distributed checkpoint.
@@ -284,6 +294,10 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 defines the loading procedure for the distributed checkpoint.
                 Defaults to None to comply with the CheckpointIO interface,
                 but it's a required argument.
+            strict (bool, StrictHandling, optional): adjust load strictness. bool value
+                is translated to StrictHandling instance. Gets overwritten by
+                `self.load_strictness`. Defaults to None. If `self.load_strictness`
+                is also None, strict becomes StrictHandling.ASSUME_OK_UNEXPECTED.
 
         Returns:
             Dist[str, Any]: loaded checkpoint.
@@ -308,14 +322,27 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         if sharded_strategy is not None:
             logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
 
-        if not strict:
-            sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
+        if isinstance(strict, bool):
+            # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
+            # we must apply a simple strict check here.
+            if not strict:
+                sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
+        if self.load_strictness is not None:
+            # Overwrites function argument
+            strict = self.load_strictness
+        if strict is None:
+            # Default behavior
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED
+
+        logging.debug(f'Dist ckpt load strictness: {strict}')
 
         return dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=path,
             sharded_strategy=sharded_strategy,
             validate_access_integrity=validate_access_integrity,
+            strict=strict,
         )
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
@@ -363,6 +390,13 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         are passed in config or in case of a fully parallel save in which case
         a parallelization wrapper is applied.
         """
+        if self.save_ckpt_format == 'zarr':
+            logging.warning(
+                f'`zarr` distributed checkpoint backend is deprecated.'
+                f' Distributed optimizer checkpoint saving might be extremely slow.'
+                f' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+            )
+
         if self.async_save and self.save_ckpt_format != 'torch_dist':
             raise ValueError('Async dist-ckpt save supported only for torch_dist format')
 
@@ -377,8 +411,11 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             save_strategy.use_cached_ckpt_structure = self.assume_constant_structure
 
         if self.parallel_save:
+            parallelization_group = (
+                get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
+            )
             save_strategy = FullyParallelSaveStrategyWrapper(
-                save_strategy, get_data_parallel_group(with_context_parallel=True), self.assume_constant_structure
+                save_strategy, parallelization_group, self.assume_constant_structure
             )
 
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')

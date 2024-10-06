@@ -15,10 +15,11 @@
 
 import csv
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import tensorrt_llm
+import torch
 from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
@@ -31,6 +32,19 @@ from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
 from nemo.export.trt_llm.converter.utils import DECODER_MODEL_TYPE, split
 
 LOGGER = logging.getLogger("NeMo")
+
+
+def get_config(decoder_type, config):
+    DECODER_CONFIG = {
+        "llama": tensorrt_llm.models.llama.config.LLaMAConfig,
+        "gpt": tensorrt_llm.models.gpt.config.GPTConfig,
+        "gptnext": tensorrt_llm.models.gpt.config.GPTConfig,
+        "falcon": tensorrt_llm.models.falcon.config.FalconConfig,
+        "gemma": tensorrt_llm.models.GemmaConfig,
+    }
+    config_cls = DECODER_CONFIG[decoder_type] if decoder_type in DECODER_CONFIG else PretrainedConfig
+
+    return config_cls(**config)
 
 
 def prompt_convert(prompt_config, prompt_weights):
@@ -67,6 +81,18 @@ def prompt_convert(prompt_config, prompt_weights):
     return vtokens_embeddings
 
 
+def determine_quantization_settings(
+    nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
+) -> Tuple[bool, bool]:
+    is_nemo_quantized = nemo_model_config.get('fp8', False)
+    if fp8_quantized is None:
+        fp8_quantized = is_nemo_quantized
+    if fp8_kvcache is None:
+        fp8_kvcache = is_nemo_quantized
+
+    return fp8_quantized, fp8_kvcache
+
+
 def model_to_trtllm_ckpt(
     model,
     nemo_model_config,
@@ -80,15 +106,17 @@ def model_to_trtllm_ckpt(
     use_embedding_sharing: bool = False,
     use_distributed_convert: bool = False,
     model_parallel_rank: int = None,
-    vocab_size: int = None,
+    vocab_size: Optional[int] = None,
+    fp8_quantized: Optional[bool] = None,
+    fp8_kvcache: Optional[bool] = None,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
-
     if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
         LOGGER.info(
             "Found share_embeddings_and_output_weights is True in NeMo config, set use_embedding_sharing = True"
         )
         use_embedding_sharing = True
 
+    fp8_quantized, fp8_kvcache = determine_quantization_settings(nemo_model_config, fp8_quantized, fp8_kvcache)
     # If the model has been sharded with model parallelism, convert the model in a gpu-distributed manner
     if use_distributed_convert:
         weights_dict = dist_model_to_trt_llm_ckpt(
@@ -97,6 +125,8 @@ def model_to_trtllm_ckpt(
             inference_tp_size=tensor_parallel_size,
             inference_pp_size=pipeline_parallel_size,
             tokenizer_vocab_size=vocab_size,
+            fp8_quantized=fp8_quantized,
+            fp8_kvcache=fp8_kvcache,
         )
         vocab_size_padded = vocab_size
     else:
@@ -109,6 +139,8 @@ def model_to_trtllm_ckpt(
             storage_type=dtype,
             use_parallel_embedding=use_parallel_embedding,
             decoder_type=decoder_type,
+            fp8_quantized=fp8_quantized,
+            fp8_kvcache=fp8_kvcache,
         )
 
         has_lm_head = "lm_head.weight" in weights_dict
@@ -148,19 +180,21 @@ def model_to_trtllm_ckpt(
         'embedding_sharding_dim': 0,
         'share_embedding_table': use_embedding_sharing,
         'quantization': {
-            'quant_algo': None,
-            'kv_cache_quant_algo': None,
+            'quant_algo': "FP8" if fp8_quantized else None,
+            'kv_cache_quant_algo': "FP8" if fp8_kvcache else None,
         },
         'bias': nemo_model_config.get('bias'),
         'apply_query_key_layer_scaling': False,
         'rotary_pct': nemo_model_config.get('rotary_percentage', 1.0),
         'rotary_base': nemo_model_config.get('rotary_base', 10000),
         'moe_num_experts': nemo_model_config.get('num_moe_experts', 0),
-        'moe_top_k': nemo_model_config.get('moe_router_topk'),
+        'moe_top_k': nemo_model_config.get('moe_router_topk', 0),
         'moe_normalization_mode': nemo_model_config.get(
             'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
         ),
-        'moe_tp_mode': nemo_model_config.get('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL),
+        'moe_tp_mode': nemo_model_config.get(
+            'moe_tp_mode', 2
+        ),  # change MoeConfig.ParallelismMode.TENSOR_PARALLEL to 2
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
@@ -179,7 +213,7 @@ def model_to_trtllm_ckpt(
 
     if use_distributed_convert:
         config["gpus_per_node"] = gpus_per_node
-        model_configs.append(PretrainedConfig(**config))
+        model_configs.append(get_config(decoder_type, config))
         model_configs[0].mapping = tensorrt_llm.Mapping(
             world_size=world_size,
             rank=model_parallel_rank,
@@ -197,15 +231,12 @@ def model_to_trtllm_ckpt(
         "transformer.ln_f.bias",
     }
 
-    gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
-
     for i in range(world_size):
         mapping = tensorrt_llm.Mapping(
             world_size=world_size,
             rank=i,
             tp_size=tensor_parallel_size,
             pp_size=pipeline_parallel_size,
-            gpus_per_node=gpus_per_node,
         )
         layers_range = mapping.pp_layers(num_layers)
 
@@ -248,9 +279,9 @@ def model_to_trtllm_ckpt(
 
         if mapping.is_last_pp_rank():
             if has_lm_head:
-                weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
-                    split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
-                )
+                weights_dict_local["lm_head.weight"] = split(
+                    lm_head_weight, mapping.tp_size, mapping.tp_rank
+                ).contiguous()
             weights_dict_local["transformer.ln_f.weight"] = weights_dict["transformer.ln_f.weight"]
 
             ln_f_bias = weights_dict.get("transformer.ln_f.bias")
@@ -258,7 +289,7 @@ def model_to_trtllm_ckpt(
                 weights_dict_local["transformer.ln_f.bias"] = ln_f_bias
 
         config["gpus_per_node"] = gpus_per_node
-        model_config = PretrainedConfig(**config)
+        model_config = get_config(decoder_type, config)
         model_config.mapping = mapping
         model_configs.append(model_config)
         weights_dicts.append(weights_dict_local)

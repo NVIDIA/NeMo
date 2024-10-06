@@ -35,12 +35,13 @@ from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
-    HAVE_APEX = True
-except:
-    HAVE_APEX = False
-
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+    )
 
 __all__ = ['DialogueS2SGenerationModel']
 
@@ -237,7 +238,7 @@ class DialogueS2SGenerationModel(NLPModel):
             generated_tokens = self.language_model.generate(**param_dict)
 
         elif self.cfg.library == 'megatron':
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=0,  # This doesn't matter since it is only used for logging
                 rampup_batch_size=None,
                 global_batch_size=1,

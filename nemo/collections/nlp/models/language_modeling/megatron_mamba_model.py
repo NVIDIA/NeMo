@@ -13,13 +13,30 @@
 # limitations under the License.
 
 import torch
-from megatron.core.models.mamba import MambaModel
-from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.utils import logging
+
+try:
+    import mamba_ssm
+
+    HAVE_MAMBA_SSM = True
+
+except ModuleNotFoundError:
+
+    HAVE_MAMBA_SSM = False
+
+try:
+    from megatron.core.models.mamba import MambaModel
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 class MegatronMambaModel(MegatronGPTModel):
@@ -28,7 +45,8 @@ class MegatronMambaModel(MegatronGPTModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-
+        if not HAVE_MEGATRON_CORE or not HAVE_MAMBA_SSM:
+            raise ImportError("Both megatron.core and mamba_ssm packages are required to use MegatronMambaModel")
         self.vocab_size = cfg.get('vocab_size', 65536)
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
@@ -36,15 +54,14 @@ class MegatronMambaModel(MegatronGPTModel):
         self.mcore_gpt = True
 
     def model_provider_func(self, pre_process, post_process):
-
+        if not HAVE_MEGATRON_CORE or not HAVE_MAMBA_SSM:
+            raise ImportError("Both megatron.core and mamba_ssm packages are required to use MegatronMambaModel")
         self.hybrid_override_pattern = self.cfg.get(
             'hybrid_override_pattern', "M" * self.transformer_config.num_layers
         )
         self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
         self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
         self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
-
-        # TODO @ataghibakhsh: add mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8) once MLM MR merged
 
         model = MambaModel(
             config=self.transformer_config,
@@ -64,17 +81,10 @@ class MegatronMambaModel(MegatronGPTModel):
         )
         return output_tensor
 
-    def build_transformer_config(self):
-        transformer_config = super().build_transformer_config()
-        return transformer_config
-
     def on_validation_epoch_end(self):
 
         averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
         return averaged_loss
-
-    def sharded_state_dict(self, prefix: str = ''):
-        return None
 
     def _reset_activation_checkpointing_args(self):
         return

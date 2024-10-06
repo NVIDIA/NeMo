@@ -28,8 +28,8 @@ from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
-from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
+from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speech_llm.data.build_dataset import (
     build_speechllm_dataloader,
@@ -58,13 +58,6 @@ from nemo.utils import AppState, logging, model_utils
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
@@ -74,7 +67,17 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ["ModularAudioGPTModel"]
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches, reconfigure_num_microbatches_calculator
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+    )
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+__all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 
 
 default_inference_config = {'tokens_to_generate': 30}
@@ -477,7 +480,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
 
-            batch = move_to_device(batch, self.device)
+            batch = move_data_to_device(batch, self.device)
             batch = self.get_batch_on_this_context_parallel_rank(batch)
 
             if not self.mcore_gpt:
@@ -1196,7 +1199,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             response = generate(self, **inference_config)
 
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1365,7 +1368,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         app_state = AppState()
         self._restore_activation_checkpointing_args()
         if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -1375,7 +1378,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # When running `trainer.validate()`, the training dataset is not available.
         else:
             logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=data_cfg.global_batch_size,

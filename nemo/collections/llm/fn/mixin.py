@@ -1,7 +1,22 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from torch import nn
 from typing_extensions import Self
 
 from nemo.collections.llm.fn import base as fn
+from nemo.utils import logging
 
 
 class FNMixin:
@@ -114,8 +129,12 @@ class FNMixin:
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
 
-        for param in self.parameters():
-            param.requires_grad = False
+        params = list(self.parameters())
+        if not params:
+            logging.info(f"No parameters found in module {self.__class__.__name__}")
+        else:
+            for param in params:
+                param.requires_grad = False
 
     def unfreeze(self) -> None:
         """
@@ -124,5 +143,9 @@ class FNMixin:
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
 
-        for param in self.parameters():
-            param.requires_grad = True
+        params = list(self.parameters())
+        if not params:
+            logging.info(f"No parameters found in module {self.__class__.__name__}")
+        else:
+            for param in params:
+                param.requires_grad = True

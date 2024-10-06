@@ -223,6 +223,7 @@ def run_inference(
     use_embedding_sharing=False,
     max_input_len=128,
     max_output_len=128,
+    max_num_tokens=None,
     use_parallel_embedding=False,
     ptuning=False,
     p_tuning_checkpoint=None,
@@ -241,7 +242,12 @@ def run_inference(
     test_deployment=False,
     test_data_path=None,
     save_trt_engine=False,
+    fp8_quantized=False,
+    fp8_kvcache=False,
+    trt_llm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
+    if trt_llm_export_kwargs is None:
+        trt_llm_export_kwargs = {}
     if Path(checkpoint_path).exists():
         if tp_size > torch.cuda.device_count():
             print(
@@ -322,8 +328,11 @@ def run_inference(
                 max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                 use_lora_plugin=use_lora_plugin,
                 lora_target_modules=lora_target_modules,
-                max_num_tokens=int(max_input_len * max_batch_size * 0.2),
+                max_num_tokens=max_num_tokens,
                 use_embedding_sharing=use_embedding_sharing,
+                fp8_quantized=fp8_quantized,
+                fp8_kvcache=fp8_kvcache,
+                **trt_llm_export_kwargs,
             )
 
         if ptuning:
@@ -427,7 +436,7 @@ def run_inference(
         if test_deployment:
             nm.stop()
 
-        if not save_trt_engine:
+        if not save_trt_engine and model_dir:
             shutil.rmtree(model_dir)
 
         return (functional_result, accuracy_result)
@@ -451,48 +460,46 @@ def run_existing_checkpoints(
     test_data_path=None,
     save_trt_engine=False,
     in_framework=False,
+    fp8_quantized=False,
+    fp8_kvcache=False,
+    trt_llm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if tp_size > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
         return (None, None)
 
     test_data = get_infer_test_data()
-    if not (model_name in test_data.keys()):
+    if model_name not in test_data:
         raise Exception("Model {0} is not supported.".format(model_name))
 
     model_info = test_data[model_name]
 
-    if tp_size < model_info["min_tps"]:
+    if tp_size < model_info.min_tps:
         print("Min tps for this model is {0}".format(tp_size))
         return (None, None)
 
-    p_tuning_checkpoint = None
-    if ptuning:
-        if "p_tuning_checkpoint" in model_info.keys():
-            p_tuning_checkpoint = model_info["p_tuning_checkpoint"]
-        else:
-            raise Exception("There is not ptuning checkpoint path defined.")
+    if ptuning and model_info.p_tuning_checkpoint is None:
+        raise Exception("There is not ptuning checkpoint path defined.")
 
-    lora_checkpoint = None
-    if lora:
-        if "lora_checkpoint" in model_info.keys():
-            lora_checkpoint = model_info["lora_checkpoint"]
-        else:
-            raise Exception("There is not lora checkpoint path defined.")
+    if lora and model_info.lora_checkpoint is None:
+        raise Exception("There is not lora checkpoint path defined.")
 
-    if model_info["model_type"] == "gemma":
+    if model_info.model_type == "gemma":
         print("*********************")
         use_embedding_sharing = True
     else:
         use_embedding_sharing = False
 
+    if trt_llm_export_kwargs is None:
+        trt_llm_export_kwargs = {}
+
     if in_framework:
         return run_in_framework_inference(
             model_name=model_name,
-            prompts=model_info["prompt_template"],
-            checkpoint_path=model_info["checkpoint"],
+            prompts=model_info.prompt_template,
+            checkpoint_path=model_info.checkpoint,
             num_gpus=tp_size,
-            max_output_len=model_info["max_output_len"],
+            max_output_len=model_info.max_output_len,
             run_accuracy=run_accuracy,
             debug=True,
             test_data_path=test_data_path,
@@ -500,21 +507,22 @@ def run_existing_checkpoints(
     else:
         return run_inference(
             model_name=model_name,
-            model_type=model_info["model_type"],
-            prompts=model_info["prompt_template"],
-            expected_outputs=model_info["expected_keyword"],
-            checkpoint_path=model_info["checkpoint"],
-            model_dir=model_info["model_dir"],
+            model_type=model_info.model_type,
+            prompts=model_info.prompt_template,
+            expected_outputs=model_info.expected_keyword,
+            checkpoint_path=model_info.checkpoint,
+            model_dir=model_info.model_dir,
             use_vllm=use_vllm,
-            max_batch_size=model_info["max_batch_size"],
+            max_batch_size=model_info.max_batch_size,
             use_embedding_sharing=use_embedding_sharing,
             use_parallel_embedding=use_parallel_embedding,
             max_input_len=512,
-            max_output_len=model_info["max_output_len"],
+            max_output_len=model_info.max_output_len,
+            max_num_tokens=None,
             ptuning=ptuning,
-            p_tuning_checkpoint=p_tuning_checkpoint,
+            p_tuning_checkpoint=model_info.p_tuning_checkpoint,
             lora=lora,
-            lora_checkpoint=lora_checkpoint,
+            lora_checkpoint=model_info.lora_checkpoint,
             tp_size=tp_size,
             pp_size=pp_size,
             top_k=1,
@@ -528,6 +536,9 @@ def run_existing_checkpoints(
             test_deployment=test_deployment,
             test_data_path=test_data_path,
             save_trt_engine=save_trt_engine,
+            fp8_quantized=fp8_quantized,
+            fp8_kvcache=fp8_kvcache,
+            trt_llm_export_kwargs=trt_llm_export_kwargs,
         )
 
 
@@ -596,7 +607,6 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton and benchmark the models",
     )
-
     parser.add_argument(
         "--model_name",
         type=str,
@@ -653,6 +663,10 @@ def get_args():
         default=128,
     )
     parser.add_argument(
+        "--max_num_tokens",
+        type=int,
+    )
+    parser.add_argument(
         "--use_parallel_embedding",
         type=str,
         default="False",
@@ -663,8 +677,8 @@ def get_args():
     )
     parser.add_argument(
         "--ptuning",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--lora_checkpoint",
@@ -672,8 +686,8 @@ def get_args():
     )
     parser.add_argument(
         "--lora",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--top_k",
@@ -743,16 +757,41 @@ def get_args():
         type=float,
         help="GPU memory utilization percentage for vLLM.",
     )
+    parser.add_argument(
+        "-fp8",
+        "--export_fp8_quantized",
+        default="auto",
+        type=str,
+        help="Enables exporting to a FP8-quantized TRT LLM checkpoint",
+    )
+    parser.add_argument(
+        "-kv_fp8",
+        "--use_fp8_kv_cache",
+        default="auto",
+        type=str,
+        help="Enables exporting with FP8-quantizatized KV-cache",
+    )
+    parser.add_argument(
+        "--trt_llm_export_kwargs",
+        default={},
+        type=json.loads,
+        help="Extra keyword arguments passed to TensorRTLLM.export",
+    )
 
     args = parser.parse_args()
 
-    def str_to_bool(name: str, s: str) -> bool:
+    def str_to_bool(name: str, s: str, optional: bool = False) -> Optional[bool]:
+        s = s.lower()
         true_strings = ["true", "1"]
         false_strings = ["false", "0"]
-        if s.lower() in true_strings:
-            return True
-        if s.lower() in false_strings:
+        if s == '':
             return False
+        if s in true_strings:
+            return True
+        if s in false_strings:
+            return False
+        if optional and s == 'auto':
+            return None
         raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
 
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
@@ -761,8 +800,12 @@ def get_args():
     args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
+    args.lora = str_to_bool("lora", args.lora)
+    args.ptuning = str_to_bool("ptuning", args.ptuning)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
     args.in_framework = str_to_bool("in_framework", args.in_framework)
+    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
+    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
 
     return args
 
@@ -816,6 +859,9 @@ def run_inference_tests(args):
                 test_data_path=args.test_data_path,
                 save_trt_engine=args.save_trt_engine,
                 in_framework=args.in_framework,
+                fp8_quantized=args.export_fp8_quantized,
+                fp8_kvcache=args.use_fp8_kv_cache,
+                trt_llm_export_kwargs=args.trt_llm_export_kwargs,
             )
 
             tps = tps * 2
@@ -856,6 +902,7 @@ def run_inference_tests(args):
                     max_batch_size=args.max_batch_size,
                     max_input_len=args.max_input_len,
                     max_output_len=args.max_output_len,
+                    max_num_tokens=args.max_num_tokens,
                     use_parallel_embedding=args.use_parallel_embedding,
                     ptuning=args.ptuning,
                     p_tuning_checkpoint=args.p_tuning_checkpoint,
@@ -871,6 +918,9 @@ def run_inference_tests(args):
                     test_cpp_runtime=args.test_cpp_runtime,
                     test_data_path=args.test_data_path,
                     save_trt_engine=args.save_trt_engine,
+                    fp8_quantized=args.export_fp8_quantized,
+                    fp8_kvcache=args.use_fp8_kv_cache,
+                    trt_llm_export_kwargs=args.trt_llm_export_kwargs,
                 )
 
             tps = tps * 2
@@ -934,5 +984,7 @@ if __name__ == '__main__':
         run_inference_tests(args)
     except UsageError as e:
         LOGGER.error(f"{e}")
+        raise e
     except argparse.ArgumentError as e:
         LOGGER.error(f"{e}")
+        raise e

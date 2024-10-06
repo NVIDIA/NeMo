@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import types
 from abc import ABC, abstractmethod
 from copy import deepcopy
@@ -149,10 +163,10 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
         """
         raise NotImplementedError("The optimizers method should be implemented by subclasses.")
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx) -> None:
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx) -> None:
         if self._optimizers is not None:
             lr = self._optimizers[0].param_groups[0]['lr']
-            pl_module.log('lr', lr, rank_zero_only=True, batch_size=1)
+            pl_module.log('lr', lr, batch_size=1, prog_bar=True)
 
     def __call__(self, model: L.LightningModule, megatron_parallel=None) -> OptimizerLRScheduler:
         """Calls the setup and optimizers methods.

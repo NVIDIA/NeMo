@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union, overload
 
 import numpy as np
+import torch
 from torch import nn
+from nemo.lightning.pytorch.utils import extract_dtypes
 
 SourceModuleT = TypeVar("SourceModuleT", bound=nn.Module)
 TargetModuleT = TypeVar("TargetModuleT", bound=nn.Module)
@@ -19,11 +21,12 @@ class TransformCTX:
     target_state: dict
 
 
+@torch.no_grad
 def apply_transforms(
     source: nn.Module,
     target: TargetModuleT,
     mapping: Dict[str, str],
-    transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = None,
+    transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = [],
 ) -> TargetModuleT:
     """
     Applies a series of transformations to adapt the state dictionary of a source module to
@@ -90,6 +93,9 @@ def apply_transforms(
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         _target = target.module
 
+    # Track dtypes to make sure they weren't modified during conversion.
+    target_orig_dtypes = extract_dtypes(_target.named_parameters())
+
     target_state = _target.state_dict()
     ctx = TransformCTX(
         source=_source,
@@ -101,9 +107,8 @@ def apply_transforms(
     for key, val in mapping.items():
         ctx = StateDictTransform(key, val)(ctx)
 
-    if transforms:
-        for transform in transforms:
-            ctx = transform(ctx)
+    for transform in transforms:
+        ctx = transform(ctx)
 
     _params: Dict[str, nn.Parameter] = {}
     for name, param in _target.named_parameters():
@@ -144,9 +149,9 @@ def apply_transforms(
 
         _module.register_buffer(_key, val)
 
-    keys = [name for name in list(target_state.keys()) if not name.endswith("_extra_state")]
+    keys = list(filter(lambda x: x is not None and not x.endswith("_extra_state"), target_state.keys()))
     if len(keys) != 0:
-        raise RuntimeError(f"Additional keys: {target_state.keys()} in checkpoint but not in model.")
+        raise RuntimeError(f"Additional keys: {keys} in checkpoint but not in model.")
 
     # TODO: Is this correct?
     # for key in target.state_dict():
@@ -156,6 +161,7 @@ def apply_transforms(
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
 
+    assert target_orig_dtypes == extract_dtypes(_target.named_parameters())
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         target.module = _target
 
@@ -165,7 +171,7 @@ def apply_transforms(
 
 
 def _default_transform(inp):
-    return inp.float()
+    return inp
 
 
 class StateDictTransform(Generic[F]):
@@ -254,7 +260,6 @@ class StateDictTransform(Generic[F]):
             if multiple_sources:
                 for target_index, target_match in np.ndenumerate(target_matches):
                     source_match = source_matches[target_index]
-
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
@@ -321,10 +326,30 @@ class StateDictTransform(Generic[F]):
 
 
 def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
-    regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
-    wildcard_matches = [[] for _ in range(pattern.count("*"))]
+    escaped_pattern = ''
+    i = 0
+    wildcard_positions = []
+    while i < len(pattern):
+        if pattern[i : i + 2] == '**':
+            escaped_pattern += r'(.+)'  # Match any characters including dots
+            wildcard_positions.append('**')
+            i += 2
+        elif pattern[i] == '*':
+            escaped_pattern += r'([^.]+)'  # Match any characters except dots
+            wildcard_positions.append('*')
+            i += 1
+        else:
+            if pattern[i] == '.':
+                escaped_pattern += r'\.'  # Escape the dot
+            else:
+                escaped_pattern += pattern[i]
+            i += 1
 
-    for key in keys:
+    regex_pattern = re.compile("^" + escaped_pattern + "$")
+    num_wildcards = len(wildcard_positions)
+    wildcard_matches = [[] for _ in range(num_wildcards)]
+
+    for key in filter(lambda x: x is not None, keys):
         match = regex_pattern.match(key)
         if match:
             for i, group in enumerate(match.groups()):
@@ -342,7 +367,7 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
     output_array = np.empty(shape, dtype=object)
 
     # Populate the array with the keys, now that we have the correct shape and ordering
-    for key in keys:
+    for key in filter(lambda x: x is not None, keys):
         match = regex_pattern.match(key)
         if match:
             # Convert match groups to indices based on their position in wildcard_matches

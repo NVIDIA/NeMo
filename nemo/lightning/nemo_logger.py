@@ -1,3 +1,16 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
 import sys
 import time
@@ -7,7 +20,6 @@ from typing import List, Optional, Union
 
 import lightning_fabric as fl
 import pytorch_lightning as pl
-from fiddle._src.experimental import serialization
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
 
@@ -23,19 +35,28 @@ class NeMoLogger(IOMixin):
 
     Args:
         name (str): Name of the experiment.
-        dir (Optional[str]): Directory to save logs.
+        log_dir (Optional[str]): Directory to save logs.
         explicit_log_dir (Optional[str]): Explicit log directory.
         version (Optional[str]): Version of the experiment.
         use_datetime_version (bool): Whether to use datetime as version.
         log_local_rank_0_only (bool): Log only on local rank 0.
         log_global_rank_0_only (bool): Log only on global rank 0.
         files_to_copy (Optional[List[str]]): List of files to copy to log directory.
-        update_logger_directory (bool): Whether to update logger directory.
+        update_logger_directory (bool): Whether to update logger directory to write to `exp_dir`.
+            If True, the `save_dir` passed to the logger will be reconfigured to write to `exp_dir / save_dir`.
+            This ensures that all output from an experiment is written to a common directory.
+            If False, the logger's save_dir will not be overwritten.
+            This argument applies only to TensorBoardLogger and WandbLogger instances.
         ckpt (Optional[ModelCheckpoint]): Model checkpoint callback.
+        tensorboard: (Optional[TensorBoardLogger]): A PyTorch Lightning TensorBoardLogger instance
+            to add to the trainer.
+        wandb (Optional[WandbLogger]): A PyTorch Lightning WandBLogger instance
+            to add to the trainer.
+        extra_loggers(Optional[List[Logger]]): Any additional loggers to add to the trainer.
     """
 
     name: str = "default"
-    dir: Optional[str] = None
+    log_dir: Optional[str] = None
     explicit_log_dir: Optional[str] = None
     version: Optional[str] = None
     use_datetime_version: bool = True
@@ -51,7 +72,7 @@ class NeMoLogger(IOMixin):
     def __post_init__(self):
         if self.log_local_rank_0_only is True and self.log_global_rank_0_only is True:
             raise ValueError(
-                f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
+                "Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
             )
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], resume_if_exists: bool = False, task_config=None):
@@ -65,7 +86,6 @@ class NeMoLogger(IOMixin):
             AppState: The application state with updated log directory and other settings.
         """
         from nemo.constants import NEMO_ENV_VARNAME_VERSION
-        from nemo.utils.exp_manager import check_explicit_log_dir
         from nemo.utils.get_rank import is_global_rank_zero
 
         self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -73,30 +93,46 @@ class NeMoLogger(IOMixin):
         logging.rank = self.global_rank
 
         if self.explicit_log_dir and isinstance(trainer, pl.Trainer):  # If explicit log_dir was passed, short circuit
-            return check_explicit_log_dir(trainer, self.explicit_log_dir, self.dir, self.name, self.version)
+            if trainer.logger is not None and not self.update_logger_directory:
+                logging.warning(
+                    f"nemo logger received explicit_log_dir: {self.explicit_log_dir} and the pytorch lightning trainer "
+                    f"that was passed to nemo_logger container a logger, but update_logger_directory is False. This means "
+                    f"that the trainer's logger directory may not match with the explicit_log_dir."
+                )
+            if self.log_dir or self.version:
+                logging.error(
+                    f"nemo logger received explicit_log_dir: {self.explicit_log_dir} and at least one of dir: {self.log_dir}, "
+                    f"or version: {self.version}. Please note that dir, name, and version will be ignored."
+                )
+            if is_global_rank_zero() and Path(self.explicit_log_dir).exists():
+                logging.warning(f"NeMoLogger is logging to {self.explicit_log_dir}, but it already exists.")
+            log_dir, _dir, self.name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
 
-        # Default dir to ./nemo_experiments if None was passed
-        _dir = self.dir
-        if self.dir is None:
-            _dir = str(Path.cwd() / 'nemo_experiments')
+        else:
+            # Default dir to ./nemo_experiments if None was passed
+            _dir = self.log_dir
+            if self.log_dir is None:
+                _dir = str(Path.cwd() / "nemo_experiments")
 
-        if not self.name:
-            self.name = "default"
+            if not self.name:
+                self.name = "default"
 
-        version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
-        if is_global_rank_zero():
-            if self.use_datetime_version:
-                version = time.strftime('%Y-%m-%d_%H-%M-%S')
-        if resume_if_exists:
-            logging.warning(
-                "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
-            )
-            version = None
-        if version:
-            if is_global_rank_zero():
-                os.environ[NEMO_ENV_VARNAME_VERSION] = version
+            version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
+            if not version:
+                if resume_if_exists:
+                    logging.warning(
+                        "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
+                    )
+                    version = None
+                elif is_global_rank_zero():
+                    if self.use_datetime_version:
+                        version = time.strftime("%Y-%m-%d_%H-%M-%S")
+            if version:
+                if is_global_rank_zero():
+                    os.environ[NEMO_ENV_VARNAME_VERSION] = version
 
-        log_dir = Path(_dir) / Path(str(self.name)) / Path("" if version is None else str(version))
+            log_dir = Path(_dir) / Path(str(self.name)) / Path("" if version is None else str(version))
+
         # update app_state with log_dir, exp_dir, etc
         app_state = AppState()
         app_state.log_dir = log_dir
@@ -106,7 +142,7 @@ class NeMoLogger(IOMixin):
         app_state.cmd_args = sys.argv
 
         os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
-        logging.info(f'Experiments will be logged at {log_dir}')
+        logging.info(f"Experiments will be logged at {log_dir}")
 
         if task_config and is_global_rank_zero():
             self._handle_task_config(task_config, log_dir)
@@ -124,25 +160,26 @@ class NeMoLogger(IOMixin):
         loggers = [self.tensorboard, self.wandb, *self.extra_loggers]
         loggers = [logger for logger in loggers if logger is not None]
 
-        if self.update_logger_directory and self.wandb:
-            self.wandb._save_dir = dir
-            self.wandb._wandb_init["dir"] = dir
-            self.wandb._wandb_init["name"] = self.name
-            self.wandb._name = self.name
-
         if loggers:
             if trainer.logger is not None and not self.tensorboard:
                 loggers = [trainer.logger] + loggers
             trainer._logger_connector.configure_logger(loggers)
 
-        if trainer.logger is not None:
-            trainer.logger._version = version or ""
-            if self.update_logger_directory:
-                logging.warning(
-                    f'"update_logger_directory" is True. Overwriting logger "save_dir" to {dir} and "name" to {self.name}'
-                )
-                trainer.logger._root_dir = dir
-                trainer.logger._name = self.name
+        if self.update_logger_directory:
+            for logger in trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    logger._version = version or ""
+                    logger._root_dir = Path(dir) / os.path.relpath(logger.save_dir)
+                    logging.warning(
+                        f'"update_logger_directory" is True. Overwriting tensorboard logger "save_dir" to {logger._root_dir}'
+                    )
+                elif isinstance(logger, WandbLogger):
+                    logger._id = version or ""
+                    logger._save_dir = Path(dir) / logger.save_dir
+                    logger._wandb_init["dir"] = Path(dir) / logger.save_dir
+                    logging.warning(
+                        f'"update_logger_directory" is True. Overwriting wandb logger "save_dir" to {logger._save_dir}'
+                    )
 
     def _setup_trainer_model_checkpoint(self, trainer, log_dir, ckpt=None):
         if ckpt:
@@ -183,14 +220,19 @@ class NeMoLogger(IOMixin):
                 if callback.dirpath is None:
                     callback.dirpath = Path(log_dir / "checkpoints")
                 if callback.filename is None:
-                    callback.filename = f'{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}'
-                ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
+                    callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}"
+                ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + "-last"
 
     def _handle_task_config(self, task_config, log_dir):
-        task_config.save_config_img(log_dir / "task.png")
-        task_json = serialization.dump_json(task_config)
-        with open(log_dir / "task.json", "w") as f:
-            f.write(task_json)
+        try:
+            from fiddle._src.experimental import serialization
+
+            task_config.save_config_img(log_dir / "task.png")
+            task_json = serialization.dump_json(task_config)
+            with open(log_dir / "task.json", "w") as f:
+                f.write(task_json)
+        except Exception as e:
+            logging.warning(f"Saving task config failed: {e}. Skipping saving")
 
     def _setup_file_logging(self, log_dir):
         """Set up file logging based on rank settings."""
@@ -200,7 +242,7 @@ class NeMoLogger(IOMixin):
 
         # This is set if the env var NEMO_TESTING is set to True.
         nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
-        log_file = log_dir / f'nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt'
+        log_file = log_dir / f"nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt"
 
         if self.log_local_rank_0_only and not nemo_testing and self.local_rank == 0:
             logging.add_file_handler(log_file)

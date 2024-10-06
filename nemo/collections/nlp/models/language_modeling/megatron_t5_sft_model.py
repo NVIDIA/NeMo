@@ -32,18 +32,6 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -53,17 +41,32 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+try:
+    from megatron.core.num_microbatches_calculator import (
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+        reconfigure_num_microbatches_calculator,
+    )
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+    )
+    from apex.transformer.pipeline_parallel.utils import (
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
+
 __all__ = ['MegatronT5SFTModel']
 
 
 class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
-    """ T5 Finetuning model in the same format as MegatronGPTSFTModel """
+    """T5 Finetuning model in the same format as MegatronGPTSFTModel"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         super().__init__(cfg, trainer=trainer)
         self.val_metric = self.test_metric = None
         if hasattr(self.cfg.data, "validation_ds"):
@@ -176,7 +179,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     def on_validation_epoch_start(self):
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.validation_ds.global_batch_size,
@@ -187,7 +190,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     def on_test_epoch_start(self):
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.test_ds.global_batch_size,
@@ -270,7 +273,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
                 != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
-                _reconfigure_microbatch_calculator(
+                reconfigure_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -280,7 +283,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             # NOTE: need to explicitly handle resetting for multi-validation
             else:
                 app_state = AppState()
-                _reconfigure_microbatch_calculator(
+                reconfigure_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=ds_config.global_batch_size,
@@ -290,8 +293,8 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        Dataloader produces a global batch which is turned into a list of microbatches.
+        The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
         batch = next(dataloader_iter)
@@ -562,7 +565,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
         app_state = AppState()
         if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -572,7 +575,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         # When running `trainer.validate()`, the training dataset is not available.
         else:
             logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=data_cfg.global_batch_size,
@@ -605,7 +608,13 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         # return super().on_test_epoch_end()
 
     def build_data_loader(
-        self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
+        self,
+        dataset,
+        global_batch_size,
+        shuffle,
+        num_workers,
+        pin_memory,
+        drop_last,
     ):
         """Buld dataloader given an input dataset."""
 
@@ -652,9 +661,11 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=self.cfg.data.test_ds.global_batch_size
-                if hasattr(self.cfg.data, "test_ds")
-                else self.cfg.data.validation_ds.global_batch_size,
+                global_batch_size=(
+                    self.cfg.data.test_ds.global_batch_size
+                    if hasattr(self.cfg.data, "test_ds")
+                    else self.cfg.data.validation_ds.global_batch_size
+                ),
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,

@@ -19,19 +19,16 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
+    from megatron.core.num_microbatches_calculator import get_num_microbatches, update_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, update_num_microbatches
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -39,7 +36,14 @@ if torch.cuda.is_available():
 
 
 def reset_microbatch_calculator():
-    apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+    try:
+        import megatron.core.num_microbatches_calculator as mb
+
+    except (ImportError, ModuleNotFoundError):
+        logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+        import apex.transformer.pipeline_parallel.utils as mb
+
+    mb._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
 
 
 @pytest.fixture()
@@ -172,8 +176,6 @@ class TestRampupBatchSize:
 
     @pytest.mark.unit
     def test_rampup_bs_schedule(self, gpt_model, trainer_cfg, rampup_batch_size_schedule):
-
-        num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
         micro_batch_size = gpt_model.cfg.micro_batch_size
         num_devices = trainer_cfg["devices"]
         num_nodes = trainer_cfg["num_nodes"]
@@ -185,7 +187,7 @@ class TestRampupBatchSize:
             step += 1
             current_global_batch_size = get_num_microbatches() * micro_batch_size * num_devices * num_nodes
             consumed_samples += current_global_batch_size
-            num_microbatch_calculator.update(consumed_samples=consumed_samples, consistency_check=True)
+            update_num_microbatches(consumed_samples=consumed_samples, consistency_check=True)
 
             if current_global_batch_size not in global_batch_size_schedule:
                 global_batch_size_schedule.append(current_global_batch_size)
