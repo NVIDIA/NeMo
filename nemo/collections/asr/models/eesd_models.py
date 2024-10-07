@@ -383,28 +383,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         max_score_permed_labels = torch.vstack([ labels[k, :, batch_perm_inds[k]].unsqueeze(0) for k in range(batch_perm_inds.shape[0])])
         return max_score_permed_labels
 
-    def sort_targets_with_preds_new(self, labels, preds, target_lens, noise=0):
-        """
-        Sorts labels and predictions to get optimal permutation
-        New implementation based on losses, supports noising
-        """
-        perm_size = self.spk_perm.shape[0]
-        permed_labels = labels[:, :, self.spk_perm]
-        match_loss = torch.zeros(labels.shape[0], perm_size)
-        for k in range(labels.shape[0]):
-            for i in range(perm_size):
-                match_loss[k,i] = self.loss(probs=preds[k,:,:].unsqueeze(0), labels=permed_labels[k,:,i,:].unsqueeze(0), target_lens=target_lens)
-        if noise > 0:
-            min_loss = torch.min(match_loss, dim=1).values.reshape(-1,1).repeat(1,perm_size)
-            match_loss = match_loss + torch.rand(labels.shape[0], self.spk_perm.shape[0])*min_loss*noise
-
-        batch_best_perm = torch.argmin(match_loss, axis=1)
-        rep_spk_perm = self.spk_perm.repeat(batch_best_perm.shape[0],1) # (batch_size * perm_size, max_num_of_spks)
-        global_inds_vec = torch.arange(0, perm_size*batch_best_perm.shape[0], perm_size).to(batch_best_perm.device) + batch_best_perm
-        batch_perm_inds = rep_spk_perm[global_inds_vec.to(rep_spk_perm.device), :] # (batch_size, max_num_of_spks)
-        max_score_permed_labels = torch.vstack([ labels[k, :, batch_perm_inds[k]].unsqueeze(0) for k in range(batch_perm_inds.shape[0])])
-        return max_score_permed_labels
-
     def compute_aux_f1(self, preds, targets):
         preds_bin = (preds > 0.5).to(torch.int64).detach()
         targets_ovl_mask = (targets.sum(dim=2) >= 2)
@@ -540,25 +518,56 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             'val_f1_ovl_acc_ats': valid_f1_ovl_ats
         }
 
-        if isinstance(self.trainer.val_dataloaders, list) and len(self.trainer.val_dataloaders) > 1:
-            self.validation_step_outputs[dataloader_idx].append(val_metrics)
-        else:
-            self.validation_step_outputs.append(val_metrics)
-        return val_metrics    
-        
-        
+        return val_metrics
+
     def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
         audio_signal, audio_signal_length, targets, target_lens = batch
         preds = self.forward(
             audio_signal=audio_signal,
             audio_signal_length=audio_signal_length,
         )
-        self.val_metrics = self._get_aux_validation_evaluations(preds, targets, target_lens) 
+        self.val_metrics = self._get_aux_validation_evaluations(preds, targets, target_lens)
+
+        if isinstance(self.trainer.val_dataloaders, list) and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(self.val_metrics)
+        else:
+            self.validation_step_outputs.append(self.val_metrics)
+ 
         return self.val_metrics
-    
-    def on_validation_epoch_end(self):
-        for key, value in self.val_metrics.items():
-            self.log(key, value, sync_dist=True)
+
+#    def on_validation_epoch_end(self):
+#        for key, value in self.val_metrics.items():
+#            self.log(key, value, sync_dist=True)
+
+    def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
+        if not outputs:
+            logging.warning(f"MAYBE A BUG: empty outputs for dataloader={dataloader_idx}")
+            return
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        val_ats_loss_mean = torch.stack([x['val_ats_loss'] for x in outputs]).mean()
+        val_pil_loss_mean = torch.stack([x['val_pil_loss'] for x in outputs]).mean()
+        val_f1_acc_mean = torch.stack([x['val_f1_acc'] for x in outputs]).mean()
+        val_precision_mean = torch.stack([x['val_precision'] for x in outputs]).mean()
+        val_recall_mean = torch.stack([x['val_recall'] for x in outputs]).mean()
+        val_f1_vad_acc_mean = torch.stack([x['val_f1_vad_acc'] for x in outputs]).mean()
+        val_f1_ovl_acc_mean = torch.stack([x['val_f1_ovl_acc'] for x in outputs]).mean()
+        val_f1_acc_ats_mean = torch.stack([x['val_f1_acc_ats'] for x in outputs]).mean()
+        val_f1_ovl_acc_ats_mean = torch.stack([x['val_f1_ovl_acc_ats'] for x in outputs]).mean()
+
+        metrics = {
+            'val_loss': val_loss_mean,
+            'val_ats_loss': val_ats_loss_mean,
+            'val_pil_loss': val_pil_loss_mean,
+            'val_f1_acc': val_f1_acc_mean,
+            'val_precision': val_precision_mean,
+            'val_recall': val_recall_mean,
+            'val_f1_vad_acc': val_f1_vad_acc_mean,
+            'val_f1_ovl_acc': val_f1_ovl_acc_mean,
+            'val_f1_acc_ats': val_f1_acc_ats_mean,
+            'val_f1_ovl_acc_ats': val_f1_ovl_acc_ats_mean
+        }
+        return {'log': metrics}
+
             
     def multi_test_epoch_end(self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
