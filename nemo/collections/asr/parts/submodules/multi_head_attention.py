@@ -81,10 +81,14 @@ class MultiHeadAttention(nn.Module):
             from torch.nn.attention import SDPBackend, sdpa_kernel
 
             if not self.use_pytorch_sdpa_backends:
-                use_pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
+                use_pytorch_sdpa_backends = list(
+                    set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR])
+                )
             else:
-                use_pytorch_sdpa_backends = list(map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends))
-                
+                use_pytorch_sdpa_backends = list(
+                    map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends)
+                )
+
             self.sdpa_backend_context_manager = lambda: sdpa_kernel(use_pytorch_sdpa_backends)
         else:
             self.sdpa_backend_context_manager = contextlib.nullcontext  # for torch.compile support
