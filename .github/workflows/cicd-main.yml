@@ -3931,13 +3931,11 @@ jobs:
       SCRIPT: |
         python examples/nlp/language_modeling/megatron_change_num_partitions.py \
             --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo \
+            --target_file /tmp/l2_megatron_change_partitions_increase_tp_num/test-increase.nemo \
             --tensor_model_parallel_size 2 \
             --target_tensor_model_parallel_size 4 \
             --pipeline_model_parallel_size 1 \
             --target_pipeline_model_parallel_size 1
-      AFTER_SCRIPT: |
-        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo
 
   L2_Megatron_T5_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
