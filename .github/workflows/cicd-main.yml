@@ -5223,6 +5223,7 @@ jobs:
       - L0_Unit_Tests_GPU_Hydra
       #- OPTIONAL_L0_Unit_Tests_GPU_Lightning
       - L0_Unit_Tests_GPU_Others
+      
       - L0_Unit_Tests_CPU_ASR
       - L0_Unit_Tests_CPU_Audio
       - L0_Unit_Tests_CPU_Common
@@ -5302,6 +5303,7 @@ jobs:
       - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
+      #- OPTIONAL_L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
       - L2_Megatron_GPT_Embedding
