@@ -78,9 +78,16 @@ class MultiHeadAttention(nn.Module):
         self.use_pytorch_sdpa = use_pytorch_sdpa
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
         if self.use_pytorch_sdpa:
-            self.sdpa_backend_context_manager = self.get_sdpa_backend_context_manager
+            from torch.nn.attention import SDPBackend, sdpa_kernel
+
+            if not self.use_pytorch_sdpa_backends:
+                use_pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
+            else:
+                use_pytorch_sdpa_backends = list(map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends))
+                
+            self.sdpa_backend_context_manager = lambda: sdpa_kernel(use_pytorch_sdpa_backends)
         else:
-            self.sdpa_backend_context_manager = contextlib.nullcontext
+            self.sdpa_backend_context_manager = contextlib.nullcontext  # for torch.compile support
 
         self.cache_drop_size = None
         self.use_bias = use_bias
@@ -97,18 +104,6 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
         self._max_cache_len = max_cache_len
-
-    def get_sdpa_backend_context_manager(self):
-        from torch.nn.attention import SDPBackend, sdpa_kernel
-
-        if self.use_pytorch_sdpa_backends is None or len(self.use_pytorch_sdpa_backends) == 0:
-            use_pytorch_sdpa_backends = list(set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR]))
-        else:
-            use_pytorch_sdpa_backends = list(
-                map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends)
-            )
-
-        return sdpa_kernel(use_pytorch_sdpa_backends)
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
