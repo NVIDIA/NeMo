@@ -17,7 +17,7 @@ import copy
 import math
 import types
 from contextlib import nullcontext
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
