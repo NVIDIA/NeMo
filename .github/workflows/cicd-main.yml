@@ -5436,6 +5436,7 @@ jobs:
       - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_T5_Pretraining
       - L2_NeMo_2_Mixtral_Pretraining
+      - L2_Prune_Width_Llama2
     if: always()
     runs-on: ubuntu-latest
     steps:  
