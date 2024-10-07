@@ -34,9 +34,9 @@
     <tr>
       <th rowspan="2" class="top-border">SeqLen (K)</th>
       <th rowspan="2" class="top-border"># of GPUs</th>
-      <th rowspan="1" class="top-border">Without-CP</th>
-      <th colspan="5" class="top-border">With-CP</th>
-      <th rowspan="2" class="top-border">Speedup with-CP/without-CP</th>
+      <th rowspan="1" class="top-border">Without CP</th>
+      <th colspan="5" class="top-border">With CP</th>
+      <th rowspan="2" class="top-border">Speedup with CP/without CP</th>
     </tr>
     <tr>
       <th>TFLOPS / GPU</th>
