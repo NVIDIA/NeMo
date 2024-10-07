@@ -4641,6 +4641,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
+
         python examples/nlp/language_modeling/tuning/megatron_t5_finetuning.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
