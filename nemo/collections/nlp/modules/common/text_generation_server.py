@@ -20,7 +20,10 @@ import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import get_prompt_template_example, _get_header_conversation_type_mask_role
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
+    _get_header_conversation_type_mask_role,
+    get_prompt_template_example,
+)
 from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroModelTextGenerationStrategy,
     RetroQAModelTextGenerationStrategy,
@@ -87,27 +90,31 @@ class MegatronGenerate(Resource):
                 output_dict['conversations'].append(conversation_entry)
 
         return output_dict
-    
+
     def post(self):
         # Access the request data if needed
         data = request.get_json()
-        data['messages'] = data['messages'] + [{'role': 'assistant', 'content': ''}] # adding trailing assistant message so that prompt ends with Assistant tag.
+        data['messages'] = data['messages'] + [
+            {'role': 'assistant', 'content': ''}
+        ]  # adding trailing assistant message so that prompt ends with Assistant tag.
         special_tokens = self.model.cfg.data.chat_prompt_tokens
         nemo_source = self.convert_messages(data['messages'])
-        header, conversation, data_type, mask_role  =  _get_header_conversation_type_mask_role(nemo_source, special_tokens)
-        len_strip = len(special_tokens['end_of_turn']+special_tokens['turn_start'])
-        conversation = conversation[:-len_strip] 
+        header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(
+            nemo_source, special_tokens
+        )
+        len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
+        conversation = conversation[:-len_strip]
         # Return a response mimicking the OpenAI ChatCompletion API format
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             extra = {}
             if self.inference_strategy is not None:
                 extra['strategy'] = self.inference_strategy
-            
+
             all_probs = False
             add_BOS = False
             top_k = 0
-            greedy = data['temperature'] == 0.
+            greedy = data['temperature'] == 0.0
             end_strings = ['<|endoftext|>']
             random_seed = None
 
@@ -134,30 +141,21 @@ class MegatronGenerate(Resource):
         if not all_probs:
             del output['full_logprob']
 
-        output_sentence = output['sentences'][0][len(conversation):]
-            
-        return jsonify({
-            "id": "chatcmpl-12345",
-            "object": "chat.completion",
-            "created": 1234567890,
-            "model": data.get("model", "unknown"),
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": output_sentence
-                    },
-                    "finish_reason": "stop"
-                }
-            ],
-            "usage": {
-                "prompt_tokens": 5,
-                "completion_tokens": 5,
-                "total_tokens": 10
+        output_sentence = output['sentences'][0][len(conversation) :]
+
+        return jsonify(
+            {
+                "id": "chatcmpl-12345",
+                "object": "chat.completion",
+                "created": 1234567890,
+                "model": data.get("model", "unknown"),
+                "choices": [
+                    {"index": 0, "message": {"role": "assistant", "content": output_sentence}, "finish_reason": "stop"}
+                ],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
             }
-        })
-        
+        )
+
     def put(self):
         logging.info("request IP: " + str(request.remote_addr))
         logging.info(json.dumps(request.get_json()))
@@ -328,10 +326,24 @@ class MegatronServer(object):
     def __init__(self, model, inference_strategy=None):
         self.app = Flask(__name__, static_url_path='')
         api = Api(self.app)
-        api.add_resource(MegatronGenerate, '/generate', endpoint="generate", resource_class_kwargs={"model": model, "inference_strategy": inference_strategy})
-        api.add_resource(MegatronGenerate, '/v1/completions', endpoint="oai_completions", resource_class_kwargs={"model": model, "inference_strategy": inference_strategy})
-        api.add_resource(MegatronGenerate, '/v1/chat/completions', endpoint="oai_chat_completions", resource_class_kwargs={"model": model, "inference_strategy": inference_strategy})
+        api.add_resource(
+            MegatronGenerate,
+            '/generate',
+            endpoint="generate",
+            resource_class_kwargs={"model": model, "inference_strategy": inference_strategy},
+        )
+        api.add_resource(
+            MegatronGenerate,
+            '/v1/completions',
+            endpoint="oai_completions",
+            resource_class_kwargs={"model": model, "inference_strategy": inference_strategy},
+        )
+        api.add_resource(
+            MegatronGenerate,
+            '/v1/chat/completions',
+            endpoint="oai_chat_completions",
+            resource_class_kwargs={"model": model, "inference_strategy": inference_strategy},
+        )
 
     def run(self, url, port=5000):
         self.app.run(url, threaded=True, port=port, debug=False)
-
