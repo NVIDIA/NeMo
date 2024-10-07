@@ -17,7 +17,7 @@ import copy
 import math
 import types
 from contextlib import nullcontext
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, TYPE_CHECKING
 
 import torch
 import torch.nn.functional as F
@@ -41,6 +41,9 @@ from megatron.core.transformer.transformer_layer import TransformerLayer, Transf
 from megatron.core.utils import make_viewless_tensor
 from PIL import Image as PIL_Image
 from torch import Tensor, nn
+
+if TYPE_CHECKING:
+    from nemo.collections.vlm import CrossAttentionVisionConfig
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -577,7 +580,7 @@ class ImageTransformerLayer(TransformerLayer):
 class VisionEncoder(MegatronModule):
     def __init__(
         self,
-        config: TransformerConfig,
+        config: 'CrossAttentionVisionConfig',
         image_size: int = 560,
         patch_size: int = 14,
         in_channels: int = 3,

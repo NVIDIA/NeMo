@@ -14,9 +14,7 @@
 
 import copy
 import math
-import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 import pytorch_lightning as L
@@ -32,7 +30,7 @@ from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from PIL import Image as PIL_Image
-from torch import Tensor, nn
+from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
@@ -41,10 +39,9 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel, _get_xattn_mask
 from nemo.collections.vlm.llama.model.vision import VisionEncoder, _pad_masks
-from nemo.lightning import MegatronStrategy, Trainer, get_vocab_size, io, teardown
+from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 
@@ -218,8 +215,8 @@ class CrossAttentionTextConfig(Llama31Config):
 
 @dataclass
 class MLlamaModelConfig(TransformerConfig, io.IOMixin):
-    language_model_config: Optional[TransformerConfig] = None
-    vision_model_config: Optional[TransformerConfig] = None
+    language_model_config: Optional[CrossAttentionTextConfig] = None
+    vision_model_config: Optional[CrossAttentionVisionConfig] = None
 
     encoder_pipeline_model_parallel_size: int = 0
     encoder_tensor_model_parallel_size: int = 1
@@ -281,8 +278,6 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
 
         model = MLlamaBaseModel(
             config=self,
-            language_model_config=self.language_model_config,
-            vision_model_config=self.vision_model_config,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage()
             or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
@@ -341,9 +336,7 @@ class CrossAttentionVisionModel(MegatronModule):
 class MLlamaBaseModel(MegatronModule):
     def __init__(
         self,
-        config: TransformerConfig,
-        language_model_config: CrossAttentionTextConfig,
-        vision_model_config: CrossAttentionVisionConfig,
+        config: MLlamaModelConfig,
         tokenizer: Optional = None,
         pre_process: bool = True,
         post_process: bool = True,
@@ -352,6 +345,8 @@ class MLlamaBaseModel(MegatronModule):
     ) -> None:
         super().__init__(config=config)
 
+        language_model_config = config.language_model_config
+        vision_model_config = config.vision_model_config
         self.pre_process = pre_process
         self.post_process = post_process
 
@@ -373,11 +368,10 @@ class MLlamaBaseModel(MegatronModule):
             self.vision_model = vision_model_config.configure_model()
 
         self.model_type = ModelType.encoder_and_decoder
-        self.xattn_needed = True
 
         self.patch_size = 14
-        self.image_res = config.vision_model_config.vision_chunk_size
-        self.max_num_chunks = config.vision_model_config.vision_max_num_chunks
+        self.image_res = vision_model_config.vision_chunk_size
+        self.max_num_chunks = vision_model_config.vision_max_num_chunks
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
         self.language_model.setup_cache(max_batch_size, dtype)
@@ -385,7 +379,7 @@ class MLlamaBaseModel(MegatronModule):
     def compute_xattn_caches_masks(
         self,
         vision_tokens: torch.Tensor,
-        vision_orig_shape: torch.Size,
+        vision_orig_shape: Tuple[int, int, int, int, int],
         batch_masks: List[List[List[int]]],
         num_chunks: List[List[int]],
         total_len: int,
@@ -429,7 +423,6 @@ class MLlamaBaseModel(MegatronModule):
         xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
         if xattn_caches is None and batch_images is not None:
-            assert aspect_ratio_ids is not None
             bsz, max_num_images = batch_images.size(0), batch_images.size(1)
             vision_orig_shape = (
                 bsz,
