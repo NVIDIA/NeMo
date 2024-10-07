@@ -44,9 +44,7 @@ def _get_last_checkpoint_dir(model: pl.LightningModule, suffix: str = '') -> Pat
 
 def get_model_and_data(mbs=2, gbs=2):
     seq_length = 128
-    data = llm.MockDataModule(
-        seq_length=seq_length, micro_batch_size=mbs, global_batch_size=gbs
-    )
+    data = llm.MockDataModule(seq_length=seq_length, micro_batch_size=mbs, global_batch_size=gbs)
 
     config = llm.GPTConfig(
         num_layers=2,
@@ -69,11 +67,8 @@ class TestDistCkptIO:
         gbs, mbs = 2, 2
         model, data = get_model_and_data(mbs, gbs)
         from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
-        with reconfigure_num_microbatches_calculator_manager(0,
-            None,
-            gbs,
-            mbs,
-            data_parallel_size=1):
+
+        with reconfigure_num_microbatches_calculator_manager(0, None, gbs, mbs, data_parallel_size=1):
 
             strategy = _get_strategy()
 
@@ -104,11 +99,8 @@ class TestDistCkptIO:
         gbs, mbs = 2, 2
         model, data = get_model_and_data(mbs, gbs)
         from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
-        with reconfigure_num_microbatches_calculator_manager(0,
-            None,
-            gbs,
-            mbs,
-            data_parallel_size=1):
+
+        with reconfigure_num_microbatches_calculator_manager(0, None, gbs, mbs, data_parallel_size=1):
 
             sync_ckpt_dir = tmp_path / 'sync_checkpoints'
             async_ckpt_dir = tmp_path / 'async_checkpoints'

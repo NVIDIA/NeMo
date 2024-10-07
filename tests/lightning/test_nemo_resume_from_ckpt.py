@@ -109,6 +109,7 @@ def setup_data(log_dir, n_steps, data_path, gbs=2, mbs=1):
     )
     return data
 
+
 def setup_model_optim(log_dir, n_steps, tokenizer, gbs=2, mbs=1):
     seq_length = 2048
     gpt_config = llm.GPTConfig(
@@ -246,11 +247,12 @@ class TestCkptStateRestoration:
             data = setup_data(log_dir, n_steps, data_path, gbs=2, mbs=1)
             # Other tests might have different configs, so need to configure explicitly.
             from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
+
             with reconfigure_num_microbatches_calculator_manager(
                 0,
                 None,
-                2, # gbs
-                1, # mbs
+                2,  # gbs
+                1,  # mbs
                 data_parallel_size=1,
             ):
                 gpt_config, model, optim = setup_model_optim(log_dir, n_steps, data.tokenizer)

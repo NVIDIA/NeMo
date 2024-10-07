@@ -11,7 +11,7 @@ from nemo.collections import llm
 from nemo.collections.llm.api import train
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning import NeMoLogger, AutoResume
+from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.optim.lr_scheduler import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
@@ -24,6 +24,7 @@ EXP_DIR = '/tmp/nemo_exp/'
 
 def teardown(exp_dir=EXP_DIR):
     import shutil
+
     shutil.rmtree(exp_dir)
 
 
@@ -85,6 +86,7 @@ class ValidateModelRestoration(Callback):
             assert not torch.all(p == 0), "Expected params (resume) to be non-zero"
         assert hasattr(self, 'called_on_load_checkpoint')
         assert self.called_on_load_checkpoint == True, "Expected to have called on_load_checkpoint"
+
 
 def setup_data(mbs=1, gbs=2, seq_length=2048):
     tokenizer = get_nmt_tokenizer(
