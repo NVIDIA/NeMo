@@ -653,7 +653,6 @@ jobs:
           trainer.num_nodes=1 \
           trainer.precision=bf16 \
           model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-          model.kd_teacher_restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
           model.tensor_model_parallel_size=1 \
           model.pipeline_model_parallel_size=2 \
           prune.num_calib_size=8 \
