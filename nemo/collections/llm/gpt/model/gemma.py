@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
@@ -30,6 +44,8 @@ class GemmaConfig(GPTConfig):
     add_bias_linear: bool = False
     seq_length: int = 8192
     kv_channels: int = 256
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
     share_embeddings_and_output_weights: bool = True
     # Note: different behavior compared to Legacy NeMo
     # Legacy NeMo does not set layernorm_zero_centered_gamma and instead adds 1 in the HF -> NeMo conversion script
@@ -73,6 +89,13 @@ class GemmaModel(GPTModel):
     ):
         super().__init__(config or GemmaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
+    def configure_model(self):
+        from nemo.collections.common.parts.utils import extend_instance
+        from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
+
+        super().configure_model()
+        extend_instance(self.module.embedding, EmbeddingScalingMixin)
+
 
 @io.model_importer(GemmaModel, "hf")
 class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
@@ -111,7 +134,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(str(self))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> GemmaConfig:

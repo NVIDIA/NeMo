@@ -17,7 +17,7 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -29,6 +29,7 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
+from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.utils import logging, logging_mode
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
@@ -49,6 +50,7 @@ class InternalTranscribeConfig:
 
     # Scratch space
     temp_dir: Optional[str] = None
+    manifest_filepath: Optional[str] = None
 
 
 @dataclass
@@ -69,13 +71,18 @@ class TranscribeConfig:
 def move_to_device(batch, device, non_blocking=False):
     """
     Recursively move all tensors in `batch` to `device`.
+    Supports tensors, lists, tuples, dictionaries, and dataclasses.
     """
     if isinstance(batch, torch.Tensor):
         return batch.to(device, non_blocking=non_blocking)
     elif isinstance(batch, (list, tuple)):
-        return [move_to_device(x, device, non_blocking) for x in batch]
+        return type(batch)(move_to_device(x, device, non_blocking) for x in batch)
     elif isinstance(batch, dict):
         return {k: move_to_device(v, device, non_blocking) for k, v in batch.items()}
+    elif is_dataclass(batch):
+        return type(batch)(
+            **{field.name: move_to_device(getattr(batch, field.name), device, non_blocking) for field in fields(batch)}
+        )
     else:
         return batch  # do nothing if not supported type
 
@@ -475,6 +482,11 @@ class TranscriptionMixin(ABC):
 
         # Check if audio is a list of strings (filepaths or manifests)
         if isinstance(audio[0], str):
+            if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
+                # Assume it is a path to a manifest file
+                trcfg._internal.manifest_filepath = audio[0]
+                audio = manifest_utils.read_manifest(audio[0])
+
             audio_files = list(audio)
 
             tmp_dir = trcfg._internal.temp_dir

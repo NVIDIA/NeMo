@@ -46,16 +46,14 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.utils import logging
 
 try:
-    from apex import amp
-    from apex.transformer.enums import AttnMaskType
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
-    HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
@@ -550,11 +548,18 @@ class ControlNet(nn.Module):
             print("Loading unet blocks from sd")
 
             state_dict = torch.load(from_pretrained_unet, map_location='cpu')
-            state_dict = state_dict['state_dict']
+            if 'state_dict' in state_dict.keys():
+                state_dict = state_dict['state_dict']
             model_state_dict = self.state_dict()
+            model_state_keys = model_state_dict.keys()
 
             re_state_dict = {}
             for key_, value_ in state_dict.items():
+                # check if key is a raw parameter
+                if key_ in model_state_keys:
+                    re_state_dict[key_] = value_
+                    continue
+                # prune from model prefix
                 if key_.startswith('model.model.diffusion_model'):
                     re_state_dict[key_.replace('model.model.diffusion_model.', '')] = value_
                 if key_.startswith('model.diffusion_model'):
@@ -625,11 +630,6 @@ class ControlNet(nn.Module):
 
 class MegatronControlNet(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
-
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."

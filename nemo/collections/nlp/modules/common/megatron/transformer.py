@@ -18,10 +18,10 @@ from contextlib import nullcontext
 from importlib.metadata import version
 from typing import Any, Callable, Optional
 
+import packaging
 import torch
 import torch.nn as nn
 from einops import rearrange
-from pkg_resources import packaging
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -45,6 +45,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
 
 try:
     from apex.normalization import MixedFusedRMSNorm
@@ -70,16 +71,13 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-try:
-    from transformer_engine.common import recipe
-    from transformer_engine.pytorch import TransformerLayer, fp8_autocast
-    from transformer_engine.pytorch.distributed import checkpoint as te_checkpoint
+recipe, HAVE_RECIPE = safe_import_from("transformer_engine.common", "recipe")
+TransformerLayer, HAVE_LAYER = safe_import_from("transformer_engine.pytorch", "TransformerLayer")
+fp8_autocast, HAVE_AUTOCAST = safe_import_from("transformer_engine.pytorch", "fp8_autocast")
+te_checkpoint, HAVE_CKPT = safe_import_from("transformer_engine.pytorch.distributed", "checkpoint")
+HAVE_TE = HAVE_RECIPE and HAVE_LAYER and HAVE_AUTOCAST and HAVE_CKPT
 
-    HAVE_TE = True
-
-except:
-    HAVE_TE = False
-
+if not HAVE_TE:
     # fake missing class
     class TransformerLayer(ApexGuardDefaults):
         def __init__(self):
@@ -1525,7 +1523,12 @@ class ParallelTransformer(MegatronModule):
         It indicates if the current step in the forward pass is the first in a gradient accumulation cycle.
         If set, FP8 weights are cached and some minor optimizations are applied to fuse_wgrad_accumulation
         """
-        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        try:
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         num_micro_batches = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num_micro_batches', 1)
 

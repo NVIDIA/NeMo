@@ -1,26 +1,41 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import json
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
+import nemo_run as run
 import pytorch_lightning as pl
 from typing_extensions import Annotated
 
-from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 
-
 TokenizerType = Any
 
 
-@task(namespace="llm")
+@run.cli.entrypoint(namespace="llm")
 def train(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[TokenizerType] = None,
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
@@ -72,13 +87,13 @@ def train(
     return app_state.exp_dir
 
 
-@task(namespace="llm")
+@run.cli.entrypoint(namespace="llm")
 def pretrain(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
 ) -> Path:
     """
@@ -120,13 +135,13 @@ def pretrain(
     )
 
 
-@task(namespace="llm")
+@run.cli.entrypoint(namespace="llm")
 def finetune(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> Path:
@@ -171,13 +186,13 @@ def finetune(
     )
 
 
-@task(namespace="llm")
+@run.cli.entrypoint(namespace="llm")
 def validate(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[TokenizerType] = None,
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
@@ -225,7 +240,167 @@ def validate(
     return app_state.exp_dir
 
 
-@task(name="import", namespace="llm")
+def get_trtllm_deployable(
+    nemo_checkpoint,
+    model_type,
+    triton_model_repository,
+    num_gpus,
+    tensor_parallelism_size,
+    pipeline_parallelism_size,
+    max_input_len,
+    max_output_len,
+    max_batch_size,
+    dtype,
+):
+    from nemo.export.tensorrt_llm import TensorRTLLM
+
+    if triton_model_repository is None:
+        trt_llm_path = "/tmp/trt_llm_model_dir/"
+        Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
+    else:
+        trt_llm_path = triton_model_repository
+
+    if nemo_checkpoint is None and triton_model_repository is None:
+        raise ValueError(
+            "The provided model repository is not a valid TensorRT-LLM model "
+            "directory. Please provide a --nemo_checkpoint or a TensorRT-LLM engine."
+        )
+
+    if nemo_checkpoint is None and not os.path.isdir(triton_model_repository):
+        raise ValueError(
+            "The provided model repository is not a valid TensorRT-LLM model "
+            "directory. Please provide a --nemo_checkpoint or a valid TensorRT-LLM engine."
+        )
+
+    if nemo_checkpoint is not None and model_type is None:
+        raise ValueError("Model type is required to be defined if a nemo checkpoint is provided.")
+
+    trt_llm_exporter = TensorRTLLM(
+        model_dir=trt_llm_path,
+        load_model=(nemo_checkpoint is None),
+    )
+
+    if nemo_checkpoint is not None:
+        try:
+            logging.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
+            trt_llm_exporter.export(
+                nemo_checkpoint_path=nemo_checkpoint,
+                model_type=model_type,
+                n_gpus=num_gpus,
+                tensor_parallelism_size=tensor_parallelism_size,
+                pipeline_parallelism_size=pipeline_parallelism_size,
+                max_input_len=max_input_len,
+                max_output_len=max_output_len,
+                max_batch_size=max_batch_size,
+                dtype=dtype,
+            )
+        except Exception as error:
+            raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
+
+    return trt_llm_exporter
+
+
+def store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response):
+    args_dict = {
+        "triton_service_ip": triton_http_address,
+        "triton_service_port": triton_port,
+        "triton_request_timeout": triton_request_timeout,
+        "openai_format_response": openai_format_response,
+    }
+    with open("nemo/deploy/service/config.json", "w") as f:
+        json.dump(args_dict, f)
+
+
+@run.cli.entrypoint(namespace="llm")
+def deploy(
+    nemo_checkpoint: Path = None,
+    model_type: str = "llama",
+    triton_model_name: str = "xxx",
+    triton_model_version: Optional[int] = 1,
+    triton_port: int = 8080,
+    triton_http_address: str = "0.0.0.0",
+    triton_request_timeout: int = 60,
+    triton_model_repository: Path = None,
+    num_gpus: int = 1,
+    tensor_parallelism_size: int = 1,
+    pipeline_parallelism_size: int = 1,
+    dtype: str = "bfloat16",
+    max_input_len: int = 256,
+    max_output_len: int = 256,
+    max_batch_size: int = 8,
+    start_rest_service: bool = False,
+    rest_service_http_address: str = "0.0.0.0",
+    rest_service_port: int = 8000,
+    openai_format_response: bool = False,
+):
+    from nemo.deploy import DeployPyTriton
+
+    if start_rest_service:
+        if triton_port == rest_service_port:
+            logging.error("REST service port and Triton server port cannot use the same port.")
+            return
+        # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
+        store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
+
+    triton_deployable = get_trtllm_deployable(
+        nemo_checkpoint,
+        model_type,
+        triton_model_repository,
+        num_gpus,
+        tensor_parallelism_size,
+        pipeline_parallelism_size,
+        max_input_len,
+        max_output_len,
+        max_batch_size,
+        dtype,
+    )
+
+    try:
+        nm = DeployPyTriton(
+            model=triton_deployable,
+            triton_model_name=triton_model_name,
+            triton_model_version=triton_model_version,
+            max_batch_size=max_batch_size,
+            port=triton_port,
+            address=triton_http_address,
+        )
+
+        logging.info("Triton deploy function will be called.")
+        nm.deploy()
+    except Exception as error:
+        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+        return
+
+    uvicorn_supported = True
+    try:
+        import uvicorn
+    except ImportError as error:
+        logging.warning(f"uvicorn could not be imported: {error}")
+        uvicorn_supported = False
+
+    try:
+        logging.info("Model serving on Triton is will be started.")
+        if start_rest_service and uvicorn_supported:
+            try:
+                logging.info("REST service will be started.")
+                uvicorn.run(
+                    'nemo.deploy.service.rest_model_api:app',
+                    host=rest_service_http_address,
+                    port=rest_service_port,
+                    reload=True,
+                )
+            except Exception as error:
+                logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+        nm.serve()
+    except Exception as error:
+        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+        return
+
+    logging.info("Model serving will be stopped.")
+    nm.stop()
+
+
+@run.cli.entrypoint(name="import", namespace="llm")
 def import_ckpt(
     model: pl.LightningModule,
     source: str,
@@ -239,7 +414,7 @@ def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnect
     return io.load_context(path).model.exporter(target, path)
 
 
-@task(name="export", namespace="llm")
+@run.cli.entrypoint(name="export", namespace="llm")
 def export_ckpt(
     path: Path,
     target: str,
@@ -289,7 +464,7 @@ def _setup(
         task_config=getattr(train, "__io__", None),
     )
     if resume is not None:
-        resume.setup(model, trainer)
+        resume.setup(trainer, model)
 
     if optim:
         optim.connect(model)

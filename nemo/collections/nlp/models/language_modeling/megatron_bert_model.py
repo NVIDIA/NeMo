@@ -58,7 +58,6 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -68,6 +67,13 @@ try:
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
 class MegatronBertModel(MegatronBaseModel):
@@ -1163,7 +1169,9 @@ class MegatronBertModel(MegatronBaseModel):
 
         normalization = self.cfg.get('normalization', 'layernorm')
 
-        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p' or self.cfg.get(
+            "layernorm_zero_centered_gamma", False
+        )
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
         elif normalization == 'rmsnorm':

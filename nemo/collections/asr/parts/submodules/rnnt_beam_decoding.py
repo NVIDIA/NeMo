@@ -920,12 +920,8 @@ class BeamRNNTInfer(Typing):
                         sub_batch_ids.remove(id)
 
                     # extract the states of the sub batch only.
-                    if isinstance(self.decoder, RNNTDecoder):
-                        # LSTM decoder, state is [layer x batch x hidden]
-                        beam_state_= (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
-                    elif isinstance(self.decoder, StatelessTransducerDecoder):
-                        # stateless decoder, state is [batch x hidden]
-                        beam_state_= (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
+                    if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
+                        beam_state_ = (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
                     else:
                         raise NotImplementedError("Unknown decoder type.")
 
@@ -943,10 +939,10 @@ class BeamRNNTInfer(Typing):
                     # These indices are specified by sub_batch_ids, the ids of samples which were updated.
                     if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
                         # LSTM decoder, state is [layer x batch x hidden]
-                        index=0
+                        index = 0
                         for sub_batch_id in sub_batch_ids:
                             beam_state[sub_batch_id] = beam_state_[index]
-                            index+=1
+                            index += 1
                     else:
                         raise NotImplementedError("Unknown decoder type.")
                 else:

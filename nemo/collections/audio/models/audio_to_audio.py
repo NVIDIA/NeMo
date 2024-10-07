@@ -46,7 +46,11 @@ class AudioToAudioModel(ModelPT, ABC):
 
     def _setup_loss(self):
         """Setup loss for this model."""
-        self.loss = AudioToAudioModel.from_config_dict(self._cfg.loss)
+        if 'loss' in self._cfg:
+            self.loss = AudioToAudioModel.from_config_dict(self._cfg.loss)
+        else:
+            logging.warning('No loss function is defined in the config.')
+            self.loss = None
 
     def _get_num_dataloaders(self, tag: str = 'val'):
         if tag == 'val':
@@ -479,4 +483,35 @@ class AudioToAudioModel(ModelPT, ABC):
 
             if valid_gradients < 1:
                 logging.warning('detected inf or nan values in gradients! Setting gradients to zero.')
-                self.zero_grad()
+                self.zero_grad(set_to_none=False)
+
+    def configure_callbacks(self):
+        """
+        Create an callback to add audio/spectrogram into tensorboard & wandb.
+        """
+        self.log_config = self.cfg.get("log_config", None)
+        if not self.log_config:
+            return []
+
+        log_callbacks = []
+        from nemo.collections.audio.parts.utils.callbacks import SpeechEnhancementLoggingCallback
+
+        if isinstance(self._validation_dl, List):
+            data_loaders = self._validation_dl
+        else:
+            data_loaders = [self._validation_dl]
+
+        for data_loader_idx, data_loader in enumerate(data_loaders):
+            log_callbacks.append(
+                SpeechEnhancementLoggingCallback(
+                    data_loader=data_loader,
+                    data_loader_idx=data_loader_idx,
+                    loggers=self.trainer.loggers,
+                    log_tensorboard=self.log_config.log_tensorboard,
+                    log_wandb=self.log_config.log_wandb,
+                    sample_rate=self.sample_rate,
+                    max_utts=self.log_config.get("max_utts", None),
+                )
+            )
+
+        return log_callbacks
