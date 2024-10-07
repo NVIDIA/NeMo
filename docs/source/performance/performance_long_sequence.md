@@ -152,4 +152,4 @@
 
 
 ### Speedup enabled by the CP
-![Speedup Graph](speedup_figure.png)
+![Speedup Graph](cp_speedup_figure.png)
