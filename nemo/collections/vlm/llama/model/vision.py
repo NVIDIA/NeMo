@@ -234,12 +234,13 @@ def apply_scaling(freqs: torch.Tensor):
 
 
 # Use this spec for an implementation using modules in TE
-def get_image_transformer_layer_spec() -> ModuleSpec:
+def get_image_transformer_layer_spec(disable_vision_padding) -> ModuleSpec:
+    attn_mask = AttnMaskType.no_mask if disable_vision_padding else AttnMaskType.arbitrary
     image_transformer_submodules = TransformerLayerSubmodules(
         input_layernorm=TENorm,
         self_attention=ModuleSpec(
             module=SelfAttentionNoBias,
-            params={"attn_mask_type": AttnMaskType.arbitrary},
+            params={"attn_mask_type": attn_mask},
             submodules=SelfAttentionSubmodules(
                 linear_qkv=TEColumnParallelLinear,
                 core_attention=TEDotProductAttention,
@@ -589,6 +590,7 @@ class VisionEncoder(MegatronModule):
         return_intermediate=None,
     ):
         super().__init__(config=config)
+        self.disable_vision_padding = config.disable_vision_padding
         self.return_intermediate = return_intermediate
         self.image_size = to_2tuple(image_size)
         self.patch_size = to_2tuple(patch_size)
@@ -617,7 +619,7 @@ class VisionEncoder(MegatronModule):
         self.ln_pre = LayerNormImpl(config=config, hidden_size=width)
         self.transformer = TransformerBlock(
             config=self.config,
-            spec=get_image_transformer_layer_spec(),
+            spec=get_image_transformer_layer_spec(disable_vision_padding=self.disable_vision_padding),
             post_layer_norm=False,
             pre_process=self.pre_process,
             post_process=self.post_process,
@@ -629,7 +631,7 @@ class VisionEncoder(MegatronModule):
         global_config.gated = True
         self.global_transformer = TransformerBlock(
             config=global_config,
-            spec=get_image_transformer_layer_spec(),
+            spec=get_image_transformer_layer_spec(disable_vision_padding=self.disable_vision_padding),
             post_layer_norm=False,
             pre_process=self.pre_process,
             post_process=self.post_process,

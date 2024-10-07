@@ -137,6 +137,14 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
         (3, 1),
         (4, 1),
     )
+    # Disable vision padding by always using the max number of tiles
+    # HF padding mask is custom, and using their mask forces TE to use "arbitrary" attention mask which
+    # disables Flash Attention.
+    # In practice, this flag should be set to False if you care about exactness with HF model
+    # (e.g. running inference on pretrained weights from HF)
+    # This flag can be set to True if you're finetuning the model, and you would like to use
+    # Flash Attention to minimize memory consumption.
+    disable_vision_padding: bool = True
 
     @property
     def max_aspect_ratio_id(self) -> int:
@@ -372,6 +380,7 @@ class MLlamaBaseModel(MegatronModule):
         self.patch_size = 14
         self.image_res = vision_model_config.vision_chunk_size
         self.max_num_chunks = vision_model_config.vision_max_num_chunks
+        self.always_max_num_chunks = vision_model_config.disable_vision_padding
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
         self.language_model.setup_cache(max_batch_size, dtype)
@@ -432,9 +441,10 @@ class MLlamaBaseModel(MegatronModule):
                 self.config.hidden_size,
             )
             skip_vision_encoder = False
-            if max_num_images == 0:
+            if max_num_images == 0 or self.always_max_num_chunks:
                 num_chunks = [[self.max_num_chunks] for _ in batch_images]
-                skip_vision_encoder = True
+                if max_num_images == 0:
+                    skip_vision_encoder = True
 
             if self.encoder_hidden_state is not None:
                 vision_tokens = self.encoder_hidden_state
