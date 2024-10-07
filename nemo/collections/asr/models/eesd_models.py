@@ -31,6 +31,11 @@ from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
+sort_probs_and_labels,
+get_pil_target,
+sort_targets_with_preds_ats
+)
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
@@ -56,7 +61,7 @@ def init_weights(m):
         torch.nn.init.xavier_uniform(m.weight)
         m.bias.data.fill_(0.01)
 
-class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
+class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
     """
     Encoder decoder class for multiscale diarization decoder (MSDD). Model class creates training, validation methods for setting
     up data performing model forward pass.
@@ -100,13 +105,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(self._cfg.preprocessor)
 
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = SortformerEncLabelModel.from_config_dict(self._cfg.spec_augment)
+            self.spec_augmentation = SpkDiarEncLabelModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
-        self.encoder = SortformerEncLabelModel.from_config_dict(self._cfg.encoder)
-        self.sortformer_diarizer = SortformerEncLabelModel.from_config_dict(self._cfg.diarizer_module)
-        self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
+        self.encoder = SpkDiarEncLabelModel.from_config_dict(self._cfg.encoder)
+        self.sortformer_diarizer = SpkDiarEncLabelModel.from_config_dict(self._cfg.diarizer_module)
+        self.transformer_encoder = SpkDiarEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
         self._init_loss_weights()
         self.use_opt_ats = self._cfg.get("use_opt_ats", True)
 
@@ -115,14 +120,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             self.loss = instantiate(self._cfg.loss)
         else:
             self.loss = instantiate(self._cfg.loss)
-            self.multichannel_mixing = self._cfg.get('multichannel_mixing', True)
 
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
         self._init_eval_metrics()
         
         speaker_inds = list(range(self._cfg.max_num_of_spks))
-        self.spk_perm = torch.tensor(list(itertools.permutations(speaker_inds))) # Get all permutations
+        self.speaker_permutations = torch.tensor(list(itertools.permutations(speaker_inds))) # Get all permutations
     
     def _init_loss_weights(self):
         pil_weight = self._cfg.get("pil_weight", 0.0)
@@ -341,76 +345,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
             preds = self.forward_infer(emb_seq)
         return preds
-    
-    def find_first_nonzero(self, mat, max_cap_val=-1):
-        # non zero values mask
-        non_zero_mask = mat != 0
-        # operations on the mask to find first nonzero values in the rows
-        mask_max_values, mask_max_indices = torch.max(non_zero_mask, dim=1)
-        # if the max-mask is zero, there is no nonzero value in the row
-        mask_max_indices[mask_max_values == 0] = max_cap_val
-        return mask_max_indices
 
-    def sort_probs_and_labels(self, labels, discrete=True, thres=0.5, return_inds=False, accum_frames=1):
-        max_cap_val = labels.shape[1] + 1
-        labels_discrete = labels.clone()
-        if not discrete:
-            labels_discrete[labels_discrete < thres] = 0
-            labels_discrete[labels_discrete >= thres] = 1
-        modi =torch.ones(labels.shape[1],labels.shape[1]).triu().to(labels.device)
-        labels_accum = torch.matmul(labels_discrete.permute(0,2,1),modi).permute(0,2,1)
-        labels_accum[labels_accum < accum_frames] = 0
-        label_fz = self.find_first_nonzero(labels_accum, max_cap_val)
-        label_fz[label_fz == -1] = max_cap_val
-        sorted_inds = torch.sort(label_fz)[1]
-        sorted_labels = labels.transpose(0,1)[:, torch.arange(labels.shape[0]).unsqueeze(1), sorted_inds].transpose(0, 1)
-        if return_inds:
-            return sorted_labels, sorted_inds
-        else:
-            return sorted_labels
-
-    def sort_targets_with_preds_ats(self, labels, preds, thres=0.5, tolerance=0):
-        """
-        Sorts labels and predictions to get optimal of all arrival-time ordered permutations
-        """
-        labels_discrete = labels.clone()
-        labels_discrete[labels_discrete < thres] = 0
-        labels_discrete[labels_discrete >= thres] = 1
-
-        nonzero_ind = self.find_first_nonzero(labels_discrete, labels.shape[1])
-        sorted_values = torch.sort(nonzero_ind)[0] #indices of first speech frame for arrival-time ordered permutation (batch_size, max_num_of_spks)
-
-        perm_size = self.spk_perm.shape[0]
-        permed_labels = labels_discrete[:, :, self.spk_perm] #all possible permutations of discrete labels (batch_size, num_frames, perm_size, max_num_of_spks)
-        permed_nonzero_ind = self.find_first_nonzero(permed_labels, labels.shape[1]) #indices of first speech frame for all permutations (batch_size, perm_size, max_num_of_spks)
-        perm_compare = torch.abs(sorted_values.unsqueeze(1) - permed_nonzero_ind) <= tolerance #comparison with first speech frame indices of the ATS permutation (batch_size, perm_size, max_num_of_spks)
-        perm_mask = torch.all(perm_compare, dim=2).float() #binary mask for all permutation, 1 means permutation is arrival-time ordered (batch_size, perm_size)
-
-        preds_rep = torch.unsqueeze(preds, 2).repeat(1, 1, perm_size, 1)
-        match_score = torch.sum(permed_labels * preds_rep, axis=1).sum(axis=2)
-        batch_best_perm = torch.argmax(match_score * perm_mask, axis=1) # non-ATS permutations are excluded by mask
-        rep_spk_perm = self.spk_perm.repeat(batch_best_perm.shape[0],1) # (batch_size * perm_size, max_num_of_spks)
-        global_inds_vec = torch.arange(0, perm_size*batch_best_perm.shape[0], perm_size).to(batch_best_perm.device) + batch_best_perm
-        batch_perm_inds = rep_spk_perm[global_inds_vec.to(rep_spk_perm.device), :] # (batch_size, max_num_of_spks)
-        max_score_permed_labels = torch.vstack([ labels[k, :, batch_perm_inds[k]].unsqueeze(0) for k in range(batch_perm_inds.shape[0])])
-        return max_score_permed_labels
-
-    def sort_targets_with_preds(self, labels, preds):
-        """
-        Sorts labels and predictions to get optimal permutation
-        """
-        perm_size = self.spk_perm.shape[0]
-        permed_labels = labels[:, :, self.spk_perm]
-        preds_rep = torch.unsqueeze(preds, 2).repeat(1,1, self.spk_perm.shape[0],1)
-        match_score = torch.sum(permed_labels * preds_rep, axis=1).sum(axis=2)
-        batch_best_perm = torch.argmax(match_score, axis=1)
-        rep_spk_perm = self.spk_perm.repeat(batch_best_perm.shape[0],1) # (batch_size * perm_size, max_num_of_spks)
-        global_inds_vec = torch.arange(0, perm_size*batch_best_perm.shape[0], perm_size).to(batch_best_perm.device) + batch_best_perm
-        batch_perm_inds = rep_spk_perm[global_inds_vec.to(rep_spk_perm.device), :] # (batch_size, max_num_of_spks)
-        max_score_permed_labels = torch.vstack([ labels[k, :, batch_perm_inds[k]].unsqueeze(0) for k in range(batch_perm_inds.shape[0])])
-        return max_score_permed_labels
-
-    def compute_aux_f1(self, preds, targets):
+    def _get_ovl_and_vad(self, preds, targets):
         preds_bin = (preds > 0.5).to(torch.int64).detach()
         targets_ovl_mask = (targets.sum(dim=2) >= 2)
         preds_vad_mask = (preds_bin.sum(dim=2) > 0)
@@ -429,11 +365,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     def _get_aux_train_evaluations(self, preds, targets, target_lens):
         # Arrival-time sorted (ATS) targets
         if self.use_opt_ats:
-            targets_ats = self.sort_targets_with_preds_ats(targets.clone(), preds)
+            targets_ats = sort_targets_with_preds_ats(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         else:
-            targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
+            targets_ats = sort_probs_and_labels(targets.clone(), discrete=False)
         # Optimally permuted targets for Permutation-Invariant Loss (PIL)
-        targets_pil = self.sort_targets_with_preds(targets.clone(), preds) 
+        targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
         pil_loss = self.loss(probs=preds, labels=targets_pil, target_lens=target_lens)
         loss = self.ats_weight * ats_loss + self.pil_weight * pil_loss
@@ -443,7 +379,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'], sync_dist=True)
 
         self._reset_train_f1_accs()
-        preds_vad, preds_ovl, targets_vad, targets_ovl = self.compute_aux_f1(preds, targets_pil)
+        preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_train_vad(preds_vad, targets_vad, target_lens)
         self._accuracy_train_ovl(preds_ovl, targets_ovl, target_lens)
         train_f1_vad = self._accuracy_train_vad.compute()
@@ -459,7 +395,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.log('train_f1_ovl_acc', train_f1_ovl, sync_dist=True)
 
         self._reset_train_f1_accs()
-        preds_vad, preds_ovl, targets_vad, targets_ovl = self.compute_aux_f1(preds, targets_ats)
+        preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_ats)
         self._accuracy_train_vad(preds_vad, targets_vad, target_lens)
         self._accuracy_train_ovl(preds_ovl, targets_ovl, target_lens)
         train_f1_vad = self._accuracy_train_vad.compute()
@@ -512,18 +448,18 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
 
     def _get_aux_validation_evaluations(self, preds, targets, target_lens):
         if self.use_opt_ats:
-            targets_ats = self.sort_targets_with_preds_ats(targets.clone(), preds)
+            targets_ats = sort_targets_with_preds_ats(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         else:
-            targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
+            targets_ats = sort_probs_and_labels(targets.clone(), discrete=False, speaker_permutations=self.speaker_permutations)
 
-        targets_pil = self.sort_targets_with_preds(targets.clone(), preds)
+        targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
 
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
         pil_loss = self.loss(probs=preds, labels=targets_pil, target_lens=target_lens)
         loss = self.ats_weight * ats_loss + self.pil_weight * pil_loss
 
         self._reset_valid_f1_accs()
-        preds_vad, preds_ovl, targets_vad, targets_ovl = self.compute_aux_f1(preds, targets_pil)
+        preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_valid_vad(preds_vad, targets_vad, target_lens)
         valid_f1_vad = self._accuracy_valid_vad.compute()
         self._accuracy_valid_ovl(preds_ovl, targets_ovl, target_lens)
@@ -533,7 +469,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         precision, recall = self._accuracy_valid.compute_pr()
 
         self._reset_valid_f1_accs()
-        preds_vad, preds_ovl, targets_vad, targets_ovl = self.compute_aux_f1(preds, targets_ats)
+        preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_ats)
         self._accuracy_valid_vad(preds_vad, targets_vad, target_lens)
         self._accuracy_valid_ovl(preds_ovl, targets_ovl, target_lens)
         valid_f1_ovl_ats = self._accuracy_valid_ovl.compute()
@@ -552,7 +488,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             'val_f1_acc_ats': f1_acc_ats,
             'val_f1_ovl_acc_ats': valid_f1_ovl_ats
         }
-
+        for key, value in val_metrics.items():
+            self.log(key, value, sync_dist=True)
         return val_metrics
 
     def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
@@ -570,14 +507,18 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
  
         return self.val_metrics
 
-#    def on_validation_epoch_end(self):
-#        for key, value in self.val_metrics.items():
-#            self.log(key, value, sync_dist=True)
+    def on_validation_epoch_end(self):
+       """
+       Function that is intended to be excuted at the end of each validation epoch.
+       These lines are recommended to be execuded in Pytorch-lightning > 2.3.0 to accumulate the metric across devices.
+       """
+       for key, value in self.val_metrics.items():
+           self.log(key, value, sync_dist=True)
 
     def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
         if not outputs:
-            logging.warning(f"MAYBE A BUG: empty outputs for dataloader={dataloader_idx}")
-            return
+            logging.warning(f"`outputs` is None; empty outputs for dataloader={dataloader_idx}")
+            return None
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         val_ats_loss_mean = torch.stack([x['val_ats_loss'] for x in outputs]).mean()
         val_pil_loss_mean = torch.stack([x['val_pil_loss'] for x in outputs]).mean()
@@ -622,8 +563,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             audio_signal=audio_signal,
             audio_signal_length=audio_signal_length,
         )
-        targets_pil = self.sort_targets_with_preds(targets.clone(), preds)
-        preds_vad, preds_ovl, targets_vad, targets_ovl = self.compute_aux_f1(preds, targets_pil)
+        targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
+        preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_test_vad(preds_vad, targets_vad, target_lens, cumulative=True)
         test_f1_vad = self._accuracy_test_vad.compute()
         self._accuracy_test_ovl(preds_ovl, targets_ovl, target_lens, cumulative=True)
@@ -634,6 +575,30 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         batch_score_dict = {"f1_acc": f1_acc, "f1_vad_acc": test_f1_vad, "f1_ovl_acc": test_f1_ovl}
         cum_score_dict = self._cumulative_test_set_eval(score_dict=batch_score_dict, batch_idx=batch_idx, sample_count=len(sequence_lengths))
         return self.preds_all
+
+    def _get_aux_test_batch_evaluations(self, batch_idx, preds, targets, target_lens):
+        if self.use_opt_ats:
+            targets_ats = sort_targets_with_preds_ats(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
+        else:
+            targets_ats = sort_probs_and_labels(targets.clone(), discrete=False, speaker_permutations=self.speaker_permutations)
+        targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
+        preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
+        self._accuracy_valid(preds, targets_pil, target_lens)
+        f1_acc = self._accuracy_valid.compute()
+        precision, recall = self._accuracy_valid.compute_pr()
+        self.batch_f1_accs_list.append(f1_acc)
+        self.batch_precision_list.append(precision)
+        self.batch_recall_list.append(recall)
+        logging.info(f"batch {batch_idx}: f1_acc={f1_acc}, precision={precision}, recall={recall}")
+
+        self._reset_valid_f1_accs()
+        self._accuracy_valid(preds, targets_ats, target_lens)
+        f1_acc = self._accuracy_valid.compute()
+        precision, recall = self._accuracy_valid.compute_pr()
+        self.batch_f1_accs_ats_list.append(f1_acc)
+        self.batch_precision_ats_list.append(precision)
+        self.batch_recall_ats_list.append(recall)
+        logging.info(f"batch {batch_idx}: f1_acc_ats={f1_acc}, precision_ats={precision}, recall_ats={recall}")
 
     def test_batch(self,):
         self.preds_total_list, self.batch_f1_accs_list, self.batch_precision_list, self.batch_recall_list = [], [], [], []
@@ -654,28 +619,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 else:
                     self.preds_total_list.extend(torch.split(preds, [1] * preds.shape[0]))
                 torch.cuda.empty_cache()
-                if self.use_opt_ats:
-                    targets_ats = self.sort_targets_with_preds_ats(targets.clone(), preds)
-                else:
-                    targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
-                targets_pil = self.sort_targets_with_preds(targets.clone(), preds)
-                preds_vad, preds_ovl, targets_vad, targets_ovl = self.compute_aux_f1(preds, targets_pil)
-                self._accuracy_valid(preds, targets_pil, target_lens)
-                f1_acc = self._accuracy_valid.compute()
-                precision, recall = self._accuracy_valid.compute_pr()
-                self.batch_f1_accs_list.append(f1_acc)
-                self.batch_precision_list.append(precision)
-                self.batch_recall_list.append(recall)
-                logging.info(f"batch {batch_idx}: f1_acc={f1_acc}, precision={precision}, recall={recall}")
-
-                self._reset_valid_f1_accs()
-                self._accuracy_valid(preds, targets_ats, target_lens)
-                f1_acc = self._accuracy_valid.compute()
-                precision, recall = self._accuracy_valid.compute_pr()
-                self.batch_f1_accs_ats_list.append(f1_acc)
-                self.batch_precision_ats_list.append(precision)
-                self.batch_recall_ats_list.append(recall)
-                logging.info(f"batch {batch_idx}: f1_acc_ats={f1_acc}, precision_ats={precision}, recall_ats={recall}")
+                self._get_aux_test_batch_evaluations(batch_idx, preds, targets, target_lens)
                 
         logging.info("Batch F1Acc. MEAN: ", torch.mean(torch.tensor(self.batch_f1_accs_list)))
         logging.info("Batch Precision MEAN: ", torch.mean(torch.tensor(self.batch_precision_list)))

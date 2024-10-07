@@ -36,6 +36,74 @@ from lhotse.cut import CutSet, MixedCut, MonoCut, MixTrack
 from lhotse import SupervisionSet, SupervisionSegment, dill_enabled, AudioSource, Recording
 from lhotse.utils import uuid4
 
+def find_first_nonzero(mat, max_cap_val=-1):
+    # non zero values mask
+    non_zero_mask = mat != 0
+    # operations on the mask to find first nonzero values in the rows
+    mask_max_values, mask_max_indices = torch.max(non_zero_mask, dim=1)
+    # if the max-mask is zero, there is no nonzero value in the row
+    mask_max_indices[mask_max_values == 0] = max_cap_val
+    return mask_max_indices
+
+def sort_probs_and_labels(self, labels, discrete=True, thres=0.5, return_inds=False, accum_frames=1):
+    max_cap_val = labels.shape[1] + 1
+    labels_discrete = labels.clone()
+    if not discrete:
+        labels_discrete[labels_discrete < thres] = 0
+        labels_discrete[labels_discrete >= thres] = 1
+    modi =torch.ones(labels.shape[1],labels.shape[1]).triu().to(labels.device)
+    labels_accum = torch.matmul(labels_discrete.permute(0,2,1),modi).permute(0,2,1)
+    labels_accum[labels_accum < accum_frames] = 0
+    label_fz = self.find_first_nonzero(labels_accum, max_cap_val)
+    label_fz[label_fz == -1] = max_cap_val
+    sorted_inds = torch.sort(label_fz)[1]
+    sorted_labels = labels.transpose(0,1)[:, torch.arange(labels.shape[0]).unsqueeze(1), sorted_inds].transpose(0, 1)
+    if return_inds:
+        return sorted_labels, sorted_inds
+    else:
+        return sorted_labels
+
+def sort_targets_with_preds_ats(labels, preds, speaker_permutations, thres=0.5, tolerance=0):
+    """
+    Sorts labels and predictions to get optimal of all arrival-time ordered permutations
+    """
+    labels_discrete = labels.clone()
+    labels_discrete[labels_discrete < thres] = 0
+    labels_discrete[labels_discrete >= thres] = 1
+
+    nonzero_ind = find_first_nonzero(labels_discrete, labels.shape[1])
+    sorted_values = torch.sort(nonzero_ind)[0] #indices of first speech frame for arrival-time ordered permutation (batch_size, max_num_of_spks)
+
+    perm_size = speaker_permutations.shape[0]
+    permed_labels = labels_discrete[:, :, speaker_permutations] #all possible permutations of discrete labels (batch_size, num_frames, perm_size, max_num_of_spks)
+    permed_nonzero_ind = find_first_nonzero(permed_labels, labels.shape[1]) #indices of first speech frame for all permutations (batch_size, perm_size, max_num_of_spks)
+    perm_compare = torch.abs(sorted_values.unsqueeze(1) - permed_nonzero_ind) <= tolerance #comparison with first speech frame indices of the ATS permutation (batch_size, perm_size, max_num_of_spks)
+    perm_mask = torch.all(perm_compare, dim=2).float() #binary mask for all permutation, 1 means permutation is arrival-time ordered (batch_size, perm_size)
+
+    preds_rep = torch.unsqueeze(preds, 2).repeat(1, 1, perm_size, 1)
+    match_score = torch.sum(permed_labels * preds_rep, axis=1).sum(axis=2)
+    batch_best_perm = torch.argmax(match_score * perm_mask, axis=1) # non-ATS permutations are excluded by mask
+    rep_speaker_permutations = speaker_permutations.repeat(batch_best_perm.shape[0],1) # (batch_size * perm_size, max_num_of_spks)
+    global_inds_vec = torch.arange(0, perm_size*batch_best_perm.shape[0], perm_size).to(batch_best_perm.device) + batch_best_perm
+    batch_perm_inds = rep_speaker_permutations[global_inds_vec.to(rep_speaker_permutations.device), :] # (batch_size, max_num_of_spks)
+    max_score_permed_labels = torch.vstack([ labels[k, :, batch_perm_inds[k]].unsqueeze(0) for k in range(batch_perm_inds.shape[0])])
+    return max_score_permed_labels
+
+def get_pil_target(labels, preds, speaker_permutations):
+    """
+    Sorts labels and predictions to get optimal permutation
+    """
+    perm_size = speaker_permutations.shape[0]
+    permed_labels = labels[:, :, speaker_permutations]
+    preds_rep = torch.unsqueeze(preds, 2).repeat(1,1, speaker_permutations.shape[0],1)
+    match_score = torch.sum(permed_labels * preds_rep, axis=1).sum(axis=2)
+    batch_best_perm = torch.argmax(match_score, axis=1)
+    rep_speaker_permutations = speaker_permutations.repeat(batch_best_perm.shape[0],1) # (batch_size * perm_size, max_num_of_spks)
+    global_inds_vec = torch.arange(0, perm_size*batch_best_perm.shape[0], perm_size).to(batch_best_perm.device) + batch_best_perm
+    batch_perm_inds = rep_speaker_permutations[global_inds_vec.to(rep_speaker_permutations.device), :] # (batch_size, max_num_of_spks)
+    max_score_permed_labels = torch.vstack([ labels[k, :, batch_perm_inds[k]].unsqueeze(0) for k in range(batch_perm_inds.shape[0])])
+    return max_score_permed_labels
+
 def apply_spk_mapping(diar_preds: torch.Tensor, spk_mappings: torch.Tensor) -> torch.Tensor:
     """ 
     Applies a speaker mapping to diar predictions.
