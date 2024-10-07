@@ -125,7 +125,6 @@ class TestDistCkptIO:
             )
             dummy_trainer.fit(model, data)
             strategy = _get_strategy()
-            tmp_path = strategy.broadcast(tmp_path)
 
             ## reset the model and data and train with sync checkpointing
             model, data = get_model_and_data(mbs, gbs)
