@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import os
 from typing import Dict, List, Optional, Union
 
@@ -43,6 +44,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         model_path: str,
         special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
         legacy: bool = False,
+        ignore_extra_whitespaces: bool = True,
         chat_template: Optional[Dict] = None,
     ):
         self.chat_template = chat_template
@@ -54,6 +56,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
         self.legacy = legacy
+        self.ignore_extra_whitespaces = ignore_extra_whitespaces
+        self.extra_space_token = '<extra_space>'
         self.special_token_to_id = {}
         self.id_to_special_token = {}
         if special_tokens:
@@ -62,9 +66,13 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     "Special tokens must be None when legacy is set to False. Provide special tokens at train time."
                 )
             self.add_special_tokens(special_tokens)
-        self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
 
+        self.removed_extra_spaces = self.tokenizer.encode_as_pieces('x  y') == self.tokenizer.encode_as_pieces('x y')
+        self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
+        
     def text_to_tokens(self, text):
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text)
         if self.legacy:
             tokens = []
             idx = 0
@@ -90,9 +98,13 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                 idx = next_idx + len(next_token)
 
             tokens.extend(self.tokenizer.encode_as_pieces(text[idx:]))
-            return tokens
 
-        return self.tokenizer.encode_as_pieces(text)
+        else:
+            tokens = self.tokenizer.encode_as_pieces(text)
+
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            tokens = list(filter(lambda x: x != self.extra_space_token, tokens))
+        return tokens
 
     def text_to_ids(self, text, sample_alpha=None):
         if isinstance(text, str):
@@ -103,6 +115,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
             raise ValueError(f"Expected either str or list input, but got {type(text)}")
 
     def _text_to_ids(self, text, sample_alpha=None):
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text).rstrip()
         if self.legacy:
             ids = []
             idx = 0
@@ -127,13 +141,33 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                 ids.append(self.special_token_to_id[next_token])
                 idx = next_idx + len(next_token)
 
-            ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
+            if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+                ids.extend(self._text_to_ids_extra_space(text[idx:]))
+            else:
+                ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
             return ids
 
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            return self._text_to_ids_extra_space(text, sample_alpha)
+        
         if sample_alpha is not None:
             return self.tokenizer.encode_as_ids(text, enable_sampling=True, alpha=sample_alpha, nbest_size=-1)
         else:
             return self.tokenizer.encode_as_ids(text)
+
+    def _text_to_ids_extra_space(self, text, sample_alpha=None):
+        ids = []
+        encoding_kwargs = {}
+        if sample_alpha is not None:
+            encoding_kwargs = {'enable_sampling': True, 'alpha': sample_alpha, 'nbest_size': -1}
+        for part in text.split(self.extra_space_token):
+            if not part:
+                continue
+            part += self.extra_space_token
+            part_ids = self.tokenizer.encode_as_ids(part, **encoding_kwargs)
+            ids.extend(part_ids[:-1])
+
+        return ids
 
     def tokens_to_text(self, tokens):
         if isinstance(tokens, np.ndarray):
@@ -175,12 +209,13 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                 tokens.append(self.tokenizer.id_to_piece(id))
         return tokens
 
-    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
+    def tokens_to_ids(self, tokens: Union[str, List[str]], tokens_to_skip: List[str] = []) -> Union[int, List[int]]:
         if isinstance(tokens, str):
             tokens = [tokens]
         ids = []
         for token in tokens:
-            ids.append(self.token_to_id(token))
+            if token not in tokens_to_skip:
+                ids.append(self.token_to_id(token))
         return ids
 
     def add_special_tokens(self, special_tokens):
