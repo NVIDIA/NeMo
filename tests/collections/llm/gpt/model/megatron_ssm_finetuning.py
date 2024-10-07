@@ -16,6 +16,7 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
+import os
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
@@ -26,9 +27,10 @@ from nemo.collections.llm.api import _setup
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-import os
+
 # Disable FUSED_ATTN, @ataghibakhsh: enable this in the near future
 os.environ['NVTE_FUSED_ATTN'] = '0'
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
