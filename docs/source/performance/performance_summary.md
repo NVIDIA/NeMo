@@ -40,22 +40,3 @@
 | LLAMA2-7B  | LoRA     | 8      | 32  | 1   | 4096            | 1  | 1  | 24824              | 663                            | ***0.8***                                          |
 | LLAMA2-13B | LoRA     | 8      | 32  | 1   | 4096            | 1  | 1  | 14629              | 757                            | ***1.4***                                          |
 | LLAMA2-70B | LoRA     | 8      | 32  | 1   | 4096            | 2  | 4  | 2621               | 722                            | ***7.9***                                          |
-
-
-### Long Input Sequences 
-
-- The results in the table below show the pre-training performance of the LLAMA2-7B model with various input sequence lengths at FP8 precision.
-  - Container: [NeMo24.03.01.framework](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags)
-  - System: DGX-H100
-
-| Sequence Length (K)| #-GPUs | GBS  | MBS | TP | PP | CP | VP | DP | Tokens / sec / GPU | Model TFLOP / sec / GPU | ***Est. time to train in days (10T tokens, 1K GPUs)*** |
-| -------------------| ------ | ---  | --- | -- | -- | -- | -- | -- | ------------------ | ----------------------- | ------------------------------------------------------ |
-| 4                  | 4      | 1024 | 1   | 1  | 1  | 1  | 1  | 4  | 16671              | 768                     | ***7***                                                |
-| 8                  | 8      | 512  | 1   | 1  | 2  | 1  | 1  | 4  | 13907              | 730                     | ***8***                                                |
-| 16                 | 16     | 256  | 1   | 2  | 1  | 1  | 1  | 8  | 10082              | 660                     | ***11***                                               |
-| 32                 | 32     | 128  | 1   | 2  | 1  | 2  | 1  | 8  | 6687               | 610                     | ***17***                                               | 
-| 64                 | 64     | 64   | 1   | 4  | 1  | 2  | 1  | 8  | 4021               | 574                     | ***28***                                               |
-| 128                | 128    | 32   | 1   | 4  | 1  | 4  | 1  | 8  | 2260               | 555                     | ***50***                                               |
-| 256                | 256    | 16   | 1   | 4  | 1  | 8  | 1  | 8  | 1214               | 549                     | ***93***                                               |
-| 512                | 512    | 8    | 1   | 8  | 1  | 16 | 1  | 4  | 635                | 549                     | ***178***                                              |
-| 1024               | 1024   | 4    | 1   | 8  | 1  | 32 | 1  | 4  | 318                | 536                     | ***356***                                              |
