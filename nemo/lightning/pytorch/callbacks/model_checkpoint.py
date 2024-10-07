@@ -26,10 +26,10 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
+from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.model_utils import ckpt_to_dir
 
 
 class ModelCheckpoint(PTLModelCheckpoint):
@@ -73,7 +73,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         save_optim_on_train_end: Optional[bool] = False,
-        always_save_context: bool = True,
+        always_save_context: bool = False,
         save_context_on_train_end: bool = True,
         **kwargs,
     ):
