@@ -18,6 +18,11 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.utils import logging
+import torch._dynamo
+import os
+# Disable FUSED_ATTN, @ataghibakhsh: enable this in the near future
+os.environ['NVTE_FUSED_ATTN'] = '0'
+torch._dynamo.config.suppress_errors = True
 
 try:
     import mamba_ssm

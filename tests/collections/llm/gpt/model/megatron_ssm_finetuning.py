@@ -26,7 +26,9 @@ from nemo.collections.llm.api import _setup
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-
+import os
+# Disable FUSED_ATTN, @ataghibakhsh: enable this in the near future
+os.environ['NVTE_FUSED_ATTN'] = '0'
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
@@ -97,7 +99,7 @@ if __name__ == "__main__":
     ckpt_path = model.import_ckpt(
         path="pytorch://" + args.model_path,
         model_config=model_config,
-    )
+    ).joinpath("weights")
 
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,

@@ -27,8 +27,19 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+import os
+# Disable FUSED_ATTN, @ataghibakhsh: enable this in the near future
+os.environ['NVTE_FUSED_ATTN'] = '0'
 
-
+'''
+CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/megatron_ssm_pretraining.py \
+                        
+                                  --devices 1 \
+                                  --max-steps 10 \
+                                  --experiment-dir /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/temp_dir_test_mamba \
+                                  --data-path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/toy_ssm_dataset/legal_pile_text_document
+CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/megatron_ssm_finetuning.py         --devices 1         --max-steps 10         --experiment-dir /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/temp_dir_test_mamba         --model-path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/base_mamba_CI.pt
+'''
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
