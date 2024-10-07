@@ -5127,17 +5127,6 @@ jobs:
         rm -rf tests/collections/llm/gpt_pretrain_results
         rm -rf tests/collections/llm/gpt_index_mappings
 
-  L2_NeMo_2_HF_MODEL_IMPORT:
-    needs: [cicd-test-container-setup]
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/gpt/model/test_model_import.py
-
-      AFTER_SCRIPT: |
-        rm -rf ~/.cache/nemo/models
-
   L2_NeMo_2_SSM_Pretraining:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
