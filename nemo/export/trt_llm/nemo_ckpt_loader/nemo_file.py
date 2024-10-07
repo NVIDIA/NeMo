@@ -334,8 +334,9 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
     try:
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
-        dist_ckpt_folder = nemo_dir / "model_weights"
-        if dist_ckpt_folder.exists():
+        if (nemo_dir / "model_weights").exists():
+            dist_ckpt_folder = nemo_dir / "model_weights"
+
             model = load_sharded_metadata(dist_ckpt_folder)
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
@@ -350,6 +351,60 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
                 tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
                 tokenizer = build_tokenizer(tokenizer_config)
+        elif (nemo_dir / "weights").exists():
+            dist_ckpt_folder = nemo_dir / "weights"
+            model = load_sharded_metadata(dist_ckpt_folder)
+            io_folder = nemo_dir / "context"
+
+            from omegaconf import OmegaConf
+            from nemo.lightning import io
+
+            config = io.load_context(io_folder, subpath="model.config")
+            config_dict = {}
+            for k, v in config.__dict__.items():
+                if isinstance(v, (float, int, str, bool)):
+                    config_dict[k] = v
+                elif k == "activation_func":
+                    config_dict["activation"] = v.__name__
+
+            if config_dict.get("num_moe_experts") is None:
+                config_dict["num_moe_experts"] = 0
+                config_dict["moe_router_topk"] = 0
+            if config_dict["activation"] == "silu":
+                config_dict["activation"] = "fast-swiglu"
+
+            config_dict["mcore_gpt"] = True
+            config_dict["max_position_embeddings"] = config_dict.get("seq_length")
+
+            model_yaml_path = nemo_dir / "context/model.yaml"
+            with model_yaml_path.open("r") as model_yaml:
+                model_yaml = yaml.load(model_yaml, Loader=yaml.SafeLoader)
+
+            if model_yaml['tokenizer']['_target_'] == "nemo.collections.common.tokenizers.huggingface.auto_tokenizer.AutoTokenizer":
+                library = "huggingface"
+            else:
+                library = "sentencepiece"
+
+            config_dict["tokenizer"] = {
+                "library": library,
+                "type": model_yaml['tokenizer']['pretrained_model_name'],
+                "use_fast": model_yaml['tokenizer']['use_fast'],
+            }
+
+            nemo_model_config = OmegaConf.create(config_dict)
+
+            if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
+                tokenizer = AutoTokenizer.from_pretrained(
+                    nemo_dir / "context" / nemo_model_config["tokenizer"]["type"],
+                    use_fast=nemo_model_config["tokenizer"].get("use_fast", False),
+                )
+            else:
+                tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoint_dir)
+                copy_tokenizer_files(tokenizer_config, nemo_export_dir)
+
+                tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
+                tokenizer = build_tokenizer(tokenizer_config)
+
         else:
             raise Exception("Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported.")
     finally:
