@@ -3634,7 +3634,7 @@ jobs:
         model.peft.lora_tuning.adapter_dim=8 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl] \
         model.data.validation_ds.write_embeddings_to_file=True \
-        model.data.validation_ds.output_file_path_prefix="/home/TestData/nlp/megatron_ir/working_dir/val_embs" \
+        model.data.validation_ds.output_file_path_prefix="/tmp/gpt_reranker_workdir/val_embs" \
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl]
 
   L2_Megatron_GPT_Embedding:
