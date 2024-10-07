@@ -139,7 +139,7 @@ def trainer(
 
 
 @run.cli.factory(target=pretrain, name=NAME)
-def pretrain_recipe(
+def pretrain_recipe_basic(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
@@ -181,7 +181,7 @@ def pretrain_recipe(
 
 
 @run.cli.factory(target=pretrain, name=NAME + "_performance")
-def pretrain_recipe_performance(
+def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
@@ -212,7 +212,7 @@ def pretrain_recipe_performance(
         Use this recipe with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+    recipe = pretrain_recipe_basic(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
     recipe.trainer.callbacks.extend(
         [
             run.Config(MegatronTokenDropCallback),
