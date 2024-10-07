@@ -3914,13 +3914,11 @@ jobs:
       SCRIPT: |
         python examples/nlp/language_modeling/megatron_change_num_partitions.py \
             --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo \
+            --target_file /tmp/l2_megatron_reduce_tp_part/test-reduce.nemo \
             --tensor_model_parallel_size 2 \
             --target_tensor_model_parallel_size 1 \
             --pipeline_model_parallel_size 1 \
             --target_pipeline_model_parallel_size 2
-      AFTER_SCRIPT: |
-        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo
 
   L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2:
     needs: [cicd-test-container-setup]
