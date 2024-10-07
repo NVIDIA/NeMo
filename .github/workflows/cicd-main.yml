@@ -3568,6 +3568,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
+
         python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
         trainer.devices=1 \
         trainer.num_nodes=1 \
