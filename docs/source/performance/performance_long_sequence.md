@@ -2,7 +2,7 @@
 
 ## LLAMA2-7B (FP8)
 
-- The results in the table below show the pre-training performance of the LLAMA2-7B model with-CP (context parallelism) and without-CP for various input sequence lengths at FP8 precision. Detailed configurations and the achievable performance are provided for the with-CP configurations. For the without-CP configurations, the best achievable performance is reported within the given memory capacity constraint.
+- The table below shows the pre-training performance of the LLAMA2-7B with CP (context parallelism) and compares it against the results without CP at various input sequence lengths. The detailed model-parallel configurations and the achieved performance are shown in the training results with CP. In non-CP training runs, we use the most performant model- and data-parallel configurations without CP given the memory capacity constraint of the H100 GPU system.
 
   - Container: [NeMo24.03.01.framework](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags)
   - System: DGX-H100
@@ -151,5 +151,5 @@
 </table>
 
 
-### Speedup enabled by the CP
+### Speedup of LLAMA2 7B training with CP over without CP
 ![Speedup Graph](cp_speedup_figure.png)
