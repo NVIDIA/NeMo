@@ -12,10 +12,11 @@ batch_size: 8
 model: 
   pil_weight: 0.5
   ats_weight: 0.5
+  use_opt_ats: True
   num_workers: ${num_workers}
   fc_d_model: 512
   tf_d_model: 192
-  max_num_of_spks: 4 # Number of speakers per model. This is currently fixed at 6.
+  max_num_of_spks: 4 # Number of speakers per model. This is currently fixed at 4.
   session_len_sec: 90
 
   train_ds:
@@ -24,21 +25,22 @@ model:
     num_spks: ${model.max_num_of_spks}
     session_len_sec: ${model.session_len_sec}
     soft_label_thres: 0.5
-    soft_targets: false
+    soft_targets: False
     labels: null
     batch_size: ${batch_size}
     shuffle: True
     num_workers: ${num_workers}
     validation_mode: False
     # lhotse config
-    use_lhotse: True
+    use_lhotse: False
     use_bucketing: True
     num_buckets: 10
     bucket_duration_bins: [10, 20, 30, 40, 50, 60, 70, 80, 90]
     pin_memory: True
+    min_duration: 80
     max_duration: 90
-    batch_duration: 1200
-    quadratic_duration: 200
+    batch_duration: 400
+    quadratic_duration: 1200
     bucket_buffer_size: 20000
     shuffle_buffer_size: 10000
     window_stride: ${model.preprocessor.window_stride}
@@ -59,8 +61,9 @@ model:
     num_workers: ${num_workers}
     validation_mode: True
     # lhotse config
-    use_lhotse: True
-    use_bucketing: True
+    use_lhotse: False
+    use_bucketing: False
+    drop_last: False
     pin_memory: True
     window_stride: ${model.preprocessor.window_stride}
     subsampling_factor: ${model.encoder.subsampling_factor}
@@ -81,8 +84,9 @@ model:
     num_workers: ${num_workers}
     validation_mode: True
     # lhotse config
-    use_lhotse: True
-    use_bucketing: True
+    use_lhotse: False
+    use_bucketing: False
+    drop_last: False
     pin_memory: True
     window_stride: ${model.preprocessor.window_stride}
     subsampling_factor: ${model.encoder.subsampling_factor}
@@ -101,7 +105,7 @@ model:
 
   diarizer_module:
     _target_: nemo.collections.asr.modules.sortformer_diarizer.SortformerDiarizer
-    num_spks: ${model.max_num_of_spks} # Number of speakers per model. This is currently fixed at 2.
+    num_spks: ${model.max_num_of_spks} # Number of speakers per model. This is currently fixed at 4.
     dropout_rate: 0.5 # Dropout rate
     fc_d_model: ${model.fc_d_model}
     tf_d_model: ${model.tf_d_model} # Hidden layer size for linear layers in Sortformer Diarizer module
@@ -151,7 +155,7 @@ model:
   transformer_encoder:
     _target_: nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoder
     num_layers: 18
-    hidden_size: 192 # Needs to be multiple of num_attention_heads
+    hidden_size: ${model.tf_d_model} # Needs to be multiple of num_attention_heads
     inner_size: 768
     num_attention_heads: 8
     attn_score_dropout: 0.5

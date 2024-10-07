@@ -108,6 +108,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.sortformer_diarizer = SortformerEncLabelModel.from_config_dict(self._cfg.diarizer_module)
         self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
         self._init_loss_weights()
+        self.use_opt_ats = self._cfg.get("use_opt_ats", True)
 
         self.eps = 1e-3
         if trainer is not None:
@@ -368,6 +369,32 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         else:
             return sorted_labels
 
+    def sort_targets_with_preds_ats(self, labels, preds, thres=0.5, tolerance=0):
+        """
+        Sorts labels and predictions to get optimal of all arrival-time ordered permutations
+        """
+        labels_discrete = labels.clone()
+        labels_discrete[labels_discrete < thres] = 0
+        labels_discrete[labels_discrete >= thres] = 1
+
+        nonzero_ind = self.find_first_nonzero(labels_discrete, labels.shape[1])
+        sorted_values = torch.sort(nonzero_ind)[0] #indices of first speech frame for arrival-time ordered permutation (batch_size, max_num_of_spks)
+
+        perm_size = self.spk_perm.shape[0]
+        permed_labels = labels_discrete[:, :, self.spk_perm] #all possible permutations of discrete labels (batch_size, num_frames, perm_size, max_num_of_spks)
+        permed_nonzero_ind = self.find_first_nonzero(permed_labels, labels.shape[1]) #indices of first speech frame for all permutations (batch_size, perm_size, max_num_of_spks)
+        perm_compare = torch.abs(sorted_values.unsqueeze(1) - permed_nonzero_ind) <= tolerance #comparison with first speech frame indices of the ATS permutation (batch_size, perm_size, max_num_of_spks)
+        perm_mask = torch.all(perm_compare, dim=2).float() #binary mask for all permutation, 1 means permutation is arrival-time ordered (batch_size, perm_size)
+
+        preds_rep = torch.unsqueeze(preds, 2).repeat(1, 1, perm_size, 1)
+        match_score = torch.sum(permed_labels * preds_rep, axis=1).sum(axis=2)
+        batch_best_perm = torch.argmax(match_score * perm_mask, axis=1) # non-ATS permutations are excluded by mask
+        rep_spk_perm = self.spk_perm.repeat(batch_best_perm.shape[0],1) # (batch_size * perm_size, max_num_of_spks)
+        global_inds_vec = torch.arange(0, perm_size*batch_best_perm.shape[0], perm_size).to(batch_best_perm.device) + batch_best_perm
+        batch_perm_inds = rep_spk_perm[global_inds_vec.to(rep_spk_perm.device), :] # (batch_size, max_num_of_spks)
+        max_score_permed_labels = torch.vstack([ labels[k, :, batch_perm_inds[k]].unsqueeze(0) for k in range(batch_perm_inds.shape[0])])
+        return max_score_permed_labels
+
     def sort_targets_with_preds(self, labels, preds):
         """
         Sorts labels and predictions to get optimal permutation
@@ -401,7 +428,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     
     def _get_aux_train_evaluations(self, preds, targets, target_lens):
         # Arrival-time sorted (ATS) targets
-        targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
+        if self.use_opt_ats:
+            targets_ats = self.sort_targets_with_preds_ats(targets.clone(), preds)
+        else:
+            targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
         # Optimally permuted targets for Permutation-Invariant Loss (PIL)
         targets_pil = self.sort_targets_with_preds(targets.clone(), preds) 
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
@@ -441,14 +471,14 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.log('train_f1_vad_acc_ats', train_f1_vad, sync_dist=True)
         self.log('train_f1_ovl_acc_ats', train_f1_ovl, sync_dist=True)
         return loss
-    
+
     def training_step(self, batch: list, batch_idx: int):
         audio_signal, audio_signal_length, targets, target_lens = batch
         preds = self.forward(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
         loss = self._get_aux_train_evaluations(preds, targets, target_lens)
-        self._accuracy_train.reset()        
+        self._accuracy_train.reset()
         return {'loss': loss}
-    
+
     def _reset_valid_f1_accs(self):
         self._accuracy_valid.reset() 
         self._accuracy_valid_vad.reset()
@@ -479,8 +509,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 "cum_test_f1_vad_acc": cumulative_f1_vad_acc,
                 "cum_test_f1_ovl_acc": cumulative_f1_ovl_acc,
         }
+
     def _get_aux_validation_evaluations(self, preds, targets, target_lens):
-        targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
+        if self.use_opt_ats:
+            targets_ats = self.sort_targets_with_preds_ats(targets.clone(), preds)
+        else:
+            targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
+
         targets_pil = self.sort_targets_with_preds(targets.clone(), preds)
 
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
@@ -619,7 +654,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 else:
                     self.preds_total_list.extend(torch.split(preds, [1] * preds.shape[0]))
                 torch.cuda.empty_cache()
-                targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
+                if self.use_opt_ats:
+                    targets_ats = self.sort_targets_with_preds_ats(targets.clone(), preds)
+                else:
+                    targets_ats = self.sort_probs_and_labels(targets.clone(), discrete=False)
                 targets_pil = self.sort_targets_with_preds(targets.clone(), preds)
                 preds_vad, preds_ovl, targets_vad, targets_ovl = self.compute_aux_f1(preds, targets_pil)
                 self._accuracy_valid(preds, targets_pil, target_lens)
