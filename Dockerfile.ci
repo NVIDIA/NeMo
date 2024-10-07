@@ -89,9 +89,6 @@ git checkout ${MCORE_TAG} && \
 popd
 export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 
-#Donwgrade Triton to 2.2.0 for SSMs
-RUN pip install triton==2.2.0
-
 EOF
 
 # Copy over NeMo code
