@@ -208,12 +208,14 @@ class IOMixin:
         original_representers = yaml.SafeDumper.yaml_representers.copy()
 
         from nemo_run.config import Config, Partial
-        from nemo_run.core.serialization.yaml import YamlSerializer
+        from nemo_run.core.serialization.yaml import YamlSerializer, _function_representer
 
         yaml.SafeDumper.add_representer(config_lib.Config, _config_representer_with_defaults)
         yaml.SafeDumper.add_representer(partial.Partial, _partial_representer_with_defaults)
         yaml.SafeDumper.add_representer(Config, _config_representer_with_defaults)
         yaml.SafeDumper.add_representer(Partial, _partial_representer_with_defaults)
+
+        yaml.SafeDumper.add_multi_representer(object, _function_representer)
 
         serializer = YamlSerializer()
         result = {}
