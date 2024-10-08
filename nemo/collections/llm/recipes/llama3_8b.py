@@ -161,11 +161,11 @@ def pretrain_recipe_basic(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama3_8b
-            $ nemo llm pretrain --factory "llama3_8b(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory llama3_8b_basic
+            $ nemo llm pretrain --factory "llama3_8b_basic(num_nodes=2, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_8b_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe_basic(name="llama3_8b_pretrain", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -199,7 +199,7 @@ def pretrain_recipe(
     Create a performance-optimized pre-training recipe for Llama3 8B model.
 
     This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+    It builds upon the basic pre-training recipe and adds additional performance enhancements.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
@@ -212,10 +212,10 @@ def pretrain_recipe(
         run.Partial: Partial configuration for performance-optimized pre-training.
 
     Examples:
-            $ nemo llm pretrain --factory llama3_8b_optimized
+            $ nemo llm pretrain --factory llama3_8b
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama3_8b_perf", num_nodes=4)
+            >>> recipe = pretrain_recipe(name="llama3_8b_perf", num_nodes=4)
             >>> print(recipe)
 
     Note:
