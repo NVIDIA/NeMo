@@ -679,7 +679,15 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu')
+        try:
+            result = torch.load(model_weights, map_location='cpu')
+        except Exception as e:
+            logging.warning(f"{e}")
+            logging.warning(f"Unsuccessful restoration from {model_weights}, {os.stat(model_weights)}")
+            logging.warning(f"Trying once more")
+            result = torch.load(model_weights, map_location='cpu')
+        return result
+
 
     @property
     def model_config_yaml(self) -> str:
