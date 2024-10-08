@@ -15,7 +15,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.lightning.pytorch.optim.lr_scheduler import WarmupAnnealingScheduler
 
 
 def get_args():
