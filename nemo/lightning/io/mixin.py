@@ -532,14 +532,8 @@ def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: P
                 raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
             continue
         ## dump artifact and return the relative path
-        if Path(current_val).exists():
-            new_val = artifact.dump(current_val, output_path, relative_dir)
-            setattr(cfg, artifact.attr, new_val)
-        else:
-            # Note: this can happen if artifact is from a previous checkpoint but the checkpoint has been deleted
-            # e.g. due to save_top_k flag from ModelCheckpoint. This does not affect checkpoint restore in most cases,
-            # so we do not raise an error here.
-            logging.info(f"Attempting to dump {current_val} to current checkpoint, but artifact does not exist.")
+        new_val = artifact.dump(current_val, output_path, relative_dir)
+        setattr(cfg, artifact.attr, new_val)
 
     for attr in dir(cfg):
         try:
