@@ -431,7 +431,9 @@ def evaluate(
     import time
 
     import requests
-    from lm_eval import evaluator, tasks
+    from lm_eval import evaluator
+    ## This may change, how to deal with it ? In the past Instance class was in lm_eval.base
+    from lm_eval.api.instance import Instance
     from lm_eval.api.model import LM
     from requests.exceptions import RequestException
 
@@ -477,6 +479,9 @@ def evaluate(
             return False
 
     class CustomModel(LM):
+        """
+        Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
+        """
         def __init__(self, model_name, api_url, max_tokens_to_generate, temperature, top_p, top_k):
             self.model_name = model_name
             self.api_url = api_url
@@ -486,42 +491,130 @@ def evaluate(
             self.top_k = top_k
             super().__init__()
 
-        def loglikelihood(self, requests):
-            # Implement log likelihood calculation logic here
-            pass
+        def _generate_tokens_logprobs(self, payload,
+                                      return_text: bool = False,
+                                      return_logprobs: bool = False):
+            response = requests.post(f"{self.api_url}/completions/", json=payload)
+            response_data = response.json()
 
-        def loglikelihood_rolling(self, requests):
-            # Implement log likelihood calculation logic here
-            pass
+            if 'error' in response_data:
+                raise Exception(f"API Error: {response_data['error']}")
 
-        def generate_until(self, inputs):
+            # Assuming the response is in OpenAI format
+            if return_text:
+                return response_data['choices'][0]['text']
+
+            if return_logprobs:
+                return response_data['choices'][0]['log_probs']
+
+        def loglikelihood(self, requests: list[Instance]):
+            # log likelihood calculation logic here
+            results = []
+            for request in requests:
+                context = request.arguments[0]
+                continuation = request.arguments[1]
+                full_text = context + continuation
+                instance = Instance(
+                    request_type="loglikelihood",
+                    #doc={'text': full_text},
+                    doc=request.doc,
+                    arguments=(full_text,),
+                    idx=0,
+                )
+                # Access the 'arguments' attribute of the Instance
+                prompt = instance.arguments[0]  # This should be the prompt string
+
+                # Extract default temperature from instance of the benchmark or use the user defined value
+                # Does not work for MMLU since the input instance does not contain temp key
+                # temperature = (
+                #     instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
+                # )
+                payload = {
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "max_tokens": self.max_tokens_to_generate,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    #"compute_logprob": True ##TODO Do we want to have this as an
+                    # user defined value or set it to True by default ?
+                }
+
+                log_probs = self._generate_tokens_logprobs(payload, return_logprobs=True)
+
+                # Assuming log_probs is a list of log probabilities for each token
+                # TODO : why is log_prbs returned as list of list ? Change it to just a list maybe in query_llm ?
+                continuation_log_prob = sum(log_probs[0][0][-len(continuation):])
+                results.append((continuation_log_prob, False))
+
+            return results
+
+        def loglikelihood_rolling(self, requests: list[Instance]):
+            # log likelihood rolling calculation logic here
+            results = []
+            for request in requests:
+                context = request.arguments[0]
+                continuation = request.arguments[1]
+                full_text = context + continuation
+                instance = Instance(
+                    request_type="loglikelihood_rolling",
+                    #doc={'text': full_text},
+                    doc=request.doc,
+                    arguments=(full_text,),
+                    idx=0,
+                )
+                # Access the 'arguments' attribute of the Instance
+                prompt = instance.arguments[0]  # This should be the prompt string
+
+                # Extract default temperature from instance of the benchmark or use the user defined value
+                # Does not work for MMLU since the input instance does not contain temp key
+                # temperature = (
+                #     instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
+                # )
+                payload = {
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "max_tokens": self.max_tokens_to_generate,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    #"compute_logprob": True ##TODO Do we want to have this as an
+                    # user defined value or set it to True by default ?
+                }
+
+                log_probs = self._generate_tokens_logprobs(payload, return_logprobs=True)
+
+                # Assuming log_probs is a list of log probabilities for each token
+                continuation_log_probs = log_probs[0][0][-len(continuation):]
+                results.append((continuation_log_probs, False))
+
+            return results
+
+        def generate_until(self, inputs: list[Instance]):
+            # `Instance` is a dataclass defined in [`lm_eval.api.instance`] https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/lm_eval/api/instance.py
             results = []
             for instance in inputs:
                 # Access the 'arguments' attribute of the Instance
                 prompt = instance.arguments[0]  # This should be the prompt string
 
-                # Extract default temperature from instance of the benchmark or use the uder defined value
-                temperature = (
-                    instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
-                )
-
+                # Extract default temperature from instance of the benchmark or use the user defined value
+                # Does not work for MMLU since the input instance does not contain temp key
+                # temperature = (
+                #     instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
+                # )
                 payload = {
                     "model": self.model_name,
                     "prompt": prompt,
                     "max_tokens": self.max_tokens_to_generate,
-                    "temperature": temperature,
+                    "temperature": self.temperature,
                     "top_p": self.top_p,
                     "top_k": self.top_k,
+                    #"compute_logprob": True ##TODO Do we want to have this as an
+                    # user defined value or set it to True by default ?
                 }
 
-                response = requests.post(f"{self.api_url}/completions/", json=payload)
-                response_data = response.json()
+                generated_text = self._generate_tokens_logprobs(payload, return_text=True)
 
-                if 'error' in response_data:
-                    raise Exception(f"API Error: {response_data['error']}")
-
-                # Assuming the response is in OpenAI format
-                generated_text = response_data['choices'][0]['text']
                 results.append(generated_text)
 
             return results
@@ -532,7 +625,7 @@ def evaluate(
         model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
     )
 
-    print("--score---", results['results']['gsm8k'])
+    print("--results---", results['results'][eval_task])
 
 
 @run.cli.entrypoint(name="import", namespace="llm")
