@@ -209,7 +209,7 @@ def mcore_model_customize(cfg, model):
         drop_layers(model, cfg.get("drop_layers"))
 
 
-def set_sync_funcs(mcore_gpt_model: "MegatronGPTModel"):
+def set_sync_funcs(mcore_gpt_model: "MegatronGPTModel", forward_only: bool):
     """
     Function to set synchronization functions for asynchronous gradient and 
     parameter reduction in the Megatron model.
@@ -749,7 +749,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
-        set_sync_funcs(self)
+        set_sync_funcs(self, forward_only)
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
