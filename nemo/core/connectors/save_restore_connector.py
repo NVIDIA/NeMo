@@ -686,6 +686,7 @@ class SaveRestoreConnector:
             logging.warning(f"Unsuccessful restoration from {model_weights}, {os.stat(model_weights)}")
             logging.warning(f"Trying once more")
             import time
+
             time.sleep(0.5)
             result = torch.load(model_weights, map_location='cpu')
         return result
