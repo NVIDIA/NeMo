@@ -211,7 +211,7 @@ def mcore_model_customize(cfg, model):
 
 def set_sync_funcs(mcore_gpt_model: "MegatronGPTModel", forward_only: bool):
     """
-    Function to set synchronization functions for asynchronous gradient and 
+    Function to set synchronization functions for asynchronous gradient and
     parameter reduction in the Megatron model.
 
     Args:
@@ -242,7 +242,9 @@ def set_sync_funcs(mcore_gpt_model: "MegatronGPTModel", forward_only: bool):
                 if mcore_gpt_model.cfg.optim.get("align_grad_reduce", True):
                     grad_sync_func = [model_chunk.start_grad_sync for model_chunk in mcore_gpt_model.model]
                     grad_sync_func = grad_sync_func[0] if len(mcore_gpt_model.model) == 1 else grad_sync_func
-            if mcore_gpt_model.cfg.optim.get("overlap_param_sync", False) and mcore_gpt_model.cfg.optim.get("align_param_gather", False):
+            if mcore_gpt_model.cfg.optim.get("overlap_param_sync", False) and mcore_gpt_model.cfg.optim.get(
+                "align_param_gather", False
+            ):
                 param_sync_func = [model_chunk.start_param_sync for model_chunk in mcore_gpt_model.model]
                 param_sync_func = param_sync_func[0] if len(mcore_gpt_model.model) == 1 else param_sync_func
 
