@@ -11,6 +11,7 @@ ijson
 jieba
 markdown2
 matplotlib>=3.3.2
+mamba-ssm==2.2.2
 #megatron_core>0.6.0 # add back once mcore on pypi is compatible again
 nltk>=3.6.5
 numpy<2  # tensorstore has an implicit compiled dependency on numpy<2
@@ -22,5 +23,4 @@ sacrebleu  # manually install sacrebleu[ja] for Japanese support; MeCab is unsup
 sentence_transformers
 tensorstore<0.1.46
 tiktoken==0.7.0
-triton==2.2.0
 zarr

@@ -16,12 +16,9 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
-import os
-
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
-
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import train
@@ -30,20 +27,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-
-# Disable FUSED_ATTN, @ataghibakhsh: enable this in the near future
-os.environ['NVTE_FUSED_ATTN'] = '0'
-
-'''
-CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/megatron_ssm_pretraining.py \
-                        
-                                  --devices 1 \
-                                  --max-steps 10 \
-                                  --experiment-dir /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/temp_dir_test_mamba \
-                                  --data-path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/toy_ssm_dataset/legal_pile_text_document
-CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/megatron_ssm_finetuning.py         --devices 1         --max-steps 10         --experiment-dir /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/temp_dir_test_mamba         --model-path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/base_mamba_CI.pt
-'''
-
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
