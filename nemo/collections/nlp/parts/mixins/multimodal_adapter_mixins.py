@@ -42,7 +42,7 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
         """
         Returns all the keys in the model
         """
-        k = [n for n, p in self.named_parameters()]
+        k = [n for n, p in self._unwrap_model().named_parameters(prefix="model")]
         if self.megatron_amp_O2:
             k = [key.replace("model.module.", "model.", 1) for key in k]
         return set(k)
