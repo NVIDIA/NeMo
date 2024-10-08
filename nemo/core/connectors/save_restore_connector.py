@@ -688,7 +688,6 @@ class SaveRestoreConnector:
             result = torch.load(model_weights, map_location='cpu')
         return result
 
-
     @property
     def model_config_yaml(self) -> str:
         return self._model_config_yaml
