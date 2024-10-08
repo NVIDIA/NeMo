@@ -19,7 +19,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchaudio
 from einops import rearrange
 from transformers import AutoModel
 
@@ -37,6 +36,12 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+
+try:
+    import torchaudio
+    HAVE_TORCHAUDIO = True
+except ModuleNotFoundError:
+    HAVE_TORCHAUDIO = False
 
 
 def get_padding(kernel_size: int, dilation: int = 1) -> int:
@@ -92,6 +97,13 @@ class SLMDiscriminator(NeuralModule):
         use_spectral_norm=False,
     ):
         super().__init__()
+
+        if not HAVE_TORCHAUDIO:
+            logging.error('Could not import torchaudio. SLMDiscriminator will not work.')
+
+            raise ModuleNotFoundError(
+                f"torchaudio is not installed but is necessary to instantiate a {self.__class__.__name__}"
+            )
 
         self.slm_model = SSLModel(slm_model_name)
 
