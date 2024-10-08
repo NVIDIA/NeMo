@@ -101,18 +101,22 @@ def run_nightly_test_for_qa(request, device):
 @pytest.fixture(autouse=True)
 def cleanup_local_folder():
     # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
-    assert not Path("./lightning_logs").exists()
-    assert not Path("./NeMo_experiments").exists()
-    assert not Path("./nemo_experiments").exists()
+    import tempfile
+    import os
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.chdir(tmpdir)
+        assert not Path("./lightning_logs").exists()
+        assert not Path("./NeMo_experiments").exists()
+        assert not Path("./nemo_experiments").exists()
 
-    yield
+        yield
 
-    if Path("./lightning_logs").exists():
-        rmtree('./lightning_logs', ignore_errors=True)
-    if Path("./NeMo_experiments").exists():
-        rmtree('./NeMo_experiments', ignore_errors=True)
-    if Path("./nemo_experiments").exists():
-        rmtree('./nemo_experiments', ignore_errors=True)
+        if Path("./lightning_logs").exists():
+            rmtree('./lightning_logs', ignore_errors=True)
+        if Path("./NeMo_experiments").exists():
+            rmtree('./NeMo_experiments', ignore_errors=True)
+        if Path("./nemo_experiments").exists():
+            rmtree('./nemo_experiments', ignore_errors=True)
 
 
 @pytest.fixture(scope="session")
