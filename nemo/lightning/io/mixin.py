@@ -203,7 +203,6 @@ class IOMixin:
             shutil.rmtree(artifacts_dir)
 
     def _io_dump_yaml(self, io: config_lib.Config, attrs: list[str]):
-        import torch.nn.functional as F
         import yaml
 
         original_representers = yaml.SafeDumper.yaml_representers.copy()
@@ -216,8 +215,7 @@ class IOMixin:
         yaml.SafeDumper.add_representer(Config, _config_representer_with_defaults)
         yaml.SafeDumper.add_representer(Partial, _partial_representer_with_defaults)
 
-        # Some torch functions have type builtin_function_or_method so we need to register the representer explicitly.
-        yaml.SafeDumper.add_representer(type(F.gelu), _function_representer)
+        yaml.SafeDumper.add_multi_representer(object, _function_representer)
 
         serializer = YamlSerializer()
         result = {}
