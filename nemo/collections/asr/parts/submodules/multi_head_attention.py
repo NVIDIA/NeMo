@@ -32,7 +32,6 @@
 Part of this code is adopted from https://github.com/espnet/espnet
 """
 
-import contextlib
 import math
 from functools import lru_cache
 from typing import List, Tuple
@@ -77,19 +76,13 @@ class MultiHeadAttention(nn.Module):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
         self.use_pytorch_sdpa = use_pytorch_sdpa
-        if self.use_pytorch_sdpa:
-            if not use_pytorch_sdpa_backends:
-                use_pytorch_sdpa_backends = list(
-                    set(b for b in torch.nn.attention.SDPBackend.__members__.values())
-                    - set([torch.nn.attention.SDPBackend.ERROR])
+        if self.use_pytorch_sdpa and use_pytorch_sdpa_backends:
+            use_pytorch_sdpa_backends = list(
+                map(
+                    lambda backend_name: getattr(torch.nn.attention.SDPBackend, backend_name),
+                    use_pytorch_sdpa_backends,
                 )
-            else:
-                use_pytorch_sdpa_backends = list(
-                    map(
-                        lambda backend_name: getattr(torch.nn.attention.SDPBackend, backend_name),
-                        use_pytorch_sdpa_backends,
-                    )
-                )
+            )
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
 
         self.cache_drop_size = None
