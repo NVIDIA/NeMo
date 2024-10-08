@@ -226,7 +226,7 @@ def pretrain_recipe_performance(
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
+            tp_comm_overlap=True,
         )
     )
     return recipe
