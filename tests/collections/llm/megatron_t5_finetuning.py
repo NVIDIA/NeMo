@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
     parser.add_argument('--experiment-name', type=str, help="name of experiment")
     parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
-    parser.add_argument('--data-path', type=str, help="Path to data file")
+    parser.add_argument('--checkpoint-path', type=str, help="Path to checkpoint dir")
     parser.add_argument('--vocab-path', type=str, default=None, help="Path to vocab file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
 
@@ -46,7 +46,7 @@ if __name__ == '__main__':
         seq_length=512, 
         seq_length_dec=128, 
         micro_batch_size=16, 
-        global_batch_size=16,
+        global_batch_size=128,
         tokenizer=tokenizer,
         num_workers=4,
     )
@@ -72,6 +72,7 @@ if __name__ == '__main__':
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.float32,
         ckpt_load_optimizer=False,
+        # ckpt_load_optimizer=True,
     )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
@@ -81,7 +82,9 @@ if __name__ == '__main__':
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
+        resume_from_path=args.checkpoint_path,
     )
+
 
     opt_config = OptimizerConfig(
         optimizer='adam',
