@@ -214,7 +214,8 @@ class TestASRDatasets:
                     if ix >= num_samples:
                         break
 
-                    line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
+                    line = line.replace("tests/data", os.path.abspath(test_data_dir)).replace("\n", "")
+                    print(line)
                     f.write(f"{line}\n")
 
                     data = json.loads(line)
@@ -305,7 +306,7 @@ class TestASRDatasets:
                     if ix >= num_samples:
                         break
 
-                    line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
+                    line = line.replace("tests/data", os.path.abspath(test_data_dir)).replace("\n", "")
                     f.write(f"{line}\n")
 
                     data = json.loads(line)
@@ -390,7 +391,7 @@ class TestASRDatasets:
                     if ix >= num_samples:
                         break
 
-                    line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
+                    line = line.replace("tests/data", os.path.abspath(test_data_dir)).replace("\n", "")
                     f.write(f"{line}\n")
 
                     data = json.loads(line)
