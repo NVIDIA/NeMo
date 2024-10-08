@@ -35,6 +35,7 @@ def patch_json_paths(path, fn=None):
             fp_out.write(f"{json.dumps(data)}\n".encode())
     return fp_out.name
 
+
 class TestASRDatasets:
     labels = ["fash", "fbbh", "fclc"]
     unique_labels_in_seq = ['0', '1', '2', '3', "zero", "one", "two", "three"]
@@ -71,6 +72,7 @@ class TestASRDatasets:
         manifest_path = os.path.abspath(
             os.path.join(test_data_dir, 'asr/tarred_an4/tarred_duplicate_audio_manifest.json')
         )
+
         def patch_fn(data):
             data['audio_filepath'] = os.path.join(os.path.abspath(test_data_dir), data['audio_filepath'])
             return data
@@ -103,9 +105,11 @@ class TestASRDatasets:
     @pytest.mark.unit
     def test_feat_seqlabel_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/feat/emb.json'))
+
         def patch_fn(data):
             data['feature_filepath'] = data['feature_filepath'].replace("tests/.data", os.path.abspath(test_data_dir))
             return data
+
         manifest_path = patch_json_paths(manifest_path, patch_fn)
 
         feature_loader = ExternalFeatureLoader(augmentor=None)
