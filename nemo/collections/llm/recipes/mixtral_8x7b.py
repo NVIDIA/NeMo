@@ -138,8 +138,8 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=pretrain, name=NAME)
-def pretrain_recipe(
+@run.cli.factory(target=pretrain, name=NAME + "_basic")
+def pretrain_recipe_basic(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
@@ -160,11 +160,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory mixtral_8x7b
-            $ nemo llm pretrain --factory "mixtral_8x7b(num_nodes=8, name='my_mixtral_pretrain')"
+            $ nemo llm pretrain --factory mixtral_8x7b_basic
+            $ nemo llm pretrain --factory "mixtral_8x7b_basic(num_nodes=8, name='my_mixtral_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="mixtral_8x7b_pretrain", num_nodes=8)
+            >>> recipe = pretrain_recipe_basic(name="mixtral_8x7b_pretrain", num_nodes=8)
             >>> print(recipe)
     """
     return run.Partial(
@@ -180,15 +180,15 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
-def pretrain_recipe_performance(
+@run.cli.factory(target=pretrain, name=NAME)
+def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for Mixtral 8x7B model.
 
     This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+    It builds upon the basic pre-training recipe and adds additional performance enhancements.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
@@ -202,17 +202,17 @@ def pretrain_recipe_performance(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory "mixtral_8x3b.pretrain_recipe_performance(num_nodes=8, name='perf_pretrain')"
+            $ nemo llm pretrain --factory "mixtral_8x3b.pretrain_recipe(num_nodes=8, name='perf_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="mixtral_8x3b_perf", num_nodes=8)
+            >>> recipe = pretrain_recipe(name="mixtral_8x3b_perf", num_nodes=8)
             >>> print(recipe)
 
     Note:
         Use this recipe with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+    recipe = pretrain_recipe_basic(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
     recipe.trainer.callbacks.extend(
         [
             run.Config(MegatronTokenDropCallback),

@@ -139,8 +139,8 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=pretrain, name=NAME)
-def pretrain_recipe(
+@run.cli.factory(target=pretrain, name=NAME + "_basic")
+def pretrain_recipe_basic(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
@@ -161,11 +161,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama3_8b
-            $ nemo llm pretrain --factory "llama3_8b(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory llama3_8b_basic
+            $ nemo llm pretrain --factory "llama3_8b_basic(num_nodes=2, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_8b_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe_basic(name="llama3_8b_pretrain", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -187,8 +187,8 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_optimized")
-def pretrain_recipe_performance(
+@run.cli.factory(target=pretrain, name=NAME)
+def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
@@ -199,7 +199,7 @@ def pretrain_recipe_performance(
     Create a performance-optimized pre-training recipe for Llama3 8B model.
 
     This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+    It builds upon the basic pre-training recipe and adds additional performance enhancements.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
@@ -212,17 +212,17 @@ def pretrain_recipe_performance(
         run.Partial: Partial configuration for performance-optimized pre-training.
 
     Examples:
-            $ nemo llm pretrain --factory llama3_8b_optimized
+            $ nemo llm pretrain --factory llama3_8b
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama3_8b_perf", num_nodes=4)
+            >>> recipe = pretrain_recipe(name="llama3_8b_perf", num_nodes=4)
             >>> print(recipe)
 
     Note:
         Use this recipe with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+    recipe = pretrain_recipe_basic(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
 
     recipe.trainer.callbacks.append(
         run.Config(
