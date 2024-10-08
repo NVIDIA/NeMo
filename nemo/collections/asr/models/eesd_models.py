@@ -621,12 +621,12 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
                 torch.cuda.empty_cache()
                 self._get_aux_test_batch_evaluations(batch_idx, preds, targets, target_lens)
                 
-        logging.info("Batch F1Acc. MEAN: ", torch.mean(torch.tensor(self.batch_f1_accs_list)))
-        logging.info("Batch Precision MEAN: ", torch.mean(torch.tensor(self.batch_precision_list)))
-        logging.info("Batch Recall MEAN: ", torch.mean(torch.tensor(self.batch_recall_list)))
-        logging.info("Batch ATS F1Acc. MEAN: ", torch.mean(torch.tensor(self.batch_f1_accs_ats_list)))
-        logging.info("Batch ATS Precision MEAN: ", torch.mean(torch.tensor(self.batch_precision_ats_list)))
-        logging.info("Batch ATS Recall MEAN: ", torch.mean(torch.tensor(self.batch_recall_ats_list)))
+        logging.info(f"Batch F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_list))}")
+        logging.info(f"Batch Precision MEAN: {torch.mean(torch.tensor(self.batch_precision_list))}")
+        logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
+        logging.info(f"Batch ATS F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_ats_list))}")
+        logging.info(f"Batch ATS Precision MEAN: {torch.mean(torch.tensor(self.batch_precision_ats_list))}")
+        logging.info(f"Batch ATS Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_ats_list))}")
 
     def diarize(self,):
         raise NotImplementedError

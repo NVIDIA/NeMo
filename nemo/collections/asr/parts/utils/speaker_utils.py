@@ -108,7 +108,10 @@ def audio_rttm_map(manifest, attach_dur=False):
             if attach_dur:
                 uniqname = get_uniq_id_with_dur(meta)
             else:
-                uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
+                if "uniq_id" in dic.keys():
+                    uniqname = dic['uniq_id']
+                else:
+                    uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
 
             if uniqname not in AUDIO_RTTM_MAP:
                 AUDIO_RTTM_MAP[uniqname] = meta
