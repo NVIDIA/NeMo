@@ -264,11 +264,11 @@ def finetune_recipe(
     recipe = default_finetune_recipe(model(), "mistralai/Mixtral-8x7B-v0.1", dir, name, num_nodes, num_gpus_per_node)
     recipe.trainer.strategy.expert_model_parallel_size = 8
     if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 8
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
-        recipe.trainer.strategy.pipeline_model_parallel_size = 4
-        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 8
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
