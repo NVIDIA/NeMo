@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
 import os.path
 import shutil
 import tarfile
 import tempfile
 import urllib.request
-import os
 from os import mkdir
 from os.path import dirname, exists, getsize, join
 from pathlib import Path
@@ -178,6 +178,7 @@ def k2_cuda_is_enabled(k2_is_appropriate) -> Tuple[bool, str]:
         return k2_is_appropriate
 
     import torch  # noqa: E402
+
     from nemo.core.utils.k2_guard import k2  # noqa: E402
 
     if torch.cuda.is_available() and k2.with_cuda:
