@@ -20,10 +20,10 @@ from torch import nn
 
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
-from nemo.utils.import_utils import safe_import
+from nemo.utils.import_utils import safe_import_from
 
-_, HAVE_TE = safe_import("transformer_engine")
-
+TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from("megatron.core.transformer.custom_layers.transformer_engine", "TEColumnParallelLinear")
+TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from("megatron.core.transformer.custom_layers.transformer_engine", "TERowParallelLinear")
 
 class AdapterParallelAdd(AdapterWrapper):
     """An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
@@ -125,7 +125,7 @@ class LoRA(PEFT):
             if name in ['linear_qkv', 'linear_fc1']:
                 # Column Parallel Linear
                 input_is_parallel = False
-                if HAVE_TE:
+                if HAVE_TE_COL_LINEAR and isinstance(m, TEColumnParallelLinear):
                     # m.in_features and m.out_features are divided by tp_size already,
                     # but in_features and out_features passed to ParallelLinearAdapter are not.
                     in_features = m.in_features
@@ -141,7 +141,7 @@ class LoRA(PEFT):
             else:  # name in ['linear_proj', 'linear_fc2']
                 # Row Parallel Linear
                 input_is_parallel = True
-                if HAVE_TE:
+                if HAVE_TE_ROW_LINEAR and isinstance(m, TERowParallelLinear):
                     in_features = m.in_features * tp_size
                     out_features = m.out_features
                 else:
