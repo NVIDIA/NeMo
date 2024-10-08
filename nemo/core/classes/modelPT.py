@@ -618,6 +618,9 @@ class ModelPT(LightningModule, Model):
             overlap_param_gather_with_optimizer_step=self.cfg.optim.get(
                 'overlap_param_gather_with_optimizer_step', False
             ),
+            adam_fuse_dtype_cast=self.cfg.optim.get(
+                'adam_fuse_dtype_cast', False
+            ),
         )
         return megatron_optim_config
 
