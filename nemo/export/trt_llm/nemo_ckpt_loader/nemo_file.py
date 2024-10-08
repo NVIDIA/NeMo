@@ -17,6 +17,7 @@ import functools
 import json
 import logging
 import os
+import shutil
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -277,12 +278,20 @@ def copy_tokenizer_files(config, out_dir):
 
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
-    if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
-        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
+    if (tokenizer_dir_or_path / "nemo_context").exists():
+        from nemo.lightning import io
 
-    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
-    tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
-    return build_tokenizer(tokenizer_config)
+        tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context")).model.tokenizer
+        return build_tokenizer(tokenizer_spec)
+    else:
+        if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
+            return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
+
+        model_path = (
+            tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        )
+        tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
+        return build_tokenizer(tokenizer_config)
 
 
 def build_tokenizer(tokenizer):
@@ -309,6 +318,7 @@ def build_tokenizer(tokenizer):
                 def batch_encode_patch(self, ids):
                     if torch.is_tensor(ids):
                         ids = ids.cpu().numpy()
+                        ids = ids[0] if len(ids.shape) > 1 else ids
                     return self.ids_to_text(ids)
 
                 tokenizer.bos_token_id = tokenizer.bos_id
@@ -375,36 +385,10 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
             config_dict["mcore_gpt"] = True
             config_dict["max_position_embeddings"] = config_dict.get("seq_length")
-
-            model_yaml_path = nemo_dir / "context/model.yaml"
-            with model_yaml_path.open("r") as model_yaml:
-                model_yaml = yaml.load(model_yaml, Loader=yaml.SafeLoader)
-
-            if model_yaml['tokenizer']['_target_'] == "nemo.collections.common.tokenizers.huggingface.auto_tokenizer.AutoTokenizer":
-                library = "huggingface"
-            else:
-                library = "sentencepiece"
-
-            config_dict["tokenizer"] = {
-                "library": library,
-                "type": model_yaml['tokenizer']['pretrained_model_name'],
-                "use_fast": model_yaml['tokenizer']['use_fast'],
-            }
-
             nemo_model_config = OmegaConf.create(config_dict)
 
-            if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
-                tokenizer = AutoTokenizer.from_pretrained(
-                    nemo_dir / "context" / nemo_model_config["tokenizer"]["type"],
-                    use_fast=nemo_model_config["tokenizer"].get("use_fast", False),
-                )
-            else:
-                tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoint_dir)
-                copy_tokenizer_files(tokenizer_config, nemo_export_dir)
-
-                tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
-                tokenizer = build_tokenizer(tokenizer_config)
-
+            tokenizer = io.load_context(io_folder).model.tokenizer
+            shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:
             raise Exception("Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported.")
     finally:
