@@ -688,9 +688,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
-        checkpoint = self.checkpoint_io.load_checkpoint(
-            ckpt_to_weights_subdir(checkpoint_path), sharded_state_dict=sharded_state_dict
-        )
+        if not (load_dir := ckpt_to_weights_subdir(checkpoint_path)).exists():
+            load_dir = checkpoint_path
+        checkpoint = self.checkpoint_io.load_checkpoint(load_dir, sharded_state_dict=sharded_state_dict)
 
         return checkpoint
 
