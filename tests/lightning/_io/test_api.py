@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from functools import partial
+from pathlib import Path
 
 import pytest
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -64,3 +65,6 @@ class TestLoad:
 
         loaded_func = loaded.extra["dummy"]
         assert loaded_func(b=2) == partial_function_with_pos_and_key_args(b=2)
+
+        model_yaml = Path(tmpdir) / "model.yaml"
+        assert model_yaml.exists()
