@@ -39,6 +39,7 @@ from nemo.utils import logging
 
 try:
     import torchaudio
+
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
