@@ -70,12 +70,10 @@ class DiarizationConfig:
     
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
-    presort_manifest: bool = True  # Significant inference speedup on short-form data due to padding reduction
-    interpolated_scale: float=0.16
     eval_mode: bool = True
     no_der: bool = False
-    use_new_pil: bool = False
-    feat_normalize: bool = False
+    out_rttm_dir: Optional[str] = None
+    opt_style: Optional[str] = None
     
     # General configs
     output_filename: Optional[str] = None
@@ -117,7 +115,7 @@ class VadParams:
     Trial 2522 finished with value: 0.09605644326924494 and parameters: {'onset': 0.62, 'offset': 0.57, 'pad_onset': 0.23, 'pad_offset': 0.09, 'min_duration_on': 0.13, 'min_duration_off': 0.25}. Best is trial 2522 with value: 0.09605644326924494. (im303a e19last)
     Trial 3683 finished with value: 0.09960175732817779 and parameters: {'onset': 0.6, 'offset': 0.6, 'pad_onset': 0.22, 'pad_offset': 0.1, 'min_duration_on': 0.06, 'min_duration_off': 0.25}. Best is trial 3683 with value: 0.09960175732817779. (im303a e6-e19)
     """
-    opt_style: str
+    opt_style: str | None
     window_length_in_sec: float = field(init=False)
     shift_length_in_sec: float = field(init=False)
     smoothing: str = field(init=False)
@@ -174,8 +172,9 @@ def timestamps_to_pyannote_object(speaker_timestamps: List[Tuple[float, float]],
                                   uniq_id: str, 
                                   audio_rttm_values: Dict[str, str], 
                                   all_hypothesis: List[Tuple[str, Timeline]], 
-                                  all_reference, 
-                                  all_uems
+                                  all_reference: List[Tuple[str, Timeline]], 
+                                  all_uems: List[Tuple[str, Timeline]],
+                                  out_rttm_dir: str | None
                                 ):
     """ 
     Convert speaker timestamps to pyannote.core.Timeline object.
@@ -205,6 +204,9 @@ def timestamps_to_pyannote_object(speaker_timestamps: List[Tuple[float, float]],
     offset, dur = float(audio_rttm_values.get('offset', None)), float(audio_rttm_values.get('duration', None))
     hyp_labels = generate_diarization_output_lines(speaker_timestamps=speaker_timestamps, model_spk_num=len(speaker_timestamps))
     hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=uniq_id)
+    if out_rttm_dir is not None and os.path.exists(out_rttm_dir):
+        with open(f'{out_rttm_dir}/{uniq_id}.rttm','w') as f:
+            hypothesis.write_rttm(f)
     all_hypothesis.append([uniq_id, hypothesis])
     rttm_file = audio_rttm_values.get('rttm_filepath', None)
     if rttm_file is not None and os.path.exists(rttm_file):
@@ -288,6 +290,7 @@ def convert_pred_mat_to_segments(
     batch_preds_list: List[torch.Tensor], 
     unit_10ms_frame_count:int = 8,
     bypass_postprocessing: bool = False,
+    out_rttm_dir: str | None = None,
     ):
     """
     Convert prediction matrix to time-stamp segments.
@@ -326,8 +329,9 @@ def convert_pred_mat_to_segments(
                                                                                 audio_rttm_values, 
                                                                                 all_hypothesis, 
                                                                                 all_reference, 
-                                                                                all_uems
-                                                                            )
+                                                                                all_uems,
+                                                                                out_rttm_dir,
+                                                                               )
         batch_pred_ts_segs.append(spk_ts) 
     return all_hypothesis, all_reference, all_uems
 
@@ -384,7 +388,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
     infer_audio_rttm_dict = get_audio_rttm_map(cfg.dataset_manifest)
     diar_model._cfg.test_ds.batch_size = cfg.batch_size
-    diar_model.use_new_pil = cfg.use_new_pil
     
     # Model setup for inference 
     diar_model._cfg.test_ds.num_workers = cfg.num_workers
@@ -408,14 +411,19 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model_preds_total_list = diar_model.preds_total_list
     # torch.save(diar_model_preds_total_list, tensor_path)
 
+    if cfg.out_rttm_dir is not None and not os.path.exists(cfg.out_rttm_dir):
+        os.mkdir(cfg.out_rttm_dir)
+
     # Evaluation
-    vad_cfg = VadParams(opt_style='callhome_part1')
+    vad_cfg = VadParams(opt_style=cfg.opt_style)
     if not cfg.no_der:
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(infer_audio_rttm_dict,
                                                                     vad_cfg=vad_cfg, 
                                                                     batch_preds_list=diar_model_preds_total_list, 
                                                                     unit_10ms_frame_count=8,
-                                                                    bypass_postprocessing=cfg.bypass_postprocessing)
+                                                                    bypass_postprocessing=cfg.bypass_postprocessing,
+                                                                    out_rttm_dir=cfg.out_rttm_dir
+                                                                   )
         logging.info(f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments...")
         metric, mapping_dict, itemized_errors = score_labels(AUDIO_RTTM_MAP=infer_audio_rttm_dict, 
                                                             all_reference=all_refs, 
