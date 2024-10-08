@@ -17,8 +17,6 @@ python $BASEPATH/neural_diarizer/sortformer_diarization.py \
     model_path=/path/to/sortformer_model.nemo \
     batch_size=4 \
     interpolated_scale=0.16 \
-    save_tensor_images=True \
-    tensor_image_dir=/path/to/tensor_image_dir \
     dataset_manifest=/path/to/diarization_path_to_manifest.json
 
 """
@@ -29,10 +27,12 @@ from pytorch_lightning import seed_everything
 from nemo.collections.asr.models import SpkDiarEncLabelModel
 from nemo.core.config import hydra_runner
 from nemo.collections.asr.metrics.der import score_labels
+from hydra.core.config_store import ConfigStore
+
 
 import os
-
-from dataclasses import dataclass, is_dataclass, field
+import yaml
+from dataclasses import dataclass, is_dataclass
 from typing import Optional, Union, List, Tuple, Dict
 
 from pyannote.core import Segment, Timeline
@@ -55,21 +55,31 @@ from nemo.core.config import hydra_runner
 seed_everything(42)
 torch.backends.cudnn.deterministic = True
 
+
+@dataclass
+class PostProcessingParams:
+    window_length_in_sec: float = 0.15
+    shift_length_in_sec: float = 0.01
+    smoothing: bool = False
+    overlap: float = 0.5
+    onset: float = 0.5
+    offset: float = 0.5
+    pad_onset: float = 0.0
+    pad_offset: float = 0.0
+    min_duration_on: float = 0.0
+    min_duration_off: float = 0.0
+    filter_speech_first: bool = True
+
 @dataclass
 class DiarizationConfig:
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
-    tensor_image_dir: Optional[str] = None  # Path to a directory which contains tensor images
-    save_tensor_images: bool = False  # If True, saves tensor images to disk for debugging purposes
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
-    channel_selector: Optional[
-        Union[int, str]
-    ] = None  # Used to select a single channel from multichannel audio, or use average across channels
     
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
-    eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
+    postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
     presort_manifest: bool = True  # Significant inference speedup on short-form data due to padding reduction
     interpolated_scale: float=0.16
     eval_mode: bool = True
@@ -108,68 +118,22 @@ class DiarizationConfig:
     output_log_file: str = f"{optuna_study_name}.log"
     optuna_n_trials: int = 100000
 
+    # Method to load YAML configuration for postprocessing
+def load_postprocessing_from_yaml(postprocessing_yaml):
+    # Add PostProcessingParams as a field
+    postprocessing_params = OmegaConf.structured(PostProcessingParams())
+    if postprocessing_yaml is None:
+        logging.info(f"No postprocessing YAML file has been provided. Default postprocessing configurations will be applied.")
+    else:
+        # Load postprocessing params from the provided YAML file
+        with open(postprocessing_yaml, 'r') as file:
+            yaml_data = yaml.safe_load(file)
+            # Update the postprocessing_params with the loaded values
+            for key, value in yaml_data.items():
+                if hasattr(postprocessing_params, key):
+                    setattr(postprocessing_params, key, value)
+    return postprocessing_params
 
-
-@dataclass
-class VadParams:
-    """
-    Vad parameters from Optuna optimization studies. 
-    Trial 2522 finished with value: 0.09605644326924494 and parameters: {'onset': 0.62, 'offset': 0.57, 'pad_onset': 0.23, 'pad_offset': 0.09, 'min_duration_on': 0.13, 'min_duration_off': 0.25}. Best is trial 2522 with value: 0.09605644326924494. (im303a e19last)
-    Trial 3683 finished with value: 0.09960175732817779 and parameters: {'onset': 0.6, 'offset': 0.6, 'pad_onset': 0.22, 'pad_offset': 0.1, 'min_duration_on': 0.06, 'min_duration_off': 0.25}. Best is trial 3683 with value: 0.09960175732817779. (im303a e6-e19)
-    """
-    opt_style: str
-    window_length_in_sec: float = field(init=False)
-    shift_length_in_sec: float = field(init=False)
-    smoothing: str = field(init=False)
-    overlap: float = field(init=False)
-    onset: float = field(init=False)
-    offset: float = field(init=False)
-    pad_onset: float = field(init=False)
-    pad_offset: float = field(init=False)
-    min_duration_on: float = field(init=False)
-    min_duration_off: float = field(init=False)
-    filter_speech_first: bool = field(init=False)
-
-    def __post_init__(self):
-        if self.opt_style == "callhome_part1":
-            self.window_length_in_sec = 0.15
-            self.shift_length_in_sec = 0.01
-            self.smoothing = False
-            self.overlap = 0.5
-            self.onset = 0.62
-            self.offset = 0.57
-            self.pad_onset = 0.23
-            self.pad_offset = 0.09
-            self.min_duration_on = 0.13
-            self.min_duration_off = 0.25
-            self.filter_speech_first = True
-        elif self.opt_style == "dh3_dev":
-            self.window_length_in_sec = 0.15
-            self.shift_length_in_sec = 0.01
-            self.smoothing = False
-            self.overlap = 0.5
-            self.onset = 0.5
-            self.offset = 0.5
-            self.pad_onset = 0.0
-            self.pad_offset = 0.0
-            self.min_duration_on = 0.0
-            self.min_duration_off = 0.0
-            self.filter_speech_first = True
-        elif self.opt_style is None:
-            self.window_length_in_sec = 0.15
-            self.shift_length_in_sec = 0.01
-            self.smoothing = False
-            self.overlap = 0.5
-            self.onset = 0.5
-            self.offset = 0.5
-            self.pad_onset = 0.0
-            self.pad_offset = 0.0
-            self.min_duration_on = 0.0
-            self.min_duration_off = 0.0
-            self.filter_speech_first = True
-        else:
-            raise ValueError(f"Unknown opt_style: {self.opt_style}")
-        
 def timestamps_to_pyannote_object(speaker_timestamps: List[Tuple[float, float]],
                                   uniq_id: str, 
                                   audio_rttm_values: Dict[str, str], 
@@ -284,7 +248,7 @@ def get_uem_object(uem_lines: List[List[float]], uniq_id: str):
 
 def convert_pred_mat_to_segments(
     audio_rttm_map_dict: Dict[str, Dict[str, str]], 
-    vad_cfg, 
+    postprocessing_cfg, 
     batch_preds_list: List[torch.Tensor], 
     unit_10ms_frame_count:int = 8,
     bypass_postprocessing: bool = False,
@@ -305,7 +269,7 @@ def convert_pred_mat_to_segments(
        all_uems (list): list of pyannote objects for each audio file.
     """
     batch_pred_ts_segs, all_hypothesis, all_reference, all_uems = [], [], [], []
-    cfg_vad_params = OmegaConf.structured(vad_cfg)
+    cfg_vad_params = OmegaConf.structured(postprocessing_cfg)
     for sample_idx, (uniq_id, audio_rttm_values) in tqdm(enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc="Running post-processing"):
         spk_ts = []
         offset, duration = audio_rttm_values['offset'], audio_rttm_values['duration']
@@ -333,6 +297,7 @@ def convert_pred_mat_to_segments(
 
 @hydra_runner(config_name="DiarizationConfig", schema=DiarizationConfig)
 def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
+    postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
 
     for key in cfg:
         cfg[key] = None if cfg[key] == 'None' else cfg[key]
@@ -374,11 +339,11 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         diar_model = SpkDiarEncLabelModel.restore_from(restore_path=cfg.model_path, map_location=map_location)
     else:
         raise ValueError("cfg.model_path must end with.ckpt or.nemo!")
-    # diar_model._cfg.diarizer.out_dir = cfg.tensor_image_dir
+    
     diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     diar_model.set_trainer(trainer)
-    # import ipdb; ipdb.set_trace()
+    
     if cfg.eval_mode:
         diar_model = diar_model.eval()
     diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
@@ -392,27 +357,20 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.streaming_mode = cfg.streaming_mode
     diar_model.sortformer_diarizer.step_len = cfg.step_len
     diar_model.sortformer_diarizer.mem_len = cfg.mem_len
-    diar_model.save_tensor_images = cfg.save_tensor_images
+    
     # Save the list of tensors
     tensor_filename = os.path.basename(cfg.dataset_manifest).replace("manifest.", "").replace(".json", "")
     model_base_path = os.path.dirname(cfg.model_path)
-    # tensor_path = f"{model_base_path}/pred_tensors/{tensor_filename}.pt"
-    # if False:
-    #     logging.info(f"Loading the saved tensors from {tensor_path}...")
-    #     diar_model_preds_total_list = torch.load(tensor_path)
-    # else:
-    # diar_model._cfg.preprocessor.normalize = "NA"
-    # diar_model._cfg.preprocessor.normalize = "NA"
-    # diar_model.preprocessor._cfg.normalize = "NA"
     diar_model.test_batch()
     diar_model_preds_total_list = diar_model.preds_total_list
-    # torch.save(diar_model_preds_total_list, tensor_path)
 
     # Evaluation
-    vad_cfg = VadParams(opt_style='callhome_part1')
+    # postprocessing_cfg = PostProcessingParams(opt_style='callhome_part1')
+    # postprocessing_cfg = cfg.load_postprocessing_from_yaml()
+
     if not cfg.no_der:
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(infer_audio_rttm_dict,
-                                                                    vad_cfg=vad_cfg, 
+                                                                    postprocessing_cfg=postprocessing_cfg, 
                                                                     batch_preds_list=diar_model_preds_total_list, 
                                                                     unit_10ms_frame_count=8,
                                                                     bypass_postprocessing=cfg.bypass_postprocessing)
@@ -424,7 +382,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                                                             collar=cfg.collar, 
                                                             ignore_overlap=cfg.ignore_overlap
                                                             )
-        print("VadParams:", vad_cfg)
+        print("PostProcessingParams:", postprocessing_cfg)
 
 if __name__ == '__main__':
     main()
