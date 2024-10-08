@@ -26,6 +26,15 @@ from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeat
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 
 
+def patch_json_paths(path, fn=None):
+    fp_out = tempfile.NamedTemporaryFile(delete=False)
+    with open(path, 'r', encoding='utf-8') as fp_in:
+        for ix, line in enumerate(fp_in):
+            data = json.loads(line)
+            data = fn(data)
+            fp_out.write(f"{json.dumps(data)}\n".encode())
+    return fp_out.name
+
 class TestASRDatasets:
     labels = ["fash", "fbbh", "fclc"]
     unique_labels_in_seq = ['0', '1', '2', '3', "zero", "one", "two", "three"]
@@ -62,6 +71,11 @@ class TestASRDatasets:
         manifest_path = os.path.abspath(
             os.path.join(test_data_dir, 'asr/tarred_an4/tarred_duplicate_audio_manifest.json')
         )
+        def patch_fn(data):
+            data['audio_filepath'] = os.path.join(os.path.abspath(test_data_dir), data['audio_filepath'])
+            return data
+
+        manifest_path = patch_json_paths(manifest_path, patch_fn)
 
         # Test braceexpand loading
         tarpath = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/audio_{0..1}.tar'))
@@ -89,6 +103,11 @@ class TestASRDatasets:
     @pytest.mark.unit
     def test_feat_seqlabel_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/feat/emb.json'))
+        def patch_fn(data):
+            data['feature_filepath'] = data['feature_filepath'].replace("tests/.data", os.path.abspath(test_data_dir))
+            return data
+        manifest_path = patch_json_paths(manifest_path, patch_fn)
+
         feature_loader = ExternalFeatureLoader(augmentor=None)
         ds_braceexpand = FeatureToSeqSpeakerLabelDataset(
             manifest_filepath=manifest_path, labels=self.unique_labels_in_seq, feature_loader=feature_loader
