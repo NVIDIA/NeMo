@@ -257,7 +257,7 @@ jobs:
        RUNNER: self-hosted-azure-cpu
        TIMEOUT: 20
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_Audio:
      needs: [cicd-test-container-setup]
@@ -266,7 +266,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_Common:
      needs: [cicd-test-container-setup]
@@ -276,7 +276,7 @@ jobs:
        RUNNER: self-hosted-azure-cpu
        TIMEOUT: 20
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_LLM:
      needs: [cicd-test-container-setup]
@@ -285,7 +285,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_Multimodal:
      needs: [cicd-test-container-setup]
@@ -294,7 +294,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_NLP:
      needs: [cicd-test-container-setup]
@@ -304,7 +304,7 @@ jobs:
        RUNNER: self-hosted-azure-cpu
        TIMEOUT: 20
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_TTS:
      needs: [cicd-test-container-setup]
@@ -313,7 +313,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_Core:
      needs: [cicd-test-container-setup]
@@ -323,7 +323,7 @@ jobs:
        RUNNER: self-hosted-azure-cpu
        TIMEOUT: 20
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_Hydra:
      needs: [cicd-test-container-setup]
@@ -332,7 +332,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_Lightning:
      needs: [cicd-test-container-setup]
@@ -341,7 +341,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
   L0_Unit_Tests_CPU_Others:
      needs: [cicd-test-container-setup]
@@ -350,7 +350,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat \
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat \
          --ignore=tests/collections/asr \
          --ignore=tests/collections/audio \
          --ignore=tests/collections/common \
