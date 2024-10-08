@@ -209,6 +209,52 @@ def mcore_model_customize(cfg, model):
         drop_layers(model, cfg.get("drop_layers"))
 
 
+def set_sync_funcs(mcore_gpt_model: "MegatronGPTModel"):
+    """
+    Function to set synchronization functions for asynchronous gradient and 
+    parameter reduction in the Megatron model.
+
+    Args:
+        model (MegatronGPTModel): The Megatron model object for which synchronization
+        functions will be configured.
+
+    """
+    # handle asynchronous grad reduction
+    no_sync_func = None
+    grad_sync_func = None
+    param_sync_func = None
+    if mcore_gpt_model.with_distributed_adam:
+        if forward_only:
+            if mcore_gpt_model.validation_param_sync_overlap:
+                param_sync_func = mcore_gpt_model.sync_overlap_parameters
+        elif not mcore_gpt_model.use_mcore_dist_optim:
+            no_sync_func = partial(
+                mcore_gpt_model._optimizer.no_sync,
+                greedy_grad_copy=mcore_gpt_model.megatron_amp_O2,
+            )
+            grad_sync_func = mcore_gpt_model.reduce_overlap_gradients
+            param_sync_func = mcore_gpt_model.sync_overlap_parameters
+        else:
+            if mcore_gpt_model.cfg.optim.get("overlap_grad_sync", False):
+                no_sync_func = [model_chunk.no_sync for model_chunk in mcore_gpt_model.model]
+                no_sync_func = no_sync_func[0] if len(mcore_gpt_model.model) == 1 else no_sync_func
+
+                if mcore_gpt_model.cfg.optim.get("align_grad_reduce", True):
+                    grad_sync_func = [model_chunk.start_grad_sync for model_chunk in mcore_gpt_model.model]
+                    grad_sync_func = grad_sync_func[0] if len(mcore_gpt_model.model) == 1 else grad_sync_func
+            if mcore_gpt_model.cfg.optim.get("overlap_param_sync", False) and mcore_gpt_model.cfg.optim.get("align_param_gather", False):
+                param_sync_func = [model_chunk.start_param_sync for model_chunk in mcore_gpt_model.model]
+                param_sync_func = param_sync_func[0] if len(mcore_gpt_model.model) == 1 else param_sync_func
+
+    # pipeline schedules will get these from mcore_gpt_model.model.config
+    for module in mcore_gpt_model.get_model_module_list():
+        module.config.no_sync_func = no_sync_func
+        module.config.grad_sync_func = grad_sync_func
+        module.config.param_sync_func = param_sync_func
+        if mcore_gpt_model.use_mcore_dist_optim:
+            module.config.finalize_model_grads_func = finalize_model_grads
+
+
 class EmbeddingScalingMixin(torch.nn.Module):
     """
     A mixin class for scaling embeddings in Megatron GPT.
@@ -703,41 +749,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
-
-        # handle asynchronous grad reduction
-        no_sync_func = None
-        grad_sync_func = None
-        param_sync_func = None
-        if self.with_distributed_adam:
-            if forward_only:
-                if self.validation_param_sync_overlap:
-                    param_sync_func = self.sync_overlap_parameters
-            elif not self.use_mcore_dist_optim:
-                no_sync_func = partial(
-                    self._optimizer.no_sync,
-                    greedy_grad_copy=self.megatron_amp_O2,
-                )
-                grad_sync_func = self.reduce_overlap_gradients
-                param_sync_func = self.sync_overlap_parameters
-            else:
-                if self.cfg.optim.get("overlap_grad_sync", False):
-                    no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
-                    no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
-
-                    if self.cfg.optim.get("align_grad_reduce", True):
-                        grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
-                        grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
-                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("align_param_gather", False):
-                    param_sync_func = [model_chunk.start_param_sync for model_chunk in self.model]
-                    param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
-
-        # pipeline schedules will get these from self.model.config
-        for module in self.get_model_module_list():
-            module.config.no_sync_func = no_sync_func
-            module.config.grad_sync_func = grad_sync_func
-            module.config.param_sync_func = param_sync_func
-            if self.use_mcore_dist_optim:
-                module.config.finalize_model_grads_func = finalize_model_grads
+        set_sync_funcs(self)
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
