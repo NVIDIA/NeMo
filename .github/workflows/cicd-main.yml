@@ -131,16 +131,16 @@ jobs:
         ### \'\'
   
   # L0: GPU unit tests
-  OPTIONAL_L0_Unit_Tests_GPU_ASR:
+  L0_Unit_Tests_GPU_ASR:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_GPU_ASR') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_ASR') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure
        TIMEOUT: 20
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --with_downloads
-       IS_OPTIONAL: true
+       IS_OPTIONAL: false
 
   L0_Unit_Tests_GPU_Audio:
      needs: [cicd-test-container-setup]
@@ -1235,15 +1235,15 @@ jobs:
   
 
   # L2: Transducer alignment
-  OPTIONAL_L2_Transducer_alignment_Running_pytest:
+  L2_Transducer_alignment_Running_pytest:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Transducer_alignment_Running_pytest') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Transducer_alignment_Running_pytest') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
         pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1 --with_downloads
-      IS_OPTIONAL: true
+      IS_OPTIONAL: false
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
