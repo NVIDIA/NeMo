@@ -39,8 +39,8 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.nn.attention
+import torch.nn.functional as F
 
 from nemo.utils import avoid_float16_autocast_context
 
@@ -79,9 +79,17 @@ class MultiHeadAttention(nn.Module):
         self.use_pytorch_sdpa = use_pytorch_sdpa
         if self.use_pytorch_sdpa:
             if not use_pytorch_sdpa_backends:
-                use_pytorch_sdpa_backends = list(set(b for b in torch.nn.attention.SDPBackend.__members__.values()) - set([torch.nn.attention.SDPBackend.ERROR]))
+                use_pytorch_sdpa_backends = list(
+                    set(b for b in torch.nn.attention.SDPBackend.__members__.values())
+                    - set([torch.nn.attention.SDPBackend.ERROR])
+                )
             else:
-                use_pytorch_sdpa_backends = list(map(lambda backend_name: getattr(torch.nn.attention.SDPBackend, backend_name), use_pytorch_sdpa_backends))
+                use_pytorch_sdpa_backends = list(
+                    map(
+                        lambda backend_name: getattr(torch.nn.attention.SDPBackend, backend_name),
+                        use_pytorch_sdpa_backends,
+                    )
+                )
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
 
         self.cache_drop_size = None
