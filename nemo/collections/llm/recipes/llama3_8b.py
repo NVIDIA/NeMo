@@ -139,7 +139,7 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@run.cli.factory(target=pretrain, name=NAME + "_basic")
 def pretrain_recipe_basic(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
@@ -187,7 +187,7 @@ def pretrain_recipe_basic(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_optimized")
+@run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
