@@ -40,6 +40,7 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.attention
 
 from nemo.utils import avoid_float16_autocast_context
 
@@ -76,22 +77,12 @@ class MultiHeadAttention(nn.Module):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
         self.use_pytorch_sdpa = use_pytorch_sdpa
-        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
         if self.use_pytorch_sdpa:
-            from torch.nn.attention import SDPBackend, sdpa_kernel
-
-            if not self.use_pytorch_sdpa_backends:
-                use_pytorch_sdpa_backends = list(
-                    set(b for b in SDPBackend.__members__.values()) - set([SDPBackend.ERROR])
-                )
+            if not use_pytorch_sdpa_backends:
+                use_pytorch_sdpa_backends = list(set(b for b in torch.nn.attention.SDPBackend.__members__.values()) - set([torch.nn.attention.SDPBackend.ERROR]))
             else:
-                use_pytorch_sdpa_backends = list(
-                    map(lambda backend_name: getattr(SDPBackend, backend_name), self.use_pytorch_sdpa_backends)
-                )
-
-            self.sdpa_backend_context_manager = lambda: sdpa_kernel(use_pytorch_sdpa_backends)
-        else:
-            self.sdpa_backend_context_manager = contextlib.nullcontext  # for torch.compile support
+                use_pytorch_sdpa_backends = list(map(lambda backend_name: getattr(torch.nn.attention.SDPBackend, backend_name), use_pytorch_sdpa_backends))
+        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
 
         self.cache_drop_size = None
         self.use_bias = use_bias
@@ -182,7 +173,12 @@ class MultiHeadAttention(nn.Module):
                     mask = ~mask.unsqueeze(1)
 
                 dropout_rate = self.dropout_rate if self.training else 0
-                with self.sdpa_backend_context_manager():
+                if self.use_pytorch_sdpa_backends:
+                    with torch.nn.attention.sdpa_kernel(self.use_pytorch_sdpa_backends):
+                        out = torch.nn.functional.scaled_dot_product_attention(
+                            q, k, v, attn_mask=mask, dropout_p=dropout_rate
+                        )
+                else:
                     out = torch.nn.functional.scaled_dot_product_attention(
                         q, k, v, attn_mask=mask, dropout_p=dropout_rate
                     )
@@ -325,7 +321,12 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
                     matrix_bd.masked_fill_(mask, -INF_VAL)
 
                 dropout_rate = self.dropout_rate if self.training else 0
-                with self.sdpa_context():
+                if self.use_pytorch_sdpa_backends:
+                    with torch.nn.attention.sdpa_kernel(self.use_pytorch_sdpa_backends):
+                        out = torch.nn.functional.scaled_dot_product_attention(
+                            q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=dropout_rate
+                        )
+                else:
                     out = torch.nn.functional.scaled_dot_product_attention(
                         q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=dropout_rate
                     )
