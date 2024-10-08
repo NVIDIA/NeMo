@@ -35,6 +35,10 @@ def get_args():
     parser.add_argument('--vp', type=int, default=None, help="Override virtual pipeline parallelism")
     parser.add_argument('--cp', type=int, default=None, help="Override context parallelism")
     parser.add_argument('--sp', type=bool, default=None, help="Override sequence parallel")
+    parser.add_argument(
+        '--precision', type=str, choices=['bf16', 'fp16', 'fp32'], default='bf16', help="Override recipe precision"
+    )
+    parser.add_argument('--fp8', action='store_true', help="Enable FP8")
 
     return parser.parse_args()
 
@@ -97,10 +101,23 @@ def main():
     )
     pretrain_recipe.callbacks.append(debugger_callback)
 
+    # Recipe Overrides
     pretrain_recipe.trainer.max_steps = args.max_steps
     pretrain_recipe.trainer.log_every_n_steps = 1
     pretrain_recipe.log.ckpt.every_n_train_steps = 1
     pretrain_recipe.trainer.val_check_interval = 0.5
+
+    if not args.precision == 'bf16' or args.fp8:  # default case is bf16 without fp8
+        import llm.recipes.precision.mixed_precision as mp_recipes
+
+        key = [args.precision, args.fp8]
+        precision_recipe = {
+            ("fp16", False): mp_recipes.fp16_mixed,
+            ("bf16", True): mp_recipes.bf16_with_fp8_mixed,
+            ("fp16", True): mp_recipes.fp16_with_fp8_mixed,
+            # Need fp32
+        }[key]
+        pretrain_recipe.plugins = precision_recipe()
 
     parallelisms = {
         "tensor_model_parallel_size": args.tp,
