@@ -27,6 +27,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
