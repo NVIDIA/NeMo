@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import math
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
@@ -39,17 +40,19 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingBatchSampler,
 )
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 class AudioToTextDataModule(pl.LightningDataModule):
-    def __init__(self, cfg: DictConfig, tokenizer: TokenizerSpec):
+    def __init__(self, config: Union[DictConfig, Dict], tokenizer: TokenizerSpec):
         super().__init__()
-        self.cfg = cfg
+        self.cfg = OmegaConf.create(config) if not isinstance(config, DictConfig) else config
         self.tokenizer = tokenizer
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
+        self._validation_names = None
+        self._test_names = None
 
     def prepare_data(self):
         # download, IO, etc. Useful with shared filesystems
@@ -64,6 +67,19 @@ class AudioToTextDataModule(pl.LightningDataModule):
             self._validation_ds = self._create_dataset('validation')
         if stage == 'test' or stage is None:
             self._test_ds = self._create_dataset('test')
+
+        if stage != 'predict':
+            self.data_sampler = MegatronDataSampler(
+                seq_len=self.cfg.max_seq_length,
+                micro_batch_size=self.cfg.micro_batch_size,
+                global_batch_size=self.cfg.global_batch_size,
+                rampup_batch_size=self.cfg.get("rampup_batch_size", None),
+                dataloader_type="batch",  # "batch" should be used for SFT,
+            )
+
+            # Follows the calculation in nemo.collections.nlp.data.language_modeling.megatron.
+            # base_dataset_utils.get_datasets_weights_and_num_samples
+            self.max_train_samples = int(math.ceil(self.cfg.global_batch_size * self.trainer.max_steps * 1.005))
 
     @lru_cache
     def _create_dataset(self, mode: str):
@@ -118,6 +134,8 @@ class AudioToTextDataModule(pl.LightningDataModule):
                 context_key=data_cfg.get('context_key', "context"),
                 default_context_key=data_cfg.get('default_context_key', "default_context"),
             )
+
+        setattr(self, f"_{mode}_names", data_cfg.get('name', None))
 
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
@@ -176,20 +194,8 @@ class AudioToTextDataModule(pl.LightningDataModule):
             )
             return dataloader
 
-        if mode == 'predict':
-            sampler = None
-        else:
-            sampler = MegatronDataSampler(
-                seq_len=data_cfg.max_seq_length,
-                micro_batch_size=data_cfg.micro_batch_size,
-                global_batch_size=data_cfg.global_batch_size,
-                rampup_batch_size=data_cfg.get("rampup_batch_size", 0),
-                dataloader_type="batch",  # "batch" should be used for SFT
-            )
-
         return DataLoader(
             dataset,
-            batch_sampler=sampler,
             num_workers=data_cfg.num_workers,
             pin_memory=data_cfg.pin_memory,
             persistent_workers=data_cfg.get("persistent_workers", False),
@@ -247,11 +253,11 @@ class AudioToTextDataModule(pl.LightningDataModule):
                         )
                     )
 
-            if 'names' not in data_cfg:
+            if 'name' not in data_cfg:
                 names = []
                 for cur_manifest_filepath in manifest_filepath:
                     names.append(Path(cur_manifest_filepath).stem)
-                OmegaConf.update(data_cfg, 'names', names, force_add=True)
+                OmegaConf.update(data_cfg, 'name', names, force_add=True)
                 logging.info(f'Update dataset names as {names}')
             return dls
 
@@ -268,7 +274,10 @@ class AudioToTextDataModule(pl.LightningDataModule):
             return self._create_lhotse_dataloader(self._validation_ds, 'validation')
         else:
             if isinstance(self._validation_ds, list):
-                return [self._create_nemo_dataloader(ds, 'validation') for ds in self._validation_ds]
+                if len(self._validation_ds) > 1:
+                    return [self._create_nemo_dataloader(ds, 'validation') for ds in self._validation_ds]
+                else:
+                    return self._create_nemo_dataloader(self._validation_ds[0], 'validation')
             else:
                 return self._create_nemo_dataloader(self._validation_ds, 'validation')
 
@@ -278,7 +287,10 @@ class AudioToTextDataModule(pl.LightningDataModule):
             return self._create_lhotse_dataloader(self._test_ds, 'test')
         else:
             if isinstance(self._test_ds, list):
-                return [self._create_nemo_dataloader(ds, 'test') for ds in self._test_ds]
+                if len(self._test_ds) > 1:
+                    return [self._create_nemo_dataloader(ds, 'test') for ds in self._test_ds]
+                else:
+                    return self._create_nemo_dataloader(self._test_ds[0], 'test')
             else:
                 return self._create_nemo_dataloader(self._test_ds, 'test')
 
@@ -295,7 +307,10 @@ class AudioToTextDataModule(pl.LightningDataModule):
             return self._create_lhotse_dataloader(self._test_ds, 'predict')
         else:
             if isinstance(self._test_ds, list):
-                return [self._create_nemo_dataloader(ds, 'predict') for ds in self._test_ds]
+                if len(self._test_ds) > 1:
+                    return [self._create_nemo_dataloader(ds, 'predict') for ds in self._test_ds]
+                else:
+                    return self._create_nemo_dataloader(self._test_ds[0], 'predict')
             else:
                 return self._create_nemo_dataloader(self._test_ds, 'predict')
 

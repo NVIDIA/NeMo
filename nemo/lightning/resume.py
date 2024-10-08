@@ -20,6 +20,7 @@ from typing import Optional, Union
 
 import lightning_fabric as fl
 import pytorch_lightning as pl
+from megatron.core import dist_checkpointing
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
@@ -143,10 +144,10 @@ class AutoResume:
             metadata = json.load(f)
 
         assert self.restore_config, "PEFT resume requires specifying restore_config"
-        assert (
-            "://" in self.restore_config.path
-        ), "For now PEFT resume requires specifying the import path instead of local path"
-        base_model_path = self._try_import_model(model, self.restore_config.path)
+        if not dist_checkpointing.check_is_distributed_checkpoint(self.restore_config.path):
+            base_model_path = self._try_import_model(model, self.restore_config.path)
+        else:
+            base_model_path = Path(self.restore_config.path)
         if base_model_path != Path(metadata['model_ckpt_path']):
             raise ValueError(
                 f"When trying to resume a PEFT training run, found mismatching values: "

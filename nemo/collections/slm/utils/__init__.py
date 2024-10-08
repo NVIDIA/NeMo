@@ -12,4 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.slm.data.audio_to_text_data import AudioToTextDataModule
+
+from nemo.collections.slm.utils.hydra_utils import (
+    get_logger_from_config,
+    get_object_list_from_config,
+    get_resume_from_config,
+)
+from nemo.collections.slm.utils.model_transform import SpeechToTextLLMPEFT

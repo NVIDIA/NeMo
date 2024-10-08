@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 from typing import List, Optional
 
 import numpy as np
@@ -84,7 +85,10 @@ def get_nested_dict_value(d, key, sep="."):
         key: str
     """
     for k in key.split(sep):
-        d = d[k]
+        if k in d:
+            d = d[k]
+        else:
+            return None
     return d
 
 
@@ -243,17 +247,17 @@ class TextProcessing:
         self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
 
-        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id:
             self.bos_id = tokenizer.bos_id
         else:
             self.bos_id = None
 
-        if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id:
             self.eos_id = tokenizer.eos_id
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
@@ -312,7 +316,11 @@ class TextProcessing:
         else:
             pre_pad = []
         answer_text = text[len(context) :]
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+
+        if inspect.signature(self.tokenizer.text_to_ids).parameters.get('sample_alpha', None) is not None:
+            answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        else:
+            answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text)
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 
