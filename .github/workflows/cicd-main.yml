@@ -656,7 +656,7 @@ jobs:
           model.tensor_model_parallel_size=1 \
           model.pipeline_model_parallel_size=2 \
           prune.num_calib_size=8 \
-          prune.ffn_hidden_size=2752 \
+          prune.ffn_hidden_size=192 \
           prune.num_attention_heads=2 \
           prune.num_query_groups=2 \
           prune.hidden_size=null \
