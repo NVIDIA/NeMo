@@ -25,39 +25,39 @@ from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.tts.models import FastPitchModel
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def fastpitch_model():
     model = FastPitchModel.from_pretrained(model_name="tts_en_fastpitch_multispeaker")
     return model
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def fastpitch_model_path(fastpitch_model, tmp_path_factory):
     path = tmp_path_factory.mktemp("tts_models") / "fastpitch.nemo"
     fastpitch_model.save_to(path)
     return path
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def conformer_ctc_bpe_bn_model():
     model = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
     return model
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def conformer_ctc_bpe_bn_model_path(conformer_ctc_bpe_bn_model, tmp_path_factory):
     path = tmp_path_factory.mktemp("asr_models") / "conformer-ctc-bpe-bn.nemo"
     conformer_ctc_bpe_bn_model.save_to(path)
     return path
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def conformer_rnnt_bpe_bn_model():
     model = EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_small")
     return model
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def conformer_rnnt_bpe_bn_model_path(conformer_rnnt_bpe_bn_model, tmp_path_factory):
     path = tmp_path_factory.mktemp("asr_models") / "conformer-rnnt-bpe.nemo"
     conformer_rnnt_bpe_bn_model.save_to(path)

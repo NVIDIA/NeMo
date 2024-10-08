@@ -27,7 +27,7 @@ from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WS
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def conformer_ctc_bpe_model():
     model = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
     model.set_trainer(Trainer(devices=1, accelerator="cpu"))
