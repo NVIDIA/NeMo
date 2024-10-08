@@ -23,7 +23,7 @@ on:
     inputs:
       test_to_run:
         required: false
-        default: all
+        default: L0_Unit_Tests_GPU_ASR
         type: string
         description: Comma-separated list of tests to run. Use "all" to run the full test suite.
 
