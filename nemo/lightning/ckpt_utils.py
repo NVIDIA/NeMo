@@ -17,14 +17,19 @@ def idempotent_path_append(base_dir: Union[str, Path], suffix) -> Path:
 def ckpt_to_weights_subdir(filepath: Union[str, Path]) -> Path:
     """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory."""
     base_dir = ckpt_to_dir(filepath=filepath)
-    return idempotent_path_append(base_dir, WEIGHTS_PATH)
+    if (new_path := idempotent_path_append(base_dir, WEIGHTS_PATH)).exists():
+        return new_path
+    else:
+        return base_dir
 
 
 def ckpt_to_context_subdir(filepath: Union[str, Path]) -> Path:
     """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the context subdirectory."""
     base_dir = ckpt_to_dir(filepath=filepath)
-    return idempotent_path_append(base_dir, CONTEXT_PATH)
-
+    if (new_path := idempotent_path_append(base_dir, CONTEXT_PATH)).exists():
+        return new_path
+    else:
+        return base_dir
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     """PTL considers checkpoints as .ckpt files.
