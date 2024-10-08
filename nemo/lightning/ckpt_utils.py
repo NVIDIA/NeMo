@@ -31,7 +31,6 @@ def ckpt_to_context_subdir(filepath: Union[str, Path]) -> Path:
     else:
         return base_dir
 
-
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     """PTL considers checkpoints as .ckpt files.
     This method removes the extension and returns a path
