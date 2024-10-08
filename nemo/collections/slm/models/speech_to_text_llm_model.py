@@ -40,8 +40,8 @@ from omegaconf import ListConfig
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
+from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
@@ -118,7 +118,7 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
         required_keys.update(("labels", "loss_mask"))
 
     _batch = {
-        key: move_to_device(val, "cuda", non_blocking=True) if key in required_keys and val is not None else None
+        key: move_data_to_device(val, "cuda", non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
 
