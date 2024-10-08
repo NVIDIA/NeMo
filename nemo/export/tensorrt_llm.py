@@ -862,12 +862,13 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="task_id", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True)
         )
         return inputs
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
+        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes), Tensor(name="log_probs", shape=(-1,), dtype=np.single))
         return outputs
 
     @batch
@@ -898,14 +899,20 @@ class TensorRTLLM(ITritonDeployable):
             if "lora_uids" in inputs:
                 lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
                 infer_input["lora_uids"] = lora_uids[0].tolist()
+            if "compute_logprob" in inputs:
+                infer_input["output_log_probs"] = inputs.pop("compute_logprob")[0][0]
 
-            output_texts = self.forward(**infer_input)
+            if infer_input["output_log_probs"]:
+                output_texts, log_probs = self.forward(**infer_input)
+                log_probs = np.array(log_probs.cpu().numpy())
+            else:
+                output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
 
-        return {"outputs": output}
+        return {"outputs": output, "log_probs": log_probs}
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
