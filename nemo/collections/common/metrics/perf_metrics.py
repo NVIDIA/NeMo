@@ -42,7 +42,8 @@ class FLOPsMeasurementCallback(Callback):
         self.cfg = model_config
 
         self.run_cfg = self.cfg.get('run', {})
-        self.exp_cfg = self.cfg.get('exp_manager', {})
+        # exp_manager = None is valid and indicates no exp_manager should be initialized
+        self.exp_cfg = self.cfg.get('exp_manager', {}) or {}
         self.train_cfg = self.cfg.get('trainer', {})
         self.model_cfg = self.cfg.get('model', {})
 
@@ -84,7 +85,8 @@ class FLOPsMeasurementCallback(Callback):
             logging.error(f"Failed to calculate TFLOPs per sec per GPU.\n{exc}")
 
         logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
-        pl_module.logger.experiment.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
+        if pl_module.logger:
+            pl_module.logger.experiment.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
 
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
         """

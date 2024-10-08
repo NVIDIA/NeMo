@@ -663,8 +663,7 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
         self.decoder_layers = torch.nn.Sequential(torch.nn.Linear(self._feat_in, self._num_classes, bias=True))
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
-    @typecheck()
-    def forward(self, encoder_output):
+    def forward(self, encoder_output, **kwargs):
         batch, in_channels, timesteps = encoder_output.size()
 
         encoder_output = self.pooling(encoder_output).view(batch, in_channels)  # [B, C]
