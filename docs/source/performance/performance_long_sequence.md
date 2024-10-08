@@ -152,4 +152,4 @@
 
 
 ### Speedup of LLAMA2 7B training with CP over without CP
-![Speedup Graph](cp_speedup_figure.png)
+![cp_speedup_figure](https://github.com/user-attachments/assets/813904c7-3288-40d1-afd5-f3421ee70cb8)
