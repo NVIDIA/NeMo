@@ -114,7 +114,7 @@ def completions_v1(request: CompletionRequest):
             temperature=request.temperature,
             init_timeout=triton_settings.triton_request_timeout,
             openai_format_response=triton_settings.openai_format_response,
-            compute_logprob=True
+            compute_logprob=True,
         )
         if triton_settings.openai_format_response:
             return output

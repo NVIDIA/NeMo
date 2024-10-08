@@ -432,6 +432,7 @@ def evaluate(
 
     import requests
     from lm_eval import evaluator
+
     ## This may change, how to deal with it ? In the past Instance class was in lm_eval.base
     from lm_eval.api.instance import Instance
     from lm_eval.api.model import LM
@@ -482,6 +483,7 @@ def evaluate(
         """
         Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
         """
+
         def __init__(self, model_name, api_url, max_tokens_to_generate, temperature, top_p, top_k):
             self.model_name = model_name
             self.api_url = api_url
@@ -491,9 +493,7 @@ def evaluate(
             self.top_k = top_k
             super().__init__()
 
-        def _generate_tokens_logprobs(self, payload,
-                                      return_text: bool = False,
-                                      return_logprobs: bool = False):
+        def _generate_tokens_logprobs(self, payload, return_text: bool = False, return_logprobs: bool = False):
             response = requests.post(f"{self.api_url}/completions/", json=payload)
             response_data = response.json()
 
@@ -516,7 +516,7 @@ def evaluate(
                 full_text = context + continuation
                 instance = Instance(
                     request_type="loglikelihood",
-                    #doc={'text': full_text},
+                    # doc={'text': full_text},
                     doc=request.doc,
                     arguments=(full_text,),
                     idx=0,
@@ -536,7 +536,7 @@ def evaluate(
                     "temperature": self.temperature,
                     "top_p": self.top_p,
                     "top_k": self.top_k,
-                    #"compute_logprob": True ##TODO Do we want to have this as an
+                    # "compute_logprob": True ##TODO Do we want to have this as an
                     # user defined value or set it to True by default ?
                 }
 
@@ -544,7 +544,7 @@ def evaluate(
 
                 # Assuming log_probs is a list of log probabilities for each token
                 # TODO : why is log_prbs returned as list of list ? Change it to just a list maybe in query_llm ?
-                continuation_log_prob = sum(log_probs[0][0][-len(continuation):])
+                continuation_log_prob = sum(log_probs[0][0][-len(continuation) :])
                 results.append((continuation_log_prob, False))
 
             return results
@@ -558,7 +558,7 @@ def evaluate(
                 full_text = context + continuation
                 instance = Instance(
                     request_type="loglikelihood_rolling",
-                    #doc={'text': full_text},
+                    # doc={'text': full_text},
                     doc=request.doc,
                     arguments=(full_text,),
                     idx=0,
@@ -578,14 +578,14 @@ def evaluate(
                     "temperature": self.temperature,
                     "top_p": self.top_p,
                     "top_k": self.top_k,
-                    #"compute_logprob": True ##TODO Do we want to have this as an
+                    # "compute_logprob": True ##TODO Do we want to have this as an
                     # user defined value or set it to True by default ?
                 }
 
                 log_probs = self._generate_tokens_logprobs(payload, return_logprobs=True)
 
                 # Assuming log_probs is a list of log probabilities for each token
-                continuation_log_probs = log_probs[0][0][-len(continuation):]
+                continuation_log_probs = log_probs[0][0][-len(continuation) :]
                 results.append((continuation_log_probs, False))
 
             return results
@@ -609,7 +609,7 @@ def evaluate(
                     "temperature": self.temperature,
                     "top_p": self.top_p,
                     "top_k": self.top_k,
-                    #"compute_logprob": True ##TODO Do we want to have this as an
+                    # "compute_logprob": True ##TODO Do we want to have this as an
                     # user defined value or set it to True by default ?
                 }
 
