@@ -13,6 +13,8 @@
 # limitations under the License.
 import copy
 import glob
+import logging
+import time
 
 import jiwer
 import pytest
@@ -23,22 +25,40 @@ from nemo.collections.asr.models import ASRModel
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def stt_en_fastconformer_transducer_xlarge():
     model_name = "stt_en_fastconformer_transducer_xlarge"
-    return ASRModel.from_pretrained(model_name, map_location="cpu")
+    try:
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    except Exception as e:
+        logging.warning(f"Unsuccessful `from_pretrained`. Exception: {e}. Trying once more")
+        time.sleep(1)
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    return model
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def stt_en_fastconformer_transducer_xxlarge():
     model_name = "stt_en_fastconformer_transducer_xxlarge"
-    return ASRModel.from_pretrained(model_name, map_location="cpu")
+    try:
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    except Exception as e:
+        logging.warning(f"Unsuccessful `from_pretrained`. Exception: {e}. Trying once more")
+        time.sleep(1)
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    return model
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def stt_en_fastconformer_transducer_large():
     model_name = "stt_en_fastconformer_transducer_large"
-    return ASRModel.from_pretrained(model_name, map_location="cpu")
+    try:
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    except Exception as e:
+        logging.warning(f"Unsuccessful `from_pretrained`. Exception: {e}. Trying once more")
+        time.sleep(1)
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    return model
 
 
 @pytest.mark.with_downloads
