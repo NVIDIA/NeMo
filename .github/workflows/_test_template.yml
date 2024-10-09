@@ -78,5 +78,9 @@ jobs:
           if: always() && inputs.AFTER_SCRIPT != ':'
           run: |
             docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
+
+        - name: Container shutdown
+          if: always()
+          run: |
             docker container stop nemo_container_${{ github.run_id }}
             docker container rm nemo_container_${{ github.run_id }}
