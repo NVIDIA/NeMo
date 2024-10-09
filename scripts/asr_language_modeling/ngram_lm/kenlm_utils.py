@@ -31,9 +31,11 @@ import os
 import numpy as np
 import torch
 from joblib import Parallel, delayed
+from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.modules.flashlight_decoder import create_lexicon
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
 
@@ -67,8 +69,8 @@ def get_train_list(args_train_path):
 
 
 def setup_tokenizer(nemo_model_file):
-    """ TOKENIZER SETUP 
-        nemo_model_file (str): The path to the NeMo model file (.nemo).
+    """TOKENIZER SETUP
+    nemo_model_file (str): The path to the NeMo model file (.nemo).
     """
     logging.info(f"Loading nemo model '{nemo_model_file}' ...")
     if nemo_model_file.endswith('.nemo'):
@@ -93,10 +95,10 @@ def setup_tokenizer(nemo_model_file):
             is_aggregate_tokenizer = True
 
         tokenizer_nemo = model.tokenizer
-
+    cfg = model.cfg
     del model
 
-    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
+    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer, cfg
 
 
 def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose):
@@ -126,7 +128,9 @@ def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_t
 
 
 def read_train_file(
-    path, is_aggregate_tokenizer: bool = False, verbose: int = 0,
+    path,
+    is_aggregate_tokenizer: bool = False,
+    verbose: int = 0,
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []
@@ -221,3 +225,19 @@ def write_dataset(chunks, path):
             for text in chunks[chunk_idx]:
                 line = ' '.join(text)
                 path.write((line + '\n').encode())
+
+
+def save_flashlight_lexicon(tokenizer, lexicon_file):
+    logging.info(f"Writing Lexicon file to: {lexicon_file}...")
+    with open(lexicon_file, "w", encoding='utf_8', newline='\n') as f:
+        lexicon = create_lexicon(tokenizer)
+        lexicon.pop("<unk>")
+        for word in lexicon:
+            f.write(f"{word}\t{lexicon[word][0][0]}\n")
+    return lexicon_file
+
+
+def save_config_file(config, config_file, encoding_level):
+    OmegaConf.set_struct(config, False)
+    config.encoding_level = encoding_level
+    OmegaConf.save(config=config, f=config_file)
