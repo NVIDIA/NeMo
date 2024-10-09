@@ -23,6 +23,7 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.conversation import MLlamaTemplateConfig
 from nemo.collections.vlm.llama.data.task_encoder import LlamaTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -57,7 +58,12 @@ def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=Non
 
     multimodal_sample_config = MultiModalSampleConfig()
     multimodal_sample_config.conversation_template_config.system = None
-    multimodal_sample_config.conversation_template_config.chat_template = None
+    if model_id.endswith("Instruct"):
+        multimodal_sample_config.conversation_template_config.chat_template = None
+    else:
+        # TODO this doesn't work
+        multimodal_sample_config.conversation_template_config = MLlamaTemplateConfig()
+
     multimodal_sample_config.image_token.token_id = 128256
     multimodal_sample_config.conversation_template_config.stop_string = '<|eot_id|>'
 
@@ -95,13 +101,19 @@ def main(args):
     """
     gbs = 128
     mbs = 2
-    if args.restore_path.startswith("hf://"):
-        model_id = args.restore_path[len("hf://") :]
+    if args.restore_path.startswith("nemo://"):
+        model_id = args.restore_path[len("nemo://") :]
     else:
         model_id = None
     data, tokenizer = get_data_module(args.data_path, mbs, gbs, model_id=model_id)
 
-    model = vlm.MLlamaModel(vlm.MLlamaConfig11B(), tokenizer=tokenizer)
+    model_configs = {
+        "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
+        "meta-llama/Llama-3.2-11B-Vision-Instruct": vlm.MLlamaConfig11BInstruct,
+        "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaConfig90B,
+        "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaConfig90BInstruct,
+    }
+    model = vlm.MLlamaModel(model_configs[model_id](), tokenizer=tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(

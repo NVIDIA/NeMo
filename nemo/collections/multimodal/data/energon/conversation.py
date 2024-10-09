@@ -45,3 +45,25 @@ class LLaVATemplateConfig(BaseConversationTemplateConfig):
         {%- endif %}
     {%- endfor -%}
     """
+
+
+class MLlamaTemplateConfig(BaseConversationTemplateConfig):
+    """LLava specific template configuration which extends the base config"""
+
+    system: Optional[str] = (
+        "A chat between a curious user and artificial assistant agent. The assistant gives helpful, detailed and polite answers to user's questions.".format()
+    )  # fmt: off
+    roles: List[str] = field(default_factory=lambda: ['user', 'assistant'])
+    stop_string: str = "</s>"
+    chat_template = """
+    {%- for message in messages %}
+        {%- if message['role'] == 'system' %}
+            {{- message['content'][0]['text'].strip() + ' ' -}}
+        {%- elif message['role'] == 'user' %}
+            {{- 'USER: ' -}} {{- message['content'][0]['text'].strip() + ' ' -}}
+        {%- elif message['role'] == 'assistant' %}
+            {{- 'ASSISTANT: ' -}} {{- message['content'][0]['text'].strip() -}}
+            {{- '</s>' -}}
+        {%- endif %}
+    {%- endfor -%}
+    """
