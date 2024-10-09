@@ -30,6 +30,7 @@ def stt_en_fastconformer_transducer_xlarge():
     model_name = "stt_en_fastconformer_transducer_xlarge"
     return ASRModel.from_pretrained(model_name, map_location="cpu")
 
+
 @pytest.fixture(scope="module")
 def stt_en_fastconformer_transducer_xxlarge():
     model_name = "stt_en_fastconformer_transducer_xxlarge"
