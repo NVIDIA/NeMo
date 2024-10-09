@@ -63,7 +63,7 @@ jobs:
             (  
               set -e
 
-              docker container exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
+              docker exec --name nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
             ) 2> >(tee err.log)
 
             EXIT_CODE=$?
@@ -77,6 +77,6 @@ jobs:
         - name: after_script
           if: always() && inputs.AFTER_SCRIPT != ':'
           run: |
-            docker container exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
+            docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
             docker container stop nemo_container_${{ github.run_id }}
             docker container rm nemo_container_${{ github.run_id }}
