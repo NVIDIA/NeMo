@@ -13,8 +13,6 @@
 # limitations under the License.
 import copy
 import glob
-import logging
-import time
 
 import jiwer
 import pytest
@@ -49,7 +47,7 @@ def stt_en_fastconformer_transducer_large():
     ("model_name", "batch_size", "enable_bfloat16"),
     [
         ("stt_en_fastconformer_transducer_xlarge", 8, False),
-        # ("stt_en_fastconformer_transducer_xxlarge", 8, True),
+        ("stt_en_fastconformer_transducer_xxlarge", 8, True),
         pytest.param(
             "stt_en_fastconformer_transducer_large",
             8,
