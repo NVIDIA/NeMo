@@ -66,7 +66,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             return
 
         dset = self._download_data()
-        self._preprocess_and_split_data(dset, split_val_from_train = False)
+        self._preprocess_and_split_data(dset, split_val_from_train=False)
 
     def _download_data(self):
         logging.info(f"Downloading {self.__class__.__name__}...")
@@ -113,7 +113,14 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
                     # Write each example as a JSON line in the output file
                     # Using similar template as for NeMo 1.0 T5
                     json_line["input"] = (
-                        "Title: " + example["title"] + " " + "Paragraph: " + example["context"] + " " + " Question: " + example['question']
+                        "Title: "
+                        + example["title"]
+                        + " "
+                        + "Paragraph: "
+                        + example["context"]
+                        + " "
+                        + " Question: "
+                        + example['question']
                     )
                     json_line["output"] = example["answers"]["text"][0]
                     if split_name == "test":
