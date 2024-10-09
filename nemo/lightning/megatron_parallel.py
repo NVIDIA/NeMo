@@ -1516,22 +1516,6 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
     return loss
 
 
-def reduce_loss_across_pipeline(loss):
-    from megatron.core import parallel_state
-
-    from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-
-    # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
-    # it should be casted to other pipeline stages for logging.
-    # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-        if torch.distributed.get_rank() == get_last_rank():
-            torch.distributed.send(loss, 0)
-        elif torch.distributed.get_rank() == 0:
-            torch.distributed.recv(loss, get_last_rank())
-    return loss
-
-
 @contextmanager
 def moe_loss_tracker_ctx():
     from megatron.core.transformer.moe.moe_utils import (
