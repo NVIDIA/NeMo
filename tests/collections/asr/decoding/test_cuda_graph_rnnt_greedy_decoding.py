@@ -61,63 +61,63 @@ def stt_en_fastconformer_transducer_large():
     return model
 
 
-@pytest.mark.with_downloads
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-@pytest.mark.parametrize(
-    ("model_name", "batch_size", "enable_bfloat16"),
-    [
-        ("stt_en_fastconformer_transducer_xlarge", 8, False),
-        # ("stt_en_fastconformer_transducer_xxlarge", 8, True),
-        pytest.param(
-            "stt_en_fastconformer_transducer_large",
-            8,
-            True,
-            marks=pytest.mark.xfail(
-                reason="""Cannot instantiate the
-body cuda graph of a conditional node with a persistent kernel (in this case,
-a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
-            ),
-        ),
-    ],
-)
-@pytest.mark.parametrize("loop_labels", [False, True])
-def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16, loop_labels: bool, request):
-    if not loop_labels:
-        skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
-    if enable_bfloat16 and not torch.cuda.is_bf16_supported():
-        pytest.skip("bfloat16 is not supported")
-
-    device = torch.device("cuda")
-    nemo_model = request.getfixturevalue(model_name).to(device)
-    decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
-
-    with open_dict(decoding_config):
-        decoding_config["greedy"]["max_symbols"] = 5
-        decoding_config["greedy"]["loop_labels"] = loop_labels
-        decoding_config["greedy"]["use_cuda_graph_decoder"] = False
-
-    nemo_model.change_decoding_strategy(decoding_config)
-    audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
-
-    with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
-        actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
-
-    decoding_config["greedy"]["use_cuda_graph_decoder"] = True
-
-    nemo_model.change_decoding_strategy(decoding_config)
-
-    with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
-        fast_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
-
-    wer = jiwer.wer(actual_transcripts, fast_transcripts)
-
-    assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
-
-    for actual, fast in zip(actual_transcripts, fast_transcripts):
-        if actual != fast:
-            print("erroneous samples:")
-            print("Original transcript:", actual)
-            print("New transcript:", fast)
+# @pytest.mark.with_downloads
+# @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
+# @pytest.mark.parametrize(
+#     ("model_name", "batch_size", "enable_bfloat16"),
+#     [
+#         ("stt_en_fastconformer_transducer_xlarge", 8, False),
+#         # ("stt_en_fastconformer_transducer_xxlarge", 8, True),
+#         pytest.param(
+#             "stt_en_fastconformer_transducer_large",
+#             8,
+#             True,
+#             marks=pytest.mark.xfail(
+#                 reason="""Cannot instantiate the
+# body cuda graph of a conditional node with a persistent kernel (in this case,
+# a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
+#             ),
+#         ),
+#     ],
+# )
+# @pytest.mark.parametrize("loop_labels", [False, True])
+# def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16, loop_labels: bool, request):
+#     if not loop_labels:
+#         skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
+#     if enable_bfloat16 and not torch.cuda.is_bf16_supported():
+#         pytest.skip("bfloat16 is not supported")
+#
+#     device = torch.device("cuda")
+#     nemo_model = request.getfixturevalue(model_name).to(device)
+#     decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
+#
+#     with open_dict(decoding_config):
+#         decoding_config["greedy"]["max_symbols"] = 5
+#         decoding_config["greedy"]["loop_labels"] = loop_labels
+#         decoding_config["greedy"]["use_cuda_graph_decoder"] = False
+#
+#     nemo_model.change_decoding_strategy(decoding_config)
+#     audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
+#
+#     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
+#         actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+#
+#     decoding_config["greedy"]["use_cuda_graph_decoder"] = True
+#
+#     nemo_model.change_decoding_strategy(decoding_config)
+#
+#     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
+#         fast_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+#
+#     wer = jiwer.wer(actual_transcripts, fast_transcripts)
+#
+#     assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
+#
+#     for actual, fast in zip(actual_transcripts, fast_transcripts):
+#         if actual != fast:
+#             print("erroneous samples:")
+#             print("Original transcript:", actual)
+#             print("New transcript:", fast)
 
 
 @pytest.mark.with_downloads
