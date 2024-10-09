@@ -19,7 +19,8 @@ from nemo.collections.asr.models.classification_models import (
     EncDecClassificationModel,
     EncDecFrameClassificationModel,
 )
-from nemo.collections.asr.models.eesd_models import SpkDiarEncLabelModel
+# from nemo.collections.asr.models.eesd_models import SpkDiarEncLabelModel
+from nemo.collections.asr.models.eesd_models import SortformerEncLabelModel
 from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel

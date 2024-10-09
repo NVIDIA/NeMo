@@ -31,11 +31,7 @@ from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
-sort_probs_and_labels,
-get_pil_target,
-sort_targets_with_preds_ats
-)
+from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_pil_target, get_ats_targets
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
@@ -61,7 +57,7 @@ def init_weights(m):
         torch.nn.init.xavier_uniform(m.weight)
         m.bias.data.fill_(0.01)
 
-class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
+class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     """
     Encoder decoder class for multiscale diarization decoder (MSDD). Model class creates training, validation methods for setting
     up data performing model forward pass.
@@ -105,15 +101,14 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(self._cfg.preprocessor)
 
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = SpkDiarEncLabelModel.from_config_dict(self._cfg.spec_augment)
+            self.spec_augmentation = SortformerEncLabelModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
-        self.encoder = SpkDiarEncLabelModel.from_config_dict(self._cfg.encoder)
-        self.sortformer_diarizer = SpkDiarEncLabelModel.from_config_dict(self._cfg.diarizer_module)
-        self.transformer_encoder = SpkDiarEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
+        self.encoder = SortformerEncLabelModel.from_config_dict(self._cfg.encoder)
+        self.sortformer_modules = SortformerEncLabelModel.from_config_dict(self._cfg.diarizer_module)
+        self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
         self._init_loss_weights()
-        self.use_opt_ats = self._cfg.get("use_opt_ats", True)
 
         self.eps = 1e-3
         if trainer is not None:
@@ -138,15 +133,32 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         logging.info(f"Normalized weights for PIL {self.pil_weight} and ATS {self.ats_weight}")
         
     def _init_eval_metrics(self):
+        """ 
+        If there is no label, then the evaluation metrics will be based on Permutation Invariant Loss (PIL).
+        """
+        # The main F1 accuracies 
         self._accuracy_test = MultiBinaryAccuracy()
         self._accuracy_train = MultiBinaryAccuracy()
         self._accuracy_valid = MultiBinaryAccuracy()
+        
+        self._accuracy_test_ats = MultiBinaryAccuracy()
+        self._accuracy_train_ats = MultiBinaryAccuracy()
+        self._accuracy_valid_ats = MultiBinaryAccuracy()
+        
+        # VAD accuracy is not related to the loss types  
         self._accuracy_train_vad = MultiBinaryAccuracy()
         self._accuracy_valid_vad = MultiBinaryAccuracy()
         self._accuracy_test_vad = MultiBinaryAccuracy()
+        
         self._accuracy_train_ovl = MultiBinaryAccuracy()
         self._accuracy_valid_ovl = MultiBinaryAccuracy()
         self._accuracy_test_ovl = MultiBinaryAccuracy()
+        
+        # Overlapping regions accuracy should be separately computed for ATS 
+        self._accuracy_train_ovl_ats = MultiBinaryAccuracy()
+        self._accuracy_valid_ovl_ats = MultiBinaryAccuracy()
+        self._accuracy_test_ovl_ats = MultiBinaryAccuracy()
+        
         self.max_f1_acc = 0.0
         self.time_flag = 0.0
         self.time_flag_end = 0.0
@@ -288,8 +300,8 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         emb_seq = emb_seq.transpose(1, 2)
         if self._cfg.encoder.d_model != self._cfg.tf_d_model:
-            self.sortformer_diarizer.encoder_proj = self.sortformer_diarizer.encoder_proj.to(self.device)
-            emb_seq = self.sortformer_diarizer.encoder_proj(emb_seq)   
+            self.sortformer_modules.encoder_proj = self.sortformer_modules.encoder_proj.to(self.device)
+            emb_seq = self.sortformer_modules.encoder_proj(emb_seq)   
         return emb_seq, emb_seq_length
 
     def forward_infer(self, emb_seq, start_pos=0):
@@ -308,7 +320,7 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         """
         encoder_mask = self.length_to_mask(emb_seq)
         trans_emb_seq = self.transformer_encoder(encoder_states=emb_seq, encoder_mask=encoder_mask)
-        preds = self.sortformer_diarizer.forward_speaker_sigmoids(trans_emb_seq)
+        preds = self.sortformer_modules.forward_speaker_sigmoids(trans_emb_seq)
         return preds
     
     def process_signal(self, audio_signal, audio_signal_length):
@@ -323,7 +335,7 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         audio_signal_length, 
     ):
         """
-        Forward pass for training.
+        Forward pass for training and inference.
         
         Args:
             audio_signal (torch.Tensor): tensor containing audio waveform
@@ -357,77 +369,60 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         targets_vad_mask_ = targets_vad_mask.int().unsqueeze(0) 
         return preds_vad_mask_, preds_ovl, targets_vad_mask_, targets_ovl
     
-    def _reset_train_f1_accs(self):
-        self._accuracy_train.reset() 
-        self._accuracy_train_vad.reset()
-        self._accuracy_train_ovl.reset()
-    
     def _get_aux_train_evaluations(self, preds, targets, target_lens):
         # Arrival-time sorted (ATS) targets
-        if self.use_opt_ats:
-            targets_ats = sort_targets_with_preds_ats(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
-        else:
-            targets_ats = sort_probs_and_labels(targets.clone(), discrete=False)
+        targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         # Optimally permuted targets for Permutation-Invariant Loss (PIL)
         targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
         pil_loss = self.loss(probs=preds, labels=targets_pil, target_lens=target_lens)
         loss = self.ats_weight * ats_loss + self.pil_weight * pil_loss
-        self.log('loss', loss, sync_dist=True)
-        self.log('ats_loss', ats_loss, sync_dist=True)
-        self.log('pil_loss', pil_loss, sync_dist=True)
-        self.log('learning_rate', self._optimizer.param_groups[0]['lr'], sync_dist=True)
-
-        self._reset_train_f1_accs()
+        
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_train_vad(preds_vad, targets_vad, target_lens)
         self._accuracy_train_ovl(preds_ovl, targets_ovl, target_lens)
         train_f1_vad = self._accuracy_train_vad.compute()
         train_f1_ovl = self._accuracy_train_ovl.compute()
         self._accuracy_train(preds, targets_pil, target_lens)
-        f1_acc = self._accuracy_train.compute()
-        precision, recall = self._accuracy_train.compute_pr()
+        train_f1_acc = self._accuracy_train.compute()
+        train_precision, train_recall = self._accuracy_train.compute_pr()
 
-        self.log('train_f1_acc', f1_acc, sync_dist=True)
-        self.log('train_precision', precision, sync_dist=True)
-        self.log('train_recall', recall, sync_dist=True)
-        self.log('train_f1_vad_acc', train_f1_vad, sync_dist=True)
-        self.log('train_f1_ovl_acc', train_f1_ovl, sync_dist=True)
+        preds_vad_ats, preds_ovl_ats, targets_vad_ats, targets_ovl_ats = self._get_ovl_and_vad(preds, targets_ats)
+        self._accuracy_train_ovl_ats(preds_ovl_ats, targets_ovl_ats, target_lens)
+        train_f1_ovl_ats = self._accuracy_train_ovl_ats.compute()
+        self._accuracy_train_ats(preds, targets_ats, target_lens)
+        train_f1_acc_ats= self._accuracy_train_ats.compute()
 
-        self._reset_train_f1_accs()
-        preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_ats)
-        self._accuracy_train_vad(preds_vad, targets_vad, target_lens)
-        self._accuracy_train_ovl(preds_ovl, targets_ovl, target_lens)
-        train_f1_vad = self._accuracy_train_vad.compute()
-        train_f1_ovl = self._accuracy_train_ovl.compute()
-        self._accuracy_train(preds, targets_ats, target_lens)
-        f1_acc = self._accuracy_train.compute()
-
-        self.log('train_f1_acc_ats', f1_acc, sync_dist=True)
-        self.log('train_f1_vad_acc_ats', train_f1_vad, sync_dist=True)
-        self.log('train_f1_ovl_acc_ats', train_f1_ovl, sync_dist=True)
-        return loss
+        self._accuracy_train.reset()
+        self._accuracy_train_ats.reset()
+        self._accuracy_train_ovl.reset()
+        self._accuracy_train_ovl_ats.reset()
+        self._accuracy_train_vad.reset()
+         
+        train_metrics = {
+            'loss': loss,
+            'ats_loss': ats_loss,
+            'pil_loss': pil_loss,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+            'train_f1_acc': train_f1_acc,
+            'train_precision': train_precision,
+            'train_recall': train_recall,
+            'train_f1_vad_acc': train_f1_vad,
+            'train_f1_ovl_acc': train_f1_ovl,
+            'train_f1_acc_ats': train_f1_acc_ats,
+            'train_f1_ovl_acc_ats': train_f1_ovl_ats,
+        } 
+        return train_metrics
 
     def training_step(self, batch: list, batch_idx: int):
         audio_signal, audio_signal_length, targets, target_lens = batch
         preds = self.forward(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
-        loss = self._get_aux_train_evaluations(preds, targets, target_lens)
-        self._accuracy_train.reset()
-        return {'loss': loss}
-
-    def _reset_valid_f1_accs(self):
-        self._accuracy_valid.reset() 
-        self._accuracy_valid_vad.reset()
-        self._accuracy_valid_ovl.reset()
-    
-    def _reset_test_f1_accs(self):
-        self._accuracy_valid.reset() 
-        self._accuracy_test_vad.reset()
-        self._accuracy_test_ovl.reset()
+        train_metrics = self._get_aux_train_evaluations(preds, targets, target_lens)
+        self.log_dict(train_metrics, sync_dist=True, on_step=True, on_epoch=False, logger=True)
+        return {'loss': train_metrics['loss']}
         
     def _cumulative_test_set_eval(self, score_dict: Dict[str, float], batch_idx: int, sample_count: int):
         if batch_idx == 0:
-            self._reset_test_f1_accs()
             self.total_sample_counts = 0
             self.cumulative_f1_acc_sum = 0
             self.cumulative_f1_vad_acc_sum = 0
@@ -447,49 +442,41 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         }
 
     def _get_aux_validation_evaluations(self, preds, targets, target_lens):
-        if self.use_opt_ats:
-            targets_ats = sort_targets_with_preds_ats(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
-        else:
-            targets_ats = sort_probs_and_labels(targets.clone(), discrete=False, speaker_permutations=self.speaker_permutations)
-
+        targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
 
-        ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
-        pil_loss = self.loss(probs=preds, labels=targets_pil, target_lens=target_lens)
-        loss = self.ats_weight * ats_loss + self.pil_weight * pil_loss
+        val_ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
+        val_pil_loss = self.loss(probs=preds, labels=targets_pil, target_lens=target_lens)
+        val_loss = self.ats_weight * val_ats_loss + self.pil_weight * val_pil_loss
 
-        self._reset_valid_f1_accs()
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_valid_vad(preds_vad, targets_vad, target_lens)
         valid_f1_vad = self._accuracy_valid_vad.compute()
         self._accuracy_valid_ovl(preds_ovl, targets_ovl, target_lens)
         valid_f1_ovl = self._accuracy_valid_ovl.compute()
         self._accuracy_valid(preds, targets_pil, target_lens)
-        f1_acc = self._accuracy_valid.compute()
-        precision, recall = self._accuracy_valid.compute_pr()
+        val_f1_acc = self._accuracy_valid.compute()
+        val_precision, val_recall = self._accuracy_valid.compute_pr()
 
-        self._reset_valid_f1_accs()
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_ats)
         self._accuracy_valid_vad(preds_vad, targets_vad, target_lens)
         self._accuracy_valid_ovl(preds_ovl, targets_ovl, target_lens)
         valid_f1_ovl_ats = self._accuracy_valid_ovl.compute()
         self._accuracy_valid(preds, targets_ats, target_lens)
-        f1_acc_ats = self._accuracy_valid.compute()
+        valid_f1_acc_ats = self._accuracy_valid.compute()
 
         val_metrics = {
-            'val_loss': loss,
-            'val_ats_loss': ats_loss,
-            'val_pil_loss': pil_loss,
-            'val_f1_acc': f1_acc,
-            'val_precision': precision,
-            'val_recall': recall,
+            'val_loss': val_loss,
+            'val_ats_loss': val_ats_loss,
+            'val_pil_loss': val_pil_loss,
+            'val_f1_acc': val_f1_acc,
+            'val_precision': val_precision,
+            'val_recall': val_recall,
             'val_f1_vad_acc': valid_f1_vad,
             'val_f1_ovl_acc': valid_f1_ovl,
-            'val_f1_acc_ats': f1_acc_ats,
+            'val_f1_acc_ats': valid_f1_acc_ats,
             'val_f1_ovl_acc_ats': valid_f1_ovl_ats
         }
-        for key, value in val_metrics.items():
-            self.log(key, value, sync_dist=True)
         return val_metrics
 
     def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
@@ -498,22 +485,12 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
             audio_signal=audio_signal,
             audio_signal_length=audio_signal_length,
         )
-        self.val_metrics = self._get_aux_validation_evaluations(preds, targets, target_lens)
-
+        val_metrics = self._get_aux_validation_evaluations(preds, targets, target_lens)
         if isinstance(self.trainer.val_dataloaders, list) and len(self.trainer.val_dataloaders) > 1:
-            self.validation_step_outputs[dataloader_idx].append(self.val_metrics)
+            self.validation_step_outputs[dataloader_idx].append(val_metrics)
         else:
-            self.validation_step_outputs.append(self.val_metrics)
- 
-        return self.val_metrics
-
-    def on_validation_epoch_end(self):
-       """
-       Function that is intended to be excuted at the end of each validation epoch.
-       These lines are recommended to be execuded in Pytorch-lightning > 2.3.0 to accumulate the metric across devices.
-       """
-       for key, value in self.val_metrics.items():
-           self.log(key, value, sync_dist=True)
+            self.validation_step_outputs.append(val_metrics)
+        return val_metrics
 
     def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
         if not outputs:
@@ -530,7 +507,13 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         val_f1_acc_ats_mean = torch.stack([x['val_f1_acc_ats'] for x in outputs]).mean()
         val_f1_ovl_acc_ats_mean = torch.stack([x['val_f1_ovl_acc_ats'] for x in outputs]).mean()
 
-        metrics = {
+        self._accuracy_valid.reset()
+        self._accuracy_valid_vad.reset()
+        self._accuracy_valid_ats.reset()
+        self._accuracy_valid_ovl.reset()
+        self._accuracy_valid_ovl_ats.reset()
+        
+        multi_val_metrics = {
             'val_loss': val_loss_mean,
             'val_ats_loss': val_ats_loss_mean,
             'val_pil_loss': val_pil_loss_mean,
@@ -542,18 +525,19 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
             'val_f1_acc_ats': val_f1_acc_ats_mean,
             'val_f1_ovl_acc_ats': val_f1_ovl_acc_ats_mean
         }
-        return {'log': metrics}
+        return {'log': multi_val_metrics}
 
             
     def multi_test_epoch_end(self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         f1_acc = self._accuracy_test.compute()
         self._accuracy_test.reset()
-        self.log('test_f1_acc', f1_acc, sync_dist=True)
-        return {
+        multi_test_metrics = {
             'test_loss': test_loss_mean,
             'test_f1_acc': f1_acc,
         }
+        self.log_dict(multi_test_metrics, sync_dist=True, on_step=True, on_epoch=False, logger=True)
+        return multi_test_metrics
    
     def test_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
         audio_signal, audio_signal_length, targets, target_lens = batch
@@ -577,10 +561,7 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         return self.preds_all
 
     def _get_aux_test_batch_evaluations(self, batch_idx, preds, targets, target_lens):
-        if self.use_opt_ats:
-            targets_ats = sort_targets_with_preds_ats(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
-        else:
-            targets_ats = sort_probs_and_labels(targets.clone(), discrete=False, speaker_permutations=self.speaker_permutations)
+        targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_valid(preds, targets_pil, target_lens)
@@ -591,7 +572,6 @@ class SpkDiarEncLabelModel(ModelPT, ExportableEncDecModel):
         self.batch_recall_list.append(recall)
         logging.info(f"batch {batch_idx}: f1_acc={f1_acc}, precision={precision}, recall={recall}")
 
-        self._reset_valid_f1_accs()
         self._accuracy_valid(preds, targets_ats, target_lens)
         f1_acc = self._accuracy_valid.compute()
         precision, recall = self._accuracy_valid.compute_pr()

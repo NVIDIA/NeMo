@@ -23,10 +23,10 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import EncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.core.neural_types.elements import ProbsType
 
-__all__ = ['SortformerDiarizer']
+__all__ = ['SortformerModules']
 
 
-class SortformerDiarizer(NeuralModule, Exportable):
+class SortformerModules(NeuralModule, Exportable):
     """
     Multi-scale Diarization Decoder (MSDD) for overlap-aware diarization and improved diarization accuracy from clustering diarizer.
     Based on the paper: Taejin Park et. al, "Multi-scale Speaker Diarization with Dynamic Scale Weighting", Interspeech 2022.

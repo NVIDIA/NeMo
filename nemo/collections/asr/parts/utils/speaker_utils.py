@@ -21,10 +21,10 @@ from copy import deepcopy
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
-import omegaconf
+from omegaconf import OmegaConf
 import soundfile as sf
 import torch
-from pyannote.core import Annotation, Segment
+from pyannote.core import Annotation, Segment, Timeline
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
@@ -1623,6 +1623,77 @@ def make_rttm_with_overlap(
                 no_references = True
                 all_reference = []
     return all_reference, all_hypothesis
+
+
+def timestamps_to_pyannote_object(speaker_timestamps: List[Tuple[float, float]],
+                                  uniq_id: str, 
+                                  audio_rttm_values: Dict[str, str], 
+                                  all_hypothesis: List[Tuple[str, Timeline]], 
+                                  all_reference, 
+                                  all_uems
+                                ):
+    """ 
+    Convert speaker timestamps to pyannote.core.Timeline object.
+    
+    Args:
+        speaker_timestamps (List[Tuple[float, float]]): 
+            Timestamps of each speaker: start time and end time of each speaker.
+        uniq_id (str): 
+            Unique ID of each speaker.
+        audio_rttm_values (Dict[str, str]):
+            Dictionary of manifest values.
+        all_hypothesis (List[Tuple[str, pyannote.core.Timeline]]):
+            List of hypothesis in pyannote.core.Timeline object.
+        all_reference (List[Tuple[str, pyannote.core.Timeline]]):
+            List of reference in pyannote.core.Timeline object.
+        all_uems (List[Tuple[str, pyannote.core.Timeline]]):
+            List of uems in pyannote.core.Timeline object.
+            
+    Returns:
+        all_hypothesis (List[Tuple[str, pyannote.core.Timeline]]):
+            List of hypothesis in pyannote.core.Timeline object with an added Timeline object.
+        all_reference (List[Tuple[str, pyannote.core.Timeline]]):
+            List of reference in pyannote.core.Timeline object with an added Timeline object.
+        all_uems (List[Tuple[str, pyannote.core.Timeline]]):
+            List of uems in pyannote.core.Timeline object with an added Timeline object.
+    """
+    offset, dur = float(audio_rttm_values.get('offset', None)), float(audio_rttm_values.get('duration', None))
+    hyp_labels = generate_diarization_output_lines(speaker_timestamps=speaker_timestamps, model_spk_num=len(speaker_timestamps))
+    hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=uniq_id)
+    all_hypothesis.append([uniq_id, hypothesis])
+    rttm_file = audio_rttm_values.get('rttm_filepath', None)
+    if rttm_file is not None and os.path.exists(rttm_file):
+        uem_lines = [[offset, dur+offset]] 
+        org_ref_labels = rttm_to_labels(rttm_file)
+        ref_labels = org_ref_labels
+        reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
+        uem_obj = get_uem_object(uem_lines, uniq_id=uniq_id)
+        all_uems.append(uem_obj)
+        all_reference.append([uniq_id, reference])
+    return all_hypothesis, all_reference, all_uems 
+    
+def get_uem_object(uem_lines: List[List[float]], uniq_id: str):
+    """
+    Generate pyannote timeline segments for uem file.
+    
+     <UEM> file format
+     UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
+     
+    Args:
+        uem_lines (list): list of session ID and start, end times.
+            Example:
+            [[0.0, 30.41], [60.04, 165.83]]
+        uniq_id (str): Unique session ID.
+        
+    Returns:
+        timeline (pyannote.core.Timeline): pyannote timeline object.
+    """
+    timeline = Timeline(uri=uniq_id)
+    for uem_stt_end in uem_lines:
+        start_time, end_time = uem_stt_end 
+        timeline.add(Segment(float(start_time), float(end_time)))
+    return timeline
+
 
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):

@@ -73,21 +73,13 @@ class MultiBinaryAccuracy(Metric):
 
     def __init__(self, dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
-        self.total_correct_counts = 0
-        self.total_sample_counts = 0
-        self.true_positive_count = 0
-        self.false_positive_count = 0
-        self.false_negative_count = 0
-        self.positive_count = 0
+        self.add_state("total_correct_counts", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("total_sample_counts", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("true_positive_count", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("false_positive_count", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("false_negative_count", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("positive_count", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.eps = 1e-6
-        
-    def reset(self):
-        self.total_correct_counts = 0
-        self.total_sample_counts = 0
-        self.true_positive_count = 0
-        self.false_positive_count = 0
-        self.false_negative_count = 0
-        self.positive_count = 0
         
     def update(self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor, cumulative=False) -> torch.Tensor:
         with torch.no_grad():
@@ -125,7 +117,7 @@ class MultiBinaryAccuracy(Metric):
         if torch.isnan(self.f1_score):
             logging.warn("self.f1_score contains NaN value. Returning -1 instead of NaN value.")
             self.f1_score = -1
-        return self.f1_score
+        return self.f1_score.float()
 
     def compute_pr(self):
         """
@@ -133,4 +125,4 @@ class MultiBinaryAccuracy(Metric):
         """
         self.precision = self.true_positive_count / (self.true_positive_count + self.false_positive_count + self.eps)
         self.recall = self.true_positive_count / (self.true_positive_count + self.false_negative_count + self.eps)
-        return self.precision, self.recall
+        return self.precision.float(), self.recall.float()

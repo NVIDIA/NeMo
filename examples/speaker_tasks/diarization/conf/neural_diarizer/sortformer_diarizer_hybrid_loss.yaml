@@ -12,7 +12,6 @@ batch_size: 8
 model: 
   pil_weight: 0.5
   ats_weight: 0.5
-  use_opt_ats: True
   num_workers: ${num_workers}
   fc_d_model: 512
   tf_d_model: 192
@@ -104,7 +103,7 @@ model:
     dither: 0.00001
 
   diarizer_module:
-    _target_: nemo.collections.asr.modules.sortformer_diarizer.SortformerDiarizer
+    _target_: nemo.collections.asr.modules.sortformer_modules.SortformerModules
     num_spks: ${model.max_num_of_spks} # Number of speakers per model. This is currently fixed at 4.
     dropout_rate: 0.5 # Dropout rate
     fc_d_model: ${model.fc_d_model}
