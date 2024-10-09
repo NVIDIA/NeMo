@@ -5151,7 +5151,7 @@ jobs:
         rm -rf tests/collections/llm/gpt_index_mappings
       IS_OPTIONAL: true
       
- L2_NeMo_2_SSM_Pretraining:
+  L2_NeMo_2_SSM_Pretraining:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_SSM_Pretraining') || needs.cicd-test-container-setup.outputs.all == 'true'
