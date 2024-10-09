@@ -102,3 +102,26 @@ class TestDataUtils:
         """Test conversion of data store path to an URL for WebDataset.
         """
         assert datastore_path_to_webdataset_url('ais://test/path') == 'pipe:ais get ais://test/path - || true'
+
+def load_dcp(ckpt_dir, torch_tensor=True):
+    from pathlib import Path
+
+    import torch
+    import torch.distributed.checkpoint as dcp
+    from torch.distributed.checkpoint import FileSystemReader
+
+    if not isinstance(ckpt_dir, Path):
+        ckpt_dir = Path(ckpt_dir)
+    fs_reader = FileSystemReader(ckpt_dir)
+    metadata = fs_reader.read_metadata()
+
+    state_dict = {
+        k: torch.empty(tp.size, dtype=tp.properties.dtype)
+        for k, tp in metadata.state_dict_metadata.items()
+        if type(tp).__name__ == 'TensorStorageMetadata'
+    }
+    dcp.load(
+        state_dict,
+        storage_reader=fs_reader,
+    )
+    return state_dict

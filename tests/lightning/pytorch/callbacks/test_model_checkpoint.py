@@ -15,6 +15,7 @@ import nemo.lightning as nl
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from tests.utils.test_utils import load_dcp
 
 
 ### model environment related utilities
@@ -89,8 +90,9 @@ class PassThroughLossReduction(MegatronLossReduction):
 
 
 class ExampleModel(pl.LightningModule, IOMixin):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, adam=False, *args, **kwargs):
         super().__init__()
+        self.adam = adam
 
         ## keeps track of number of validation steps
         self.count = torch.zeros((1,))
@@ -147,6 +149,8 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return loss
 
     def configure_optimizers(self):
+        if self.adam:
+            return torch.optim.Adam(self.parameters(), lr=1e-3)
         return torch.optim.SGD(self.parameters(), lr=1e-3)
 
     def on_validation_epoch_end(self):
@@ -164,8 +168,8 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return PassThroughLossReduction()
 
 
-def setup_test(path, async_save=False, max_epochs=3):
-    model = ExampleModel()
+def setup_test(path, async_save=False, max_epochs=3, adam=False, **modelckpt_overrides):
+    model = ExampleModel(adam=adam)
 
     data = RandomDataset(32, 64)
 
@@ -195,7 +199,7 @@ def setup_test(path, async_save=False, max_epochs=3):
             save_on_train_epoch_end=True,
             save_context_on_train_end=False,
             filename=f'{{step}}-{{epoch}}-{{val_loss}}-{{consumed_samples}}',
-            save_last="link",
+            **modelckpt_overrides,
         ),
         strategy=strategy,
     )
@@ -217,7 +221,7 @@ def get_final_checkpoint(checkpoint_dir):
     return final_ckpt, top_k_checkpoints
 
 
-class TestLinkCheckpoint:
+class TestModelCheckpoint:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on("GPU")
@@ -226,7 +230,7 @@ class TestLinkCheckpoint:
 
         with reset_megatron_parallel_state():
             tmp_path = tmpdir / "link_ckpt_test"
-            data, model, trainer = setup_test(tmp_path, async_save=False)
+            data, model, trainer = setup_test(tmp_path, async_save=False, save_last='link')
 
             trainer.fit(model, data)
 
@@ -247,7 +251,7 @@ class TestLinkCheckpoint:
 
         with reset_megatron_parallel_state():
             tmp_path = tmpdir / "async_link_ckpt_test"
-            data, model, trainer = setup_test(tmp_path, async_save=True)
+            data, model, trainer = setup_test(tmp_path, async_save=True, save_last='link')
 
             trainer.fit(model, data)
 
@@ -266,12 +270,12 @@ class TestLinkCheckpoint:
 
         with reset_megatron_parallel_state():
             tmp_path = tmpdir / "async_link_ckpt_test"
-            data, model, trainer = setup_test(tmp_path, async_save=True, max_epochs=3)
+            data, model, trainer = setup_test(tmp_path, async_save=True, max_epochs=3, save_last='link')
 
             trainer.fit(model, data)
 
             ## reinitialize
-            data, model, trainer = setup_test(tmp_path, async_save=True, max_epochs=6)
+            data, model, trainer = setup_test(tmp_path, async_save=True, max_epochs=6, save_last='link')
 
             trainer.fit(model, data)
 
@@ -282,3 +286,50 @@ class TestLinkCheckpoint:
 
             epoch = str(final_ckpt).split('epoch=')[1][0]
             assert int(epoch) == 5  ## make sure we're running the correct number of epochs
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on("GPU")
+    def test_drop_optim_states(self, tmpdir):
+        """Test to ensure that we always keep top_k checkpoints, even after resuming."""
+
+        with reset_megatron_parallel_state():
+            tmp_path = tmpdir / "drop_optim_ckpt_test"
+
+            ## TODO: make this work with async checkpointing
+            data, model, trainer = setup_test(
+                tmp_path,
+                adam=True,
+                async_save=False,
+                save_last_n_optim_states=1,
+                save_optim_on_train_end=True,
+            )
+
+            trainer.fit(model, data)
+
+            checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
+            non_last_ckpts = [
+                os.path.join(checkpoint_dir, d)
+                for d in os.listdir(checkpoint_dir)
+                if os.path.isdir(os.path.join(checkpoint_dir, d)) and '-last' not in d
+            ]
+
+            def ckpt_has_optim(state_dict):
+                for k in state_dict.keys():
+                    if k.startswith('optimizer'):
+                        return True
+
+                return False
+
+            non_last_ckpts = sorted(non_last_ckpts, key=lambda x: int(x.split('step=')[1].split('-')[0]), reverse=True)
+            final_ckpt = non_last_ckpts[0]
+            other_ckpts = non_last_ckpts[1:]
+
+            final_state_dict = load_dcp(Path(final_ckpt) / "weights")
+
+            ## only the final non-last ckpt should have optimizer states
+            assert ckpt_has_optim(final_state_dict)
+
+            for ckpt in other_ckpts:
+                state_dict = load_dcp(Path(ckpt) / "weights")
+                assert not ckpt_has_optim(state_dict)
+

@@ -37,35 +37,11 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+from tests.utils.test_utils import load_dcp
 
 DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
 MERGES_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt"
-
-
-def load_dcp(ckpt_dir, torch_tensor=True):
-    from pathlib import Path
-
-    import torch
-    import torch.distributed.checkpoint as dcp
-    from torch.distributed.checkpoint import FileSystemReader
-
-    if not isinstance(ckpt_dir, Path):
-        ckpt_dir = Path(ckpt_dir)
-    fs_reader = FileSystemReader(ckpt_dir)
-    metadata = fs_reader.read_metadata()
-
-    state_dict = {
-        k: torch.empty(tp.size, dtype=tp.properties.dtype)
-        for k, tp in metadata.state_dict_metadata.items()
-        if type(tp).__name__ == 'TensorStorageMetadata'
-    }
-    dcp.load(
-        state_dict,
-        storage_reader=fs_reader,
-        # no_dist=True,
-    )
-    return state_dict
 
 
 def compare_ckpts(a, b, path=[]):

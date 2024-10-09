@@ -24,6 +24,7 @@ import torch
 from _weakref import proxy
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
+from pytorch_lightning.trainer import call
 from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
@@ -75,11 +76,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
         save_optim_on_train_end: Optional[bool] = False,
         always_save_context: bool = False,
         save_context_on_train_end: bool = True,
+        save_last_n_optim_states: int = -1,
         **kwargs,
     ):
         self.always_save_context = always_save_context
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
+        self.save_last_n_optim_states = save_last_n_optim_states
 
         ## stores the next -last checkpoint to be saved, used only when save_last = 'link'
         ## this is needed because when using symlinks, we need to update the non-last checkpoint's
@@ -318,6 +321,61 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 ema_callback = callback
         return ema_callback
 
+    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
+        from nemo.utils.get_rank import is_global_rank_zero
+
+        # Get list of saved checkpoints
+        checkpoints = self._get_checkpoints_list(filepath)
+        suffix = "-no-optim"
+        # Drop optimizer states
+        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
+        if len(checkpoints) > self.save_last_n_optim_states:
+            checkpoint_path = checkpoints[checkpoint_index]
+
+            ## TODO: what if training gets interrupted before we get here?
+            logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
+            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path, selective_restore=True)
+            # Load related state dict
+            self._load_current_state_dict(trainer, checkpoint)
+            trainer.save_checkpoint(
+                Path(f"{checkpoint_path}{suffix}") / ModelCheckpoint.WEIGHTS_PATH, weights_only=True, storage_options=storage_options
+            )
+            # Remove the checkpoint version with optimizer states
+            if is_global_rank_zero():
+                trainer.strategy.remove_checkpoint(checkpoint_path)
+                shutil.move(f"{checkpoint_path}{suffix}", checkpoint_path)
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            # Load the correct state_dict for current checkpoint.
+            # Temporary solution.
+            checkpoint = trainer.strategy.load_checkpoint(
+                checkpoint_path=ckpt_to_dir(filepath), selective_restore=True
+            )
+            self._load_current_state_dict(trainer, checkpoint)
+            logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
+    def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
+        # Get a checkpoints directory
+        checkpoints_dir = os.path.dirname(filepath)
+        # Get a list of saved checkpoints
+        checkpoints = [
+            d
+            for d in os.listdir(checkpoints_dir)
+            if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d
+        ]
+        checkpoints = sorted(checkpoints, key=lambda x: int(x.split('step=')[1].split('-')[0]))
+        checkpoints = [os.path.join(checkpoints_dir, checkpoint) for checkpoint in checkpoints]
+        return checkpoints
+    def _load_current_state_dict(self, trainer, checkpoint) -> None:
+        # Temporary solution for loading the correct state dict
+        # when dropping optimizer states "on the fly" during training.
+        # TODO @dimapihtar @mikolajblaz: provide a more elegant solution at the mcore level.
+        call._call_lightning_module_hook(trainer, "on_load_checkpoint", checkpoint)
+        # Load model state_dict
+        trainer.strategy.load_model_state_dict(
+            checkpoint,
+            strict=trainer.lightning_module.strict_loading,
+        )
+
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
         """Format the path to the unfinished checkpoint marker file.
@@ -495,6 +553,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
+
+        ## TODO: get this working with async checkpointing
+        if self.save_last_n_optim_states >= 0 and '-last' in filepath:
+            self._drop_optimizer_states(trainer, filepath, storage_options)
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int

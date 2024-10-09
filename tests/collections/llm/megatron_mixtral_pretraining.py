@@ -11,7 +11,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import MegatronStrategy, NeMoLogger, Trainer
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule as MegatronOptim
 from nemo.lightning.pytorch.optim.megatron import OptimizerConfig
-
+from tests.utils.test_utils import load_dcp
 
 def tokenizer(vocab_path, merges_path):
     return get_nmt_tokenizer(
@@ -20,32 +20,6 @@ def tokenizer(vocab_path, merges_path):
         vocab_file=vocab_path,
         merges_file=merges_path,
     )
-
-
-def load_dcp(ckpt_dir, torch_tensor=True):
-    from pathlib import Path
-
-    import torch
-    import torch.distributed.checkpoint as dcp
-    from torch.distributed.checkpoint import FileSystemReader
-
-    if not isinstance(ckpt_dir, Path):
-        ckpt_dir = Path(ckpt_dir)
-    fs_reader = FileSystemReader(ckpt_dir)
-    metadata = fs_reader.read_metadata()
-
-    state_dict = {
-        k: torch.empty(tp.size, dtype=tp.properties.dtype)
-        for k, tp in metadata.state_dict_metadata.items()
-        if type(tp).__name__ == 'TensorStorageMetadata'
-    }
-
-    dcp.load(
-        state_dict,
-        storage_reader=fs_reader,
-    )
-    return state_dict
-
 
 def main(args):
     strategy = MegatronStrategy(
