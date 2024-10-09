@@ -17,7 +17,9 @@ from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
+from pathlib import Path
 
+from nemo.collections.asr.parts.ngram_lm import FastLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
@@ -519,12 +521,264 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         return self.forward(*args, **kwargs)
 
 
+
+class GreedyBatchedCTCLMInfer(Typing, ConfidenceMethodMixin):
+    """A vectorized greedy CTC decoder.
+
+    This is basically always faster than GreedyCTCInfer, and supports
+    the same interface. See issue #8891 on github for what is wrong
+    with GreedyCTCInfer. GreedyCTCInfer loops over each element in the
+    batch, running kernels at batch size one. CPU overheads end up
+    dominating. This implementation does appropriate masking to
+    appropriately do the same operation in a batched manner.
+
+    Args:
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+            decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
+        compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+            generated during decoding. When set to true, the Hypothesis will contain
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'entropy' for using a normalized entropy of a log-likelihood vector.
+
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
+                Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
+                        the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                        Note that for this entropy, the alpha should comply the following inequality:
+                        (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                        where V is the model vocabulary size.
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renyi' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+            alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                When the alpha equals one, scaling is not applied to 'max_prob',
+                and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
+
+    """
+
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        # Input can be of dimension -
+        # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
+
+        return {
+            "decoder_output": NeuralType(None, LogprobsType()),
+            "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports."""
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
+
+    def __init__(
+            self,
+            blank_id: int,
+            preserve_alignments: bool = False,
+            compute_timestamps: bool = False,
+            preserve_frame_confidence: bool = False,
+            confidence_method_cfg: Optional[DictConfig] = None,
+            ngram_lm_model: Optional[str | Path] = None,
+            ngram_lm_alpha: float = 0.0,
+    ):
+        super().__init__()
+
+        self.blank_id = blank_id
+        self.preserve_alignments = preserve_alignments
+        # we need timestamps to extract non-blank per-frame confidence
+        self.compute_timestamps = compute_timestamps | preserve_frame_confidence
+        self.preserve_frame_confidence = preserve_frame_confidence
+        if ngram_lm_model is None:
+            raise NotImplementedError
+        self.ngram_lm_batch = FastLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+        self.ngram_lm_alpha = ngram_lm_alpha
+
+        # default for CTC: True
+        self.repeated_symbols_allowed = True  # TODO: parameter?
+
+        # set confidence calculation method
+        self._init_confidence_method(confidence_method_cfg)
+
+    @typecheck()
+    def forward(
+            self,
+            decoder_output: torch.Tensor,
+            decoder_lengths: Optional[torch.Tensor],
+    ):
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+
+        Args:
+            decoder_output: A tensor of size (batch, timesteps, features) or (batch, timesteps) (each timestep is a label).
+            decoder_lengths: list of int representing the length of each sequence
+                output sequence.
+
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
+        self.ngram_lm_batch.to(decoder_output.device)
+
+        input_decoder_lengths = decoder_lengths
+
+        if decoder_lengths is None:
+            logging.warning(_DECODER_LENGTHS_NONE_WARNING, mode=logging_mode.ONCE)
+            decoder_lengths = torch.tensor(
+                [decoder_output.shape[1]], dtype=torch.long, device=decoder_output.device
+            ).expand(decoder_output.shape[0])
+
+        # GreedyCTCInfer::forward(), by accident, works with
+        # decoder_lengths on either CPU or GPU when decoder_output is
+        # on GPU. For the sake of backwards compatibility, we also
+        # allow decoder_lengths to be on the CPU device. In this case,
+        # we simply copy the decoder_lengths from CPU to GPU. If both
+        # tensors are already on the same device, this is a no-op.
+        decoder_lengths = decoder_lengths.to(decoder_output.device)
+
+        if decoder_output.ndim == 2:
+            # hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
+            raise NotImplementedError
+        else:
+            hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
+        packed_result = pack_hypotheses(hypotheses, input_decoder_lengths)
+        return (packed_result,)
+
+    @torch.no_grad()
+    def _greedy_decode_logprobs_batched(self, x: torch.Tensor, out_len: torch.Tensor):
+        # x: [B, T, D]
+        # out_len: [B]
+
+        batch_size = x.shape[0]
+        max_time = x.shape[1]
+
+        device = x.device
+        log_probs = x
+        float_dtype = log_probs.dtype
+
+        batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+        batch_indices = torch.arange(batch_size, device=device, dtype=torch.long)
+        predictions_labels = torch.zeros([batch_size, max_time], device=device, dtype=torch.long)
+        last_labels = torch.full([batch_size], fill_value=self.blank_id, device=device, dtype=torch.long)
+        predictions_logprobs = torch.zeros([batch_size, max_time], device=device, dtype=float_dtype)
+        for i in range(max_time):
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(states=batch_lm_states)
+            lm_scores = lm_scores.to(dtype=float_dtype)
+
+            labels = torch.argmax(log_probs[:, i], dim=-1)
+            # lm_scores[batch_indices[last_labels != self.blank_id], last_labels[last_labels != self.blank_id]] = 0.0
+            labels_w_lm = (log_probs[:, i, :-1] + self.ngram_lm_alpha * lm_scores).argmax(dim=-1)
+            if self.repeated_symbols_allowed:
+                # is_blank = (labels == self.blank_id)
+                # torch.where(is_blank, labels, labels_w_lm, out=labels)
+                blank_or_repeated = ((labels == self.blank_id) | (labels == last_labels) | (labels_w_lm == last_labels))
+                torch.where(blank_or_repeated, labels, labels_w_lm, out=labels)
+                blank_or_repeated = (labels == self.blank_id) | (labels == last_labels)
+                torch.where(
+                    blank_or_repeated,
+                    batch_lm_states,
+                    batch_lm_states_candidates[batch_indices, labels * ~blank_or_repeated],
+                    out=batch_lm_states,
+                )
+            else:
+                blank_mask = labels == self.blank_id
+                torch.where(blank_mask, labels, labels_w_lm, out=labels)
+                torch.where(
+                    blank_mask,
+                    batch_lm_states,
+                    batch_lm_states_candidates[batch_indices, labels * ~blank_mask],
+                    out=batch_lm_states,
+                )
+            predictions_labels[:, i] = labels
+            # TODO: logprobs
+            last_labels = labels
+
+
+        # In CTC greedy decoding, each output maximum likelihood token
+        # is calculated independent of the other tokens.
+        # predictions_logprobs, predictions_labels = predictions.max(dim=-1)
+
+        # Since predictions_logprobs is a padded matrix in the time
+        # dimension, we consider invalid timesteps to be "blank".
+        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
+        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1))
+        # Sum the non-blank labels to compute the score of the
+        # transcription. This follows from Eq. (3) of "Connectionist
+        # Temporal Classification: Labelling Unsegmented Sequence Data
+        # with Recurrent Neural Networks".
+        scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
+
+        scores = scores.cpu()
+        predictions_labels = predictions_labels.cpu()
+        out_len = out_len.cpu()
+
+        predictions = log_probs
+        if self.preserve_alignments or self.preserve_frame_confidence:
+            predictions = predictions.cpu()
+
+        hypotheses = []
+
+        # This mimics the for loop in GreedyCTCInfer::forward.
+        for i in range(batch_size):
+            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+            hypothesis.score = scores[i]
+
+            prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
+
+            assert predictions_labels.dtype == torch.int64
+            hypothesis.y_sequence = prediction_labels_no_padding
+
+            if self.preserve_alignments:
+                hypothesis.alignments = (
+                    predictions[i, : out_len[i], :].clone(),
+                    predictions_labels[i, : out_len[i]].clone(),
+                )
+            if self.compute_timestamps:
+                # TOOD: Could do this in a vectorized manner... Would
+                # prefer to have nonzero_static, though, for sanity.
+                # Or do a prefix sum on out_len
+                hypothesis.timestep = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
+            if self.preserve_frame_confidence:
+                hypothesis.frame_confidence = self._get_confidence(predictions[i, : out_len[i], :])
+
+            hypotheses.append(hypothesis)
+
+        return hypotheses
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+
 @dataclass
 class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
+
+    ngram_lm_model: Optional[str] = None
+    ngram_lm_alpha: float = 0.0
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed

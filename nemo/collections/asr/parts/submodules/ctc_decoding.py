@@ -256,13 +256,25 @@ class AbstractCTCDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == "greedy_batch":
-            self.decoding = ctc_greedy_decoding.GreedyBatchedCTCInfer(
-                blank_id=self.blank_id,
-                preserve_alignments=self.preserve_alignments,
-                compute_timestamps=self.compute_timestamps,
-                preserve_frame_confidence=self.preserve_frame_confidence,
-                confidence_method_cfg=self.confidence_method_cfg,
-            )
+            if self.cfg.greedy.get("ngram_lm_model") is not None:
+                self.decoding = ctc_greedy_decoding.GreedyBatchedCTCLMInfer(
+                    blank_id=self.blank_id,
+                    preserve_alignments=self.preserve_alignments,
+                    compute_timestamps=self.compute_timestamps,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                    ngram_lm_model=self.cfg.greedy.get("ngram_lm_model", None),
+                    ngram_lm_alpha=self.cfg.greedy.get("ngram_lm_alpha", 0.0),
+                )
+                # self.decoding.override_fold_consecutive_value = False
+            else:
+                self.decoding = ctc_greedy_decoding.GreedyBatchedCTCInfer(
+                    blank_id=self.blank_id,
+                    preserve_alignments=self.preserve_alignments,
+                    compute_timestamps=self.compute_timestamps,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
 
         elif self.cfg.strategy == 'beam':
 
