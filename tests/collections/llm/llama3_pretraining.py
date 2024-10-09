@@ -43,7 +43,9 @@ def get_args():
     return parser.parse_args()
 
 
-def train_data(data_path, tokenizer_path, index_mapping_dir, seq_length):
+def train_data(
+    data_path: str, tokenizer_path: str, index_mapping_dir: str, seq_length: int
+) -> llm.PreTrainingDataModule:
     """Single shard dataset tokenized by SentencePiece"""
     tokenizer = SentencePieceTokenizer(model_path=tokenizer_path)
     return llm.PreTrainingDataModule(
@@ -57,7 +59,7 @@ def train_data(data_path, tokenizer_path, index_mapping_dir, seq_length):
     )
 
 
-def small_model_cfg(seq_length):
+def small_model_cfg(seq_length: int) -> llm.GPTConfig:
     """Small 145m model"""
     return llm.Llama3Config(
         rotary_base=500_000,
