@@ -134,23 +134,32 @@ def tokenize_dataset(cfg: 'DictConfig'):
     pad_seq_length_to_mult = dataset.pad_seq_length_to_mult
     dataset = np.array([dataset[i] for i in range(len(dataset))])
     if cp_size > 1:
-        def pre_pad_dataset(data, max_length, pad_id):
+        def pre_pad_dataset(data, max_seq_length, max_length_to_pad, pad_id):
             '''
             pad each individual data point to the length of max_length
             '''
+            assert max_seq_length >= max_length_to_pad
             for key, val in data.items():
                 if key in {'input_ids', 'context_ids'}:
-                    # because input_ids is truncated by 1 for labels in the collate_fn of GPTSFTPackedDataset
-                    # in gpt_sft_dataset.py, we add 1 extra padding here
-                    val = val + [pad_id] * (max_length - len(val) + 1)
-                    data[key] = val
+                    if len(val) < max_seq_length:
+                        # because input_ids are truncated by 1 for inputs and labels,
+                        # we add 1 extra padding here to make sure padded inputs and labels
+                        # are is a multiple of (cp_size * 2)
+                        val = val + [pad_id] * (max_length_to_pad - len(val) + 1)
+                        data[key] = val
+                    else:
+                        logging.info(f"The current sequence length {len(val)} for packing is 
+                                        larger than the max_seq_length specified ({max_seq_length}).
+                                        The current seqquence length is truncated to the size of max_seq_length.
+                                        Please consider increase the sequence packing size")
+                        data[key] = val[:max_seq_length]
             return
         ceil_to_nearest = lambda n, m: (n + m - 1) // m * m
         for data in dataset:
             max_length = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
             if max_length < 512:
                 max_length = 512
-            pre_pad_dataset(data, max_length, pad_id)
+            pre_pad_dataset(data, max_seq_length, max_length, pad_id)
     return dataset
 
 

@@ -25,6 +25,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import packaging
 import torch
 import transformer_engine_torch as tex
+from transformer_engine.pytorch.attention import get_cu_seqlens_on_cp_rank
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -1320,9 +1321,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                 index = tex.thd_get_partitioned_indices(cu_seqlens, val.size(1), cp_size, cp_rank)
                                 val = val.index_select(1, index)
                                 batch[key] = val
-                        cu_seqlens = cu_seqlens // cp_size
-                        cu_seqlens_unpadded = cu_seqlens_unpadded // cp_size
-
                         forward_args = {
                             'input_ids': batch['tokens'],
                             'position_ids': batch['position_ids'],
