@@ -128,7 +128,8 @@ class SaveRestoreConnector:
                 map_location = torch.device('cpu')
 
         app_state = AppState()
-        with tempfile.TemporaryDirectory() as tmpdir:
+        import uuid
+        with tempfile.TemporaryDirectory(prefix=f"{uuid.uuid4()}") as tmpdir:
             try:
                 # Check if self.model_extracted_dir is set, and is a valid path
                 if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
