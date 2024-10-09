@@ -73,6 +73,37 @@ def small_model_cfg(seq_length: int) -> llm.GPTConfig:
     )
 
 
+def verify_distcp_dir(ckpt_path: str) -> None:
+    pass
+
+
+def verify_ckpt_dir(
+    model_ckpt: nl.ModelCheckpoint, max_steps: int, val_check_interval: int, exp_dir: str, dist_ckpts: bool = True
+) -> None:
+    import os
+
+    ckpts = os.listdir(os.path.join(exp_dir, 'checkpoints'))
+
+    expected_ckpts = (max_steps // val_check_interval) + model_ckpt.save_last
+    if model_ckpt.save_last:
+        assert any([c.endswith('-last') for c in ckpts]), "No -last checkpoint found after training"
+    if model_ckpt.save_top_k > 0:
+        assert (
+            len(ckpts) == expected_ckpts or len(ckpts) == model_ckpt.save_top_k + model_ckpt.save_last
+        ), f"Expected {expected_ckpts} checkpoints, or at most top {model_ckpt.save_top_k}"
+    else:
+        assert len(ckpts) == expected_ckpts, f"Expected {expected_ckpts} checkpoints"
+
+    for ckpt_path in ckpts:
+        assert os.path.isdir(ckpt_path) == dist_ckpts, "Checkpoint is not correct type"
+
+        if ckpt_path.endswith('-last') and 'step' in model_ckpt.filename:
+            assert f'step={max_steps}' in ckpt_path
+
+        if dist_ckpts:
+            verify_distcp_dir(ckpt_path)
+
+
 def _create_verify_precision(precision: torch.dtype):
     def verify_precision(tensor: torch.Tensor) -> None:
         assert tensor.dtype == precision
@@ -107,7 +138,7 @@ def main():
     # Recipe Overrides
     pretrain_recipe.trainer.max_steps = args.max_steps
     pretrain_recipe.trainer.log_every_n_steps = 1
-    pretrain_recipe.log.ckpt.every_n_train_steps = 1
+    pretrain_recipe.log.ckpt.every_n_train_steps = None
     pretrain_recipe.trainer.val_check_interval = 2
 
     if not args.precision == 'bf16' or args.fp8:  # default case is bf16 without fp8
@@ -134,6 +165,10 @@ def main():
             setattr(pretrain_recipe.trainer.strategy, k, v)
 
     run.run(pretrain_recipe, direct=True)
+
+    verify_ckpt_dir(
+        pretrain_recipe.log.ckpt, args.max_steps, pretrain_recipe.trainer.val_check_interval, args.experiment_dir
+    )
 
 
 if __name__ == '__main__':
