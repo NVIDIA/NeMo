@@ -57,7 +57,6 @@ def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=Non
     tokenizer = processor.tokenizer
 
     multimodal_sample_config = MultiModalSampleConfig()
-    multimodal_sample_config.conversation_template_config.system = None
     if model_id.endswith("Instruct"):
         multimodal_sample_config.conversation_template_config.chat_template = None
     else:
@@ -65,7 +64,6 @@ def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=Non
         multimodal_sample_config.conversation_template_config = MLlamaTemplateConfig()
 
     multimodal_sample_config.image_token.token_id = 128256
-    multimodal_sample_config.conversation_template_config.stop_string = '<|eot_id|>'
 
     task_encoder = LlamaTaskEncoder(
         tokenizer=tokenizer,
