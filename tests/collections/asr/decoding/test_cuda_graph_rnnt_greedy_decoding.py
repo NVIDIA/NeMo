@@ -66,8 +66,6 @@ def stt_en_fastconformer_transducer_large():
 @pytest.mark.parametrize(
     ("model_name", "batch_size", "enable_bfloat16"),
     [
-        ("stt_en_fastconformer_transducer_xlarge", 8, False),
-        ("stt_en_fastconformer_transducer_xxlarge", 8, True),
         pytest.param(
             "stt_en_fastconformer_transducer_large",
             8,
@@ -78,6 +76,8 @@ body cuda graph of a conditional node with a persistent kernel (in this case,
 a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
             ),
         ),
+        ("stt_en_fastconformer_transducer_xlarge", 8, False),
+        ("stt_en_fastconformer_transducer_xxlarge", 8, True),
     ],
 )
 @pytest.mark.parametrize("loop_labels", [False, True])
