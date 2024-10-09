@@ -242,7 +242,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_initilize_states(self, decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
         Creates a stacked decoder states to be passed to prediction network
 
