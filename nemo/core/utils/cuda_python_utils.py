@@ -17,8 +17,26 @@ import contextlib
 import numpy as np
 import torch
 from packaging.version import Version
+from functools import wraps
 
 __CUDA_PYTHON_MINIMUM_VERSION_CUDA_GRAPH_CONDITIONAL_NODES_SUPPORTED__ = (12, 3)  # 12030
+
+try:
+    from cuda import cuda, cudart, nvrtc
+
+    HAVE_CUDA_PYTHON = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_CUDA_PYTHON = False
+
+
+def cuda_python_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not HAVE_CUDA_PYTHON:
+            raise ModuleNotFoundError("No `cuda-python` module. Please do `pip install cuda-python>=12.3`")
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 def check_cuda_python_cuda_graphs_conditional_nodes_supported():
@@ -219,3 +237,84 @@ def run_nvrtc(kernel_string: str, kernel_name: bytes, program_name: bytes):
     assert_drv(err)
 
     return kernel
+
+
+@cuda_python_required
+def assert_compile_error(err, prog):
+    assert isinstance(err, nvrtc.nvrtcResult)
+    if err != nvrtc.nvrtcResult.NVRTC_SUCCESS:
+        err, log_size = nvrtc.nvrtcGetProgramLogSize(prog)
+        error_log = b" " * log_size
+        nvrtc.nvrtcGetProgramLog(prog, error_log)
+        raise RuntimeError(f"Nvrtc Error: {err}\n" f"Compile log:\n{error_log.decode()}")
+
+
+@cuda_python_required
+def get_kernels(cuda_src: str, kernel_names: list[str]):
+    if not torch.cuda.is_initialized():
+        torch.cuda.init()
+        torch.cuda.synchronize()
+
+    # create PTX
+    program_name = "-".join(kernel_names) + ".cu"
+    err, prog = nvrtc.nvrtcCreateProgram(cuda_src.encode(), program_name.encode(), 0, [], [])
+
+    # ? specify GPU arch
+    # https://stackoverflow.com/questions/48283009/nvcc-get-device-compute-capability-in-runtime
+    opts = []
+    (err,) = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
+    assert_compile_error(err, prog)
+
+    err, ptxSize = nvrtc.nvrtcGetPTXSize(prog)
+    assert_drv(err)
+    ptx = b" " * ptxSize
+    (err,) = nvrtc.nvrtcGetPTX(prog, ptx)
+    assert_drv(err)
+
+    # load module
+    ptx = np.char.array(ptx)
+    err, module = cuda.cuModuleLoadData(ptx.ctypes.data)
+    assert_drv(err)
+    kernels = []
+    for kernel_name in kernel_names:
+        err, kernel = cuda.cuModuleGetFunction(module, kernel_name.encode())
+        assert_drv(err)
+        kernels.append(kernel)
+    return kernels
+
+
+@cuda_python_required
+def get_kernel(cuda_src: str, kernel_name: str):
+    (kernel,) = get_kernels(cuda_src=cuda_src, kernel_names=[kernel_name])
+    return kernel
+
+
+@cuda_python_required
+def launch_kernel(
+    kernel,
+    gridDimX: int,
+    gridDimY: int,
+    gridDimZ: int,
+    blockDimX: int,
+    blockDimY: int,
+    blockDimZ: int,
+    kernel_args: list[np.ndarray],
+    sharedMemBytes: int = 0,
+    stream: int | None = None,
+):
+    # launch kernel
+    args = np.array([arg.ctypes.data for arg in kernel_args], dtype=np.uint64)
+    (err,) = cuda.cuLaunchKernel(
+        kernel,
+        gridDimX,
+        gridDimY,
+        gridDimZ,
+        blockDimX,
+        blockDimY,
+        blockDimZ,
+        sharedMemBytes,
+        stream if stream is not None else torch.cuda.default_stream().cuda_stream,
+        args.ctypes.data,  # kernel args
+        0,  # extra
+    )
+    assert_drv(err)

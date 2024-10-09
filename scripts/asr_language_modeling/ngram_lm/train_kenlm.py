@@ -42,7 +42,9 @@ from glob import glob
 from typing import List
 
 from omegaconf import MISSING
-from scripts.asr_language_modeling.ngram_lm import kenlm_utils
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent))
+import kenlm_utils
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
