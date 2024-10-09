@@ -68,16 +68,16 @@ def stt_en_fastconformer_transducer_large():
     [
         ("stt_en_fastconformer_transducer_xlarge", 8, False),
         ("stt_en_fastconformer_transducer_xxlarge", 8, True),
-#         pytest.param(
-#             "stt_en_fastconformer_transducer_large",
-#             8,
-#             True,
-#             marks=pytest.mark.xfail(
-#                 reason="""Cannot instantiate the
-# body cuda graph of a conditional node with a persistent kernel (in this case,
-# a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
-#             ),
-#         ),
+        #         pytest.param(
+        #             "stt_en_fastconformer_transducer_large",
+        #             8,
+        #             True,
+        #             marks=pytest.mark.xfail(
+        #                 reason="""Cannot instantiate the
+        # body cuda graph of a conditional node with a persistent kernel (in this case,
+        # a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
+        #             ),
+        #         ),
     ],
 )
 @pytest.mark.parametrize("loop_labels", [False, True])
