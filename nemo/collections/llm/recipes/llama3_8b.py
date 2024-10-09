@@ -228,6 +228,7 @@ def pretrain_recipe_performance(
         run.Config(
             MegatronCommOverlapCallback,
             tp_comm_overlap=False,
+            bucket_size=256 * 1024 * 1024,
         )
     )
     return recipe
