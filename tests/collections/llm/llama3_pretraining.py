@@ -10,6 +10,7 @@ import torch
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
+from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 
 
 def get_args():
@@ -61,7 +62,7 @@ def train_data(
 
 def small_model_cfg(seq_length: int) -> llm.GPTConfig:
     """Small 145m model"""
-    return llm.Llama3Config(
+    return llm.Llama3Config8B(
         rotary_base=500_000,
         seq_length=seq_length,
         num_layers=12,
@@ -83,7 +84,7 @@ def main():
     args = get_args()
 
     pretrain_recipe = llm.llama3_8b.pretrain_recipe(
-        dir=args.exp_dir, name="L2_llama3_small_pretrain_test", num_gpus_per_node=args.devices
+        dir=args.experiment_dir, name="L2_llama3_small_pretrain_test", num_gpus_per_node=args.devices
     )
 
     pretrain_recipe.model = llm.LlamaModel(small_model_cfg(args.seq_length))
@@ -101,7 +102,7 @@ def main():
         grad_fn=_create_verify_precision(torch.float32),
         log_on_hooks=["on_train_start", "on_train_end"],
     )
-    pretrain_recipe.callbacks.append(debugger_callback)
+    pretrain_recipe.trainer.callbacks.append(debugger_callback)
 
     # Recipe Overrides
     pretrain_recipe.trainer.max_steps = args.max_steps

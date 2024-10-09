@@ -298,7 +298,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.trainer = trainer
 
         try:
-            model.optim.lr_scheduler.max_steps = trainer.max_steps
+            self.model.optim.lr_scheduler.max_steps = trainer.max_steps
         except AttributeError:
             pass
 
