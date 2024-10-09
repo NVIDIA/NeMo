@@ -1327,15 +1327,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                             'labels': batch['labels'] if 'labels' in batch else None,
                         }
-                        forward_args['packed_seq_params'] = PackedSeqParams(
-                            cu_seqlens_q=cu_seqlens_unpadded,
-                            cu_seqlens_kv=cu_seqlens_unpadded,
-                            cu_seqlens_q_padded=cu_seqlens,
-                            cu_seqlens_kv_padded=cu_seqlens,
-                            max_seqlen_q=max_seqlen,
-                            max_seqlen_kv=max_seqlen,
-                            qkv_format='thd',
-                        )
+                        
+                        # since the data is pre-padded, we need to check if there is extra padding
+                        # at the end of the sequence
+                        if len(cu_seqlens) > len(cu_seqlens_unpadded):
+                            cu_seqlens = cu_seqlens[:-1]
+
+                    forward_args['packed_seq_params'] = PackedSeqParams(
+                        cu_seqlens_q=cu_seqlens_unpadded,
+                        cu_seqlens_kv=cu_seqlens_unpadded,
+                        cu_seqlens_q_padded=cu_seqlens,
+                        cu_seqlens_kv_padded=cu_seqlens,
+                        max_seqlen_q=max_seqlen,
+                        max_seqlen_kv=max_seqlen,
+                        qkv_format='thd',
+                    )
 
             output_tensor = model(**forward_args)
 
