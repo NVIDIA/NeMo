@@ -58,7 +58,12 @@ from typing_extensions import override
 from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.ckpt_utils import ckpt_to_weights_subdir
-from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction, aggregate_moe_loss_stats
+from nemo.lightning.megatron_parallel import (
+    CallbackConnector,
+    MegatronParallel,
+    _ModuleStepFunction,
+    aggregate_moe_loss_stats,
+)
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
