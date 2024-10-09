@@ -5226,10 +5226,9 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_finetuning.py \
-        --devices=8 \
+        --devices=2 \
         --max-steps=250 \
         --experiment-dir=tests/collections/llm/t5_finetune_results/${{ github.run_id }} \
-        --vocab-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document/bert-large-cased-vocab.txt \
         --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_150steps
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}

@@ -25,7 +25,6 @@ def get_args():
     parser.add_argument('--experiment-name', type=str, help="name of experiment")
     parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
     parser.add_argument('--checkpoint-path', type=str, help="Path to checkpoint dir")
-    parser.add_argument('--vocab-path', type=str, default=None, help="Path to vocab file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
 
     return parser.parse_args()
@@ -38,7 +37,6 @@ if __name__ == '__main__':
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
-        vocab_file=args.vocab_path,
     )
 
     data = SquadDataModule(
