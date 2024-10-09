@@ -215,6 +215,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         else:
             maybe_injected_best_model_path = self.best_model_path
 
+        if self.save_last:
+            if self.best_model_path == self.last_model_path.replace('-last', ''):
+                logging.debug(f'Last checkpoint {self.last_model_path} already saved (avoiding unnecessary overwrite)')
+                return output
+
         if self.save_best_model:
             if not os.path.exists(maybe_injected_best_model_path):
                 return
