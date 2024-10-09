@@ -129,6 +129,7 @@ class SaveRestoreConnector:
 
         app_state = AppState()
         import uuid
+
         with tempfile.TemporaryDirectory(prefix=f"{uuid.uuid4()}") as tmpdir:
             try:
                 # Check if self.model_extracted_dir is set, and is a valid path
