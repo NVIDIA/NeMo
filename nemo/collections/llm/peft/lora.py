@@ -20,6 +20,19 @@ from torch import nn
 
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+from nemo.lightning.io.mixin import IOMixin
+from pytorch_lightning.trainer.states import TrainerFn
+import torch
+
+from nemo import lightning as nl
+from nemo.collections import llm
+from typing import Any, Dict, List
+import torch
+from nemo.lightning.io import load_context, ModelConnector
+from nemo.lightning.megatron_parallel import MegatronParallel
+from nemo.utils.get_rank import is_global_rank_zero
+from pathlib import Path
+from nemo.utils import logging
 
 
 class AdapterParallelAdd(AdapterWrapper):
@@ -156,3 +169,92 @@ class LoRA(PEFT):
             )
             return AdapterParallelAdd(m, adapter)
         return m
+    
+    def apply_transform(self, trainer):
+        super().apply_transform(trainer)
+        import pdb; pdb.set_trace()
+        if trainer.state.fn == TrainerFn.PREDICTING:            
+            base_sharded_dict = {k:v for k,v in trainer.model.state_dict().items() if 'adapter' not in k and 'extra_state' not in k }
+            lora_sharded_dict = {k:v.data.data for k, v in trainer.model.sharded_state_dict().items() if 'adapter' in k and 'extra_state' not in k}
+            merged_weights = self._merge_lora_weights(base_model_state_dict = base_sharded_dict, 
+                                     lora_state_dict = lora_sharded_dict, 
+                                     num_layers = trainer.model._modules['0'].config.num_layers, 
+                                     tp_size = trainer.strategy.tensor_model_parallel_size,
+                                     rank =torch.distributed.get_rank())
+            trainer.model.load_state_dict(merged_weights)
+
+    def _merge_lora_weights(self, base_model_state_dict: Dict[str, Any],
+          lora_state_dict: Dict[str, Any],
+          num_layers: int,
+          tp_size: int,
+          rank: int):
+        mcore_layer_to_lora = {}
+        """
+        'self_attention.linear_qkv.adapter.linear_in.weight' 
+        'self_attention.linear_qkv.adapter.linear_out.weight', 
+        'self_attention.linear_proj.adapter.linear_in.weight'
+        'self_attention.linear_proj.adapter.linear_out.weight',
+        'mlp.linear_fc1.adapter.linear_in.weight',
+        'mlp.linear_fc1.adapter.linear_out.weight', 
+        'mlp.linear_fc2.adapter.linear_in.weight',
+        'mlp.linear_fc2.adapter.linear_out.weight', 
+        """
+
+        mcore_layer_to_lora["attention_qkv"] = {
+            "base_model_layer": "self_attention.linear_qkv.weight",
+            "lora_in": "self_attention.linear_qkv.adapter.linear_in.weight",
+            "lora_out": "self_attention.linear_qkv.adapter.linear_out.weight",
+        }
+        mcore_layer_to_lora["attention_dense"] = {
+            "base_model_layer": "self_attention.linear_proj.weight",
+            "lora_in": "self_attention.linear_proj.adapter.linear_in.weight",
+            "lora_out": "self_attention.linear_proj.adapter.linear_out.weight",
+        }
+        mcore_layer_to_lora["mlp_fc1"] = {
+            "base_model_layer": "mlp.linear_fc1.weight",
+            "lora_in": "mlp.linear_fc1.adapter.linear_in.weight",
+            "lora_out": "mlp.linear_fc1.adapter.linear_out.weight",
+        }
+        mcore_layer_to_lora["mlp_fc2"] = {
+            "base_model_layer": "mlp.linear_fc2.weight",
+            "lora_in": "mlp.linear_fc2.adapter.linear_in.weight",
+            "lora_out": "mlp.linear_fc2.adapter.linear_out.weight",
+        }
+
+        for nl in range(num_layers):
+            for key in mcore_layer_to_lora.keys():
+                ##TODO: prefix should be model or module or 0.module?
+                key_base = f'0.module.decoder.layers.{nl}.{mcore_layer_to_lora[key]["base_model_layer"]}'
+                key_lora_in = f'module.decoder.layers.{nl}.{mcore_layer_to_lora[key]["lora_in"]}'
+                key_lora_out = f'module.decoder.layers.{nl}.{mcore_layer_to_lora[key]["lora_out"]}'
+                if key_lora_in in lora_state_dict and key_lora_out in lora_state_dict:
+                    if tp_size > 1:
+                        gathered_lora_in = [torch.zeros_like(lora_state_dict[key_lora_in]) for _ in range(tp_size)]
+                        gathered_lora_out = [torch.zeros_like(lora_state_dict[key_lora_out]) for _ in range(tp_size)]
+                        torch.distributed.all_gather(gathered_lora_in, lora_state_dict[key_lora_in])
+                        torch.distributed.all_gather(gathered_lora_out, lora_state_dict[key_lora_out])
+
+                        if is_global_rank_zero():
+                            print(f"RANK{torch.distributed.get_rank()} has {key_lora_in} shape {lora_state_dict[key_lora_in].shape}") #gathered lorain{gathered_lora_in}")
+                            print(f"RANK{torch.distributed.get_rank()} has {key_lora_out} shape {lora_state_dict[key_lora_out].shape}") #gathered loraout {gathered_lora_out}")
+                        ## TODO: Who decides what dim they split?
+                        tp_dim_lora_in = 1 if key in ["attention_dense", 'mlp_fc2'] else 0
+                        wt_lora_in = torch.cat(gathered_lora_in, dim=tp_dim_lora_in).float()
+                        wt_lora_out = torch.cat(gathered_lora_out, dim=0).float()
+                        wt_lora = wt_lora_out @ wt_lora_in
+                        tp_dim_base = 0 if key in ["attention_qkv", "mlp_fc1"] else 1
+                        wt_lora_current_rank = torch.chunk(wt_lora, tp_size, dim=tp_dim_base)[rank]
+                    else: #when tp==1
+                        wt_lora_in = lora_state_dict[key_lora_in]
+                        wt_lora_out = lora_state_dict[key_lora_out]
+                        wt_lora = wt_lora_out @ wt_lora_in
+                        wt_lora_current_rank = wt_lora
+
+                    wt_base = base_model_state_dict[key_base]
+                    logging.info(f"Full {key_base} wt_lora_in {wt_lora_in.shape}, wt_lora_out {wt_lora_out.shape}, wt_lora {wt_lora.shape}, wt_base {wt_base.shape}")
+
+                    
+                    base_model_state_dict[key_base] = (wt_base.float() + wt_lora_current_rank.to(wt_base.device)).type_as(wt_base)
+                    logging.info(f'merging for weight {key_base}')
+
+        return base_model_state_dict

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.peft.api import gpt_lora
+from nemo.collections.llm.peft.api import gpt_lora, merge_lora
 from nemo.collections.llm.peft.lora import LoRA
 
-__all__ = ["LoRA", "gpt_lora"]
+__all__ = ["LoRA", "gpt_lora", "merge_lora"]
