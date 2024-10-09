@@ -23,7 +23,7 @@ on:
     inputs:
       test_to_run:
         required: false
-        default: L0_Unit_Tests_GPU_ASR
+        default: all
         type: string
         description: Comma-separated list of tests to run. Use "all" to run the full test suite.
 
@@ -139,7 +139,7 @@ jobs:
        RUNNER: self-hosted-azure
        TIMEOUT: 20
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --with_downloads
+         python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --with_downloads
        IS_OPTIONAL: false
 
   L0_Unit_Tests_GPU_Audio:
