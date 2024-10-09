@@ -35,7 +35,7 @@ def get_args():
     parser.add_argument('--pp', type=int, default=None, help="Override pipeline parallelism")
     parser.add_argument('--vp', type=int, default=None, help="Override virtual pipeline parallelism")
     parser.add_argument('--cp', type=int, default=None, help="Override context parallelism")
-    parser.add_argument('--sp', type=bool, default=None, help="Override sequence parallel")
+    parser.add_argument('--sp', type=int, choices=[0, 1], default=None, help="Override sequence parallel")
     parser.add_argument(
         '--precision', type=str, choices=['bf16', 'fp16', 'fp32'], default='bf16', help="Override recipe precision"
     )
@@ -127,7 +127,7 @@ def main():
         "pipeline_model_parallel_size": args.pp,
         "virtual_pipeline_model_parallel_size": args.vp,
         "context_parallel_size": args.cp,
-        "sequence_parallel": args.sp,
+        "sequence_parallel": bool(args.sp) if args.sp is not None else None,
     }
     for k, v in parallelisms.items():
         if v is not None:  # use recipe default if not specified

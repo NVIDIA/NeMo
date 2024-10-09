@@ -3910,7 +3910,7 @@ jobs:
         --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
         --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
         --index-mapping-dir=tests/collections/llm/llama_index_mappings \
-        --cp 1 --tp 2 --sp \
+        --cp 1 --tp 2 --sp 1 \
 
         python tests/collections/llm/llama3_pretraining.py \
         --devices=2 \
