@@ -642,6 +642,15 @@ branch](https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme).
   <summary><b>Large Language Models and Multimodal Models</b></summary>
     <details>
       <summary>
+        <a href="https://developer.nvidia.com/blog/post-training-quantization-of-llms-with-nvidia-nemo-and-nvidia-tensorrt-model-optimizer/">
+          Post-Training Quantization of LLMs with NVIDIA NeMo and NVIDIA TensorRT Model Optimizer
+        </a> (2024/09/10)
+      </summary>
+      As large language models (LLMs) are becoming even bigger, it is increasingly important to provide easy-to-use and efficient deployment paths because the cost of serving such LLMs is becoming higher. In this post, we provide an overview of how PTQ is implemented in NVIDIA NeMo, using NVIDIA TensorRT Model Optimizer and NVIDIA TensorRT-LLM libraries, demonstrated on the example of Llama 3 models.
+      <br><br>
+    </details>
+    <details>
+      <summary>
         <a href="https://blogs.nvidia.com/blog/bria-builds-responsible-generative-ai-using-nemo-picasso/">
           Bria Builds Responsible Generative AI for Enterprises Using NVIDIA NeMo, Picasso
         </a> (2024/03/06)
