@@ -23,19 +23,19 @@ from nemo.collections.asr.models import ASRModel
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def stt_en_fastconformer_transducer_xlarge():
     model_name = "stt_en_fastconformer_transducer_xlarge"
     return ASRModel.from_pretrained(model_name, map_location="cpu")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def stt_en_fastconformer_transducer_xxlarge():
     model_name = "stt_en_fastconformer_transducer_xxlarge"
     return ASRModel.from_pretrained(model_name, map_location="cpu")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def stt_en_fastconformer_transducer_large():
     model_name = "stt_en_fastconformer_transducer_large"
     return ASRModel.from_pretrained(model_name, map_location="cpu")
