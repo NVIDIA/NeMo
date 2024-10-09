@@ -855,7 +855,7 @@ jobs:
         +model.test_ds.text_field="answer" \
         +model.test_ds.lang_field="target_lang" \
         model.test_ds.num_workers=0 \
-        spl_tokens.model_dir=/home/TestData/asr_tokenizers/canary/canary_spl_tokenizer_v32 \
+        spl_tokens.model_dir=/tmp/asr_tokenizers_canary_spl_tokenizer_v32 \
         model.tokenizer.langs.en.dir=/home/TestData/asr_tokenizers/canary/en/tokenizer_spe_bpe_v1024_max_4 \
         model.tokenizer.langs.en.type=bpe \
         ++model.tokenizer.langs.es.dir=/home/TestData/asr_tokenizers/canary/es/tokenizer_spe_bpe_v1024_max_4 \
@@ -1810,7 +1810,7 @@ jobs:
         python nmt_transformer_infer.py \
         --model=/home/TestData/nlp/nmt/toy_data/enes_v16k_s100k_6x6.nemo \
         --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
-        --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+        --tgtout=/tmp/l2_nmt_attention_is_all_you_need_inference/out.txt \
         --target_lang en \
         --source_lang de
 
@@ -3634,7 +3634,7 @@ jobs:
         model.peft.lora_tuning.adapter_dim=8 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl] \
         model.data.validation_ds.write_embeddings_to_file=True \
-        model.data.validation_ds.output_file_path_prefix="/home/TestData/nlp/megatron_ir/working_dir/val_embs" \
+        model.data.validation_ds.output_file_path_prefix="/tmp/gpt_reranker_workdir/val_embs" \
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl]
 
   L2_Megatron_GPT_Embedding:
@@ -3914,13 +3914,11 @@ jobs:
       SCRIPT: |
         python examples/nlp/language_modeling/megatron_change_num_partitions.py \
             --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo \
+            --target_file /tmp/l2_megatron_reduce_tp_part/test-reduce.nemo \
             --tensor_model_parallel_size 2 \
             --target_tensor_model_parallel_size 1 \
             --pipeline_model_parallel_size 1 \
             --target_pipeline_model_parallel_size 2
-      AFTER_SCRIPT: |
-        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo
 
   L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2:
     needs: [cicd-test-container-setup]
@@ -3931,13 +3929,11 @@ jobs:
       SCRIPT: |
         python examples/nlp/language_modeling/megatron_change_num_partitions.py \
             --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo \
+            --target_file /tmp/l2_megatron_change_partitions_increase_tp_num/test-increase.nemo \
             --tensor_model_parallel_size 2 \
             --target_tensor_model_parallel_size 4 \
             --pipeline_model_parallel_size 1 \
             --target_pipeline_model_parallel_size 1
-      AFTER_SCRIPT: |
-        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo
 
   L2_Megatron_T5_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
