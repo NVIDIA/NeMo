@@ -752,8 +752,9 @@ def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str | Promp
         ans = prompt_format_fn(CutSet([example]), tokenizer)
         example.input_ids = ans["input_ids"][0]
         example.context_ids = ans["context_ids"][0]
-        example.answer_ids = ans["answer_ids"][0]
-        example.answer_mask = ans["mask"][0]
+        if "answer_ids" in ans:
+            example.answer_ids = ans["answer_ids"][0]
+            example.answer_mask = ans["mask"][0]
     elif isinstance(example, NeMoMultimodalConversation):
         example = example.tokenize(tokenizer, prompt_format)
     else:

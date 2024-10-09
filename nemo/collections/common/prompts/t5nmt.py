@@ -70,14 +70,15 @@ def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> dict[str, torch.Tensor]:
                 slots={"target_lang": context, "message": ""},
             ),
         ]
-        if len(cut.supervisions) > 0 and cut.supervisions[0].text:
+        if len(cut.supervisions) > 0 and cut.supervisions[0].text is not None:
             turns.append(
                 dict(
-                    role="assistant",
+                    role=prompt.OUTPUT_ROLE,
                     slots={"message": cut.supervisions[0].text},
                 )
             )
-        for k, v in prompt.encode_dialog(turns).items():
+        enc = prompt.encode_dialog(turns)
+        for k, v in enc.items():
             ans[k].append(v)
 
     return ans
