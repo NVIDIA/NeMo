@@ -22,8 +22,13 @@ from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
-TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from("megatron.core.transformer.custom_layers.transformer_engine", "TEColumnParallelLinear")
-TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from("megatron.core.transformer.custom_layers.transformer_engine", "TERowParallelLinear")
+TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
+    "megatron.core.transformer.custom_layers.transformer_engine", "TEColumnParallelLinear"
+)
+TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
+    "megatron.core.transformer.custom_layers.transformer_engine", "TERowParallelLinear"
+)
+
 
 class AdapterParallelAdd(AdapterWrapper):
     """An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
