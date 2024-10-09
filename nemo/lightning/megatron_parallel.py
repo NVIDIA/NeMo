@@ -1540,8 +1540,10 @@ def moe_loss_tracker_ctx():
     )
 
     reduce_aux_losses_tracker_across_ranks()
-    yield
-    clear_aux_losses_tracker()
+    try:
+        yield
+    finally:
+        clear_aux_losses_tracker()
 
 
 @torch.no_grad()
