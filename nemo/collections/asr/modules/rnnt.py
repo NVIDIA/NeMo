@@ -315,7 +315,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         ]
         return state
 
-    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]):
+    def batch_initilize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
         Creates a stacked decoder states to be passed to prediction network.
 
@@ -493,7 +493,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
             # convert list of tokens to torch.Tensor, then reshape.
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.batch_stack_states([d_state for _, d_state in to_process])
+            dec_states = self.batch_initilize_states([d_state for _, d_state in to_process])
 
             dec_outputs, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
@@ -959,7 +959,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
             # convert list of tokens to torch.Tensor, then reshape.
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.batch_stack_states([d_state for _, d_state in to_process])
+            dec_states = self.batch_initilize_states([d_state for _, d_state in to_process])
 
             dec_out, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
@@ -980,7 +980,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
-    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    def batch_initilize_states(self, decoder_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """
         Creates a stacked decoder states to be passed to prediction network
 
