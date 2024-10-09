@@ -108,7 +108,7 @@ def main():
     pretrain_recipe.trainer.max_steps = args.max_steps
     pretrain_recipe.trainer.log_every_n_steps = 1
     pretrain_recipe.log.ckpt.every_n_train_steps = 1
-    pretrain_recipe.trainer.val_check_interval = 0.5
+    pretrain_recipe.trainer.val_check_interval = 2
 
     if not args.precision == 'bf16' or args.fp8:  # default case is bf16 without fp8
         import llm.recipes.precision.mixed_precision as mp_recipes
