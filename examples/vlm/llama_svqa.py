@@ -31,7 +31,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-def generate(model, batch, tokenizer, max_length=20):
+def generate(model, batch, num_tiles, tokenizer, max_length=20):
     """
     Performs greedy generation on the model using provided inputs.
 
@@ -61,8 +61,8 @@ def generate(model, batch, tokenizer, max_length=20):
 
             output = model(
                 batch_images=batch["pixel_values"].cuda(non_blocking=True) if "pixel_values" in batch else None,
-                batch_masks=[[[5, 512]]] if "pixel_values" in batch else [[]],
-                num_chunks=[[4]],
+                batch_masks=[[[5, 512]]] if "pixel_values" in batch else None,
+                num_chunks=num_tiles,
                 aspect_ratio_ids=(
                     batch["aspect_ratio_ids"].cuda(non_blocking=True) if "aspect_ratio_ids" in batch else None
                 ),
@@ -176,24 +176,30 @@ def predict_answers(args, model, processor):
             image = Image.open(image_path)
         else:
             image = None
+            num_tiles = None
         cur_prompt = question
         # If the question includes an image, process it
 
         cur_prompt = cur_prompt + '\n' + "Answer with the option's letter from the given choices directly."
+        # messages = [{"role": "user", "content": [{"type": "text", "text": cur_prompt}]}]
         # Tokenize the input prompt and prepare input tensors
+        if image is not None:
+            # messages[0]["content"].insert(0, {"type": "image"})
+            cur_prompt = cur_prompt.replace("<image>", "<|image|>", 1)
+            num_tiles = (
+                processor.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)["num_tiles"]
+            )
         messages = [{"role": "user", "content": [{"type": "text", "text": cur_prompt}]}]
-        if image:
-            messages[0]["content"].insert(0, {"type": "image"})
         prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
 
         # Prepare the input tensors for the model
-        batch = processor(image, prompt, add_special_tokens=False, return_tensors="pt")
+        batch = processor(images=image, text=prompt, add_special_tokens=False, return_tensors="pt")
 
         # Generate the response using the model
-        generated_ids, predicted_ids = generate(model, batch, tokenizer, max_length=args.max_length)
+        generated_ids, predicted_ids = generate(model, batch, num_tiles, tokenizer, max_length=args.max_length)
 
         # Post-process and decode the generated response
-        generated_texts = tokenizer.batch_decode(predicted_ids, skip_special_tokens=False)
+        generated_texts = tokenizer.batch_decode(predicted_ids, skip_special_tokens=True)
         outputs = generated_texts[0]
 
         # If global rank zero, write the response to the answers file
