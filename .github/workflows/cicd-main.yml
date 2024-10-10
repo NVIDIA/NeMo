@@ -249,16 +249,15 @@ jobs:
          --ignore=tests/utils
 
   # L0: CPU unit tests
-  OPTIONAL_L0_Unit_Tests_CPU_ASR:
+  L0_Unit_Tests_CPU_ASR:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_CPU_ASR') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_ASR') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure-cpu
        TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -n auto --dist worksteal tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
-       IS_OPTIONAL: true
 
   L0_Unit_Tests_CPU_Audio:
      needs: [cicd-test-container-setup]
@@ -2814,7 +2813,7 @@ jobs:
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
         trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.exp_dir=/tmp/examples_gpt_pretrain_results_te_autocast \
         ++model.transformer_engine=True \
         ++model.fp8=True \
         ++model.fp8_hybrid=True \
@@ -2838,7 +2837,7 @@ jobs:
         model.bias_dropout_add_fusion=False \
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
+        model.num_layers=2 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method=block \
@@ -2846,7 +2845,7 @@ jobs:
         model.activations_checkpoint_num_layers=1 \
         model.data.validation_drop_last=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
+        model.data.index_mapping_dir=/tmp/examples_gpt_pretrain_results_te_autocast/gpt_mapping
 
         python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
         trainer.devices=2 \
@@ -2857,7 +2856,7 @@ jobs:
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=6 \
         trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.exp_dir=/tmp/examples_gpt_pretrain_results_te_autocast \
         exp_manager.resume_if_exists=True \
         ++model.transformer_engine=True \
         ++model.fp8=True \
@@ -2882,7 +2881,7 @@ jobs:
         model.bias_dropout_add_fusion=False \
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
+        model.num_layers=2 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method=block \
@@ -2890,10 +2889,8 @@ jobs:
         model.activations_checkpoint_num_layers=1 \
         model.data.validation_drop_last=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-    
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
+        model.data.index_mapping_dir=/tmp/examples_gpt_pretrain_results_te_autocast/gpt_mapping
+
 
   L2_Megatron_GPT_Skip_Train:
     needs: [cicd-test-container-setup]
@@ -5198,7 +5195,7 @@ jobs:
       #- OPTIONAL_L0_Unit_Tests_GPU_Lightning
       - L0_Unit_Tests_GPU_Others
       
-      #- OPTIONAL_L0_Unit_Tests_CPU_ASR
+      - L0_Unit_Tests_CPU_ASR
       - L0_Unit_Tests_CPU_Audio
       - L0_Unit_Tests_CPU_Common
       - L0_Unit_Tests_CPU_LLM
