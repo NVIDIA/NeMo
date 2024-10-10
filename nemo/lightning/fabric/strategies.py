@@ -35,6 +35,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
+from megatron.core.optimizer import OptimizerConfig
 from nemo.lightning import _strategy_lib
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.io.pl import MegatronCheckpointIO
@@ -150,6 +151,22 @@ class FabricMegatronStrategy(DDPStrategy):
         iter(output)
 
         return output
+    
+    def setup_megatron_optimizer(
+        self, 
+        model: MegatronParallel, 
+        optimizer_config: OptimizerConfig,
+        no_weight_decay_cond: Optional[Callable] = None,
+        scale_lr_cond: Optional[Callable] = None,
+        lr_mult: float = 1.0,
+    ) -> Optimizer:
+        return _strategy_lib.setup_megatron_optimizer(
+            model,
+            optimizer_config,
+            no_weight_decay_cond=no_weight_decay_cond,
+            scale_lr_cond=scale_lr_cond,
+            lr_mult=lr_mult,
+        )
 
     @override
     def setup_optimizer(self, optimizer: Optimizer) -> Optimizer:
