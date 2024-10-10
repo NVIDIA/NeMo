@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 import os
+import re
 from typing import Dict, List, Optional, Union
 
 import numpy as np
@@ -69,7 +69,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
         self.removed_extra_spaces = self.tokenizer.encode_as_pieces('x  y') == self.tokenizer.encode_as_pieces('x y')
         self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
-        
+
     def text_to_tokens(self, text):
         if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
             text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text)
@@ -149,7 +149,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
         if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
             return self._text_to_ids_extra_space(text, sample_alpha)
-        
+
         if sample_alpha is not None:
             return self.tokenizer.encode_as_ids(text, enable_sampling=True, alpha=sample_alpha, nbest_size=-1)
         else:
