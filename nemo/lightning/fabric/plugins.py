@@ -114,7 +114,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
         """
         return update_config_with_dtype_overrides(self.dtype_config, config)
-    
+
     def convert_module(self, module: nn.Module) -> nn.Module:
         """Convert the module parameters to the precision type this plugin handles.
 
@@ -135,7 +135,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
                 module = Float16Module(config, module)
 
         return module
-    
+
     def convert_optimizer(self, optimizer: Optimizer) -> Optimizer:
         """Convert the optimizer parameters to the precision type this plugin handles.
 
