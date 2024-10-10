@@ -456,6 +456,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
+        mkdir /tmp/${{ github.run_id }}
         export PYTHONPATH=/home/TestData/multimodal/video_neva/LLaVA:$PYTHONPATH
         CUDA_VISIBLE_DEVICES=0 python examples/multimodal/multimodal_llm/neva/convert_llava_to_neva.py \
           --in-file /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/llm \
@@ -463,10 +464,10 @@ jobs:
           --mm-vision-tower /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/vision_tower \
           --tokenizer-model /home/TestData/multimodal/video_neva/vita-tokenizer/ \
           --config-file vita_config.yaml \
-          --out-file=/tmp/multimodal_video_neva_llama3-ci-hf/ \
+          --out-file=/tmp/${{ github.run_id }}/llama3_ci.nemo \
           --model-type VITA \
           --conv-template llama_3
-  
+
   # this test is using a 7B model which is too large for GitHub CI
   # replace the model in this test with a toy model or move the test
   # to the nightly CI
@@ -637,9 +638,30 @@ jobs:
           model.optim.sched.warmup_steps=1 \
           model.data.data_prefix=[1.0,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
           model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
-          exp_manager.exp_dir=examples/nlp/megatron_llama_distill
+          exp_manager.exp_dir=/tmp/megatron_llama_distill
+
+  L2_Prune_Width_Llama2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Prune_Width_Llama2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_gpt_prune.py \
+          trainer.devices=2 \
+          trainer.num_nodes=1 \
+          trainer.precision=bf16 \
+          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+          model.tensor_model_parallel_size=1 \
+          model.pipeline_model_parallel_size=2 \
+          prune.num_calib_size=8 \
+          prune.ffn_hidden_size=192 \
+          prune.num_attention_heads=2 \
+          prune.num_query_groups=2 \
+          prune.hidden_size=null \
+          export.save_path=examples/nlp/language_modeling/ci_prune_width.nemo
       AFTER_SCRIPT: |
-          rm -rf examples/nlp/megatron_llama_distill
+          rm -rf examples/nlp/language_modeling/ci_prune_width.nemo
 
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
@@ -655,9 +677,7 @@ jobs:
           trainer.devices=1 \
           trainer.accelerator="gpu" \
           +trainer.fast_dev_run=True \
-          exp_manager.exp_dir=examples/asr/speech_to_text_results
-      AFTER_SCRIPT: |
-          rm -rf examples/asr/speech_to_text_results
+          exp_manager.exp_dir=/tmp/speech_to_text_results
 
   ASR_dev_run_Speech_to_Text_WPE_-_CitriNet:
     needs: [cicd-test-container-setup]
@@ -675,9 +695,7 @@ jobs:
           trainer.devices=1 \
           trainer.accelerator="gpu" \
           +trainer.fast_dev_run=True \
-          exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results
-      AFTER_SCRIPT: |
-          rm -rf examples/asr/speech_to_text_wpe_results
+          exp_manager.exp_dir=/tmp/speech_to_text_wpe_results
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
     needs: [cicd-test-container-setup]
@@ -693,9 +711,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_pre_training_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_pre_training_results
+        exp_manager.exp_dir=/tmp/speech_pre_training_results
 
   ASR_dev_run_Speech_To_Text_Finetuning:
     needs: [cicd-test-container-setup]
@@ -713,9 +729,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_finetuning_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_finetuning_results
+        exp_manager.exp_dir=/tmp/speech_finetuning_results
 
   ASR_dev_run_Speech_To_Text_HF_Finetuning:
     needs: [cicd-test-container-setup]
@@ -751,9 +765,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_finetuning_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_finetuning_results
+        exp_manager.exp_dir=/tmp/speech_finetuning_results
 
   ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
     needs: [cicd-test-container-setup]
@@ -773,9 +785,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_text_wpe_conformer_results
+        exp_manager.exp_dir=/tmp/speech_to_text_wpe_conformer_results
 
   # L2: ASR dev run - part two
   ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
@@ -797,9 +807,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_to_text_wpe_squeezeformer_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_text_wpe_squeezeformer_results
+        exp_manager.exp_dir=/tmp/speech_to_text_wpe_squeezeformer_results
 
   L2_Speech_to_Text_EMA:
     needs: [cicd-test-container-setup]
@@ -815,9 +823,7 @@ jobs:
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
         +exp_manager.ema.enable=True \
-        exp_manager.exp_dir=examples/asr/speech_to_text_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_text_results
+        exp_manager.exp_dir=/tmp/speech_to_text_results
 
   L2_Speech_to_Text_AED:
     needs: [cicd-test-container-setup]
@@ -856,9 +862,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_to_text_aed_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_text_results
+        exp_manager.exp_dir=/tmp/speech_to_text_aed_results
 
   # L2: Speaker dev run
   L2_Speaker_dev_run_Speaker_Recognition:
@@ -878,9 +882,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results
-      AFTER_SCRIPT: |
-        rm -rf examples/speaker_tasks/recognition/speaker_recognition_results
+        exp_manager.exp_dir=/tmp/speaker_recognition_results
 
   L2_Speaker_dev_run_Speaker_Diarization:
     needs: [cicd-test-container-setup]
@@ -900,9 +902,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results
-      AFTER_SCRIPT: |
-        rm -rf examples/speaker_tasks/diarization/speaker_diarization_results
+        exp_manager.exp_dir=/tmp/speaker_diarization_results
 
   L2_Speaker_dev_run_Speech_to_Label:
     needs: [cicd-test-container-setup]
@@ -925,9 +925,7 @@ jobs:
         ~model.preprocessor.n_mels \
         ~model.preprocessor.n_mfcc \
         ~model.preprocessor.n_fft \
-        exp_manager.exp_dir=examples/asr/speech_to_label_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_label_results
+        exp_manager.exp_dir=/tmp/speech_to_label_results
 
   L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
     needs: [cicd-test-container-setup]
@@ -945,9 +943,7 @@ jobs:
         diarizer.speaker_embeddings.parameters.multiscale_weights=[1.0] \
         diarizer.asr.model_path=QuartzNet15x5Base-En \
         diarizer.asr.parameters.asr_based_vad=True \
-        diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results
-      AFTER_SCRIPT: |
-        rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results
+        diarizer.out_dir=/tmp/speaker_diarization_asr_results
 
   L2_Speaker_dev_run_Clustering_Diarizer_Inference:
     needs: [cicd-test-container-setup]
@@ -964,9 +960,7 @@ jobs:
         diarizer.speaker_embeddings.parameters.shift_length_in_sec=0.75 \
         diarizer.speaker_embeddings.parameters.multiscale_weights=null \
         diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-        diarizer.out_dir=examples/speaker_tasks/diarization/clustering_diarizer_results
-      AFTER_SCRIPT: |
-        rm -rf examples/speaker_tasks/diarization/clustering_diarizer_results
+        diarizer.out_dir=/tmp/clustering_diarizer_results
 
   L2_Speaker_dev_run_Neural_Diarizer_Inference:
     needs: [cicd-test-container-setup]
@@ -980,9 +974,7 @@ jobs:
         diarizer.msdd_model.model_path=/home/TestData/an4_diarizer/diar_msdd_telephonic.nemo \
         diarizer.speaker_embeddings.parameters.save_embeddings=True \
         diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-        diarizer.out_dir=examples/speaker_tasks/diarization/neural_diarizer_results
-      AFTER_SCRIPT: |
-        rm -rf examples/speaker_tasks/diarization/neural_diarizer_results
+        diarizer.out_dir=/tmp/neural_diarizer_results
 
   L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
     needs: [cicd-test-container-setup]
@@ -995,11 +987,9 @@ jobs:
         --config-path=conf --config-name=data_simulator.yaml \
         data_simulator.random_seed=42 \
         data_simulator.manifest_filepath=/home/TestData/LibriSpeechShort/dev-clean-align-short.json \
-        data_simulator.outputs.output_dir=./test_simulator \
+        data_simulator.outputs.output_dir=/tmp/test_simulator \
         data_simulator.session_config.num_sessions=2 \
         data_simulator.session_config.session_length=60
-      AFTER_SCRIPT: |
-        rm -rf ./test_simulator
 
   # L2: ASR Multi-dataloader dev run
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
@@ -1017,9 +1007,7 @@ jobs:
         trainer.max_epochs=1 \
         trainer.max_steps=1 \
         +trainer.num_sanity_val_steps=1 \
-        exp_manager.exp_dir=examples/asr/speech_to_text_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_text_results
+        exp_manager.exp_dir=/tmp/speech_to_text_results
 
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
     needs: [cicd-test-container-setup]
@@ -1043,9 +1031,7 @@ jobs:
         ~model.preprocessor.n_mels \
         ~model.preprocessor.n_mfcc \
         ~model.preprocessor.n_fft \
-        exp_manager.exp_dir=examples/asr/speech_to_label_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_label_results
+        exp_manager.exp_dir=/tmp/speech_to_label_results
 
   # L2: ASR Adapters
   L2_ASR_Adapters_Linear_Adapters:
@@ -1065,9 +1051,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_to_text_adapters_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_text_adapters_results
+        exp_manager.exp_dir=/tmp/speech_to_text_adapters_results
 
   L2_ASR_Adapters_RelPos_MHA_Adapters:
     needs: [cicd-test-container-setup]
@@ -1087,9 +1071,7 @@ jobs:
         trainer.devices=1 \
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=examples/asr/speech_to_text_adapters_mha_results
-      AFTER_SCRIPT: |
-        rm -rf examples/asr/speech_to_text_adapters_mha_results
+        exp_manager.exp_dir=/tmp/speech_to_text_adapters_mha_results
 
   # L2: OOMptimizer
   L2_Speech_Estimate_Duration_Bins:
@@ -1166,10 +1148,8 @@ jobs:
         python examples/asr/transcribe_speech.py \
         pretrained_name="QuartzNet15x5Base-En" \
         audio_dir="/home/TestData/an4_transcribe/test_subset/" \
-        output_filename="stt_test_res.json" \
+        output_filename="/tmp/stt_test_res.json" \
         amp=true
-      AFTER_SCRIPT: |
-        rm -rf stt_test_res.json
 
   # L2: Speech Transcription
   L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
@@ -1181,7 +1161,7 @@ jobs:
       SCRIPT: |
         python examples/asr/transcribe_speech.py \
         dataset_manifest=/home/TestData/asr/canary/dev-other-wav-10-canary-fields.json \
-        output_filename=preds.json \
+        output_filename=/tmp/preds.json \
         batch_size=10 \
         pretrained_name=nvidia/canary-1b \
         num_workers=0 \
@@ -1189,7 +1169,7 @@ jobs:
         compute_dtype=bfloat16 \
         matmul_precision=medium
       AFTER_SCRIPT: |
-        rm -rf preds.json transcribe.log
+        rm -rf /tmp/preds.json transcribe.log
 
   L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
     needs: [cicd-test-container-setup]
@@ -1258,14 +1238,12 @@ jobs:
         /bin/bash run_segmentation.sh \
         --MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" \
         --DATA_DIR=/home/TestData/ctc_segmentation/eng \
-        --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
+        --OUTPUT_DIR=/tmp/ctc_seg_en/output${TIME} \
         --LANGUAGE=en \
         --USE_NEMO_NORMALIZATION="TRUE" && \
         python /home/TestData/ctc_segmentation/verify_alignment.py \
         -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
-        -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt;
-      AFTER_SCRIPT: |
-        rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
+        -g /tmp/ctc_seg_en/output${TIME}/verified_segments/nv_test_segments.txt;
 
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
     needs: [cicd-test-container-setup]
@@ -1279,14 +1257,12 @@ jobs:
         /bin/bash run_segmentation.sh \
         --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
         --DATA_DIR=/home/TestData/ctc_segmentation/ru \
-        --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output${TIME} \
+        --OUTPUT_DIR=/tmp/ctc_seg_ru/output${TIME} \
         --LANGUAGE=ru \
         --ADDITIONAL_SPLIT_SYMBOLS=";" && \
         python /home/TestData/ctc_segmentation/verify_alignment.py \
         -r /home/TestData/ctc_segmentation/ru/valid_ru_segments_1.7.txt \
-        -g /home/TestData/ctc_segmentation/ru/output${TIME}/verified_segments/ru_segments.txt;
-
-        rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
+        -g /tmp/ctc_seg_ru/output${TIME}/verified_segments/ru_segments.txt;
 
   # L2: G2P Models
   L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference:
@@ -1664,9 +1640,9 @@ jobs:
         model.tokenizer.tokenizer_model=/home/TestData/nlp/wikitext-2/tokenizer_bpe_v3193/tokenizer.model \
         model.mask_prob=0.15 \
         model.short_seq_prob=0.1 \
-        exp_manager.exp_dir=PretrainingBERTFromText;
-      AFTER_SCRIPT: |
-        rm -f /home/TestData/nlp/wikitext-2/*.pkl
+        exp_manager.exp_dir=/tmp/PretrainingBERTFromText;
+#      AFTER_SCRIPT: |
+#        rm -f /home/TestData/nlp/wikitext-2/*.pkl
         #rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
 
   L2_Pretraining_BERT_from_Preprocessed:
@@ -2837,7 +2813,7 @@ jobs:
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
         trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.exp_dir=/tmp/examples_gpt_pretrain_results_te_autocast \
         ++model.transformer_engine=True \
         ++model.fp8=True \
         ++model.fp8_hybrid=True \
@@ -2861,7 +2837,7 @@ jobs:
         model.bias_dropout_add_fusion=False \
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
+        model.num_layers=2 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method=block \
@@ -2869,7 +2845,7 @@ jobs:
         model.activations_checkpoint_num_layers=1 \
         model.data.validation_drop_last=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
+        model.data.index_mapping_dir=/tmp/examples_gpt_pretrain_results_te_autocast/gpt_mapping
 
         python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
         trainer.devices=2 \
@@ -2880,7 +2856,7 @@ jobs:
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=6 \
         trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.exp_dir=/tmp/examples_gpt_pretrain_results_te_autocast \
         exp_manager.resume_if_exists=True \
         ++model.transformer_engine=True \
         ++model.fp8=True \
@@ -2905,7 +2881,7 @@ jobs:
         model.bias_dropout_add_fusion=False \
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
+        model.num_layers=2 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method=block \
@@ -2913,10 +2889,8 @@ jobs:
         model.activations_checkpoint_num_layers=1 \
         model.data.validation_drop_last=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-    
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
+        model.data.index_mapping_dir=/tmp/examples_gpt_pretrain_results_te_autocast/gpt_mapping
+
 
   L2_Megatron_GPT_Skip_Train:
     needs: [cicd-test-container-setup]
@@ -5128,10 +5102,10 @@ jobs:
         rm -rf tests/collections/llm/gpt_index_mappings
       IS_OPTIONAL: true
       
-  OPTIONAL_L2_NeMo_2_SSM_Pretraining:
+  L2_NeMo_2_SSM_Pretraining:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_NeMo_2_SSM_Pretraining') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_SSM_Pretraining') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -5141,12 +5115,11 @@ jobs:
         --max-steps 10 \
         --experiment-dir /tmp/nlp_megatron_mamba_nemo-ux-mamba_cicd_test_pretrain/${{ github.run_id }} \
         --data-path /home/TestData/nlp/megatron_mamba/toy_ssm_dataset/legal_pile_text_document
-      IS_OPTIONAL: true
 
-  OPTIONAL_L2_NeMo_2_SSM_Finetuning:
+  L2_NeMo_2_SSM_Finetuning:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_NeMo_2_SSM_Finetuning') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_SSM_Finetuning') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -5156,7 +5129,6 @@ jobs:
         --max-steps 10 \
         --experiment-dir /tmp/nlp_megatron_mamba_nemo-ux-mamba_cicd_test_sft/${{ github.run_id }} \
         --model-path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt
-      IS_OPTIONAL: true
 
   L2_NeMo_2_HF_MODEL_IMPORT:
     needs: [cicd-test-container-setup]
@@ -5341,8 +5313,8 @@ jobs:
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
       #- OPTIONAL_L2_NeMo_2_GPT_DDP_Param_Parity_check
       - L2_NeMo_2_HF_MODEL_IMPORT
-      #- OPTIONAL_L2_NeMo_2_SSM_Pretraining
-      #- OPTIONAL_L2_NeMo_2_SSM_Finetuning
+      - L2_NeMo_2_SSM_Pretraining
+      - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_T5_Pretraining
       - L2_NeMo_2_Mixtral_Pretraining
       - L2_PTQ_Llama2_INT8_SQ
@@ -5350,6 +5322,7 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_Llama3
       - L2_PTQ_Llama2_Export_Only
       - L2_Distill_Llama2
+      - L2_Prune_Width_Llama2
       - L2_Speech_to_Text_AED
       - L2_Speech_Estimate_Duration_Bins
       - L2_Speech_Batch_Size_OOMptimizer
@@ -5390,7 +5363,7 @@ jobs:
           body: |
             [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
             
-            We wanted to let you know that a [CICD pipeline](https://github.com/$REPOSITORY/actions/runs/$RUN_ID) for this PR just finished successfully
+            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
 
             So it might be time to merge this PR or get some approvals
 
