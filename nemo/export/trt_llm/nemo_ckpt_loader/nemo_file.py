@@ -366,16 +366,15 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             model = load_sharded_metadata(dist_ckpt_folder)
             io_folder = nemo_dir / "context"
 
-            from omegaconf import OmegaConf
-            from nemo.lightning import io
+            with open(io_folder / "model.yaml", 'r') as stream:
+                config = yaml.safe_load(stream)
 
-            config = io.load_context(io_folder, subpath="model.config")
             config_dict = {}
-            for k, v in config.__dict__.items():
+            for k, v in config["config"].items():
                 if isinstance(v, (float, int, str, bool)):
                     config_dict[k] = v
                 elif k == "activation_func":
-                    config_dict["activation"] = v.__name__
+                    config_dict["activation"] = v["_target_"].rsplit('.', 1)[-1]
 
             if config_dict.get("num_moe_experts") is None:
                 config_dict["num_moe_experts"] = 0
@@ -385,9 +384,18 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
             config_dict["mcore_gpt"] = True
             config_dict["max_position_embeddings"] = config_dict.get("seq_length")
-            nemo_model_config = OmegaConf.create(config_dict)
+            nemo_model_config = config_dict
 
-            tokenizer = io.load_context(io_folder).model.tokenizer
+            tokenizer = None
+            if (
+                config["tokenizer"]["_target_"]
+                == "nemo.collections.common.tokenizers.huggingface.auto_tokenizer.AutoTokenizer"
+            ):
+                tokenizer = AutoTokenizer.from_pretrained(
+                    io_folder / config["tokenizer"]["pretrained_model_name"],
+                    use_fast=config["tokenizer"]["use_fast"],
+                )
+
             shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:
             raise Exception("Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported.")
