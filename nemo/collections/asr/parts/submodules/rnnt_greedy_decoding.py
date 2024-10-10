@@ -2338,7 +2338,7 @@ class GreedyRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
-    tdt_include_duration: bool = False
+    tdt_include_token_duration: bool = False
     tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
 
@@ -2356,7 +2356,7 @@ class GreedyBatchedRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
-    tdt_include_duration: bool = False
+    tdt_include_token_duration: bool = False
     tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = True
@@ -2397,6 +2397,8 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        include_duration: Bool flag, which determines whether predicted durations for each token 
+            need to be included in the Hypothesis object. Defaults to False.
         include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
             attached to the regular frame confidence,
             making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
@@ -2665,6 +2667,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        include_duration: Bool flag, which determines whether predicted durations for each token 
+            need to be included in the Hypothesis object. Defaults to False.
         include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
             attached to the regular frame confidence,
             making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
