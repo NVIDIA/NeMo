@@ -23,8 +23,8 @@ from typing_extensions import Annotated
 
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
-from nemo.utils import logging
 from nemo.lightning.run import cli_entrypoint
+from nemo.utils import logging
 
 TokenizerType = Any
 

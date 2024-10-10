@@ -31,8 +31,8 @@ from nemo.collections.llm.recipes.finetune_default import default_finetune_recip
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.run import cli_factory
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mistral"
 

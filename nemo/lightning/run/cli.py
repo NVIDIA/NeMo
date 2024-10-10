@@ -28,4 +28,3 @@ def cli_factory(*args0, **kwargs0):
         return wrapper
 
     return decorator
-

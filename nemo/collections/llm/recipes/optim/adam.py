@@ -16,8 +16,9 @@ from typing import Optional
 
 import nemo_run as run
 from megatron.core.optimizer import OptimizerConfig
-from nemo.lightning.run import cli_factory
+
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.run import cli_factory
 
 
 @cli_factory
