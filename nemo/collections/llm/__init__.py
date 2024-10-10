@@ -201,12 +201,12 @@ try:
             "finetune",
         ]
     )
-except ImportError as error:
+except (ImportError, ModuleNotFoundError) as error:
     logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
 
 try:
     from nemo.collections.llm.api import deploy
 
     __all__.append("deploy")
-except ImportError as error:
+except (ImportError, ModuleNotFoundError) as error:
     logging.warning(f"The deploy module could not be imported: {error}")
