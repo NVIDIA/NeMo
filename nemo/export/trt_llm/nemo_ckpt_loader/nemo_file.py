@@ -390,6 +390,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             nemo_model_config = config_dict
 
             from nemo.lightning import io
+
             tokenizer = io.load_context(io_folder).model.tokenizer
             '''
             tokenizer = None
