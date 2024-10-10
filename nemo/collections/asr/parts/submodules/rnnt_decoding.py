@@ -14,6 +14,7 @@
 
 import copy
 import re
+import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -21,6 +22,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+
 
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
@@ -264,7 +266,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
-        # defining compute_timestamps function
 
         if self._is_tdt:
             if self.preserve_frame_confidence is True and self.preserve_alignments is False:
@@ -273,6 +274,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
             self.tdt_include_token_duration = self.tdt_include_token_duration or self.compute_timestamps
             self._compute_offsets = self._compute_offsets_tdt
+            self._refine_timestamps = self._refine_timestamps_tdt
 
         # Confidence estimation is not implemented for these strategies
         if (
@@ -778,6 +780,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 decoded_chars.append(self.decode_tokens_to_str([int(char)]))
             char_offsets[i]["char"] = decoded_chars
 
+        encoded_char_offsets, char_offsets = self._refine_timestamps(encoded_char_offsets, char_offsets)
+
         # detect char vs subword models
         lens = []
         for v in char_offsets:
@@ -907,6 +911,40 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             for t, s, d in zip(hypothesis.text[0], hypothesis.timestep, hypothesis.token_duration)
         ]
         return offsets
+
+    
+    @staticmethod
+    def _refine_timestamps(
+        encoded_char_offsets: List[Dict[str, Union[str, int]]], 
+        char_offsets: List[Dict[str, Union[str, int]]]
+        ) -> List[Dict[str, Union[str, int]]]:
+
+        ## no refinement for rnnt
+
+        return encoded_char_offsets, char_offsets
+
+    @staticmethod
+    def _refine_timestamps_tdt(
+        encoded_char_offsets: List[Dict[str, Union[str, int]]], 
+        char_offsets: List[Dict[str, Union[str, int]]]
+        ) -> List[Dict[str, Union[str, int]]]:
+
+        for i, offset in enumerate(char_offsets):
+
+            if len(offset['char'][0]) > 1:
+                continue
+
+            char_type = unicodedata.category(offset['char'][0])
+
+            # Check if token is a punctuation mark
+            # If so, set its start and end offset as start and end of the previous token
+            # This is done because there was observed a behaviour, when punctuation marks are predicted long after preceding token (i.e. after silence)
+            if char_type.startswith('P') and i > 0:
+                encoded_char_offsets[i]['start_offset'] = offset['start_offset'] = char_offsets[i - 1]['end_offset']
+                encoded_char_offsets[i]['end_offset'] = offset['end_offset'] = offset['start_offset']
+
+        return encoded_char_offsets, char_offsets
+
 
     @staticmethod
     def _get_word_offsets_chars(
