@@ -22,7 +22,7 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.preprocessing.segment import get_samples
@@ -391,7 +391,7 @@ class StreamingFeatureBufferer:
         cfg.preprocessor.dither = 0.0
         cfg.preprocessor.pad_to = 0
         cfg.preprocessor.normalize = "None"
-        self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+        self.raw_preprocessor = ASRModel.from_config_dict(cfg.preprocessor)
         self.raw_preprocessor.to(asr_model.device)
 
     def reset(self):
@@ -756,7 +756,7 @@ class FrameBatchASR:
         cfg.preprocessor.dither = 0.0
         cfg.preprocessor.pad_to = 0
         cfg.preprocessor.normalize = "None"
-        self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+        self.raw_preprocessor = ASRModel.from_config_dict(cfg.preprocessor)
         self.raw_preprocessor.to(asr_model.device)
         self.preprocessor = self.raw_preprocessor
 
