@@ -17,6 +17,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import unicodedata
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -60,6 +61,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             word_seperator:
                 Str token representing the seperator between words.
+
+            segment_seperators: 
+                List containing tokens representing the seperator(s) between segments.
 
             preserve_alignments:
                 Bool flag which preserves the history of logprobs generated during
@@ -212,6 +216,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
+        self.segment_seperators = self.cfg.get('segment_seperators', ['.', '?', '!'])
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'pyctcdecode', 'flashlight', 'wfst']
         if self.cfg.strategy not in possible_strategies:
@@ -613,13 +618,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 The ctc collapsed integer ids
                 A list of integers that represents the number of repetitions per token.
             timestamp_type: A str value that represents the type of time stamp calculated.
-                Can be one of "char", "word" or "all"
+                Can be one of "char", "word" "segment" or "all"
 
         Returns:
             A Hypothesis object with a modified `timestep` value, which is now a dictionary containing
             the time stamp information.
         """
-        assert timestamp_type in ['char', 'word', 'all']
+        assert timestamp_type in ['char', 'word', 'segment', 'all']
 
         # Unpack the temporary storage, and set the decoded predictions
         decoded_prediction, token_lengths = hypothesis.text
@@ -642,6 +647,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
         for i, char in enumerate(hypothesis.text):
             char_offsets[i]["char"] = self.decode_tokens_to_str([char])
 
+        char_offsets = self._refine_timestamps(char_offsets)
+
         # detect char vs subword models
         lens = [len(list(v["char"])) > 1 for v in char_offsets]
         if any(lens):
@@ -651,7 +658,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # retrieve word offsets from character offsets
         word_offsets = None
-        if timestamp_type in ['word', 'all']:
+        if timestamp_type in ['word', 'segment', 'all']:
             if text_type == 'char':
                 word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=self.word_seperator)
             else:
@@ -661,6 +668,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
                     decode_ids_to_tokens=self.decode_ids_to_tokens,
                     decode_tokens_to_str=self.decode_tokens_to_str,
                 )
+
+        segment_offsets = None
+        if timestamp_type in ['segment', 'all']:
+            segment_offsets = self._get_segment_offsets(word_offsets, segment_delimiter_tokens=self.segment_seperators)
 
         # attach results
         if len(hypothesis.timestep) > 0:
@@ -678,6 +689,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # Add word time stamps
         if word_offsets is not None and timestamp_type in ['word', 'all']:
             hypothesis.timestep['word'] = word_offsets
+
+        # Add segment time stamps
+        if segment_offsets is not None and timestamp_type in ['segment', 'all']:
+            hypothesis.timestep['segment'] = segment_offsets
 
         # Convert the token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
@@ -720,6 +735,26 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # Filter out CTC token
         offsets = list(filter(lambda offsets: offsets["char"] != ctc_token, offsets))
         return offsets
+
+    @staticmethod
+    def _refine_timestamps(
+        char_offsets: List[Dict[str, Union[str, int]]]
+        ) -> List[Dict[str, Union[str, int]]]:
+
+        for i, offset in enumerate(char_offsets):
+
+            if len(offset['char']) > 1:
+                continue
+
+            char_type = unicodedata.category(offset['char'])
+
+            # Check if token is a punctuation mark
+            # If so, set its start and end offset as start and end of the previous token
+            # This is done because there was observed a behaviour, when punctuation marks are predicted long after preceding token (i.e. after silence)
+            if char_type.startswith('P') and i > 0:
+                offset['end_offset'] = offset['start_offset']
+
+        return char_offsets
 
     @staticmethod
     def _get_word_offsets_chars(
@@ -858,6 +893,61 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         return word_offsets
 
+
+    @staticmethod
+    def _get_segment_offsets(
+        offsets: Dict[str, Union[str, float]],
+        segment_delimiter_tokens: List[str],
+    ) -> Dict[str, Union[str, float]]:
+        """
+        Utility method which constructs segment time stamps out of word time stamps.
+
+        Args:
+            offsets: A list of dictionaries, each containing "word", "start_offset" and "end_offset".
+            segments_delimiter_tokens: List containing tokens representing the seperator(s) between segments.
+        Returns:
+            A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
+            "end_offset".
+        """
+        segment_offsets = []
+        segment_words = []
+        previous_word_index = 0
+
+        # For every offset word
+        for i, offset in enumerate(offsets):
+
+            word = offset['word']
+            # check if thr word ends with any delimeter token or the word itself is a delimeter
+            if word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
+                segment_words.append(word)
+                if segment_words:
+                    segment_offsets.append(
+                        {
+                            "segment": ' '.join(segment_words),
+                            "start_offset": offsets[previous_word_index]["start_offset"],
+                            "end_offset": offset["end_offset"],
+                        }
+                    )
+
+                segment_words = []
+                previous_word_index = i + 1
+
+            else:
+                segment_words.append(word)
+
+        if segment_words:
+            start_offset = offsets[previous_word_index]["start_offset"]
+            segment_offsets.append(
+                {
+                    "segment": ' '.join(segment_words),
+                    "start_offset": start_offset,
+                    "end_offset": offsets[-1]["end_offset"],
+                }
+            )
+        segment_words.clear()
+
+        return segment_offsets
+
     @property
     def preserve_alignments(self):
         return self._preserve_alignments
@@ -920,6 +1010,9 @@ class CTCDecoding(AbstractCTCDecoding):
 
             word_seperator:
                 Str token representing the seperator between words.
+
+            segment_seperators: 
+                List containing tokens representing the seperator(s) between segments.
 
             preserve_alignments:
                 Bool flag which preserves the history of logprobs generated during
@@ -1337,6 +1430,9 @@ class CTCDecodingConfig:
 
     # token representing word seperator
     word_seperator: str = " "
+
+    # tokens representing segments seperators
+    segment_seperators: Optional[List[str]] = field(default_factory=lambda: [".", "!", "?"])
 
     # type of timestamps to calculate
     ctc_timestamp_type: str = "all"  # can be char, word or all for both

@@ -838,6 +838,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         if word_offsets is not None and timestamp_type in ['word', 'all']:
             hypothesis.timestep['word'] = word_offsets
 
+        # Add segment time stamps
         if segment_offsets is not None and timestamp_type in ['segment', 'all']:
             hypothesis.timestep['segment'] = segment_offsets
 
