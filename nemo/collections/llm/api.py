@@ -24,24 +24,9 @@ from typing_extensions import Annotated
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
+from nemo.lightning.run import cli_entrypoint
 
 TokenizerType = Any
-
-
-def cli_entrypoint(*args0, **kwargs0):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            try:
-                import nemo_run as run
-
-                return run.cli.entrypoint(*args0, **kwargs0)(func, *args, **kwargs)
-            except (ImportError, ModuleNotFoundError) as error:
-                logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
-                return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 @cli_entrypoint(namespace="llm")
