@@ -32,9 +32,7 @@ class TestSimpleMultiModalDataModuleWithDummyData(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-        cls.tokenizer = cls.processor.tokenizer
-        cls.image_processor = cls.processor.image_processor
+        cls.hf_model_id = "llava-hf/llava-1.5-7b-hf"
 
     def setUp(self):
         self.config = MultiModalSampleConfig(
@@ -49,13 +47,15 @@ class TestSimpleMultiModalDataModuleWithDummyData(unittest.TestCase):
 
         self.data_module = SimpleMultiModalDataModule(
             path=str(self.dataset_path),
-            tokenizer=self.tokenizer,
-            image_processor=self.image_processor,
+            hf_model_id=self.hf_model_id,
             num_workers=0,
             micro_batch_size=1,
             global_batch_size=2,
             multimodal_sample_config=self.config,
         )
+        self.data_module.setup(stage='train')
+        self.tokenizer = self.data_module.tokenizer
+        self.image_processor = self.data_module.image_processor
 
     def tearDown(self):
         self.temp_dir.cleanup()

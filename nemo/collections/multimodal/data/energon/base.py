@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Type
 
 import pytorch_lightning as pl
 from megatron.core import parallel_state
 from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader
-
+from transformers import AutoProcessor
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.lightning.io.mixin import IOMixin
@@ -57,52 +57,64 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
     def __init__(
         self,
         path: str,
-        tokenizer,
-        image_processor,
+        hf_model_id: str,
         seq_length: int = 2048,
         micro_batch_size: int = 1,
         global_batch_size: int = 1,
         num_workers: int = 1,
         pin_memory: bool = True,
         multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
-        task_encoder: Optional[MultiModalTaskEncoder] = None,
+        task_encoder_class: Optional[Type[MultiModalTaskEncoder]] = MultiModalTaskEncoder,
     ) -> None:
         """
         Initialize the SimpleMultiModalDataModule.
 
         Parameters:
         path (str): Path to the dataset.
-        tokenizer (Tokenizer): The tokenizer used for processing text.
-        image_processor (ImageProcessor): The image processor used for preprocessing images.
+        hf_model_id (str): Hugging Face model ID to load the tokenizer and image processor.
         seq_length (int, optional): The maximum sequence length for tokenized text. Defaults to 2048.
         micro_batch_size (int, optional): The batch size for training and validation. Defaults to 1.
+        global_batch_size (int, optional): The global batch size for distributed training. Defaults to 1.
         num_workers (int, optional): Number of workers for data loading. Defaults to 1.
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples. Defaults to MultiModalSampleConfig().
-        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples. If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
+        task_encoder_class (Type[MultiModalTaskEncoder], optional): The class responsible for encoding and batching samples. Defaults to MultiModalTaskEncoder.
         """
 
         super().__init__()
         self.path = path
-        self.tokenizer = tokenizer
-        self.image_processor = image_processor
+        processor = AutoProcessor.from_pretrained(hf_model_id)
+        self.tokenizer = processor.tokenizer
+        self.image_processor = processor.image_processor
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.multimodal_sample_config = multimodal_sample_config
-        self.task_encoder = task_encoder or MultiModalTaskEncoder(
-            tokenizer=self.tokenizer,
-            image_processor=self.image_processor,
-            multimodal_sample_config=multimodal_sample_config,
-        )
         self.init_global_step = 0
+        self.train_dataloader_object = None
+        self.val_dataloader_object = None
+        self.task_encoder_class = task_encoder_class
+
+    def setup(self, stage: str):
+        """
+        Setup the data module for a particular stage (train, validate, or test).
+
+        Initializes the data sampler and the task encoder based on the provided class.
+
+        Parameters:
+        stage (str): Stage for which the setup is being done. Either 'fit', 'validate', 'test', or 'predict'.
+        """
         self.data_sampler = SequentialMegatronSampler(
             seq_len=self.seq_length, micro_batch_size=self.micro_batch_size, global_batch_size=self.global_batch_size
         )
-        self.train_dataloader_object = None
-        self.val_dataloader_object = None
+
+        self.task_encoder = self.task_encoder_class(
+            tokenizer=self.tokenizer,
+            image_processor=self.image_processor,
+            multimodal_sample_config=self.multimodal_sample_config,
+        )
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
         """
