@@ -294,6 +294,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.accelerator.setup(trainer)
         self.trainer = trainer
 
+        try:
+            self.model.optim.lr_scheduler.max_steps = trainer.max_steps
+        except AttributeError:
+            pass
+
         # move the model to the correct device
         # self.model_to_device()
 
