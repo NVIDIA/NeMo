@@ -381,11 +381,17 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 config_dict["moe_router_topk"] = 0
             if config_dict["activation"] == "silu":
                 config_dict["activation"] = "fast-swiglu"
+            elif config_dict["activation"] == "openai_gelu":
+                config_dict["activation"] = "geglu"
 
             config_dict["mcore_gpt"] = True
-            config_dict["max_position_embeddings"] = config_dict.get("seq_length")
+            config_dict["max_position_embeddings"] = config_dict.get("seq_length", 4096)
+
             nemo_model_config = config_dict
 
+            from nemo.lightning import io
+            tokenizer = io.load_context(io_folder).model.tokenizer
+            '''
             tokenizer = None
             if (
                 config["tokenizer"]["_target_"]
@@ -395,6 +401,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                     io_folder / config["tokenizer"]["pretrained_model_name"],
                     use_fast=config["tokenizer"]["use_fast"],
                 )
+            '''
 
             shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:
