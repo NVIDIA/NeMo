@@ -68,7 +68,6 @@ class MultiBinaryAccuracy(Metric):
         f1_score (torch.Tensor):
             F1 score calculated from the predicted value and binarized target values.
     """
-
     full_state_update = False
 
     def __init__(self, dist_sync_on_step=False):
@@ -80,7 +79,7 @@ class MultiBinaryAccuracy(Metric):
         self.add_state("false_negative_count", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("positive_count", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.eps = 1e-6
-        
+
     def update(self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor, cumulative=False) -> torch.Tensor:
         with torch.no_grad():
             preds_list = [preds[k, : signal_lengths[k], :] for k in range(preds.shape[0])]
@@ -112,17 +111,11 @@ class MultiBinaryAccuracy(Metric):
         """
         Compute F1 score from the accumulated values. Return -1 if the F1 score is NaN.
         """
-        self.compute_pr()
-        self.f1_score = (2 * self.precision * self.recall / (self.precision + self.recall + self.eps)).detach().clone()
-        if torch.isnan(self.f1_score):
-            logging.warn("self.f1_score contains NaN value. Returning -1 instead of NaN value.")
-            self.f1_score = -1
-        return self.f1_score.float()
+        precision = self.true_positive_count / (self.true_positive_count + self.false_positive_count + self.eps)
+        recall = self.true_positive_count / (self.true_positive_count + self.false_negative_count + self.eps)
+        f1_score = (2 * precision * recall / (precision + recall + self.eps)).detach().clone()
 
-    def compute_pr(self):
-        """
-        Compute F1 score from the accumulated values. Return -1 if the F1 score is NaN.
-        """
-        self.precision = self.true_positive_count / (self.true_positive_count + self.false_positive_count + self.eps)
-        self.recall = self.true_positive_count / (self.true_positive_count + self.false_negative_count + self.eps)
-        return self.precision.float(), self.recall.float()
+        if torch.isnan(f1_score):
+            logging.warn("self.f1_score contains NaN value. Returning -1 instead of NaN value.")
+            f1_score = -1
+        return f1_score.float(), precision.float(), recall.float()

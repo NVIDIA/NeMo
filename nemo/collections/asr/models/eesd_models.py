@@ -368,21 +368,20 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
         pil_loss = self.loss(probs=preds, labels=targets_pil, target_lens=target_lens)
         loss = self.ats_weight * ats_loss + self.pil_weight * pil_loss
-        
+
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_train_vad(preds_vad, targets_vad, target_lens)
         self._accuracy_train_ovl(preds_ovl, targets_ovl, target_lens)
-        train_f1_vad = self._accuracy_train_vad.compute()
-        train_f1_ovl = self._accuracy_train_ovl.compute()
+        train_f1_vad, _, _ = self._accuracy_train_vad.compute()
+        train_f1_ovl, _, _ = self._accuracy_train_ovl.compute()
         self._accuracy_train(preds, targets_pil, target_lens)
-        train_f1_acc = self._accuracy_train.compute()
-        train_precision, train_recall = self._accuracy_train.compute_pr()
+        train_f1_acc, train_precision, train_recall = self._accuracy_train.compute()
 
         preds_vad_ats, preds_ovl_ats, targets_vad_ats, targets_ovl_ats = self._get_ovl_and_vad(preds, targets_ats)
         self._accuracy_train_ovl_ats(preds_ovl_ats, targets_ovl_ats, target_lens)
-        train_f1_ovl_ats = self._accuracy_train_ovl_ats.compute()
+        train_f1_ovl_ats, _, _ = self._accuracy_train_ovl_ats.compute()
         self._accuracy_train_ats(preds, targets_ats, target_lens)
-        train_f1_acc_ats= self._accuracy_train_ats.compute()
+        train_f1_acc_ats, _, _ = self._accuracy_train_ats.compute()
 
         train_metrics = {
             'loss': loss,
@@ -437,19 +436,23 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
 
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_valid_vad(preds_vad, targets_vad, target_lens)
-        valid_f1_vad = self._accuracy_valid_vad.compute()
+        valid_f1_vad, _, _ = self._accuracy_valid_vad.compute()
         self._accuracy_valid_ovl(preds_ovl, targets_ovl, target_lens)
-        valid_f1_ovl = self._accuracy_valid_ovl.compute()
+        valid_f1_ovl, _, _ = self._accuracy_valid_ovl.compute()
         self._accuracy_valid(preds, targets_pil, target_lens)
-        val_f1_acc = self._accuracy_valid.compute()
-        val_precision, val_recall = self._accuracy_valid.compute_pr()
+        val_f1_acc, val_precision, val_recall = self._accuracy_valid.compute()
 
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_ats)
-        self._accuracy_valid_vad(preds_vad, targets_vad, target_lens)
-        self._accuracy_valid_ovl(preds_ovl, targets_ovl, target_lens)
-        valid_f1_ovl_ats = self._accuracy_valid_ovl.compute()
-        self._accuracy_valid(preds, targets_ats, target_lens)
-        valid_f1_acc_ats = self._accuracy_valid.compute()
+        self._accuracy_valid_ovl_ats(preds_ovl, targets_ovl, target_lens)
+        valid_f1_ovl_ats, _, _ = self._accuracy_valid_ovl_ats.compute()
+        self._accuracy_valid_ats(preds, targets_ats, target_lens)
+        valid_f1_acc_ats, _, _ = self._accuracy_valid_ats.compute()
+
+        self._accuracy_valid.reset()
+        self._accuracy_valid_ats.reset()
+        self._accuracy_valid_ovl.reset()
+        self._accuracy_valid_ovl_ats.reset()
+        self._accuracy_valid_vad.reset()
 
         val_metrics = {
             'val_loss': val_loss,
@@ -510,7 +513,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         return {'log': multi_val_metrics}
     def multi_test_epoch_end(self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        f1_acc = self._accuracy_test.compute()
+        f1_acc, _, _ = self._accuracy_test.compute()
         self._accuracy_test.reset()
         multi_test_metrics = {
             'test_loss': test_loss_mean,
@@ -530,11 +533,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
         self._accuracy_test_vad(preds_vad, targets_vad, target_lens, cumulative=True)
-        test_f1_vad = self._accuracy_test_vad.compute()
+        test_f1_vad, _, _ = self._accuracy_test_vad.compute()
         self._accuracy_test_ovl(preds_ovl, targets_ovl, target_lens, cumulative=True)
-        test_f1_ovl = self._accuracy_test_ovl.compute()
+        test_f1_ovl, _, _ = self._accuracy_test_ovl.compute()
         self._accuracy_test(preds, targets_pil, target_lens, cumulative=True)
-        f1_acc = self._accuracy_test.compute()
+        f1_acc, _, _ = self._accuracy_test.compute()
         self.max_f1_acc = max(self.max_f1_acc, f1_acc)
         batch_score_dict = {"f1_acc": f1_acc, "f1_vad_acc": test_f1_vad, "f1_ovl_acc": test_f1_ovl}
         cum_score_dict = self._cumulative_test_set_eval(score_dict=batch_score_dict, batch_idx=batch_idx, sample_count=len(sequence_lengths))
@@ -544,21 +547,22 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         preds_vad, preds_ovl, targets_vad, targets_ovl = self._get_ovl_and_vad(preds, targets_pil)
-        self._accuracy_valid(preds, targets_pil, target_lens)
-        f1_acc = self._accuracy_valid.compute()
-        precision, recall = self._accuracy_valid.compute_pr()
+        self._accuracy_test(preds, targets_pil, target_lens)
+        f1_acc, precision, recall = self._accuracy_test.compute()
         self.batch_f1_accs_list.append(f1_acc)
         self.batch_precision_list.append(precision)
         self.batch_recall_list.append(recall)
         logging.info(f"batch {batch_idx}: f1_acc={f1_acc}, precision={precision}, recall={recall}")
 
-        self._accuracy_valid(preds, targets_ats, target_lens)
-        f1_acc = self._accuracy_valid.compute()
-        precision, recall = self._accuracy_valid.compute_pr()
+        self._accuracy_test_ats(preds, targets_ats, target_lens)
+        f1_acc, precision, recall = self._accuracy_test_ats.compute()
         self.batch_f1_accs_ats_list.append(f1_acc)
         self.batch_precision_ats_list.append(precision)
         self.batch_recall_ats_list.append(recall)
         logging.info(f"batch {batch_idx}: f1_acc_ats={f1_acc}, precision_ats={precision}, recall_ats={recall}")
+
+        self._accuracy_test.reset()
+        self._accuracy_test_ats.reset()
 
     def test_batch(self,):
         self.preds_total_list, self.batch_f1_accs_list, self.batch_precision_list, self.batch_recall_list = [], [], [], []
@@ -580,7 +584,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                     self.preds_total_list.extend(torch.split(preds, [1] * preds.shape[0]))
                 torch.cuda.empty_cache()
                 self._get_aux_test_batch_evaluations(batch_idx, preds, targets, target_lens)
-                
+
         logging.info(f"Batch F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_list))}")
         logging.info(f"Batch Precision MEAN: {torch.mean(torch.tensor(self.batch_precision_list))}")
         logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
