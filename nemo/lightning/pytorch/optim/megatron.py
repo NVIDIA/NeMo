@@ -21,9 +21,9 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.utils import get_model_config
 from torch.optim import Optimizer
 
+from nemo.lightning._strategy_lib import setup_megatron_optimizer
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
-from nemo.lightning._strategy_lib import setup_megatron_optimizer
 
 
 class MegatronOptimizerModule(OptimizerModule):

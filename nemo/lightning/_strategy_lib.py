@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import inspect
+import itertools
 import os
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Generator, Mapping, Optional, Protocol, TypeVar, Callable
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping, Optional, Protocol, TypeVar
 
 import torch
 from torch import nn
@@ -574,15 +574,16 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
 
 
 def setup_megatron_optimizer(
-    model, 
+    model,
     config,
     no_weight_decay_cond: Optional[Callable] = None,
     scale_lr_cond: Optional[Callable] = None,
     lr_mult: float = 1.0,
 ):
-    from nemo.core.optim import McoreDistributedOptimizer
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
-    
+
+    from nemo.core.optim import McoreDistributedOptimizer
+
     assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
 
     class McoreOpt(McoreDistributedOptimizer):

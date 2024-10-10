@@ -1,6 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Optional, Protocol, Type, TypeVar, Union, runtime_checkable, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Protocol, Sequence, Type, TypeVar, Union, runtime_checkable
 
 import fiddle as fdl
 import lightning_fabric as lb

@@ -25,6 +25,7 @@ from lightning_fabric.strategies import DDPStrategy
 from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
 from lightning_fabric.utilities.types import _PATH, _Stateful
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.utilities.combined_loader import CombinedLoader
@@ -35,7 +36,6 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from megatron.core.optimizer import OptimizerConfig
 from nemo.lightning import _strategy_lib
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.io.pl import MegatronCheckpointIO
@@ -151,10 +151,10 @@ class FabricMegatronStrategy(DDPStrategy):
         iter(output)
 
         return output
-    
+
     def setup_megatron_optimizer(
-        self, 
-        model: MegatronParallel, 
+        self,
+        model: MegatronParallel,
         optimizer_config: OptimizerConfig,
         no_weight_decay_cond: Optional[Callable] = None,
         scale_lr_cond: Optional[Callable] = None,
