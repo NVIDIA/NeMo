@@ -29,7 +29,8 @@ mp.set_start_method("spawn", force=True)
 
 """
 This is a modified version of `megatron_gpt_finetuning.py` to perform PTQ and QAT on a SFT Model like Llama2-7b.
-Please see docs/source/nlp/quantization.rst for more details on the usage.
+Please see https://docs.nvidia.com/nemo-framework/user-guide/latest/deployment/llm/quantization.html for more
+details on the usage.
 """
 
 
