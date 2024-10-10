@@ -27,11 +27,12 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.run import cli_factory
 
 NAME = "nemotron3_8b"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Nemotron3 8B model configuration.
@@ -51,7 +52,7 @@ def model() -> run.Config[pl.LightningModule]:
     return nemotron_model(version=NAME)
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     # General
     dir: Optional[str] = None,
@@ -174,7 +175,7 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(name=NAME + "_nemo")
+@cli_factory(name=NAME + "_nemo")
 def nemo_resume() -> run.Config[nl.AutoResume]:
     """
     Configure automatic resumption from a NeMo checkpoint converted from Huggingface for Nemotron3 8B model.
@@ -199,7 +200,7 @@ def nemo_resume() -> run.Config[nl.AutoResume]:
     )
 
 
-@run.cli.factory(target=finetune, name=NAME)
+@cli_factory(target=finetune, name=NAME)
 def finetune_recipe(
     # General
     dir: Optional[str] = None,

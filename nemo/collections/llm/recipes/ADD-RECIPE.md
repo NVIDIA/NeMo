@@ -11,10 +11,12 @@ Create a new Python file in the `nemo/collections/llm/recipes/` directory. Name 
 Create a function called `model` to define the model configuration:
 
 ```python
+from nemo.lightning.run import cli_factory
+
 NAME = "my_new_model_12b"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     return run.Config(YourModel, config=run.Config(YourModelConfig))
 ```
@@ -49,8 +51,9 @@ Create a function called `pretrain_recipe` or `finetune_recipe` to define the re
 
 ```python
 from nemo.collections.llm import pretrain
+from nemo.lightning.run import cli_factory
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     # Add other parameters as needed
 ) -> run.Config[nl.PretrainRecipe]:
@@ -68,8 +71,9 @@ def pretrain_recipe(
 
 ```python
 from nemo.collections.llm import finetune
+from nemo.lightning.run import cli_factory
 
-@run.cli.factory(target=finetune, name=NAME)
+@cli_factory(target=finetune, name=NAME)
 def finetune_recipe(
     # Add other parameters as needed
 ) -> run.Config[nl.FinetuneRecipe]:

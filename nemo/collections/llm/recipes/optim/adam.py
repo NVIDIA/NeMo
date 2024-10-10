@@ -16,11 +16,11 @@ from typing import Optional
 
 import nemo_run as run
 from megatron.core.optimizer import OptimizerConfig
-
+from nemo.lightning.run import cli_factory
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, OptimizerModule
 
 
-@run.cli.factory
+@cli_factory
 def distributed_fused_adam_with_cosine_annealing(
     precision: str = "bf16-mixed",  # or "16-mixed"
     warmup_steps: int = 2000,
