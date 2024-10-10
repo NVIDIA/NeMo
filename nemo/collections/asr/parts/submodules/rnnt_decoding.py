@@ -887,7 +887,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # Construct the start and end indices brackets
         end_indices = np.asarray(token_repetitions).cumsum()
-        start_indices = np.concatenate(([start_index], end_indices[:-1]))
+        start_indices = np.concatenate(([int(start_index)], end_indices[:-1]))
 
         # Process the TxU dangling alignment tensor, containing pairs of (logits, label)
         alignment_labels = [al_logits_labels for al_logits_labels in hypothesis.text[1]]

@@ -133,6 +133,7 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         residual_panes = []
         encoder_layers = []
         self.dense_residual = False
+        self._subsampling_factor = 1 
         for layer_idx, lcfg in enumerate(jasper):
             dense_res = []
             if lcfg.get('residual_dense', False):
@@ -181,6 +182,7 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
                 )
             )
             feat_in = lcfg['filters']
+            self._subsampling_factor *= int(lcfg['stride'][0]) if isinstance(lcfg['stride'], List) else int(lcfg['stride'])
 
         self._feat_out = feat_in
 
@@ -229,6 +231,9 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
                 elif isinstance(m, SqueezeExcite):
                     m.set_max_len(self.max_audio_length, seq_range=self.seq_range)
 
+    @property
+    def subsampling_factor(self) -> int:
+        return self._subsampling_factor
 
 class ParallelConvASREncoder(NeuralModule, Exportable):
     """

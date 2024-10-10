@@ -40,6 +40,7 @@ from nemo.collections.asr.parts.mixins import (
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
+from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_outputs
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -247,6 +248,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: bool = False,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
@@ -285,6 +287,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             channel_selector=channel_selector,
             augmentor=augmentor,
             verbose=verbose,
+            timestamps=timestamps,
             override_config=override_config,
             # Additional arguments
             partial_hypothesis=partial_hypothesis,
@@ -915,9 +918,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             return_hypotheses=trcfg.return_hypotheses,
             partial_hypotheses=trcfg.partial_hypothesis,
         )
-
         # cleanup memory
         del encoded, encoded_len
+
+        if trcfg.timestamps:
+            hypotheses = process_timestamp_outputs(best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
+            all_hyp = process_timestamp_outputs(all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
 
         hypotheses = []
         all_hypotheses = []
@@ -929,6 +935,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             all_hypotheses += best_hyp
 
         return (hypotheses, all_hypotheses)
+
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """

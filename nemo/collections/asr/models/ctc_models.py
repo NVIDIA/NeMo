@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
@@ -23,7 +21,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
@@ -37,6 +34,7 @@ from nemo.collections.asr.parts.mixins.transcription import GenericTranscription
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
+from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_outputs
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -44,6 +42,7 @@ from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated
+
 
 __all__ = ['EncDecCTCModel']
 
@@ -128,6 +127,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: bool = False,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
@@ -161,6 +161,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             channel_selector=channel_selector,
             augmentor=augmentor,
             verbose=verbose,
+            timestamps=timestamps,
             override_config=override_config,
         )
 
@@ -704,6 +705,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         # cleanup memory
         del logits, logits_len
+
+        if trcfg.timestamps:
+            current_hypotheses = process_timestamp_outputs(current_hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
+            all_hyp = process_timestamp_outputs(all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
 
         hypotheses = []
         if all_hyp is None:

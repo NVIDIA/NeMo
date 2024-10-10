@@ -22,6 +22,7 @@ from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import omegaconf
 import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
@@ -61,7 +62,8 @@ class TranscribeConfig:
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
-    verbose: bool = True
+    timestamps: bool = False # returns timestamps for each word and segments if model supports punctuations
+    verbose: bool = True 
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = None
@@ -179,6 +181,7 @@ class TranscriptionMixin(ABC):
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: bool = False,
         override_config: Optional[TranscribeConfig] = None,
         **config_kwargs,
     ) -> GenericTranscriptionType:
@@ -229,6 +232,7 @@ class TranscriptionMixin(ABC):
                 channel_selector=channel_selector,
                 augmentor=augmentor,
                 verbose=verbose,
+                timestamps=timestamps,
                 **config_kwargs,
             )
         else:
@@ -436,6 +440,16 @@ class TranscriptionMixin(ABC):
             if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
                 trcfg._internal.pad_to_value = self.preprocessor.featurizer.pad_to
                 self.preprocessor.featurizer.pad_to = 0
+
+        # if timestamps option is set
+        if trcfg.timestamps:
+            trcfg.return_hypotheses = True
+            model_decoding_cfg = self.cfg.get('decoding', None)
+            if model_decoding_cfg is not None:
+                with omegaconf.open_dict(model_decoding_cfg):
+                    model_decoding_cfg.compute_timestamps = trcfg.timestamps
+                    model_decoding_cfg.preserve_alignments = trcfg.timestamps
+                self.change_decoding_strategy(model_decoding_cfg)
 
         # Switch model to evaluation mode
         self.eval()
