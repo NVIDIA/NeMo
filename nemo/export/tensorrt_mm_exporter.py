@@ -20,9 +20,9 @@ from pathlib import Path
 import numpy as np
 import wrapt
 
-from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import build_perception_engine, build_trtllm_engine, build_visual_engine
 from nemo.export.multimodal.run import MultimodalModelRunner, SpeechllmModelRunner
+from nemo.export.triton_deployable import ITritonDeployable
 
 use_deploy = True
 try:

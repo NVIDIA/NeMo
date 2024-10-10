@@ -15,7 +15,7 @@ def req_file(filename, folder="requirements"):
 
 
 def setup_export():
-    install_requires = req_file("requirements_infer_nim.txt")
+    install_requires = req_file("requirements_infer_nim_no_vllm_no_deploy.txt")
 
     setuptools.setup(
         name="NeMo Export",
@@ -32,13 +32,11 @@ def setup_export():
             "nemo",
             "nemo.export",
             "nemo.export.trt_llm",
-            "nemo.export.vllm",
             "nemo.export.multimodal",
             "nemo.export.quantize",
             "nemo.export.trt_llm.converter",
             "nemo.export.trt_llm.nemo_ckpt_loader",
             "nemo.export.trt_llm.qnemo",
-            "nemo.deploy",
         ],
         install_requires=install_requires,
         # Add in any packaged data.
