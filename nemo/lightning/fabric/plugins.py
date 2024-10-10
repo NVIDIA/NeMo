@@ -1,19 +1,19 @@
 from contextlib import contextmanager
-from typing import Any, Generator, Literal, TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Generator, Literal, TypeVar
 
 import torch
 from lightning_fabric.plugins.precision import MixedPrecision
 from torch import nn
 from torch.optim import Optimizer
 
-from nemo.utils.import_utils import safe_import
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.pytorch.plugins.mixed_precision import (
-    MegatronMixedPrecision, 
     DtypeConfig,
+    MegatronMixedPrecision,
     get_optim_config,
-    update_config_with_dtype_overrides
+    update_config_with_dtype_overrides,
 )
+from nemo.utils.import_utils import safe_import
 
 if TYPE_CHECKING:
     from megatron.core.model_parallel_config import ModelParallelConfig
@@ -115,7 +115,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
 
         """
         return update_config_with_dtype_overrides(self.dtype_config, config)
-    
+
     def convert_module(self, module: nn.Module) -> nn.Module:
         """Convert the module parameters to the precision type this plugin handles.
 
@@ -136,7 +136,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
                 module = Float16Module(config, module)
 
         return module
-    
+
     def convert_optimizer(self, optimizer: Optimizer) -> Optimizer:
         """Convert the optimizer parameters to the precision type this plugin handles.
 
