@@ -55,32 +55,6 @@ class SortformerModules(NeuralModule, Exportable):
             If 'cos_sim', cosine similarity values are used for the input of the sequence models.
             If 'elem_prod', element-wise product values are used for the input of the sequence models.
     """
-
-    @property
-    def output_types(self):
-        """
-        Return definitions of module output ports.
-        """
-        return OrderedDict(
-            {
-                "probs": NeuralType(('B', 'T', 'C'), ProbsType()),
-                "scale_weights": NeuralType(('B', 'T', 'C', 'D'), ProbsType()),
-            }
-        )
-
-    @property
-    def input_types(self):
-        """
-        Return  definitions of module input ports.
-        """
-        return OrderedDict(
-            {
-                "ms_emb_seq": NeuralType(('B', 'T', 'C', 'D'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
-                "ms_avg_embs": NeuralType(('B', 'C', 'D', 'C'), EncodedRepresentation()),
-            }
-        )
-
     def init_weights(self, m):
         if type(m) == nn.Linear:
             torch.nn.init.xavier_uniform_(m.weight)
