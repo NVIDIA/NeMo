@@ -317,7 +317,7 @@ def deploy(
     model_type: str = "llama",
     triton_model_name: str = "xxx",
     triton_model_version: Optional[int] = 1,
-    triton_port: int = 8080,
+    triton_port: int = 8000,
     triton_http_address: str = "0.0.0.0",
     triton_request_timeout: int = 60,
     triton_model_repository: Path = None,
@@ -332,6 +332,7 @@ def deploy(
     rest_service_http_address: str = "0.0.0.0",
     rest_service_port: int = 8000,
     openai_format_response: bool = False,
+    ckpt_type: str = "nemo",
 ):
     from nemo.deploy import DeployPyTriton
 
@@ -342,18 +343,30 @@ def deploy(
         # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
         store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
 
-    triton_deployable = get_trtllm_deployable(
-        nemo_checkpoint,
-        model_type,
-        triton_model_repository,
-        num_gpus,
-        tensor_parallelism_size,
-        pipeline_parallelism_size,
-        max_input_len,
-        max_output_len,
-        max_batch_size,
-        dtype,
-    )
+    # TODO: directly support deploy of trtllm engine wo exporting to TRTLLM
+    if ckpt_type == "trtllm":
+        triton_deployable = get_trtllm_deployable(
+            nemo_checkpoint,
+            model_type,
+            triton_model_repository,
+            num_gpus,
+            tensor_parallelism_size,
+            pipeline_parallelism_size,
+            max_input_len,
+            max_output_len,
+            max_batch_size,
+            dtype,
+        )
+    elif ckpt_type == "nemo":
+        if nemo_checkpoint is None:
+            raise ValueError("In-Framework deployment requires a .nemo checkpoint")
+        try:
+            from nemo.deploy.nlp import MegatronLLMDeployable
+        except Exception as e:
+            raise ValueError(
+                "MegatronLLMDeployable is not supported in this environment as it was not imported.{type(e).__name__}: {e}"
+            )
+        triton_deployable = MegatronLLMDeployable(nemo_checkpoint, num_gpus)
 
     try:
         nm = DeployPyTriton(
@@ -367,6 +380,7 @@ def deploy(
 
         logging.info("Triton deploy function will be called.")
         nm.deploy()
+        nm.run()
     except Exception as error:
         logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
@@ -398,6 +412,127 @@ def deploy(
 
     logging.info("Model serving will be stopped.")
     nm.stop()
+
+
+def evaluate(
+    url: str = "http://0.0.0.0:1234/v1",
+    model_name: str = "xxxx",
+    eval_task: str = "gsm8k",
+    num_fewshot: Optional[int] = None,
+    limit: Optional[Union[int, float]] = None,
+    bootstrap_iters: int = 100000,
+    # inference params
+    max_tokens_to_generate: Optional[int] = 256,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = 0.0,
+    top_k: Optional[int] = 1,
+):
+
+    import time
+
+    import requests
+    from lm_eval import evaluator, tasks
+    from lm_eval.api.model import LM
+    from requests.exceptions import RequestException
+
+    def wait_for_rest_service(rest_url, max_retries=30, retry_interval=2):
+        """
+        Wait for REST service to be ready.
+
+        Args:
+        rest_url (str): URL of the REST service's health endpoint
+        max_retries (int): Maximum number of retry attempts
+        retry_interval (int): Time to wait between retries in seconds
+
+        Returns:
+        bool: True if rest service is ready, False otherwise
+        """
+        for _ in range(max_retries):
+            rest_ready = check_service(rest_url)
+
+            if rest_ready:
+                print("REST service is ready.")
+                return True
+
+            print(f"REST Service not ready yet. Retrying in {retry_interval} seconds...")
+            time.sleep(retry_interval)
+
+        print("Timeout: One or both services did not become ready.")
+        return False
+
+    def check_service(url):
+        """
+        Check if a service is ready by making a GET request to its health endpoint.
+
+        Args:
+        url (str): URL of the service's health endpoint
+
+        Returns:
+        bool: True if the service is ready, False otherwise
+        """
+        try:
+            response = requests.get(url, timeout=5)
+            return response.status_code == 200
+        except RequestException:
+            return False
+
+    class CustomModel(LM):
+        def __init__(self, model_name, api_url, max_tokens_to_generate, temperature, top_p, top_k):
+            self.model_name = model_name
+            self.api_url = api_url
+            self.max_tokens_to_generate = max_tokens_to_generate
+            self.temperature = temperature
+            self.top_p = top_p
+            self.top_k = top_k
+            super().__init__()
+
+        def loglikelihood(self, requests):
+            # Implement log likelihood calculation logic here
+            pass
+
+        def loglikelihood_rolling(self, requests):
+            # Implement log likelihood calculation logic here
+            pass
+
+        def generate_until(self, inputs):
+            results = []
+            for instance in inputs:
+                # Access the 'arguments' attribute of the Instance
+                prompt = instance.arguments[0]  # This should be the prompt string
+
+                # Extract default temperature from instance of the benchmark or use the uder defined value
+                temperature = (
+                    instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
+                )
+
+                payload = {
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "max_tokens": self.max_tokens_to_generate,
+                    "temperature": temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                }
+
+                response = requests.post(f"{self.api_url}/completions/", json=payload)
+                response_data = response.json()
+
+                if 'error' in response_data:
+                    raise Exception(f"API Error: {response_data['error']}")
+
+                # Assuming the response is in OpenAI format
+                generated_text = response_data['choices'][0]['text']
+                results.append(generated_text)
+
+            return results
+
+    wait_for_rest_service(rest_url=f"{url}/health")
+    model = CustomModel(model_name, url, max_tokens_to_generate, temperature, top_p, top_k)
+    results = evaluator.simple_evaluate(
+        model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+    )
+
+    print("--score---", results['results']['gsm8k'])
 
 
 @run.cli.entrypoint(name="import", namespace="llm")
