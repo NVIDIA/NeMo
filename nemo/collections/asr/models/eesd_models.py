@@ -163,6 +163,20 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.time_flag = 0.0
         self.time_flag_end = 0.0
 
+    def _reset_train_metrics(self):
+        self._accuracy_train.reset()
+        self._accuracy_train_ats.reset()
+        self._accuracy_train_ovl.reset()
+        self._accuracy_train_ovl_ats.reset()
+        self._accuracy_train_vad.reset() 
+        
+    def _reset_valid_metrics(self):
+        self._accuracy_valid.reset()
+        self._accuracy_valid_ats.reset()
+        self._accuracy_valid_ovl.reset()
+        self._accuracy_valid_ovl_ats.reset()
+        self._accuracy_valid_vad.reset() 
+        
     def __setup_dataloader_from_config(self, config):
         # Switch to lhotse dataloader if specified in the config
         if config.get("use_lhotse"):
@@ -257,29 +271,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 "batch_affinity_mat": NeuralType(('B', 'T', 'T'), ProbsType()),
             }
         )
-
-    def length_to_mask(self, context_embs):
-        """
-        Convert length values to encoder mask input tensor.
-
-        Args:
-            lengths (torch.Tensor): tensor containing lengths of sequences
-            max_len (int): maximum sequence length
-
-        Returns:
-            mask (torch.Tensor): tensor of shape (batch_size, max_len) containing 0's
-                                in the padded region and 1's elsewhere
-        """
-        lengths = torch.tensor([context_embs.shape[1]] * context_embs.shape[0]) 
-        batch_size = context_embs.shape[0]
-        max_len=context_embs.shape[1]
-        # create a tensor with the shape (batch_size, 1) filled with ones
-        row_vector = torch.arange(max_len).unsqueeze(0).expand(batch_size, -1).to(lengths.device)
-        # create a tensor with the shape (batch_size, max_len) filled with lengths
-        length_matrix = lengths.unsqueeze(1).expand(-1, max_len).to(lengths.device)
-        # create a mask by comparing the row vector and length matrix
-        mask = row_vector < length_matrix
-        return mask.float().to(context_embs.device)
     
     def frontend_encoder(self, processed_signal, processed_signal_length, pre_encode_input=False):
         """ 
@@ -318,7 +309,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             encoder_states_list (list): List containing total speaker memory for each step for debugging purposes
                 Dimension: [(batch_size, max. diar frame count, inner dim), ]
         """
-        encoder_mask = self.length_to_mask(emb_seq)
+        encoder_mask = self.sortformer_modules.length_to_mask(emb_seq)
         trans_emb_seq = self.transformer_encoder(encoder_states=emb_seq, encoder_mask=encoder_mask)
         preds = self.sortformer_modules.forward_speaker_sigmoids(trans_emb_seq)
         return preds
@@ -393,12 +384,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy_train_ats(preds, targets_ats, target_lens)
         train_f1_acc_ats= self._accuracy_train_ats.compute()
 
-        self._accuracy_train.reset()
-        self._accuracy_train_ats.reset()
-        self._accuracy_train_ovl.reset()
-        self._accuracy_train_ovl_ats.reset()
-        self._accuracy_train_vad.reset()
-         
         train_metrics = {
             'loss': loss,
             'ats_loss': ats_loss,
@@ -418,6 +403,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         audio_signal, audio_signal_length, targets, target_lens = batch
         preds = self.forward(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
         train_metrics = self._get_aux_train_evaluations(preds, targets, target_lens)
+        self._reset_train_metrics()
         self.log_dict(train_metrics, sync_dist=True, on_step=True, on_epoch=False, logger=True)
         return {'loss': train_metrics['loss']}
         
@@ -507,11 +493,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         val_f1_acc_ats_mean = torch.stack([x['val_f1_acc_ats'] for x in outputs]).mean()
         val_f1_ovl_acc_ats_mean = torch.stack([x['val_f1_ovl_acc_ats'] for x in outputs]).mean()
 
-        self._accuracy_valid.reset()
-        self._accuracy_valid_vad.reset()
-        self._accuracy_valid_ats.reset()
-        self._accuracy_valid_ovl.reset()
-        self._accuracy_valid_ovl_ats.reset()
+        self._reset_valid_metrics()
         
         multi_val_metrics = {
             'val_loss': val_loss_mean,
@@ -526,8 +508,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             'val_f1_ovl_acc_ats': val_f1_ovl_acc_ats_mean
         }
         return {'log': multi_val_metrics}
-
-            
     def multi_test_epoch_end(self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         f1_acc = self._accuracy_test.compute()
@@ -610,19 +590,3 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
 
     def diarize(self,):
         raise NotImplementedError
-
-    def compute_accuracies(self):
-        """
-        Calculate F1 score and accuracy of the predicted sigmoid values.
-
-        Returns:
-            f1_score (float):
-                F1 score of the estimated diarized speaker label sequences.
-            simple_acc (float):
-                Accuracy of predicted speaker labels: (total # of correct labels)/(total # of sigmoid values)
-        """
-        f1_score = self._accuracy_test.compute()
-        num_correct = torch.sum(self._accuracy_test.true.bool())
-        total_count = torch.prod(torch.tensor(self._accuracy_test.targets.shape))
-        simple_acc = num_correct / total_count
-        return f1_score, simple_acc

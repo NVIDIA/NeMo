@@ -104,6 +104,29 @@ class SortformerModules(NeuralModule, Exportable):
         self.single_hidden_to_spks = nn.Linear(self.hidden_size, self.unit_n_spks)
         self.dropout = nn.Dropout(dropout_rate)
         self.encoder_proj = nn.Linear(self.fc_d_model, self.tf_d_model)
+
+    def length_to_mask(self, context_embs):
+        """
+        Convert length values to encoder mask input tensor.
+
+        Args:
+            lengths (torch.Tensor): tensor containing lengths of sequences
+            max_len (int): maximum sequence length
+
+        Returns:
+            mask (torch.Tensor): tensor of shape (batch_size, max_len) containing 0's
+                                in the padded region and 1's elsewhere
+        """
+        lengths = torch.tensor([context_embs.shape[1]] * context_embs.shape[0]) 
+        batch_size = context_embs.shape[0]
+        max_len=context_embs.shape[1]
+        # create a tensor with the shape (batch_size, 1) filled with ones
+        row_vector = torch.arange(max_len).unsqueeze(0).expand(batch_size, -1).to(lengths.device)
+        # create a tensor with the shape (batch_size, max_len) filled with lengths
+        length_matrix = lengths.unsqueeze(1).expand(-1, max_len).to(lengths.device)
+        # create a mask by comparing the row vector and length matrix
+        mask = row_vector < length_matrix
+        return mask.float().to(context_embs.device)
      
     def forward_speaker_sigmoids(self, hidden_out):
         hidden_out = self.dropout(F.relu(hidden_out))
