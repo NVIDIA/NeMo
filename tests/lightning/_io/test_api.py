@@ -73,7 +73,7 @@ class TestLoad:
         config = io.load_context(tmpdir, build=False)
         assert isinstance(config, fdl.Config)
         assert config.model.config.seq_length == ckpt.model.config.seq_length
-        assert config.model.__io__.tokenizer.vocab_file.startswith(str(tmpdir))
-        assert config.model.__io__.tokenizer.merges_file.startswith(str(tmpdir))
+        assert config.model.tokenizer.vocab_file.startswith(str(tmpdir))
+        assert config.model.tokenizer.merges_file.startswith(str(tmpdir))
         assert config.extra["dummy"] == partial_function_with_pos_and_key_args
 
