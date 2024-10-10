@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import re
+import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import unicodedata
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -62,7 +62,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             word_seperator:
                 Str token representing the seperator between words.
 
-            segment_seperators: 
+            segment_seperators:
                 List containing tokens representing the seperator(s) between segments.
 
             preserve_alignments:
@@ -737,9 +737,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         return offsets
 
     @staticmethod
-    def _refine_timestamps(
-        char_offsets: List[Dict[str, Union[str, int]]]
-        ) -> List[Dict[str, Union[str, int]]]:
+    def _refine_timestamps(char_offsets: List[Dict[str, Union[str, int]]]) -> List[Dict[str, Union[str, int]]]:
 
         for i, offset in enumerate(char_offsets):
 
@@ -893,7 +891,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         return word_offsets
 
-
     @staticmethod
     def _get_segment_offsets(
         offsets: Dict[str, Union[str, float]],
@@ -1011,7 +1008,7 @@ class CTCDecoding(AbstractCTCDecoding):
             word_seperator:
                 Str token representing the seperator between words.
 
-            segment_seperators: 
+            segment_seperators:
                 List containing tokens representing the seperator(s) between segments.
 
             preserve_alignments:
