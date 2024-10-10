@@ -635,7 +635,13 @@ def batched_hyps_to_hypotheses(
             score=batched_hyps.scores[i].item(),
             y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]],
             timestep=batched_hyps.timesteps[i, : batched_hyps.current_lengths[i]],
-            token_duration=durations if not torch.all((durations := batched_hyps.token_durations[i, : batched_hyps.current_lengths[i]]) == 0) else [],
+            token_duration=(
+                durations
+                if not torch.all(
+                    (durations := batched_hyps.token_durations[i, : batched_hyps.current_lengths[i]]) == 0
+                )
+                else []
+            ),
             alignments=None,
             dec_state=None,
         )

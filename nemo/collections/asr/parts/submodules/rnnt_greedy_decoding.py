@@ -2398,7 +2398,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
-        include_duration: Bool flag, which determines whether predicted durations for each token 
+        include_duration: Bool flag, which determines whether predicted durations for each token
             need to be included in the Hypothesis object. Defaults to False.
         include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
             attached to the regular frame confidence,
@@ -2670,7 +2670,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
-        include_duration: Bool flag, which determines whether predicted durations for each token 
+        include_duration: Bool flag, which determines whether predicted durations for each token
             need to be included in the Hypothesis object. Defaults to False.
         include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
             attached to the regular frame confidence,
