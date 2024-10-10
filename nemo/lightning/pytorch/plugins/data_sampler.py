@@ -75,7 +75,7 @@ class MegatronDataSampler(DataSampler):
             rampup_batch_size=self.rampup_batch_size,
             consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
             dataloader_type=self.dataloader_type,
-            drop_last=self.drop_last
+            drop_last=self.drop_last,
         )
 
     def compute_consumed_samples(self, steps_since_resume=0) -> int:
