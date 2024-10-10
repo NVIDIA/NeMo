@@ -157,8 +157,7 @@ def convert_model_to_trt_llm_ckpt(
             num_kv_heads = num_attention_heads
 
     export_config = {
-        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p"
-        or (decoder_type == "gemma"),
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p" or (decoder_type == "gemma"),
         "tp_size": training_tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
         in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
