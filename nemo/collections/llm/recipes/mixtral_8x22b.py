@@ -33,11 +33,12 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.run import cli_factory
 
 NAME = "mixtral_8x22b"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Mixtral 8x22B model configuration.
@@ -140,7 +141,7 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 16, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
@@ -182,7 +183,7 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
+@cli_factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
@@ -225,7 +226,7 @@ def pretrain_recipe_performance(
     return recipe
 
 
-@run.cli.factory(target=finetune, name=NAME)
+@cli_factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",

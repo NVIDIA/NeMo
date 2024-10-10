@@ -24,11 +24,12 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.run import cli_factory
 
 NAME = "nemotron4_22b_16k"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Nemotron4 22b model with 16k sequence length.
@@ -48,7 +49,7 @@ def model() -> run.Config[pl.LightningModule]:
     return nemotron_model(version=NAME)
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     # General
     dir: Optional[str] = None,

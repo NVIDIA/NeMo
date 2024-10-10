@@ -24,11 +24,12 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes import mixtral_8x7b
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.run import cli_factory
 
 NAME = "mixtral_8x7b_16k"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Mixtral 8x7B model configuration with 16k sequence length.
@@ -91,7 +92,7 @@ def trainer(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
