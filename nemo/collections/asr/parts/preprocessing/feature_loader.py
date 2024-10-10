@@ -18,12 +18,13 @@ import torch
 
 
 class ExternalFeatureLoader(object):
-    """Feature loader that load external features store in certain format. 
+    """Feature loader that load external features store in certain format.
     Currently support pickle, npy and npz format.
     """
 
     def __init__(
-        self, augmentor: Optional["nemo.collections.asr.parts.perturb.FeatureAugmentor"] = None,
+        self,
+        augmentor: Optional["nemo.collections.asr.parts.perturb.FeatureAugmentor"] = None,
     ):
         """
         Feature loader
