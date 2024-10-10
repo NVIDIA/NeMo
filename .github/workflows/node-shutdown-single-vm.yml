@@ -13,7 +13,7 @@ on:
         required: true
         
 jobs:
-  check-status-and-maybe-reboot:
+  check-status-and-maybe-shutdown:
     environment: main
     runs-on: ${{ inputs.vm }}
     outputs:
@@ -27,7 +27,7 @@ jobs:
           NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 
           if [[ $NUM_GPUS -ne ${{ inputs.n_gpus }} ]]; then
-            echo "Issues with GPU detected, will attempt a reboot & re-install."
+            echo "Issues with GPU detected, will take this runner offline."
             echo "main=degraded" >> "$GITHUB_OUTPUT"
           else
             echo "main=healthy" >> "$GITHUB_OUTPUT"
