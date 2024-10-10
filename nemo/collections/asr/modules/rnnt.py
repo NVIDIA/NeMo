@@ -499,18 +499,18 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 tokens, state=dec_states, add_sos=False, batch_size=batch
             )  # [B, 1, H], B x List([L, 1, H])
 
-        # Update final states and cache shared by entire batch.
-        processed_idx = 0
-        for final_idx in range(final_batch):
-            if to_process and final[final_idx] is None:
-                # Select sample's state from the batch state list
-                new_state = self.batch_select_state(dec_states, processed_idx)
+            # Update final states and cache shared by entire batch.
+            processed_idx = 0
+            for final_idx in range(final_batch):
+                if to_process and final[final_idx] is None:
+                    # Select sample's state from the batch state list
+                    new_state = self.batch_select_state(dec_states, processed_idx)
 
-                # Cache [1, H] scores of the current y_j, and its corresponding state
-                final[final_idx] = (dec_outputs[processed_idx], new_state)
-                cache[to_process[processed_idx][0]] = (dec_outputs[processed_idx], new_state)
+                    # Cache [1, H] scores of the current y_j, and its corresponding state
+                    final[final_idx] = (dec_outputs[processed_idx], new_state)
+                    cache[to_process[processed_idx][0]] = (dec_outputs[processed_idx], new_state)
 
-                processed_idx += 1
+                    processed_idx += 1
 
         return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
