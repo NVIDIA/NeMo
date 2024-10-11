@@ -248,15 +248,15 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
 
         Args:
             decoder_states (list of list of list of torch.Tensor): list of decoder states
-                [B, layer, L, H]
+                [B, C, L, H]
                     - B: Batch size.
-                    - layer: e.g., for LSTM, this is 2: hidden and cell states
+                    - C: e.g., for LSTM, this is 2: hidden and cell states
                     - L: Number of layers in prediction RNN.
                     - H: Dimensionality of the hidden state.
 
         Returns:
             batch_states (list of torch.Tensor): batch of decoder states
-                [layer x torch.Tensor[L x B x H]
+                [C x torch.Tensor[L x B x H]
         """
         raise NotImplementedError()
 
