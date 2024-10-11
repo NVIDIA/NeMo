@@ -23,8 +23,8 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, reduce, repeat
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning import LightningModule
+from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel, SiglipVisionModel
 
 from nemo.collections.common.parts.utils import extend_instance
@@ -1012,6 +1012,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 loss_mean = torch.tensor(0.0).cuda()
 
         return loss_mean
+
     def training_step(self, dataloader_iter):
         """
         We pass the dataloader iterator function to the micro-batch scheduler.
@@ -1195,7 +1196,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
-       # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
+        # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
         # it should be casted to other pipeline stages for logging.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.loss_broadcast_src_rank is None:
@@ -1205,7 +1206,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 self.loss_broadcast_src_rank,
                 group=parallel_state.get_pipeline_model_parallel_group(),
             )
-            
+
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory
 
@@ -1443,11 +1444,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             model = self._unwrap_model()
             ds_dict = make_supervised_data_module(
                 tokenizer=self.tokenizer,
-                image_processor=(
-                        model.module.image_processor
-                        if hasattr(model, "module")
-                        else model.image_processor
-                    ),
+                image_processor=(model.module.image_processor if hasattr(model, "module") else model.image_processor),
                 model_cfg=self.cfg,
             )
             self._train_ds = ds_dict["train_dataset"]
