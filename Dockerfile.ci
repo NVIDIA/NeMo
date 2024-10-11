@@ -95,4 +95,4 @@ chmod 777 -R /workspace
 EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
-ENV NUMBA_FORCE_CUDA_CC=8.4
+# ENV NUMBA_FORCE_CUDA_CC=8.4
