@@ -134,6 +134,7 @@ class DiTCrossAttentionModel(VisionModule):
         in_channels: int = 16,
         out_channels: int = 16,
         transformer_decoder_layer_spec=DiTLayerWithAdaLNspec,
+        pos_embedder=dit_embeddings.SinCosPosEmb3D,
         **kwargs,
     ):
         super(DiTCrossAttentionModel, self).__init__(config=config)
@@ -175,7 +176,7 @@ class DiTCrossAttentionModel(VisionModule):
         if self.pre_process:
             self.x_embedder = torch.nn.Linear(in_channels * patch_spatial**2, self.config.hidden_size)
 
-            self.pos_embedder = dit_embeddings.FactorizedLearnable3DEmbedding(
+            self.pos_embedder = pos_embedder(
                 config,
                 t=max_frames // patch_temporal,
                 h=max_img_h // patch_spatial,
@@ -227,7 +228,12 @@ class DiTCrossAttentionModel(VisionModule):
         if self.pre_process:
             # transpose to match
             x_B_S_D = self.x_embedder(x)
-            x_B_S_D += self.pos_embedder(pos_ids)
+            if isinstance(self.pos_embedder, dit_embeddings.SinCosPosEmb3D):
+                pos_emb = None
+                x_B_S_D += self.pos_embedder(pos_ids)
+            else:
+                pos_emb = self.pos_embedder(pos_ids)
+                pos_emb = rearrange(pos_emb, "B S D -> S B D")
             x_S_B_D = rearrange(x_B_S_D, "B S D -> S B D")
         else:
             # intermediate stage of pipeline
@@ -259,6 +265,7 @@ class DiTCrossAttentionModel(VisionModule):
             attention_mask=affline_emb_B_D,
             context=crossattn_emb,
             context_mask=None,
+            rotary_pos_emb=pos_emb,
             packed_seq_params=packed_seq_params,
         )
 

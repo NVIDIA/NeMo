@@ -87,8 +87,7 @@ def get_pos_emb_on_this_cp_rank(pos_emb, seq_dim):
     pos_emb = pos_emb.view(*pos_emb.shape[:seq_dim], -1, *pos_emb.shape[(seq_dim + 2) :])
     return pos_emb
 
-
-class SinCosPosEmb3D(nn.Module):
+class SinCosPosEmb3D(MegatronModule):
     """
     SinCosPosEmb3D is a 3D sine-cosine positional embedding module.
 
@@ -101,40 +100,41 @@ class SinCosPosEmb3D(nn.Module):
         temporal_interpolation_scale (float, optional): Scale factor for temporal interpolation. Default is 1.0.
 
     Methods:
-        forward(x: torch.Tensor) -> torch.Tensor:
+        forward(pos_ids: torch.Tensor) -> torch.Tensor:
             Computes the positional embeddings for the input tensor.
 
             Args:
-                x (torch.Tensor): Input tensor of shape (B, T, H, W, C).
+                pos_ids (torch.Tensor): Input tensor of shape (B S 3).
 
             Returns:
-                torch.Tensor: Positional embeddings of shape (1, T, H, W, C).
+                torch.Tensor: Positional embeddings of shape (B S D).
     """
 
     def __init__(
         self,
-        *,
-        model_channels: int,
+        config,
         h: int,
         w: int,
         t: int,
         spatial_interpolation_scale=1.0,
         temporal_interpolation_scale=1.0,
     ):
-        super().__init__()
+        super().__init__(config=config)
+        self.h = h
+        self.w = w
+        self.t = t
+        # h w t
         param = get_3d_sincos_pos_embed(
-            model_channels, [h, w], t, spatial_interpolation_scale, temporal_interpolation_scale
+            config.hidden_size, [h, w], t, spatial_interpolation_scale, temporal_interpolation_scale
         )
-        param = rearrange(param, "(b t) (h w) c -> b c t h w", h=h, w=w, b=1)
-        self.register_buffer("pos_embedding", torch.from_numpy(param).float(), persistent=False)
+        param = rearrange(param, "t hw c -> (t hw) c")
+        self.pos_embedding = torch.nn.Embedding(param.shape[0], config.hidden_size)
+        self.pos_embedding.weight = torch.nn.Parameter(torch.tensor(param), requires_grad=False)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, C, T, H, W = x.shape
-        cp_size = parallel_state.get_context_parallel_world_size()
-        embeddings = self.pos_embedding[..., : T * cp_size, :H, :W]
-        embeddings = get_pos_emb_on_this_cp_rank(embeddings, seq_dim=2)
-        return embeddings
-
+    def forward(self, pos_ids: torch.Tensor):
+        # pos_ids: t h w
+        pos_id = pos_ids[..., 0] * self.h * self.w + pos_ids[..., 1] * self.w + pos_ids[..., 2]
+        return self.pos_embedding(pos_id)
 
 class FactorizedLearnable3DEmbedding(MegatronModule):
     def __init__(

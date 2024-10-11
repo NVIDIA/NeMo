@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,8 +26,9 @@ from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
 from nemo.collections.diffusion.data.diffusion_taskencoder import BasicDiffusionTaskEncoder
 from nemo.collections.diffusion.models.model import (
-    DiT5BConfig,
-    DiT30BConfig,
+    DiT7BConfig,
+    DiTLlama5BConfig,
+    DiTLlama30BConfig,
     DiTConfig,
     DiTLConfig,
     DiTModel,
@@ -80,7 +81,10 @@ def pretrain() -> run.Partial:
                 context_parallel_size=1,
                 sequence_parallel=False,
                 pipeline_dtype=torch.bfloat16,
-                ddp=run.Config(DistributedDataParallelConfig, check_for_nan_in_grad=True),
+                ddp=run.Config(DistributedDataParallelConfig, 
+                    check_for_nan_in_grad=True,
+                    grad_reduce_in_fp32=True,                          
+                    ),
             ),
             plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
             num_sanity_val_steps=0,
@@ -99,7 +103,7 @@ def pretrain() -> run.Partial:
                 run.Config(PreemptionCallback),
             ],
         ),
-        log=nl.NeMoLogger(wandb=(WandbLogger(project='dit') if "WANDB_API_KEY" in os.environ else None)),
+        log=nl.NeMoLogger(wandb=(WandbLogger() if "WANDB_API_KEY" in os.environ else None)),
         optim=run.Config(
             nl.MegatronOptimizerModule,
             config=run.Config(
@@ -137,35 +141,39 @@ def pretrain_l() -> run.Partial:
 
 
 @run.cli.factory(target=llm.train)
-def pretrain_5b() -> run.Partial:
+def pretrain_7b() -> run.Partial:
     recipe = pretrain()
-    recipe.model.config = run.Config(DiT5BConfig)
+    recipe.model.config = run.Config(DiT7BConfig)
     recipe.data.global_batch_size = 4608
     recipe.data.micro_batch_size = 9
-    recipe.data.num_workers = 8
+    recipe.data.num_workers = 15
     recipe.data.use_train_split_for_val = True
     recipe.data.seq_length = 260
     recipe.data.task_encoder.seq_length = 260
     recipe.trainer.val_check_interval = 1000
-    recipe.log.log_dir = 'nemo_experiments/dit5b_256px'
-    recipe.model.config.sigma_data = 1.0
+    recipe.log.log_dir = 'nemo_experiments/dit7b'
     recipe.optim.lr_scheduler = run.Config(nl.lr_scheduler.WarmupHoldPolicyScheduler, warmup_steps=100, hold_steps=1e9)
+    recipe.optim.config.weight_decay=0.1
+    recipe.optim.config.adam_beta1=0.9
+    recipe.optim.config.adam_beta2=0.95   
 
     return recipe
 
+@run.cli.factory(target=llm.train)
+def pretrain_ditllama5b() -> run.Partial:
+    recipe = pretrain_7b()
+    recipe.data.micro_batch_size = 12
+    recipe.model.config = run.Config(DiTLlama5BConfig)
+    recipe.log.log_dir = 'nemo_experiments/ditllama5b'
+    return recipe
 
 @run.cli.factory(target=llm.train)
-def pretrain_30b() -> run.Partial:
-    recipe = pretrain()
-    recipe.model.config = run.Config(DiT30BConfig)
+def pretrain_ditllama30b() -> run.Partial:
+    recipe = pretrain_ditllama5b()
+    recipe.model.config = run.Config(DiTLlama30BConfig)
     recipe.data.global_batch_size = 9216
-    recipe.data.micro_batch_size = 1
-    recipe.data.num_workers = 8
-    recipe.data.use_train_split_for_val = True
-    recipe.data.seq_length = 260
-    recipe.data.task_encoder.seq_length = 260
-    recipe.trainer.val_check_interval = 1000
-    recipe.log.log_dir = 'nemo_experiments/dit30b'
+    recipe.data.micro_batch_size = 6
+    recipe.log.log_dir = 'nemo_experiments/ditllama30b'
     return recipe
 
 

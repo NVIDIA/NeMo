@@ -151,7 +151,7 @@ class DiTConfig(TransformerConfig, io.IOMixin):
                 self.num_layers // p_size
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
-        if isinstance(self, DiT30BConfig):
+        if isinstance(self, DiTLlama30BConfig):
             model = DiTLlamaModel
         else:
             model = DiTCrossAttentionModel
@@ -191,9 +191,14 @@ class DiTXLConfig(DiTConfig):
     hidden_size: int = 1152
     num_attention_heads: int = 16
 
+@dataclass
+class DiT7BConfig(DiTConfig):
+    num_layers: int = 32
+    hidden_size: int = 3072
+    num_attention_heads: int = 24
 
 @dataclass
-class DiT30BConfig(DiTConfig):
+class DiTLlama30BConfig(DiTConfig):
     num_layers: int = 48
     hidden_size: int = 6144
     ffn_hidden_size: int = 16384
@@ -220,7 +225,7 @@ class DiT30BConfig(DiTConfig):
 
 
 @dataclass
-class DiT5BConfig(DiT30BConfig):
+class DiTLlama5BConfig(DiTLlama30BConfig):
     num_layers: int = 32
     hidden_size: int = 3072
     ffn_hidden_size: int = 8192
