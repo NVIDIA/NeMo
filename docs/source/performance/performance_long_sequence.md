@@ -152,4 +152,4 @@
 
 
 ### Speedup of LLAMA2 7B training with CP over without CP
-![cp_speedup_figure](https://github.com/user-attachments/assets/813904c7-3288-40d1-afd5-f3421ee70cb8)
+![cp_speedup_figure](https://github.com/NVIDIA/NeMo/releases/download/r2.0.0rc1/tutorial_cp_speedup_figure.png)
