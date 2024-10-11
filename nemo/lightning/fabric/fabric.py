@@ -8,7 +8,8 @@ from torch import nn
 from torch.optim import Optimizer
 from typing_extensions import Self, override
 
-from nemo.lightning.io.mixin import IOMixin, serialization, track_io
+from nemo.lightning.io.mixin import IOMixin, serialization
+from nemo.lightning.io.registry import track_io
 
 if TYPE_CHECKING:
     from megatron.core.optimizer import OptimizerConfig
