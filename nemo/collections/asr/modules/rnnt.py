@@ -1037,7 +1037,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         for state_id in range(len(batch_states[0])):
             batch_list = []
             for sample_id in range(len(batch_states)):
-                tensor = torch.stack(batch_states[sample_id][state_id]) if not isinstance(batch_states[sample_id][state_id], torch.Tensor) else batch_states[sample_id][state_id]   # [L, H]
+                tensor = (
+                    torch.stack(batch_states[sample_id][state_id])
+                    if not isinstance(batch_states[sample_id][state_id], torch.Tensor)
+                    else batch_states[sample_id][state_id]
+                )  # [L, H]
                 tensor = tensor.unsqueeze(0)  # [1, L, H]
                 batch_list.append(tensor)
 
