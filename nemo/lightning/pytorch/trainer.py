@@ -20,7 +20,8 @@ from typing_extensions import Self
 
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
-from nemo.lightning.io.mixin import IOMixin, serialization, track_io
+from nemo.lightning.io.mixin import IOMixin, serialization
+from nemo.lightning.io.registry import track_io
 
 
 class Trainer(pl.Trainer, IOMixin):
