@@ -16,7 +16,7 @@
 import numpy as np
 import tensorrt_llm
 import torch
-from tensorrt_llm._utils import torch_to_numpy, mpi_comm
+from tensorrt_llm._utils import mpi_comm, torch_to_numpy
 
 # A global dicts to store exported weights.
 # This is set to be a global variable to avoid extra code modification from tensorrt_llm.
@@ -498,6 +498,7 @@ def init_model_parallel_from_nemo(reshard_model):
     # Also split the python mpi communicator and set the global world one to the local split one
     new_comm = mpi_comm().Split(color=dp_rank, key=mp_rank)
     from mpi4py import MPI
+
     MPI.COMM_WORLD = new_comm
 
     return mp_rank, dp_rank, tp_size, pp_size, dp_size
