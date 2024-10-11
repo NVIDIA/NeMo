@@ -25,12 +25,10 @@ from nemo.utils.import_utils import safe_import_from
 TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
     "megatron.core.transformer.custom_layers.transformer_engine", "TEColumnParallelLinear"
 )
-
 TELayerNormColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
     "megatron.core.transformer.custom_layers.transformer_engine",
     "TELayerNormColumnParallelLinear",
 )
-
 TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
     "megatron.core.transformer.custom_layers.transformer_engine", "TERowParallelLinear"
 )
