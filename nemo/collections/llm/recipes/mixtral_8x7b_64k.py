@@ -59,8 +59,8 @@ def trainer(
     This function sets up the distributed training strategy optimized for very long sequences.
 
     Args:
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 16.
+        num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
         run.Config: Configuration for the NeMo Lightning Trainer.
