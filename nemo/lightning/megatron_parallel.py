@@ -564,9 +564,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
             # PEFT with num_sanity_val_steps > 0 this is necessary.
             init_ddp_context = nullcontext if all(x.requires_grad for x in module.parameters()) else torch.enable_grad
-            
+
             # Turn off bucketing for model_chunk 2 onwards, since communication for these
-            # model chunks is overlapped with compute anyway, or if using VP and overlapping 
+            # model chunks is overlapped with compute anyway, or if using VP and overlapping
             # data parallel param gather with optimizer
             overlap_param_gather_with_optimizer_step = False
             if hasattr(self, "optim") and isinstance(self.optim.config, OptimizerConfig):
