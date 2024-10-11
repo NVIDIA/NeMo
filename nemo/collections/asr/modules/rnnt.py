@@ -986,17 +986,18 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         Args:
             decoder_states (list of list of list of torch.Tensor): list of decoder states
-                [B, L, 1, H]
+                [B, layer, L, H]
                     - B: Batch size.
-                    - L: Number of layers in prediction RNN (e.g., for LSTM, this is 2: hidden and cell states).
+                    - layer: e.g., for LSTM, this is 2: hidden and cell states
+                    - L: Number of layers in prediction RNN.
                     - H: Dimensionality of the hidden state.
 
         Returns:
             batch_states (list of torch.Tensor): batch of decoder states
-                [L x torch.Tensor[1 x B x H]
+                [layer x torch.Tensor[L x B x H]
         """
-        # stack decoder states into tensor of shape [B x L x 1 x H]
-        # permute to the target shape [L x 1 x B x H]
+        # stack decoder states into tensor of shape [B x layers x L x H]
+        # permute to the target shape [layers x L x B x H]
         stacked_states = torch.stack([torch.stack(decoder_state) for decoder_state in decoder_states])
         permuted_states = stacked_states.permute(1, 2, 0, 3)
 
@@ -1015,7 +1016,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             (tuple): decoder states for given id
                 ([L x (1, H)], [L x (1, H)])
         """
-        # print("###", len(batch_states), batch_states[0].shape, self.pred_rnn_layers)
         if batch_states is not None:
             return [state[:, idx] for state in batch_states]
 
