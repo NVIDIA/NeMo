@@ -743,7 +743,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         for i, offset in enumerate(char_offsets):
 
-            if len(offset['char']) > 1:
+            if len(offset['char']) != 1:
                 continue
 
             char_type = unicodedata.category(offset['char'])
@@ -847,7 +847,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                         {
                             "word": decode_tokens_to_str(built_token),
                             "start_offset": offsets[previous_token_index]["start_offset"],
-                            "end_offset": offsets[i]["start_offset"],
+                            "end_offset": offsets[i - 1]["end_offset"],
                         }
                     )
 
@@ -918,7 +918,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             word = offset['word']
             # check if thr word ends with any delimeter token or the word itself is a delimeter
-            if word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
+            if word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
                 segment_words.append(word)
                 if segment_words:
                     segment_offsets.append(
