@@ -281,7 +281,7 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     if (tokenizer_dir_or_path / "nemo_context").exists():
         from nemo.lightning import io
 
-        tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context")).model.tokenizer
+        tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context"), subpath="model.tokenizer")
         return build_tokenizer(tokenizer_spec)
     else:
         if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
@@ -391,7 +391,11 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
             from nemo.lightning import io
 
-            tokenizer = io.load_context(io_folder).model.tokenizer
+            #tokenizer_spec = io.load_context(io_folder, subpath="model.tokenizer")
+            #tokenizer = build_tokenizer(tokenizer_spec)
+            tokenizer = io.load_context(io_folder, subpath="model.tokenizer")
+            print("*****************: ", type(tokenizer), tokenizer)
+
             '''
             tokenizer = None
             if (

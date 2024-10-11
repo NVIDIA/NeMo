@@ -1,29 +1,25 @@
-import functools
-import inspect
 import json
 import shutil
 import threading
-import types
-import uuid
 from copy import deepcopy
-from dataclasses import is_dataclass
 from pathlib import Path
 from pydoc import locate
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
-import fiddle._src.experimental.dataclasses as fdl_dc
-from cloudpickle import dump
-from cloudpickle import load as pickle_load
-from fiddle._src import config as config_lib
-from fiddle._src import partial
 from fiddle._src.experimental import serialization
 from typing_extensions import Self
 
 from nemo.lightning.io.artifact.base import Artifact
-from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
+from nemo.lightning.io.registry import (
+    _io_init,
+    _io_register_serialization,
+    _io_transform_args,
+    _io_wrap_init,
+    track_io,
+)
 from nemo.utils import logging
 
 ConnT = TypeVar("ConnT", bound=ModelConnector)
@@ -33,37 +29,6 @@ _enable_ext()
 
 # Thread-local storage for artifacts directory
 _thread_local = threading.local()
-
-
-def _ordered_arguments_with_default(data: config_lib.Config) -> Dict[Union[int, str], Any]:
-    result = config_lib.ordered_arguments(data, include_defaults=True)
-    for key, arg in result.items():
-        if isinstance(arg, config_lib.Config):
-            ordered_arg = _ordered_arguments_with_default(arg)
-            result[key] = ordered_arg
-
-    if "__fn_or_cls__" in result:
-        raise ValueError(
-            "It is not supported to dump objects of functions/classes " "that have a __fn_or_cls__ parameter."
-        )
-
-    result["_target_"] = (
-        f"{inspect.getmodule(config_lib.get_callable(data)).__name__}.{config_lib.get_callable(data).__qualname__}"  # type: ignore
-    )
-    if isinstance(data, partial.Partial):
-        result["_partial_"] = True
-
-    return result
-
-
-def _config_representer_with_defaults(dumper, data, type_name="Config"):
-    """Returns a YAML representation of `data`."""
-    value = _ordered_arguments_with_default(data)
-    return dumper.represent_data(value)
-
-
-def _partial_representer_with_defaults(dumper, data):
-    return _config_representer_with_defaults(dumper, data, type_name="Partial")
 
 
 class IOMixin:
@@ -163,7 +128,7 @@ class IOMixin:
     def io_artifacts(cls) -> List[Artifact]:
         return []
 
-    def io_dump(self, output: Path, yaml_attrs: list[str]):
+    def io_dump(self, output: Path):
         """
         Serializes the configuration object (`__io__`) to a file, allowing the object state to be
         saved and later restored. Also creates an artifacts directory and stores it in a thread-local
@@ -189,11 +154,6 @@ class IOMixin:
             json = serialization.dump_json(io)
             f.write(json)
 
-        yaml_configs = self._io_dump_yaml(io, attrs=yaml_attrs)
-        for attr, serialized_str in yaml_configs.items():
-            _path = output_path / f"{attr}.yaml"
-            _path.write_text(serialized_str)
-
         # Clear thread-local storage after io_dump is complete
         del _thread_local.local_artifacts_dir
         del _thread_local.output_path
@@ -201,29 +161,6 @@ class IOMixin:
         # Check if artifacts directory is empty and delete if so
         if not any(artifacts_dir.iterdir()):
             shutil.rmtree(artifacts_dir)
-
-    def _io_dump_yaml(self, io: config_lib.Config, attrs: list[str]):
-        import yaml
-
-        original_representers = yaml.SafeDumper.yaml_representers.copy()
-
-        from nemo_run.config import Config, Partial
-        from nemo_run.core.serialization.yaml import YamlSerializer, _function_representer
-
-        yaml.SafeDumper.add_representer(config_lib.Config, _config_representer_with_defaults)
-        yaml.SafeDumper.add_representer(partial.Partial, _partial_representer_with_defaults)
-        yaml.SafeDumper.add_representer(Config, _config_representer_with_defaults)
-        yaml.SafeDumper.add_representer(Partial, _partial_representer_with_defaults)
-
-        yaml.SafeDumper.add_multi_representer(object, _function_representer)
-
-        serializer = YamlSerializer()
-        result = {}
-        for attr in attrs:
-            result[attr] = serializer.serialize(getattr(io, attr))
-
-        yaml.SafeDumper.yaml_representers = original_representers
-        return result
 
 
 class ConnectorMixin:
@@ -406,180 +343,6 @@ class ConnectorMixin:
             return connector()
 
         return connector(_path, **kwargs)
-
-
-def track_io(target, artifacts: Optional[List[Artifact]] = None):
-    """
-    Adds IO functionality to the target object or eligible classes in the target module
-    by wrapping __init__ and registering serialization methods.
-
-    Args:
-        target (object or types.ModuleType): The target object or module to modify.
-
-    Returns:
-        object or types.ModuleType: The modified target with IO functionality added to eligible classes.
-
-    Examples:
-        >>> from nemo.collections.common import tokenizers
-        >>> modified_tokenizers = track_io(tokenizers)
-        >>> ModifiedWordTokenizer = track_io(tokenizers.WordTokenizer)
-    """
-
-    def _add_io_to_class(cls):
-        if inspect.isclass(cls) and hasattr(cls, "__init__") and not hasattr(cls, "__io__"):
-            if cls in [str, int, float, tuple, list, dict, bool, type(None)]:
-                return cls
-
-            cls = _io_wrap_init(cls)
-            _io_register_serialization(cls)
-            cls.__io_artifacts__ = artifacts or []
-        return cls
-
-    def _process_module(module):
-        for name, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) and _is_defined_in_module_or_submodules(obj, module):
-                setattr(module, name, _add_io_to_class(obj))
-        return module
-
-    def _is_defined_in_module_or_submodules(obj, module):
-        return obj.__module__ == module.__name__ or obj.__module__.startswith(f"{module.__name__}.")
-
-    if isinstance(target, types.ModuleType):
-        return _process_module(target)
-    elif inspect.isclass(target):
-        return _add_io_to_class(target)
-    else:
-        raise TypeError("Target must be a module or a class")
-
-
-def _io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
-    """
-    Transforms and captures the arguments passed to the `__init__` method, filtering out
-    any arguments that are instances of `IOProtocol` or are dataclass fields with default
-    factories.
-
-    Args:
-        init_fn (Callable): The original `__init__` method of the class.
-        *args: Variable length argument list for the `__init__` method.
-        **kwargs: Arbitrary keyword arguments for the `__init__` method.
-
-    Returns
-    -------
-        Dict[str, Any]: A dictionary of the captured and transformed arguments.
-    """
-    sig = inspect.signature(init_fn)
-    bound_args = sig.bind_partial(self, *args, **kwargs)
-    bound_args.apply_defaults()
-    config_kwargs = {k: v for k, v in bound_args.arguments.items() if k != "self"}
-
-    to_del = []
-    for key in config_kwargs:
-        if isinstance(config_kwargs[key], IOProtocol):
-            config_kwargs[key] = config_kwargs[key].__io__
-        if is_dataclass(config_kwargs[key]):
-            config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(config_kwargs[key], allow_post_init=True)
-            # Check if the arg is a factory (dataclasses.field)
-        if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
-            to_del.append(key)
-
-    for key in to_del:
-        del config_kwargs[key]
-
-    return config_kwargs
-
-
-def _io_init(self, **kwargs) -> fdl.Config[Self]:
-    """
-    Initializes the configuration object (`__io__`) with the captured arguments.
-
-    Args:
-        **kwargs: A dictionary of arguments that were captured during object initialization.
-
-    Returns
-    -------
-        fdl.Config[Self]: The initialized configuration object.
-    """
-    try:
-        return fdl.Config(type(self), **kwargs)
-    except Exception as e:
-        error_msg = (
-            f"Error creating fdl.Config for {type(self).__name__}: {str(e)}\n"
-            f"Arguments that caused the error: {kwargs}\n"
-            f"This may be due to unsupported argument types or nested configurations."
-        )
-        raise RuntimeError(error_msg) from e
-
-
-def _io_wrap_init(cls):
-    """Wraps the __init__ method of a class to add IO functionality."""
-    original_init = cls.__init__
-
-    if getattr(cls, "__wrapped_init__", False):
-        return cls
-
-    @functools.wraps(original_init)
-    def wrapped_init(self, *args, **kwargs):
-        if hasattr(self, "io_transform_args"):
-            cfg_kwargs = self.io_transform_args(original_init, *args, **kwargs)
-        else:
-            cfg_kwargs = _io_transform_args(self, original_init, *args, **kwargs)
-        if hasattr(self, "io_init"):
-            self.__io__ = self.io_init(**cfg_kwargs)
-        else:
-            self.__io__ = _io_init(self, **cfg_kwargs)
-
-        original_init(self, *args, **kwargs)
-
-    cls.__init__ = wrapped_init
-    cls.__wrapped_init__ = True
-    return cls
-
-
-def _io_register_serialization(cls):
-    serialization.register_node_traverser(
-        cls,
-        flatten_fn=_io_flatten_object,
-        unflatten_fn=_io_unflatten_object,
-        path_elements_fn=_io_path_elements_fn,
-    )
-
-
-def _io_flatten_object(instance):
-    try:
-        serialization.dump_json(instance.__io__)
-    except (serialization.UnserializableValueError, AttributeError) as e:
-        if not hasattr(_thread_local, "local_artifacts_dir") or not hasattr(_thread_local, "output_path"):
-            raise e
-
-        local_artifact_path = Path(_thread_local.local_artifacts_dir) / f"{uuid.uuid4()}"
-        output_path = _thread_local.output_path
-        artifact_path = output_path / local_artifact_path
-        with open(artifact_path, "wb") as f:
-            dump(getattr(instance, "__io__", instance), f)
-        return (str(local_artifact_path),), None
-
-    return instance.__io__.__flatten__()
-
-
-def _io_unflatten_object(values, metadata):
-    assert hasattr(_thread_local, "output_dir")
-    output_dir = _thread_local.output_dir
-
-    if len(values) == 1:
-        pickle_path = values[0]
-        with open(Path(output_dir) / pickle_path, "rb") as f:
-            return pickle_load(f)
-
-    return fdl.Config.__unflatten__(values, metadata)
-
-
-def _io_path_elements_fn(x):
-    try:
-        serialization.dump_json(x.__io__)
-    except (serialization.UnserializableValueError, AttributeError):
-        return (serialization.IdentityElement(),)
-
-    return x.__io__.__path_elements__()
 
 
 def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):

@@ -1,13 +1,18 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Optional, Protocol, Type, TypeVar, Union, runtime_checkable
+from typing import TYPE_CHECKING, Optional, Protocol, Sequence, Type, TypeVar, Union, runtime_checkable
 
 import fiddle as fdl
 import lightning_fabric as lb
 from torch import nn
+from torch.optim import Optimizer
 from typing_extensions import Self, override
 
-from nemo.lightning.io.mixin import IOMixin, serialization, track_io
+from nemo.lightning.io.mixin import IOMixin, serialization
+from nemo.lightning.io.registry import track_io
+
+if TYPE_CHECKING:
+    from megatron.core.optimizer import OptimizerConfig
 
 ModelT = TypeVar("ModelT", bound=nn.Module)
 
