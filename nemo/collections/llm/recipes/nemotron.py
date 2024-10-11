@@ -29,6 +29,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronModel,
 )
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
+from megatron.core.distributed import DistributedDataParallelConfig
 
 
 def nemotron_model(version: str) -> run.Config[pl.LightningModule]:
@@ -124,6 +125,13 @@ def nemotron_trainer(
         ckpt_include_optimizer=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
+        ddp=run.Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=False,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+        ),
     )
 
     precision_plugin = None

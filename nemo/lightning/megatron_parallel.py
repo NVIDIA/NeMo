@@ -552,7 +552,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                 # Turn off bucketing for model_chunk 2 onwards, since communication for these
                 # model chunks is overlapped with compute anyway.
-                disable_bucketing=(model_chunk_idx > 0),
+                disable_bucketing=True,
             )
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses

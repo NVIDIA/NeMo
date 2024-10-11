@@ -386,6 +386,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if hasattr(self.precision_plugin, "convert_module"):
             convert_module_fn = self.precision_plugin.convert_module
 
+        print(self.ddp_config)
+
         self.megatron_parallel = MegatronParallel(
             self.model,
             precision_plugin=self.precision_plugin,
