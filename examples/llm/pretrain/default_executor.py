@@ -18,31 +18,33 @@ import nemo_run as run
 
 from nemo.collections import llm
 
+
 def get_vboost_srun_cmd(nodes, job_dir):
-    import shlex
     import os
+    import shlex
     from typing import TypeAlias
+
     noquote: TypeAlias = str
 
     vboost_cmd = " ".join(
-                    list(
-                        map(
-                            lambda arg: arg if isinstance(arg, noquote) else shlex.quote(arg),
-                            [
-                                "# Command 0: enable vboost\n\n",
-                                "srun",
-                                f"--ntasks={nodes}",
-                                "--output",
-                                os.path.join(job_dir, "vboost.out"),
-                                "--error",
-                                os.path.join(job_dir, "vboost.err"),
-                                "bash -c ",
-                            ],
-                        )
-                    )
-                )
+        list(
+            map(
+                lambda arg: arg if isinstance(arg, noquote) else shlex.quote(arg),
+                [
+                    "# Command 0: enable vboost\n\n",
+                    "srun",
+                    f"--ntasks={nodes}",
+                    "--output",
+                    os.path.join(job_dir, "vboost.out"),
+                    "--error",
+                    os.path.join(job_dir, "vboost.err"),
+                    "bash -c ",
+                ],
+            )
+        )
+    )
 
-    vboost_cmd+=shlex.quote("sudo nvidia-smi boost-slider --vboost 1")
+    vboost_cmd += shlex.quote("sudo nvidia-smi boost-slider --vboost 1")
 
     return vboost_cmd
 
@@ -121,9 +123,8 @@ def slurm_executor(
     executor.time = time
 
     if enable_vboost:
-        vboost_cmd=get_vboost_srun_cmd(nodes, remote_job_dir)
-        executor.setup_lines = executor.setup_lines + vboost_cmd \
-            if len(executor.setup_lines) > 0 else vboost_cmd
+        vboost_cmd = get_vboost_srun_cmd(nodes, remote_job_dir)
+        executor.setup_lines = executor.setup_lines + vboost_cmd if len(executor.setup_lines) > 0 else vboost_cmd
 
     return executor
 
