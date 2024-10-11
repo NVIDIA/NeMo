@@ -133,10 +133,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             ans.update(text_minibatch)
 
         def post_process_seq(ans):
-            if len(ans.input_ids) > self.max_seq_length:
-                truncation_length = len(ans.input_ids) - self.max_seq_length
-                ans.input_ids = ans.input_ids[: self.max_seq_length]
-                ans.mask = ans.mask[: self.max_seq_length]
+            max_seq_length = self.max_seq_length - 1  # reserve for eos
+            if len(ans.input_ids) > max_seq_length:
+                truncation_length = len(ans.input_ids) - max_seq_length
+                ans.input_ids = ans.input_ids[:max_seq_length]
+                ans.mask = ans.mask[:max_seq_length]
                 if truncation_length < len(ans.answer_ids):
                     ans.answer_ids = ans.answer_ids[:-truncation_length]
                 else:
