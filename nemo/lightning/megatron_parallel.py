@@ -18,8 +18,10 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -27,6 +29,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -37,7 +40,6 @@ from typing import (
     runtime_checkable,
 )
 
-import pytorch_lightning as pl
 import torch
 import torch.distributed
 from megatron.core import parallel_state
@@ -51,6 +53,10 @@ from typing_extensions import override
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
 T = TypeVar('T')
+STEP_OUTPUT = Optional[Union[Tensor, Mapping[str, Any]]]
+
+if TYPE_CHECKING:
+    import pytorch_lightning as pl
 
 
 @runtime_checkable
@@ -294,6 +300,134 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         return reduced
 
+    def training_step(
+        self,
+        data: DataT,
+        data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional["MegatronLossReduction[DataT, Any]"] = None,
+        seq_length: Optional[int] = None,
+        micro_batch_size: Optional[int] = None,
+        num_microbatches: Optional[int] = None,
+        **kwargs,
+    ) -> STEP_OUTPUT:
+        return self._step(
+            "training",
+            data,
+            data_step=data_step,
+            forward_step=forward_step,
+            loss_reduction=loss_reduction,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            num_microbatches=num_microbatches,
+            forward_only=False,
+            **kwargs,
+        )
+
+    def validation_step(
+        self,
+        data: DataT,
+        data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional["MegatronLossReduction[DataT, Any]"] = None,
+        seq_length: Optional[int] = None,
+        micro_batch_size: Optional[int] = None,
+        num_microbatches: Optional[int] = None,
+        **kwargs,
+    ) -> STEP_OUTPUT:
+        return self._step(
+            "validation",
+            data,
+            data_step=data_step,
+            forward_step=forward_step,
+            loss_reduction=loss_reduction,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            num_microbatches=num_microbatches,
+            forward_only=True,
+            **kwargs,
+        )
+
+    def test_step(
+        self,
+        data: DataT,
+        data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional["MegatronLossReduction[DataT, Any]"] = None,
+        seq_length: Optional[int] = None,
+        micro_batch_size: Optional[int] = None,
+        num_microbatches: Optional[int] = None,
+        **kwargs,
+    ) -> STEP_OUTPUT:
+        return self._step(
+            "test",
+            data,
+            data_step=data_step,
+            forward_step=forward_step,
+            loss_reduction=loss_reduction,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            num_microbatches=num_microbatches,
+            forward_only=True,
+            **kwargs,
+        )
+
+    def predict_step(
+        self,
+        data: DataT,
+        data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional["MegatronLossReduction[DataT, Any]"] = None,
+        seq_length: Optional[int] = None,
+        micro_batch_size: Optional[int] = None,
+        num_microbatches: Optional[int] = None,
+        **kwargs,
+    ) -> STEP_OUTPUT:
+        return self._step(
+            "predict",
+            data,
+            data_step=data_step,
+            forward_step=forward_step,
+            loss_reduction=loss_reduction,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            num_microbatches=num_microbatches,
+            forward_only=True,
+            **kwargs,
+        )
+
+    def _step(
+        self,
+        step_type: str,
+        data: DataT,
+        data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional["MegatronLossReduction[DataT, Any]"] = None,
+        seq_length: Optional[int] = None,
+        micro_batch_size: Optional[int] = None,
+        num_microbatches: Optional[int] = None,
+        forward_only: bool = True,
+        **kwargs,
+    ) -> STEP_OUTPUT:
+        if not hasattr(self.module, f"{step_type}_step"):
+            raise AttributeError(f"self.module must have a `{step_type}_step` method")
+
+        _data_step = data_step or _ModuleStepFunction.from_data_step(self.module, step_type)
+        _forward_step = forward_step or _ModuleStepFunction.from_forward_step(self.module, step_type)
+        _loss_reduction = loss_reduction or _ModuleStepFunction.from_loss_reduction(self.module, step_type)
+
+        return self.forward(
+            data=data,
+            data_step=_data_step,
+            forward_step=_forward_step,
+            loss_reduction=_loss_reduction,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            num_microbatches=num_microbatches,
+            forward_only=forward_only,
+            **kwargs,
+        )
+
     def wrapped_forward_step(
         self, forward_step, loss_reduction, data_step, context
     ) -> Callable[[nn.Module, DataT], Tuple[torch.Tensor, "MegatronCallbackProtocol"]]:
@@ -426,16 +560,21 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
 
-            ddp = DDP(
-                module.config,
-                self.ddp_config,
-                module,
-                data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                # model chunks is overlapped with compute anyway.
-                disable_bucketing=(model_chunk_idx > 0),
-            )
+            # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
+            # PEFT with num_sanity_val_steps > 0 this is necessary.
+            init_ddp_context = nullcontext if all(x.requires_grad for x in module.parameters()) else torch.enable_grad
+            with init_ddp_context():
+                ddp = DDP(
+                    module.config,
+                    self.ddp_config,
+                    module,
+                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0),
+                )
+
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
@@ -536,6 +675,38 @@ class _ModuleStepFunction:
         self.name = name
         self.is_property = is_property
         self.includes_self = includes_self
+
+    @classmethod
+    def from_data_step(cls, module: "pl.LightningModule", step_type: str) -> Optional["_ModuleStepFunction"]:
+        for fn_name in [f"{step_type}_data_step", "data_step"]:
+            if hasattr(module, fn_name):
+                return _ModuleStepFunction(fn_name)
+
+        return None
+
+    @classmethod
+    def from_forward_step(cls, module: "pl.LightningModule", step_type: str) -> Optional["_ModuleStepFunction"]:
+        from megatron.core import parallel_state
+
+        if parallel_state.is_pipeline_last_stage():
+            if not hasattr(module, f"{step_type}_step"):
+                raise ValueError(f"LightningModule does not have {step_type}_step method")
+
+            return _ModuleStepFunction(f"{step_type}_step", includes_self=True)
+
+        for fn_name in [f"{step_type}_forward_step", "forward_step"]:
+            if hasattr(module, fn_name):
+                return _ModuleStepFunction(fn_name, includes_self=True)
+
+        return None
+
+    @classmethod
+    def from_loss_reduction(cls, module: "pl.LightningModule", step_type: str) -> Optional["_ModuleStepFunction"]:
+        for fn_name in [f"{step_type}_loss_reduction", "loss_reduction"]:
+            if hasattr(module, fn_name):
+                return _ModuleStepFunction(fn_name, is_property=True)
+
+        return None
 
     def __call__(self, module: nn.Module):
 
@@ -956,7 +1127,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             List[Iterator[DataT]]: A list of iterators created from the input data.
         """
         if isinstance(data, Iterator):
-            return _make_data_iterator_list(self.pipeline, data)
+            return _make_data_iterator_list(self.model, data)
         elif isinstance(data, list) and all(isinstance(item, Iterator) for item in data):
             # If data is already a list of iterators, return it as is
             return cast(List[Iterator[DataT]], data)
@@ -1045,7 +1216,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         return self.pipeline.pipeline
 
     @property
-    def pl_module(self) -> pl.LightningModule:
+    def pl_module(self) -> "pl.LightningModule":
         """
         Retrieves the PyTorch Lightning module from the pipeline.
 
@@ -1055,7 +1226,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         return self.pipeline.module
 
     @property
-    def trainer(self) -> pl.Trainer:
+    def trainer(self) -> "pl.Trainer":
         """
         Retrieves the PyTorch Lightning trainer from the pipeline.
 
