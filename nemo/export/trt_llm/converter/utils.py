@@ -347,10 +347,7 @@ def split_and_save_weight(
 
     if config.get("transpose_weights", False) and vals[0].ndim == 2:
         vals = [val.T for val in vals]
-    if "layernorm.weight" in key and (
-        config.get("apply_layernorm_1p", False)
-        or (config.get("layernorm_upcasted", False) and vals[0].dtype == torch.bfloat16)
-    ):
+    if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
         vals = [val.float() + 1.0 for val in vals]
 
     vals = cast_val_datatype(vals, trt_llm_key, storage_type, is_fp8_model, scaling_factors)
