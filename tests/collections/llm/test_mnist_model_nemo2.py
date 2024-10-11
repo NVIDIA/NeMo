@@ -38,6 +38,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
+import nemo.lightning.io.registry
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger, io, resume
@@ -534,7 +535,7 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
                 max_steps=20,
                 num_nodes=1,
                 log_every_n_steps=5,
-                callbacks=[io.track_io(LossLoggingCallback)()],
+                callbacks=[nemo.lightning.io.registry.track_io(LossLoggingCallback)()],
             )
             data_module = MNISTDataModule(data_dir=tmpdir)
             llm.train(
