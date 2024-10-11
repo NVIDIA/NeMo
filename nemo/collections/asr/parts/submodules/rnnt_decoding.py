@@ -261,7 +261,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 self.compute_timestamps = self.cfg.beam.get('compute_timestamps', False)
 
         # Test if alignments are being preserved for RNNT
-        if self.compute_timestamps is True and self.preserve_alignments is False:
+        if not self._is_tdt and self.compute_timestamps is True and self.preserve_alignments is False:
             raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
         # initialize confidence-related fields
@@ -562,7 +562,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
-            if self.compute_timestamps is True:
+            if self.compute_timestamps is True and self._is_tdt:
+                hypothesis = (prediction, None, None)
+            elif self.compute_timestamps is True:
                 # keep the original predictions, wrap with the number of repetitions per token and alignments
                 # this is done so that `rnnt_decoder_predictions_tensor()` can process this hypothesis
                 # in order to compute exact time stamps.
@@ -868,8 +870,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
         if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
-            first_timestep = hypothesis.timestep[0].item()
-            start_index = max(0, first_timestep - 1)
+            start_index = max(0, hypothesis.timestep[0] - 1)
 
         # Construct the start and end indices brackets
         end_indices = np.asarray(token_repetitions).cumsum()
