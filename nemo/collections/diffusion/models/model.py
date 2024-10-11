@@ -191,11 +191,13 @@ class DiTXLConfig(DiTConfig):
     hidden_size: int = 1152
     num_attention_heads: int = 16
 
+
 @dataclass
 class DiT7BConfig(DiTConfig):
     num_layers: int = 32
     hidden_size: int = 3072
     num_attention_heads: int = 24
+
 
 @dataclass
 class DiTLlama30BConfig(DiTConfig):

@@ -27,10 +27,10 @@ from nemo.collections.diffusion.data.diffusion_energon_datamodule import Diffusi
 from nemo.collections.diffusion.data.diffusion_taskencoder import BasicDiffusionTaskEncoder
 from nemo.collections.diffusion.models.model import (
     DiT7BConfig,
-    DiTLlama5BConfig,
-    DiTLlama30BConfig,
     DiTConfig,
     DiTLConfig,
+    DiTLlama5BConfig,
+    DiTLlama30BConfig,
     DiTModel,
     DiTXLConfig,
 )
@@ -81,10 +81,11 @@ def pretrain() -> run.Partial:
                 context_parallel_size=1,
                 sequence_parallel=False,
                 pipeline_dtype=torch.bfloat16,
-                ddp=run.Config(DistributedDataParallelConfig, 
+                ddp=run.Config(
+                    DistributedDataParallelConfig,
                     check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,                          
-                    ),
+                    grad_reduce_in_fp32=True,
+                ),
             ),
             plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
             num_sanity_val_steps=0,
@@ -153,11 +154,12 @@ def pretrain_7b() -> run.Partial:
     recipe.trainer.val_check_interval = 1000
     recipe.log.log_dir = 'nemo_experiments/dit7b'
     recipe.optim.lr_scheduler = run.Config(nl.lr_scheduler.WarmupHoldPolicyScheduler, warmup_steps=100, hold_steps=1e9)
-    recipe.optim.config.weight_decay=0.1
-    recipe.optim.config.adam_beta1=0.9
-    recipe.optim.config.adam_beta2=0.95   
+    recipe.optim.config.weight_decay = 0.1
+    recipe.optim.config.adam_beta1 = 0.9
+    recipe.optim.config.adam_beta2 = 0.95
 
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def pretrain_ditllama5b() -> run.Partial:
@@ -166,6 +168,7 @@ def pretrain_ditllama5b() -> run.Partial:
     recipe.model.config = run.Config(DiTLlama5BConfig)
     recipe.log.log_dir = 'nemo_experiments/ditllama5b'
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def pretrain_ditllama30b() -> run.Partial:

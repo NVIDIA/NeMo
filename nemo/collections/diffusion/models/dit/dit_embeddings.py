@@ -87,6 +87,7 @@ def get_pos_emb_on_this_cp_rank(pos_emb, seq_dim):
     pos_emb = pos_emb.view(*pos_emb.shape[:seq_dim], -1, *pos_emb.shape[(seq_dim + 2) :])
     return pos_emb
 
+
 class SinCosPosEmb3D(MegatronModule):
     """
     SinCosPosEmb3D is a 3D sine-cosine positional embedding module.
@@ -135,6 +136,7 @@ class SinCosPosEmb3D(MegatronModule):
         # pos_ids: t h w
         pos_id = pos_ids[..., 0] * self.h * self.w + pos_ids[..., 1] * self.w + pos_ids[..., 2]
         return self.pos_embedding(pos_id)
+
 
 class FactorizedLearnable3DEmbedding(MegatronModule):
     def __init__(
