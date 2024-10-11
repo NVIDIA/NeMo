@@ -36,6 +36,7 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     to be used as a directory for distributed checkpoints
     """
     from nemo.lightning.resume import AdapterPath
+
     if isinstance(filepath, AdapterPath):
         return filepath
     filepath = Path(filepath)
