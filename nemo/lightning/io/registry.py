@@ -212,6 +212,7 @@ def track_io(target, artifacts: Optional[list[Artifact]] = None):
     else:
         raise TypeError("Target must be a module or a class")
 
+
 # Registers all required classes with track_io functionality
 try:
     # Track HF tokenizers
