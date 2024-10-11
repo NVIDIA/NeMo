@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 import numpy as np
 import pytorch_lightning as pl
+import lightning_fabric as fl
 import torch
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
@@ -23,6 +24,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
+
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -76,6 +78,13 @@ class MockDataModule(pl.LightningDataModule):
         self._test_ds = _MockGPTDataset(
             self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
         )
+        
+    def fabric_setup(self, fabric: fl.Fabric) -> None:
+        self.setup()
+        
+        if self.data_sampler:
+            fabric.strategy.data_sampler = self.data_sampler
+            self.data_sampler.setup(fabric.global_rank)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not hasattr(self, "_train_ds"):

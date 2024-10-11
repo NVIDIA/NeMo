@@ -106,6 +106,7 @@ class FabricMegatronStrategy(DDPStrategy):
         if megatron_callbacks:
             self.megatron_callbacks.add(megatron_callbacks)
         self.output_data_idx = output_data_idx
+        self.data_sampler: Optional["DataSampler"] = data_sampler
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
@@ -143,11 +144,12 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> Iterator:
-        loader = _strategy_lib.process_dataloader(dataloader, self.data_config)
+        if self.data_sampler:
+            dataloader = self.data_sampler.transform_dataloader(dataloader)
 
         # Code taken from: https://github.com/Lightning-AI/pytorch-lightning/blob/6cbe9ceb560d798892bdae9186291acf9bf5d2e3/src/lightning/pytorch/loops/fit_loop.py#L258-L260
-        output = _MegatronDataLoaderIterDataFetcher(self.data_config, output_data_idx=self.output_data_idx)
-        output.setup(CombinedLoader(loader, "max_size_cycle"))
+        output = _MegatronDataLoaderIterDataFetcher(output_data_idx=self.output_data_idx)
+        output.setup(CombinedLoader(dataloader, "max_size_cycle"))
         iter(output)
 
         return output
@@ -201,6 +203,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
         if self._init_model_parallel:
             megatron_parallel.init_model_parallel()
+            
+        if self.data_sampler:
+            megatron_parallel.callbacks.add(self.data_sampler)
 
         if not self.ddp_config:
             from megatron.core import mpu
@@ -364,9 +369,8 @@ class FabricMegatronStrategy(DDPStrategy):
 
 # TODO: Fix this
 class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
-    def __init__(self, data_config, *args: Any, output_data_idx: bool = False, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, output_data_idx: bool = False, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.data_config = data_config
         self.output_data_idx = output_data_idx
         self._batch: Any = None
         self._batch_idx: int = 0
