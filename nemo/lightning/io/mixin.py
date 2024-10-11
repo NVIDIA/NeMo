@@ -13,7 +13,13 @@ from typing_extensions import Self
 from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.connector import ModelConnector
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
-from nemo.lightning.io.registry import _io_init, _io_register_serialization, _io_transform_args, _io_wrap_init, track_io
+from nemo.lightning.io.registry import (
+    _io_init,
+    _io_register_serialization,
+    _io_transform_args,
+    _io_wrap_init,
+    track_io,
+)
 from nemo.utils import logging
 
 ConnT = TypeVar("ConnT", bound=ModelConnector)
