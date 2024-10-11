@@ -391,8 +391,8 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
             from nemo.lightning import io
 
-            #tokenizer_spec = io.load_context(io_folder, subpath="model.tokenizer")
-            #tokenizer = build_tokenizer(tokenizer_spec)
+            # tokenizer_spec = io.load_context(io_folder, subpath="model.tokenizer")
+            # tokenizer = build_tokenizer(tokenizer_spec)
             tokenizer = io.load_context(io_folder, subpath="model.tokenizer")
             print("*****************: ", type(tokenizer), tokenizer)
 
