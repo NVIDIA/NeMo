@@ -406,7 +406,7 @@ class TestRNNTDecoding:
     )
     def test_char_decoding_compute_timestamps(self, test_data_dir, decoding_strategy, model_name):
 
-        model, encoded, encoded_len = (test_data_dir, model_name)
+        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, model_name)
 
         cfg = DictConfig(model.cfg.decoding)
         cfg['strategy'] = decoding_strategy
