@@ -70,4 +70,5 @@ if __name__ == '__main__':
         trainer=trainer(),
         log=logger(),
         resume=resume(),
+        output_path="/workspace/peftmerge/my_mergedump"
     )
