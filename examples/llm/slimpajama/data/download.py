@@ -22,8 +22,6 @@ def download_slimpajama(include_pattern: str = "", exclude_pattern: str = ""):
     download_script = """
 pip install "huggingface_hub[cli,hf_transfer]"
 
-huggingface-cli download openai-community/gpt2 vocab.json merges.txt --local-dir /data/bpe
-
 retry_command() {
     local max_retries=$1
     local sleep_time=$2
