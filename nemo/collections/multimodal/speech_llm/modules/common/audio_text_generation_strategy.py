@@ -40,10 +40,10 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         compute_attention_mask: bool,
         num_audios: Optional[torch.Tensor] = None,
         context_start_idx: Optional[List[List[int]]] = None,
+        audio_locator_ids: Optional[torch.Tensor] = None,
+        tokens_to_generate: int = 0,
     ):
         """initialize the batch data before the inference steps."""
-        # Move to GPU.
-
         audio_feats, audio_feat_lens = self.model.perception(
             input_signal=audio_signal,
             input_signal_length=audio_length,
@@ -51,30 +51,60 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             processed_signal_length=None,
         )
 
-        if num_audios is not None:
-            # handle multiple audio files per sample
-            audio_feats = audio_feats.split(num_audios.tolist())
-            audio_feat_lens = audio_feat_lens.split(num_audios.tolist())
-
-        encoder_input, attention_mask, _, position_ids, encoder_max_length = self.model.inject_perception_input(
-            audio_feats, audio_feat_lens, context_tokens, context_lengths, context_start_idx
-        )
-
-        self.attention_mask = attention_mask
-        self.position_ids = position_ids
-
-        if num_audios is not None:
-            # handle multiple audio files per sample
-            new_context_tokens = shift_tokens_by_multi_audios(
-                context_tokens, context_lengths, audio_feat_lens, context_start_idx, encoder_max_length
+        # Move to GPU.
+        if audio_locator_ids is not None:
+            encoder_input, encoder_length, labels, loss_mask, attention_mask, position_ids = (
+                self.model.inject_perception_input_conv(
+                    encoded=audio_feats,
+                    encoded_len=audio_feat_lens,
+                    input_ids=context_tokens,
+                    input_length=context_lengths,
+                    loss_mask=torch.empty(context_tokens.shape, dtype=torch.bool, device=context_tokens.device).fill_(
+                        1
+                    ),  # dummy
+                    audio_locator_ids=audio_locator_ids,
+                    remove_bos_or_eos=False,
+                )
             )
-            audio_feat_lens = torch.stack([torch.sum(lens) for lens in audio_feat_lens])  # [batch,]
+
+            # pad to max len including tokens_to_generate
+            encoder_input = torch.nn.functional.pad(
+                encoder_input, (0, 0, 0, 0, 0, tokens_to_generate), value=0.0
+            )  # (T, B, D)
+            labels = torch.nn.functional.pad(
+                labels, (0, tokens_to_generate), value=self.model.tokenizer.pad_id
+            )  # (B, T)
+
+            self.attention_mask = self.model._create_attention_mask(encoder_input.transpose(0, 1))
+            self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
+
+            return labels, encoder_input, encoder_length - context_lengths
         else:
-            new_context_tokens = self.model._shift_labels_by_emb_len(
-                context_tokens, context_lengths, audio_feat_lens, encoder_max_length, pad_token=0
+
+            if num_audios is not None:
+                # handle multiple audio files per sample
+                audio_feats = audio_feats.split(num_audios.tolist())
+                audio_feat_lens = audio_feat_lens.split(num_audios.tolist())
+
+            encoder_input, attention_mask, _, position_ids, encoder_max_length = self.model.inject_perception_input(
+                audio_feats, audio_feat_lens, context_tokens, context_lengths, context_start_idx
             )
 
-        return new_context_tokens, encoder_input, audio_feat_lens
+            self.attention_mask = attention_mask
+            self.position_ids = position_ids
+
+            if num_audios is not None:
+                # handle multiple audio files per sample
+                new_context_tokens = shift_tokens_by_multi_audios(
+                    context_tokens, context_lengths, audio_feat_lens, context_start_idx, encoder_max_length
+                )
+                audio_feat_lens = torch.stack([torch.sum(lens) for lens in audio_feat_lens])  # [batch,]
+            else:
+                new_context_tokens = self.model._shift_labels_by_emb_len(
+                    context_tokens, context_lengths, audio_feat_lens, encoder_max_length, pad_token=0
+                )
+
+            return new_context_tokens, encoder_input, audio_feat_lens
 
     def clip_max_len(self, maxlen: int) -> int:
         """clip the max len based on the LM model max sequence length"""
