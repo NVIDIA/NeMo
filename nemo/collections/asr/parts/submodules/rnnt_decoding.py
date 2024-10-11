@@ -912,12 +912,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         ]
         return offsets
 
-    
     @staticmethod
     def _refine_timestamps(
-        encoded_char_offsets: List[Dict[str, Union[str, int]]], 
-        char_offsets: List[Dict[str, Union[str, int]]]
-        ) -> List[Dict[str, Union[str, int]]]:
+        encoded_char_offsets: List[Dict[str, Union[str, int]]], char_offsets: List[Dict[str, Union[str, int]]]
+    ) -> List[Dict[str, Union[str, int]]]:
 
         ## no refinement for rnnt
 
@@ -925,9 +923,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _refine_timestamps_tdt(
-        encoded_char_offsets: List[Dict[str, Union[str, int]]], 
-        char_offsets: List[Dict[str, Union[str, int]]]
-        ) -> List[Dict[str, Union[str, int]]]:
+        encoded_char_offsets: List[Dict[str, Union[str, int]]], char_offsets: List[Dict[str, Union[str, int]]]
+    ) -> List[Dict[str, Union[str, int]]]:
 
         for i, offset in enumerate(char_offsets):
 
@@ -944,7 +941,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 encoded_char_offsets[i]['end_offset'] = offset['end_offset'] = offset['start_offset']
 
         return encoded_char_offsets, char_offsets
-
 
     @staticmethod
     def _get_word_offsets_chars(
