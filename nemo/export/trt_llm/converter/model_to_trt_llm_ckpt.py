@@ -157,7 +157,8 @@ def convert_model_to_trt_llm_ckpt(
             num_kv_heads = num_attention_heads
 
     export_config = {
-        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p"
+        or nemo_model_config.get("layernorm_zero_centered_gamma", False),
         "tp_size": training_tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
         in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
@@ -170,7 +171,6 @@ def convert_model_to_trt_llm_ckpt(
         "use_parallel_embedding": use_parallel_embedding,
         "fp8_quantized": fp8_quantized,
         "fp8_kvcache": fp8_kvcache,
-        "layernorm_upcasted": decoder_type == "gemma",
     }
 
     # split_factor: in how many parts a TP training node is split
