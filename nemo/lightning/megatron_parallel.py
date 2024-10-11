@@ -544,6 +544,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
 
+            overlap_param_gather_with_optimizer_step = self.optim.config.overlap_param_gather_with_optimizer_step
+            self.optim.overlap_param_gather_with_optimizer_step=True
             ddp = DDP(
                 module.config,
                 self.ddp_config,
@@ -552,7 +554,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                 # Turn off bucketing for model_chunk 2 onwards, since communication for these
                 # model chunks is overlapped with compute anyway.
-                disable_bucketing=True,
+                disable_bucketing=(model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step,
             )
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
