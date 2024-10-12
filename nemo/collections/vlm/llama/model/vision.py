@@ -23,6 +23,7 @@ import torch
 import torch.nn.functional as F
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -49,15 +50,12 @@ try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEDelayedScaling,
         TENorm,
-        get_cpu_offload_context,
-        te_checkpoint,
     )
 
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
     HAVE_TE = False
-    get_cpu_offload_context = None
     try:
         import apex
 

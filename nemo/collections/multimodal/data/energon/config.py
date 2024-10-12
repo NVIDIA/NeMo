@@ -15,7 +15,7 @@
 from dataclasses import dataclass, field
 from typing import List
 import torch
-from nemo.collections.multimodal.data.energon.conversation import BaseConversationTemplateConfig, LLaVATemplateConfig
+from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig
 
 
 @dataclass

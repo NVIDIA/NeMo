@@ -51,15 +51,12 @@ try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEDelayedScaling,
         TENorm,
-        get_cpu_offload_context,
-        te_checkpoint,
     )
 
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
     HAVE_TE = False
-    get_cpu_offload_context = None
     try:
         import apex
 
