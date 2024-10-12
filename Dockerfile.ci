@@ -95,3 +95,4 @@ chmod 777 -R /workspace
 EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
+ENV LD_LIBRARY_PATH=/usr/local/cuda/compat:$LD_LIBRARY_PATH
