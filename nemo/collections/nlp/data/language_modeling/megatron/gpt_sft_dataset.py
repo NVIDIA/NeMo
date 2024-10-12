@@ -634,7 +634,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
             for i in range(len(item['seq_boundaries']) - 1):
                 seqlen_unpadded = np.where(
-                    np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]) == self.tokenizer.eos_id
+                    np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1])
+                    == self.tokenizer.eos_id
                 )
                 seqlen_unpadded = seqlen_unpadded[0][1] if seqlen_unpadded[0].size > 1 else seqlen_unpadded[0][0]
                 cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)

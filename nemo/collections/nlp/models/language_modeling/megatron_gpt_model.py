@@ -25,12 +25,12 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import packaging
 import torch
 import transformer_engine_torch as tex
-from transformer_engine.pytorch.attention import get_cu_seqlens_on_cp_rank
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
+from transformer_engine.pytorch.attention import get_cu_seqlens_on_cp_rank
 
 from nemo.collections.common.parts.utils import apply_rope_scaling, extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -1250,7 +1250,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             required_keys = set()
             max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
             cu_seqlens_argmin = batch['cu_seqlens_argmin'] if 'cu_seqlens_argmin' in batch else None
-            cu_seqlens_unpadded_argmin = batch['cu_seqlens_unpadded_argmin'] if 'cu_seqlens_unpadded_argmin' in batch else None
+            cu_seqlens_unpadded_argmin = (
+                batch['cu_seqlens_unpadded_argmin'] if 'cu_seqlens_unpadded_argmin' in batch else None
+            )
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
@@ -1329,7 +1331,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                             'labels': batch['labels'] if 'labels' in batch else None,
                         }
-                        
+
                         # since the data is pre-padded, we need to check if there is extra padding
                         # at the end of the sequence
                         if len(cu_seqlens) > len(cu_seqlens_unpadded):
