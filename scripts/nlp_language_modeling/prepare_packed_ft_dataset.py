@@ -148,10 +148,10 @@ def tokenize_dataset(cfg: 'DictConfig'):
                         val = val + [pad_id] * (max_length_to_pad - len(val) + 1)
                         data[key] = val
                     else:
-                        logging.info(f"The current sequence length {len(val)} for packing is 
+                        logging.info(f"""The current sequence length {len(val)} for packing is
                                         larger than the max_seq_length specified ({max_seq_length}).
                                         The current seqquence length is truncated to the size of max_seq_length.
-                                        Please consider increase the sequence packing size")
+                                        Please consider increase the sequence packing size""")
                         data[key] = val[:max_seq_length]
             return
 

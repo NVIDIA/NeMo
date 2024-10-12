@@ -1250,6 +1250,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             required_keys = set()
             max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
             cu_seqlens_argmin = batch['cu_seqlens_argmin'] if 'cu_seqlens_argmin' in batch else None
+            cu_seqlens_unpadded_argmin = batch['cu_seqlens_unpadded_argmin'] if 'cu_seqlens_unpadded_argmin' in batch else None
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
@@ -1296,11 +1297,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # remove -1 "paddings" added in collate_fn
                     if cu_seqlens_argmin is not None:
                         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
-                        cu_seqlens_unpadded = cu_seqlens_unpadded[: cu_seqlens_argmin.item()]
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
+                    if cu_seqlens_unpadded_argmin is not None:
+                        cu_seqlens_unpadded = cu_seqlens_unpadded[: cu_seqlens_unpadded_argmin.item()]
+                    else:
                         cu_seqlens_unpadded = cu_seqlens_unpadded[: torch.argmin(cu_seqlens_unpadded)]
-
                     try:
                         from megatron.core.packed_seq_params import PackedSeqParams
                     except (ImportError, ModuleNotFoundError) as e:
