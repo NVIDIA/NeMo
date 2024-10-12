@@ -47,10 +47,7 @@ if TYPE_CHECKING:
     from nemo.collections.vlm import CrossAttentionVisionConfig
 
 try:
-    from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEDelayedScaling,
-        TENorm,
-    )
+    from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling, TENorm
 
     HAVE_TE = True
     LayerNormImpl = TENorm
