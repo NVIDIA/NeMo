@@ -117,6 +117,7 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
+            average_in_collective=True,
         ),
     )
 
@@ -224,6 +225,12 @@ def pretrain_recipe_performance(
         It may not be suitable for all hardware configurations or use cases.
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+
+    from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
+    if isinstance(recipe.trainer.plugins, MegatronMixedPrecision):
+        recipe.trainer.plugins.grad_reduce_in_fp32=False
+    if isinstance(recipe.trainer.strategy.ddp, DistributedDataParallelConfig):
+        recipe.trainer.strategy.ddp.grad_reduce_in_fp32=False
 
     recipe.trainer.callbacks.append(
         run.Config(

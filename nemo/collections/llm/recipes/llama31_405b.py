@@ -18,6 +18,7 @@ from typing import Optional
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
+from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -27,6 +28,8 @@ from nemo.collections.llm.gpt.model.llama import Llama31Config405B, LlamaModel
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama31_405b"
@@ -107,6 +110,14 @@ def trainer(
         gradient_as_bucket_view=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
+        ddp=run.Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            average_in_collective=True,
+        ),
     )
 
     trainer = run.Config(
@@ -174,3 +185,49 @@ def pretrain_recipe(
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
+
+@run.cli.factory(target=pretrain, name=NAME + "_performance")
+def pretrain_recipe_performance(
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+) -> run.Partial:
+    """
+    Create a performance-optimized pre-training recipe for Llama3.1 405B model.
+
+    This recipe enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        fn (Callable): The pre-training function to use.
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory "llama31_405b.pretrain_recipe_performance(num_nodes=72, name='perf_pretrain')"
+
+        Python API usage:
+            >>> recipe = pretrain_recipe_performance(name="llama31_405b_perf", num_nodes=72)
+            >>> print(recipe)
+
+    Note:
+        Use this recipe with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=True,
+            tp_comm_overlap_cfg=userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+            defer_embedding_wgrad_compute=True,
+            wgrad_deferral_limit=50,
+        )
+    )
+
+    return recipe
