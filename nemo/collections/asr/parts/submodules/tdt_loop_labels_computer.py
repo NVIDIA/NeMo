@@ -78,6 +78,7 @@ class LoopLabelsState:
     advance_mask_any: torch.Tensor  # 0-dim bool tensor, condition for inner loop ('should advance any index')
 
     last_decoder_state: Any  # last state from the decoder, needed for the output
+    prev_decoder_state: Any  # previous decoder state (to return and reuse in streaming mode)
     decoder_state: Any  # current decoder state
     decoder_output: torch.Tensor  # output from the decoder (projected)
 
@@ -253,10 +254,18 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
 
+    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
+        """
+        Method to set graphs mode. Use only for testing purposes.
+        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
+        """
+        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
+        self.state = None
+
     def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs if conditions met"""
         if self.cuda_graphs_mode is not None:
-            # CUDA graphs are enabled
+            # CUDA graphs are already enabled
             return
 
         if not self.allow_cuda_graphs:
@@ -294,18 +303,12 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.full_graph = None
         self.separate_graphs = None
 
-    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
-        """
-        Method to set graphs mode. Use only for testing purposes.
-        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
-        """
-        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
-        self.state = None
-
     def loop_labels_torch(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
+        prev_state: Optional[Any] = None,
+        prev_labels: Optional[torch.Tensor] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Pure PyTorch implementation
@@ -313,6 +316,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
+            prev_state: previous decoder state for the batch
+            prev_labels: batch of previously decoded labels
         """
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
@@ -350,11 +355,11 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         num_durations = all_durations.shape[0]
 
         # initial state, needed for torch.jit to compile (cannot handle None)
-        state = self.decoder.initialize_state(encoder_output_projected)
+        state = self.decoder.initialize_state(encoder_output_projected) if prev_state is None else prev_state
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol
-        labels = torch.full_like(batch_indices, fill_value=self._SOS)
+        labels = torch.full_like(batch_indices, fill_value=self._SOS) if prev_labels is None else prev_labels
 
         # time indices
         time_indices = torch.zeros_like(batch_indices)
@@ -374,6 +379,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         while active_mask.any():
             active_mask_prev.copy_(active_mask, non_blocking=True)
             # stage 1: get decoder (prediction network) output
+            prev_state = state  # save to return state before last label if utterance is fully decoded
             decoder_output, state, *_ = self.decoder.predict(
                 labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
             )
@@ -501,7 +507,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             # this seems to be redundant, but used in the `loop_frames` output
             torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
             self.decoder.batch_replace_states_mask(
-                src_states=state,
+                src_states=prev_state,
                 dst_states=last_decoder_state,
                 mask=became_inactive_mask,
             )
@@ -551,6 +557,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
+        prev_state: Optional[Any] = None,
+        prev_labels: Optional[torch.Tensor] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Implementation with CUDA graphs.
@@ -558,6 +566,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
+            prev_state: previous decoder state for the batch
+            prev_labels: batch of previously decoded labels
         """
         assert self.cuda_graphs_mode is not None
 
@@ -578,6 +588,26 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(encoder_output_length)
         # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
+
+        if prev_state is None:
+            # initial state
+            self.decoder.batch_replace_states_all(
+                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
+                dst_states=self.state.decoder_state,
+            )
+        else:
+            self.decoder.batch_replace_states_all(
+                src_states=prev_state,
+                dst_states=self.state.decoder_state,
+                batch_size=current_batch_size,
+            )
+
+        if prev_labels is None:
+            # last found labels - initially <SOS> (<blank>) symbol
+            self.state.labels.fill_(self._SOS)
+        else:
+            self.state.labels[:current_batch_size].copy_(prev_labels[:current_batch_size], non_blocking=True)
+
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.full_graph.replay()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -667,6 +697,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
 
         self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
+        self.state.prev_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         decoder_output, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
@@ -743,6 +774,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
+            # capture: while self.active_mask_any:
             (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
             outer_loop_kernel = self._create_outer_while_loop_kernel()
             active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
@@ -750,14 +782,13 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
                 [outer_loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data],
                 dtype=np.uint64,
             )
-
             # loop while there are active utterances
-            # while self.active_mask_any:
             with with_conditional_node(
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
                 self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
+                # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
@@ -768,8 +799,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
                     ],
                     dtype=np.uint64,
                 )
-                # while self.advance_mask_any.item():
-
                 with with_conditional_node(
                     inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
                 ):
@@ -782,13 +811,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         if self.state.alignments is not None:
             self.state.alignments.clear_()
 
-        # initial state
-        self.decoder.batch_replace_states_all(
-            src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
-            dst_states=self.state.decoder_state,
-        )
-        # last found labels - initially <SOS> (<blank>) symbol
-        self.state.labels.fill_(self._SOS)
         self.state.scores.fill_(0.0)
 
         # time indices
@@ -808,6 +830,9 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     def _before_inner_loop_get_decoder_output(self):
         """Get decoder output"""
         # stage 1: get decoder (prediction network) output
+        self.decoder.batch_replace_states_all(
+            src_states=self.state.decoder_state, dst_states=self.state.prev_decoder_state
+        )
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
@@ -967,7 +992,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         # this seems to be redundant, but used in the `loop_frames` output
         torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
         self.decoder.batch_replace_states_mask(
-            src_states=self.state.decoder_state,
+            src_states=self.state.prev_decoder_state,
             dst_states=self.state.last_decoder_state,
             mask=self.state.became_inactive_mask,
         )
@@ -1003,8 +1028,23 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
+        prev_state: Optional[Any] = None,
+        prev_labels: Optional[torch.Tensor] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
+        """
+        Entry point for the decoding algorithm
 
-        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
+        Args:
+            x: encoder output
+            out_len: encoder output length
+            prev_state: previous decoder state for the batch
+            prev_labels: batch of previously decoded labels
+        """
+        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
+            return self.loop_labels_cuda_graphs(
+                encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+            )
+
+        return self.loop_labels_torch(
+            encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+        )
