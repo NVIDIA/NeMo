@@ -172,6 +172,7 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+
 @run.cli.factory(target=pretrain, name=NAME + "_optimized")
 def pretrain_recipe_performance(
     dir: Optional[str] = None,
@@ -210,10 +211,11 @@ def pretrain_recipe_performance(
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
 
     from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
+
     if isinstance(recipe.trainer.plugins, MegatronMixedPrecision):
-        recipe.trainer.plugins.grad_reduce_in_fp32=False
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
     if isinstance(recipe.trainer.strategy.ddp, DistributedDataParallelConfig):
-        recipe.trainer.strategy.ddp.grad_reduce_in_fp32=False
+        recipe.trainer.strategy.ddp.grad_reduce_in_fp32 = False
 
     recipe.trainer.callbacks.append(
         run.Config(
