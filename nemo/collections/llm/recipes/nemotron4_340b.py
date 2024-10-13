@@ -174,6 +174,7 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+
 @run.cli.factory(target=pretrain, name=NAME + "_optimized")
 def pretrain_recipe_performance(
     dir: Optional[str] = None,
@@ -214,6 +215,7 @@ def pretrain_recipe_performance(
         )
     )
     return recipe
+
 
 @run.cli.factory(name=NAME + "_nemo")
 def nemo_resume() -> run.Config[nl.AutoResume]:
