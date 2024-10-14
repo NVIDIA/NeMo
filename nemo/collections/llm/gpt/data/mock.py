@@ -14,9 +14,9 @@
 
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+import lightning_fabric as fl
 import numpy as np
 import pytorch_lightning as pl
-import lightning_fabric as fl
 import torch
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
@@ -24,7 +24,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
-
 
 _, HAVE_TE = safe_import("transformer_engine")
 

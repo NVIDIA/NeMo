@@ -1228,7 +1228,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             return 1
 
         return None
-    
+
     @property
     def model(self) -> Union[ModelT, List[ModelT]]:
         """

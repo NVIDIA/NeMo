@@ -130,12 +130,8 @@ class Fabric(lb.Fabric, IOMixin):
             return out._forward_module
 
         return out
-    
-    def setup_datamodule(
-        self, 
-        datamodule: pl.LightningDataModule,
-        stage: str = ""
-    ) -> pl.LightningDataModule:
+
+    def setup_datamodule(self, datamodule: pl.LightningDataModule, stage: str = "") -> pl.LightningDataModule:
         datamodule.setup(stage)
 
         if hasattr(self.strategy, "process_datamodule"):

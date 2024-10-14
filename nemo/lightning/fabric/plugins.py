@@ -123,7 +123,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         """
         if not hasattr(module, "module"):
             return module
-        
+
         from megatron.core.transformer.module import Float16Module
         from megatron.core.utils import get_model_config
 

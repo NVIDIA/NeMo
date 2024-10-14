@@ -26,10 +26,10 @@ from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loadi
 from lightning_fabric.utilities.types import _PATH, _Stateful
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning import LightningDataModule
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.utilities.combined_loader import CombinedLoader
-from pytorch_lightning import LightningDataModule
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
@@ -178,7 +178,7 @@ class FabricMegatronStrategy(DDPStrategy):
             optimizer_config = self.precision.convert_config(optimizer_config)
 
         assert optimizer_config.lr is not None, "Learning rate must be set in optimizer config"
-        
+
         return _strategy_lib.setup_megatron_optimizer(
             model,
             optimizer_config,
@@ -200,7 +200,7 @@ class FabricMegatronStrategy(DDPStrategy):
     @override
     def setup_module(self, module: Module) -> MegatronParallel:
         from megatron.core.utils import get_model_config
-        
+
         _strategy_lib.set_model_parallel_attributes(module, self.parallelism)
 
         convert_module_fn = None
@@ -227,7 +227,7 @@ class FabricMegatronStrategy(DDPStrategy):
 
         if self._init_model_parallel:
             megatron_parallel.init_model_parallel()
-            
+
         if self.data_sampler:
             megatron_parallel.callbacks.add(self.data_sampler)
 

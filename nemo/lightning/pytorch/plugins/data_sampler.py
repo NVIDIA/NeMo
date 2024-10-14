@@ -109,7 +109,7 @@ class MegatronDataSampler(DataSampler):
     def on_megatron_microbatches_start(self, step: MegatronStep) -> None:
         if not step.trainer:
             return
-        
+
         # do validation and save the checkpoint when gbs is changed
         if (
             self.rampup_batch_size is not None
@@ -130,7 +130,7 @@ class MegatronDataSampler(DataSampler):
             from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
         self.prev_global_batch_size = self.current_global_batch_size
-        
+
         if step.step_i:
             consumed_samples = self.compute_consumed_samples(step.step_i + 1 - self.init_global_step)
             if self.output_log and trainer and getattr(trainer, "training", False):
