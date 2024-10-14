@@ -102,7 +102,7 @@ model:
     frame_splicing: 1
     dither: 0.00001
 
-  diarizer_module:
+  sortformer_modules:
     _target_: nemo.collections.asr.modules.sortformer_modules.SortformerModules
     num_spks: ${model.max_num_of_spks} # Number of speakers per model. This is currently fixed at 4.
     dropout_rate: 0.5 # Dropout rate
