@@ -23,11 +23,11 @@ from megatron.core.jit import jit_fuser
 from megatron.core.transformer.attention import (
     CrossAttention,
     CrossAttentionSubmodules,
-    SelfAttention,
-    SelfAttentionSubmodules,
+    FluxSingleAttention,
     JointSelfAttention,
     JointSelfAttentionSubmodules,
-    FluxSingleAttention,
+    SelfAttention,
+    SelfAttentionSubmodules,
 )
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
@@ -78,7 +78,14 @@ class AdaLN(MegatronModule):
     Adaptive Layer Normalization Module for DiT.
     """
 
-    def __init__(self, config: TransformerConfig, n_adaln_chunks=9, norm=nn.LayerNorm, modulation_bias=False, use_second_norm=False):
+    def __init__(
+        self,
+        config: TransformerConfig,
+        n_adaln_chunks=9,
+        norm=nn.LayerNorm,
+        modulation_bias=False,
+        use_second_norm=False,
+    ):
         super().__init__(config)
         if norm == TENorm:
             self.ln = norm(config, config.hidden_size, config.layernorm_epsilon)
@@ -126,30 +133,29 @@ class AdaLN(MegatronModule):
 
 
 class AdaLNContinuous(MegatronModule):
-    def __init__(self,
-                 config: TransformerConfig,
-                 conditioning_embedding_dim: int,
-                 modulation_bias: bool = True,
-                 norm_type: str = "layer_norm",
-                 ):
-       super().__init__(config)
-       self.adaLN_modulation = nn.Sequential(
-           nn.SiLU(), nn.Linear(conditioning_embedding_dim, config.hidden_size * 2, bias=modulation_bias)
-       )
-       if norm_type == "layer_norm":
+    def __init__(
+        self,
+        config: TransformerConfig,
+        conditioning_embedding_dim: int,
+        modulation_bias: bool = True,
+        norm_type: str = "layer_norm",
+    ):
+        super().__init__(config)
+        self.adaLN_modulation = nn.Sequential(
+            nn.SiLU(), nn.Linear(conditioning_embedding_dim, config.hidden_size * 2, bias=modulation_bias)
+        )
+        if norm_type == "layer_norm":
             self.norm = nn.LayerNorm(config.hidden_size, elementwise_affine=False, eps=1e-6, bias=modulation_bias)
-       elif norm_type == "rms_norm":
-           self.norm = RMSNorm(config.hidden_size, eps=1e-6)
-       else:
-           raise ValueError("Unknown normalization type {}".format(norm_type))
+        elif norm_type == "rms_norm":
+            self.norm = RMSNorm(config.hidden_size, eps=1e-6)
+        else:
+            raise ValueError("Unknown normalization type {}".format(norm_type))
 
     def forward(self, x: torch.Tensor, conditioning_embedding: torch.Tensor) -> torch.Tensor:
         emb = self.adaLN_modulation(conditioning_embedding)
         scale, shift = torch.chunk(emb, 2, dim=1)
         x = self.norm(x) * (1 + scale) + shift
         return x
-
-
 
 
 class STDiTLayerWithAdaLN(TransformerLayer):
@@ -452,19 +458,23 @@ class DiTLayer(TransformerLayer):
 
     Original DiT layer implementation from [https://arxiv.org/pdf/2212.09748].
     """
-    def __init__(self,
+
+    def __init__(
+        self,
         config: TransformerConfig,
         submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
         mlp_ratio: int = 4,
         n_adaln_chunks: int = 6,
-        modulation_bias: bool = True
+        modulation_bias: bool = True,
     ):
         # Modify the mlp layer hidden_size of a dit layer according to mlp_ratio
         config.ffn_hidden_size = int(mlp_ratio * config.hidden_size)
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
 
-        self.adaLN = AdaLN(config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=True)
+        self.adaLN = AdaLN(
+            config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=True
+        )
 
     def forward(
         self,
@@ -481,16 +491,19 @@ class DiTLayer(TransformerLayer):
 
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN(c)
 
-        shifted_input_layernorm_output = self.adaLN.modulated_layernorm(hidden_states, shift=shift_msa, scale=scale_msa, layernorm_idx=0)
+        shifted_input_layernorm_output = self.adaLN.modulated_layernorm(
+            hidden_states, shift=shift_msa, scale=scale_msa, layernorm_idx=0
+        )
 
-        x, bias = self.self_attention(shifted_input_layernorm_output,
-                                      attention_mask=None)
+        x, bias = self.self_attention(shifted_input_layernorm_output, attention_mask=None)
 
         hidden_states = self.adaLN.scale_add(hidden_states, x=(x + bias), gate=gate_msa)
 
         residual = hidden_states
 
-        shited_pre_mlp_layernorm_output = self.adaLN.modulated_layernorm(hidden_states, shift=shift_mlp, scale=scale_mlp, layernorm_idx=1)
+        shited_pre_mlp_layernorm_output = self.adaLN.modulated_layernorm(
+            hidden_states, shift=shift_mlp, scale=scale_mlp, layernorm_idx=1
+        )
 
         x, bias = self.mlp(shited_pre_mlp_layernorm_output)
 
@@ -502,17 +515,19 @@ class DiTLayer(TransformerLayer):
 class MMDiTLayer(TransformerLayer):
     """A single transformer layer.
 
-        Transformer layer takes input with size [s, b, h] and returns an
-        output of the same size.
+    Transformer layer takes input with size [s, b, h] and returns an
+    output of the same size.
 
-        MMDiT layer implementation from [https://arxiv.org/pdf/2403.03206].
-        """
+    MMDiT layer implementation from [https://arxiv.org/pdf/2403.03206].
+    """
 
-    def __init__(self,
+    def __init__(
+        self,
         config: TransformerConfig,
         submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
-        context_pre_only: bool = False):
+        context_pre_only: bool = False,
+    ):
 
         hidden_size = config.hidden_size
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
@@ -522,11 +537,8 @@ class MMDiTLayer(TransformerLayer):
         self.context_pre_only = context_pre_only
         context_norm_type = "ada_norm_continous" if context_pre_only else "ada_norm_zero"
 
-
         if context_norm_type == "ada_norm_continous":
-            self.adaln_context = AdaLNContinous(
-                config, hidden_size, modulation_bias=True, norm_type="layer_norm"
-            )
+            self.adaln_context = AdaLNContinous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
         elif context_norm_type == "ada_norm_zero":
             self.adaln_context = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
         else:
@@ -539,15 +551,13 @@ class MMDiTLayer(TransformerLayer):
         cp_override_config.context_parallel_size = 1
         cp_override_config.tp_comm_overlap = False
 
-
         if not context_pre_only:
             self.context_mlp = build_module(
                 submodules.mlp,
                 config=cp_override_config,
-                )
+            )
         else:
             self.context_mlp = None
-
 
     def forward(
         self,
@@ -563,12 +573,16 @@ class MMDiTLayer(TransformerLayer):
     ):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaln(emb)
 
-        norm_hidden_states = self.adaln.modulated_layernorm(hidden_states, shift=shift_msa, scale=scale_msa, layernorm_idx=0)
+        norm_hidden_states = self.adaln.modulated_layernorm(
+            hidden_states, shift=shift_msa, scale=scale_msa, layernorm_idx=0
+        )
         if self.context_pre_only:
             norm_encoder_hidden_states = self.adaln_context(encoder_hidden_states, emb)
         else:
             c_shift_msa, c_scale_msa, c_gate_msa, c_shift_mlp, c_scale_mlp, c_gate_mlp = self.adaln_context(emb)
-            norm_encoder_hidden_states = self.adaln_context.modulated_layernorm(encoder_hidden_states, shift=c_shift_msa, scale=c_scale_msa, layernorm_idx=0)
+            norm_encoder_hidden_states = self.adaln_context.modulated_layernorm(
+                encoder_hidden_states, shift=c_shift_msa, scale=c_scale_msa, layernorm_idx=0
+            )
 
         attention_output, encoder_attention_output = self.self_attention(
             norm_hidden_states,
@@ -578,37 +592,46 @@ class MMDiTLayer(TransformerLayer):
             rotary_pos_emb=rotary_pos_emb,
         )
         hidden_states = self.adaln.scale_add(hidden_states, x=attention_output, gate=gate_msa)
-        norm_hidden_states = self.adaln.modulated_layernorm(hidden_states, shift=shift_mlp,scale=scale_mlp,layernorm_idx=1)
+        norm_hidden_states = self.adaln.modulated_layernorm(
+            hidden_states, shift=shift_mlp, scale=scale_mlp, layernorm_idx=1
+        )
 
-
-        mlp_output, mlp_output_bias =self.mlp(norm_hidden_states)
-        hidden_states = self.adaln.scale_add(hidden_states, x= (mlp_output + mlp_output_bias), gate=gate_mlp)
+        mlp_output, mlp_output_bias = self.mlp(norm_hidden_states)
+        hidden_states = self.adaln.scale_add(hidden_states, x=(mlp_output + mlp_output_bias), gate=gate_mlp)
 
         if self.context_pre_only:
             encoder_hidden_states = None
         else:
-            encoder_hidden_states = self.adaln_context.scale_add(encoder_hidden_states, x=encoder_attention_output, gate=c_gate_msa)
-            norm_encoder_hidden_states = self.adaln_context.modulated_layernorm(encoder_hidden_states, shift=c_shift_mlp, scale=c_scale_mlp, layernorm_idx=1)
+            encoder_hidden_states = self.adaln_context.scale_add(
+                encoder_hidden_states, x=encoder_attention_output, gate=c_gate_msa
+            )
+            norm_encoder_hidden_states = self.adaln_context.modulated_layernorm(
+                encoder_hidden_states, shift=c_shift_mlp, scale=c_scale_mlp, layernorm_idx=1
+            )
 
             context_mlp_output, context_mlp_output_bias = self.context_mlp(norm_encoder_hidden_states)
-            encoder_hidden_states = self.adaln.scale_add(encoder_hidden_states, x=(context_mlp_output + context_mlp_output_bias), gate=c_gate_mlp)
+            encoder_hidden_states = self.adaln.scale_add(
+                encoder_hidden_states, x=(context_mlp_output + context_mlp_output_bias), gate=c_gate_mlp
+            )
 
         return hidden_states, encoder_hidden_states
 
 
 class FluxSingleTransformerBlock(TransformerLayer):
-    def __init__(self,
-                 config: TransformerConfig,
-                 submodules: TransformerLayerSubmodules,
-                 layer_number: int = 1,
-                 mlp_ratio: int = 4,
-                 n_adaln_chunks: int = 3,
-                 modulation_bias: bool = True
-                 ):
+    def __init__(
+        self,
+        config: TransformerConfig,
+        submodules: TransformerLayerSubmodules,
+        layer_number: int = 1,
+        mlp_ratio: int = 4,
+        n_adaln_chunks: int = 3,
+        modulation_bias: bool = True,
+    ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
         hidden_size = config.hidden_size
-        self.adaln = AdaLN(config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias,
-                           use_second_norm=False)
+        self.adaln = AdaLN(
+            config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
+        )
         self.mlp_hidden_dim = int(hidden_size * mlp_ratio)
         self.proj_in = nn.Linear(hidden_size, self.mlp_hidden_dim)
         self.activation = nn.GELU(approximate="tanh")
@@ -633,15 +656,18 @@ class FluxSingleTransformerBlock(TransformerLayer):
 
         mlp_hidden_states = self.activation(self.proj_in(norm_hidden_states))
 
-        attention_output = self.self_attention(norm_hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb)
+        attention_output = self.self_attention(
+            norm_hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb
+        )
 
         hidden_states = torch.cat((attention_output, mlp_hidden_states), dim=2)
 
         hidden_states = self.proj_out(hidden_states)
 
-        hidden_states = self.adaln.scale_add(residual, x = hidden_states, gate=gate)
+        hidden_states = self.adaln.scale_add(residual, x=hidden_states, gate=gate)
 
         return hidden_states
+
 
 def get_stdit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
     params = {"attn_mask_type": AttnMaskType.padding}
@@ -767,6 +793,7 @@ def get_official_dit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
         ),
     )
 
+
 def get_mm_dit_block_with_transformer_engine_spec() -> ModuleSpec:
 
     return ModuleSpec(
@@ -792,6 +819,7 @@ def get_mm_dit_block_with_transformer_engine_spec() -> ModuleSpec:
         ),
     )
 
+
 def get_flux_single_transformer_engine_spec() -> ModuleSpec:
     return ModuleSpec(
         module=FluxSingleTransformerBlock,
@@ -808,6 +836,7 @@ def get_flux_single_transformer_engine_spec() -> ModuleSpec:
             ),
         ),
     )
+
 
 def get_flux_double_transformer_engine_spec() -> ModuleSpec:
     return ModuleSpec(

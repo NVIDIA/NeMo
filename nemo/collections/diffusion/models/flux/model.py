@@ -16,6 +16,10 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.utils import openai_gelu
+from torch import nn
+
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     AdaLNContinuous,
     FluxSingleTransformerBlock,
@@ -23,10 +27,6 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     get_flux_double_transformer_engine_spec,
     get_flux_single_transformer_engine_spec,
 )
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.utils import openai_gelu
-from torch import nn
-
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 
 
