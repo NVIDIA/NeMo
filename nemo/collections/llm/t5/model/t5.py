@@ -11,8 +11,6 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.llm import fn
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
-from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -30,6 +28,8 @@ if TYPE_CHECKING:
 
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
+    from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
     from megatron.core import parallel_state
 
     batch = next(dataloader_iter)
