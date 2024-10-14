@@ -250,10 +250,13 @@ class PerfEnvPlugin(run.Plugin):
     A plugin for setting up performance optimized environments.
 
     Attributes:
+        enable_layernorm_sm_margin (bool): Set SM margin for TransformerEngine's Layernorm, so 
+            in order to not block DP level communication overlap.  
         enable_vboost (bool): Whether to steer more power towards tensor cores via
             `sudo nvidia-smi boost-slider --vboost 1`. May not work on all systems.
     """
 
+    enable_layernorm_sm_margin: bool = True
     enable_vboost: bool = False
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
@@ -284,10 +287,8 @@ class PerfEnvPlugin(run.Plugin):
             if tp_size > 1 and cp_size > 1:
                 executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = 1
 
-            # Set LayerNorm SM margin when using P2P communication overlap to support the overlap with LayerNorm kernel
-            vpp = task.trainer.strategy.virtual_pipeline_model_parallel_size
-            pp_size = task.trainer.strategy.pipeline_model_parallel_size
-            if pp_size > 1 and vpp is not None and vpp > 1:
+            # Set LayerNorm SM margin to support the overlap with LayerNorm kernel
+            if self.enable_layernorm_sm_margin:
                 executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = 8
                 executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = 8
 
