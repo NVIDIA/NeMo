@@ -281,8 +281,8 @@ class PerfEnvPlugin(run.Plugin):
             # Force program order kernel launch for TP, CP overlap
             tp_size = task.trainer.strategy.tensor_model_parallel_size
             cp_size = task.trainer.strategy.context_parallel_size
-            if tp_size > 1 and cp_size:
-                executor.env_vars["CUDA_MAX_CONNECTIONS"] = 1
+            if tp_size > 1 and cp_size > 1:
+                executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = 1
 
             # Set LayerNorm SM margin when using P2P communication overlap to support the overlap with LayerNorm kernel
             vpp = task.trainer.strategy.virtual_pipeline_model_parallel_size
