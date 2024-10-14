@@ -144,7 +144,7 @@ def main():
     if not args.precision == 'bf16' or args.fp8:  # default case is bf16 without fp8
         import llm.recipes.precision.mixed_precision as mp_recipes
 
-        key = [args.precision, args.fp8]
+        key = (args.precision, args.fp8)
         precision_recipe = {
             ("fp16", False): mp_recipes.fp16_mixed,
             ("bf16", True): mp_recipes.bf16_with_fp8_mixed,
