@@ -117,6 +117,9 @@ def trainer(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            average_in_collective=True,
         ),
     )
 
@@ -217,7 +220,11 @@ def pretrain_recipe_performance(
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
     recipe.trainer.callbacks.extend(
         [
-            run.Config(MegatronTokenDropCallback),
+            run.Config(
+                MegatronTokenDropCallback,
+                overlap_param_gather_with_optimizer_step=True,
+                align_param_gather=True,
+            ),
             run.Config(MegatronCommOverlapCallback),
         ]
     )

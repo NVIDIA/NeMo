@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Callable, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -191,7 +191,7 @@ def pretrain_recipe(
 
 @run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn: Callable = pretrain
 ) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for GPT3 175B model.
@@ -223,9 +223,6 @@ def pretrain_recipe_performance(
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
 
-    if recipe.trainer.plugins.__fn_or_cls__ == MegatronMixedPrecision:
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
@@ -233,6 +230,8 @@ def pretrain_recipe_performance(
             tp_comm_overlap_cfg=userbuffers_fp8_h100_h12288_tp4_mbs1_seqlen2048,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=50,
+            overlap_param_gather_with_optimizer_step=True,
+            align_param_gather=True,
         )
     )
 

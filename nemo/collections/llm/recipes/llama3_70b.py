@@ -229,6 +229,8 @@ def pretrain_recipe_performance(
             tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=22,
+            overlap_param_gather_with_optimizer_step=True,
+            align_param_gather=True,
         )
     )
 
