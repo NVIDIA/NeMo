@@ -80,6 +80,10 @@ def verify_distcp_dir(ckpt_path: str) -> None:
 def verify_ckpt_dir(
     model_ckpt: nl.ModelCheckpoint, max_steps: int, val_check_interval: int, exp_dir: str, dist_ckpts: bool = True
 ) -> None:
+    """Ensures a checkpoint directory has the correct number of checkpoints, followed top-k, a checkpoint
+    for the last step exists, and the checkpoints are the correct format.
+    """
+
     import os
 
     ckpts = os.listdir(os.path.join(exp_dir, 'checkpoints'))
