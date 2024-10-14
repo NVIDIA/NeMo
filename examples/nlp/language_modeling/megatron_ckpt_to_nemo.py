@@ -21,7 +21,9 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
      --checkpoint_name <checkpoint_name> \
      --nemo_file_path <path_to_output_nemo_file> \
      --tensor_model_parallel_size <tensor_model_parallel_size> \
-     --pipeline_model_parallel_size <pipeline_model_parallel_size>
+     --pipeline_model_parallel_size <pipeline_model_parallel_size> \
+     --gpus_per_node <gpus_per_node> \
+     --model_type <model_type>
 """
 
 import dis
@@ -100,7 +102,7 @@ def get_args():
         default="gpt",
         choices=["gpt", "sft", "t5", "bert", "nmt", "bart", "retro"],
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
     parser.add_argument(
         "--precision",
