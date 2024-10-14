@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
-from megatron.core.models.dit.dit_layer_spec import (
+from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     AdaLNContinuous,
     FluxSingleTransformerBlock,
     MMDiTLayer,
