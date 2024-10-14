@@ -1110,7 +1110,9 @@ class TestExpManager:
             exp_manager(
                 test_trainer,
                 {
-                    "always_save_nemo": True,
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
                 },
             )
 
@@ -1122,7 +1124,9 @@ class TestExpManager:
             exp_manager(
                 test_trainer,
                 {
-                    "always_save_nemo": True,
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
                 },
             )
 
@@ -1134,7 +1138,9 @@ class TestExpManager:
             exp_manager(
                 test_trainer,
                 {
-                    "always_save_nemo": True,
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
                 },
             )
 
@@ -1145,6 +1151,8 @@ class TestExpManager:
         exp_manager(
             test_trainer,
             {
-                "always_save_nemo": True,
+                "checkpoint_callback_params": {
+                    "always_save_nemo": True,
+                },
             },
         )
