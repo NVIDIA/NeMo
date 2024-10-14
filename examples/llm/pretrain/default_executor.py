@@ -24,18 +24,18 @@ def get_vboost_srun_cmd(nodes, job_dir):
     import shlex
 
     vboost_cmd = " ".join(
-                            [
-                                "\n# Command 0: enable vboost\n\n",
-                                "srun",
-                                f"--ntasks={nodes}",
-                                "--output",
-                                os.path.join(job_dir, "vboost.out"),
-                                "--error",
-                                os.path.join(job_dir, "vboost.err"),
-                                "bash -c ",
-                                shlex.quote("sudo nvidia-smi boost-slider --vboost 1"),
-                            ],
-                        )
+        [
+            "\n# Command 0: enable vboost\n\n",
+            "srun",
+            f"--ntasks={nodes}",
+            "--output",
+            os.path.join(job_dir, "vboost.out"),
+            "--error",
+            os.path.join(job_dir, "vboost.err"),
+            "bash -c ",
+            shlex.quote("sudo nvidia-smi boost-slider --vboost 1"),
+        ],
+    )
 
     return vboost_cmd
 
@@ -117,8 +117,12 @@ def slurm_executor(
     executor.time = time
 
     if enable_vboost:
-        vboost_cmd=get_vboost_srun_cmd(nodes, remote_job_dir)
-        executor.setup_lines = executor.setup_lines + vboost_cmd if (executor.setup_lines and len(executor.setup_lines) > 0) else vboost_cmd
+        vboost_cmd = get_vboost_srun_cmd(nodes, remote_job_dir)
+        executor.setup_lines = (
+            executor.setup_lines + vboost_cmd
+            if (executor.setup_lines and len(executor.setup_lines) > 0)
+            else vboost_cmd
+        )
 
     return executor
 
