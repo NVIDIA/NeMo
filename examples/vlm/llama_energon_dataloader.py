@@ -1,22 +1,20 @@
 import os
 import sys
-from nemo.utils import logging
-
 
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
+from nemo.utils import logging
 
 logging.setLevel(logging.DEBUG)
-from transformers import AutoProcessor
-from megatron.energon import VQASample
 import requests
 import torch
+from megatron.energon import VQASample
 from PIL import Image
-from transformers import MllamaForConditionalGeneration, AutoProcessor
+from transformers import AutoProcessor, MllamaForConditionalGeneration
+
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig, MLlamaTemplateConfig
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.vlm.llama.data.task_encoder import LlamaTaskEncoder
-from nemo.collections.multimodal.data.energon.conversation import MLlamaTemplateConfig, LLaVATemplateConfig
 
 if __name__ == '__main__':
     data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/yash/wds'
