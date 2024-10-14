@@ -185,7 +185,11 @@ def is_prefix(x: List[int], pref: List[int]) -> bool:
 
 
 def select_k_expansions(
-    hyps: List[Hypothesis], topk_idxs: torch.Tensor, topk_logps: torch.Tensor, gamma: float, beta: int,
+    hyps: List[Hypothesis],
+    topk_idxs: torch.Tensor,
+    topk_logps: torch.Tensor,
+    gamma: float,
+    beta: int,
 ) -> List[Tuple[int, Hypothesis]]:
     """
     Obtained from https://github.com/espnet/espnet
@@ -213,7 +217,10 @@ def select_k_expansions(
         k_best_exp_idx = k_best_exp_val[0]
         k_best_exp = k_best_exp_val[1]
 
-        expansions = sorted(filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i), key=lambda x: x[1],)
+        expansions = sorted(
+            filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i),
+            key=lambda x: x[1],
+        )
 
         if len(expansions) > 0:
             k_expansions.append(expansions)
@@ -286,7 +293,12 @@ class BatchedHyps:
         self._max_length *= 2
 
     def add_results_(
-        self, active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor, token_durations: torch.Tensor = None,
+        self,
+        active_indices: torch.Tensor,
+        labels: torch.Tensor,
+        time_indices: torch.Tensor,
+        scores: torch.Tensor,
+        token_durations: torch.Tensor = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses.
@@ -304,11 +316,20 @@ class BatchedHyps:
             self._allocate_more()
 
         self.add_results_no_checks_(
-            active_indices=active_indices, labels=labels, time_indices=time_indices, scores=scores, token_durations=token_durations
+            active_indices=active_indices,
+            labels=labels,
+            time_indices=time_indices,
+            scores=scores,
+            token_durations=token_durations,
         )
 
     def add_results_no_checks_(
-        self, active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor, token_durations: torch.Tensor = None
+        self,
+        active_indices: torch.Tensor,
+        labels: torch.Tensor,
+        time_indices: torch.Tensor,
+        scores: torch.Tensor,
+        token_durations: torch.Tensor = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses without checks.
@@ -339,7 +360,12 @@ class BatchedHyps:
         self.current_lengths[active_indices] += 1
 
     def add_results_masked_(
-        self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor, token_durations: torch.Tensor = None
+        self,
+        active_mask: torch.Tensor,
+        labels: torch.Tensor,
+        time_indices: torch.Tensor,
+        scores: torch.Tensor,
+        token_durations: torch.Tensor = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses.
@@ -353,11 +379,20 @@ class BatchedHyps:
         if (self.current_lengths + active_mask).max() >= self._max_length:
             self._allocate_more()
         self.add_results_masked_no_checks_(
-            active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores, token_durations=token_durations
+            active_mask=active_mask,
+            labels=labels,
+            time_indices=time_indices,
+            scores=scores,
+            token_durations=token_durations,
         )
 
     def add_results_masked_no_checks_(
-        self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor, token_durations: torch.Tensor = None
+        self,
+        active_mask: torch.Tensor,
+        labels: torch.Tensor,
+        time_indices: torch.Tensor,
+        scores: torch.Tensor,
+        token_durations: torch.Tensor = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses without checks.
@@ -600,7 +635,13 @@ def batched_hyps_to_hypotheses(
             score=batched_hyps.scores[i].item(),
             y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]],
             timestep=batched_hyps.timesteps[i, : batched_hyps.current_lengths[i]],
-            token_duration=durations if not torch.all((durations := batched_hyps.token_durations[i, : batched_hyps.current_lengths[i]]) == 0) else [],
+            token_duration=(
+                durations
+                if not torch.all(
+                    (durations := batched_hyps.token_durations[i, : batched_hyps.current_lengths[i]]) == 0
+                )
+                else []
+            ),
             alignments=None,
             dec_state=None,
         )

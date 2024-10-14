@@ -59,7 +59,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
                 U is the number of target tokens for the current timestep Ti.
 
-            tdt_include_token_duration: Bool flag, which determines whether predicted durations for each token 
+            tdt_include_token_duration: Bool flag, which determines whether predicted durations for each token
             need to be included in the Hypothesis object. Defaults to False.
 
             compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
@@ -894,9 +894,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         return offsets
 
     @staticmethod
-    def _compute_offsets_tdt(
-        hypothesis: Hypothesis, *args
-        ) -> List[Dict[str, Union[str, int]]]:
+    def _compute_offsets_tdt(hypothesis: Hypothesis, *args) -> List[Dict[str, Union[str, int]]]:
         """
         Utility method that calculates the indidual time indices where a token starts and ends.
 
@@ -914,12 +912,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         ]
         return offsets
 
-    
     @staticmethod
     def _refine_timestamps(
-        encoded_char_offsets: List[Dict[str, Union[str, int]]], 
-        char_offsets: List[Dict[str, Union[str, int]]]
-        ) -> List[Dict[str, Union[str, int]]]:
+        encoded_char_offsets: List[Dict[str, Union[str, int]]], char_offsets: List[Dict[str, Union[str, int]]]
+    ) -> List[Dict[str, Union[str, int]]]:
 
         ## no refinement for rnnt
 
@@ -927,9 +923,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _refine_timestamps_tdt(
-        encoded_char_offsets: List[Dict[str, Union[str, int]]], 
-        char_offsets: List[Dict[str, Union[str, int]]]
-        ) -> List[Dict[str, Union[str, int]]]:
+        encoded_char_offsets: List[Dict[str, Union[str, int]]], char_offsets: List[Dict[str, Union[str, int]]]
+    ) -> List[Dict[str, Union[str, int]]]:
 
         for i, offset in enumerate(char_offsets):
 
@@ -946,7 +941,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 encoded_char_offsets[i]['end_offset'] = offset['end_offset'] = offset['start_offset']
 
         return encoded_char_offsets, char_offsets
-
 
     @staticmethod
     def _get_word_offsets_chars(
@@ -1087,7 +1081,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         return word_offsets
 
-
     @staticmethod
     def _get_segment_offsets(
         offsets: Dict[str, Union[str, float]],
@@ -1111,7 +1104,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         for i, offset in enumerate(offsets):
 
             word = offset['word']
-            #check if thr word ends with any delimeter token or the word itself is a delimeter
+            # check if thr word ends with any delimeter token or the word itself is a delimeter
             if word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
                 segment_words.append(word)
                 if segment_words:
@@ -1120,7 +1113,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                             "segment": ' '.join(segment_words),
                             "start_offset": offsets[previous_word_index]["start_offset"],
                             "end_offset": offset["end_offset"],
-                    }
+                        }
                     )
 
                 segment_words = []
