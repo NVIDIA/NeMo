@@ -62,12 +62,13 @@ class Fabric(lb.Fabric, IOMixin):
 
         from nemo.lightning.io import load_context
 
+        path = Path(path)
         if model is None:
             context = load_context(path)
             model = context.model
 
         dist_model = self.setup_module(model)
-        self.load(path, {"state_dict": dist_model})
+        self.load(path / 'weights', {"state_dict": dist_model})
 
         return dist_model
 

@@ -127,6 +127,8 @@ class Quantizer:
         # Export sanity checks
         if export_config is not None:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
+        self.torch_dtype = torch_dtype_from_precision(dtype)
+
 
     def load_quantizable_model(self, nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
         trainer = nl.Trainer(
@@ -141,30 +143,26 @@ class Quantizer:
         trainer.strategy.setup_environment()
 
         model = nl.io.load_context(nemo_checkpoint_path).model
-        model.config.transformer_layer_spec = get_gpt_layer_modelopt_spec()
-        model.config = self.modify_model_config(model.config)
-
+        model.config = self.quantizable_model_config(model.config)
         model = fabric.load_model(nemo_checkpoint_path, model=model)
 
         self.nemo_checkpoint_path = nemo_checkpoint_path
         return model
 
-    @staticmethod
-    def _setup(model: llm.GPTModel) -> None:
+
+    def _setup(self, model: llm.GPTModel) -> None:
         """Setup model for quantization."""
+        # TODO: disable activation checkpointing
         model.config.vocab_size = model.tokenizer.vocab_size
+        model.config.pipeline_dtype = self.torch_dtype          # TODO: for some reason model.pipeline.dtype does not work
         model.freeze()
 
-        # TODO: update for NeMo 2.0
-        # try:
-        #     model.model.module.language_model.encoder.activations_checkpoint_method = None
-        # except AttributeError:
-        #     pass
 
     @staticmethod
-    def modify_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
+    def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
         """Modify model config for quantization."""
 
+        model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec()
         if model_cfg.sequence_parallel:
             logging.warning("Disabling sequence parallelism for quantization...")
             model_cfg.sequence_parallel = False
@@ -176,21 +174,32 @@ class Quantizer:
         model_cfg.apply_rope_fusion = False
         return model_cfg
 
+
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.get("decoder_type", None) or get_modelopt_decoder_type(config)
+
+
+    @staticmethod
+    def _get_unwrapped_mcore_model(model: llm.GPTModel):
+        from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+        unwrapped_model = model
+        while not isinstance(unwrapped_model, MCoreGPTModel):
+            unwrapped_model = unwrapped_model.module
+
+        return unwrapped_model
+
 
     def quantize(self, wrapped_model: llm.GPTConfig, forward_loop):
         """Quantize the model and calibrate using given forward loop."""
         algorithm = self.quantization_config["algorithm"]
         if algorithm is None:
             logging.info("Quantization algorithm set to None, returning the non-quantized model")
-            return wrapped_model.module
+            return wrapped_model
 
         logging.info(f"Quantizing model to {algorithm}...")
 
         self._setup(wrapped_model)
-        model = wrapped_model.module.module
-        model.config.pipeline_dtype = wrapped_model.pipeline.dtype
+        model = self._get_unwrapped_mcore_model(wrapped_model)
         decoder_type = self._get_decoder_type(model.config)
         quant_cfg = QUANT_CFG_CHOICES[algorithm]
         if "awq" in algorithm:
@@ -273,7 +282,6 @@ class Quantizer:
 
     def export(self, model: llm.GPTModel, nemo_checkpoint_path: Optional[str] = None) -> None:
         assert self.export_config is not None, "Export config is not set"
-        torch_dtype = torch_dtype_from_precision(self.export_config["dtype"])
         # TODO: Add sample generate
         # TODO: Support NeMo 2:
         # if model.cfg.megatron_amp_O2:
@@ -283,9 +291,9 @@ class Quantizer:
             model.config.pipeline_model_parallel_size > 1
         )
         export_tensorrt_llm_checkpoint(
-            model=model.module.module,
+            model=self._get_unwrapped_mcore_model(model),
             decoder_type=self._get_decoder_type(model.config),
-            dtype=torch_dtype,
+            dtype=self.torch_dtype,
             export_dir=export_dir,
             inference_tensor_parallel=self.export_config["inference_tensor_parallel"],
             inference_pipeline_parallel=self.export_config["inference_pipeline_parallel"],
@@ -298,13 +306,13 @@ class Quantizer:
         if dist.get_rank() == 0:
             self.nemo_checkpoint_path = nemo_checkpoint_path or self.nemo_checkpoint_path
             if self.nemo_checkpoint_path is not None:
-                tokenizer_src = os.path.join(self.nemo_checkpoint_path, 'nemo_tokenizer')
+                tokenizer_src = os.path.join(self.nemo_checkpoint_path, 'context', 'nemo_tokenizer')
                 tokenizer_dst = os.path.join(export_dir, 'tokenizer')
 
                 if os.path.exists(tokenizer_src) and not os.path.exists(tokenizer_dst):
                     shutil.copytree(tokenizer_src, tokenizer_dst)
                 else:
-                    logging.info("Could not copy tokenizer from NeMo checkpoint")
+                    logging.info("Could not copy tokenizer from the NeMo checkpoint")
 
 
 def get_calib_data_iter(

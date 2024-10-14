@@ -122,6 +122,10 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
 
         """
+        from nemo.collections import llm
+        if isinstance(module, llm.GPTModel) and not hasattr(module, "module"):
+            return module
+
         from megatron.core.transformer.module import Float16Module
         from megatron.core.utils import get_model_config
 
