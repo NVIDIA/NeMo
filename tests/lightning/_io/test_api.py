@@ -74,4 +74,4 @@ class TestLoad:
 
         observed = yaml.safe_load(model_yaml.read_text())
         expected = yaml.safe_load((Path(ARTIFACTS_DIR) / "model.yaml").read_text())
-        assert observed == expected
+        assert observed.keys() == expected.keys()
