@@ -19,27 +19,6 @@ import nemo_run as run
 from nemo.collections import llm
 
 
-def get_vboost_srun_cmd(nodes, job_dir):
-    import os
-    import shlex
-
-    vboost_cmd = " ".join(
-        [
-            "\n# Command 0: enable vboost\n\n",
-            "srun",
-            f"--ntasks={nodes}",
-            "--output",
-            os.path.join(job_dir, "vboost.out"),
-            "--error",
-            os.path.join(job_dir, "vboost.err"),
-            "bash -c ",
-            shlex.quote("sudo nvidia-smi boost-slider --vboost 1"),
-        ],
-    )
-
-    return vboost_cmd
-
-
 def local_executor_torchrun(devices: int = 2) -> run.LocalExecutor:
     env_vars = {
         "TRANSFORMERS_OFFLINE": "1",
@@ -67,7 +46,6 @@ def slurm_executor(
     custom_env_vars: Optional[dict[str, str]] = None,
     container_image: str = "nvcr.io/nvidia/nemo:dev",
     retries: int = 0,
-    enable_vboost: bool = False,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
         raise RuntimeError(
@@ -84,10 +62,6 @@ def slurm_executor(
         "NCCL_NVLS_ENABLE": "0",
         "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
         "NVTE_ASYNC_AMAX_REDUCTION": "1",
-        "NVTE_FLASH_ATTN": "0",
-        "NVTE_FUSED_ATTN": "1",
-        "NVTE_FWD_LAYERNORM_SM_MARGIN": "8",
-        "NVTE_BWD_LAYERNORM_SM_MARGIN": "8",
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -114,14 +88,6 @@ def slurm_executor(
     executor.env_vars = env_vars
     executor.retries = retries
     executor.time = time
-
-    if enable_vboost:
-        vboost_cmd = get_vboost_srun_cmd(nodes, remote_job_dir)
-        executor.setup_lines = (
-            executor.setup_lines + vboost_cmd
-            if (executor.setup_lines and len(executor.setup_lines) > 0)
-            else vboost_cmd
-        )
 
     return executor
 
