@@ -341,6 +341,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
     else:
         nemo_dir = TarPath(nemo_ckpt)
 
+    tokenizer = None
     try:
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
@@ -366,47 +367,38 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             model = load_sharded_metadata(dist_ckpt_folder)
             io_folder = nemo_dir / "context"
 
-            with open(io_folder / "model.yaml", 'r') as stream:
-                config = yaml.safe_load(stream)
+            if (io_folder / "model.yaml").exists():
+                with open(io_folder / "model.yaml", 'r') as stream:
+                    config = yaml.safe_load(stream)
 
-            config_dict = {}
-            for k, v in config["config"].items():
-                if isinstance(v, (float, int, str, bool)):
-                    config_dict[k] = v
-                elif k == "activation_func":
-                    config_dict["activation"] = v["_target_"].rsplit('.', 1)[-1]
+                nemo_model_config = {}
+                for k, v in config["config"].items():
+                    if isinstance(v, (float, int, str, bool)):
+                        nemo_model_config[k] = v
+                    elif k == "activation_func":
+                        nemo_model_config["activation"] = v["_target_"].rsplit('.', 1)[-1]
+            else:
+                from nemo.lightning import io
 
-            if config_dict.get("num_moe_experts") is None:
-                config_dict["num_moe_experts"] = 0
-                config_dict["moe_router_topk"] = 0
-            if config_dict["activation"] == "silu":
-                config_dict["activation"] = "fast-swiglu"
-            elif config_dict["activation"] == "openai_gelu":
-                config_dict["activation"] = "geglu"
+                config = io.load_context(io_folder, subpath="model.config")
 
-            config_dict["mcore_gpt"] = True
-            config_dict["max_position_embeddings"] = config_dict.get("seq_length", 4096)
+                nemo_model_config = {}
+                for k, v in config.__dict__.items():
+                    if isinstance(v, (float, int, str, bool)):
+                        nemo_model_config[k] = v
+                    elif k == "activation_func":
+                        nemo_model_config["activation"] = v.__name__
 
-            nemo_model_config = config_dict
+            if nemo_model_config.get("num_moe_experts") is None:
+                nemo_model_config["num_moe_experts"] = 0
+                nemo_model_config["moe_router_topk"] = 0
+            if nemo_model_config["activation"] == "silu":
+                nemo_model_config["activation"] = "fast-swiglu"
+            elif nemo_model_config["activation"] == "openai_gelu":
+                nemo_model_config["activation"] = "geglu"
 
-            from nemo.lightning import io
-
-            #tokenizer_spec = io.load_context(io_folder, subpath="model.tokenizer")
-            #tokenizer = build_tokenizer(tokenizer_spec)
-            tokenizer = io.load_context(io_folder, subpath="model.tokenizer")
-            print("*****************: ", type(tokenizer), tokenizer)
-
-            '''
-            tokenizer = None
-            if (
-                config["tokenizer"]["_target_"]
-                == "nemo.collections.common.tokenizers.huggingface.auto_tokenizer.AutoTokenizer"
-            ):
-                tokenizer = AutoTokenizer.from_pretrained(
-                    io_folder / config["tokenizer"]["pretrained_model_name"],
-                    use_fast=config["tokenizer"]["use_fast"],
-                )
-            '''
+            nemo_model_config["mcore_gpt"] = True
+            nemo_model_config["max_position_embeddings"] = nemo_model_config.get("seq_length")
 
             shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:
