@@ -171,6 +171,7 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+
 @run.cli.factory(target=pretrain, name=NAME + "_optimized")
 def pretrain_recipe_performance(
     dir: Optional[str] = None,

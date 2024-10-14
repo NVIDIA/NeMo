@@ -191,7 +191,11 @@ def pretrain_recipe(
 
 @run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn: Callable = pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for GPT3 175B model.

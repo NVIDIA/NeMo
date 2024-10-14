@@ -28,9 +28,11 @@ from nemo.collections.llm.gpt.model.llama import Llama31Config405B, LlamaModel
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+)
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192
 
 NAME = "llama31_405b"
 
@@ -186,9 +188,14 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+
 @run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn: Callable = pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for Llama3.1 405B model.
