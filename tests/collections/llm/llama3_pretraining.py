@@ -132,13 +132,6 @@ def main():
             seq_length=args.seq_length,
         )
 
-    debugger_callback = ParameterDebugger(
-        param_fn=_create_verify_precision(torch.bfloat16),
-        grad_fn=_create_verify_precision(torch.float32),
-        log_on_hooks=["on_train_start", "on_train_end"],
-    )
-    pretrain_recipe.trainer.callbacks.append(debugger_callback)
-
     # Recipe Overrides
     pretrain_recipe.trainer.max_steps = args.max_steps
     pretrain_recipe.trainer.log_every_n_steps = 1
@@ -156,6 +149,13 @@ def main():
             # Need fp32
         }[key]
         pretrain_recipe.plugins = precision_recipe()
+    dtype_map = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}
+    debugger_callback = ParameterDebugger(
+        param_fn=_create_verify_precision(dtype_map[args.precision]),
+        grad_fn=_create_verify_precision(torch.float32),
+        log_on_hooks=["on_train_start", "on_train_end"],
+    )
+    pretrain_recipe.trainer.callbacks.append(debugger_callback)
 
     parallelisms = {
         "tensor_model_parallel_size": args.tp,
