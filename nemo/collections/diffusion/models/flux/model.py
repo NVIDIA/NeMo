@@ -27,7 +27,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
 from torch import nn
 
-from nemo.collections.diffusion.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
+from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 
 
 @dataclass

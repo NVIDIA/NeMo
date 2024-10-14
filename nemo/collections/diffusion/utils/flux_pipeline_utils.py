@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import torch
 from megatron.core.transformer.utils import openai_gelu
 
-from nemo.collections.diffusion.flux.model import FluxParams
+from nemo.collections.diffusion.models.flux import FluxParams
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderParams
 
 
