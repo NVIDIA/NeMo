@@ -1139,7 +1139,7 @@ class TestExpManager:
             )
 
         appstate = AppState()
-        appstate.tensor_model_parallesl_size = 2
+        appstate.tensor_model_parallesl_size = 1
         appstate.pipeline_model_parallel_size = 1
         appstate.context_parallel_size = 1
         exp_manager(
