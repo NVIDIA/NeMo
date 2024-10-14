@@ -132,6 +132,7 @@ def main(args):
 
     # Trainer setup
     trainer = nl.Trainer(
+        num_nodes=args.num_nodes,
         devices=args.devices,
         max_steps=args.max_steps,
         accelerator="gpu",
@@ -153,7 +154,7 @@ def main(args):
 
     # Auto resume setup
     resume = nl.AutoResume(
-        resume_if_exists=False,
+        resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
         restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
@@ -217,6 +218,7 @@ if __name__ == "__main__":
         help="Directory for logging and checkpoints",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)

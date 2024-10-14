@@ -48,18 +48,12 @@ from nemo.collections.vlm.llama.model.vision import _get_full_row_masked_out_mas
 from nemo.utils import logging
 
 try:
-    from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEDelayedScaling,
-        TENorm,
-        get_cpu_offload_context,
-        te_checkpoint,
-    )
+    from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling, TENorm
 
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
     HAVE_TE = False
-    get_cpu_offload_context = None
     try:
         import apex
 
