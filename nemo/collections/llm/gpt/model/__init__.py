@@ -50,6 +50,7 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama31Config8B,
     Llama31Config70B,
     Llama31Config405B,
+    Llama32Config1B,
     LlamaConfig,
     LlamaModel,
 )

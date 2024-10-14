@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import pytorch_lightning as pl
 import torch
-from megatron.core import InferenceParams
+from megatron.core import InferenceParams, parallel_state
 
 from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_template_input, is_chat_input
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
@@ -43,6 +43,8 @@ class TextGenerationStrategy:
 
     def __init__(self, model):
         self.model = model
+        self.tokenizer = getattr(model, "tokenizer", None)
+        self.inference_params = None
         if self.model.training:
             # TODO in the future this should raise an exception
             warnings.warn(
@@ -58,7 +60,17 @@ class TextGenerationStrategy:
         """
         if "labels" in batch:
             batch.pop("labels")
+
         output_tensor = self.model.language_model(**batch)
+        # preds = torch.argmax(output_tensor, dim=-1)
+
+        if self.inference_params:
+            # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
+            if parallel_state.is_pipeline_last_stage():
+                self.inference_params.sequence_len_offset += output_tensor.size(1)
+            else:
+                self.inference_params.sequence_len_offset += output_tensor.size(0)
+
         return output_tensor
 
     def tokenize_batch(self, sentences, max_len, add_BOS):
@@ -329,30 +341,26 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
         """Prepare batch for each of the inference steps"""
         if step == 0:
             # Allocate memory for the entire context.
-            set_inference_key_value_memory = True
-            tokens2use = tokens[:, :curr_context_length]
-            positions2use = self.position_ids[:, :curr_context_length]
-            embeddings2use = input_embeddings[:curr_context_length]
+            tokens2use = tokens[:, :curr_context_length].contiguous()
+            positions2use = self.position_ids[:, :curr_context_length].contiguous()
+            embeddings2use = input_embeddings[:curr_context_length].contiguous()
+            # Prepare KV cache for the entire context at first step, and reuse afterwards.
+            self.inference_params = InferenceParams(max_batch_size=tokens2use.size(0), max_sequence_length=maxlen)
         else:
             # Set this to false so the memory is not reallocated.
-            set_inference_key_value_memory = False
-            tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1)
-            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1)
-            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
+            tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1).contiguous()
+            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1).contiguous()
+            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use).contiguous()
             started = context_lengths <= curr_context_length
             embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
-
-        if set_inference_key_value_memory:
-            inference_params = InferenceParams(max_batch_size=tokens2use.size(0), max_sequence_length=maxlen)
-        else:
-            inference_params = None
+            embeddings2use = embeddings2use.contiguous()
 
         batch = {
             "input_ids": None,
-            "position_ids": positions2use,
+            "position_ids": None,
             "attention_mask": self.attention_mask,
             "decoder_input": embeddings2use,
-            "inference_params": inference_params,
+            "inference_params": self.inference_params,
         }
         return batch
 

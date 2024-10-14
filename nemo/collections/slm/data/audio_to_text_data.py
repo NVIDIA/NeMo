@@ -54,6 +54,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         self._test_ds = None
         self._validation_names = None
         self._test_names = None
+        self.init_global_step = 0
 
     def prepare_data(self):
         # download, IO, etc. Useful with shared filesystems
@@ -264,6 +265,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         data_cfg = self.cfg.get("train_ds", None)
+        self.init_global_step = self.trainer.global_step
+        self.data_sampler.init_global_step = self.init_global_step
         if data_cfg.get("use_lhotse"):
             return self._create_lhotse_dataloader(self._train_ds, 'train')
         else:
@@ -315,90 +318,90 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             else:
                 return self._create_nemo_dataloader(self._test_ds, 'predict')
 
-    def state_dict(self) -> Dict[str, Any]:
-        """Called when saving a checkpoint, implement to generate and save datamodule state.
+    # def state_dict(self) -> Dict[str, Any]:
+    #     """Called when saving a checkpoint, implement to generate and save datamodule state.
 
-        Returns:
-            A dictionary containing datamodule state.
+    #     Returns:
+    #         A dictionary containing datamodule state.
 
-        """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
-        return {'consumed_samples': consumed_samples}
+    #     """
+    #     consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+    #     return {'consumed_samples': consumed_samples}
 
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
+    # def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+    #     """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
 
-        Args:
-            state_dict: the datamodule state returned by ``state_dict``.
+    #     Args:
+    #         state_dict: the datamodule state returned by ``state_dict``.
 
-        """
-        try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+    #     """
+    #     try:
+    #         from megatron.core.num_microbatches_calculator import update_num_microbatches
 
-        except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+    #     except (ImportError, ModuleNotFoundError):
+    #         logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    #         from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
-        consumed_samples = state_dict['consumed_samples']
-        self.data_sampler.init_consumed_samples = consumed_samples
-        self.data_sampler.prev_consumed_samples = consumed_samples
+    #     consumed_samples = state_dict['consumed_samples']
+    #     self.data_sampler.init_consumed_samples = consumed_samples
+    #     self.data_sampler.prev_consumed_samples = consumed_samples
 
-        update_num_microbatches(
-            consumed_samples=consumed_samples,
-            consistency_check=False,
-        )
-        self.data_sampler.if_first_step = 1
+    #     update_num_microbatches(
+    #         consumed_samples=consumed_samples,
+    #         consistency_check=False,
+    #     )
+    #     self.data_sampler.if_first_step = 1
 
-    def reconfigure_limit_batches(self):
-        # Override limit_train_batches in terms of num of microbatches
-        self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds, 'train')
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_ds, 'val')
+    # def reconfigure_limit_batches(self):
+    #     # Override limit_train_batches in terms of num of microbatches
+    #     self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds, 'train')
+    #     # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+    #     self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_ds, 'val')
 
-    def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
-        """
-        Reconfigure trainer.limit_val_batches for pretraining
-        """
-        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
-        try:
-            from megatron.core.num_microbatches_calculator import get_num_microbatches
+    # def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
+    #     """
+    #     Reconfigure trainer.limit_val_batches for pretraining
+    #     """
+    #     # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
+    #     try:
+    #         from megatron.core.num_microbatches_calculator import get_num_microbatches
 
-        except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    #     except (ImportError, ModuleNotFoundError):
+    #         logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    #         from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
-        if isinstance(limit_batches, int):
-            limit_batches *= get_num_microbatches()
-        else:
-            assert isinstance(limit_batches, float)
-            # Don't reconfigure if limit_batches is 0.0 or if there's no dataloader
-            if limit_batches == 0.0 or dataloader is None:
-                return
-            # len(dataloader) returns len as num of microbatches
-            dl_len_in_micro_batches = len(dataloader)
-            if len(dataloader) != float("inf"):
-                if limit_batches == 1.0:
-                    limit_batches = dl_len_in_micro_batches
-                else:
-                    limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
-                    if limit_micro_batches == 0 and limit_batches > 0.0:
-                        min_percentage = 1.0 / len(dataloader)
-                        raise RuntimeError(
-                            f"You requested to check {limit_batches} of the val_dataloader but"
-                            f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
-                            f" `limit_val_batches` argument. Try at least"
-                            f" `limit_val_batches={min_percentage}`"
-                        )
-                    # Make sure trainer.limit_val_batches is a multiple of num of microbatches
-                    if limit_micro_batches < get_num_microbatches():
-                        limit_batches = get_num_microbatches()
-                    else:
-                        limit_batches = limit_batches - limit_batches % get_num_microbatches()
+    #     if isinstance(limit_batches, int):
+    #         limit_batches *= get_num_microbatches()
+    #     else:
+    #         assert isinstance(limit_batches, float)
+    #         # Don't reconfigure if limit_batches is 0.0 or if there's no dataloader
+    #         if limit_batches == 0.0 or dataloader is None:
+    #             return
+    #         # len(dataloader) returns len as num of microbatches
+    #         dl_len_in_micro_batches = len(dataloader)
+    #         if len(dataloader) != float("inf"):
+    #             if limit_batches == 1.0:
+    #                 limit_batches = dl_len_in_micro_batches
+    #             else:
+    #                 limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
+    #                 if limit_micro_batches == 0 and limit_batches > 0.0:
+    #                     min_percentage = 1.0 / len(dataloader)
+    #                     raise RuntimeError(
+    #                         f"You requested to check {limit_batches} of the val_dataloader but"
+    #                         f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
+    #                         f" `limit_val_batches` argument. Try at least"
+    #                         f" `limit_val_batches={min_percentage}`"
+    #                     )
+    #                 # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+    #                 if limit_micro_batches < get_num_microbatches():
+    #                     limit_batches = get_num_microbatches()
+    #                 else:
+    #                     limit_batches = limit_batches - limit_batches % get_num_microbatches()
 
-        if mode == 'train':
-            self.trainer.limit_train_batches = limit_batches
-        else:
-            self.trainer.limit_val_batches = limit_batches
+    #     if mode == 'train':
+    #         self.trainer.limit_train_batches = limit_batches
+    #     else:
+    #         self.trainer.limit_val_batches = limit_batches
 
-        # Override num sanity steps to be a multiple of num of microbatches
-        self.trainer.num_sanity_val_steps *= get_num_microbatches()
+    #     # Override num sanity steps to be a multiple of num of microbatches
+    #     self.trainer.num_sanity_val_steps *= get_num_microbatches()

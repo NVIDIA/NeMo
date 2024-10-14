@@ -66,6 +66,7 @@ from nemo.collections.slm.utils.text_generation.audio_text_generation_utils impo
     get_computeprob_response,
 )
 from nemo.lightning import io
+from nemo.lightning.ckpt_utils import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import AppState, logging, model_utils
 
@@ -205,13 +206,16 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         if self.language_model_from_pretrained is not None:
             logging.info(f"Loading language model weights from {self.language_model_from_pretrained}")
             ckpt_path = self.language_model_from_pretrained
-            if not dist_checkpointing.check_is_distributed_checkpoint(self.language_model_from_pretrained):
+
+            if not dist_checkpointing.check_is_distributed_checkpoint(ckpt_path):
                 llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
                 ckpt_path = llm_model_cls.import_ckpt(
                     f"{self.language_model_hub}{self.language_model_from_pretrained}"
                 )
+                ckpt_path = ckpt_to_weights_subdir(ckpt_path)
 
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
+
             loaded_state_dict = dist_checkpointing.load(
                 sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_path
             )
@@ -224,6 +228,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             language_model=language_model,
             speech_model=speech_model,
             modality_adapter=modality_adapter,
+            tokenizer=tokenizer,
         )
 
         if self.freeze_language_model:
@@ -243,11 +248,13 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         language_model: MegatronModule,
         speech_model: ASRModel,
         modality_adapter: nn.Module,
+        tokenizer: TokenizerSpec,
     ):
         super().__init__(config=config)
         self.language_model = language_model
         self.speech_model = speech_model
         self.modality_adapter = modality_adapter
+        self.tokenizer = tokenizer
         self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
@@ -468,11 +475,19 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             # sum up the audio_feat_lens for each sample in the batch
             encoded_len = torch.stack([torch.sum(lens) for lens in encoded_len])
 
-        # Shift labels to the right
-        final_labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, max_length, pad_token=0)
+        if labels is not None:
+            # Shift labels to the right
+            final_labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, max_length, pad_token=0)
+        else:
+            final_labels = None
 
-        # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
-        final_loss_mask = self._shift_labels_by_emb_len(loss_mask, input_length, encoded_len, max_length, pad_token=0)
+        if loss_mask is not None:
+            # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
+            final_loss_mask = self._shift_labels_by_emb_len(
+                loss_mask, input_length, encoded_len, max_length, pad_token=0
+            )
+        else:
+            final_loss_mask = None
 
         output = self.language_model(
             input_ids=None,
@@ -675,7 +690,8 @@ class SpeechToTextLLM(SpeechLanguageModel):
         forward_output = self.forward_step(batch)
 
         if isinstance(forward_output, tuple):
-            loss = forward_output[0]
+            loss, mask = forward_output
+            loss = loss * mask
         else:
             loss = forward_output
         # reduce loss of shape [B,T] in time dimension
