@@ -34,7 +34,7 @@ jobs:
           fi
 
       - name: Disconnect runner from GitHub
-        if: ${{ steps.status.outputs.main == 'degraded' }}
+        if: ${{ steps.status.outputs.main == 'degraded' || failure() }}
         run: |
           cd /home/azureuser/actions-runner
           echo ${{ secrets.VM_KEY }} | sudo -S ./svc.sh stop
