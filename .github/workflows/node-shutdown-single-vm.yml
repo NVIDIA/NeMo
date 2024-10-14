@@ -1,4 +1,4 @@
-name: ~maintenance
+name: ~shut down a single VM
 
 on:
   workflow_call:
