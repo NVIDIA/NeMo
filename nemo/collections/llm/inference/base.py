@@ -69,6 +69,7 @@ def setup_model_and_tokenizer(
     trainer = trainer or io.load_context(path=path, subpath="trainer")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
+    # This is to get the MCore model required in GPTInferenceWrapper.
     mcore_model = model.module.module.module
     inference_wrapped_model = GPTInferenceWrapper(
         mcore_model,
