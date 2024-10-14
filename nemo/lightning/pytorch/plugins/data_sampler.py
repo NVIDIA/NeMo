@@ -82,7 +82,7 @@ class MegatronDataSampler(DataSampler):
         from nemo.lightning.pytorch.strategies import MegatronStrategy
         from nemo.utils import AppState
 
-        if not isinstance(self.trainer.strategy, MegatronStrategy):
+        if not hasattr(self, "trainer") or not isinstance(self.trainer.strategy, MegatronStrategy):
             return 0
 
         app_state = AppState()
@@ -133,7 +133,7 @@ class MegatronDataSampler(DataSampler):
         
         if step.step_i:
             consumed_samples = self.compute_consumed_samples(step.step_i + 1 - self.init_global_step)
-            if self.output_log and trainer and trainer.training:
+            if self.output_log and trainer and getattr(trainer, "training", False):
                 # You may need to turn off logging, for example when doing trainer.predict(model, data)
                 pl_module.log(
                     'consumed_samples',

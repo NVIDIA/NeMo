@@ -29,6 +29,7 @@ from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.utilities.combined_loader import CombinedLoader
+from pytorch_lightning import LightningDataModule
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
@@ -142,6 +143,17 @@ class FabricMegatronStrategy(DDPStrategy):
         #     _strategy_lib.initialize_data(self.cluster_environment.global_rank(), self.data_config)
         _strategy_lib.init_model_parallel()
 
+    def process_datamodule(self, datamodule: LightningDataModule) -> LightningDataModule:
+        datamodule.setup()
+
+        if not self.data_sampler and hasattr(datamodule, "data_sampler"):
+            self.data_sampler = datamodule.data_sampler
+
+        if self.data_sampler:
+            self.data_sampler.setup(self.cluster_environment.global_rank())
+
+        return datamodule
+
     @override
     def process_dataloader(self, dataloader: DataLoader) -> Iterator:
         if self.data_sampler:
@@ -162,6 +174,11 @@ class FabricMegatronStrategy(DDPStrategy):
         scale_lr_cond: Optional[Callable] = None,
         lr_mult: float = 1.0,
     ) -> Optimizer:
+        if hasattr(self.precision, "convert_config"):
+            optimizer_config = self.precision.convert_config(optimizer_config)
+
+        assert optimizer_config.lr is not None, "Learning rate must be set in optimizer config"
+        
         return _strategy_lib.setup_megatron_optimizer(
             model,
             optimizer_config,
@@ -182,15 +199,22 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def setup_module(self, module: Module) -> MegatronParallel:
+        from megatron.core.utils import get_model_config
+        
         _strategy_lib.set_model_parallel_attributes(module, self.parallelism)
-
-        # Call configure_model if it's overridden (relevant for LightningModules with lazy initialization)
-        if hasattr(module, "configure_model"):
-            module.configure_model()
 
         convert_module_fn = None
         if hasattr(self.precision, "convert_module"):
             convert_module_fn = self.precision.convert_module
+
+        if hasattr(self.precision, "convert_config"):
+            self.precision.convert_config(get_model_config(module))
+            if self.ddp_config:
+                self.precision.convert_config(self.ddp_config)
+
+        # Call configure_model if it's overridden (relevant for LightningModules with lazy initialization)
+        if hasattr(module, "configure_model"):
+            module.configure_model()
 
         megatron_parallel = MegatronParallel(
             module,

@@ -78,13 +78,6 @@ class MockDataModule(pl.LightningDataModule):
         self._test_ds = _MockGPTDataset(
             self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
         )
-        
-    def fabric_setup(self, fabric: fl.Fabric) -> None:
-        self.setup()
-        
-        if self.data_sampler:
-            fabric.strategy.data_sampler = self.data_sampler
-            self.data_sampler.setup(fabric.global_rank)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not hasattr(self, "_train_ds"):
