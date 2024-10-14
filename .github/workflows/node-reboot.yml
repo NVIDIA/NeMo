@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       list-of-vms: ${{ steps.main.outputs.main }}
-    environment: ko3n1g/ci/improve-vm-maintenance
+    environment: main
     steps:
       - name: Get list of VMs
         id: main
@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.pre-flight.outputs.list-of-vms )}}
-    uses: .github/workflows/_maintenance.yml
+    uses: .github/workflows/node-reboot-single-vm.yml
     with:
       vm: ${{ matrix.vm }}
       n_gpus: ${{ matrix.n_gpus }}
