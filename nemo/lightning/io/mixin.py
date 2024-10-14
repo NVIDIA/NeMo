@@ -582,6 +582,9 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     Example:
         loaded_model = load("/path/to/model", output_type=MyModel)
     """
+    # This is to trakc io for any custom classes specified in the registry like tokenizers, etc.
+    from nemo.lightning.io import registry
+
     _path = Path(path)
     _thread_local.output_dir = _path
 
