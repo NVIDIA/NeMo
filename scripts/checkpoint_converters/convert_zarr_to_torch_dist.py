@@ -99,6 +99,13 @@ def get_args():
         required=True,
         default="gpt",
         choices=["gpt", "sft", "bert"],
+    ),
+    parser.add_argument(
+        "--ckpt_format",
+        type=str,
+        required=False,
+        default="torch_dist",
+        choices=["zarr", "torch_dist"],
     )
 
     args = parser.parse_args()
@@ -172,7 +179,7 @@ def convert(local_rank, rank, world_size, args):
         )
 
     with open_dict(model.cfg):
-        model.cfg.dist_ckpt_format = 'torch_dist'
+        model.cfg.dist_ckpt_format = args.ckpt_format
 
     model._save_restore_connector = NLPSaveRestoreConnector()
     save_file_path = args.path_to_save
