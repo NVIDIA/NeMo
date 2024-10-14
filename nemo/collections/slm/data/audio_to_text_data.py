@@ -67,6 +67,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         if stage == 'fit' or stage is None:
             self._train_ds = self._create_dataset('train')
             self._validation_ds = self._create_dataset('validation')
+        elif stage == 'validate' or stage is None:
+            self._validation_ds = self._create_dataset('validation')
         if stage == 'test' or stage is None:
             self._test_ds = self._create_dataset('test')
 
@@ -299,9 +301,12 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 return self._create_nemo_dataloader(self._test_ds, 'test')
 
     def predict_dataloader(self) -> EVAL_DATALOADERS:
-        if "predict_ds" not in self.cfg:
+        if "predict_ds" not in self.cfg and "test_ds" in self.cfg:
             data_cfg = self.cfg.get("test_ds", None)
             data_key = 'test'
+        elif "predict_ds" not in self.cfg and "validation_ds" in self.cfg:
+            data_cfg = self.cfg.get("validation_ds", None)
+            data_key = 'validation'
         else:
             data_cfg = self.cfg.get("predict_ds", None)
             data_key = 'predict'

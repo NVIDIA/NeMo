@@ -36,7 +36,7 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from omegaconf import ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel
@@ -51,7 +51,6 @@ from nemo.collections.llm.gpt.model.base import (
     get_batch_on_this_context_parallel_rank,
     get_packed_seq_params,
 )
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import get_nested_dict_value
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -177,19 +176,17 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
     text_generation_strategy: SpeechToTextGenerationStrategy = SpeechToTextGenerationStrategy
 
+    inference_config: Optional[Dict[str, Any]] = None
+
     def freeze_module(self, module: nn.Module):
         for param in module.parameters():
             param.requires_grad = False
         module.eval()
 
-    def configure_model(
-        self, tokenizer: TokenizerSpec, speech_model: Optional[pl.LightningModule] = None
-    ) -> "SpeechToTextLLM":
+    def configure_model(self, tokenizer: TokenizerSpec) -> "SpeechToTextLLM":
         language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: pl.LightningModule
 
-        if not speech_model:
-            speech_model = self.speech_model_config.configure_model()  # type: pl.LightningModule
-
+        speech_model = self.speech_model_config.configure_model()  # type: pl.LightningModule
         speech_model.set_input_tensor = MethodType(set_input_tensor, speech_model)
 
         self.modality_adapter_config.output_dim = self.language_model_config.hidden_size
@@ -520,16 +517,17 @@ class SpeechToTextLLM(SpeechLanguageModel):
         self.model_transform = model_transform
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
-
-        # self._speech_model = self.config.speech_model_config.configure_model()
+        self._inference_config = None
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)  # type: MCoreSpeechToTextLLM
+            self.module.language_model = self.module.language_model.to(self.device)
+            self.module.speech_model = self.module.speech_model.to(self.device)
+            self.module.modality_adapter = self.module.modality_adapter.to(self.device)
 
     def setup(self, stage: str):
         super().setup(stage)
-        self._inference_config = None
         if hasattr(self.cfg.data, "validation_ds"):
             self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
             self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
@@ -543,6 +541,9 @@ class SpeechToTextLLM(SpeechLanguageModel):
             # Used other keys from metadata to calulate metrics
             if hasattr(self.cfg.data.test_ds, "metric"):
                 self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+
+        if self.get_inference_config() is None:
+            self.set_inference_config(self.config.inference_config)
 
     def forward(
         self,
@@ -1072,38 +1073,38 @@ class SpeechToTextLLM(SpeechLanguageModel):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
 
-    def set_inference_config(self, inference_config):
-        self._inference_config = inference_config
+    def set_inference_config(self, inference_config: Optional[Dict] = None):
+        self._inference_config = dict(inference_config) if inference_config is not None else None
 
     def get_inference_config(self):
-        return self._inference_config
+        return dict(self._inference_config) if self._inference_config is not None else None
 
-    # def on_validation_epoch_start(self):
-    #     self._reset_activation_checkpointing_args()
-    #     app_state = AppState()
-    #     reconfigure_num_microbatches_calculator(
-    #         rank=app_state.global_rank,
-    #         rampup_batch_size=None,
-    #         global_batch_size=self.cfg.data.validation_ds.global_batch_size,
-    #         micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
-    #         data_parallel_size=parallel_state.get_data_parallel_world_size(),
-    #     )
-    #     return super().on_validation_epoch_start()
+    def on_validation_epoch_start(self):
+        # self._reset_activation_checkpointing_args()
+        app_state = AppState()
+        reconfigure_num_microbatches_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_validation_epoch_start()
 
-    # def on_test_epoch_start(self):
-    #     self._reset_activation_checkpointing_args()
-    #     app_state = AppState()
-    #     reconfigure_num_microbatches_calculator(
-    #         rank=app_state.global_rank,
-    #         rampup_batch_size=None,
-    #         global_batch_size=self.cfg.data.test_ds.global_batch_size,
-    #         micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
-    #         data_parallel_size=parallel_state.get_data_parallel_world_size(),
-    #     )
-    #     return super().on_test_epoch_start()
+    def on_test_epoch_start(self):
+        # self._reset_activation_checkpointing_args()
+        app_state = AppState()
+        reconfigure_num_microbatches_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.test_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_test_epoch_start()
 
-    # def on_predict_epoch_start(self):
-    #     return self.on_test_epoch_start()
+    def on_predict_epoch_start(self):
+        return self.on_test_epoch_start()
 
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
@@ -1120,14 +1121,54 @@ class SpeechToTextLLM(SpeechLanguageModel):
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
 
-    def get_model_module_list(self):
-        def extract_module(model):
-            if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
-                return extract_module(model.module)
-            else:
-                return model
+    # def get_model_module_list(self):
+    #     def extract_module(model):
+    #         if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
+    #             return extract_module(model.module)
+    #         else:
+    #             return model
 
-        if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module), list):
-            return list(map(extract_module, (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module)))
-        else:
-            return [extract_module(self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module)]
+    #     if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module), list):
+    #         return list(map(extract_module, (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module)))
+    #     else:
+    #         return [extract_module(self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module)]
+
+    # def _reset_activation_checkpointing_args(self):
+    #     """Disables activation checkpointing completely and saves the values so that
+    #     _restore_activation_checkpointing_args can restore them later. This function must always be
+    #     called before _restore_activation_checkpointing_args.
+    #     """
+    #     # Store values to restore them later.
+    #     self.last_activations_checkpoint_granularity = self.cfg.activations_checkpoint_granularity
+    #     self.last_activations_checkpoint_method = self.cfg.activations_checkpoint_method
+    #     self.last_activations_checkpoint_num_layers = self.cfg.activations_checkpoint_num_layers
+    #     self.last_activations_checkpoint_layers_per_pipeline = self.cfg.activations_checkpoint_layers_per_pipeline
+
+    #     # Reset config values. Needed for calling generate.
+    #     self.cfg.activations_checkpoint_granularity = None
+    #     self.cfg.activations_checkpoint_method = None
+    #     self.cfg.activations_checkpoint_num_layers = None
+    #     self.cfg.activations_checkpoint_layers_per_pipeline = None
+
+    #     # Reset model parameters.
+    #     for module in self.get_model_module_list():
+    #         module.language_model.config.recompute_granularity = None
+    #         module.language_model.config.recompute_method = None
+    #         module.language_model.config.recompute_num_layers = None
+
+    # def _restore_activation_checkpointing_args(self):
+    #     """Restores the activation checkpointing parameters using the values saved by
+    #     _reset_activation_checkpointing_args. This function must never be called before
+    #     _reset_activation_checkpointing_args.
+    #     """
+    #     # Restore config values.
+    #     self.cfg.activations_checkpoint_granularity = self.last_activations_checkpoint_granularity
+    #     self.cfg.activations_checkpoint_method = self.last_activations_checkpoint_method
+    #     self.cfg.activations_checkpoint_num_layers = self.last_activations_checkpoint_num_layers
+    #     self.cfg.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
+
+    #     # Restore model parameters.
+    #     for module in self.get_model_module_list():
+    #         module.decoder.config.recompute_granularity = self.last_activations_checkpoint_granularity
+    #         module.decoder.config.recompute_method = self.last_activations_checkpoint_method
+    #         module.decoder.config.recompute_num_layers = self.last_activations_checkpoint_num_layers
