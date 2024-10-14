@@ -4,13 +4,14 @@ on:
   schedule:
     - cron: 0 0,4,8,12,16,20 * * *
   workflow_dispatch:
+  pull_request:
   
 jobs:
   pre-flight:
     runs-on: ubuntu-latest
     outputs:
       list-of-vms: ${{ steps.main.outputs.main }}
-    environment: main
+    environment: ko3n1g/ci/improve-vm-maintenance
     steps:
       - name: Get list of VMs
         id: main
@@ -45,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.pre-flight.outputs.list-of-vms )}}
-    uses: .github/workflows/node-shutdown-single-vm.yml
+    uses: .github/workflows/node-reboot-single-vm.yml
     with:
       vm: ${{ matrix.vm }}
       n_gpus: ${{ matrix.n_gpus }}

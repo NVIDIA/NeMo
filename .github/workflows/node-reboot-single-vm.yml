@@ -14,7 +14,7 @@ on:
         
 jobs:
   check-status-and-maybe-shutdown:
-    environment: main
+    environment: ko3n1g/ci/improve-vm-maintenance
     runs-on: ${{ inputs.vm }}
     outputs:
       status: ${{ steps.status.outputs.main }}
