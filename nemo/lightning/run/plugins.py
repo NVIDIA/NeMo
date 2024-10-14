@@ -250,8 +250,8 @@ class PerfEnvPlugin(run.Plugin):
     A plugin for setting up performance optimized environments.
 
     Attributes:
-        enable_layernorm_sm_margin (bool): Set SM margin for TransformerEngine's Layernorm, so 
-            in order to not block DP level communication overlap.  
+        enable_layernorm_sm_margin (bool): Set SM margin for TransformerEngine's Layernorm, so
+            in order to not block DP level communication overlap.
         enable_vboost (bool): Whether to steer more power towards tensor cores via
             `sudo nvidia-smi boost-slider --vboost 1`. May not work on all systems.
     """
