@@ -256,8 +256,7 @@ class PerfEnvPlugin(run.Plugin):
 
     enable_vboost: bool = False
 
-    def get_vboost_srun_cmd(nodes, job_dir):
-        import os
+    def get_vboost_srun_cmd(self, nodes, job_dir):
         import shlex
 
         vboost_cmd = " ".join(
@@ -298,7 +297,7 @@ class PerfEnvPlugin(run.Plugin):
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):
-            vboost_cmd = get_vboost_srun_cmd(nodes, executor.nodes)
+            vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.job_dir)
             executor.setup_lines = (
                 executor.setup_lines + vboost_cmd
                 if (executor.setup_lines and len(executor.setup_lines) > 0)
