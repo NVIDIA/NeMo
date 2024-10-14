@@ -45,7 +45,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": ":alert: VM bot 🤖: Hey <@${{ secrets.SLACK_WEBHOOK_ADMIN }}>: VM `${{ inputs.vm }}` is having not the best day of their life, maybe bring them an apple or so."
+                  "text": ":alert: VM bot 🤖: Hey <!subteam^{{ secrets.SLACK_WEBHOOK_ADMIN }}>: VM `${{ inputs.vm }}` is having not the best day of their life, maybe bring them an apple or so."
                 }
               }
             ]
