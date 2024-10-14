@@ -351,7 +351,6 @@ def deploy(
     ckpt_type: str = "nemo",
 ):
     from nemo.deploy import DeployPyTriton
-
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
@@ -453,7 +452,7 @@ def evaluate(
     from lm_eval.api.model import LM
     from requests.exceptions import RequestException
 
-    def wait_for_rest_service(rest_url, max_retries=30, retry_interval=2):
+    def wait_for_rest_service(rest_url, max_retries=60, retry_interval=2):
         """
         Wait for REST service to be ready.
 
