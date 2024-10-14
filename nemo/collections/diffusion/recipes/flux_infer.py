@@ -18,8 +18,7 @@ import torch
 from torch import nn
 
 from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
-from nemo.collections.diffusion.models.flux import Flux
-from nemo.collections.diffusion.models.flux import FluxInferencePipeline
+from nemo.collections.diffusion.models.flux import Flux, FluxInferencePipeline
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
