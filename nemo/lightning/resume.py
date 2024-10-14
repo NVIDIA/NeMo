@@ -150,10 +150,7 @@ class AutoResume:
             metadata = json.load(f)
 
         assert self.restore_config, "PEFT resume requires specifying restore_config"
-        if not dist_checkpointing.check_is_distributed_checkpoint(self.restore_config.path):
-            base_model_path = self._extract_path(model, self.restore_config.path)
-        else:
-            base_model_path = Path(self.restore_config.path)
+        base_model_path = self._extract_path(model, self.restore_config.path)
         if base_model_path != Path(metadata['model_ckpt_path']):
             raise ValueError(
                 f"When trying to resume a PEFT training run, found mismatching values: "
