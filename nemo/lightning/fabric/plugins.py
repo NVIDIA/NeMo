@@ -123,6 +123,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
 
         """
         from nemo.collections import llm
+
         if isinstance(module, llm.GPTModel) and not hasattr(module, "module"):
             return module
 

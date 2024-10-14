@@ -129,7 +129,6 @@ class Quantizer:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
 
-
     def load_quantizable_model(self, nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
         trainer = nl.Trainer(
             devices=calib_tp * calib_pp,
@@ -149,14 +148,12 @@ class Quantizer:
         self.nemo_checkpoint_path = nemo_checkpoint_path
         return model
 
-
     def _setup(self, model: llm.GPTModel) -> None:
         """Setup model for quantization."""
         # TODO: disable activation checkpointing
         model.config.vocab_size = model.tokenizer.vocab_size
-        model.config.pipeline_dtype = self.torch_dtype          # TODO: for some reason model.pipeline.dtype does not work
+        model.config.pipeline_dtype = self.torch_dtype  # TODO: for some reason model.pipeline.dtype does not work
         model.freeze()
-
 
     @staticmethod
     def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
@@ -174,20 +171,18 @@ class Quantizer:
         model_cfg.apply_rope_fusion = False
         return model_cfg
 
-
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.get("decoder_type", None) or get_modelopt_decoder_type(config)
-
 
     @staticmethod
     def _get_unwrapped_mcore_model(model: llm.GPTModel):
         from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+
         unwrapped_model = model
         while not isinstance(unwrapped_model, MCoreGPTModel):
             unwrapped_model = unwrapped_model.module
 
         return unwrapped_model
-
 
     def quantize(self, wrapped_model: llm.GPTConfig, forward_loop):
         """Quantize the model and calibrate using given forward loop."""

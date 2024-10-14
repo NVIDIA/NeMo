@@ -1,7 +1,7 @@
 import argparse
 
-from nemo.collections import llm
 from nemo import lightning as nl
+from nemo.collections import llm
 
 
 def get_args():
@@ -10,6 +10,7 @@ def get_args():
     parser.add_argument('--output_path', type=str, help="NeMo 2.0 export path")
 
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     args = get_args()
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     trainer = nl.Trainer(
         devices=1,
         strategy=nl.MegatronStrategy(tensor_model_parallel_size=1),
-        plugins=nl.MegatronMixedPrecision(precision='fp16')
+        plugins=nl.MegatronMixedPrecision(precision='fp16'),
     )
     fabric = trainer.to_fabric()
     trainer.strategy.setup_environment()
