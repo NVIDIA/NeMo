@@ -21,6 +21,7 @@ import shutil
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
+import re
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
@@ -115,6 +116,11 @@ def load_scaling_factors(state_dict: dict, basename: str, size: int) -> Optional
     return load_scales_from_bytes(bytes_list)
 
 
+def filter_experts_extra_states(state_dict: dict):
+    pattern = r'module\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
+    return {k: v for k, v in state_dict.items() if not re.fullmatch(pattern, k)}
+
+
 def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
     while key := get_extra_state_key(state_dict):
         basename, size = unpack_extra_state_key(key)
@@ -145,6 +151,7 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
         storage_reader=fs_reader,
         no_dist=True,
     )
+    state_dict = filter_experts_extra_states(state_dict)
     state_dict = standarize_distributed_scaling_factors(state_dict)
 
     if not torch_tensor:
