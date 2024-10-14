@@ -1,8 +1,23 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import inspect
 import itertools
 import os
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Generator, Mapping, Optional, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping, Optional, Protocol, TypeVar
 
 import torch
 from torch import nn
@@ -130,9 +145,6 @@ def set_model_parallel_attributes(model, parallelism):
     # Note: Importing nemo.lightning.pytorch.strategies creates an import cycle.
     from megatron.core.transformer.transformer_config import TransformerConfig
 
-    assert (
-        type(parallelism).__name__ == 'ParallelismConfig'
-    ), f"Expected parallelism config to be of type ParallelismConfig, but got {type(parallelism)}"
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config
@@ -150,13 +162,17 @@ def set_model_parallel_attributes(model, parallelism):
 
 @contextmanager
 def megatron_lazy_init_context(config) -> Generator[None, None, None]:
-    def monkey_patched(c):
-        return {"device": "meta"}
-
-    from megatron.core.transformer.custom_layers import transformer_engine as _te
+    from megatron.core.extensions import transformer_engine as _te
 
     original = _te._get_extra_te_kwargs  # noqa: SLF001
-    _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
+
+    def _get_extra_te_kwargs_meta(c):
+        """Forces device to meta"""
+        kwargs = original(c)
+        kwargs['device'] = 'meta'
+        return kwargs
+
+    _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
 
     _orig_perform_initialization = config.perform_initialization
     _orig_use_cpu_initialization = config.use_cpu_initialization
@@ -555,3 +571,54 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
                 src_rank,
                 group=parallel_state.get_pipeline_model_parallel_group(),
             )
+
+
+def setup_megatron_optimizer(
+    model,
+    config,
+    no_weight_decay_cond: Optional[Callable] = None,
+    scale_lr_cond: Optional[Callable] = None,
+    lr_mult: float = 1.0,
+):
+    from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
+
+    from nemo.core.optim import McoreDistributedOptimizer
+
+    assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
+
+    class McoreOpt(McoreDistributedOptimizer):
+        def sharded_state_dict(
+            self,
+            model_sharded_state_dict,
+            optimizer_state_dict=None,
+            is_loading=False,
+            sharding_type='fully_sharded_model_space',
+        ):
+            mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
+            distrib_optim_kwargs = {}
+            if "sharding_type" in mcore_optimizer_sig:
+                distrib_optim_kwargs["sharding_type"] = sharding_type
+            state_dict = self.mcore_optimizer.sharded_state_dict(
+                model_sharded_state_dict, is_loading=is_loading, **distrib_optim_kwargs
+            )
+            return state_dict
+
+    # megatron optimizer expects McoreDDP
+    ddp_modules = [m.module for m in model]
+    mcore_opt = get_megatron_optimizer(
+        config,
+        ddp_modules,
+        no_weight_decay_cond=no_weight_decay_cond,
+        scale_lr_cond=scale_lr_cond,
+        lr_mult=lr_mult,
+    )
+
+    if getattr(model.ddp_config, "overlap_param_gather", False) and getattr(
+        model.ddp_config, "align_param_gather", False
+    ):
+        param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
+        param_sync_func = param_sync_func[0] if len(model) == 1 else param_sync_func
+        for module in model:
+            module.config.param_sync_func = param_sync_func
+
+    return McoreOpt(mcore_opt)

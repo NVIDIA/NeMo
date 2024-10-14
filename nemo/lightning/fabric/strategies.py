@@ -25,6 +25,7 @@ from lightning_fabric.strategies import DDPStrategy
 from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
 from lightning_fabric.utilities.types import _PATH, _Stateful
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.utilities.combined_loader import CombinedLoader
@@ -74,6 +75,7 @@ class FabricMegatronStrategy(DDPStrategy):
         no_ddp_communication_hook: bool = True,
         output_data_idx: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
+        init_model_parallel: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -97,6 +99,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
         self.pipeline_dtype = pipeline_dtype
+        self._init_model_parallel = init_model_parallel
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
@@ -149,6 +152,22 @@ class FabricMegatronStrategy(DDPStrategy):
 
         return output
 
+    def setup_megatron_optimizer(
+        self,
+        model: MegatronParallel,
+        optimizer_config: OptimizerConfig,
+        no_weight_decay_cond: Optional[Callable] = None,
+        scale_lr_cond: Optional[Callable] = None,
+        lr_mult: float = 1.0,
+    ) -> Optimizer:
+        return _strategy_lib.setup_megatron_optimizer(
+            model,
+            optimizer_config,
+            no_weight_decay_cond=no_weight_decay_cond,
+            scale_lr_cond=scale_lr_cond,
+            lr_mult=lr_mult,
+        )
+
     @override
     def setup_optimizer(self, optimizer: Optimizer) -> Optimizer:
         """Pass the optimizer to the precision-plugin if needed & add it as callback."""
@@ -179,6 +198,9 @@ class FabricMegatronStrategy(DDPStrategy):
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
         )
+
+        if self._init_model_parallel:
+            megatron_parallel.init_model_parallel()
 
         if not self.ddp_config:
             from megatron.core import mpu
@@ -302,7 +324,7 @@ class FabricMegatronStrategy(DDPStrategy):
         def monkey_patched(config):
             return {"device": "meta"}
 
-        from megatron.core.transformer.custom_layers import transformer_engine as _te
+        from megatron.core.extensions import transformer_engine as _te
 
         original = _te._get_extra_te_kwargs  # noqa: SLF001
         _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
@@ -326,7 +348,7 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     def parallelism(self):
-        from nemo.lightning.pytorch.strategies import ParallelismConfig
+        from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
 
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,

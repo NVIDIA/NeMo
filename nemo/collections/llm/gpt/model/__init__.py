@@ -1,6 +1,26 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
+    GPTConfig5B,
+    GPTConfig7B,
+    GPTConfig20B,
+    GPTConfig40B,
+    GPTConfig126M,
+    GPTConfig175B,
     GPTModel,
     MaskedTokenLossReduction,
     gpt_data_step,
@@ -56,6 +76,16 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config72B,
     Qwen2Config500M,
     Qwen2Model,
+)
+from nemo.collections.llm.gpt.model.ssm import (
+    BaseMambaConfig1_3B,
+    BaseMambaConfig2_7B,
+    BaseMambaConfig130M,
+    BaseMambaConfig370M,
+    BaseMambaConfig780M,
+    NVIDIAMambaConfig8B,
+    NVIDIAMambaHybridConfig8B,
+    SSMConfig,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (
@@ -123,6 +153,14 @@ __all__ = [
     "Qwen2Config7B",
     "Qwen2Config72B",
     "Qwen2Model",
+    "SSMConfig",
+    "BaseMambaConfig130M",
+    "BaseMambaConfig370M",
+    "BaseMambaConfig780M",
+    "BaseMambaConfig1_3B",
+    "BaseMambaConfig2_7B",
+    "NVIDIAMambaConfig8B",
+    "NVIDIAMambaHybridConfig8B",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",

@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass, field
 from typing import List, Literal
 
@@ -6,6 +20,18 @@ from torch import nn
 
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
+
+TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
+    "megatron.core.transformer.custom_layers.transformer_engine", "TEColumnParallelLinear"
+)
+TELayerNormColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
+    "megatron.core.transformer.custom_layers.transformer_engine",
+    "TELayerNormColumnParallelLinear",
+)
+TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
+    "megatron.core.transformer.custom_layers.transformer_engine", "TERowParallelLinear"
+)
 
 
 class AdapterParallelAdd(AdapterWrapper):
@@ -36,7 +62,7 @@ class AdapterParallelAdd(AdapterWrapper):
             linear_output, bias, layernorm_output = linear_output
             x = layernorm_output
 
-        adapter_output = self.adapter(x)
+        adapter_output = self.adapter(x.contiguous())
         return linear_output + adapter_output, bias
 
 
@@ -105,13 +131,19 @@ class LoRA(PEFT):
 
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         if name in self.target_modules:
-            # m.in_features and m.out_features are divided by tp_size already,
-            # but in_features and out_features passed to ParallelLinearAdapter are not.
             if name in ['linear_qkv', 'linear_fc1']:
                 # Column Parallel Linear
                 input_is_parallel = False
-                in_features = m.in_features
-                out_features = m.out_features * tp_size
+                if HAVE_TE_COL_LINEAR and (
+                    isinstance(m, TEColumnParallelLinear) or isinstance(m, TELayerNormColumnParallelLinear)
+                ):
+                    # m.in_features and m.out_features are divided by tp_size already,
+                    # but in_features and out_features passed to ParallelLinearAdapter are not.
+                    in_features = m.in_features
+                    out_features = m.out_features * tp_size
+                else:
+                    in_features = m.input_size
+                    out_features = m.output_size
                 # LoRA is applied after layernorm, so layernorm output must be returned
                 m.return_layernorm_output = True
                 # perf optimization for LoRA + SP
@@ -120,8 +152,12 @@ class LoRA(PEFT):
             else:  # name in ['linear_proj', 'linear_fc2']
                 # Row Parallel Linear
                 input_is_parallel = True
-                in_features = m.in_features * tp_size
-                out_features = m.out_features
+                if HAVE_TE_ROW_LINEAR and isinstance(m, TERowParallelLinear):
+                    in_features = m.in_features * tp_size
+                    out_features = m.out_features
+                else:
+                    in_features = m.input_size
+                    out_features = m.output_size
 
             logging.info(f"Adding lora to: {prefix}.{name}")
             adapter = ParallelLinearAdapter(

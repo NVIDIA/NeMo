@@ -34,11 +34,12 @@ jobs:
           PAYLOAD=$(jq \
                       -n \
                       -c \
+                      --arg TAG_NAME "v${VERSION}" \
                       --arg CI_COMMIT_BRANCH "${{ inputs.branch }}" \
                       --arg NAME "$NAME" \
                       --arg BODY "$CHANGELOG" \
                       '{
-                        "tag_name": $CI_COMMIT_BRANCH,
+                        "tag_name": $TAG_NAME,
                         "target_commitish": $CI_COMMIT_BRANCH,
                         "name": $NAME,
                         "body": $BODY,
@@ -85,16 +86,20 @@ jobs:
 
       - name: notify
         run: |
+          VERSION=${{ steps.version-number.outputs.VERSION }}
+
+          URL="https://github.com/NVIDIA/NeMo/releases/tag/v$VERSION"
           MESSAGE='{
             "blocks": [
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "Releasebot 🤖: NeMo Toolkit released `${{ steps.version-number.outputs.VERSION }}` 🚀"
+                  "text": "Releasebot 🤖: NeMo-Toolkit released <'$URL'|`'$VERSION'`> 🚀"
                 }
               }
             ]
           }'
+
 
           curl -X POST -H "Content-type: application/json" --data "$MESSAGE" ${{ secrets.SLACK_RELEASE_ENDPOINT }}

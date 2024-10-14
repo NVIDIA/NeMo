@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, List, Optional
@@ -6,10 +20,10 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from transformers import Starcoder2Config as HFStarcoder2Config
@@ -35,7 +49,6 @@ class Starcoder2Config(GPTConfig):
     kv_channels: int = None
     num_query_groups: int = None
     window_size: Optional[List[int]] = None
-    apply_query_key_layer_scaling: bool = True
     attention_softmax_in_fp32: bool = True
     bias_activation_fusion: bool = True
     bias_dropout_fusion: bool = True
@@ -96,7 +109,7 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
     def apply(self, output_path: Path) -> Path:
         from transformers import Starcoder2ForCausalLM
 
-        source = Starcoder2ForCausalLM.from_pretrained(str(self))
+        source = Starcoder2ForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -131,7 +144,9 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        return AutoTokenizer(str(self))
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> Starcoder2Config:
@@ -157,6 +172,9 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
             rotary_base=source.rope_theta,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             share_embeddings_and_output_weights=False,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
         return output
@@ -166,8 +184,10 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCausalLM"]):
     def init(self) -> "Starcoder2ForCausalLM":
         from transformers import Starcoder2ForCausalLM
+        from transformers.modeling_utils import no_init_weights
 
-        return Starcoder2ForCausalLM._from_config(self.config)
+        with no_init_weights(True):
+            return Starcoder2ForCausalLM._from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         target = self.init()
@@ -246,8 +266,7 @@ def _import_qkv_weight(ctx: io.TransformCTX, q, k, v):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -288,9 +307,7 @@ def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
     head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     new_q_bias_tensor_shape = (head_num, head_size)
     new_kv_bias_tensor_shape = (num_query_groups, head_size)
@@ -327,7 +344,7 @@ def _export_qkv_weight(ctx: io.TransformCTX, linear_qkv):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
@@ -361,9 +378,7 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
