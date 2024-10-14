@@ -22,29 +22,20 @@ from nemo.collections import llm
 def get_vboost_srun_cmd(nodes, job_dir):
     import os
     import shlex
-    from typing import TypeAlias
-
-    noquote: TypeAlias = str
 
     vboost_cmd = " ".join(
-        list(
-            map(
-                lambda arg: arg if isinstance(arg, noquote) else shlex.quote(arg),
-                [
-                    "# Command 0: enable vboost\n\n",
-                    "srun",
-                    f"--ntasks={nodes}",
-                    "--output",
-                    os.path.join(job_dir, "vboost.out"),
-                    "--error",
-                    os.path.join(job_dir, "vboost.err"),
-                    "bash -c ",
-                ],
-            )
-        )
-    )
-
-    vboost_cmd += shlex.quote("sudo nvidia-smi boost-slider --vboost 1")
+                            [
+                                "\n# Command 0: enable vboost\n\n",
+                                "srun",
+                                f"--ntasks={nodes}",
+                                "--output",
+                                os.path.join(job_dir, "vboost.out"),
+                                "--error",
+                                os.path.join(job_dir, "vboost.err"),
+                                "bash -c ",
+                                shlex.quote("sudo nvidia-smi boost-slider --vboost 1"),
+                            ],
+                        )
 
     return vboost_cmd
 
@@ -94,7 +85,10 @@ def slurm_executor(
         "NCCL_NVLS_ENABLE": "0",
         "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
         "NVTE_ASYNC_AMAX_REDUCTION": "1",
-        "NVTE_FUSED_ATTN": "0",
+        "NVTE_FLASH_ATTN": "0",
+        "NVTE_FUSED_ATTN": "1",
+        "NVTE_FWD_LAYERNORM_SM_MARGIN": "8",
+        "NVTE_BWD_LAYERNORM_SM_MARGIN": "8",
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -123,8 +117,8 @@ def slurm_executor(
     executor.time = time
 
     if enable_vboost:
-        vboost_cmd = get_vboost_srun_cmd(nodes, remote_job_dir)
-        executor.setup_lines = executor.setup_lines + vboost_cmd if len(executor.setup_lines) > 0 else vboost_cmd
+        vboost_cmd=get_vboost_srun_cmd(nodes, remote_job_dir)
+        executor.setup_lines = executor.setup_lines + vboost_cmd if (executor.setup_lines and len(executor.setup_lines) > 0) else vboost_cmd
 
     return executor
 
