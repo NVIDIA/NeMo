@@ -136,7 +136,7 @@ def convert(local_rank, rank, world_size, args):
             'accelerator': 'gpu',
             'precision': args.precision,
         },
-        'model': {'native_amp_init_scale': 2 ** 32, 'native_amp_growth_interval': 1000, 'hysteresis': 2},
+        'model': {'native_amp_init_scale': 2**32, 'native_amp_growth_interval': 1000, 'hysteresis': 2},
     }
     cfg = OmegaConf.create(cfg)
 
@@ -144,7 +144,7 @@ def convert(local_rank, rank, world_size, args):
     # If FP16 create a GradScaler as the build_model_parallel_config of MegatronBaseModel expects it
     if cfg.trainer.precision == '16-mixed':
         scaler = GradScaler(
-            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+            init_scale=cfg.model.get('native_amp_init_scale', 2**32),
             growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
             hysteresis=cfg.model.get('hysteresis', 2),
         )
