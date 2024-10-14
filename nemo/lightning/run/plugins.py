@@ -25,7 +25,7 @@ from pytorch_lightning import Callback
 from pytorch_lightning.loggers import WandbLogger
 
 from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
-from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy 
+from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
 
 # This file contains plugins based on NeMo-Run's run.Plugin API.
@@ -243,13 +243,14 @@ class ConfigValidationPlugin(run.Plugin):
                 assert task.trainer.num_nodes == executor.nodes
                 assert task.trainer.devices == executor.nproc_per_node()
 
+
 @dataclass(kw_only=True)
 class PerfEnvPlugin(run.Plugin):
     """
     A plugin for setting up performance optimized environments.
 
     Attributes:
-        enable_vboost (bool): Whether to steer more power towards tensor cores via 
+        enable_vboost (bool): Whether to steer more power towards tensor cores via
             `sudo nvidia-smi boost-slider --vboost 1`. May not work on all systems.
     """
 
@@ -275,7 +276,6 @@ class PerfEnvPlugin(run.Plugin):
 
         return vboost_cmd
 
-
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
 
         if task.trainer.strategy.__fn_or_cls__ == MegatronStrategy:
@@ -284,7 +284,7 @@ class PerfEnvPlugin(run.Plugin):
             cp_size = task.trainer.strategy.context_parallel_size
             if tp_size > 1 and cp_size:
                 executor.env_vars["CUDA_MAX_CONNECTIONS"] = 1
-            
+
             # Set LayerNorm SM margin when using P2P communication overlap to support the overlap with LayerNorm kernel
             vpp = task.trainer.strategy.virtual_pipeline_model_parallel_size
             pp_size = task.trainer.strategy.pipeline_model_parallel_size
