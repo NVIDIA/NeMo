@@ -23,6 +23,7 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from transformers import AutoConfig, AutoModelForCausalLM
@@ -82,7 +83,7 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModelForCausalLM
 
-        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True)
+        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -128,6 +129,9 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
             seq_length=source.seq_length,
             num_query_groups=source.multi_query_group_num,
             make_vocab_size_divisible_by=source.padded_vocab_size,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
         return output
@@ -137,8 +141,10 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
 class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"]):
     def init(self) -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
 
-        return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
+        with no_init_weights(True):
+            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
 
     def apply(self, output_path: Path) -> Path:
         target = self.init()
@@ -203,8 +209,7 @@ def _import_qkv_weight(ctx: io.TransformCTX, hf_qkv_weights):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = hf_qkv_weights.size()
     new_q_tensor_shape = (head_num, head_size, old_tensor_shape[1])
@@ -236,9 +241,7 @@ def _import_qkv_bias(ctx: io.TransformCTX, hf_qkv_bias):
     head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     new_q_tensor_shape = (head_num, head_size)
     new_kv_tensor_shape = (num_query_groups, head_size)
@@ -272,8 +275,7 @@ def _export_qkv_weight(ctx: io.TransformCTX, qkv_weights):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
@@ -303,9 +305,7 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])

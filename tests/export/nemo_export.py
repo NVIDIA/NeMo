@@ -436,7 +436,7 @@ def run_inference(
         if test_deployment:
             nm.stop()
 
-        if not save_trt_engine:
+        if not save_trt_engine and model_dir:
             shutil.rmtree(model_dir)
 
         return (functional_result, accuracy_result)
@@ -469,30 +469,22 @@ def run_existing_checkpoints(
         return (None, None)
 
     test_data = get_infer_test_data()
-    if not (model_name in test_data.keys()):
+    if model_name not in test_data:
         raise Exception("Model {0} is not supported.".format(model_name))
 
     model_info = test_data[model_name]
 
-    if tp_size < model_info["min_tps"]:
+    if tp_size < model_info.min_tps:
         print("Min tps for this model is {0}".format(tp_size))
         return (None, None)
 
-    p_tuning_checkpoint = None
-    if ptuning:
-        if "p_tuning_checkpoint" in model_info.keys():
-            p_tuning_checkpoint = model_info["p_tuning_checkpoint"]
-        else:
-            raise Exception("There is not ptuning checkpoint path defined.")
+    if ptuning and model_info.p_tuning_checkpoint is None:
+        raise Exception("There is not ptuning checkpoint path defined.")
 
-    lora_checkpoint = None
-    if lora:
-        if "lora_checkpoint" in model_info.keys():
-            lora_checkpoint = model_info["lora_checkpoint"]
-        else:
-            raise Exception("There is not lora checkpoint path defined.")
+    if lora and model_info.lora_checkpoint is None:
+        raise Exception("There is not lora checkpoint path defined.")
 
-    if model_info["model_type"] == "gemma":
+    if model_info.model_type == "gemma":
         print("*********************")
         use_embedding_sharing = True
     else:
@@ -504,10 +496,10 @@ def run_existing_checkpoints(
     if in_framework:
         return run_in_framework_inference(
             model_name=model_name,
-            prompts=model_info["prompt_template"],
-            checkpoint_path=model_info["checkpoint"],
+            prompts=model_info.prompt_template,
+            checkpoint_path=model_info.checkpoint,
             num_gpus=tp_size,
-            max_output_len=model_info["max_output_len"],
+            max_output_len=model_info.max_output_len,
             run_accuracy=run_accuracy,
             debug=True,
             test_data_path=test_data_path,
@@ -515,22 +507,22 @@ def run_existing_checkpoints(
     else:
         return run_inference(
             model_name=model_name,
-            model_type=model_info["model_type"],
-            prompts=model_info["prompt_template"],
-            expected_outputs=model_info["expected_keyword"],
-            checkpoint_path=model_info["checkpoint"],
-            model_dir=model_info["model_dir"],
+            model_type=model_info.model_type,
+            prompts=model_info.prompt_template,
+            expected_outputs=model_info.expected_keyword,
+            checkpoint_path=model_info.checkpoint,
+            model_dir=model_info.model_dir,
             use_vllm=use_vllm,
-            max_batch_size=model_info["max_batch_size"],
+            max_batch_size=model_info.max_batch_size,
             use_embedding_sharing=use_embedding_sharing,
             use_parallel_embedding=use_parallel_embedding,
             max_input_len=512,
-            max_output_len=model_info["max_output_len"],
+            max_output_len=model_info.max_output_len,
             max_num_tokens=None,
             ptuning=ptuning,
-            p_tuning_checkpoint=p_tuning_checkpoint,
+            p_tuning_checkpoint=model_info.p_tuning_checkpoint,
             lora=lora,
-            lora_checkpoint=lora_checkpoint,
+            lora_checkpoint=model_info.lora_checkpoint,
             tp_size=tp_size,
             pp_size=pp_size,
             top_k=1,
@@ -546,7 +538,7 @@ def run_existing_checkpoints(
             save_trt_engine=save_trt_engine,
             fp8_quantized=fp8_quantized,
             fp8_kvcache=fp8_kvcache,
-            **trt_llm_export_kwargs,
+            trt_llm_export_kwargs=trt_llm_export_kwargs,
         )
 
 
@@ -685,8 +677,8 @@ def get_args():
     )
     parser.add_argument(
         "--ptuning",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--lora_checkpoint",
@@ -694,8 +686,8 @@ def get_args():
     )
     parser.add_argument(
         "--lora",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--top_k",
@@ -792,6 +784,8 @@ def get_args():
         s = s.lower()
         true_strings = ["true", "1"]
         false_strings = ["false", "0"]
+        if s == '':
+            return False
         if s in true_strings:
             return True
         if s in false_strings:
@@ -806,6 +800,8 @@ def get_args():
     args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
+    args.lora = str_to_bool("lora", args.lora)
+    args.ptuning = str_to_bool("ptuning", args.ptuning)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
     args.in_framework = str_to_bool("in_framework", args.in_framework)
     args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
