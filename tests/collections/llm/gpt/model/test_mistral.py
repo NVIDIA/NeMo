@@ -1,6 +1,6 @@
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralNeMoConfig12B, MistralNeMoConfig123B
+from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralNeMo2407Config12B, MistralNeMo2407Config123B
 
 
 def test_mistral_config7b():
@@ -25,7 +25,7 @@ def test_mistral_config7b():
 
 
 def test_mistral_nemo_config_12b():
-    config = MistralNeMoConfig12B()
+    config = MistralNeMo2407Config12B()
     assert config.normalization == "RMSNorm"
     assert config.activation_func == F.silu
     assert config.position_embedding_type == "rope"
@@ -49,7 +49,7 @@ def test_mistral_nemo_config_12b():
 
 
 def test_mistral_nemo_config_123b():
-    config = MistralNeMoConfig123B()
+    config = MistralNeMo2407Config123B()
     assert config.normalization == "RMSNorm"
     assert config.activation_func == F.silu
     assert config.position_embedding_type == "rope"
