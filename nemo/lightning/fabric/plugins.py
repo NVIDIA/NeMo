@@ -112,7 +112,6 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         """Convert the config to the precision type this plugin handles.
 
         This is optional and depends on the precision limitations during optimization.
-
         """
         return update_config_with_dtype_overrides(self.dtype_config, config)
 
@@ -122,9 +121,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
 
         """
-        from nemo.collections import llm
-
-        if isinstance(module, llm.GPTModel) and not hasattr(module, "module"):
+        if not hasattr(module, "module"):
             return module
 
         from megatron.core.transformer.module import Float16Module
@@ -146,7 +143,6 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         """Convert the optimizer parameters to the precision type this plugin handles.
 
         This is optional and depends on the precision limitations during optimization.
-
         """
         for optim_config in get_optim_config(optimizer):
             assert optim_config.bf16 == self.dtype_config.bf16, "BF16 model/optim config mismatch"
