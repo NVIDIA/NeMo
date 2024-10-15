@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from functools import partial
 from pathlib import Path
 
 import pytest
+import yaml
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
@@ -25,6 +27,7 @@ from nemo.lightning import io
 from nemo.utils.import_utils import safe_import
 
 te, HAVE_TE = safe_import("transformer_engine")
+ARTIFACTS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "artifacts")
 
 
 def dummy_extra(a, b, c=5):
@@ -68,3 +71,7 @@ class TestLoad:
 
         model_yaml = Path(tmpdir) / "model.yaml"
         assert model_yaml.exists()
+
+        observed = yaml.safe_load(model_yaml.read_text())
+        expected = yaml.safe_load((Path(ARTIFACTS_DIR) / "model.yaml").read_text())
+        assert observed.keys() == expected.keys()
