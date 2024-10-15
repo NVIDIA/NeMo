@@ -100,12 +100,13 @@ def _get_xattn_mask(
     ), f"Mismatch in text sequence length and cross attention mask sequence length {num_tokens} {cross_attention_masks.shape}"
     _, _, _, num_image_tokens, image_token_dim = tuple(vision_tokens.shape)
     bsz, ntext, nimg, nchunks = cross_attention_masks.shape
-    cross_attention_masks = (
-        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3).view(bsz, ntext, -1).unsqueeze(1)
-    )
+    cross_attention_masks = cross_attention_masks.view(bsz, ntext, -1).unsqueeze(1)
     full_text_row_masked_out_mask = _get_full_row_masked_out_mask(
         cross_attention_masks,
         get_negative_inf_value(cross_attention_masks.dtype),
+    )
+    cross_attention_masks = (
+        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
     )
     cross_attention_masks *= full_text_row_masked_out_mask
 
@@ -157,6 +158,12 @@ class CrossAttentionTextModel(MCoreGPTModel):
         )
 
         if self.pre_process:
+            # [Parth] - To support SP, we need this
+            # self.reduce_scatter_embeddings = (
+            #     (not self.add_position_embedding)
+            #     and self.num_tokentypes <= 0
+            #     and self.config.sequence_parallel
+            # )
             self.learnable_embedding = tensor_parallel.VocabParallelEmbedding(
                 num_embeddings=8,
                 embedding_dim=self.config.hidden_size,
@@ -178,6 +185,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
 
         x_orig = self.embedding(x_orig, None).transpose(0, 1)
+        #TODO: [Parth] - Handle Sequence Parallelism here
         x_new = self.learnable_embedding(x_new).type_as(x_orig)
         return x_orig * mask_orig.type_as(x_orig) + x_new * mask_new.type_as(x_new)
 
@@ -324,6 +332,10 @@ class CrossAttentionTransformerBlock(TransformerBlock):
 
         if self.config.sequence_parallel:
             rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
+            # If using SP, the mask is used on a sharded tensor. Shard accordingly.
+            # print(f"full_text_row_masked_out_mask : {full_text_row_masked_out_mask.shape}")
+            full_text_row_masked_out_mask = \
+                tensor_parallel.mappings.scatter_to_sequence_parallel_region(full_text_row_masked_out_mask)
         else:
             rng_context = nullcontext()
 
@@ -515,7 +527,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         # MLP.
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
-        _gate_ffn = self.gate_ffn.tanh() * full_text_row_masked_out_mask[:, 0].transpose(0, 1)
+        _gate_ffn = self.gate_ffn.tanh() * full_text_row_masked_out_mask
         assert isinstance(mlp_output_with_bias, tuple), "`mlp_output_with_bias` needs to be tuple for gating."
         mlp_output_with_bias = tuple(
             _gate_ffn * output if output is not None else None for output in mlp_output_with_bias
@@ -726,7 +738,9 @@ class MLlamaCrossAttention(Attention):
 
         # TODO(yuya): find a better place for transpose
         # [b, head, s, dim]
-        full_text_row_masked_out_mask = full_text_row_masked_out_mask.permute(2, 0, 1, 3).squeeze(2)
+        # print(f"FULL TEXT MASK BEING USED IN line 749 with shape: {full_text_row_masked_out_mask.shape}") #Finally after permute: s, 1, 1
+        # full_text_row_masked_out_mask = full_text_row_masked_out_mask.permute(2, 0, 1, 3).squeeze(2)
+        # TODO: [Parth] Core Attn Out is full seq len. Not sharded. But mask was sharded.
         core_attn_out = core_attn_out * full_text_row_masked_out_mask
 
         # =================
@@ -738,6 +752,9 @@ class MLlamaCrossAttention(Attention):
         return output, bias
 
     def _compute_xattn_kv_cache(self, xattn_tokens: Tensor) -> Tensor:
+        # If LM config is using SequenceParallel, it expects sharded tensors
+        if self.config.sequence_parallel:
+            xattn_tokens = tensor_parallel.mappings.scatter_to_sequence_parallel_region(xattn_tokens)
         key, value = self.get_key_value_tensors(xattn_tokens)
         return torch.stack([key, value])
 

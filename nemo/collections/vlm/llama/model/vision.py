@@ -127,6 +127,7 @@ def _pad_masks(
     all_num_chunks: List[List[int]],
     total_len: int,
     max_num_chunks: int,
+    device,
     dtype=torch.bfloat16,
 ) -> torch.Tensor:
     inf_value = get_negative_inf_value(dtype)
@@ -138,6 +139,7 @@ def _pad_masks(
         (bsz, total_len, max_num_media, max_num_chunks),
         inf_value,
         dtype=dtype,
+        device=device,
     )
 
     for idx, (mask, num_chunks) in enumerate(zip(all_masks, all_num_chunks)):

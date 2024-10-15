@@ -274,6 +274,7 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
         from megatron.core import parallel_state as ps
 
         self.language_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_model_config.sequence_parallel = self.sequence_parallel
         self.vision_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
 
@@ -331,10 +332,14 @@ class CrossAttentionVisionModel(MegatronModule):
         # vision_tokens: (B, T, D)
         # aspect_ratio_ids: (B, 1)
         # h: (B, T, D)
+        torch.cuda.nvtx.range_push("Vision Encoder")
         vision_tokens = self.vision_encoder(images.to(dtype=torch.bfloat16), aspect_ratio_ids)
         vision_shape = vision_tokens.shape
+        torch.cuda.nvtx.range_pop()
+        torch.cuda.nvtx.range_push("Vision Projection")
         vision_tokens = self.vision_projection(vision_tokens.reshape(-1, *vision_shape[-2:]))
         vision_tokens = vision_tokens.reshape(*vision_shape[:-1], -1)
+        torch.cuda.nvtx.range_pop()
         return vision_tokens
 
     def set_input_tensor(self, tensor):
@@ -395,19 +400,26 @@ class MLlamaBaseModel(MegatronModule):
     ) -> Tuple[List, torch.Tensor, torch.Tensor]:
         bsz, nimg, nchunk, ntok, image_token_dim = vision_orig_shape
 
+        torch.cuda.nvtx.range_push("calculation")
         xattn_caches = [
             layer.compute_xattn_kv_cache(vision_tokens) for layer in self.language_model.decoder.xattn_layers
         ]
+        torch.cuda.nvtx.range_pop()
 
+        torch.cuda.nvtx.range_push("Mask padding")
         padded_masks = _pad_masks(
             batch_masks,
             num_chunks,
             total_len,
             self.max_num_chunks,
+            vision_tokens.device,
         )
         vision_tokens = rearrange(
             vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg, nchk=nchunk, ntok=ntok
         )
+        torch.cuda.nvtx.range_pop()
+        
+        torch.cuda.nvtx.range_push("Get mask")
         cross_attention_masks, full_text_row_masked_out_mask = _get_xattn_mask(
             num_tokens=total_len,
             text_device="cuda",
@@ -415,6 +427,7 @@ class MLlamaBaseModel(MegatronModule):
             vision_tokens=vision_tokens,
             cross_attention_masks=padded_masks,
         )
+        torch.cuda.nvtx.range_pop()
 
         return (xattn_caches, cross_attention_masks, full_text_row_masked_out_mask)
 
@@ -432,6 +445,7 @@ class MLlamaBaseModel(MegatronModule):
         xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
         if xattn_caches is None and batch_images is not None:
+            torch.cuda.nvtx.range_push("Vision Stuff")
             bsz, max_num_images = batch_images.size(0), batch_images.size(1)
             vision_orig_shape = (
                 bsz,
@@ -461,23 +475,30 @@ class MLlamaBaseModel(MegatronModule):
                         vision_tokens, "b nimg nchk ntok dim -> (nimg nchk ntok) b dim"
                     ).contiguous()
 
+            torch.cuda.nvtx.range_pop()
             if not self.add_decoder:
                 return vision_tokens
 
+            torch.cuda.nvtx.range_push("Xattn calculation")
             xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = self.compute_xattn_caches_masks(
                 vision_tokens=vision_tokens,
                 vision_orig_shape=vision_orig_shape,
                 batch_masks=batch_masks,
                 num_chunks=num_chunks,
-                total_len=self.config.language_model_config.seq_length,
+                total_len=position_ids.shape[1],
             )
+            torch.cuda.nvtx.range_pop()
 
         assert self.add_decoder, "Language model required for forward pass."
         language_embeddings = None
+        torch.cuda.nvtx.range_push("Pre process")
         if self.pre_process:
             language_embeddings = self.language_model.get_partially_trainable_embedding(tokens)
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [text_seq_len, b, h_language]
 
+        torch.cuda.nvtx.range_pop()
+        torch.cuda.nvtx.range_push("LLM")
+        full_text_row_masked_out_mask = full_text_row_masked_out_mask[:, :, position_ids[0]].permute(2, 0, 1, 3).squeeze(2) if cross_attention_masks is not None else None
         output = self.language_model(
             input_ids=tokens,
             position_ids=position_ids,
@@ -487,11 +508,10 @@ class MLlamaBaseModel(MegatronModule):
             cross_attention_masks=(
                 cross_attention_masks[:, :, position_ids[0]] if cross_attention_masks is not None else None
             ),
-            full_text_row_masked_out_mask=(
-                full_text_row_masked_out_mask[:, :, position_ids[0]] if cross_attention_masks is not None else None
-            ),
+            full_text_row_masked_out_mask = full_text_row_masked_out_mask,
             xattn_caches=xattn_caches,
         )
+        torch.cuda.nvtx.range_pop()
         return output
 
     def set_input_tensor(self, input_tensor) -> None:

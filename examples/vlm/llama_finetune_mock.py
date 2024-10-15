@@ -19,11 +19,15 @@ from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
 from transformers import AutoProcessor
 
+import nemo_run as run
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.memory_profiler import MemoryProfileCallback
 
 
 def main(args):
@@ -37,17 +41,17 @@ def main(args):
     Args:
         args (argparse.Namespace): The command-line arguments passed to the script.
     """
-    gbs = 2
-    mbs = 2
+    gbs = 8
+    mbs = 1
     # encoder (vision) seq length
     # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
-    seq_length = 6404
+    seq_length = 4100
     decoder_seq_length = 512  # decoder (llm) seq length
-    if args.restore_path.startswith("hf://"):
-        model_id = args.restore_path[len("hf://") :]
-    else:
-        # default
-        model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
+    # if args.restore_path.startswith("hf://"):
+    #     model_id = args.restore_path[len("hf://") :]
+    # else:
+    #     # default
+    model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
     processor = AutoProcessor.from_pretrained(model_id)
     tokenizer = processor.tokenizer
@@ -69,6 +73,7 @@ def main(args):
     # Training strategy setup
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
+        # sequence_parallel=True,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
@@ -82,7 +87,7 @@ def main(args):
         every_n_train_steps=1000,
         dirpath=args.log_dir,
     )
-
+    
     # Trainer setup
     trainer = nl.Trainer(
         devices=args.devices,
@@ -90,12 +95,21 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback, TimingCallback()],
+        callbacks=[checkpoint_callback, TimingCallback(), NsysCallback(start_step=10, end_step=11, gen_shape=True)],
         val_check_interval=1000,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
+
+    # trainer.callbacks.append(
+    #     run.Config(
+    #         MegatronCommOverlapCallback,
+    #         tp_comm_overlap=True,
+    #         defer_embedding_wgrad_compute=True,
+    #         wgrad_deferral_limit=22,
+    #     )
+    # )
 
     # Logger setup
     nemo_logger = nl.NeMoLogger(
