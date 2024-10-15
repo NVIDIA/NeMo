@@ -12,24 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
-import shlex
+import json
 import subprocess
-from dataclasses import dataclass
-from functools import lru_cache
+import shlex
+
 from pathlib import Path
+from functools import lru_cache
+from omegaconf import OmegaConf, DictConfig
+from dataclasses import dataclass
 
 import nemo_run as run
+from nemo_run.core.tunnel import LocalTunnel, SSHTunnel
 from nemo_run.config import NEMORUN_HOME
 from nemo_run.core.execution.docker import DockerExecutor
 from nemo_run.core.execution.slurm import SlurmJobDetails
 from nemo_run.core.serialization.zlib_json import ZlibJSONSerializer
-from nemo_run.core.tunnel import LocalTunnel, SSHTunnel
-from omegaconf import DictConfig, OmegaConf
 
 from nemo.utils import logging
-
 
 @lru_cache(maxsize=2)
 def get_tunnel(**ssh_tunnel):
