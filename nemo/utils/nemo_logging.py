@@ -184,7 +184,7 @@ class Logger(metaclass=Singleton):
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
-        self._handlers["file"] = _logging.FileHandler(log_file)
+        self._handlers["file"] = _logging.FileHandler(log_file, encoding='utf-8')
         formatter = BaseNeMoFormatter
         self._handlers["file"].setFormatter(formatter())
         self._logger.addHandler(self._handlers["file"])
@@ -201,7 +201,7 @@ class Logger(metaclass=Singleton):
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
-        self._handlers["file_err"] = _logging.FileHandler(log_file)
+        self._handlers["file_err"] = _logging.FileHandler(log_file, encoding='utf-8')
         self._handlers["file_err"].addFilter(lambda record: record.levelno > _logging.INFO)
 
         formatter = BaseNeMoFormatter
