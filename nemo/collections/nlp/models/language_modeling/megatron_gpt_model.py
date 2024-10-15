@@ -943,6 +943,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
         self.megatron_timer_stop('gradient_allreduce')
 
+        torch.distributed.barrier()
         if (
             not self.use_mcore_dist_optim
             and self.cfg.get('pipeline_model_parallel_size', 1) > 1
@@ -990,6 +991,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.log('loss_scale', loss_scale, batch_size=1)
 
         lr = self._optimizer.param_groups[0]['lr']
+        torch.distributed.barrier()
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
             'global_step',
