@@ -116,6 +116,7 @@ def decode_text_from_nbest_hypotheses(hyps, decoding):
 
     return hypotheses, all_hypotheses
 
+
 def check_char_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTDecoding):
     assert hyp.timestep is not None
     assert isinstance(hyp.timestep, dict)
@@ -177,7 +178,8 @@ class TestRNNTDecoding:
         assert decoding is not None
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -218,7 +220,8 @@ class TestRNNTDecoding:
             print()
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -274,7 +277,8 @@ class TestRNNTDecoding:
                     t_u.append(int(label))
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -282,9 +286,20 @@ class TestRNNTDecoding:
         "beam_config",
         [
             {"search_type": "greedy"},
-            {"search_type": "default", "beam_size": 2,},
-            {"search_type": "alsd", "alsd_max_target_len": 0.5, "beam_size": 2,},
-            {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "beam_size": 2,},
+            {
+                "search_type": "default",
+                "beam_size": 2,
+            },
+            {
+                "search_type": "alsd",
+                "alsd_max_target_len": 0.5,
+                "beam_size": 2,
+            },
+            {
+                "search_type": "tsd",
+                "tsd_max_sym_exp_per_step": 3,
+                "beam_size": 2,
+            },
             {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
             {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "beam_size": 2},
         ],
@@ -350,10 +365,9 @@ class TestRNNTDecoding:
                 print("Timesteps", hyp_.timestep)
                 print()
 
-
-
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -367,7 +381,7 @@ class TestRNNTDecoding:
             ("stt_en_conformer_transducer_small", "alsd"),
             ("nvidia/parakeet-tdt_ctc-110m", "greedy"),
             ("nvidia/parakeet-tdt_ctc-110m", "greedy_batch"),
-        ]
+        ],
     )
     def test_subword_decoding_compute_timestamps(self, test_data_dir, decoding_strategy, model_name):
 
@@ -375,26 +389,26 @@ class TestRNNTDecoding:
 
         cfg = DictConfig(model.cfg.decoding)
         cfg['strategy'] = decoding_strategy
-        cfg['preserve_alignments'] = True 
+        cfg['preserve_alignments'] = True
         cfg['compute_timestamps'] = True
 
-        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=model.decoder, joint=model.joint, tokenizer=model.tokenizer)
+        decoding = RNNTBPEDecoding(
+            decoding_cfg=cfg, decoder=model.decoder, joint=model.joint, tokenizer=model.tokenizer
+        )
 
-        hyps, _ = decoding.rnnt_decoder_predictions_tensor(
-                encoded, encoded_len, return_hypotheses=True
-            )
+        hyps, _ = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
         check_subword_timestamps(hyps[0], decoding)
 
-
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "model_name, decoding_strategy",get_model_encoder_output
-        [
+        "model_name, decoding_strategy",
+        get_model_encoder_output[
             ("stt_en_conformer_transducer_small", "greedy"),
             ("stt_en_conformer_transducer_small", "greedy_batch"),
             ("stt_en_conformer_transducer_small", "beam"),
@@ -402,7 +416,7 @@ class TestRNNTDecoding:
             ("stt_en_conformer_transducer_small", "alsd"),
             ("nvidia/parakeet-tdt_ctc-110m", "greedy"),
             ("nvidia/parakeet-tdt_ctc-110m", "greedy_batch"),
-        ]
+        ],
     )
     def test_char_decoding_compute_timestamps(self, test_data_dir, decoding_strategy, model_name):
 
@@ -410,17 +424,13 @@ class TestRNNTDecoding:
 
         cfg = DictConfig(model.cfg.decoding)
         cfg['strategy'] = decoding_strategy
-        cfg['preserve_alignments'] = True 
+        cfg['preserve_alignments'] = True
         cfg['compute_timestamps'] = True
 
         vocab = [t[0] for t in model.tokenizer.vocab]
-        
+
         decoding = RNNTDecoding(decoding_cfg=cfg, decoder=model.decoder, joint=model.joint, vocabulary=vocab)
 
-        hyps, _ = decoding.rnnt_decoder_predictions_tensor(
-                encoded, encoded_len, return_hypotheses=True
-            )
+        hyps, _ = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
         check_char_timestamps(hyps[0], decoding)
-
-   
