@@ -223,6 +223,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         wrap_forward_step: bool = True,
     ) -> torch.Tensor:
         """The method performs the forward pass of the model.
@@ -270,6 +271,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
             seq_length=seq_length,
+            step_i=step_i,
         )
         _forward_context["step"] = step
         step = self.callbacks.transform_event("on_megatron_step_start", step)
@@ -335,6 +337,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         return self._step(
@@ -346,6 +349,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
+            step_i=step_i,
             forward_only=True,
             **kwargs,
         )
@@ -359,6 +363,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         return self._step(
@@ -370,6 +375,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
+            step_i=step_i,
             forward_only=True,
             **kwargs,
         )
@@ -383,6 +389,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         return self._step(
@@ -394,6 +401,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
+            step_i=step_i,
             forward_only=True,
             **kwargs,
         )
@@ -409,6 +417,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
         forward_only: bool = True,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         if not hasattr(self.module, f"{step_type}_step"):
@@ -427,6 +436,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
             forward_only=forward_only,
+            step_i=step_i,
             **kwargs,
         )
 
@@ -1043,6 +1053,7 @@ class MegatronStep(Generic[ModelT, DataT]):
     micro_batch_size: Optional[int] = None
     seq_length: Optional[int] = None
     num_microbatches: Optional[int] = None
+    step_i: Optional[int] = None
 
     @classmethod
     def infer(
@@ -1054,6 +1065,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         micro_batch_size: Optional[int] = None,
         seq_length: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
     ) -> "MegatronStep[ModelT, DataT]":
         """
         Creates a MegatronStep instance, inferring missing parameters if possible.
@@ -1069,10 +1081,13 @@ class MegatronStep(Generic[ModelT, DataT]):
             micro_batch_size (Optional[int]): Size of each micro-batch.
             seq_length (Optional[int]): Sequence length for the current step.
             num_microbatches (Optional[int]): Number of micro-batches in this step.
-
+            step_i (Optional[int]): Step index for the current step.
         Returns:
             MegatronStep[ModelT, DataT]: An instance of MegatronStep with inferred parameters.
         """
+        if step_i is None and pipeline.trainer:
+            step_i = pipeline.trainer.global_step
+
         return cls(
             pipeline=pipeline,
             data=data,
@@ -1081,6 +1096,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             micro_batch_size=micro_batch_size or cls.infer_micro_batch_size(data),
             seq_length=seq_length or cls.infer_seq_length(data),
             num_microbatches=num_microbatches or cls.infer_num_microbatches(data),
+            step_i=step_i,
         )
 
     def __call__(self) -> List[Any]:
