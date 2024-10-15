@@ -933,7 +933,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         for i, offset in enumerate(char_offsets):
 
-            if len(offset['char'][0]) > 1:
+            if len(offset['char'][0]) != 1:
                 continue
 
             char_type = unicodedata.category(offset['char'][0])
