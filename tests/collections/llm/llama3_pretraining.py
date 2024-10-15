@@ -5,15 +5,18 @@ Test the LLaMA3 recipe with a smaller model.
 import argparse
 
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.common.tokenizers import SentencePieceTokenizer
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
-
-from .common import MCoreModelAttributeValidator, create_verify_precision, small_llama_cfg, train_data, verify_ckpt_dir
+from tests.collections.llm.common import (
+    MCoreModelAttributeValidator,
+    create_verify_precision,
+    small_llama_cfg,
+    train_data,
+    verify_ckpt_dir,
+)
 
 
 def get_args():
@@ -100,7 +103,7 @@ def main():
         if v is not None:  # use recipe default if not specified
             setattr(pretrain_recipe.trainer.strategy, k, v)
         parallelisms[k] = getattr(pretrain_recipe.trainer.strategy, k)
-    pretrain_recipe.trainer.callbacks.append(ModelAttrValidationCallback(parallelisms))
+    pretrain_recipe.trainer.callbacks.append(MCoreModelAttributeValidator(parallelisms))
 
     run.run(pretrain_recipe, direct=True)
 
