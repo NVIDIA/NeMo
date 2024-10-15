@@ -27,6 +27,7 @@ from nemo.collections.llm.gpt.data import (
 )
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
+    HfLitModule,
     Baichuan2Config,
     Baichuan2Config7B,
     Baichuan2Model,
@@ -182,6 +183,7 @@ __all__ = [
     "squad",
     "dolly",
     "peft",
+    "HfLitModule",
 ]
 
 

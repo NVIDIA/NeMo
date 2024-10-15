@@ -28,6 +28,7 @@ from nemo.collections.llm.gpt.model.base import (
     local_layer_spec,
     transformer_engine_layer_spec,
 )
+from nemo.collections.llm.gpt.model.hf_lit_module import HfLitModule
 from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
 from nemo.collections.llm.gpt.model.gemma import (
     CodeGemmaConfig2B,
@@ -166,4 +167,5 @@ __all__ = [
     "gpt_forward_step",
     "transformer_engine_layer_spec",
     "local_layer_spec",
+    "HfLitModule",
 ]
