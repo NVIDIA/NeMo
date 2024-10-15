@@ -25,8 +25,8 @@ from typing_extensions import Annotated
 import nemo.lightning as nl
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
-from nemo.utils import logging
 from nemo.lightning.run import cli_entrypoint
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
