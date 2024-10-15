@@ -3,6 +3,7 @@ Test the LLaMA3 recipe with a smaller model.
 """
 
 import argparse
+import os
 
 import nemo_run as run
 import torch
@@ -53,8 +54,9 @@ def get_args():
 def main():
     args = get_args()
 
+    exp_name = "L2_llama3_small_pretrain_test"
     pretrain_recipe = llm.llama3_8b.pretrain_recipe(
-        dir=args.experiment_dir, name="L2_llama3_small_pretrain_test", num_gpus_per_node=args.devices
+        dir=args.experiment_dir, name=exp_name, num_gpus_per_node=args.devices
     )
 
     pretrain_recipe.model = llm.LlamaModel(small_llama_cfg(args.seq_length))
@@ -108,7 +110,10 @@ def main():
     run.run(pretrain_recipe, direct=True)
 
     verify_ckpt_dir(
-        pretrain_recipe.log.ckpt, args.max_steps, pretrain_recipe.trainer.val_check_interval, args.experiment_dir
+        pretrain_recipe.log.ckpt,
+        args.max_steps,
+        pretrain_recipe.trainer.val_check_interval,
+        os.path.join(args.experiment_dir, exp_name),
     )
 
 

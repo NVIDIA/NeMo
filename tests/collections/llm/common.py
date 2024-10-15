@@ -74,7 +74,8 @@ def verify_ckpt_dir(
 
     import os
 
-    ckpts = os.listdir(os.path.join(exp_dir, 'checkpoints'))
+    ckpt_dir = os.path.join(exp_dir, 'checkpoints')
+    ckpts = os.listdir(ckpt_dir)
 
     expected_ckpts = (max_steps // val_check_interval) + model_ckpt.save_last
     if model_ckpt.save_last:
@@ -86,14 +87,16 @@ def verify_ckpt_dir(
     else:
         assert len(ckpts) == expected_ckpts, f"Expected {expected_ckpts} checkpoints"
 
-    for ckpt_path in ckpts:
-        assert os.path.isdir(ckpt_path) == dist_ckpts, "Checkpoint is not correct type"
-
-        if ckpt_path.endswith('-last') and 'step' in model_ckpt.filename:
-            assert f'step={max_steps}' in ckpt_path
+    for ckpt_name in ckpts:
+        ckpt_path = os.path.join(ckpt_dir, ckpt_name)
+        if ckpt_name.endswith('-last') and 'step' in model_ckpt.filename:
+            assert f'step={max_steps-1}' in ckpt_name
 
         if dist_ckpts:
-            verify_distcp_dir(ckpt_path)
+            assert os.path.isdir(ckpt_path), "Checkpoint is not correct type"
+            verify_distcp_dir(ckpt_name)
+        else:
+            assert os.path.isfile(ckpt_path), "Checkpoint is not correct type"
 
 
 def create_verify_precision(precision: torch.dtype):
