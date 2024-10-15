@@ -175,7 +175,10 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if not fs.isdir(path):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
+        # Load from ckpt_path/weights (new format) if it exists
         path = ckpt_to_weights_subdir(path)
+        if isinstance(path, AdapterPath) and not path.base_model_path.exists():
+            path.base_model_path = path.base_model_path.parent
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
             from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
