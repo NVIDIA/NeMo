@@ -1,15 +1,14 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
-from megatron.core.transformer.attention import Attention, SelfAttention
 from dataclasses import dataclass
 from typing import Union
 
 import torch
+from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
+from megatron.core.transformer.attention import Attention, SelfAttention
 from megatron.core.transformer.custom_layers.transformer_engine import SplitAlongDim
 from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
-
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 
 @dataclass
@@ -22,6 +21,7 @@ class JointSelfAttentionSubmodules:
     k_layernorm: Union[ModuleSpec, type] = None
     added_q_layernorm: Union[ModuleSpec, type] = None
     added_k_layernorm: Union[ModuleSpec, type] = None
+
 
 class JointSelfAttention(Attention):
     """Joint Self-attention layer class
@@ -70,7 +70,7 @@ class JointSelfAttention(Attention):
                 bias=self.config.add_qkv_bias,
                 skip_bias_add=False,
                 is_expert=False,
-                tp_comm_buffer_name='qkv'
+                tp_comm_buffer_name='qkv',
             )
 
         if not context_pre_only:
@@ -87,21 +87,17 @@ class JointSelfAttention(Attention):
                 tp_comm_buffer_name='proj',
             )
 
-
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None, additional_hidden_states=None):
         """
         Derives `query`, `key` and `value` tensors from `hidden_states`.
         """
         residue = hidden_states
-        #Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
+        # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
         mixed_qkv, _ = self.linear_qkv(hidden_states)
         if additional_hidden_states is not None:
             added_qkv, _ = self.added_linear_qkv(additional_hidden_states)
 
         mixed_qkv = torch.cat([mixed_qkv, added_qkv], dim=0)
-
-
-
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (
@@ -126,11 +122,19 @@ class JointSelfAttention(Attention):
         if SplitAlongDim is not None:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = SplitAlongDim(mixed_qkv, 3, split_arg_list,)
+            (query, key, value) = SplitAlongDim(
+                mixed_qkv,
+                3,
+                split_arg_list,
+            )
         else:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3,)
+            (query, key, value) = torch.split(
+                mixed_qkv,
+                split_arg_list,
+                dim=3,
+            )
 
         # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
@@ -138,14 +142,14 @@ class JointSelfAttention(Attention):
         return query, key, value
 
     def forward(
-            self,
-            hidden_states,
-            attention_mask,
-            key_value_states=None,
-            inference_params=None,
-            rotary_pos_emb=None,
-            packed_seq_params=None,
-            additional_hidden_states=None,
+        self,
+        hidden_states,
+        attention_mask,
+        key_value_states=None,
+        inference_params=None,
+        rotary_pos_emb=None,
+        packed_seq_params=None,
+        additional_hidden_states=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -199,10 +203,16 @@ class JointSelfAttention(Attention):
             else:
                 cu_seqlens_q = cu_seqlens_kv = None
             query = apply_rotary_pos_emb(
-                query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q,
+                query,
+                q_pos_emb,
+                config=self.config,
+                cu_seqlens=cu_seqlens_q,
             )
             key = apply_rotary_pos_emb(
-                key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv,
+                key,
+                k_pos_emb,
+                config=self.config,
+                cu_seqlens=cu_seqlens_kv,
             )
 
             # TODO, can apply positional embedding to value_layer so it has
@@ -244,8 +254,8 @@ class JointSelfAttention(Attention):
         # Output. [sq, b, h]
         # =================
 
-        attention_output = core_attn_out[:hidden_states.shape[0], :, :]
-        encoder_attention_output = core_attn_out[hidden_states.shape[0]:, :, :]
+        attention_output = core_attn_out[: hidden_states.shape[0], :, :]
+        encoder_attention_output = core_attn_out[hidden_states.shape[0] :, :, :]
 
         output, bias = self.linear_proj(attention_output)
         encoder_output, encoder_bias = self.added_linear_proj(encoder_attention_output)
@@ -253,8 +263,8 @@ class JointSelfAttention(Attention):
         output = output + bias
         encoder_output = encoder_output + encoder_bias
 
-
         return output, encoder_output
+
 
 class FluxSingleAttention(SelfAttention):
     """Self-attention layer class
@@ -323,10 +333,16 @@ class FluxSingleAttention(SelfAttention):
             else:
                 cu_seqlens_q = cu_seqlens_kv = None
             query = apply_rotary_pos_emb(
-                query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q,
+                query,
+                q_pos_emb,
+                config=self.config,
+                cu_seqlens=cu_seqlens_q,
             )
             key = apply_rotary_pos_emb(
-                key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv,
+                key,
+                k_pos_emb,
+                config=self.config,
+                cu_seqlens=cu_seqlens_kv,
             )
 
             # TODO, can apply positional embedding to value_layer so it has
@@ -363,6 +379,5 @@ class FluxSingleAttention(SelfAttention):
             # t is the pack size = sum (sq_i)
             # note that batch is a dummy dimension in the packed case
             core_attn_out = core_attn_out.reshape(core_attn_out.size(0), 1, -1)
-
 
         return core_attn_out

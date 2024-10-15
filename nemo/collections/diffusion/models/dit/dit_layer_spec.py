@@ -26,11 +26,6 @@ from megatron.core.transformer.attention import (
     SelfAttention,
     SelfAttentionSubmodules,
 )
-from nemo.collections.diffusion.models.dit.dit_attention import (
-    FluxSingleAttention,
-    JointSelfAttention,
-    JointSelfAttentionSubmodules,
-)
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
@@ -46,6 +41,12 @@ from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
+
+from nemo.collections.diffusion.models.dit.dit_attention import (
+    FluxSingleAttention,
+    JointSelfAttention,
+    JointSelfAttentionSubmodules,
+)
 
 
 @dataclass
@@ -107,15 +108,15 @@ class AdaLN(MegatronModule):
     def forward(self, timestep_emb):
         return self.adaLN_modulation(timestep_emb).chunk(self.n_adaln_chunks, dim=-1)
 
-    #@jit_fuser
+    # @jit_fuser
     def modulate(self, x, shift, scale):
         return x * (1 + scale) + shift
 
-    #@jit_fuser
+    # @jit_fuser
     def scale_add(self, residual, x, gate):
         return residual + gate * x
 
-    #@jit_fuser
+    # @jit_fuser
     def modulated_layernorm(self, x, shift, scale, layernorm_idx=0):
         if self.use_second_norm and layernorm_idx == 1:
             layernorm = self.ln2
