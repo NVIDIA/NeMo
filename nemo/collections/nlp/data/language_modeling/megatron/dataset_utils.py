@@ -1257,6 +1257,7 @@ def get_samples_mapping(
     binary_head,
     index_mapping_dir: str = None,
     samples_mapping: Any = None,
+    sanity_check_dist_workers: bool = True,
 ):
     """Get a list that maps a sample index to a starting sentence index, end sentence index, and length"""
 
@@ -1328,14 +1329,16 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
-    torch.distributed.barrier()
-    counts = torch.cuda.LongTensor([1])
-    torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group(with_context_parallel=True))
-    torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
-    assert counts[0].item() == (
-        torch.distributed.get_world_size()
-        // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
-    )
+
+    if sanity_check_dist_workers:
+        torch.distributed.barrier()
+        counts = torch.cuda.LongTensor([1])
+        torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group(with_context_parallel=True))
+        torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
+        assert counts[0].item() == (
+            torch.distributed.get_world_size()
+            // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
+        )
     # Load indexed dataset if not given externally.
     if samples_mapping is None:
         logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
