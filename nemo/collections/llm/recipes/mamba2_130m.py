@@ -32,26 +32,26 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "mamba2_370m"
+NAME = "mamba2_130m"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Mamba2 370M model configuration.
+    Factory function to create a Mamba2 130M model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Mamba2 370M model.
+        run.Config[pl.LightningModule]: Configuration for the Mamba2 130M model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=mamba2_370m ...
+            $ nemo llm pretrain model=mamba2_130m ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig370M))
+    return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig130M))
 
 
 def trainer(
@@ -62,12 +62,12 @@ def trainer(
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
+    num_gpus_per_node: int = 1,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Mamba2 370M model.
+    Configure the NeMo Lightning Trainer for Mamba2 130M model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -88,10 +88,10 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=mamba2_370m ...
+            $ nemo llm pretrain trainer=mamba2_130m ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
             >>> print(trainer_config)
 
     Note:
@@ -140,10 +140,10 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 1, fn=pretrain
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Mamba2 370M model.
+    Create a pre-training recipe for Mamba2 130M model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -160,11 +160,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory mamba2_370M
-            $ nemo llm pretrain --factory "mamba2_370M(num_nodes=1, name='my_pretrain')"
+            $ nemo llm pretrain --factory mamba2_130M
+            $ nemo llm pretrain --factory "mamba2_130M(num_nodes=1, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="mamba2_370M_pretrain", num_nodes=1)
+            >>> recipe = pretrain_recipe(name="mamba2_130M_pretrain", num_nodes=1)
             >>> print(recipe)
 
     Note:
@@ -191,11 +191,11 @@ def pretrain_recipe_performance(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
+    num_gpus_per_node: int = 1,
     fn: Callable = pretrain,
 ) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Mamba2 370M model.
+    Create a performance-optimized pre-training recipe for Mamba2 130M model.
 
     This recipe enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
@@ -211,10 +211,10 @@ def pretrain_recipe_performance(
         run.Partial: Partial configuration for performance-optimized pre-training.
 
     Examples:
-            $ nemo llm pretrain --factory mamba2_370m_optimized
+            $ nemo llm pretrain --factory mamba2_130m_optimized
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="mamba2_370m_perf", num_nodes=1)
+            >>> recipe = pretrain_recipe_performance(name="mamba2_130m_perf", num_nodes=1)
             >>> print(recipe)
 
     Note:
@@ -237,11 +237,11 @@ def pretrain_recipe_performance(
 #     dir: Optional[str] = None,
 #     name: str = "default",
 #     num_nodes: int = 1,
-#     num_gpus_per_node: int = 8,
+#     num_gpus_per_node: int = 1,
 #     peft_scheme: Optional[str] = 'none',
 # ) -> run.Partial:
 #     """
-#     Create a fine-tuning recipe for Mamba2 370M model.
+#     Create a fine-tuning recipe for Mamba2 130M model.
 
 #     This function sets up a complete configuration for fine-tuning, including
 #     model, trainer, data, logging, optimization, and resumption settings.
@@ -258,10 +258,10 @@ def pretrain_recipe_performance(
 
 #     Examples:
 #         CLI usage:
-#             $ nemo llm finetune --factory mamba2_370m
+#             $ nemo llm finetune --factory mamba2_130m
 
 #         Python API usage:
-#             >>> recipe = finetune_recipe(name="mamba2_370m_finetune", num_nodes=1)
+#             >>> recipe = finetune_recipe(name="mamba2_130m_finetune", num_nodes=1)
 #             >>> print(recipe)
 
 #     Note:

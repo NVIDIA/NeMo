@@ -55,14 +55,14 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 1,
+    tensor_parallelism: int = 8,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 1,
+    num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
@@ -140,7 +140,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 1, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mamba2 Hybrid 8B model.
@@ -191,7 +191,7 @@ def pretrain_recipe_performance(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
-    num_gpus_per_node: int = 1,
+    num_gpus_per_node: int = 8,
     fn: Callable = pretrain,
 ) -> run.Partial:
     """
@@ -237,7 +237,7 @@ def pretrain_recipe_performance(
 #     dir: Optional[str] = None,
 #     name: str = "default",
 #     num_nodes: int = 1,
-#     num_gpus_per_node: int = 1,
+#     num_gpus_per_node: int = 8,
 #     peft_scheme: Optional[str] = 'none',
 # ) -> run.Partial:
 #     """
