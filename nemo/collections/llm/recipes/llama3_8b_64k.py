@@ -76,10 +76,10 @@ def trainer(
         This configuration uses significantly increased parallelism to handle the long sequence length efficiently.
     """
     return llama3_8b.trainer(
-        tensor_parallelism=2,
-        pipeline_parallelism=4,
+        tensor_parallelism=4,
+        pipeline_parallelism=2,
         pipeline_parallelism_type=torch.bfloat16,
-        virtual_pipeline_parallelism=5,
+        virtual_pipeline_parallelism=None,
         context_parallelism=4,
         sequence_parallelism=True,
         num_nodes=num_nodes,
