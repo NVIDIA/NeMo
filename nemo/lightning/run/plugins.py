@@ -252,11 +252,13 @@ class PerfEnvPlugin(run.Plugin):
     Attributes:
         enable_layernorm_sm_margin (bool): Set SM margin for TransformerEngine's Layernorm, so
             in order to not block DP level communication overlap.
+        layernorm_sm_margin (int): The SM margin for TransformerEngine Layernorm.  
         enable_vboost (bool): Whether to steer more power towards tensor cores via
             `sudo nvidia-smi boost-slider --vboost 1`. May not work on all systems.
     """
 
     enable_layernorm_sm_margin: bool = True
+    layernorm_sm_margin: int = 16
     enable_vboost: bool = False
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
@@ -289,9 +291,9 @@ class PerfEnvPlugin(run.Plugin):
 
             # Set LayerNorm SM margin to support the overlap with LayerNorm kernel
             if self.enable_layernorm_sm_margin:
-                executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = 8
-                executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = 8
-
+                executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = self.layernorm_sm_margin
+                executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = self.layernorm_sm_margin
+                
         # Force Transformer Engine to use cuDNN attention over HazyResearch's Flash Attention
         executor.env_vars["NVTE_FLASH_ATTN"] = 0
         executor.env_vars["NVTE_FUSED_ATTN"] = 1
