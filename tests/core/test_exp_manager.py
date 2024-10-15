@@ -1101,7 +1101,13 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_save_nemo_not_comp_with_model_parallel(self, tmp_path):
-        test_trainer = pl.Trainer(accelerator='cpu', logger=False)
+        """
+        Ensure that always_save_nemo is not compatible with model parallelism.
+        """
+
+        test_dir = tmp_path / "test"
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=7)
+
         with pytest.raises(Exception):
             appstate = AppState()
             appstate.tensor_model_parallel_size = 2
@@ -1113,6 +1119,7 @@ class TestExpManager:
                     "checkpoint_callback_params": {
                         "always_save_nemo": True,
                     },
+                    "explicit_log_dir": str(test_dir),
                 },
             )
 
@@ -1127,6 +1134,7 @@ class TestExpManager:
                     "checkpoint_callback_params": {
                         "always_save_nemo": True,
                     },
+                    "explicit_log_dir": str(test_dir),
                 },
             )
 
@@ -1141,6 +1149,7 @@ class TestExpManager:
                     "checkpoint_callback_params": {
                         "always_save_nemo": True,
                     },
+                    "explicit_log_dir": str(test_dir),
                 },
             )
 
@@ -1154,5 +1163,6 @@ class TestExpManager:
                 "checkpoint_callback_params": {
                     "always_save_nemo": True,
                 },
+                "explicit_log_dir": str(test_dir),
             },
         )
