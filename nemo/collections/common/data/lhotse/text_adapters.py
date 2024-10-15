@@ -22,6 +22,7 @@ from typing import Iterator, Literal, Optional, Union
 import numpy as np
 import torch
 from lhotse import Recording
+from lhotse.custom import CustomFieldMixin
 from lhotse.cut import Cut
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
@@ -41,7 +42,7 @@ Basic text example, adequate for pretraining-style language modeling.
 
 
 @dataclass
-class TextExample:
+class TextExample(CustomFieldMixin):
     """
     Represents a single text example. Useful e.g. for language modeling.
     """
@@ -93,7 +94,7 @@ Source-target text examples (e.g., machine translation).
 
 
 @dataclass
-class SourceTargetTextExample:
+class SourceTargetTextExample(CustomFieldMixin):
     """
     Represents a pair of text examples. Useful e.g. for sequence-to-sequence tasks.
     Supports a ``question`` field, used as the prompt for LLM.
@@ -127,9 +128,12 @@ class SourceTargetTextExample:
                     ]
                 )
             elif isinstance(prompt, T5NMTPromptFormatter):
+                ctx = f"<{self.target.language}>"
+                if self.has_custom("extra_prompt"):
+                    ctx = f"{ctx} {self.extra_prompt}"
                 ans = prompt.encode_dialog(
                     [
-                        {"role": "user", "slots": {"message": self.source.text, "target_lang": self.target.language}},
+                        {"role": "user", "slots": {"message": self.source.text, "target_lang": ctx}},
                         {"role": prompt.OUTPUT_ROLE, "slots": {"message": self.target.text}},
                     ]
                 )
@@ -221,7 +225,7 @@ class LhotseTextPairAdapter:
 
 
 @dataclass
-class NeMoSFTExample:
+class NeMoSFTExample(CustomFieldMixin):
     data: dict
     language: str | None = None
     input_ids: np.ndarray | None = None
@@ -353,7 +357,7 @@ class AudioTurn:
 
 
 @dataclass
-class NeMoMultimodalConversation:
+class NeMoMultimodalConversation(CustomFieldMixin):
     id: str
     turns: list[TextTurn | AudioTurn]
     input_ids: np.ndarray | None = None

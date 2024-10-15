@@ -223,8 +223,8 @@ def read_txt_pair_paths(config: DictConfig) -> CutSet:
             target_paths=config.target_paths,
             source_language=config.source_language,
             target_language=config.target_language,
-            questions_path=config.questions_path,
-            questions_language=config.questions_language,
+            questions_path=config.get("questions_path"),
+            questions_language=config.get("questions_language"),
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
         )
