@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -16,7 +17,7 @@ if __name__ == '__main__':
     args = get_args()
 
     model = llm.LlamaModel(config=llm.Llama2Config7B)
-    nemo2_path = llm.import_ckpt(model, "hf://" + args.hf_model, output_path=args.output_path)
+    nemo2_path = llm.import_ckpt(model, "hf://" + args.hf_model, output_path=Path(args.output_path))
 
     trainer = nl.Trainer(
         devices=1,
@@ -25,4 +26,4 @@ if __name__ == '__main__':
     )
     fabric = trainer.to_fabric()
     trainer.strategy.setup_environment()
-    model = fabric.load_model(nemo2_path)
+    fabric.load_model(nemo2_path)
