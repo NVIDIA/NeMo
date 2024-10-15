@@ -218,7 +218,7 @@ def pretrain_recipe_performance(
         It may not be suitable for all hardware configurations or use cases.
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-    
+
     # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically by MegatronCommOverlapCallback
     # They are added here for user's knowledge
     # overlap_param_gather_with_optimizer_step- If true, overlap param all-gather of first bucket with optimizer step.
