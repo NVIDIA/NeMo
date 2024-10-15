@@ -29,6 +29,11 @@ if TYPE_CHECKING:
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
+    from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
+    from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
+
+    from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
+    from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
 
     batch = next(dataloader_iter)
 
@@ -39,10 +44,21 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     else:
         _batch = batch
 
-    # convert attention mask values from int to True/False
-    _batch['enc_mask'] = _batch['enc_mask'] < 0.5
-    _batch['dec_mask'] = _batch['dec_mask'] < 0.5
-    _batch['enc_dec_mask'] = _batch['enc_dec_mask'] < 0.5
+    # if Dataset object is NeMo 1.0's T5SFTDataset (e.g. when finetuning with SQUAD)
+    if 'enc_dec_mask' not in _batch:
+        encoder_attn_mask_3d = build_attention_mask_3d(_batch['enc_mask'], _batch['enc_mask'], AttnMaskType.padding)
+        decoder_attn_mask_3d = build_attention_mask_3d(_batch['dec_mask'], _batch['dec_mask'], AttnMaskType.causal)
+        enc_dec_attn_mask_3d = build_attention_mask_3d(_batch['dec_mask'], _batch['enc_mask'], AttnMaskType.padding)
+        _batch['enc_mask'] = encoder_attn_mask_3d
+        _batch['dec_mask'] = decoder_attn_mask_3d
+        _batch['enc_dec_mask'] = enc_dec_attn_mask_3d
+
+    # if Dataset object is Mcore T5 dataset (e.g. pretraining)
+    else:
+        # convert attention mask values from int to True/False
+        _batch['enc_mask'] = _batch['enc_mask'] < 0.5
+        _batch['dec_mask'] = _batch['dec_mask'] < 0.5
+        _batch['enc_dec_mask'] = _batch['enc_dec_mask'] < 0.5
 
     required_keys = set()
     required_keys.update(["enc_mask", "dec_mask", "enc_dec_mask"])
