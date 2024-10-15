@@ -178,15 +178,18 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
     inference_config: Optional[Dict[str, Any]] = None
 
+    data_config: Optional[DictConfig] = None
+
     def freeze_module(self, module: nn.Module):
         for param in module.parameters():
             param.requires_grad = False
         module.eval()
 
-    def configure_model(self, tokenizer: TokenizerSpec) -> "SpeechToTextLLM":
+    def configure_model(self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None) -> "SpeechToTextLLM":
         language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: pl.LightningModule
 
-        speech_model = self.speech_model_config.configure_model()  # type: pl.LightningModule
+        if speech_model is None:
+            speech_model = self.speech_model_config.configure_model()  # type: pl.LightningModule
         speech_model.set_input_tensor = MethodType(set_input_tensor, speech_model)
 
         self.modality_adapter_config.output_dim = self.language_model_config.hidden_size
@@ -518,10 +521,11 @@ class SpeechToTextLLM(SpeechLanguageModel):
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
         self._inference_config = None
+        self._speech_model = self.config.speech_model_config.configure_model()
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
-            self.module = self.config.configure_model(self.tokenizer)  # type: MCoreSpeechToTextLLM
+            self.module = self.config.configure_model(self.tokenizer, self._speech_model)  # type: MCoreSpeechToTextLLM
             self.module.language_model = self.module.language_model.to(self.device)
             self.module.speech_model = self.module.speech_model.to(self.device)
             self.module.modality_adapter = self.module.modality_adapter.to(self.device)
@@ -932,7 +936,6 @@ class SpeechToTextLLM(SpeechLanguageModel):
                 micro_batch_size=data_cfg.micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
-
         return averaged_loss, averaged_metric
 
     def gather_and_maybe_write_predictions(self, data_cfg, output, averaged_metric, mode, dataloader_idx):
@@ -996,11 +999,11 @@ class SpeechToTextLLM(SpeechLanguageModel):
                 for k, v in metric_result.items():
                     if 'fmeasure' in k:
                         self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True, batch_size=1)
-                        logging.info(f"{mode} {metric_name} {k} [{dataloader_idx}]: {v.item()}")
+                        logging.info(f"{metric_log_key}_{k}]: {v.item()}")
                 metric_result = metric_result['rouge1_fmeasure']
             else:
                 self.log(metric_log_key, metric_result.item(), sync_dist=True, batch_size=1)
-                logging.info(f"{mode} {metric_name} [{dataloader_idx}]: {metric_result.item()}")
+                logging.info(f"{metric_log_key}: {metric_result.item()}")
 
             metric_fn.reset()
             averaged_metric.append(metric_result)
