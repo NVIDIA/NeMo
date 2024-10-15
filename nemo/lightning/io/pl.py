@@ -23,9 +23,10 @@ from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
 
-from nemo.lightning.ckpt_utils import ckpt_to_dir
+from nemo.lightning.ckpt_utils import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
+
 
 try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
@@ -173,6 +174,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
+
+        path = ckpt_to_weights_subdir(path)
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
             from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
