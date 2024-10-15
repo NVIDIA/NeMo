@@ -71,6 +71,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         pad_to_max_length: bool = False,
         packed_sequence_size: int = -1,
+        sanity_check_dist_workers: bool = True,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -89,6 +90,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.pad_to_max_length = pad_to_max_length
         self.packed_sequence_size = packed_sequence_size
         self._adjust_batch_sizes_for_packed_sequence()
+        self._sanity_check_dist_workers = sanity_check_dist_workers
 
     def _adjust_batch_sizes_for_packed_sequence(self):
         if self.packed_sequence_size > 0 and self.micro_batch_size > 1:
@@ -136,6 +138,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                 self.train_path if self.packed_sequence_size <= 0 else self.train_path_packed,
                 max_num_samples=self.max_train_samples,
                 pad_to_max_length=self.pad_to_max_length,
+                sanity_check_dist_workers=self._sanity_check_dist_workers,
             )
         )
 
@@ -145,6 +148,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                 self.validation_path,
                 is_test=True,
                 pad_to_max_length=self.pad_to_max_length,
+                sanity_check_dist_workers=self._sanity_check_dist_workers,
             ),
         )
 
@@ -155,6 +159,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                 tokens_to_generate=32,
                 is_test=True,
                 pad_to_max_length=self.pad_to_max_length,
+                sanity_check_dist_workers=self._sanity_check_dist_workers,
             )
         )
 
