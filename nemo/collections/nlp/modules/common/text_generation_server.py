@@ -15,6 +15,7 @@
 
 import json
 import threading
+import time, uuid
 
 import torch
 from flask import Flask, jsonify, request
@@ -90,10 +91,79 @@ class MegatronGenerate(Resource):
                 output_dict['conversations'].append(conversation_entry)
 
         return output_dict
+    
+    def completion(self, data):
+        output_sentence = ""
+        with lock:  # Need to get lock to keep multiple threads from hitting code
+            MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
+            extra = {}
+            if self.inference_strategy is not None:
+                extra['strategy'] = self.inference_strategy
 
-    def post(self):
-        # Access the request data if needed
-        data = request.get_json()
+            all_probs = False
+            add_BOS = False
+            top_p = data.get("top_p", 1.0)
+            top_k = data.get("top_k", 0)
+            max_tokens = data.get("max_tokens", 32)
+            temperature = data.get("temperature", 0.0)
+            logprobs = data.get("logprobs", False)
+            greedy = temperature == 0.0
+            end_strings = ['<|endoftext|>'] + data.get("end_strings", [])
+            prompt = data["prompt"]
+            random_seed = data.get("seed", 1234)
+
+            output = generate(
+                self.model,
+                [prompt],
+                tokens_to_generate=max_tokens,
+                all_probs=all_probs,
+                temperature=temperature,
+                add_BOS=add_BOS,
+                top_k=top_k,
+                top_p=top_p,
+                greedy=greedy,
+                repetition_penalty=1.0,
+                end_strings=end_strings,
+                min_tokens_to_generate=0,
+                compute_logprob=logprobs,
+                random_seed=random_seed,
+                **extra,
+            )
+            for k in output:
+                if isinstance(output[k], torch.Tensor):
+                    output[k] = output[k].tolist()
+
+            output_sentence = output['sentences'][0][len(prompt) :]
+            tokens = output['tokens'][0]
+            logprobs = output['logprob'][0] if output['logprob'] is not None else None
+            num_prompt_tokens = len(prompt.split())
+            num_output_sentence = len(output_sentence.split())
+
+            
+        return jsonify(
+            {
+                "choices": [
+                    {
+                    "finish_reason": "",
+                    "index": 0,
+                    "logprobs": logprobs,
+                    "text": output_sentence,
+                    "tokens": tokens,
+                    }
+                ],
+                "created": int(time.time()),
+                "id": f"cmpl-{uuid.uuid4()}",
+                "model": "nemo model",
+                "object": "text_completion",
+                "usage": {
+                    "completion_tokens": num_output_sentence,
+                    "prompt_tokens": num_prompt_tokens,
+                    "total_tokens": num_output_sentence + num_prompt_tokens,
+                }
+            }
+        )
+    
+    def chat_completion(self, data):
         data['messages'] = data['messages'] + [
             {'role': 'assistant', 'content': ''}
         ]  # adding trailing assistant message so that prompt ends with Assistant tag.
@@ -115,46 +185,61 @@ class MegatronGenerate(Resource):
             add_BOS = False
             top_k = 0
             greedy = data['temperature'] == 0.0
-            end_strings = ['<|endoftext|>']
+            logprobs = data.get("logprobs", False)
+            end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
             random_seed = None
 
             output = generate(
                 self.model,
                 [conversation],
-                data['max_tokens'],
+                data.get('max_tokens', 32),
                 all_probs=all_probs,
-                temperature=data['temperature'],
+                temperature=data.get('temperature',1.0),
                 add_BOS=add_BOS,
                 top_k=top_k,
-                top_p=data['top_p'],
+                top_p=data.get("top_p", 0.95),
                 greedy=greedy,
                 repetition_penalty=1.0,
                 end_strings=end_strings,
                 min_tokens_to_generate=0,
-                compute_logprob=False,
+                compute_logprob=logprobs,
                 random_seed=random_seed,
                 **extra,
             )
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
-        if not all_probs:
-            del output['full_logprob']
 
         output_sentence = output['sentences'][0][len(conversation) :]
+        tokens = output['tokens'][0]
+        logprobs = output['logprob'][0] if output['logprob'] is not None else None
+        num_prompt_tokens = len(conversation.split()) #@adithyare only produces an approx. number of tokens
+        num_output_sentence = len(output_sentence.split())
 
         return jsonify(
             {
-                "id": "chatcmpl-12345",
+                "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion",
-                "created": 1234567890,
-                "model": data.get("model", "unknown"),
+                "created": int(time.time()),
+                "model": data.get("model", "nemo model"),
                 "choices": [
-                    {"index": 0, "message": {"role": "assistant", "content": output_sentence}, "finish_reason": "stop"}
+                    {"index": 0, "message": {"role": "assistant", "content": output_sentence}, "logprobs": logprobs, "tokens": tokens, "finish_reason": ""}
                 ],
-                "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
+                "usage": {"prompt_tokens": num_prompt_tokens, "completion_tokens": num_output_sentence, "total_tokens": num_output_sentence + num_prompt_tokens},
             }
         )
+ 
+
+    def post(self):
+        # Access the request data if needed
+        if request.endpoint == "oai_completions":
+            data = request.get_json()
+            return self.completion(data)
+        elif request.endpoint == "oai_chat_completions":
+            data = request.get_json()
+            return self.chat_completion(data)
+        else:
+            raise RuntimeError("Unknown enpoint requested.")
 
     def put(self):
         logging.info("request IP: " + str(request.remote_addr))
