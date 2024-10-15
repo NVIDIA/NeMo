@@ -18,7 +18,7 @@ from nemo.utils.import_utils import safe_import
 safe_import("transformer_engine")
 
 from nemo.collections.llm import peft
-from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
+from nemo.collections.llm.api import export_ckpt, finetune, generate, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -185,6 +185,7 @@ __all__ = [
     "pretrain",
     "validate",
     "finetune",
+    "generate",
     "mock",
     "squad",
     "dolly",
