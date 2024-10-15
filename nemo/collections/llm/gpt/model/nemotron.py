@@ -50,6 +50,9 @@ class NemotronConfig(GPTConfig):
     bias_dropout_add_fusion: bool = False
     layernorm_zero_centered_gamma: bool = True
 
+    bias_activation_fusion: bool = False
+    bias_dropout_add_fusion: bool = False
+
     # Nemotron3Config4B as default configs
     num_layers: int = 32
     seq_length: int = 4096
