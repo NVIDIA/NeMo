@@ -89,6 +89,7 @@ def get_mounts_from_config(cluster_config: dict, env_vars: dict = None):
 
     return mounts
 
+
 def check_if_mounted(cluster_config, path_to_check):
     """Will check that path_to_check is referenced inside one of the mounts."""
     for mount in get_mounts_from_config(cluster_config) + ['/nemo_run/code:/nemo_run/code']:
@@ -330,8 +331,6 @@ def get_mounted_filepath(cluster_config: dict, filepath: str):
     return filepath
 
 
-
-
 def get_env_variables(cluster_config):
     """
     Will get the environment variables from the cluster config and the user environment.
@@ -568,7 +567,6 @@ def add_task(
             executor=executors,
             name="nemo-run",
         )
-
 
 
 def run_exp(exp, cluster_config, sequential=False):
