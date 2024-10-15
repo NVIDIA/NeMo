@@ -5440,8 +5440,6 @@ jobs:
       - Speech_Checkpoints_tests
       #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
-      - L2_NeMo_2_SSM_Pretraining
-      - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
       - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
       - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
