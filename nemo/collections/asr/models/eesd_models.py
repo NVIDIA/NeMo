@@ -1,3 +1,4 @@
+
 # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +24,7 @@ from pytorch_lightning import Trainer
 from tqdm import tqdm
 import itertools
 import random
+import math
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.asr.data.audio_to_eesd_label_lhotse import LhotseSpeechToDiarizationLabelDataset
@@ -47,7 +49,7 @@ except ImportError:
     def autocast(enabled=None):
         yield
 
-
+torch.set_printoptions(sci_mode=False)
 torch.backends.cudnn.enabled = False 
 
 __all__ = ['EncDecDiarLabelModel']
@@ -108,6 +110,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.encoder = SortformerEncLabelModel.from_config_dict(self._cfg.encoder)
         self.sortformer_modules = SortformerEncLabelModel.from_config_dict(self._cfg.sortformer_modules)
         self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
+
+        self.transformer_memory_compressor = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_memory_compressor)
+        if self.sortformer_modules.use_memory_pe:
+            self.memory_position_embedding = SortformerEncLabelModel.from_config_dict(self._cfg.memory_position_embedding)
+
         self._init_loss_weights()
 
         self.eps = 1e-3
@@ -237,6 +244,44 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 "preds": NeuralType(('B', 'T', 'C'), ProbsType()),
             }
         )
+
+    def _streaming_feat_loader(self, feat_seq):
+        """
+        Load a chunk of feature sequence for streaming inference.
+
+        Args:
+            feat_seq (torch.Tensor): Tensor containing feature sequence
+                Dimension: (batch_size, feat_dim, feat frame count)
+
+        Yields:
+            step_idx (int): Index of the current step
+            chunk_feat_seq (torch.Tensor): Tensor containing the chunk of feature sequence
+                Dimension: (batch_size, diar frame count, feat_dim)
+            feat_lengths (torch.Tensor): Tensor containing lengths of the chunk of feature sequence
+                Dimension: (batch_size,)
+        """
+        feat_len = feat_seq.shape[2]
+        num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.encoder.subsampling_factor))
+        logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}")
+        stt_feat = 0
+        for step_idx in range(num_chunks):
+            if step_idx == 0:
+                left_offset = 0
+            else:
+                left_offset = self.sortformer_modules.step_left_context * self.encoder.subsampling_factor
+            if step_idx == num_chunks - 1:
+                right_offset = 0
+            else:
+                right_offset = self.sortformer_modules.step_right_context * self.encoder.subsampling_factor
+
+            end_feat = stt_feat + self.sortformer_modules.step_len * self.encoder.subsampling_factor
+            chunk_feat_seq = feat_seq[:, :, stt_feat-left_offset:end_feat+right_offset]
+            stt_feat = end_feat
+
+            feat_lengths = torch.tensor(chunk_feat_seq.shape[-1]).repeat(chunk_feat_seq.shape[0])
+            chunk_feat_seq_t = torch.transpose(chunk_feat_seq, 1, 2)
+            logging.info(f"step_idx: {step_idx}, chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}")
+            yield step_idx, chunk_feat_seq_t, feat_lengths
     
     def frontend_encoder(self, processed_signal, processed_signal_length, pre_encode_input=False):
         """ 
@@ -254,7 +299,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
         self.encoder = self.encoder.to(self.device)
-        emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length, pre_encode_input=pre_encode_input)
         emb_seq = emb_seq.transpose(1, 2)
         if self._cfg.encoder.d_model != self._cfg.tf_d_model:
             self.sortformer_modules.encoder_proj = self.sortformer_modules.encoder_proj.to(self.device)
@@ -309,11 +354,161 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         processed_signal, processed_signal_length = self.process_signal(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
         processed_signal = processed_signal[:, :, :processed_signal_length.max()]
         if self._cfg.get("streaming_mode", False):
-            raise NotImplementedError("Streaming mode is not implemented yet.")
+            preds = self.forward_streaming(processed_signal, processed_signal_length)
         else:
-            emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
+            emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length, pre_encode_input=False)
             preds = self.forward_infer(emb_seq)
         return preds
+
+    def forward_streaming(
+        self,
+        processed_signal,
+        processed_signal_length,
+    ):
+        batch_size = processed_signal.shape[0]
+        total_pred_list = []
+        memory_buff = None
+        current_mem_len = 0
+
+        for (step_idx, chunk_feat_seq_t, feat_lengths) in self._streaming_feat_loader(feat_seq=processed_signal):
+            #get pre_encode embs for current chunk
+            chunk_pre_encode_embs, _ = self.encoder.pre_encode(x=chunk_feat_seq_t, lengths=feat_lengths)
+#            logging.info(f"step_idx: {step_idx}, chunk_pre_encode_embs shape: {chunk_pre_encode_embs.shape}")
+
+            #get (mem+chunk) pre_encode embs
+            if step_idx == 0:
+                mem_chunk_pre_encode_embs = chunk_pre_encode_embs
+            else:
+#                memory_buff = memory_buff.detach()
+                mem_chunk_pre_encode_embs = torch.cat([memory_buff, chunk_pre_encode_embs], dim=1)
+            logging.info(f"step_idx: {step_idx}, mem_chunk_pre_encode_embs shape: {mem_chunk_pre_encode_embs.shape}")
+
+            #get preds for (mem+chunk)
+            mem_chunk_len = mem_chunk_pre_encode_embs.shape[1]
+            org_feat_lengths = torch.tensor(mem_chunk_len*self.encoder.subsampling_factor).repeat(batch_size).to(self.device)
+            mem_chunk_encoder_embs, _ = self.frontend_encoder(processed_signal=mem_chunk_pre_encode_embs, processed_signal_length=org_feat_lengths, pre_encode_input=True)
+            logging.info(f"step_idx: {step_idx}, mem_chunk_encoder_embs shape: {mem_chunk_encoder_embs.shape}")
+
+            mem_chunk_preds = self.forward_infer(mem_chunk_encoder_embs)
+
+            #append chunk preds to the list
+            if step_idx == 0:
+                mem_chunk_preds = mem_chunk_preds[:, :self.sortformer_modules.step_len]  #drop right context
+                mem_chunk_pre_encode_embs = mem_chunk_pre_encode_embs[:, :self.sortformer_modules.step_len]  #drop right context
+                total_pred_list.append(mem_chunk_preds)
+            else:
+                current_mem_len = memory_buff.shape[1]
+                mem_preds = mem_chunk_preds[:, :current_mem_len]
+                chunk_preds = mem_chunk_preds[:, current_mem_len+self.sortformer_modules.step_left_context:current_mem_len+self.sortformer_modules.step_left_context+self.sortformer_modules.step_len] #drop left and right context
+                mem_chunk_preds = torch.cat([mem_preds, chunk_preds], dim=1)
+                mem_chunk_pre_encode_embs = torch.cat([memory_buff, chunk_pre_encode_embs[:, self.sortformer_modules.step_left_context:self.sortformer_modules.step_left_context+self.sortformer_modules.step_len]], dim=1) #drop left and right context
+                total_pred_list.append(chunk_preds)
+
+            #update memory buffer
+            if mem_chunk_len <= self.sortformer_modules.mem_len:
+                memory_buff = mem_chunk_pre_encode_embs
+            else:
+                memory_buff = self._compress_memory(emb_seq=mem_chunk_pre_encode_embs, preds=mem_chunk_preds)
+
+        preds = torch.cat(total_pred_list, dim=1)
+        logging.info(f"preds shape: {preds.shape}")
+        del memory_buff
+        torch.cuda.empty_cache()
+        return preds
+
+
+    def _compress_memory(self, emb_seq, preds):
+        """.
+        Compresses memory for streaming inference
+        Keeps mem_len most important frames out of input n_frames, based on speaker sigmoid scores and positional information
+
+        Args:
+            emb_seq (torch.Tensor): Tensor containing n_frames > mem_len (mem+chunk) embeddings
+                Dimension: (batch_size, n_frames, emb_dim)
+            preds (torch.Tensor): Tensor containing n_frames > mem_len (mem+chunk) speaker sigmoid outputs
+                Dimension: (batch_size, n_frames, max_num_spk)
+
+        Returns:
+            memory_buff (torch.Tensor): concatenation of num_spk subtensors of emb_seq corresponding to each speaker
+            each of subtensors contains (mem_len//num_spk) frames out of n_frames
+                Dimension: (batch_size, mem_len, emb_dim)
+        """
+        B, n_frames, n_spk = preds.shape
+        emb_dim = emb_seq.shape[2]
+        mem_len_per_spk = self.sortformer_modules.mem_len // n_spk
+        last_n_sil_per_spk = 5
+
+        #condition for frame being silence
+        is_sil = preds.sum(dim=2) < 0.1 # Shape: (B, n_frames)
+        is_sil = is_sil.unsqueeze(-1) # Shape: (B, n_frames, 1)
+        #get mean silence embedding tensor
+        emb_seq_sil = torch.where(is_sil, emb_seq, torch.tensor(0.0)) # Shape: (B, n_frames, emb_dim)
+        emb_seq_sil_sum = emb_seq_sil.sum(dim=1) # Shape: (B, emb_dim)
+        sil_count = is_sil.sum(dim=1).clamp(min=1) # Shape: (B)
+        emb_seq_sil_mean = emb_seq_sil_sum / sil_count # Shape: (B, emb_dim)
+        emb_seq_sil_mean = emb_seq_sil_mean.unsqueeze(1).expand(-1, n_spk*mem_len_per_spk, -1) # Shape: (B, n_spk*mem_len_for_spk, emb_dim)
+
+        if self.sortformer_modules.use_memory_pe:
+            #add position embeddings
+            start_pos=0
+            position_ids = torch.arange(start=start_pos, end=start_pos + n_frames, dtype=torch.long, device=preds.device)
+            position_ids = position_ids.unsqueeze(0).repeat(preds.size(0), 1)
+            preds = preds + self.memory_position_embedding(position_ids)
+
+        #get frame importance scores
+        encoder_mask = self.sortformer_modules.length_to_mask(preds)
+        scores = self.transformer_memory_compressor(encoder_states=preds, encoder_mask=encoder_mask) # Shape: (B, n_frames, n_spk)
+
+#        logging.info(f"MC scores: {scores[0,:,:]}")
+
+        #normalized scores (non-overlapped frames are more preferable for memory)
+        scores_norm = 2*scores - torch.sum(scores, dim=2).unsqueeze(-1).expand(-1, -1, n_spk)
+#        logging.info(f"MC scores normalized: {scores_norm[0,:,:]}")
+
+        #cumsum-normalized scores: this is to avoid speakers appearing in memory buffer before their block
+        # as a result, for speaker i={0,1,2,...,n_spk-1}, scores_csnorm_i = 2*scores_i - sum_{j=i}^{n_spk-1}(scores_j)
+        scores_csnorm = 2*scores - scores.flip(dims=[2]).cumsum(dim=2).flip(dims=[2])
+#        logging.info(f"MC scores cumsum-normalized: {scores_csnorm[0,:,:]}")
+
+        #scores thresholding: set -inf if cumsum-normalized score is less than 0.5.
+        # This exclude non-speech frames and also doesn't allow speakers to appear in memory before their block
+        is_good = scores_csnorm > 0.5
+        scores = torch.where(is_good, scores_norm, torch.tensor(float('-inf'))) # Shape: (B, n_frames, n_spk)
+
+        #ALTERNATIVE: thresholding, then using frame index as a score to keep latest possible frames in memory
+#        scores = torch.where(is_good, torch.arange(n_frames, device=scores.device).view(1, n_frames, 1), torch.tensor(float('-inf'))) # Shape: (B, n_frames, n_spk)
+
+#        logging.info(f"MC scores final: {scores[0,:,:]}")
+
+        #get mem_len_per_spk most important indices for each speaker
+        topk_values, topk_indices = torch.topk(scores, mem_len_per_spk-last_n_sil_per_spk, dim=1, largest=True, sorted=False) # Shape: (B, mem_len_per_spk-last_n_sil_per_spk, n_spk)
+        valid_topk_mask = topk_values != float('-inf')
+        topk_indices = torch.where(valid_topk_mask, topk_indices, torch.tensor(9999))  # Replace invalid indices with 9999
+
+        if last_n_sil_per_spk > 0: #add number of silence frames in the end of each block
+            topk_indices = torch.cat([topk_indices, torch.full((B, last_n_sil_per_spk, n_spk), 9999, device=topk_indices.device)], dim=1) # Shape: (B, mem_len_for_spk, n_spk)
+
+        topk_indices = topk_indices.permute(0, 2, 1) # Shape: (B, n_spk, mem_len_for_spk)
+
+        # sort indices to preserve original order of frames
+        topk_indices_sorted, _ = torch.sort(topk_indices, dim=2) # Shape: (B, n_spk, mem_len_for_spk)
+        topk_indices_flatten = topk_indices_sorted.reshape(B, n_spk*mem_len_per_spk) # Shape: (B, n_spk*mem_len_for_spk)
+#        logging.info(f"MC topk indices: {topk_indices_sorted[0,:,:]}")
+
+        # condition of being invalid index
+        is_inf = topk_indices_flatten == 9999
+        topk_indices_flatten[is_inf] = 0 # set a placeholder index instead of 9999 to make gather work
+
+        # expand topk indices to emb_dim in last dimension to use gather
+        topk_indices_expanded = topk_indices_flatten.unsqueeze(-1).expand(-1, -1, emb_dim) # Shape: (B, n_spk*mem_len_for_spk, emb_dim)
+
+        # gather memory buffer including placeholder embeddings for silence frames
+        emb_seq_gathered = torch.gather(emb_seq, 1, topk_indices_expanded) # Shape: (B, n_spk*mem_len_for_spk, emb_dim)
+
+        # replace placeholder embeddings with actual mean silence embedding
+        memory_buff = torch.where(is_inf.unsqueeze(-1), emb_seq_sil_mean, emb_seq_gathered)
+
+        return memory_buff
     
     def _get_aux_train_evaluations(self, preds, targets, target_lens):
         # Arrival-time sorted (ATS) targets

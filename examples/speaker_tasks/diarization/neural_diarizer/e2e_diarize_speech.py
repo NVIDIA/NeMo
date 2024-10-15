@@ -100,6 +100,8 @@ class DiarizationConfig:
     streaming_mode: bool = False # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
     mem_len: int = 100
     step_len: int = 100
+    step_left_context: int = 0
+    step_right_context: int = 0
 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
@@ -250,6 +252,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.streaming_mode = cfg.streaming_mode
     diar_model.sortformer_modules.step_len = cfg.step_len
     diar_model.sortformer_modules.mem_len = cfg.mem_len
+    diar_model.sortformer_modules.step_left_context = cfg.step_left_context
+    diar_model.sortformer_modules.step_right_context = cfg.step_right_context
     
     # Save the list of tensors
     diar_model.test_batch()

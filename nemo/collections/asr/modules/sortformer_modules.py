@@ -67,8 +67,18 @@ class SortformerModules(NeuralModule, Exportable):
         dropout_rate: float = 0.5,
         fc_d_model: int = 512,
         tf_d_model: int = 192,
+        mem_len: int = 188,
+        step_len: int = 376,
+        use_memory_pe: bool = False,
+        step_left_context: int = 0,
+        step_right_context: int = 0,
     ):
         super().__init__()
+        self.step_left_context = step_left_context
+        self.step_right_context = step_right_context
+        self.use_memory_pe = use_memory_pe
+        self.mem_len = mem_len
+        self.step_len = step_len
         self.fc_d_model = fc_d_model
         self.tf_d_model = tf_d_model
         self.hidden_size = tf_d_model

@@ -46,7 +46,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType, LogitsType
 from nemo.utils import logging
 
 __all__ = ['ConformerEncoder']
@@ -202,6 +202,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+                "pre_encode_input": NeuralType(tuple(), LogitsType(), optional=True),  # Boolean-style input
             }
         )
 
@@ -215,6 +216,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+                # "pre_encode_input": bool, optional=True),
             }
         )
 
@@ -499,19 +501,23 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     @typecheck()
     def forward(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None, pre_encode_input=False
     ):
-        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        if pre_encode_input:
+            self.update_max_seq_length(seq_length=audio_signal.size(2)*self.subsampling_factor, device=audio_signal.device)
+        else:
+            self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_internal(
             audio_signal,
             length,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             cache_last_channel_len=cache_last_channel_len,
+            pre_encode_input=pre_encode_input,
         )
 
     def forward_internal(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None, pre_encode_input=False,
     ):
         if length is None:
             length = audio_signal.new_full(
@@ -524,21 +530,22 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cur_att_context_size = random.choices(self.att_context_size_all, weights=self.att_context_probs)[0]
         else:
             cur_att_context_size = self.att_context_size
+            
+        if not pre_encode_input:
+            audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        audio_signal = torch.transpose(audio_signal, 1, 2)
+            if isinstance(self.pre_encode, nn.Linear):
+                audio_signal = self.pre_encode(audio_signal)
+            else:
+                audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
+                length = length.to(torch.int64)
+                # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
+                if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
+                    audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
+                    length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
 
-        if isinstance(self.pre_encode, nn.Linear):
-            audio_signal = self.pre_encode(audio_signal)
-        else:
-            audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
-            length = length.to(torch.int64)
-            # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
-            if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
-                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
-                length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
-
-        if self.reduction_position is not None and cache_last_channel is not None:
-            raise ValueError("Caching with reduction feature is not supported yet!")
+            if self.reduction_position is not None and cache_last_channel is not None:
+                raise ValueError("Caching with reduction feature is not supported yet!")
 
         max_audio_length = audio_signal.size(1)
         if cache_last_channel is not None:
