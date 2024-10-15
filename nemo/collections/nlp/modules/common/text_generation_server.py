@@ -15,7 +15,8 @@
 
 import json
 import threading
-import time, uuid
+import time
+import uuid
 
 import torch
 from flask import Flask, jsonify, request
@@ -91,7 +92,7 @@ class MegatronGenerate(Resource):
                 output_dict['conversations'].append(conversation_entry)
 
         return output_dict
-    
+
     def completion(self, data):
         output_sentence = ""
         with lock:  # Need to get lock to keep multiple threads from hitting code
@@ -139,16 +140,15 @@ class MegatronGenerate(Resource):
             num_prompt_tokens = len(prompt.split())
             num_output_sentence = len(output_sentence.split())
 
-            
         return jsonify(
             {
                 "choices": [
                     {
-                    "finish_reason": "",
-                    "index": 0,
-                    "logprobs": logprobs,
-                    "text": output_sentence,
-                    "tokens": tokens,
+                        "finish_reason": "",
+                        "index": 0,
+                        "logprobs": logprobs,
+                        "text": output_sentence,
+                        "tokens": tokens,
                     }
                 ],
                 "created": int(time.time()),
@@ -159,10 +159,10 @@ class MegatronGenerate(Resource):
                     "completion_tokens": num_output_sentence,
                     "prompt_tokens": num_prompt_tokens,
                     "total_tokens": num_output_sentence + num_prompt_tokens,
-                }
+                },
             }
         )
-    
+
     def chat_completion(self, data):
         data['messages'] = data['messages'] + [
             {'role': 'assistant', 'content': ''}
@@ -194,7 +194,7 @@ class MegatronGenerate(Resource):
                 [conversation],
                 data.get('max_tokens', 32),
                 all_probs=all_probs,
-                temperature=data.get('temperature',1.0),
+                temperature=data.get('temperature', 1.0),
                 add_BOS=add_BOS,
                 top_k=top_k,
                 top_p=data.get("top_p", 0.95),
@@ -213,7 +213,7 @@ class MegatronGenerate(Resource):
         output_sentence = output['sentences'][0][len(conversation) :]
         tokens = output['tokens'][0]
         logprobs = output['logprob'][0] if output['logprob'] is not None else None
-        num_prompt_tokens = len(conversation.split()) #@adithyare only produces an approx. number of tokens
+        num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
         num_output_sentence = len(output_sentence.split())
 
         return jsonify(
@@ -223,12 +223,21 @@ class MegatronGenerate(Resource):
                 "created": int(time.time()),
                 "model": data.get("model", "nemo model"),
                 "choices": [
-                    {"index": 0, "message": {"role": "assistant", "content": output_sentence}, "logprobs": logprobs, "tokens": tokens, "finish_reason": ""}
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": output_sentence},
+                        "logprobs": logprobs,
+                        "tokens": tokens,
+                        "finish_reason": "",
+                    }
                 ],
-                "usage": {"prompt_tokens": num_prompt_tokens, "completion_tokens": num_output_sentence, "total_tokens": num_output_sentence + num_prompt_tokens},
+                "usage": {
+                    "prompt_tokens": num_prompt_tokens,
+                    "completion_tokens": num_output_sentence,
+                    "total_tokens": num_output_sentence + num_prompt_tokens,
+                },
             }
         )
- 
 
     def post(self):
         # Access the request data if needed
