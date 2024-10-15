@@ -260,7 +260,8 @@ class TextMemMapDataset(Dataset):
                 raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
 
             # load meta info
-            idx_info_dict = pickle.load(open(idx_fn + ".info", "rb"))
+            with open(idx_fn + ".info", "rb") as fp:
+                idx_info_dict = pickle.load(fp)
             # test for mismatch in expected newline_int
             if "newline_int" in idx_info_dict:
                 newline_int = idx_info_dict["newline_int"]
