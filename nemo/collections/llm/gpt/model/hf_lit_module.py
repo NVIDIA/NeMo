@@ -20,7 +20,7 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
-class HfLitModule(pl.LightningModule, io.IOMixin):
+class HfAutoModel(pl.LightningModule, io.IOMixin):
     def __init__(self, model_name='gpt2', tokenizer=None, optim_cls=Adam, optim_conf={'lr':1e-5}):
         super().__init__()
         self.save_hyperparameters()
