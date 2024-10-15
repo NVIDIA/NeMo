@@ -13,10 +13,6 @@
 # limitations under the License.
 
 
-# NOTE: the file name does not contain "test" on purpose to avoid executing
-#       these tests outside of the CI machines environment, where test data is
-#       stored
-
 from pathlib import Path
 from typing import Union
 
