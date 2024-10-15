@@ -5,6 +5,7 @@ Test the LLaMA3 recipe with a smaller model.
 import argparse
 
 import nemo_run as run
+import pytorch_lightning as pl
 import torch
 
 from nemo import lightning as nl
@@ -115,6 +116,32 @@ def _create_verify_precision(precision: torch.dtype):
     return verify_precision
 
 
+class MCoreModelAttributeValidator(pl.Callback):
+    """Walk through submodules and verify user-specified attributes like parallelisms."""
+
+    def __init__(self, attr_dict: dict):
+        super().__init__()
+        self.attr_dict = attr_dict
+
+    def _check_attrs(self, target):
+        for k, v in self.attr_dict.items():
+            if hasattr(target, k):
+                model_val = getattr(target, k)
+                assert (
+                    model_val == v
+                ), f"Key {k} for model ({model_val}) does not match {v} from provided attribute mapping."
+
+    def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        def walk_fn(module: torch.nn.Module) -> torch.nn.Module:
+            self._check_attrs(module)
+            if hasattr(module, "config"):
+                self._check_attrs(module.config)
+
+            return module
+
+        trainer.model.walk(walk_fn)
+
+
 def main():
     args = get_args()
 
@@ -167,6 +194,8 @@ def main():
     for k, v in parallelisms.items():
         if v is not None:  # use recipe default if not specified
             setattr(pretrain_recipe.trainer.strategy, k, v)
+        parallelisms[k] = getattr(pretrain_recipe.trainer.strategy, k)
+    pretrain_recipe.trainer.callbacks.append(ModelAttrValidationCallback(parallelisms))
 
     run.run(pretrain_recipe, direct=True)
 
