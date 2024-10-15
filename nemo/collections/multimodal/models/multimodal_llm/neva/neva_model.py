@@ -553,17 +553,20 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         # Find indices of media tokens
         media_indices = special_image_mask.nonzero(as_tuple=False)  # Shape: (num_media_tokens, 2)
     
-        # Ensure the number of media tokens matches the media features
-        if media_indices.size(0) != media_features.size(1):
-            raise ValueError(f"Mismatch between number of media tokens and media features: {media_indices.size(0) = }\t{media_features.size(1) = }\t{media[0].shape = }")
-    
-        # Clone inputs_embeds to maintain gradient flow
-        updated_embeds = inputs_embeds.clone()
-    
-        # Replace the embeddings at media token positions
-        updated_embeds[media_indices[:, 0], media_indices[:, 1], :] = media_features
-    
-        return updated_embeds
+        if media_indices.size(0) == 0: 
+            return inputs_embeds
+        else:
+            # Ensure the number of media tokens matches the media features
+            if media_indices.size(0) != media_features.size(1):
+                raise ValueError(f"Mismatch between number of media tokens and media features: {media_indices.size(0) = }\t{media_features.size(1) = }\t{media[0].shape = }")
+
+            # Clone inputs_embeds to maintain gradient flow
+            updated_embeds = inputs_embeds.clone()
+
+            # Replace the embeddings at media token positions
+            updated_embeds[media_indices[:, 0], media_indices[:, 1], :] = media_features
+
+            return updated_embeds
 
     def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
         sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
