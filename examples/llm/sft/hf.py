@@ -28,7 +28,7 @@ if __name__ == '__main__':
     parser.add_argument('--max-steps', type=int, default=100)
     args = parser.parse_args()
 
-    model = llm.HfLitModule(args.model, {"lr": 1e-5})
+    model = llm.HfAutoModel(args.model, {"lr": 1e-5})
     llm.api.finetune(
         model=model,
         data=squad(model.tokenizer),
