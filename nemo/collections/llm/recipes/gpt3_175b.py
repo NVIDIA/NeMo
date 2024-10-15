@@ -27,13 +27,9 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model import GPTConfig175B, GPTModel
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, bf16_with_fp8_mixed
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048,
-    userbuffers_fp8_h100_h12288_tp4_mbs1_seqlen2048,
-)
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "gpt3_175b"
@@ -133,7 +129,7 @@ def trainer(
         log_every_n_steps=10,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_with_fp8_mixed(),
+        plugins=bf16_mixed(),
         strategy=strategy,
         use_distributed_sampler=False,
         val_check_interval=2000,
@@ -231,7 +227,7 @@ def pretrain_recipe_performance(
         run.Config(
             MegatronCommOverlapCallback,
             tp_comm_overlap=True,
-            tp_comm_overlap_cfg=userbuffers_fp8_h100_h12288_tp4_mbs1_seqlen2048,
+            tp_comm_overlap_cfg=userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=50,
             overlap_param_gather_with_optimizer_step=True,
