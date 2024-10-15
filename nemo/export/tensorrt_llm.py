@@ -862,13 +862,16 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="task_id", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
-            Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True)
+            Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True),
         )
         return inputs
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes), Tensor(name="log_probs", shape=(-1,), dtype=np.single))
+        outputs = (
+            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="log_probs", shape=(-1,), dtype=np.single),
+        )
         return outputs
 
     @batch

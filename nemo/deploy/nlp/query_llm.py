@@ -267,9 +267,9 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "object": "text_completion",
                         "created": int(time.time()),
                         "model": self.model_name,
-                        #TODO if compute_logprobs is True then add log_probs
+                        # TODO if compute_logprobs is True then add log_probs
                         ## Convert log_probs to a list to make it json serializable
-                        "choices": [{"text": str(sentences), "log_probs":result_dict["log_probs"].tolist()}]
+                        "choices": [{"text": str(sentences), "log_probs": result_dict["log_probs"].tolist()}],
                     }
                     return openai_response
                 else:
