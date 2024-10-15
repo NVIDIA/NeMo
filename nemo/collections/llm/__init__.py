@@ -118,7 +118,7 @@ __all__ = [
     "MaskedTokenLossReduction",
     "MistralConfig7B",
     "MistralModel",
-    "MistralConfig",
+    "MixtralConfig",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
