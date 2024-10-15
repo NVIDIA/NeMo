@@ -545,7 +545,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
-            
+
             # Turn off bucketing for model_chunk 2 onwards, since communication for these
             # model chunks is overlapped with compute anyway, or if using VP and overlapping
             # data parallel param gather with optimizer
