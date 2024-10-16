@@ -17,14 +17,15 @@ import argparse
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from transformers import AutoProcessor
+
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.vlm import ImageDataConfig
+from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.vlm import ImageDataConfig, LlavaNextTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.vlm import LlavaNextTaskEncoder
-from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
+
 
 def main(args):
     # Global and micro batch sizes
@@ -49,7 +50,7 @@ def main(args):
     #     image_processor=None,
     #     num_workers=8,
     # )
-    
+
     # energon data config
     processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
     data_path = args.data_path
@@ -71,7 +72,6 @@ def main(args):
         multimodal_sample_config=multimodal_sample_config,
         task_encoder=task_encoder,
     )
-    
 
     # Transformer configurations
     language_transformer_config = llm.Llama2Config7B()
@@ -164,7 +164,7 @@ def main(args):
         adam_beta2=0.95,
         use_distributed_optimizer=False,
         bf16=True,
-        )
+    )
     sched = CosineAnnealingScheduler(
         max_steps=trainer.max_steps,
         warmup_steps=150,

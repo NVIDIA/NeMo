@@ -1,23 +1,22 @@
+import argparse
 import os
 import sys
-from nemo.utils import logging
-from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
-import argparse
-from megatron.energon import VQASample
+
 import requests
-from PIL import Image
-from transformers import AutoProcessor
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.vlm import LlavaNextTaskEncoder
-from nemo import lightning as nl
-from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
 import torch
 from megatron.core.optimizer import OptimizerConfig
+from megatron.energon import VQASample
+from PIL import Image
+from transformers import AutoProcessor
+
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.vlm import ImageDataConfig
+from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.vlm import ImageDataConfig, Llava1_5Config7B, LlavaModel, LlavaNextTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.utils import logging
 from nemo.utils.exp_manager import TimingCallback
 
 
