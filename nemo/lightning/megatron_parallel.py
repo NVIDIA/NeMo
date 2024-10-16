@@ -18,6 +18,7 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
+from contextlib import nullcontext
 from typing import (
     Any,
     Callable,
@@ -553,14 +554,20 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 overlap_param_gather_with_optimizer_step = self.optim.config.overlap_param_gather_with_optimizer_step
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
-            ddp = DDP(
-                module.config,
-                self.ddp_config,
-                module,
-                data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                disable_bucketing=disable_bucketing,
-            )
+            # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
+            # PEFT with num_sanity_val_steps > 0 this is necessary.
+            init_ddp_context = nullcontext if all(x.requires_grad for x in module.parameters()) else torch.enable_grad
+            with init_ddp_context():
+                ddp = DDP(
+                    module.config,
+                    self.ddp_config,
+                    module,
+                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0),
+                )
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
