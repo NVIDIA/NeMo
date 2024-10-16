@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
+
 class SquadDataModule(FineTuningDataModule, IOMixin):
     """A data module for fine-tuning on the Squad dataset.
 

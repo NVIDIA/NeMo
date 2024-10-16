@@ -84,6 +84,7 @@ def prepare_packed_sequence_data(
     np.save(output_path, output_data)
     logging.info(f"Packed sequence is prepared and saved to {output_path}")
 
+
 @dataclass
 class PackedSequenceSpecs:
     packed_sequence_size: int = -1
@@ -107,5 +108,7 @@ class PackedSequenceSpecs:
 
     def __post_init__(self):
         if self.packed_data_path is not None:
-            assert self.packed_data_path.suffix == ".npy", f"packed data file must be a .npy file: {self.packed_data_path}"
+            assert (
+                self.packed_data_path.suffix == ".npy"
+            ), f"packed data file must be a .npy file: {self.packed_data_path}"
             assert self.packed_data_path.exists(), f"packed data file does not exist: {self.packed_data_path}"
