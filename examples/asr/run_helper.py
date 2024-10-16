@@ -124,7 +124,7 @@ cd {cluster_script_dir} && \
 python -u -B {cluster_script_path} --config-path "/results" --config-name "{config_name}" && \
 cd /results && \
 ls -l;
-    """
+"""
     wandb_key = os.environ.get("WANDB", os.environ.get("WANDB_API_KEY", os.environ.get("WANDB_KEY", "")))
 
     format_dict = dict(
