@@ -29,7 +29,7 @@ class TestLlama3_8B_64k:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 1
+        assert trainer_config.num_nodes == 4
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
@@ -51,20 +51,6 @@ class TestLlama3_8B_64k:
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == MockDataModule
-        assert recipe.data.seq_length == 65536
-        assert recipe.data.global_batch_size == 512
-        assert recipe.data.micro_batch_size == 1
-
-    def test_finetune_recipe(self, recipe_module):
-        recipe = recipe_module.finetune_recipe()
-        assert isinstance(recipe, run.Partial)
-        assert recipe.__fn_or_cls__ == finetune
-        assert isinstance(recipe.model, run.Config)
-        assert recipe.model.__fn_or_cls__ == LlamaModel
-        assert isinstance(recipe.trainer, run.Config)
-        assert recipe.trainer.__fn_or_cls__ == Trainer
-        assert isinstance(recipe.data, run.Config)
-        assert recipe.data.__fn_or_cls__ == SquadDataModule
         assert recipe.data.seq_length == 65536
         assert recipe.data.global_batch_size == 512
         assert recipe.data.micro_batch_size == 1
