@@ -121,7 +121,6 @@ export HF_TOKEN={HF_TOKEN} && \
 export WANDB_API_KEY={WANDB} && \
 find /results/ -name '*-unfinished' -type f -delete && \ 
 cd {cluster_script_dir} && \
-git rev-parse HEAD && \
 python -u -B {cluster_script_path} --config-path "/results" --config-name "{config_name}" && \
 cd /results && \
 ls -l;
