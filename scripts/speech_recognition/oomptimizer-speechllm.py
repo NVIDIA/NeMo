@@ -247,7 +247,6 @@ class FloatList(click.Option):
 @click.option(
     "-c", "--config-path", type=str, default=None, help="Path to the training configuration file for MODULE_NAME."
 )
-@click.option("-o", "--optimizer-name", type=str, default="adamw", help="Name of optimizer to use.")
 @click.option(
     "--schema",
     type=str,
@@ -318,7 +317,6 @@ def oomptimizer(
     pretrained_name: str | None,
     module_name: str | None,
     config_path: str | None,
-    optimizer_name: str,
     schema: str,
     buckets: list[float],
     threshold: float,
@@ -388,7 +386,6 @@ def oomptimizer(
             model.log = lambda *args, **kwargs: None
         model_clones.append(model)
     model = model_clones[-1]
-    # model.setup(stage="fit")
     model.init_consumed_samples = 0
     model._compute_consumed_samples_after_training_step = lambda *args, **kwargs: 1
 
@@ -409,7 +406,21 @@ def oomptimizer(
     schema = model.oomptimizer_schema(schema)
 
     click.echo("Setting up the optimizers.")
-    optimizer, _ = model.setup_optimization({"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0})
+    optimizer = model.configure_optimizers()
+    if isinstance(optimizer, tuple):
+        optimizer = optimizer[0][0]
+
+    # warmup - preallocate model/optimizer memory for all modality modules
+    for sch_ in ("text", "audio"):
+        gen_ = ProfilingBatchGenerator(model.oomptimizer_schema(sch_), start_batch_size=1)
+        with torch.autocast("cuda", getattr(torch, dtype)):
+            if sch_ == "audio":
+                batch_ = gen_(17519, 13)
+            else:
+                batch_ = gen_(9, 7)
+            optimizer.zero_grad()
+            out = model.training_step(iter([batch_]))
+            optimizer.step()
 
     is_2d_bucketing = all(
         isinstance(item, (list, tuple)) and len(item) == 2 and all(isinstance(v, Number) for v in item)
@@ -484,8 +495,8 @@ def oomptimizer(
                         f"\tCurrent settings | batch_size={gen._current} | gap: {gen.current_rel_gap}... ", nl=False
                     )
                     optimizer.zero_grad()
+                    # In SpeechLLM training_step performs both forward and backward; no need for manual backward
                     out = model.training_step(iter([batch]))
-                    # out['loss'].sum().backward()
                     optimizer.step()
                 except torch.cuda.OutOfMemoryError as e:
                     click.secho(f"OOM!", fg="yellow")
@@ -506,7 +517,7 @@ def oomptimizer(
                     #       but we have found out empirically that this causes a mismatched condition
                     #       between OOMptimizer and the actual training. During training, there is some
                     #       degree of memory fragmentation and it's better to simulate that in OOMptimizer.
-                    torch.cuda.memory.empty_cache()
+                    #torch.cuda.memory.empty_cache()
                     torch.cuda.reset_max_memory_allocated()
                 return oom
 
