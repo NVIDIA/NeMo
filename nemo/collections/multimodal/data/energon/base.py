@@ -11,26 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
 
+import fiddle as fdl
 import pytorch_lightning as pl
 from megatron.core import parallel_state
 from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader
+from typing_extensions import Self
 
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-
-from copy import deepcopy
-from typing import Any, Dict, Literal, Optional
-
-import fiddle as fdl
-from typing_extensions import Self
-from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
