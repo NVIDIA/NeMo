@@ -25,7 +25,6 @@ from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data
-from nemo.utils import logging
 
 DEVICES = []
 
@@ -72,7 +71,8 @@ def get_rnnt_alignments(
         cfg.rnnt_decoding.greedy.loop_labels = loop_labels
         cfg.rnnt_decoding.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
     cfg.dataset_manifest = str(manifest_path)
-    filepaths = prepare_audio_data(cfg)[0][:10]  # selecting 10 files only
+    filepaths = prepare_audio_data(cfg)[0][:8]  # selecting 8 files only
+    # NB: 9th file has the same transcription but a bit different alignment for batched/non-batched decoding
 
     model = model.to(device)
     model.change_decoding_strategy(cfg.rnnt_decoding)
@@ -142,11 +142,6 @@ def test_rnnt_alignments(
     # slightly different in batched and single-sample mode
     assert len(ref_transcriptions) == len(transcriptions)
     for ref_transcription, transcription in zip(ref_transcriptions, transcriptions):
-        # TODO: remove
-        logging.warning(f"Ref transcription {ref_transcription.y_sequence}")
-        logging.warning(f"Hyp transcription {transcription.y_sequence}")
-        logging.warning(f"Ref ali: {[[symbol.item() for _, symbol in elem] for elem in ref_transcription.alignments]}")
-        logging.warning(f"Hyp ali: {[[symbol.item() for _, symbol in elem] for elem in transcription.alignments]}")
         for ref_align_elem, align_elem in zip(ref_transcription.alignments, transcription.alignments):
             assert len(ref_align_elem) == len(align_elem)
             for ref_pred, pred in zip(ref_align_elem, align_elem):
