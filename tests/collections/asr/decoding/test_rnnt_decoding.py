@@ -345,8 +345,7 @@ class TestRNNTDecoding:
 
         with torch.no_grad():
             hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
-            hyp, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
-            hyp = hyp[0]  # best hypothesis
+            _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
             all_hyps = all_hyps[0]
 
             print("Beam search algorithm :", beam_config['search_type'])
