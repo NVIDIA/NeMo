@@ -31,6 +31,7 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 NAME = "mamba2_hybrid_8b"
 
@@ -53,6 +54,10 @@ def model() -> run.Config[pl.LightningModule]:
     """
     return run.Config(llm.GPTModel, config=run.Config(llm.NVIDIAMambaHybridConfig8B))
 
+@run.cli.factory(name=NAME)
+def tokenizer() -> run.Config[pl.LightningModule]:
+
+    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
 
 def trainer(
     tensor_parallelism: int = 8,
