@@ -103,7 +103,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
     def ckpt_to_weights_subdir(self, filepath: Union[str, Path]) -> Path:
         """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
         from nemo.lightning.resume import AdapterPath
-        
+
         base_dir = ckpt_to_dir(filepath=filepath)
         assert isinstance(base_dir, Path)
         if base_dir.parts[-1] != WEIGHTS_PATH:
