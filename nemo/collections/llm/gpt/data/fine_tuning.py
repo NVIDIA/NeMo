@@ -106,13 +106,8 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     def prepare_data(self) -> None:
         if self.packed_sequence_size > 0 and not self.train_path_packed.is_file():
-            import os
-
             from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
 
-            # TextMemMapDataset contains a torch.distributed.barrier operation, but prepare_data
-            # is only run on rank 0, so the barrier operation would hang forever.
-            os.environ['NEMO2_PREPARING_DATA'] = "1"
             prepare_packed_sequence_data(
                 input_path=self.train_path,
                 output_path=self.train_path_packed,
