@@ -300,25 +300,12 @@ class DeltaTimingCallback(Callback):
         self._sync_cuda = timer_kwargs.get("sync_cuda", False)
         self.timers = defaultdict(defaultdict)
 
-    def tb_logger(self, trainer):
-        if not trainer.loggers:
-            return None
-        for logger in trainer.loggers:
-            if isinstance(logger, TensorBoardLogger):
-                return logger.experiment
-        return None
-
-    def setup(self, trainer, pl_module, stage):
-        self._tb_logger = self.tb_logger(trainer)
-        if self._tb_logger is None:
-            logging.warning("TensorBoard Logger is not enabled. Skipping logging of train metrics.")
-
     def _on_epoch_start(self, name, trainer, pl_module):
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
             torch.cuda.synchronize()
 
-        self.timers[name]["values"] = [0, []]
+        self.timers[name]["step"] = 0
         self.timers[name]["start"] = time.time()
 
     def _on_batch_end(self, name, trainer, pl_module):
@@ -328,30 +315,21 @@ class DeltaTimingCallback(Callback):
 
         end = time.time()
         dt = end - self.timers[name]["start"]
-        logging.info(f'Step {self.timers[name]["values"][0]}: {name} in s={dt}')
-        self.timers[name]["values"][1].append(dt)
-        self.timers[name]["values"][0] += 1
+        logging.info(f'Step {self.timers[name]["step"]}: {name} in s={dt}')
+        self.timers[name]["step"] += 1
         self.timers[name]["start"] = end
 
     def on_train_epoch_start(self, trainer, pl_module):
-        self._on_epoch_start("train_step_timing", trainer, pl_module)
+        self._on_epoch_start("train_step_timing in s", trainer, pl_module)
 
     def on_validation_epoch_start(self, trainer, pl_module):
-        self._on_epoch_start("validation_step_timing", trainer, pl_module)
+        self._on_epoch_start("validation_step_timing in s", trainer, pl_module)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        self._on_batch_end("train_step_timing", trainer, pl_module)
+        self._on_batch_end("train_step_timing in s", trainer, pl_module)
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        self._on_batch_end("validation_step_timing", trainer, pl_module)
-
-    def on_train_end(self, trainer, pl_module):
-        for timer_name, timer_data in self.timers.items():
-            step_times = timer_data["values"][1]
-            logging.info(f"{timer_name} in s: {step_times}")
-            if self._tb_logger is not None:
-                metric_dict = {f"step_{i}": val for i, val in enumerate(step_times)}
-                self._tb_logger.add_scalars(timer_name + " in s", metric_dict)
+        self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
