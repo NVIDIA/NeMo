@@ -29,7 +29,7 @@ class TestLlama3_8B_16k:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 1
+        assert trainer_config.num_nodes == 2
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
