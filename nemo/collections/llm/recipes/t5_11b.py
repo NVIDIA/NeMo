@@ -25,7 +25,7 @@ from pytorch_lightning.callbacks.callback import Callback
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.t5.data.mock import MockDataModule
-from nemo.collections.llm.t5.model.t5 import T5Config220M, T5Model
+from nemo.collections.llm.t5.model.t5 import T5Config11B, T5Model
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
@@ -34,36 +34,36 @@ from nemo.lightning.pytorch.optim.lr_scheduler import WarmupAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "t5_220m"
+NAME = "t5_11b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a T5 220M model configuration.
+    Factory function to create a Llama3 8B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the T5 220M model.
+        run.Config[pl.LightningModule]: Configuration for the Llama3 8B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=t5_220m ...
+            $ nemo llm pretrain model=t5_11b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(T5Model, config=run.Config(T5Config220M))
+    return run.Config(T5Model, config=run.Config(T5Config11B))
 
 
 def trainer(
-    tensor_parallelism: int = 1,
+    tensor_parallelism: int = 4,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
-    num_nodes: int = 1,
+    num_nodes: int = 20,
     num_gpus_per_node: int = 8,
     max_steps: int = 1000000,
     callbacks: Optional[list[run.Config[Callback]]] = None,
@@ -90,7 +90,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=t5_220m ...
+            $ nemo llm pretrain trainer=llama3_8b ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
@@ -142,7 +142,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 20, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for T5 220m model.
@@ -162,11 +162,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory t5_220m
-            $ nemo llm pretrain --factory "t5_220m(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory t5_11b
+            $ nemo llm pretrain --factory "t5_11b(num_nodes=2, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="t5_220m_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe(name="t5_11b_pretrain", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -197,7 +197,7 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=512, seq_length_dec=128, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=512, seq_length_dec=128, global_batch_size=1920, micro_batch_size=24),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=MegatronOptimizerModule(config=opt_config, lr_scheduler=lr_scheduler),
         resume=default_resume(),

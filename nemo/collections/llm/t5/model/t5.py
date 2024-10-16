@@ -199,13 +199,19 @@ class T5Config220M(T5Config):
 
 @dataclass
 class T5Config3B(T5Config):
-    pass
-
+    num_layers: int = 24
+    encoder_num_layers: int = 24
+    hidden_size: int = 2048
+    ffn_hidden_size: int = 5120
+    num_attention_heads: int = 32
 
 @dataclass
 class T5Config11B(T5Config):
-    pass
-
+    num_layers: int = 24
+    encoder_num_layers: int = 24
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 10240
+    num_attention_heads: int = 64
 
 class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
