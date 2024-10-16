@@ -43,6 +43,7 @@ try:
         ],
     )
 except ImportError:
+    # HF tokenizers are not available, no need to track them
     pass
 
 
@@ -51,4 +52,5 @@ try:
 
     track_io(SentencePieceTokenizer, artifacts=[FileArtifact("model_path")])
 except ImportError:
+    # SentencePieceTokenizer is not available, no need to track it
     pass
