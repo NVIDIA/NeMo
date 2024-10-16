@@ -184,7 +184,7 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer()),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=8, micro_batch_size=1),#, tokenizer=tokenizer()),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
