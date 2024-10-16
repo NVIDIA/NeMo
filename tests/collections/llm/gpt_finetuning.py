@@ -99,9 +99,16 @@ if __name__ == '__main__':
     else:
         peft = None
 
-    packed_sequence_specs = PackedSequenceSpecs(packed_sequence_size=2048, tokenizer_model_name="dummy_tokenizer") if args.packed else None
-    dolly = llm.DollyDataModule(seq_length=2048, micro_batch_size=args.mbs, global_batch_size=8, num_workers=0,
-                                packed_sequence_specs=packed_sequence_specs)
+    packed_sequence_specs = (
+        PackedSequenceSpecs(packed_sequence_size=2048, tokenizer_model_name="dummy_tokenizer") if args.packed else None
+    )
+    dolly = llm.DollyDataModule(
+        seq_length=2048,
+        micro_batch_size=args.mbs,
+        global_batch_size=8,
+        num_workers=0,
+        packed_sequence_specs=packed_sequence_specs,
+    )
 
     tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model"))
     llama3_8b = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
