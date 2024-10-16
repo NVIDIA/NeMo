@@ -21,7 +21,7 @@ def masked_cross_entropy(logits, targets, mask=None):
         return F.cross_entropy(logits, targets)
 
 class HfAutoModel(pl.LightningModule, io.IOMixin):
-    def __init__(self, model_name='gpt2', tokenizer=None, optim_cls=Adam, optim_conf={'lr':1e-5}):
+    def __init__(self, model_name='gpt2', tokenizer=None, optim_cls=Adam, optim_conf={'lr':1e-5}, loss_fn=masked_cross_entropy):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = model_name
@@ -29,6 +29,7 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
         self.optim_conf = optim_conf
         self.optim_cls = optim_cls
         self.model = None
+        self.loss_fn = loss_fn
 
     def configure_model(self):
         # create all your layers here
@@ -43,7 +44,7 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
         labels = labels.to(self.model.device)
         loss_mask = loss_mask.to(self.model.device)
         n_cls = outputs.logits.shape[-1]
-        outputs.loss = masked_cross_entropy(
+        outputs.loss = self.loss_fn(
             outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask.view(-1)
         )
         return outputs
