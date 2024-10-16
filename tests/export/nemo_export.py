@@ -317,7 +317,7 @@ def run_inference(
                 pipeline_parallel_size=pp_size,
                 max_model_len=max_input_len + max_output_len,
                 gpu_memory_utilization=args.gpu_memory_utilization,
-                **vllm_export_kwargs
+                **vllm_export_kwargs,
             )
         else:
             exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
