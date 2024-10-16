@@ -98,20 +98,32 @@ def check_config_mount_paths(script_config, cluster_config):
 
     check_mounted_path(script_config, cluster_config)
 
+def update_exp_manager_runtime(script_config, cluster_cfg):
+    if 'max_runtime' in cluster_cfg:
+        with open_dict(script_config):
+            if 'exp_manager' not in script_config:
+                raise ValueError("exp_manager config not found in the script config file")
 
-def get_execution_script(cluster_script_path, config_name):
+            script_config['exp_manager']['max_time_per_run'] = cluster_cfg['max_runtime']
+            logging.info(f"Setting exp_manager.max_time_per_run to {cluster_cfg['max_runtime']}")
+
+
+def get_execution_script(cluster_script_path, config_name, merged_cfg, cluster_cfg):
     # Create the command to run the script
     cmd = """
 nvidia-smi && \
 export PYTHONPATH=$PYTHONPATH:/nemo_run/code && \
 export HF_TOKEN={HF_TOKEN} && \
 export WANDB_API_KEY={WANDB} && \
+find /results/ -name '*-unfinished' -type f -delete && \ 
 cd {cluster_script_dir} && \
-python {cluster_script_path} --config-path "/results" --config-name "{config_name}" && \
+git rev-parse HEAD && \
+python -u -B {cluster_script_path} --config-path "/results" --config-name "{config_name}" && \
 cd /results && \
 ls -l;
     """
     wandb_key = os.environ.get("WANDB", os.environ.get("WANDB_API_KEY", os.environ.get("WANDB_KEY", "")))
+
     format_dict = dict(
         cluster_script_dir=os.path.dirname(cluster_script_path),
         cluster_script_path=os.path.basename(cluster_script_path),
@@ -145,8 +157,9 @@ def main(cluster_cfg):
     run_utils.create_remote_directory([results_dir, log_dir], cluster_cfg)
 
     merged_config = merge_configs(script_config, cluster_cfg)
-    run_utils.create_remote_config(merged_config, "config.yaml", results_dir, cluster_cfg)
+    update_exp_manager_runtime(merged_config, cluster_cfg)
 
+    # perform path checks
     check_config_mount_paths(merged_config, cluster_cfg)
 
     # Resolve experiment name
@@ -160,7 +173,10 @@ def main(cluster_cfg):
             )
 
     with run.Experiment(exp_name) as exp:
-        cmd = get_execution_script(cluster_script_path, "config.yaml")
+        cmd = get_execution_script(cluster_script_path, "config.yaml", merged_config, cluster_cfg)
+
+        # Create the remote config file
+        run_utils.create_remote_config(merged_config, "config.yaml", results_dir, cluster_cfg)
 
         job_name = f"{exp_name}_job"
         num_gpus = cluster_cfg.get('num_gpus', merged_config['trainer']['devices'])

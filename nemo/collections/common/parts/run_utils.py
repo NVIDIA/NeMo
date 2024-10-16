@@ -349,10 +349,15 @@ def get_env_variables(cluster_config):
     # Check for user requested env variables
     required_env_vars = cluster_config.get("required_env_vars", [])
     for env_var in required_env_vars:
-        if env_var not in os.environ:
-            raise ValueError(f"Required environment variable {env_var} not found.")
+        if "=" not in env_var:
+            if env_var not in os.environ:
+                raise ValueError(f"Required environment variable {env_var} not found.")
 
-        env_vars[env_var] = os.environ[env_var]
+            env_vars[env_var] = os.environ[env_var]
+        else:
+            env_var, value = env_var.split("=")
+            env_vars[env_var.strip()] = value.strip()
+
         logging.info(f"Adding required environment variable {env_var} (value={os.environ[env_var]})")
 
     # Add optional env variables
@@ -361,6 +366,10 @@ def get_env_variables(cluster_config):
         if env_var in os.environ:
             logging.info(f"Adding optional environment variable {env_var} (value={os.environ[env_var]})")
             env_vars[env_var] = os.environ[env_var]
+        elif "=" in env_var:
+            env_var, value = env_var.split("=")
+            env_vars[env_var.strip()] = value.strip()
+            logging.info(f"Adding optional environment variable {env_var} (value={value})")
         else:
             logging.info(f"Optional environment variable {env_var} not found in user environment; skipping.")
 
