@@ -214,7 +214,8 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
-    log_on_train_end: Optional[bool] = False
+    # log step time with nemo logger instead of lightning logger to avoid lightning logger overhead
+    log_delta_step_timing: Optional[bool] = False
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
@@ -296,6 +297,16 @@ class TimingCallback(Callback):
 
 
 class DeltaTimingCallback(Callback):
+    """
+    Logs execution time of train/val/test steps using nemo logger. Calculates
+    time from previous batch end to current batch end. This ensures accuracy.
+
+    Note: step time will only be printed in stdout. If you have initialized
+    loggers like TensorBoard, WandB, etc, step time will not be recorded there.
+    Use this callback instead of 'TimingCallback' to avoid logging overhead with
+    lightning logger used in the latter.
+    """
+
     def __init__(self, timer_kwargs={}):
         self._sync_cuda = timer_kwargs.get("sync_cuda", False)
         self.timers = defaultdict(defaultdict)
@@ -550,7 +561,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     # add loggers timing callbacks
-    if cfg.log_on_train_end:
+    if cfg.log_delta_step_timing:
         timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
     elif cfg.log_step_timing:
