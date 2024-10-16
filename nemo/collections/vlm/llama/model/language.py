@@ -100,12 +100,13 @@ def _get_xattn_mask(
     ), f"Mismatch in text sequence length and cross attention mask sequence length {num_tokens} {cross_attention_masks.shape}"
     _, _, _, num_image_tokens, image_token_dim = tuple(vision_tokens.shape)
     bsz, ntext, nimg, nchunks = cross_attention_masks.shape
-    cross_attention_masks = (
-        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3).view(bsz, ntext, -1).unsqueeze(1)
-    )
+    cross_attention_masks = cross_attention_masks.view(bsz, ntext, -1).unsqueeze(1)
     full_text_row_masked_out_mask = _get_full_row_masked_out_mask(
         cross_attention_masks,
         get_negative_inf_value(cross_attention_masks.dtype),
+    )
+    cross_attention_masks = (
+        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
     )
     cross_attention_masks *= full_text_row_masked_out_mask
 
@@ -515,7 +516,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         # MLP.
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
-        _gate_ffn = self.gate_ffn.tanh() * full_text_row_masked_out_mask[:, 0].transpose(0, 1)
+        _gate_ffn = self.gate_ffn.tanh() * full_text_row_masked_out_mask
         assert isinstance(mlp_output_with_bias, tuple), "`mlp_output_with_bias` needs to be tuple for gating."
         mlp_output_with_bias = tuple(
             _gate_ffn * output if output is not None else None for output in mlp_output_with_bias
@@ -726,7 +727,6 @@ class MLlamaCrossAttention(Attention):
 
         # TODO(yuya): find a better place for transpose
         # [b, head, s, dim]
-        full_text_row_masked_out_mask = full_text_row_masked_out_mask.permute(2, 0, 1, 3).squeeze(2)
         core_attn_out = core_attn_out * full_text_row_masked_out_mask
 
         # =================
