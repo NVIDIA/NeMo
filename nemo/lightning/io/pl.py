@@ -44,6 +44,7 @@ ModuleT = TypeVar("ModuleT", bound=nn.Module)
 #  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
 WEIGHTS_PATH: str = "weights"
 
+
 @dataclass
 class TrainerContext(IOMixin, Generic[LightningModuleT]):
     model: LightningModuleT
