@@ -11,9 +11,7 @@ def idempotent_path_append(base_dir: Union[str, Path], suffix) -> Path:
 
     assert isinstance(base_dir, Path)
     if base_dir.parts[-1] != suffix:
-        maybe_base_dir = base_dir / suffix
-        if maybe_base_dir.is_dir():
-            base_dir = maybe_base_dir
+        base_dir = base_dir / suffix
     if isinstance(base_dir, AdapterPath) and base_dir.base_model_path.parts[-1] != suffix:
         base_dir.base_model_path = base_dir.base_model_path / suffix
     return base_dir

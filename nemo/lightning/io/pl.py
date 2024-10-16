@@ -23,7 +23,7 @@ from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
 
-from nemo.lightning.ckpt_utils import ckpt_to_dir, idempotent_path_append
+from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
 
@@ -102,8 +102,17 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     def ckpt_to_weights_subdir(self, filepath: Union[str, Path]) -> Path:
         """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
+        from nemo.lightning.resume import AdapterPath
+        
         base_dir = ckpt_to_dir(filepath=filepath)
-        return idempotent_path_append(base_dir, WEIGHTS_PATH)
+        assert isinstance(base_dir, Path)
+        if base_dir.parts[-1] != WEIGHTS_PATH:
+            maybe_base_dir = base_dir / WEIGHTS_PATH
+            if maybe_base_dir.is_dir():
+                base_dir = maybe_base_dir
+        if isinstance(base_dir, AdapterPath) and base_dir.base_model_path.parts[-1] != suffix:
+            base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
+        return base_dir
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
