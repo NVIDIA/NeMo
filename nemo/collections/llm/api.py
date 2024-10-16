@@ -379,6 +379,7 @@ def deploy(
 
         logging.info("Triton deploy function will be called.")
         nm.deploy()
+        nm.run()
     except Exception as error:
         logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
