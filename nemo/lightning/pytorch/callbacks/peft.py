@@ -81,7 +81,7 @@ class PEFT(ABC, ModelTransform):
     def __call__(self, model: nn.Module) -> nn.Module:
         """Apply the PEFT method to the entire model.
 
-        This method freezes the model parameters and walks through the model
+        This method freezes the model parameters, set the internal mcore model to train(), and walks through the model
         structure, applying the transform method to each module.
 
         Args:
@@ -92,6 +92,7 @@ class PEFT(ABC, ModelTransform):
         """
 
         model.freeze()
+        model.module.train()
         model.walk(self.transform)
 
         return model
