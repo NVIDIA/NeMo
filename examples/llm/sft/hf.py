@@ -1,3 +1,4 @@
+import os
 from nemo import lightning as nl
 from nemo.collections import llm
 from megatron.core.optimizer import OptimizerConfig
@@ -29,7 +30,6 @@ def squad(tokenizer) -> pl.LightningDataModule:
         tokenizer=tokenizer, seq_length=2048, micro_batch_size=2, global_batch_size=8,
         num_workers=0, sanity_check_dist_workers=False)
 
-
 if __name__ == '__main__':
     import argparse
 
@@ -39,7 +39,21 @@ if __name__ == '__main__':
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=100)
+    parser.add_argument('--wandb-project', type=str, default=None)
     args = parser.parse_args()
+
+    wandb = None
+    if args.wandb_project is not None:
+        model = '_'.join(args.model.split('/')[-2:])
+        wandb = WandbLogger(
+            project=args.wandb_project,
+            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+        )
+    grad_clip = 0.5
+    if args.strategy == 'fsdp':
+        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
+        grad_clip = None
+    use_dist_samp = False
 
     model = llm.HfAutoModel(args.model, {"lr": 1e-5})
     llm.api.finetune(
@@ -54,7 +68,9 @@ if __name__ == '__main__':
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
             accumulate_grad_batches=10,
-            gradient_clip_val=0.5,
+            gradient_clip_val=grad_clip,
+            use_distributed_sampler=use_dist_samp,
+            logger=wandb,
         ),
         log=None,
     )
