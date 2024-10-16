@@ -59,14 +59,18 @@ def check_root_path(path, nemo_root):
     return new_path
 
 
-def merge_configs(script_config, run_config):
+def merge_configs(script_config, cluster_cfg):
     script_config = OmegaConf.load(script_config)
     original_script_keys = set(script_config.keys())
-    result = OmegaConf.merge(script_config, run_config)
+
+    # Copy the cluster config and resolve it to get the final values before merging
+    run_copy = OmegaConf.masked_copy(cluster_cfg, keys=list(cluster_cfg.keys()))
+    OmegaConf.resolve(run_copy)
+    result = OmegaConf.merge(script_config, cluster_cfg)
 
     # delete cluster config keys from the merged config
     with open_dict(result):
-        for k in run_config.keys():
+        for k in cluster_cfg.keys():
             if k in result and k not in original_script_keys:
                 del result[k]
 
