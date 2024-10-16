@@ -354,16 +354,15 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                     xattn_layer: Union[DummyCrossAttentionTransformerLayer, CrossAttentionTransformerLayer]
                     with self.offload_context:
                         if (len(self.cuda_graphs) == 0) or (not self.training):
-                            if xattn_caches is not None:
-                                hidden_states, context = xattn_layer(
-                                    hidden_states=hidden_states,
-                                    cross_attention_masks=cross_attention_masks,
-                                    xattn_cache=xattn_caches[l_no],
-                                    full_text_row_masked_out_mask=full_text_row_masked_out_mask,
-                                    rotary_pos_emb=rotary_pos_emb,
-                                    inference_params=inference_params,
-                                    packed_seq_params=packed_seq_params,
-                                )
+                            hidden_states, context = xattn_layer(
+                                hidden_states=hidden_states,
+                                cross_attention_masks=cross_attention_masks,
+                                xattn_cache=xattn_caches[l_no],
+                                full_text_row_masked_out_mask=full_text_row_masked_out_mask,
+                                rotary_pos_emb=rotary_pos_emb,
+                                inference_params=inference_params,
+                                packed_seq_params=packed_seq_params,
+                            )
                             hidden_states, context = layer(
                                 hidden_states=hidden_states,
                                 attention_mask=attention_mask,

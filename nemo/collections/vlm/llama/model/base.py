@@ -376,6 +376,7 @@ class MLlamaBaseModel(MegatronModule):
             self.vision_model = vision_model_config.configure_model()
 
         self.model_type = ModelType.encoder_and_decoder
+        self.xattn_needed = True
 
         self.patch_size = 14
         self.image_res = vision_model_config.vision_chunk_size
@@ -432,7 +433,7 @@ class MLlamaBaseModel(MegatronModule):
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
-        if xattn_caches is None and batch_images is not None:
+        if xattn_caches is None:
             bsz, max_num_images = batch_images.size(0), batch_images.size(1)
             vision_orig_shape = (
                 bsz,
