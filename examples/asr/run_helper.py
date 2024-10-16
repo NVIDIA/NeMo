@@ -28,6 +28,16 @@ NEMO_ROOT = Path(__file__).absolute().parents[2]
 
 
 def gather_mounts(cluster_cfg):
+    """
+    Gather all mounts from the cluster config including ones which are disjoint from the cluster_cfg.mounts list.
+    It is used because Hydra does not support the ability to append to a list in the config file natively.
+
+    Users can provide additional mounts from the command line using the following syntax:
+    ++mount_<anything>='/src:/dest'
+
+    Args:
+        cluster_cfg: Cluster config dictionary
+    """
     # Gather all mounts from the cluster config including ones which are disjoint from the cluster_cfg.mounts list.
     mounts = cluster_cfg.get('mounts', [])
 
@@ -35,18 +45,31 @@ def gather_mounts(cluster_cfg):
     mounts = [os.path.expanduser(m) for m in mounts]
 
     keys = list(cluster_cfg.keys())
+    # Check for any additional mounts in the cluster config
     with open_dict(cluster_cfg):
         for k in keys:
-            if k.startswith("mount_"):
+            if k.startswith("mount_"):  # Additional mount found
                 logging.info(f"Found additional mount flag in the cluster config `{k}`. Adding it to the mounts list.")
                 mounts.append(cluster_cfg[k])
-                del cluster_cfg[k]
+                del cluster_cfg[k]  # Remove the key from the cluster config
 
         cluster_cfg['mounts'] = mounts
         logging.info(f"Final Mounts: {mounts}")
 
 
 def check_root_path(path, nemo_root):
+    """
+    Check if a path is in the NeMo root directory and convert it to a path that is relative to the NeMo root directory.
+    This is used to ensure that any path that is provided to this script will be in the NeMo root directory when
+    mounted in the container.
+
+    Args:
+        path: Path to check
+        nemo_root: NeMo root directory
+
+    Returns:
+        str: Path relative to the NeMo root directory
+    """
     path = str(path)
     nemo_root = str(nemo_root)
 
@@ -61,7 +84,20 @@ def check_root_path(path, nemo_root):
 
 
 def merge_configs(script_config, cluster_cfg):
-    script_config = OmegaConf.load(script_config)
+    """
+    Merge the script config and the cluster config and resolve the final values.
+    The script config will take precedence over the cluster config.
+
+    **Note**: The script config will NOT be resolved - it will maintain its hydra placeholders for resolution at
+    runtime on the cluster.
+
+    Args:
+        script_config: Script config dictionary that represents the Model training/inference config
+        cluster_cfg: Cluster config dictionary that represents the cluster configuration
+
+    Returns:
+        dict: Merged config dictionary
+    """
     original_script_keys = set(script_config.keys())
 
     # Copy the cluster config and resolve it to get the final values before merging
@@ -69,7 +105,7 @@ def merge_configs(script_config, cluster_cfg):
     OmegaConf.resolve(run_copy)
     result = OmegaConf.merge(script_config, run_copy)
 
-    # delete cluster config keys from the merged config
+    # Delete cluster config keys from the merged config
     with open_dict(result):
         for k in cluster_cfg.keys():
             if k in result and k not in original_script_keys:
@@ -84,28 +120,63 @@ def merge_configs(script_config, cluster_cfg):
                 elif v == '???':
                     raise ValueError(f"Missing value for key {k} in the config file")
 
+    check_missing_values(result)
+
     # Do name check as a special case
     if 'name' in result and result['name'] == '':
         raise ValueError(f"Missing value for key 'name' in the merged config file (value={result['name']}).\n"
                          f"Check if your ++ override is using single quote (') instead of double quote (\") for resolution.\n"
                          "Example: ++name='${exp_name}'")
 
-    check_missing_values(result)
     return result
 
 
 def check_config_mount_paths(script_config, cluster_config):
+    """
+    Check if all path-like strings in the script config are mounted paths in the cluster config.
+    If a path-like string is not a mounted path, raise an error.
+
+    Args:
+        script_config: Script config dictionary that represents the Model training/inference config
+        cluster_config: Cluster config dictionary that represents the cluster configuration
+    """
     # recursively walk all values of the script_config, checking if its a path-like string and if so, check if the path is a mounted path
     # if it is not, raise an error
 
+    if 'AIS_ENDPOINT' in os.environ:
+        ais_endpoint = os.environ['AIS_ENDPOINT']
+    else:
+        ais_endpoint = None
+
+    def mount_check(v, cluster_cfg):
+        if v.startswith(os.path.sep):
+            logging.info(f"Checking if {v} is a mounted path")
+            run_utils.check_if_mounted(cluster_cfg, v)
+
+        elif "ais://" in v and ais_endpoint is not None:  # if the value is a string, check if its an ais path
+            # Try to import ais module
+            try:
+                from aistore.sdk import Client
+
+                ais_client = Client(ais_endpoint)
+
+
+            except ImportError:
+                logging.warning("\nais module is not installed. Please install it to use ais paths.\n")
+
     def check_mounted_path(cfg, cluster_cfg):
-        if hasattr(cfg, 'items'):
+        if hasattr(cfg, 'items'):  # if the object is a dictionary
             for k, v in cfg.items():
-                if hasattr(v, 'items'):
+                if hasattr(v, 'items'):  # if the value is a dictionary, recurse
                     check_mounted_path(v, cluster_cfg)
-                elif isinstance(v, str):
-                    if v.startswith(os.path.sep):
-                        run_utils.check_if_mounted(cluster_cfg, v)
+
+                elif isinstance(v, list):  # if the value is a list, check if its items are an absolute path
+                    for item in v:
+                        if isinstance(item, str):
+                            mount_check(item, cluster_cfg)
+
+                elif isinstance(v, str):  # if the value is a string, check if its an absolute a path
+                    mount_check(v, cluster_cfg)
 
     check_mounted_path(script_config, cluster_config)
 
@@ -149,11 +220,11 @@ ls -l;
 @hydra_runner(config_path='conf', config_name='run_local')
 def main(cluster_cfg):
     script_path = cluster_cfg.script
-    script_config = cluster_cfg.script_config
+    script_config_path = cluster_cfg.script_config
     results_dir = cluster_cfg.results_dir
 
     script_path = Path(script_path).absolute()
-    script_config = Path(script_config).absolute()
+    script_config_path = Path(script_config_path).absolute()
 
     gather_mounts(cluster_cfg)
 
@@ -166,6 +237,7 @@ def main(cluster_cfg):
     log_dir = cluster_cfg.get('log_dir', os.path.join(results_dir, 'logs'))
     run_utils.create_remote_directory([results_dir, log_dir], cluster_cfg)
 
+    script_config = OmegaConf.load(script_config_path)
     merged_config = merge_configs(script_config, cluster_cfg)
     update_exp_manager_runtime(merged_config, cluster_cfg)
 
