@@ -69,7 +69,7 @@ def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=Non
         tokenizer=tokenizer,
         image_processor=image_processor,
         multimodal_sample_config=multimodal_sample_config,
-        seq_length=None,
+        seq_length=decoder_seq_length,
     )
     data_module = SimpleMultiModalDataModule(
         path=data_path,
@@ -97,12 +97,12 @@ def main(args):
     Args:
         args (argparse.Namespace): The command-line arguments passed to the script.
     """
-    gbs = 128
+    gbs = 4
     mbs = 2
-    if args.restore_path.startswith("nemo://"):
+    if args.restore_path is not None and args.restore_path.startswith("nemo://"):
         model_id = args.restore_path[len("nemo://") :]
     else:
-        model_id = None
+        model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
     data, tokenizer = get_data_module(args.data_path, mbs, gbs, model_id=model_id)
 
     model_configs = {
@@ -111,7 +111,10 @@ def main(args):
         "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaConfig90B,
         "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaConfig90BInstruct,
     }
-    model = vlm.MLlamaModel(model_configs[model_id](), tokenizer=tokenizer)
+    conf = model_configs[model_id]()
+    if args.pp_size > 1:
+        conf.language_model_config.first_pipeline_num_layers = 0
+    model = vlm.MLlamaModel(conf, tokenizer=tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(

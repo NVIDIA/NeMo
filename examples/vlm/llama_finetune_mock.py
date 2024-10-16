@@ -43,11 +43,18 @@ def main(args):
     # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
     seq_length = 6404
     decoder_seq_length = 512  # decoder (llm) seq length
-    if args.restore_path.startswith("hf://"):
-        model_id = args.restore_path[len("hf://") :]
+
+    if args.restore_path is not None and args.restore_path.startswith("nemo://"):
+        model_id = args.restore_path[len("nemo://") :]
     else:
-        # default
         model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
+
+    model_configs = {
+        "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
+        "meta-llama/Llama-3.2-11B-Vision-Instruct": vlm.MLlamaConfig11BInstruct,
+        "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaConfig90B,
+        "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaConfig90BInstruct,
+    }
 
     processor = AutoProcessor.from_pretrained(model_id)
     tokenizer = processor.tokenizer
@@ -60,11 +67,15 @@ def main(args):
         global_batch_size=gbs,
         micro_batch_size=mbs,
         vocab_size=128256,
-        crop_size=(448, 448),
+        crop_size=(560, 560),
         num_workers=0,
     )
 
-    model = vlm.MLlamaModel(vlm.MLlamaConfig11B(), tokenizer=tokenizer)
+
+    conf = model_configs[model_id]()
+    if args.pp_size > 1:
+        conf.language_model_config.first_pipeline_num_layers = 0
+    model = vlm.MLlamaModel(conf, tokenizer=tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
@@ -85,6 +96,7 @@ def main(args):
 
     # Trainer setup
     trainer = nl.Trainer(
+        num_nodes=args.num_nodes,
         devices=args.devices,
         max_steps=args.max_steps,
         accelerator="gpu",
@@ -115,17 +127,17 @@ def main(args):
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
         optimizer='adam',
-        lr=2.0e-05,
+        lr=1.0e-05,
         adam_beta1=0.9,
         adam_beta2=0.95,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
     )
     sched = CosineAnnealingScheduler(
         max_steps=trainer.max_steps,
-        warmup_steps=150,
+        warmup_steps=200,
         constant_steps=0,
-        min_lr=2.0e-07,
+        min_lr=1.0e-07,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
 
@@ -169,6 +181,7 @@ if __name__ == "__main__":
         help="Directory for logging and checkpoints",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
