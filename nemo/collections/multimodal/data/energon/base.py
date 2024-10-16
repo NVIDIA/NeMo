@@ -25,6 +25,13 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
+from copy import deepcopy
+from typing import Any, Dict, Literal, Optional
+
+import fiddle as fdl
+from typing_extensions import Self
+from nemo.lightning.io.mixin import IOMixin, serialization, track_io
+
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -103,6 +110,14 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         )
         self.train_dataloader_object = None
         self.val_dataloader_object = None
+
+    def io_init(self, **kwargs) -> fdl.Config[Self]:
+        cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder']}
+        for val in cfg_kwargs.values():
+            if not serialization.find_node_traverser(type(val)):
+                track_io(type(val))
+        cfg = fdl.Config(type(self), **cfg_kwargs)
+        return cfg
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
         """
