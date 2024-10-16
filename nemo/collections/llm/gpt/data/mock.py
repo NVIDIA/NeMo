@@ -59,6 +59,15 @@ class MockDataModule(pl.LightningDataModule):
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         # self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
+        import os
+
+        # Get the value of the environment variable
+        env_var_value = os.getenv('ENV_VAR_NAME')
+
+        # Print the value
+        print(f"env_var_value = {env_var_value}")
+        import sys
+        sys.exit()
         self.tokenizer = get_nmt_tokenizer(library='huggingface', model_name="EleutherAI/gpt-neox-20b", tokenizer_model=None, use_fast=True)
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
