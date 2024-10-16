@@ -20,7 +20,6 @@ import os
 
 import megatron.core.parallel_state as ps
 import torch
-from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 
 
 class Utils:

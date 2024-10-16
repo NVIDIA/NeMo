@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Callable
 
 import torch
 from megatron.core.transformer.transformer_config import TransformerConfig

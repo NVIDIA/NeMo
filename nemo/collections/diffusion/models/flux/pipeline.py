@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -28,7 +28,7 @@ from nemo.collections.diffusion.models.flux.model import Flux, FluxParams
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from nemo.collections.diffusion.utils.flux_ckpt_converter import flux_transformer_converter
 from nemo.collections.diffusion.utils.flux_pipeline_utils import FluxModelParams
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderParams
+from nemo.collections.diffusion.vae.autoencoder import AutoEncoder
 
 
 class FluxInferencePipeline(nn.Module):
@@ -247,8 +247,6 @@ class FluxInferencePipeline(nn.Module):
         offload: bool = True,
     ):
         assert device == 'cuda', 'Transformer blocks in Mcore must run on cuda devices'
-        height = height
-        width = width
 
         if prompt is not None and isinstance(prompt, str):
             batch_size = 1
