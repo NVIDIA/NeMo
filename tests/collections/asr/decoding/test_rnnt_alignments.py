@@ -24,6 +24,8 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.utils import logging
 
 DEVICES = []
 
@@ -61,7 +63,7 @@ def get_rnnt_alignments(
     loop_labels: bool = True,
     use_cuda_graph_decoder=False,
     device="cuda",
-):
+) -> list[Hypothesis]:
     cfg = OmegaConf.structured(TranscriptionConfig())
     cfg.rnnt_decoding.confidence_cfg.preserve_frame_confidence = True
     cfg.rnnt_decoding.preserve_alignments = True
@@ -75,7 +77,7 @@ def get_rnnt_alignments(
     model = model.to(device)
     model.change_decoding_strategy(cfg.rnnt_decoding)
 
-    transcriptions = model.transcribe(
+    transcriptions: list[Hypothesis] = model.transcribe(
         audio=filepaths,
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
@@ -140,6 +142,11 @@ def test_rnnt_alignments(
     # slightly different in batched and single-sample mode
     assert len(ref_transcriptions) == len(transcriptions)
     for ref_transcription, transcription in zip(ref_transcriptions, transcriptions):
+        # TODO: remove
+        logging.warning(f"Ref transcription {ref_transcription.y_sequence}")
+        logging.warning(f"Hyp transcription {transcription.y_sequence}")
+        logging.warning(f"Ref ali: {[[symbol.item() for _, symbol in elem] for elem in ref_transcription.alignments]}")
+        logging.warning(f"Hyp ali: {[[symbol.item() for _, symbol in elem] for elem in transcription.alignments]}")
         for ref_align_elem, align_elem in zip(ref_transcription.alignments, transcription.alignments):
             assert len(ref_align_elem) == len(align_elem)
             for ref_pred, pred in zip(ref_align_elem, align_elem):
