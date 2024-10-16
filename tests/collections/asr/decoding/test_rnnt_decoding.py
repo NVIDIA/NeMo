@@ -408,7 +408,7 @@ class TestRNNTDecoding:
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "model_name, decoding_strategy",
-        get_model_encoder_output[
+        [
             ("stt_en_conformer_transducer_small", "greedy"),
             ("stt_en_conformer_transducer_small", "greedy_batch"),
             ("stt_en_conformer_transducer_small", "beam"),
