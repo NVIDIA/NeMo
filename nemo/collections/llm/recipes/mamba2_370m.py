@@ -53,6 +53,31 @@ def model() -> run.Config[pl.LightningModule]:
     """
     return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig370M))
 
+@run.cli.factory(name=NAME)
+def tokenizer() -> run.Config[pl.LightningModule]:
+    """
+    Factory function to create a Mamba2 370M model configuration.
+
+    Returns:
+        run.Config[pl.LightningModule]: Configuration for the Mamba2 370M model.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain model=mamba2_370m ...
+
+        Python API usage:
+            >>> model_config = model()
+            >>> print(model_config)
+    """
+    from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    from dataclasses import dataclass
+    @dataclass
+    class TokenizerConfig:
+        library: str = 'huggingface'
+        model_name: str = "EleutherAI/gpt-neox-20b"
+        use_fast: bool = True
+
+    return run.Config(get_nmt_tokenizer, TokenizerConfig())
 
 def trainer(
     tensor_parallelism: int = 1,
@@ -179,7 +204,7 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=1, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer()),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
@@ -232,47 +257,47 @@ def pretrain_recipe_performance(
     return recipe
 
 
-# @run.cli.factory(target=finetune, name=NAME)
-# def finetune_recipe(
-#     dir: Optional[str] = None,
-#     name: str = "default",
-#     num_nodes: int = 1,
-#     num_gpus_per_node: int = 8,
-#     peft_scheme: Optional[str] = 'none',
-# ) -> run.Partial:
-#     """
-#     Create a fine-tuning recipe for Mamba2 370M model.
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    peft_scheme: Optional[str] = 'none',
+) -> run.Partial:
+    """
+    Create a fine-tuning recipe for Mamba2 370M model.
 
-#     This function sets up a complete configuration for fine-tuning, including
-#     model, trainer, data, logging, optimization, and resumption settings.
-#     The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, data, logging, optimization, and resumption settings.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
-#     Args:
-#         dir (Optional[str]): Directory for saving logs and checkpoints.
-#         name (str): Name of the fine-tuning run.
-#         num_nodes (int): Number of compute nodes to use.
-#         num_gpus_per_node (int): Number of GPUs per node.
-#         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
-#     Returns:
-#         run.Partial: Partial configuration for fine-tuning.
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the fine-tuning run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+    Returns:
+        run.Partial: Partial configuration for fine-tuning.
 
-#     Examples:
-#         CLI usage:
-#             $ nemo llm finetune --factory mamba2_370m
+    Examples:
+        CLI usage:
+            $ nemo llm finetune --factory mamba2_370m
 
-#         Python API usage:
-#             >>> recipe = finetune_recipe(name="mamba2_370m_finetune", num_nodes=1)
-#             >>> print(recipe)
+        Python API usage:
+            >>> recipe = finetune_recipe(name="mamba2_370m_finetune", num_nodes=1)
+            >>> print(recipe)
 
-#     Note:
-#         This recipe uses the SQuAD dataset for fine-tuning. For more information
-#         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
-#         `examples/llm/finetune/` directory.
-#     """
-#     recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node)
-#     if peft_scheme is None or peft_scheme.lower() == 'none':
-#         recipe.trainer.strategy.tensor_model_parallel_size = 1
-#         recipe.optim.config.lr = 5e-6
-#     else:
-#         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
-#     return recipe
+    Note:
+        This recipe uses the SQuAD dataset for fine-tuning. For more information
+        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
+        `examples/llm/finetune/` directory.
+    """
+    recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node)
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.tensor_model_parallel_size = 1
+        recipe.optim.config.lr = 5e-6
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
+    return recipe
