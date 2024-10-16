@@ -109,7 +109,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             if maybe_base_dir.is_dir() or is_saving:
                 base_dir = maybe_base_dir
         ## handle adapter paths
-        if hasattr(base_dir, base_model_path) and base_dir.base_model_path.parts[-1] != suffix:
+        if hasattr(base_dir, "base_model_path") and base_dir.base_model_path.parts[-1] != suffix:
             maybe_base_model_path = base_dir.base_model_path / WEIGHTS_PATH
             if maybe_base_model_path.is_dir() or is_saving:
                 base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
@@ -138,7 +138,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                 f" storage_options, but {storage_options=} was provided."
                 f" Ignoring given storage_options"
             )
-        checkpoint_dir = ckpt_to_weights_subdir(filepath, is_saving=True)
+        checkpoint_dir = self.ckpt_to_weights_subdir(path, is_saving=True)
         fs = get_filesystem(checkpoint_dir)
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
             logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
@@ -196,7 +196,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         # Load from ckpt_path/weights (new format) if it exists
         path = self.ckpt_to_weights_subdir(path)
-        if isinstance(path, AdapterPath) and not path.base_model_path.exists():
+        if hasattr(path, "base_model_path") and not path.base_model_path.exists():
             path.base_model_path = path.base_model_path.parent
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
