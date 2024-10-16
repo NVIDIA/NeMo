@@ -6,12 +6,12 @@ import torch
 import torch.distributed
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
-from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
+from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import AbstractModelInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
     SimpleTextGenerationController,
 )
-from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+from megatron.core.transformer.module import MegatronModule
 from pytorch_lightning.trainer.states import TrainerFn
 
 import nemo.lightning as nl
@@ -64,35 +64,36 @@ def setup_model_and_tokenizer(
     trainer: Optional[nl.Trainer] = None,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
-) -> tuple[MCoreGPTModel, MCoreTokenizerWrappper]:
+) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
     model: io.TrainerContext = io.load_context(path=path, subpath="model")
     trainer = trainer or io.load_context(path=path, subpath="trainer")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
-    # This is to get the MCore model required in GPTInferenceWrapper.
-    mcore_model = model.module.module.module
-    inference_wrapped_model = GPTInferenceWrapper(
-        mcore_model,
-        InferenceWrapperConfig(
-            hidden_size=mcore_model.config.hidden_size,
-            params_dtype=params_dtype,
-            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=model.tokenizer.vocab_size,
-        ),
+    model_inference_wrapper = InferenceWrapperConfig(
+        hidden_size=model.module.module.module.config.hidden_size,
+        params_dtype=params_dtype,
+        inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        padded_vocab_size=model.tokenizer.vocab_size,
     )
+    inference_wrapped_model = model.get_inference_wrapper(model_inference_wrapper)
 
     return inference_wrapped_model, MCoreTokenizerWrappper(model.tokenizer)
 
 
 def generate(
-    model: GPTInferenceWrapper,
+    model: AbstractModelInferenceWrapper,
     tokenizer: MCoreTokenizerWrappper,
     prompts: list[str],
+    encoder_prompts: Optional[list[str]] = None,
+    add_BOS: bool = False,
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
     inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
-    text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+    if encoder_prompts is not None:
+        text_generation_controller = EncosderDecoderTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+    else:
+        text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(
         text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
     )
@@ -101,6 +102,8 @@ def generate(
 
     results = mcore_engine.generate(
         prompts=prompts,
+        add_BOS=add_BOS,
+        encoder_prompts=encoder_prompts,
         common_inference_params=common_inference_params,
     )
 

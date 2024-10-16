@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
+from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -301,6 +302,13 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
+    def get_inference_wrapper(self, inference_wrapper_config) -> torch.Tensor:
+        model_inference_wrapper = GPTInferenceWrapper(
+            self.module,
+            inference_wrapper_config
+        )
+        return model_inference_wrapper
+
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
         if not self._training_loss_reduction:
@@ -314,6 +322,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
+
+
 
 
 def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
