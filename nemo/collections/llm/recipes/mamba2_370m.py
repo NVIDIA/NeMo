@@ -62,7 +62,7 @@ class TokenizerConfig:
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, TokenizerConfig)
+    return run.Config(get_nmt_tokenizer, run.Config(TokenizerConfig))
 
 def trainer(
     tensor_parallelism: int = 1,
