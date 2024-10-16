@@ -26,6 +26,14 @@ from tokenizers import (
 from transformers import PreTrainedTokenizerFast
 
 
+def check_parent_directory_exists(directory_path):
+    parent_directory = os.path.dirname(directory_path)
+    if not os.path.exists(parent_directory):
+        raise FileNotFoundError(f"Parent directory '{parent_directory}' does not exist.")
+    else:
+        print(f"Parent directory '{parent_directory}' exists.")
+
+
 def flatten(l):
     return [item for sublist in l for item in sublist]
 
@@ -185,9 +193,6 @@ def extend_tokenizer_llama(
 
     new_tokens = []
     for token in tokens:
-        ## for quick test
-        # if token == tokens[1000]:
-        #    break
         if token not in ori_vol:
             token1 = token.replace("▁", " ")
             occur_cnt = 0
@@ -235,10 +240,12 @@ def extend_tokenizer_llama(
 
     print(f'New model pieces: {len(m.pieces)}')
     print(m.trainer_spec)
-
+    
+    check_parent_directory_exists(new_vocab_path)
     with open(new_vocab_path, "w", encoding="utf8") as fp:
         json.dump(record, fp)
 
+    check_parent_directory_exists(new_model_path)
     with open(new_model_path, 'wb') as f:
         f.write(m.SerializeToString())
 
