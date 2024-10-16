@@ -315,7 +315,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         ]
         return state
 
-    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
         Creates a stacked decoder states to be passed to prediction network.
 
@@ -493,24 +493,24 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
             # convert list of tokens to torch.Tensor, then reshape.
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.batch_stack_states([d_state for _, d_state in to_process])
+            dec_states = self.batch_initialize_states([d_state for _, d_state in to_process])
 
             dec_outputs, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
             )  # [B, 1, H], B x List([L, 1, H])
 
-        # Update final states and cache shared by entire batch.
-        processed_idx = 0
-        for final_idx in range(final_batch):
-            if to_process and final[final_idx] is None:
-                # Select sample's state from the batch state list
-                new_state = self.batch_select_state(dec_states, processed_idx)
+            # Update final states and cache shared by entire batch.
+            processed_idx = 0
+            for final_idx in range(final_batch):
+                if to_process and final[final_idx] is None:
+                    # Select sample's state from the batch state list
+                    new_state = self.batch_select_state(dec_states, processed_idx)
 
-                # Cache [1, H] scores of the current y_j, and its corresponding state
-                final[final_idx] = (dec_outputs[processed_idx], new_state)
-                cache[to_process[processed_idx][0]] = (dec_outputs[processed_idx], new_state)
+                    # Cache [1, H] scores of the current y_j, and its corresponding state
+                    final[final_idx] = (dec_outputs[processed_idx], new_state)
+                    cache[to_process[processed_idx][0]] = (dec_outputs[processed_idx], new_state)
 
-                processed_idx += 1
+                    processed_idx += 1
 
         return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
@@ -959,44 +959,45 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
             # convert list of tokens to torch.Tensor, then reshape.
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.batch_stack_states([d_state for _, d_state in to_process])
+            dec_states = self.batch_initialize_states([d_state for _, d_state in to_process])
 
             dec_out, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
             )  # [B, 1, H], B x List([L, 1, H])
 
-        # Update final states and cache shared by entire batch.
-        processed_idx = 0
-        for final_idx in range(final_batch):
-            if final[final_idx] is None:
-                # Select sample's state from the batch state list
-                new_state = self.batch_select_state(dec_states, processed_idx)
+            # Update final states and cache shared by entire batch.
+            processed_idx = 0
+            for final_idx in range(final_batch):
+                if final[final_idx] is None:
+                    # Select sample's state from the batch state list
+                    new_state = self.batch_select_state(dec_states, processed_idx)
 
-                # Cache [1, H] scores of the current y_j, and its corresponding state
-                final[final_idx] = (dec_out[processed_idx], new_state)
-                cache[to_process[processed_idx][0]] = (dec_out[processed_idx], new_state)
+                    # Cache [1, H] scores of the current y_j, and its corresponding state
+                    final[final_idx] = (dec_out[processed_idx], new_state)
+                    cache[to_process[processed_idx][0]] = (dec_out[processed_idx], new_state)
 
-                processed_idx += 1
+                    processed_idx += 1
 
         return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
-    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """
         Creates a stacked decoder states to be passed to prediction network
 
         Args:
             decoder_states (list of list of list of torch.Tensor): list of decoder states
-                [B, L, 1, H]
+                [B, C, L, H]
                     - B: Batch size.
-                    - L: Number of layers in prediction RNN (e.g., for LSTM, this is 2: hidden and cell states).
+                    - C: e.g., for LSTM, this is 2: hidden and cell states
+                    - L: Number of layers in prediction RNN.
                     - H: Dimensionality of the hidden state.
 
         Returns:
             batch_states (list of torch.Tensor): batch of decoder states
-                [L x torch.Tensor[1 x B x H]
+                [C x torch.Tensor[L x B x H]
         """
-        # stack decoder states into tensor of shape [B x L x 1 x H]
-        # permute to the target shape [L x 1 x B x H]
+        # stack decoder states into tensor of shape [B x layers x L x H]
+        # permute to the target shape [layers x L x B x H]
         stacked_states = torch.stack([torch.stack(decoder_state) for decoder_state in decoder_states])
         permuted_states = stacked_states.permute(1, 2, 0, 3)
 
@@ -1037,7 +1038,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         for state_id in range(len(batch_states[0])):
             batch_list = []
             for sample_id in range(len(batch_states)):
-                tensor = torch.stack(batch_states[sample_id][state_id])  # [L, H]
+                tensor = (
+                    torch.stack(batch_states[sample_id][state_id])
+                    if not isinstance(batch_states[sample_id][state_id], torch.Tensor)
+                    else batch_states[sample_id][state_id]
+                )  # [L, H]
                 tensor = tensor.unsqueeze(0)  # [1, L, H]
                 batch_list.append(tensor)
 
@@ -1205,6 +1210,10 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         fused_batch_size: Optional int, required if `fuse_loss_wer` flag is set. Determines the size of the
             sub-batches. Should be any value below the actual batch size per GPU.
+        masking_prob: Optional float, indicating the probability of masking out decoder output in HAINAN
+            (Hybrid Autoregressive Inference Transducer) model, described in https://arxiv.org/pdf/2410.02597
+            Default to -1.0, which runs standard Joint network computation; if > 0, then masking out decoder output
+            with the specified probability.
     """
 
     @property
@@ -1267,6 +1276,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         fuse_loss_wer: bool = False,
         fused_batch_size: Optional[int] = None,
         experimental_fuse_loss_wer: Any = None,
+        masking_prob: float = -1.0,
     ):
         super().__init__()
 
@@ -1275,6 +1285,10 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self._vocab_size = num_classes
         self._num_extra_outputs = num_extra_outputs
         self._num_classes = num_classes + 1 + num_extra_outputs  # 1 is for blank
+
+        self.masking_prob = masking_prob
+        if self.masking_prob > 0.0:
+            assert self.masking_prob < 1.0, "masking_prob must be between 0 and 1"
 
         if experimental_fuse_loss_wer is not None:
             # Override fuse_loss_wer from deprecated argument
@@ -1532,6 +1546,13 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         """
         f = f.unsqueeze(dim=2)  # (B, T, 1, H)
         g = g.unsqueeze(dim=1)  # (B, 1, U, H)
+
+        if self.training and self.masking_prob > 0:
+            [B, _, U, _] = g.shape
+            rand = torch.rand([B, 1, U, 1]).to(g.device)
+            rand = torch.gt(rand, self.masking_prob)
+            g = g * rand
+
         inp = f + g  # [B, T, U, H]
 
         del f, g

@@ -242,20 +242,21 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
         Creates a stacked decoder states to be passed to prediction network
 
         Args:
             decoder_states (list of list of list of torch.Tensor): list of decoder states
-                [B, L, 1, H]
+                [B, C, L, H]
                     - B: Batch size.
-                    - L: Number of layers in prediction RNN (e.g., for LSTM, this is 2: hidden and cell states).
+                    - C: e.g., for LSTM, this is 2: hidden and cell states
+                    - L: Number of layers in prediction RNN.
                     - H: Dimensionality of the hidden state.
 
         Returns:
             batch_states (list of torch.Tensor): batch of decoder states
-                [L x torch.Tensor[1 x B x H]
+                [C x torch.Tensor[L x B x H]
         """
         raise NotImplementedError()
 

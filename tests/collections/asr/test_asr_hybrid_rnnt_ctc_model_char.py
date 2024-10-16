@@ -20,7 +20,7 @@ from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, SampledRNNTJoint, StatelessTransducerDecoder
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as rnnt_beam_decoding
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -210,28 +210,28 @@ class TestEncDecHybridRNNTCTCModel:
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 1})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 2})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'tsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "tsd"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'alsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "alsd"
 
         assert hybrid_asr_model.ctc_decoding is not None
@@ -302,7 +302,7 @@ class TestEncDecHybridRNNTCTCModel:
         IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index']
 
         result = assert_dataclass_signature_match(
-            rnnt_beam_decoding.BeamRNNTInfer, rnnt_beam_decoding.BeamRNNTInferConfig, ignore_args=IGNORE_ARGS
+            beam_decode.BeamRNNTInfer, beam_decode.BeamRNNTInferConfig, ignore_args=IGNORE_ARGS
         )
 
         signatures_match, cls_subset, dataclass_subset = result
@@ -570,7 +570,7 @@ class TestEncDecHybridRNNTCTCModel:
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         joint_net = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=token_list)
 
-        beam = rnnt_beam_decoding.BeamRNNTInfer(
+        beam = beam_decode.BeamRNNTInfer(
             decoder,
             joint_net,
             beam_size=beam_size,
@@ -616,7 +616,7 @@ class TestEncDecHybridRNNTCTCModel:
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         joint_net = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=token_list)
 
-        beam = rnnt_beam_decoding.BeamRNNTInfer(
+        beam = beam_decode.BeamRNNTInfer(
             decoder, joint_net, beam_size=beam_size, **beam_config, preserve_alignments=True
         )
 
@@ -718,7 +718,7 @@ class TestEncDecHybridRNNTCTCModel:
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         joint_net = SampledRNNTJoint(jointnet_cfg, vocab_size, n_samples=2, vocabulary=token_list)
 
-        beam = rnnt_beam_decoding.BeamRNNTInfer(
+        beam = beam_decode.BeamRNNTInfer(
             decoder,
             joint_net,
             beam_size=beam_size,

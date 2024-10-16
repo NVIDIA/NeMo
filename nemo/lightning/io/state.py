@@ -161,7 +161,11 @@ def apply_transforms(
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
 
-    assert target_orig_dtypes == extract_dtypes(_target.named_parameters())
+    assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
+        f"dtype mismatch between source and target state dicts. "
+        f"Left side is { {k: v for k, v in target_orig_dtypes.items() if v!=torch.bfloat16} }, "
+        f"Right side is { {k: v for k, v in extract_dtypes(_target.named_parameters()).items() if v!=torch.bfloat16} }"
+    )
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         target.module = _target
 
@@ -242,7 +246,7 @@ class StateDictTransform(Generic[F]):
 
             if isinstance(target_key, str):
                 target_matches = _match_keys(target_keys, target_key)
-                if target_matches.size < 1:
+                if target_matches.size == 1 and target_matches == np.array(None):
                     raise ValueError(f"No matches found for target key: {target_key}")
             else:
                 if isinstance(target_key, dict):

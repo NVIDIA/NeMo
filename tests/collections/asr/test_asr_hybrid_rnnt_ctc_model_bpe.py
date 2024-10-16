@@ -21,7 +21,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as rnnt_beam_decoding
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.common import tokenizers
@@ -283,28 +283,28 @@ class TestEncDecHybridRNNTCTCBPEModel:
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 1})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 2})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'tsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "tsd"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'alsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
         hybrid_asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(hybrid_asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
+        assert isinstance(hybrid_asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert hybrid_asr_model.decoding.decoding.search_type == "alsd"
 
         assert hybrid_asr_model.ctc_decoding is not None
