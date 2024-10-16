@@ -953,8 +953,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = output["input_text"]  # [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-        labels_text = output["labels_text"]  # [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+        inputs_text = output["input_text"]
+        labels_text = output["labels_text"]
         preds_text = output['preds_text']
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
@@ -1423,12 +1423,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 ],
             }
         elif schema == "text":
-            # TODO: add support for text
-            # input_ids = text_batch["text_input_ids"][:, :-1]
-            # labels = text_batch["text_input_ids"][:, 1:]
-            # attention_mask = self._create_attention_mask(input_ids)
-            # loss_mask = text_batch["text_masks"][:, 1:]
-
             return {
                 "cls": dict,
                 "inputs": [

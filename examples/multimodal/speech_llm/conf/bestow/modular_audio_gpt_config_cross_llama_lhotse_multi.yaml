@@ -240,7 +240,7 @@ model:
       multi_config: true
       audio:
         input_cfg: ???
-        sampler_fusion: zip
+        sampler_fusion: round_robin
         seed: 0
         shard_seed: "trng"
         batch_size: null
@@ -251,6 +251,7 @@ model:
         bucket_buffer_size: 20000
         num_workers: 4
         shuffle: true
+        prompt_format: llama2
       text:
         input_cfg: ???
         use_multimodal_sampling: true
@@ -261,6 +262,7 @@ model:
         bucket_buffer_size: 20000
         num_workers: 4
         shuffle: true
+        prompt_format: llama2
 
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
@@ -276,7 +278,6 @@ model:
       separate_prompt_and_response_with_newline: False
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: "[INST]\n<<SYS>>\nPlease answer the following based on the previous speech feature.\n<</SYS>>\n\n{context}[/INST] {answer}"
 
     validation_ds:
       manifest_filepath: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
@@ -284,7 +285,7 @@ model:
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
-      num_workers: 0
+      num_workers: 1
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -300,7 +301,6 @@ model:
       output_file_path_prefix: null # Prefix of the file to write predictions to.
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       tokens_to_generate: 128
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
@@ -311,32 +311,31 @@ model:
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
-    # test_ds:
-    #   manifest_filepath: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-    #   force_finite: true  # workaround to allow using input_cfg
-    #   names: null # Names of the corresponding datasets used to log metrics.
-    #   global_batch_size: ${model.global_batch_size}
-    #   micro_batch_size: ${model.micro_batch_size}
-    #   shuffle: False
-    #   num_workers: 4
-    #   pin_memory: True
-    #   max_seq_length: 2048
-    #   min_seq_length: 1
-    #   drop_last: False
-    #   context_key: 'input'
-    #   label_key: 'output'
-    #   add_eos: ${model.data.train_ds.add_eos}
-    #  end_string: ${model.data.end_string}
-    #   add_sep: ${model.data.train_ds.add_sep}
-    #   add_bos: ${model.data.train_ds.add_bos}
-    #   separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
-    #   write_predictions_to_file: False
-    #   output_file_path_prefix: null # Prefix of the file to write predictions to.
-    #   truncation_field: "context" # Options: ['context', 'answer']
-    #   index_mapping_dir: null # Path to a directory to write index mapping files.
-    #   prompt_template: ${model.data.train_ds.prompt_template}
-    #   # ASR configs
-    #   sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
+    test_ds:
+      manifest_filepath: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+      force_finite: true  # workaround to allow using input_cfg
+      names: null # Names of the corresponding datasets used to log metrics.
+      global_batch_size: ${model.global_batch_size}
+      micro_batch_size: ${model.micro_batch_size}
+      shuffle: False
+      num_workers: 1
+      pin_memory: True
+      max_seq_length: 2048
+      min_seq_length: 1
+      drop_last: False
+      context_key: ${model.data.train_ds.context_key}
+      answer_key: ${model.data.train_ds.answer_key}
+      add_eos: ${model.data.train_ds.add_eos}
+      end_string: ${model.data.end_string}
+      add_sep: ${model.data.train_ds.add_sep}
+      add_bos: ${model.data.train_ds.add_bos}
+      separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
+      write_predictions_to_file: False
+      output_file_path_prefix: null # Prefix of the file to write predictions to.
+      truncation_field: "context" # Options: ['context', 'answer']
+      index_mapping_dir: null # Path to a directory to write index mapping files.
+      # ASR configs
+      sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
 
     #   metric:
     #     name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']

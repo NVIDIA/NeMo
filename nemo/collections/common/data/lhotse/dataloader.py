@@ -101,22 +101,26 @@ class LhotseDataLoadingConfig:
     token_equivalent_duration: float | None = None
     batch_tokens: int | None = None
     quadratic_factor: float | None = None
+
+    # 2.2 Filters on sequence lengths.
+    #   * Speech input
+    min_duration: float | None = -1
+    max_duration: float | None = float("inf")
+    min_tps: int = -1  # allowed tokens per second (audio-only)
+    max_tps: float = float("inf")
+    #   * Text input
     min_tokens: int | None = -1
     max_tokens: int | None = 1_000_000_000
+    min_tpt: int = -1  # allowed tokens per token (text-only)
+    max_tpt: float = float("inf")
 
     # 3. Supported existing NeMo options.
     shuffle: bool = False
     sample_rate: int = 16000
-    min_duration: float | None = -1
-    max_duration: float | None = float("inf")
     seed: int | str = 0
     num_workers: int = 0
     pin_memory: bool = False
     channel_selector: int | str | None = None
-    min_tps: int = -1  # allowed tokens per second (audio-only)
-    max_tps: float = float("inf")
-    min_tpt: int = -1  # allowed tokens per token (text-only)
-    max_tpt: float = float("inf")
 
     # 4. Optional Lhotse data augmentation.
     #   a. On-the-fly noise/audio mixing.
