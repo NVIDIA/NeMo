@@ -14,7 +14,7 @@
 
 
 from typing import Callable, Optional
-
+from dataclasses import dataclass
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
@@ -31,6 +31,7 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 NAME = "mamba2_370m"
 
@@ -52,32 +53,16 @@ def model() -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig370M))
+@dataclass
+class TokenizerConfig:
+    library: str = 'huggingface'
+    model_name: str = "EleutherAI/gpt-neox-20b"
+    use_fast: bool = True
 
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[pl.LightningModule]:
-    """
-    Factory function to create a Mamba2 370M model configuration.
 
-    Returns:
-        run.Config[pl.LightningModule]: Configuration for the Mamba2 370M model.
-
-    Examples:
-        CLI usage:
-            $ nemo llm pretrain model=mamba2_370m ...
-
-        Python API usage:
-            >>> model_config = model()
-            >>> print(model_config)
-    """
-    from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-    from dataclasses import dataclass
-    @dataclass
-    class TokenizerConfig:
-        library: str = 'huggingface'
-        model_name: str = "EleutherAI/gpt-neox-20b"
-        use_fast: bool = True
-
-    return run.Config(get_nmt_tokenizer, TokenizerConfig())
+    return run.Config(get_nmt_tokenizer, TokenizerConfig)
 
 def trainer(
     tensor_parallelism: int = 1,
