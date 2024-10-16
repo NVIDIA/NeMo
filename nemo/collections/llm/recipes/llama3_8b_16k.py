@@ -49,7 +49,7 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    num_nodes: int = 1,
+    num_nodes: int = 2,
     num_gpus_per_node: int = 8,
 ) -> run.Config:
     """
@@ -91,7 +91,7 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 2,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
     """
@@ -134,7 +134,7 @@ def pretrain_recipe(
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 2,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
     """
