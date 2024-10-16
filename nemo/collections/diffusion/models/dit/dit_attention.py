@@ -26,8 +26,7 @@ class JointSelfAttentionSubmodules:
 class JointSelfAttention(Attention):
     """Joint Self-attention layer class
 
-    Self-attention layer takes input with size [s, b, h]
-    and returns output of the same size.
+    Used for MMDIT-like transformer block.
     """
 
     def __init__(
@@ -70,7 +69,7 @@ class JointSelfAttention(Attention):
                 bias=self.config.add_qkv_bias,
                 skip_bias_add=False,
                 is_expert=False,
-                tp_comm_buffer_name='qkv',
+                tp_comm_buffer_name='qkv'
             )
 
         if not context_pre_only:
@@ -87,33 +86,63 @@ class JointSelfAttention(Attention):
                 tp_comm_buffer_name='proj',
             )
 
-    def get_query_key_value_tensors(self, hidden_states, key_value_states=None, additional_hidden_states=None):
-        """
-        Derives `query`, `key` and `value` tensors from `hidden_states`.
-        """
-        residue = hidden_states
-        # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
-        mixed_qkv, _ = self.linear_qkv(hidden_states)
-        if additional_hidden_states is not None:
-            added_qkv, _ = self.added_linear_qkv(additional_hidden_states)
+        if submodules.q_layernorm is not None:
+            self.q_layernorm = build_module(
+                submodules.q_layernorm,
+                hidden_size=self.hidden_size_per_attention_head,
+                config=self.config,
+                eps=self.config.layernorm_epsilon,
+            )
+        else:
+            self.q_layernorm = None
 
-        mixed_qkv = torch.cat([mixed_qkv, added_qkv], dim=0)
+        if submodules.k_layernorm is not None:
+            self.k_layernorm = build_module(
+                submodules.k_layernorm,
+                hidden_size=self.hidden_size_per_attention_head,
+                config=self.config,
+                eps=self.config.layernorm_epsilon,
+            )
+        else:
+            self.k_layernorm = None
 
+        if submodules.added_q_layernorm is not None:
+            self.added_q_layernorm = build_module(
+                submodules.added_q_layernorm,
+                hidden_size=self.hidden_size_per_attention_head,
+                config=self.config,
+                eps=self.config.layernorm_epsilon,
+            )
+        else:
+            self.added_q_layernorm = None
+
+        if submodules.added_k_layernorm is not None:
+            self.added_k_layernorm = build_module(
+                submodules.added_k_layernorm,
+                hidden_size=self.hidden_size_per_attention_head,
+                config=self.config,
+                eps=self.config.layernorm_epsilon,
+            )
+        else:
+            self.added_k_layernorm = None
+
+
+    def _split_qkv(self, mixed_qkv):
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (
             self.num_query_groups_per_partition,
             (
-                (self.num_attention_heads_per_partition // self.num_query_groups_per_partition + 2)
-                * self.hidden_size_per_attention_head
+                    (self.num_attention_heads_per_partition // self.num_query_groups_per_partition + 2)
+                    * self.hidden_size_per_attention_head
             ),
         )
         mixed_qkv = mixed_qkv.view(*new_tensor_shape)
 
         split_arg_list = [
             (
-                self.num_attention_heads_per_partition
-                // self.num_query_groups_per_partition
-                * self.hidden_size_per_attention_head
+                    self.num_attention_heads_per_partition
+                    // self.num_query_groups_per_partition
+                    * self.hidden_size_per_attention_head
             ),
             self.hidden_size_per_attention_head,
             self.hidden_size_per_attention_head,
@@ -122,34 +151,65 @@ class JointSelfAttention(Attention):
         if SplitAlongDim is not None:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = SplitAlongDim(
-                mixed_qkv,
-                3,
-                split_arg_list,
-            )
+            (query, key, value) = SplitAlongDim(mixed_qkv, 3, split_arg_list, )
         else:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = torch.split(
-                mixed_qkv,
-                split_arg_list,
-                dim=3,
-            )
+            (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3, )
 
         # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
+        return query, key, value
+
+    def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
+        """
+        Derives `query`, `key` and `value` tensors from `hidden_states`.
+        """
+        # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
+        mixed_qkv, _ = self.linear_qkv(hidden_states)
+
+        query, key, value = self._split_qkv(mixed_qkv)
+
+        if self.config.test_mode:
+            self.run_realtime_tests()
+
+        if self.q_layernorm is not None:
+            query = self.q_layernorm(query)
+
+        if self.k_layernorm is not None:
+            key = self.k_layernorm(key)
+
+        return query, key, value
+
+    def get_added_query_key_value_tensors(self, added_hidden_states, key_value_states=None):
+        """
+        Derives `query`, `key` and `value` tensors from `hidden_states`.
+        """
+        # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
+        mixed_qkv, _ = self.added_linear_qkv(added_hidden_states)
+
+        query, key, value = self._split_qkv(mixed_qkv)
+
+        if self.config.test_mode:
+            self.run_realtime_tests()
+
+        if self.added_q_layernorm is not None:
+            query = self.added_q_layernorm(query)
+
+        if self.added_k_layernorm is not None:
+            key = self.added_k_layernorm(key)
 
         return query, key, value
 
     def forward(
-        self,
-        hidden_states,
-        attention_mask,
-        key_value_states=None,
-        inference_params=None,
-        rotary_pos_emb=None,
-        packed_seq_params=None,
-        additional_hidden_states=None,
+            self,
+            hidden_states,
+            attention_mask,
+            key_value_states=None,
+            inference_params=None,
+            rotary_pos_emb=None,
+            packed_seq_params=None,
+            additional_hidden_states=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -163,21 +223,13 @@ class JointSelfAttention(Attention):
         # Get the query, key and value tensors based on the type of attention -
         # self or cross attn.
 
-        query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states, additional_hidden_states)
-        # print(f'megatron q before ln: {query.transpose(0, 1).contiguous()}, {query.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron k before ln: {key.transpose(0, 1).contiguous()}, {key.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron v before ln: {value.transpose(0, 1).contiguous()}, {value.transpose(0, 1).contiguous().shape}')
+        query, key, value = self.get_query_key_value_tensors(hidden_states)
+        added_query, added_key, added_value = self.get_added_query_key_value_tensors(additional_hidden_states)
 
-        if self.attention_type == 'cross':
-            if self.config.qk_layernorm_cross_attn:
-                query, key = self.apply_qk_layernorm(query, key)
-        elif self.attention_type == 'self':
-            if self.config.qk_layernorm_self_attn:
-                query, key = self.apply_qk_layernorm(query, key)
 
-        # print(f'megatron q after ln: {query.transpose(0, 1).contiguous()}, {query.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron k after ln: {key.transpose(0, 1).contiguous()}, {key.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron v after ln: {value.transpose(0, 1).contiguous()}, {value.transpose(0, 1).contiguous().shape}')
+        query = torch.cat([added_query, query], dim=0)
+        key = torch.cat([added_key, key], dim=0)
+        value = torch.cat([added_value, value], dim=0)
 
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
@@ -191,6 +243,7 @@ class JointSelfAttention(Attention):
             key = key.squeeze(1)
             value = value.squeeze(1)
 
+
         # ================================================
         # relative positional embedding (rotary embedding)
         # ================================================
@@ -203,16 +256,10 @@ class JointSelfAttention(Attention):
             else:
                 cu_seqlens_q = cu_seqlens_kv = None
             query = apply_rotary_pos_emb(
-                query,
-                q_pos_emb,
-                config=self.config,
-                cu_seqlens=cu_seqlens_q,
+                query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q,
             )
             key = apply_rotary_pos_emb(
-                key,
-                k_pos_emb,
-                config=self.config,
-                cu_seqlens=cu_seqlens_kv,
+                key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv,
             )
 
             # TODO, can apply positional embedding to value_layer so it has
@@ -223,7 +270,6 @@ class JointSelfAttention(Attention):
         # ==================================
         # core attention computation
         # ==================================
-
         if self.checkpoint_core_attention and self.training:
             core_attn_out = self._checkpointed_attention_forward(
                 query,
@@ -253,9 +299,8 @@ class JointSelfAttention(Attention):
         # =================
         # Output. [sq, b, h]
         # =================
-
-        attention_output = core_attn_out[: hidden_states.shape[0], :, :]
-        encoder_attention_output = core_attn_out[hidden_states.shape[0] :, :, :]
+        encoder_attention_output = core_attn_out[:additional_hidden_states.shape[0], :, :]
+        attention_output = core_attn_out[additional_hidden_states.shape[0]:, :, :]
 
         output, bias = self.linear_proj(attention_output)
         encoder_output, encoder_bias = self.added_linear_proj(encoder_attention_output)
@@ -263,8 +308,8 @@ class JointSelfAttention(Attention):
         output = output + bias
         encoder_output = encoder_output + encoder_bias
 
-        return output, encoder_output
 
+        return output, encoder_output
 
 class FluxSingleAttention(SelfAttention):
     """Self-attention layer class
@@ -297,17 +342,6 @@ class FluxSingleAttention(SelfAttention):
         # print(f'megatron q before ln: {query.transpose(0, 1).contiguous()}, {query.transpose(0, 1).contiguous().shape}')
         # print(f'megatron k before ln: {key.transpose(0, 1).contiguous()}, {key.transpose(0, 1).contiguous().shape}')
         # print(f'megatron v before ln: {value.transpose(0, 1).contiguous()}, {value.transpose(0, 1).contiguous().shape}')
-
-        if self.attention_type == 'cross':
-            if self.config.qk_layernorm_cross_attn:
-                query, key = self.apply_qk_layernorm(query, key)
-        elif self.attention_type == 'self':
-            if self.config.qk_layernorm_self_attn:
-                query, key = self.apply_qk_layernorm(query, key)
-
-        # print(f'megatron q after ln: {query.transpose(0, 1).contiguous()}, {query.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron k after ln: {key.transpose(0, 1).contiguous()}, {key.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron v after ln: {value.transpose(0, 1).contiguous()}, {value.transpose(0, 1).contiguous().shape}')
 
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
