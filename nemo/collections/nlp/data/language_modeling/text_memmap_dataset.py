@@ -127,7 +127,7 @@ class TextMemMapDataset(Dataset):
                 index_mapping_dir=index_mapping_dir,
             )
 
-        if is_distributed:
+        if is_distributed and not bool(int(os.environ.get("NEMO2_PREPARING_DATA", "0"))):
             torch.distributed.barrier()
 
         if is_distributed and AppState().local_rank == 0:
@@ -152,7 +152,7 @@ class TextMemMapDataset(Dataset):
                 index_mapping_dir=index_mapping_dir,
             )
 
-        if is_distributed:
+        if is_distributed and not bool(int(os.environ.get("NEMO2_PREPARING_DATA", "0"))):
             torch.distributed.barrier()
 
         logging.info(f"Loading data files")
