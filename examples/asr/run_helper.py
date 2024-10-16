@@ -184,6 +184,7 @@ def main(cluster_cfg):
             num_gpus = len(num_gpus)
         if num_gpus == -1:
             num_gpus = 1 if cluster_cfg['executor'] == 'local' else 8
+            logging.warning(f"\n\nSetting num_gpus to {num_gpus} as it was set to -1\n\n")
 
         num_nodes = cluster_cfg.get('num_nodes', merged_config['trainer'].get('num_nodes', 1))
         cluster_cfg = OmegaConf.to_object(cluster_cfg)
