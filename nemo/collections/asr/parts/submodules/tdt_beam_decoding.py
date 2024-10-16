@@ -318,25 +318,6 @@ class BeamTDTInfer(Typing):
 
         return (hypotheses,)
 
-    def greedy_search(
-        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
-    ) -> List[Hypothesis]:
-        """Greedy search implementation for transducer.
-        Generic case when beam size = 1. Results might differ slightly due to implementation details
-        as compared to `GreedyRNNTInfer` and `GreedyBatchRNNTInfer`.
-
-        Args:
-            h: Encoded speech features (1, T_max, D_enc)
-
-        Returns:
-            hyp: 1-best decoding results
-        """
-        logging.info(
-            """If beam size is 1, defaults to stateful greedy search.
-                     For accurate greedy results, please use GreedyTDTInfer or GreedyBatchedTDTInfer."""
-        )
-        raise NotImplementedError("greedy search has not been implemented")
-
     def default_beam_search(
         self,
         encoder_outputs: torch.Tensor,
@@ -446,7 +427,7 @@ class BeamTDTInfer(Typing):
                     )  # update frame idx where last token appeared
                     kept_hyps.append(new_hyp)
 
-                # Remove duplicate hypotheses.
+                # Merge duplicate hypotheses.
                 # If two consecutive blank tokens are predicted and their duration values sum up to the same number,
                 # it will produce two hypotheses with the same token sequence but different scores.
                 kept_hyps = self.merge_duplicate_hypotheses(kept_hyps)
@@ -561,7 +542,7 @@ class BeamTDTInfer(Typing):
                 beam_logp = torch.log_softmax(beam_logits[:, 0, 0, : -len(self.durations)], dim=-1)
                 beam_duration_logp = torch.log_softmax(beam_logits[:, 0, 0, -len(self.durations) :], dim=-1)
 
-                # Retrieve the top `max_candidades` most probable tokens and the top `duration_beam` most probable durations.
+                # Retrieve the top `max_candidades` most probable tokens.
                 # Then, select the top `max_candidates` pairs of (token, duration) based on the highest combined probabilities.
                 # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
