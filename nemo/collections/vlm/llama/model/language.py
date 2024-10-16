@@ -105,9 +105,7 @@ def _get_xattn_mask(
         cross_attention_masks,
         get_negative_inf_value(cross_attention_masks.dtype),
     )
-    cross_attention_masks = (
-        cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
-    )
+    cross_attention_masks = cross_attention_masks.repeat_interleave(vision_seqlen, dim=3)
     cross_attention_masks *= full_text_row_masked_out_mask
 
     return (

@@ -479,9 +479,11 @@ class MLlamaBaseModel(MegatronModule):
             language_embeddings = self.language_model.get_partially_trainable_embedding(tokens)
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [text_seq_len, b, h_language]
 
-        full_text_row_masked_out_mask = \
-            full_text_row_masked_out_mask[:, :, position_ids[0]].permute(2, 0, 1, 3).squeeze(2) \
-            if cross_attention_masks is not None else None
+        full_text_row_masked_out_mask = (
+            full_text_row_masked_out_mask[:, :, position_ids[0]].permute(2, 0, 1, 3).squeeze(2)
+            if cross_attention_masks is not None
+            else None
+        )
         output = self.language_model(
             input_ids=tokens,
             position_ids=position_ids,
