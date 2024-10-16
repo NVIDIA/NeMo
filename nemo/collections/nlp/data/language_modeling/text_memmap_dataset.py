@@ -757,4 +757,10 @@ def _lightning_prepare_data():
     prepare_data, the barrier operation would hang forever.
     """
     import inspect
-    return any([frame.function == 'prepare_data' and 'prepare_packed_sequence_data' in frame.code_context[0] for frame in inspect.stack()])
+
+    return any(
+        [
+            frame.function == 'prepare_data' and 'prepare_packed_sequence_data' in frame.code_context[0]
+            for frame in inspect.stack()
+        ]
+    )
