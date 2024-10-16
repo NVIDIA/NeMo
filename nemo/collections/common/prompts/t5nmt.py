@@ -1,11 +1,12 @@
 from collections import defaultdict
-import torch
-from lhotse import CutSet, MonoCut
-from lhotse.cut import MixedCut
 
-from nemo.collections.common.prompts import registered_prompt_format_fn
+import torch
+from lhotse import MonoCut
+from lhotse.cut import Cut, MixedCut
+
+from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample
+from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
-from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 class T5NMTPromptFormatter(PromptFormatter):
@@ -43,42 +44,48 @@ class T5NMTPromptFormatter(PromptFormatter):
         )
 
 
-@registered_prompt_format_fn
-def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> dict[str, torch.Tensor]:
-    prompt = T5NMTPromptFormatter(tokenizer)
-
+@registered_prompt_format_fn(Cut, T5NMTPromptFormatter)
+def t5nmt(cut: Cut, prompt: T5NMTPromptFormatter) -> dict[str, torch.Tensor]:
     ans = defaultdict(list)
-    for cut in cuts:
-        if isinstance(cut, MixedCut):
-            cut = cut._first_non_padding_cut
-        if not isinstance(cut, MonoCut):
-            raise TypeError(
-                f"Expected input audio to have a single channel (required MonoCut/MixedCut, but we received: {cut=})"
-            )
+    if isinstance(cut, MixedCut):
+        cut = cut._first_non_padding_cut
+    if not isinstance(cut, MonoCut):
+        raise TypeError(
+            f"Expected input audio to have a single channel (required MonoCut/MixedCut, but we received: {cut=})"
+        )
 
-        if hasattr(cut, "context"):
-            context = cut.context
-        elif hasattr(cut, "default_context"):
-            context = cut.default_context
-        else:
-            raise RuntimeError("Missing context/default_context custom field in cut: {cut}")
+    if hasattr(cut, "context"):
+        context = cut.context
+    elif hasattr(cut, "default_context"):
+        context = cut.default_context
+    else:
+        raise RuntimeError("Missing context/default_context custom field in cut: {cut}")
 
-        turns = [
+    turns = [
+        dict(
+            role="user",
+            # "message" slot is the audio portion of the cut; currently it is populated inside model's forward.
+            slots={"target_lang": context, "message": ""},
+        ),
+    ]
+    if len(cut.supervisions) > 0 and cut.supervisions[0].text is not None:
+        turns.append(
             dict(
-                role="user",
-                # "message" slot is the audio portion of the cut; currently it is populated inside model's forward.
-                slots={"target_lang": context, "message": ""},
-            ),
-        ]
-        if len(cut.supervisions) > 0 and cut.supervisions[0].text is not None:
-            turns.append(
-                dict(
-                    role=prompt.OUTPUT_ROLE,
-                    slots={"message": cut.supervisions[0].text},
-                )
+                role=prompt.OUTPUT_ROLE,
+                slots={"message": cut.supervisions[0].text},
             )
-        enc = prompt.encode_dialog(turns)
-        for k, v in enc.items():
-            ans[k].append(v)
+        )
+    return prompt.encode_dialog(turns)
 
-    return ans
+
+@registered_prompt_format_fn(SourceTargetTextExample, T5NMTPromptFormatter)
+def t5nmt_src_tgt_text_example(example: SourceTargetTextExample, prompt: T5NMTPromptFormatter):
+    ctx = f"<{example.target.language}>"
+    if example.has_custom("extra_prompt"):
+        ctx = f"{ctx} {example.extra_prompt}"
+    return prompt.encode_dialog(
+        [
+            {"role": "user", "slots": {"message": example.source.text, "target_lang": ctx}},
+            {"role": prompt.OUTPUT_ROLE, "slots": {"message": example.target.text}},
+        ]
+    )

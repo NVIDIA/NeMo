@@ -19,6 +19,8 @@ from lhotse import CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
+from nemo.collections.common.data import apply_prompt_format_fn
+from nemo.collections.common.prompts import CanaryPromptFormatter, PromptFormatter
 from nemo.collections.common.tokenizers import TokenizerSpec
 
 
@@ -62,15 +64,13 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         tokenizer: TokenizerSpec,
-        prompt_format_fn: Callable[
-            [CutSet, TokenizerSpec], tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]
-        ],
+        prompt: PromptFormatter,
     ):
         super().__init__()
         self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.padding_value = self.tokenizer.pad
-        self.prompt_format_fn = prompt_format_fn
+        self.prompt = prompt
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
@@ -81,8 +81,10 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         if pre_formatted:
             prompts_with_answers, prompts, answers = zip(*((c.input_ids, c.context_ids, c.answer_ids) for c in cuts))
         else:
-            ans = self.prompt_format_fn(cuts, self.tokenizer)
-            prompts_with_answers, prompts, answers = ans["input_ids"], ans["context_ids"], ans["answer_ids"]
+            formatted = [apply_prompt_format_fn(cut, self.prompt) for cut in cuts]
+            prompts_with_answers = [ex["input_ids"] for ex in formatted]
+            prompts = [ex["context_ids"] for ex in formatted]
+            answers = [ex["answer_ids"] for ex in formatted]
 
         transcript, transcript_lens = self._collate_tokens(answers)
         prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)

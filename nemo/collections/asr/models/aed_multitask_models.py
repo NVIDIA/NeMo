@@ -44,10 +44,10 @@ from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.collections.common.prompts.fn import get_prompt_format_fn
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
@@ -510,7 +510,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             world_size=self.world_size,
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
-                prompt_format_fn=get_prompt_format_fn(self.prompt_format),
+                prompt=self.prompt,
             ),
             tokenizer=self.tokenizer,
         )

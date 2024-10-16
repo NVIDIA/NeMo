@@ -127,8 +127,6 @@ def test_multimodal_conversation_input(multimodal_conversations_path):
     assert isinstance(t, TextTurn)
     assert t.role == "assistant"
     assert t.value == "Of course!"
-    for key in ("input_ids", "context_ids", "answer_ids", "mask"):
-        assert getattr(ex, key) is None  # not tokenized/prompted
 
 
 @pytest.fixture
