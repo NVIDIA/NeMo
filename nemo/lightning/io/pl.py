@@ -23,7 +23,7 @@ from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
 
-from nemo.lightning.ckpt_utils import ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_dir, idempotent_path_append
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
 
@@ -40,6 +40,9 @@ log = logging.getLogger(__name__)
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
+# NeMo2 checkpoint structure is a checkpoint directory, with a WEIGHTS_PATH and CONTEXT_PATH subdirectory structure.
+#  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
+WEIGHTS_PATH: str = "weights"
 
 @dataclass
 class TrainerContext(IOMixin, Generic[LightningModuleT]):
@@ -95,6 +98,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         self._save_sharded_strategy = None
         self.validated_consistency = False
+
+    def ckpt_to_weights_subdir(self, filepath: Union[str, Path]) -> Path:
+        """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
+        base_dir = ckpt_to_dir(filepath=filepath)
+        return idempotent_path_append(base_dir, WEIGHTS_PATH)
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
@@ -176,7 +184,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
         # Load from ckpt_path/weights (new format) if it exists
-        path = ckpt_to_weights_subdir(path)
+        path = self.ckpt_to_weights_subdir(path)
         if isinstance(path, AdapterPath) and not path.base_model_path.exists():
             path.base_model_path = path.base_model_path.parent
 
