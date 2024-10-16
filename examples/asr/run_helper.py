@@ -66,7 +66,7 @@ def merge_configs(script_config, cluster_cfg):
     # Copy the cluster config and resolve it to get the final values before merging
     run_copy = OmegaConf.masked_copy(cluster_cfg, keys=list(cluster_cfg.keys()))
     OmegaConf.resolve(run_copy)
-    result = OmegaConf.merge(script_config, cluster_cfg)
+    result = OmegaConf.merge(script_config, run_copy)
 
     # delete cluster config keys from the merged config
     with open_dict(result):
