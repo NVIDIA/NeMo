@@ -404,6 +404,7 @@ class MLlamaBaseModel(MegatronModule):
             num_chunks,
             total_len,
             self.max_num_chunks,
+            vision_tokens.device,
         )
         vision_tokens = rearrange(
             vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg, nchk=nchunk, ntok=ntok
@@ -469,7 +470,7 @@ class MLlamaBaseModel(MegatronModule):
                 vision_orig_shape=vision_orig_shape,
                 batch_masks=batch_masks,
                 num_chunks=num_chunks,
-                total_len=self.config.language_model_config.seq_length,
+                total_len=position_ids.shape[1],
             )
 
         assert self.add_decoder, "Language model required for forward pass."
@@ -478,6 +479,11 @@ class MLlamaBaseModel(MegatronModule):
             language_embeddings = self.language_model.get_partially_trainable_embedding(tokens)
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [text_seq_len, b, h_language]
 
+        full_text_row_masked_out_mask = (
+            full_text_row_masked_out_mask[:, :, position_ids[0]].permute(2, 0, 1, 3).squeeze(2)
+            if cross_attention_masks is not None
+            else None
+        )
         output = self.language_model(
             input_ids=tokens,
             position_ids=position_ids,
@@ -487,9 +493,7 @@ class MLlamaBaseModel(MegatronModule):
             cross_attention_masks=(
                 cross_attention_masks[:, :, position_ids[0]] if cross_attention_masks is not None else None
             ),
-            full_text_row_masked_out_mask=(
-                full_text_row_masked_out_mask[:, :, position_ids[0]] if cross_attention_masks is not None else None
-            ),
+            full_text_row_masked_out_mask=full_text_row_masked_out_mask,
             xattn_caches=xattn_caches,
         )
         return output
