@@ -23,8 +23,8 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
-from nemo.collections.asr.parts.submodules import tdt_beam_decoding 
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.submodules import tdt_beam_decoding
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
@@ -138,7 +138,8 @@ class TestRNNTDecoding:
         assert decoding is not None
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -179,7 +180,8 @@ class TestRNNTDecoding:
             print()
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -235,7 +237,8 @@ class TestRNNTDecoding:
                     t_u.append(int(label))
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -243,9 +246,20 @@ class TestRNNTDecoding:
         "beam_config",
         [
             {"search_type": "greedy"},
-            {"search_type": "default", "beam_size": 2,},
-            {"search_type": "alsd", "alsd_max_target_len": 0.5, "beam_size": 2,},
-            {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "beam_size": 2,},
+            {
+                "search_type": "default",
+                "beam_size": 2,
+            },
+            {
+                "search_type": "alsd",
+                "alsd_max_target_len": 0.5,
+                "beam_size": 2,
+            },
+            {
+                "search_type": "tsd",
+                "tsd_max_sym_exp_per_step": 3,
+                "beam_size": 2,
+            },
             {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
             {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "beam_size": 2},
         ],
@@ -312,25 +326,31 @@ class TestRNNTDecoding:
                 print()
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {"search_type": "default", "beam_size": 2,},
+            {
+                "search_type": "default",
+                "beam_size": 2,
+            },
             {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
             {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 1, "beam_size": 4},
         ],
     )
     def test_tdt_beam_decoding(self, test_data_dir, beam_config):
         beam_size = beam_config.pop("beam_size", 1)
-        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/stt_kk_ru_fastconformer_hybrid_large')
-        
+        model, encoded, encoded_len = get_model_encoder_output(
+            test_data_dir, 'nvidia/stt_kk_ru_fastconformer_hybrid_large'
+        )
+
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
-        
+
         beam = tdt_beam_decoding.BeamTDTInfer(
             model.decoder,
             model.joint,

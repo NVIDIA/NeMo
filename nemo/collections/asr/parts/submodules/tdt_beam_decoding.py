@@ -26,7 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -229,7 +229,9 @@ class BeamTDTInfer(Typing):
             self.zero_duration_idx = self.durations.index(0)
         except ValueError:
             self.zero_duration_idx = None
-        self.min_non_zero_duration_idx = int(np.argmin(np.ma.masked_where(np.array(self.durations) == 0, self.durations)))
+        self.min_non_zero_duration_idx = int(
+            np.argmin(np.ma.masked_where(np.array(self.durations) == 0, self.durations))
+        )
 
         if ngram_lm_model:
             if search_type != "maes":
@@ -563,7 +565,9 @@ class BeamTDTInfer(Typing):
                 # Then, select the top `max_candidates` pairs of (token, duration) based on the highest combined probabilities.
                 # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
-                beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(len(hyps), -1)  # [B, MAX_CANDIDATES*DURATION_BEAM]
+                beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(
+                    len(hyps), -1
+                )  # [B, MAX_CANDIDATES*DURATION_BEAM]
                 beam_total_logp_topks, beam_total_logp_topk_idxs = beam_total_logp.topk(
                     self.max_candidates, dim=-1
                 )  # [B, MAX_CANDIDATES]
@@ -683,7 +687,7 @@ class BeamTDTInfer(Typing):
         """
         Merges hypotheses with identical token sequences and lengths.
         The combined hypothesis's probability is the sum of the probabilities of all duplicates.
-        Duplicate hypotheses occur when two consecutive blank tokens are predicted 
+        Duplicate hypotheses occur when two consecutive blank tokens are predicted
         and their duration values sum up to the same number.
 
         Args:
@@ -695,9 +699,9 @@ class BeamTDTInfer(Typing):
         sorted_hyps = sorted(hypotheses, key=lambda x: x.score, reverse=True)
         kept_hyps = {}
         for hyp in sorted_hyps:
-            hyp_key=(tuple(hyp.y_sequence), int(hyp.last_frame))
+            hyp_key = (tuple(hyp.y_sequence), int(hyp.last_frame))
             if hyp_key in kept_hyps:
-                kept_hyp=kept_hyps[hyp_key]
+                kept_hyp = kept_hyps[hyp_key]
                 kept_hyp.score = float(torch.logaddexp(torch.tensor(kept_hyp.score), torch.tensor(hyp.score)))
             else:
                 kept_hyps[hyp_key] = hyp

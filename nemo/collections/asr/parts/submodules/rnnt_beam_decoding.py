@@ -1464,6 +1464,7 @@ class BeamRNNTInfer(Typing):
 
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
+
 @dataclass
 class BeamRNNTInferConfig:
     beam_size: int
