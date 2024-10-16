@@ -59,7 +59,7 @@ class MockDataModule(pl.LightningDataModule):
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         # self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
-        self.tokenizer = get_nmt_tokenizer(library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
+        self.tokenizer = get_nmt_tokenizer(library='huggingface', model_name="EleutherAI/gpt-neox-20b", tokenizer_model=None, use_fast=True)
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,
