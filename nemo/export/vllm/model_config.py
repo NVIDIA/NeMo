@@ -81,6 +81,7 @@ class NemoModelConfig(ModelConfig):
         self.disable_sliding_window = disable_sliding_window
         self.served_model_name = nemo_checkpoint
         self.multimodal_config = None
+        self.mm_processor_kwargs = {}
         self.use_async_output_proc = use_async_output_proc
 
         self.model_converter = get_model_converter(model_type)
