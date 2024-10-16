@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import datetime
 from pathlib import Path
 
 import nemo_run as run
@@ -176,7 +177,8 @@ def main(cluster_cfg):
             )
 
     with run.Experiment(exp_name) as exp:
-        config_name = f"{exp_name}_config.yaml"
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        config_name = f"{exp_name}_{timestamp}_config.yaml"
         cmd = get_execution_script(cluster_script_path, config_name, merged_config, cluster_cfg)
 
         # Create the remote config file
