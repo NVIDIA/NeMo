@@ -14,7 +14,7 @@
 
 
 from typing import Callable, Optional
-from dataclasses import dataclass
+
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
@@ -53,16 +53,11 @@ def model() -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig370M))
-@dataclass
-class TokenizerConfig:
-    library: str = 'huggingface'
-    model_name: str = "EleutherAI/gpt-neox-20b"
-    use_fast: bool = True
 
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, run.Config(TokenizerConfig))
+    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
 
 def trainer(
     tensor_parallelism: int = 1,
@@ -189,7 +184,7 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer()),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=8, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
