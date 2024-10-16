@@ -606,7 +606,7 @@ class BeamTDTInfer(Typing):
                             list_b.append(new_hyp)
                         else:
                             new_hyp.y_sequence.append(k)
-                            new_hyp.timestep.append(time_idx)
+                            new_hyp.timestep.append(time_idx + duration)
 
                             if self.ngram_lm:
                                 lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(hyp.ngram_lm_state, int(k))

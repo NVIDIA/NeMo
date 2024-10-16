@@ -22,7 +22,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as rnnt_beam_decoding
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.common import tokenizers
 from nemo.core.utils import numba_utils
@@ -282,28 +282,28 @@ class TestEncDecRNNTBPEModel:
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 1})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert isinstance(asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'beam'
         new_strategy.beam = DictConfig({'beam_size': 2})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert isinstance(asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'tsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert isinstance(asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "tsd"
 
         new_strategy = DictConfig({})
         new_strategy.strategy = 'alsd'
         new_strategy.beam = DictConfig({'beam_size': 2})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert isinstance(asr_model.decoding.decoding, rnnt_beam_decoding.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "alsd"
 
     @pytest.mark.with_downloads()
