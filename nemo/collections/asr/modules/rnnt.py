@@ -1016,7 +1016,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             (tuple): decoder states for given id
                 ([L x (1, H)], [L x (1, H)])
         """
-        # print("###", len(batch_states), batch_states[0].shape, self.pred_rnn_layers)
         if batch_states is not None:
             return [state[:, idx] for state in batch_states]
 
