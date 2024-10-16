@@ -29,6 +29,9 @@ from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
+if TYPE_CHECKING:
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
 
 class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
     """
@@ -111,9 +114,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.val_dataloader_object = None
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
-        # (pleasefixme) image_processor and task_encoder are problematic with Fiddle so we skip serializing them for now
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder']}
-
         for val in cfg_kwargs.values():
             if not serialization.find_node_traverser(type(val)):
                 track_io(type(val))
