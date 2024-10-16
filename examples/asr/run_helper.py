@@ -84,6 +84,12 @@ def merge_configs(script_config, cluster_cfg):
                 elif v == '???':
                     raise ValueError(f"Missing value for key {k} in the config file")
 
+    # Do name check as a special case
+    if 'name' in result and result['name'] == '':
+        raise ValueError(f"Missing value for key 'name' in the merged config file (value={result['name']}).\n"
+                         f"Check if your ++ override is using single quote (') instead of double quote (\") for resolution.\n"
+                         "Example: ++name='${exp_name}'")
+
     check_missing_values(result)
     return result
 
