@@ -100,18 +100,19 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self._save_sharded_strategy = None
         self.validated_consistency = False
 
-    def ckpt_to_weights_subdir(self, filepath: Union[str, Path]) -> Path:
+    def ckpt_to_weights_subdir(self, filepath: Union[str, Path], is_saving: bool = False) -> Path:
         """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
-        from nemo.lightning.resume import AdapterPath
-
         base_dir = ckpt_to_dir(filepath=filepath)
         assert isinstance(base_dir, Path)
         if base_dir.parts[-1] != WEIGHTS_PATH:
             maybe_base_dir = base_dir / WEIGHTS_PATH
-            if maybe_base_dir.is_dir():
+            if maybe_base_dir.is_dir() or is_saving:
                 base_dir = maybe_base_dir
-        if isinstance(base_dir, AdapterPath) and base_dir.base_model_path.parts[-1] != suffix:
-            base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
+        ## handle adaper paths
+        if hasattr(base_dir, base_model_path) and base_dir.base_model_path.parts[-1] != suffix:
+            maybe_base_model_path = base_dir.base_model_path / WEIGHTS_PATH
+            if maybe_base_model_path.is_dir() or is_saving:
+                base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
         return base_dir
 
     @override
@@ -137,7 +138,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                 f" storage_options, but {storage_options=} was provided."
                 f" Ignoring given storage_options"
             )
-        checkpoint_dir = ckpt_to_dir(filepath) / ModelCheckpoint.WEIGHTS_PATH
+        checkpoint_dir = ckpt_to_weights_subdir(filepath, is_saving=True)
         fs = get_filesystem(checkpoint_dir)
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
             logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
