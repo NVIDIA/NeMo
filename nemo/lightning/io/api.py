@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Callable, Optional, Type, TypeVar
+from typing import Any, Callable, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
 import pytorch_lightning as pl
@@ -9,7 +9,7 @@ from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load
 from nemo.lightning.io.pl import TrainerContext
 
 
-def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
+def load_context(path: Union[Path, str], subpath: Optional[str] = None) -> TrainerContext:
     """
     Loads a TrainerContext from a json-file or directory.
 
@@ -29,7 +29,8 @@ def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
         checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint", subpath="model.config")
 
     """
-    return load(path, output_type=TrainerContext, subpath=subpath)
+    path = Path(path)
+    return load(path / 'context', output_type=TrainerContext, subpath=subpath)
 
 
 def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
