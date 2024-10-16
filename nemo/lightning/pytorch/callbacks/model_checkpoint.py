@@ -58,7 +58,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
     """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
-    WEIGHTS_PATH = "weights"
 
     def __init__(
         self,
@@ -436,7 +435,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
-        ckpt_filepath = ckpt_to_dir(filepath) / ModelCheckpoint.WEIGHTS_PATH
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
 
