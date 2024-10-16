@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, List, Optional, Union
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
+from nemo.collections.common.tokenizers import AutoTokenizer
 
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
@@ -26,7 +27,7 @@ from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
-
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 class FineTuningDataModule(pl.LightningDataModule):
     """Base class for fine-tuning an LLM.
@@ -50,10 +51,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
         max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping for the mmap dataset
         pad_to_max_length (bool, optional): Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
-        packed_sequence_size (int, optional): If a positive integer, this arg enables training with sequence packing and specifies the pack size
-            If less than or equal to 0, sequence packing is disabled. Defaults to -1.
-            Note: This arg is distinct from `seq_length` because `seq_length` specifies the maximum length of the original sequence
-            (i.e. the length to truncate long sequences in the input data).
+        packed_sequence_specs (PackedSequenceSpecs, optional): See PackedSequenceSpecs for details
     """
 
     def __init__(
@@ -70,7 +68,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         pad_to_max_length: bool = False,
-        packed_sequence_size: int = -1,
+        packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -87,7 +85,8 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.data_sampler = None
         self.max_train_samples = None
         self.pad_to_max_length = pad_to_max_length
-        self.packed_sequence_size = packed_sequence_size
+        self.packed_sequence_specs = packed_sequence_specs
+        self.packed_sequence_size = packed_sequence_specs.packed_sequence_size
         self._adjust_batch_sizes_for_packed_sequence()
 
     def _adjust_batch_sizes_for_packed_sequence(self):
@@ -187,7 +186,12 @@ class FineTuningDataModule(pl.LightningDataModule):
     @property
     def train_path_packed(self) -> Path:
         if self.packed_sequence_size > 0:
-            return self.dataset_root / f"training_packed{self.packed_sequence_size}.npy"
+            if self.packed_sequence_specs.packed_data_path is not None:
+                return self.packed_sequence_specs.packed_data_path
+            tokenizer_model_name = self._extract_tokenizer_model_name()
+            folder_name = self.dataset_root / "packed" / tokenizer_model_name
+            folder_name.mkdir(parents=True, exist_ok=True)
+            return folder_name / f"training_{self.packed_sequence_size}.npy"
         else:
             raise ValueError("`train_path_packed` invalid since packed sequence size is not specified.")
 
@@ -198,3 +202,18 @@ class FineTuningDataModule(pl.LightningDataModule):
     @property
     def test_path(self) -> Path:
         return self.dataset_root / "test.jsonl"
+
+    def _extract_tokenizer_model_name(self) -> str:
+        if self.packed_sequence_specs.tokenizer_model_name is not None:
+            tokenizer_model_name = self.packed_sequence_specs.tokenizer_model_name
+        elif isinstance(self.tokenizer, AutoTokenizer):
+            name = self.tokenizer.tokenizer.name_or_path
+            if name.endswith("nemo_tokenizer"):
+                # NEMO_HOME/hf_org/hf_model/nemo_tokenizer => hf_org--hf_model
+                tokenizer_model_name = '--'.join(name.split("/")[-3:-1])
+            else:
+                # hf_org/hf_model => hf_org--hf_model
+                tokenizer_model_name = name.replace("/", "--")
+        else:
+            tokenizer_model_name = f"unknown_tokenizer_{hash(self.tokenizer)}"
+        return tokenizer_model_name
