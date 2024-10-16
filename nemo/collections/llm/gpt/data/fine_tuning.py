@@ -88,21 +88,19 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.pad_to_max_length = pad_to_max_length
         self.packed_sequence_specs = packed_sequence_specs
         self.packed_sequence_size = packed_sequence_specs.packed_sequence_size
-        self._adjust_batch_sizes_for_packed_sequence()
+        self.validate_batch_size_for_packed_sequence()
 
-    def _adjust_batch_sizes_for_packed_sequence(self):
+    def validate_batch_size_for_packed_sequence(self):
         if self.packed_sequence_size > 0 and self.micro_batch_size > 1:
-            logging.warning(
+            raise ValueError(
                 "Micro batch size should be 1 when training with packed sequence, but your micro batch size "
-                f"is {self.micro_batch_size}. Your config will be automatically updated to the following: "
-                f"MBS will be set to 1 (from {self.micro_batch_size}), "
-                f"GBS will be set to {self.global_batch_size // self.micro_batch_size} (from {self.global_batch_size}), "
-                f"packed sequence length will be set to {self.packed_sequence_size*self.micro_batch_size} (from {self.packed_sequence_size}). "
+                f"is {self.micro_batch_size}. \nThe following config is equivalent to your current setting for "
+                f"a packed dataset. Please update your config to the following: \n"
+                f"Set micro batch size to 1 (currently {self.micro_batch_size})\n"
+                f"Set global batch size to {self.global_batch_size // self.micro_batch_size} (currently {self.global_batch_size}) \n"
+                f"Set packed sequence length to {self.packed_sequence_size*self.micro_batch_size} (currently {self.packed_sequence_size}) \n"
                 f"For details please visit https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/optimizations/sequence_packing.html"
             )
-            self.global_batch_size //= self.micro_batch_size
-            self.packed_sequence_size *= self.micro_batch_size
-            self.micro_batch_size = 1
 
     def prepare_data(self) -> None:
         if self.packed_sequence_size > 0 and not self.train_path_packed.is_file():
