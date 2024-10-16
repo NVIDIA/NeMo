@@ -334,8 +334,7 @@ def analyze_token_usage(data_root, tokenizer_path, batchsize, keys, save_path):
            None, saves frequency analysis results to the provided path
 
     """
-    # extra_id = 255000
-    extra_id = 32000  ## for mixtral tokenizer
+    extra_id = 32000  
     sp = spm.SentencePieceProcessor()
     sp.load(tokenizer_path)
 
