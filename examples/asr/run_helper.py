@@ -153,6 +153,9 @@ def check_config_mount_paths(script_config, cluster_config):
             logging.info(f"Checking if {v} is a mounted path")
             run_utils.check_if_mounted(cluster_cfg, v)
 
+            unmounted_path = run_utils.get_unmounted_filepath(cluster_cfg, v)
+            run_utils.check_remote_mount_directories(unmounted_path, cluster_cfg)
+
         elif "ais://" in v and ais_endpoint is not None:  # if the value is a string, check if its an ais path
             # Try to import ais module
             try:
