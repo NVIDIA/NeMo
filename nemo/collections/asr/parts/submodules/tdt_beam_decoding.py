@@ -425,6 +425,7 @@ class BeamTDTInfer(Typing):
                 # Update future frames with blank tokens
                 # Note: blank token can have only non-zero duration
                 for duration_idx in durations_logp_topk_idxs:
+                    duration_idx = int(duration_idx)
                     # If zero is the only duration in topk, switch to closest non-zero duration to continue
                     if duration_idx == self.zero_duration_idx:
                         if durations_logp_topk_idxs.shape[0] == 1:
@@ -700,7 +701,7 @@ class BeamTDTInfer(Typing):
                 kept_hyp.score = float(torch.logaddexp(torch.tensor(kept_hyp.score), torch.tensor(hyp.score)))
             else:
                 kept_hyps[hyp_key] = hyp
-        return kept_hyps.values()
+        return list(kept_hyps.values())
 
     def set_decoding_type(self, decoding_type: str):
         # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
