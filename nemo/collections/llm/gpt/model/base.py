@@ -141,8 +141,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     cross_entropy_loss_fusion: bool = True
     gradient_accumulation_fusion: bool = _grad_accum_fusion_available
     deallocate_pipeline_outputs = True
-    bias_activation_fusion: bool = True
-    bias_dropout_add_fusion: bool = True
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step
@@ -197,7 +195,6 @@ class GPTConfig126M(GPTConfig):
     ffn_hidden_size: int = 3072
     num_attention_heads: int = 12
 
-
 @dataclass
 class GPTConfig5B(GPTConfig):
     seq_length: int = 2048
@@ -205,6 +202,9 @@ class GPTConfig5B(GPTConfig):
     hidden_size: int = 4096
     ffn_hidden_size: int = 16384
     num_attention_heads: int = 32
+
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
 
 
 @dataclass
@@ -224,6 +224,9 @@ class GPTConfig20B(GPTConfig):
     ffn_hidden_size: int = 24576
     num_attention_heads: int = 48
 
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
+
 
 @dataclass
 class GPTConfig40B(GPTConfig):
@@ -241,6 +244,9 @@ class GPTConfig175B(GPTConfig):
     hidden_size: int = 12288
     ffn_hidden_size: int = 49152
     num_attention_heads: int = 96
+
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
 
 
 class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
