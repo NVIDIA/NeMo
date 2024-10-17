@@ -81,7 +81,7 @@ class PEFT(ABC, ModelTransform):
     def __call__(self, model: nn.Module) -> nn.Module:
         """Apply the PEFT method to the entire model.
 
-        This method freezes the model parameters, set the internal mcore model to train(), and walks through the model
+        This method freezes the model parameters and walks through the model
         structure, applying the transform method to each module.
 
         Args:
@@ -90,12 +90,25 @@ class PEFT(ABC, ModelTransform):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
-
-        model.freeze()
-        model.module.train()
+        self.freeze_model(model)
         model.walk(self.transform)
 
         return model
+
+    def freeze_model(self, model: nn.Module) -> None:
+        """Apply a default freeze method to the model.
+
+        This method freezes all the model parameters. This method can be overridden by subclasses to
+        implement custom freeze strategies (e.g. freeze only parts of the model)
+
+        Args:
+            model (nn.Module): The model to be fine-tuned.
+
+        Returns:
+            nn.Module: The transformed model with PEFT applied.
+        """
+        model.freeze()
+        model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage=stage)
