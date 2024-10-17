@@ -1,4 +1,5 @@
 import bisect
+import logging
 import math
 from dataclasses import dataclass
 from typing import Any, Sequence
@@ -130,6 +131,17 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
         ):
             bucket_idx = next_idx
             bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
+
+        if example_len[0] > bin_dim0 or example_len[1] > bin_dim1:
+            logging.warning(
+                f"Data sample exceeds 2D bucket specification: lengths={example_len} bucket=({bin_dim0}, {bin_dim1}) "
+                f"(there is no larger bucket that would fit this example). "
+                f"We will keep it but expect OutOfMemoryError to happen during the training. "
+                f"You can fix this by stricter filtering with max_duration, max_tokens, max_tps, max_tpt; "
+                f"or re-estimating your bucket bins to match the actual data length distribution. "
+                f"Details: {example=}"
+            )
+
         return bucket_idx
 
 
@@ -152,19 +164,32 @@ class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2
     def measure_length(self, example: Any) -> float | tuple[float, float]:
         if isinstance(example, Cut):
             audio_len_in_tokens = math.ceil(example.duration / self.token_equivalent_duration)
-            if self.measure_total_length:
-                # Total length of a Cut (audio+text example) is counted as the sum of:
-                # * num_tokens in each supervision segment ("utterance") in the Cut
-                # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
-                text_tokens = 0
-                for s in example.supervisions:
-                    if s.has_custom("tokens"):
-                        text_tokens += len(s.tokens)
-                return audio_len_in_tokens + text_tokens
+            # Total length of a Cut (audio+text example) is counted as the sum of:
+            # * num_tokens in each supervision segment ("utterance") in the Cut
+            # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
+            text_tokens = 0
+            for s in example.supervisions:
+                if s.has_custom("tokens"):
+                    text_tokens += len(s.tokens)
+
+            if self.bucketing_2d_enabled:
+                return audio_len_in_tokens, text_tokens
+
             else:
-                return audio_len_in_tokens
+                if self.measure_total_length:
+                    return audio_len_in_tokens + text_tokens
+                else:
+                    return audio_len_in_tokens
+
         elif isinstance(example, Formattable):
-            return example.total_length if self.measure_total_length else example.input_length
+            if self.bucketing_2d_enabled:
+                assert (
+                    not self.measure_total_length
+                ), "2D bucketing requires measure_total_length=False, but it was set to True."
+                return example.input_length, example.output_length
+            else:
+                return example.total_length if self.measure_total_length else example.input_length
+
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 

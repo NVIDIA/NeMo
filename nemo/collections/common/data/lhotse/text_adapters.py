@@ -344,8 +344,18 @@ class NeMoMultimodalConversation(Formattable, CustomFieldMixin):
         extra = _compute_num_audio_tokens(self, "all")
         return self.input_ids.shape[0] + extra
 
+    @property
+    def has_audio_turns(self) -> bool:
+        return any(isinstance(t, AudioTurn) for t in self.turns)
+
+    @property
+    def has_text_turns(self) -> bool:
+        return any(isinstance(t, TextTurn) for t in self.turns)
+
 
 def _compute_num_audio_tokens(example: NeMoMultimodalConversation, mode: Literal["context", "answer", "all"]) -> int:
+    if not example.has_audio_turns:
+        return 0
     assert example.token_equivalent_duration is not None, (
         "Cannot compute the length of a NeMoMultimodalConversation: "
         "token_equivalent_duration must be set in order to estimate the number of tokens equivalent to audio turns. "
@@ -356,7 +366,7 @@ def _compute_num_audio_tokens(example: NeMoMultimodalConversation, mode: Literal
         case "context":
             turns = example.turns[:-1]
         case "answer":
-            turns = example.turns[-1]
+            turns = example.turns[-1:]
         case "all":
             turns = example.turns
         case _:
