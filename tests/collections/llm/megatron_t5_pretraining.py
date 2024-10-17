@@ -60,7 +60,7 @@ if __name__ == '__main__':
         seq_length=512,
         seq_length_dec=128,
         micro_batch_size=args.devices,
-        global_batch_size=2*args.devices,
+        global_batch_size=2 * args.devices,
         seed=1234,
         tokenizer=tokenizer,
         split="99982,9,9",
