@@ -263,10 +263,7 @@ if __name__ == "__main__":
     split = int(sys.argv[7])  # num of partitions to split the augmented embeddings
     data_root = sys.argv[8]
 
-    f = open(new_tokens_path, "r")
-    new_tokens = json.load(f)
-    print("new_tokens: ", new_tokens)
-    extend_sentencepiece(
+    extend_tokenizer_high_freq_tokens(
         data_root,
         original_tokenizer_path,
         new_tokens,
