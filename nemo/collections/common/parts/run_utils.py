@@ -99,46 +99,74 @@ def check_if_mounted(cluster_config, path_to_check):
 
 
 def add_mount_path(mount_source: str, mount_dest: str, cluster_config):
-    """Add a mount path to the cluster configuration."""
+    """
+    Add a mount path to the cluster config.
 
+    Args:
+        mount_source: The source filepath on the local/remote machine.
+        mount_dest: The destination filepath on the remote/local machine. Must be an absolute path.
+        cluster_config: The cluster config dictionary.
+    """
+
+    # Check if the cluster config is provided
     if cluster_config is None:
         raise ValueError("Cluster config is not provided.")
 
+    # Check if the mounts key is present in the cluster config
     if 'mounts' in cluster_config:
+        # Resolve the environment variables for the mount source and mount destination
         original_mounts = get_mounts_from_config(cluster_config)
+
         added_mount = False
         for mount_path in original_mounts:
             source, destination = mount_path.split(':')
 
+            # Check if the mount path already exists in the cluster config
             if source == mount_source and destination == mount_dest:
                 return
 
+        # Add the mount path to the cluster config if it does not already exist
         if not added_mount:
             cluster_config['mounts'].append(f"{mount_source}:{mount_dest}")
             logging.info(f"Added mount path: `{mount_source}:{mount_dest}`")
 
     else:
+        # Don't add a new mount path if the mounts key is not present in the cluster config
         raise ValueError("No mounts found in cluster config, can only add to existing mount list.")
 
 
 def create_remote_directory(directory: str | list, cluster_config: dict):
-    """Create a remote directory on the cluster."""
+    """
+    Create a remote directory on the cluster using the cluster config.
+
+    **Note**: The ssh tunnel config must be provided in the cluster config for remote directory creation.
+
+    Args:
+        directory: The directory path to be created on the remote cluster. Can be a single directory path or a list
+            of directory paths.
+        cluster_config: The cluster config dictionary.
+    """
 
     if cluster_config is None:
         raise ValueError("Cluster config is not provided.")
 
+    # Check if the directory is a string or a list
     if isinstance(directory, str):
         directory = [directory]
 
+    # Check if the executor is local
     if cluster_config.get('executor') == 'local':
-        tunnel = LocalTunnel(job_dir=directory[0])
+        tunnel = LocalTunnel(job_dir=directory[0])  # temp job dir, unused
         for dir_path in directory:
             tunnel.run(f'mkdir -p {dir_path}', hide=False, warn=True)
             logging.info(f"Created directory: {dir_path} in local filesystem.")
 
+        # Dont cleanup, cache the tunnel
         # tunnel.cleanup()
 
+    # Check if the executor is slurm
     elif cluster_config.get('executor') == 'slurm':
+        # Check if the ssh tunnel config is provided in the cluster config
         ssh_tunnel_config = cluster_config.get('ssh_tunnel', None)
         if ssh_tunnel_config is None:
             raise ValueError("`ssh_tunnel` sub-config is not provided in cluster_config.")
@@ -147,10 +175,13 @@ def create_remote_directory(directory: str | list, cluster_config: dict):
         if 'job_dir' not in ssh_tunnel_config:
             ssh_tunnel_config['job_dir'] = directory[0]
 
+        # Create the remote directory on the cluster
         tunnel = get_tunnel(**cluster_config['ssh_tunnel'])
         for dir_path in directory:
             tunnel.run(f'mkdir -p {dir_path}', hide=False, warn=True)
             logging.info(f"Created directory: {dir_path} on remote cluster.")
+
+        # Dont cleanup, cache the tunnel
         # tunnel.cleanup()
 
     else:
@@ -158,19 +189,37 @@ def create_remote_directory(directory: str | list, cluster_config: dict):
 
 
 def create_remote_config(config: dict | DictConfig, config_name: str, config_directory: str, cluster_config: dict):
-    """Create a remote yaml config at the result directory on the cluster."""
+    """
+    Utility to write a remote config file on the cluster using the cluster config.
+
+    Args:
+        config: The config dictionary to be written to the file. Can be OmegaConf DictConfig or a dictionary.
+        config_name: The name of the config file to be created.
+        config_directory: The directory path where the config file will be created on the remote machine.
+            Can be a single directory path or a list of directory paths to copy the config file to.
+        cluster_config: The cluster config dictionary.
+    """
 
     if cluster_config is None:
         raise ValueError("Cluster config is not provided.")
 
+    # Check if the config_name is a string and ends with .yaml
     if not config_name.endswith('.yaml'):
         config_name = f"{config_name}.yaml"
 
+    # Check if the config_directory is a string or a list
     if isinstance(config_directory, str):
         config_directory = [config_directory]
 
+    # Cast a normal dict to OmeagConf DictConfig
+    if isinstance(config, dict):
+        config = OmegaConf.create(config)
+
+    # Check if the executor is local
     if cluster_config.get('executor') == 'local':
         tunnel = LocalTunnel(job_dir=config_directory[0])
+
+        # Create the config file on the local filesystem
         for dir_path in config_directory:
             config_filepath = os.path.join(dir_path, config_name)
             tunnel.run(f'mkdir -p {dir_path}', hide=False, warn=True)
@@ -178,9 +227,12 @@ def create_remote_config(config: dict | DictConfig, config_name: str, config_dir
             tunnel.run(f"echo '{OmegaConf.to_yaml(config)}' > {config_filepath}", hide=False, warn=True)
             logging.info(f"Created config file: {dir_path} in local filesystem.")
 
+        # Dont cleanup, cache the tunnel
         # tunnel.cleanup()
 
+    # Check if the executor is slurm
     elif cluster_config.get('executor') == 'slurm':
+        # Check if the ssh tunnel config is provided in the cluster config
         ssh_tunnel_config = cluster_config.get('ssh_tunnel', None)
         if ssh_tunnel_config is None:
             raise ValueError("`ssh_tunnel` sub-config is not provided in cluster_config.")
@@ -190,31 +242,46 @@ def create_remote_config(config: dict | DictConfig, config_name: str, config_dir
             ssh_tunnel_config['job_dir'] = config_directory[0]
 
         tunnel = get_tunnel(**cluster_config['ssh_tunnel'])
+
+        # Create the config file on the remote cluster
         for dir_path in config_directory:
             config_filepath = os.path.join(dir_path, config_name)
             tunnel.run(f'mkdir -p {dir_path}', hide=False, warn=True)
             tunnel.run(f"touch {config_filepath}", hide=False, warn=True)
             tunnel.run(f"echo '{OmegaConf.to_yaml(config)}' > {config_filepath}", hide=False, warn=True)
             logging.info(f"Created config file: {dir_path} on remote cluster.")
+
+        # Dont cleanup, cache the tunnel
         # tunnel.cleanup()
 
     else:
         raise ValueError(f"Unsupported executor: {cluster_config.get('executor')}")
 
 
-def check_remote_mount_directories(directories: list, cluster_config: dict, exit_on_failure: bool = True):
-    """Create a remote directory on the cluster."""
+def check_remote_mount_directories(directories: str | list, cluster_config: dict, exit_on_failure: bool = True):
+    """
+    Check if files and directories at the source location exist for later mounting on the cluster.
 
+    Args:
+        directories: The directory path to be checked on the local/remote machine. Can be a single directory
+            path or a list. Can be either a file or a directory.
+        cluster_config: The cluster config dictionary.
+        exit_on_failure: If True, will raise an exception if the directories do not exist at the source location.
+    """
+
+    # Check if the cluster config is provided
     if cluster_config is None:
         raise ValueError("Cluster config is not provided.")
 
+    # Check if the directories is a string or a list
     if isinstance(directories, str):
         directories = [directories]
 
+    # Check if the executor is local
     if cluster_config.get('executor') == 'local':
         tunnel = LocalTunnel(job_dir=None)
 
-        all_dirs_exist = True
+        # Check if the directories exist at the source location for mounting
         missing_source_locations = []
         for directory in directories:
             result = tunnel.run(f'test -e {directory} && echo "Directory Exists"', hide=True, warn=True)
@@ -222,8 +289,10 @@ def check_remote_mount_directories(directories: list, cluster_config: dict, exit
             if "Directory Exists" not in result.stdout:
                 missing_source_locations.append(directory)
 
+        # Dont cleanup, cache the tunnel
         # tunnel.cleanup()
 
+        # Raise an exception if the directories do not exist at the source location
         if len(missing_source_locations) > 0 and exit_on_failure:
             missing_source_locations = [
                 f"{loc} DOES NOT exist at source destination" for loc in missing_source_locations
@@ -234,7 +303,9 @@ def check_remote_mount_directories(directories: list, cluster_config: dict, exit
                 f"{missing_source_locations}"
             )
 
+    # Check if the executor is slurm
     elif cluster_config.get('executor') == 'slurm':
+        # Check if the ssh tunnel config is provided in the cluster config
         ssh_tunnel_config = cluster_config.get('ssh_tunnel', None)
         if ssh_tunnel_config is None:
             raise ValueError("`ssh_tunnel` sub-config is not provided in cluster_config.")
@@ -246,14 +317,17 @@ def check_remote_mount_directories(directories: list, cluster_config: dict, exit
         tunnel = get_tunnel(**cluster_config['ssh_tunnel'])
         missing_source_locations = []
 
+        # Check if the directories exist at the source location for mounting
         for directory in directories:
             result = tunnel.run(f'test -e {directory} && echo "Directory Exists"', hide=True, warn=True)
 
             if "Directory Exists" not in result.stdout:
                 missing_source_locations.append(directory)
 
+        # Dont cleanup, cache the tunnel
         # tunnel.cleanup()
 
+        # Raise an exception if the directories do not exist at the source location
         if len(missing_source_locations) > 0 and exit_on_failure:
             missing_source_locations = [
                 f"{loc} DOES NOT exist at source destination" for loc in missing_source_locations
@@ -271,12 +345,14 @@ def check_remote_mount_directories(directories: list, cluster_config: dict, exit
 def get_unmounted_filepath(cluster_config: dict, filepath: str):
     """
     Resolve the mounted filepath using the cluster config to merge the mount source path to the filepath.
+    Raises an exception if the mount path is not found for the file path.
+
     Args:
-        filepath:
-        cluster_config:
+        cluster_config: The cluster config dictionary.
+        filepath: The filepath to be unmounted using the cluster config.
 
     Returns:
-
+        str: unmounted filepath
     """
     # Find which mount path matches the filepaths prefix
     mount_path = None
@@ -302,13 +378,14 @@ def get_unmounted_filepath(cluster_config: dict, filepath: str):
 def get_mounted_filepath(cluster_config: dict, filepath: str):
     """
     Resolve the mounted filepath using the cluster config to merge the mount destination path to the filepath.
+    Raises an exception if the mount path is not found for the file path.
 
     Args:
-        cluster_config:
-        filepath:
+        cluster_config: The cluster config dictionary.
+        filepath: The filepath to be mounted using the cluster config.
 
     Returns:
-
+        str: mounted filepath
     """
     # Find which mount path matches the filepaths prefix
     mount_path = None
@@ -367,8 +444,13 @@ def get_env_variables(cluster_config):
             logging.info(f"Adding optional environment variable {env_var} (value={os.environ[env_var]})")
             env_vars[env_var] = os.environ[env_var]
         elif "=" in env_var:
-            env_var, value = env_var.split("=")
-            env_vars[env_var.strip()] = value.strip()
+            if env_var.count("=") == 1:
+                env_var, value = env_var.split("=")
+                env_vars[env_var.strip()] = value.strip()
+            else:
+                env_var, *value = env_var.split("=")
+                value = "=".join(value)
+                env_vars[env_var.strip()] = value.strip()
             logging.info(f"Adding optional environment variable {env_var} (value={value})")
         else:
             logging.info(f"Optional environment variable {env_var} not found in user environment; skipping.")
@@ -453,23 +535,45 @@ def get_packager():
 
 
 def get_executor(
-    cluster_config,
-    container,
-    num_nodes,
-    tasks_per_node,
-    gpus_per_node,
-    job_name,
-    log_dir,
+    cluster_config: dict,
+    container: str,
+    num_nodes: int,
+    tasks_per_node: int,
+    gpus_per_node: int,
+    job_name: str,
+    log_dir: str,
     log_prefix: str = "main",
     mounts=None,
     partition=None,
     dependencies=None,
 ):
+    """
+    Utility to get the executor based on the cluster config.
+
+    Args:
+        cluster_config: The cluster config dictionary.
+        container: The container image to be used for the executor.
+        num_nodes: The number of nodes to be used for the executor.
+        tasks_per_node: The number of tasks to be run per node.
+        gpus_per_node: The number of GPUs to be used per node.
+        job_name: The name of the job to be run.
+        log_dir: The directory path where the logs will be stored.
+        log_prefix: The prefix to be used for the log files.
+        mounts: The list of mounts to be used for the executor.
+        partition: The partition to be used for the executor.
+        dependencies: The list of job ids for the executor to wait on with dependency.
+
+    Returns:
+        Executor: The executor object based on the cluster config.
+    """
+    # Extract the environment variables and mounts from the cluster config
     env_vars = get_env_variables(cluster_config)
     config_mounts = get_mounts_from_config(cluster_config, env_vars)
 
     mounts = mounts or config_mounts
-    packager = get_packager()
+    packager = get_packager()  # default git packager
+
+    # Check if the executor is local
     if cluster_config["executor"] == "local":
         if num_nodes > 1:
             raise ValueError("Local executor does not support multi-node execution")
@@ -484,9 +588,10 @@ def get_executor(
             ntasks_per_node=1,
             num_gpus=gpus_per_node,
             network="host",
-            env_vars=env_vars,
+            env_vars=env_vars,  # pass the environment variables
         )
 
+    # Check if the executor is slurm
     partition = partition or cluster_config.get("partition")
     if 'timeouts' not in cluster_config:
         timeout = "10000:00:00:00"
@@ -505,7 +610,7 @@ def get_executor(
         packager=packager,
         gpus_per_node=gpus_per_node if not cluster_config.get("disable_gpus_per_node", False) else None,
         srun_args=[
-            "--no-container-mount-home",
+            "--no-container-mount-home",  # prevents mounting home directory
             "--overlap",
             "--mpi=pmix",
             '--wait=10',
@@ -513,8 +618,7 @@ def get_executor(
             f"--ntasks={tasks_per_node * num_nodes}",
             f"--nodes={num_nodes}",
         ],
-        # TODO: can we relax this to allow partial node allocation?
-        exclusive=True,
+        exclusive=True,  # Required by PyTorch
         mem=0,
         job_details=CustomJobDetails(
             job_name=cluster_config.get("job_name_prefix", "") + job_name,
@@ -523,38 +627,62 @@ def get_executor(
         ),
         wait_time_for_group_job=0.01,
         monitor_group_job_wait_time=20,
-        dependencies=dependencies,
+        dependencies=dependencies,  # list of dependent jobs
         dependency_type="afterany",
-        env_vars=env_vars,
+        env_vars=env_vars,  # pass the environment variables
     )
 
 
 def add_task(
-    exp,
-    cmd,
-    task_name,
-    cluster_config,
-    container,
-    # TODO: these are good defaults for generation jobs, but probably not the best overall?
-    num_tasks=1,
-    num_gpus=1,
-    num_nodes=1,
-    log_dir=None,
-    partition=None,
-    run_after=None,
+    exp: 'run.Experiment',
+    cmd: str,
+    task_name: str,
+    cluster_config: dict,
+    container: str,
+    num_tasks: int = 1,
+    num_gpus: int = 1,
+    num_nodes: int = 1,
+    log_dir: str = None,
+    partition: str = None,
+    run_after: str = None,
 ):
+    """
+    Utility to add a task to the NeMo Run experiment based on the cluster config.
+
+    Args:
+        exp: The NeMo Run experiment object.
+        cmd: The command to be executed for the task.
+        task_name: The name of the task to be added.
+        cluster_config: The cluster config dictionary.
+        container: The container image to be used for the task.
+        num_tasks: The number of tasks to be run for the task.
+        num_gpus: The number of GPUs to be used for the task.
+        num_nodes: The number of nodes to be used for the task.
+        log_dir: The directory path where the logs will be stored.
+        partition: The partition to be used for the task.
+        run_after:
+
+    Returns:
+        Task: The task object added to the NeMo Run experiment.
+    """
+    # Checj if dependencies are provided
     if run_after is not None and isinstance(run_after, str) and cluster_config["executor"] == "slurm":
-        dependencies = tuple(get_exp_handles(run_after))
+        dependencies = tuple([run_after])
     elif run_after is not None and isinstance(run_after, list) and cluster_config["executor"] == "slurm":
         dependencies = tuple(run_after)
     else:
         dependencies = None
+
+
     commands = []
     executors = []
+
     # then goes the main task unless it's empty
     if cmd:
         if cluster_config["executor"] == "local" and num_tasks > 1:
             cmd = f"mpirun --allow-run-as-root -np {num_tasks} bash -c {shlex.quote(cmd)}"
+
+        # Note: We need a 1:1 map of commands : executors
         commands.append(cmd)
         executors.append(
             get_executor(
@@ -570,7 +698,10 @@ def add_task(
                 log_prefix="main",
             )
         )
+    else:
+        raise ValueError("No command provided for the task.")
 
+    # Future proofing when we want multiple container coordinators
     if len(commands) == 1:
         # to keep sbatch script simpler, we don't wrap in a list in this case
         task = exp.add(run.Script(inline=commands[0]), executor=executors[0], dependencies=dependencies, name="nemo-run")
