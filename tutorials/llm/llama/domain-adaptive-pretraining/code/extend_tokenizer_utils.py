@@ -176,15 +176,12 @@ def extend_tokenizer_high_freq_tokens(
         record.append([sym, N + i])
 
     N = len(m.pieces)
-    # extra_token_id = 3
-    # for i in range(total_cnt - N):
     for i in range(add_dummy_cnt):
         new_sym = m.SentencePiece()
         new_sym.piece = f"<extra_id_{i}>"
         new_sym.score = 0.0  # default score for USER_DEFINED
         new_sym.type = 4  # type value for USER_DEFINED
         m.pieces.insert(N + i, new_sym)  # position after default control symbols ("<unk>", "<s>", "</s>")
-        # extra_token_id += 1
         record.append([new_sym.piece, N + i])
 
     with open(new_vocab_path, "w", encoding="utf8") as fp:
@@ -218,7 +215,6 @@ def extend_tokenizer_high_freq_tokens(
     print("output_layer shape: ", output_layer.shape)
 
     N_ori_emb, N = word_embedding.shape
-    # add_cnt = total_cnt - N_ori_emb
     add_weight = torch.zeros(total_add_cnt, N)
     word_embedding = torch.cat((word_embedding[:ori_vocab_size], add_weight, word_embedding[ori_vocab_size:]), 0)
 

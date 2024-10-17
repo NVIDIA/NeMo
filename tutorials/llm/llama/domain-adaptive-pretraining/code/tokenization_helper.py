@@ -384,7 +384,6 @@ def analyze_token_usage(data_root, tokenizer_path, batchsize, keys, save_path):
             if cnts[i] < 1:
                 break
             id = indices[i]
-            # print(id, sp.id_to_piece(int(id)))
             if flag[i]:
                 new_freq.append([int(id), str(sp.id_to_piece(int(id))), int(flag[i]), int(cnts[i])])
             else:
