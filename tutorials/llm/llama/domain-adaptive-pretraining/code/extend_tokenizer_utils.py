@@ -239,23 +239,19 @@ def extend_tokenizer_high_freq_tokens(
     word_embedding = word_embedding.bfloat16()
     output_layer = output_layer.bfloat16()
 
-    KK, K = word_embedding.shape
-    # print("embedding size: ", K)
-    # print("vocab size: ", KK)
-    T = K // (split)
-    R = KK // split
+    vocab_size, dimension = word_embedding.shape
+    split_dimension = dimension // (split)
+    split_vocab_size = vocab_size // split
     prefix = new_ebd_path + "/embedding_"
     for i in range(split):
-        start = i * T
-        end = (i + 1) * T
-        st = i * R
-        ed = (i + 1) * R
+        start = i * split_dimension
+        end = (i + 1) * split_dimension
+        st = i * split_vocab_size
+        ed = (i + 1) * split_vocab_size
         save_name = prefix + f"{i}" + ".pt"
         temp = {}
-        temp['word_embeddings'] = word_embedding[:, start:end]
-        temp['output_layer'] = output_layer[st:ed, :]
-        # print("split word_embedding shape: ", temp['word_embeddings'].shape)
-        # print("split output_layer shape: ", temp['output_layer'].shape)
+        temp['word_embeddings'] = word_embedding[:, start:end]  # split word_embedding
+        temp['output_layer'] = output_layer[st:ed, :]           # split output_layer
         torch.save(temp, save_name)
 
     print("Completed saving new embeddings")
