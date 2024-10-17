@@ -40,3 +40,29 @@ def test_gemma_prompt_formatter_inference(bpe_tokenizer):
                                           30, 104,  59,  18,  26,  18,   6,  60,   9,   7,  21,  53,  18,  26,
                                           18,   6,  60,   9,   7,  73,  61,  69]
     # fmt: on
+
+
+def test_gemma_prompt_formatter_training_bos_eos_inserted_only_once_in_multiturn(bpe_tokenizer):
+    formatter = GemmaPromptFormatter(bpe_tokenizer)
+    ans = formatter.encode_dialog(
+        [
+            {"role": "user", "slots": {"message": "TEST"}},
+            {"role": "assistant", "slots": {"message": "TEST"}},
+            {"role": "user", "slots": {"message": "TEST"}},
+            {"role": "assistant", "slots": {"message": "TEST"}},
+            {"role": "user", "slots": {"message": "TEST"}},
+            {"role": "assistant", "slots": {"message": "TEST"}},
+            {"role": "user", "slots": {"message": "TEST"}},
+            {"role": "assistant", "slots": {"message": "TEST"}},
+        ]
+    )
+
+    assert (ans["input_ids"] == -1).sum() == 2
+    assert ans["input_ids"][0] == -1
+    assert ans["input_ids"][-1] == -1
+
+    assert (ans["context_ids"] == -1).sum() == 1
+    assert ans["context_ids"][0] == -1
+
+    assert (ans["answer_ids"] == -1).sum() == 1
+    assert ans["answer_ids"][-1] == -1
