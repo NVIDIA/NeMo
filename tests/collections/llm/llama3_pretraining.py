@@ -13,6 +13,7 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,
+    StopBeforeEnd,
     create_verify_precision,
     small_llama_cfg,
     train_data,
@@ -24,6 +25,12 @@ def get_args():
     parser = argparse.ArgumentParser(prog="", description="")
     parser.add_argument('--devices', type=int, required=True, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, required=True, help="Number of steps to train for")
+    parser.add_argument(
+        '--early-stop',
+        type=int,
+        default=None,
+        help="Stop training early at this global step (for testing resume training)",
+    )
     parser.add_argument(
         '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
     )
@@ -75,6 +82,9 @@ def main():
     pretrain_recipe.log.ckpt.every_n_train_steps = None
     pretrain_recipe.trainer.val_check_interval = 2
 
+    if args.early_stop:
+        pretrain_recipe.trainer.callbacks.append(StopBeforeEnd(stop_on_step=args.early_stop))
+
     if not args.precision == 'bf16' or args.fp8:  # default case is bf16 without fp8
         import llm.recipes.precision.mixed_precision as mp_recipes
 
@@ -111,7 +121,7 @@ def main():
 
     verify_ckpt_dir(
         pretrain_recipe.log.ckpt,
-        args.max_steps,
+        args.early_stop or args.max_steps,
         pretrain_recipe.trainer.val_check_interval,
         os.path.join(args.experiment_dir, exp_name),
     )

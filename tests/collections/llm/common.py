@@ -4,6 +4,7 @@ import torch
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
+from nemo.utils import logging
 
 
 def train_data(
@@ -33,6 +34,24 @@ def small_llama_cfg(seq_length: int) -> llm.GPTConfig:
         num_attention_heads=16,
         init_method_std=0.023,
     )
+
+
+class StopBeforeEnd(pl.Callback):
+    """Preemptively stop training at a given global step. Allows stopping training before reaching
+    the max steps. Useful for testing checkpoint save and resume.
+
+    Args:
+        stop_on_step (int): Stop training when trainer.global_step reaches this value.
+            Checked at the start of every step.
+    """
+
+    def __init__(self, stop_on_step: int):
+        self.stop_on_step = stop_on_step
+
+    def on_train_batch_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch, batch_idx) -> None:
+        if trainer.global_step >= self.stop_on_step:
+            logging.info(f"Global step {trainer.global_step} >= {self.stop_on_step}, signaling Trainer to stop.")
+            trainer.should_stop = True
 
 
 class MCoreModelAttributeValidator(pl.Callback):
