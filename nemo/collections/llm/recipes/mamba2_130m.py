@@ -37,9 +37,12 @@ NAME = "mamba2_130m"
 
 
 @run.cli.factory(name=NAME)
-def tokenizer() -> run.Config[pl.LightningModule]:
+def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
+    return run.Config(get_nmt_tokenizer, library='huggingface', 
+                      model_name="EleutherAI/gpt-neox-20b",  
+                      tokenizer_model=tokenizer_model,
+                      use_fast=True)
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
@@ -150,7 +153,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 1, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", tokenizer_model: str = None, num_nodes: int = 1, num_gpus_per_node: int = 1, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mamba2 130M model.
@@ -189,7 +192,8 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=1, micro_batch_size=1, tokenizer=tokenizer()),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=1, micro_batch_size=1, 
+                        tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
@@ -200,6 +204,7 @@ def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     resume_path: str = None,
+    tokenizer_model: str = None,
     num_nodes: int = 1,
     num_gpus_per_node: int = 1,
     peft_scheme: Optional[str] = 'none',
@@ -215,6 +220,7 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         resume_path (str): Path to the NeMo checkpoint (refer to notes below 
                             on how to convert a pytorch checkpoint to NeMo)
+        tokenizer_model (str): Path to tokenizer model (defaults to None)
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
     Returns:
@@ -252,7 +258,7 @@ def finetune_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
         ),
-        data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1, tokenizer=tokenizer()),
+        data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1, tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),
         resume=nemo_resume,

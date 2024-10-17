@@ -55,9 +55,9 @@ def model() -> run.Config[pl.LightningModule]:
     return run.Config(llm.GPTModel, config=run.Config(llm.NVIDIAMambaHybridConfig8B))
 
 @run.cli.factory(name=NAME)
-def tokenizer() -> run.Config[pl.LightningModule]:
+def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
+    return run.Config(get_nmt_tokenizer, library='megatron', model_name="GPTSentencePieceTokenizer", tokenizer_model=tokenizer_model, use_fast=True)
 
 def trainer(
     tensor_parallelism: int = 2,
@@ -145,7 +145,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", tokenizer_model: str = None, num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mamba2 Hybrid 8B model.
@@ -156,6 +156,7 @@ def pretrain_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the pre-training run.
+        tokenizer_model (str): Path to the tokenizer model.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         fn (Callable): The pre-training function to use.
@@ -184,57 +185,12 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=4, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=1, micro_batch_size=1, 
+                        tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
-
-
-@run.cli.factory(target=pretrain, name=NAME + "_optimized")
-def pretrain_recipe_performance(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    fn: Callable = pretrain,
-) -> run.Partial:
-    """
-    Create a performance-optimized pre-training recipe for Mamba2 Hybrid 8B model.
-
-    This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
-
-    Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
-
-    Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
-
-    Examples:
-            $ nemo llm pretrain --factory mamba2_hybrid_8b_optimized
-
-        Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="mamba2_hybrid_8b_perf", num_nodes=1)
-            >>> print(recipe)
-
-    Note:
-        Use this recipe with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
-    """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
-    )
-    return recipe
 
 
 # @run.cli.factory(target=finetune, name=NAME)
