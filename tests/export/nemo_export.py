@@ -882,7 +882,7 @@ def run_inference_tests(args):
                     top_p=args.top_p,
                     temperature=args.temperature,
                     run_accuracy=args.run_accuracy,
-                    debug=True,
+                    debug=args.debug,
                     test_data_path=args.test_data_path,
                 )
             else:
