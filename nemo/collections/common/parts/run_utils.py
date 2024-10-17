@@ -573,11 +573,12 @@ def add_task(
 
     if len(commands) == 1:
         # to keep sbatch script simpler, we don't wrap in a list in this case
-        task = exp.add(run.Script(inline=commands[0]), executor=executors[0], name="nemo-run")
+        task = exp.add(run.Script(inline=commands[0]), executor=executors[0], dependencies=dependencies, name="nemo-run")
     else:
         task = exp.add(
             [run.Script(inline=command) for command in commands],
             executor=executors,
+            dependencies=dependencies,
             name="nemo-run",
         )
 
