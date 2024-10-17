@@ -20,6 +20,7 @@ from typing import List, Literal, Optional
 
 import torch
 from torch.utils.data import DataLoader, Dataset
+from lightning.pytorch.overrides.distributed import _IndexBatchSamplerWrapper
 
 
 ## TODO: remove? unused
@@ -217,7 +218,7 @@ def add_megatron_sampler(
 
     return DataLoader(
         dataloader.dataset,
-        batch_sampler=batch_sampler,
+        batch_sampler=_IndexBatchSamplerWrapper(batch_sampler),  # BatchSampler wrapper to capture its indices
         num_workers=dataloader.num_workers,
         pin_memory=dataloader.pin_memory,
         persistent_workers=dataloader.persistent_workers,
