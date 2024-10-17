@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import bisect
-import math
 import os
 import random
 import warnings
@@ -35,18 +33,20 @@ from lhotse.dataset import (
     make_worker_init_fn,
 )
 from lhotse.dataset.dataloading import resolve_seed
-from lhotse.dataset.sampling.base import CutSampler, SamplingConstraint, TimeConstraint, TokenConstraint
-from lhotse.dataset.sampling.dynamic_bucketing import FixedBucketBatchSizeConstraint
+from lhotse.dataset.sampling.base import CutSampler, TimeConstraint
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
-from nemo.collections.common.data.lhotse.text_adapters import (
-    Formattable,
-    NeMoSFTExample,
-    SourceTargetTextExample,
-    TextExample,
+from nemo.collections.common.data.lhotse.sampling import (
+    DurationFilter,
+    FixedBucketBatchSizeConstraint2D,
+    MultimodalFixedBucketBatchSizeConstraint2D,
+    MultimodalSamplingConstraint,
+    TokenCountFilter,
+    TokenPerSecondFilter,
+    TokenPerTokenFilter,
 )
 from nemo.collections.common.data.prompt_fn import apply_prompt_format_fn
 from nemo.collections.common.prompts import PromptFormatter
@@ -452,39 +452,10 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         TokenCountFilter(config.min_tokens, config.max_tokens, measure_total_length=config.measure_total_length)
     )
 
+    # Select the strategy customizing Lhotse sampler behaviour.
+    # Provides support for dynamic batch sizes, multimodal dataloading, 2D bucketing, etc.
     bucket_duration_bins = determine_bucket_duration_bins(config)
-    if config.use_multimodal_sampling:
-        if config.bucket_batch_size is not None:
-            assert (
-                bucket_duration_bins is not None
-            ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
-            constraint = MultimodalFixedBucketBatchSizeConstraint2D(
-                max_seq_len_buckets=bucket_duration_bins,
-                batch_sizes=config.bucket_batch_size,
-                token_equivalent_duration=config.token_equivalent_duration,
-            )
-        else:
-            constraint = MultimodalSamplingConstraint(
-                token_equivalent_duration=config.token_equivalent_duration,
-                batch_size=config.batch_size,
-                batch_tokens=config.batch_tokens,
-                quadratic_factor=config.quadratic_factor,
-            )
-    else:
-        if config.bucket_batch_size is not None:
-            assert (
-                bucket_duration_bins is not None
-            ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
-            constraint = FixedBucketBatchSizeConstraint2D(
-                max_seq_len_buckets=bucket_duration_bins,
-                batch_sizes=config.bucket_batch_size,
-            )
-        else:
-            constraint = TimeConstraint(
-                max_cuts=config.batch_size,
-                max_duration=config.batch_duration,
-                quadratic_duration=config.quadratic_duration,
-            )
+    constraint = determine_sampling_constraint(bucket_duration_bins, config)
 
     # 3. The sampler.
     if config.use_bucketing:
@@ -562,7 +533,59 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     return sampler, is_tarred
 
 
+def determine_sampling_constraint(bucket_duration_bins, config):
+    """
+    Select an appropriate sampling strategy (constraint) for Lhotse samplers based on the configuration.
+    Sampling constraint affects the batch size (static/dynamic) and bucketing behaviour (1D/2D).
+    It is the appropriate customization point to introduce support of other modalities,
+    as it defines a method for example sequence length measurement (audio duration, text tokens, etc.).
+
+    Lhotse's default is :class:`TimeConstraint` for regular audio data, other available options are
+    multimodal constraints (joint text + audio) and their 2D bucketing extensions.
+    """
+    if config.use_multimodal_sampling:
+        if config.bucket_batch_size is not None:
+            assert (
+                bucket_duration_bins is not None
+            ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
+            constraint = MultimodalFixedBucketBatchSizeConstraint2D(
+                max_seq_len_buckets=bucket_duration_bins,
+                batch_sizes=config.bucket_batch_size,
+                token_equivalent_duration=config.token_equivalent_duration,
+            )
+        else:
+            constraint = MultimodalSamplingConstraint(
+                token_equivalent_duration=config.token_equivalent_duration,
+                batch_size=config.batch_size,
+                batch_tokens=config.batch_tokens,
+                quadratic_factor=config.quadratic_factor,
+            )
+    else:
+        if config.bucket_batch_size is not None:
+            assert (
+                bucket_duration_bins is not None
+            ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
+            constraint = FixedBucketBatchSizeConstraint2D(
+                max_seq_len_buckets=bucket_duration_bins,
+                batch_sizes=config.bucket_batch_size,
+            )
+        else:
+            constraint = TimeConstraint(
+                max_cuts=config.batch_size,
+                max_duration=config.batch_duration,
+                quadratic_duration=config.quadratic_duration,
+            )
+    return constraint
+
+
 def determine_bucket_duration_bins(config):
+    """
+    Returns appropriate bucket bins based on configuration.
+    If user provided them explicitly, we just pass them along;
+    otherwise, we try to create provisional bins when min/max duration is available.
+    We might return None if it's impossible to determine the bins without computing data statistics,
+    in which case it will be automatically done at the start of training (but may take a few minutes).
+    """
     if config.bucket_duration_bins is not None:
         # Bucket duration bins are provided: just use them.
         ans = OmegaConf.to_container(config.bucket_duration_bins)
@@ -614,148 +637,6 @@ def make_structured_with_schema_warnings(config: DictConfig | dict) -> DictConfi
     return OmegaConf.merge(default, config)
 
 
-@dataclass
-class MultimodalSamplingConstraint(SamplingConstraint):
-    # How many seconds of audio is a text token worth; balances audio to text ratio in a mini-batch.
-    # Generally set this to frame_shift * total_subsampling_factor of your audio encoder.
-    token_equivalent_duration: float | None = None
-
-    # Defines maximum batch size (may be lower than that if batch_length is also specified).
-    batch_size: int | None = None
-
-    # Defines the total number of tokens in a mini-batch.
-    # Setting this enables dynamic batch sizes.
-    # We will use ``token_equivalent_duration`` to convert audio examples to token sizes.
-    batch_tokens: int | None = None
-
-    # When specified, this value is inversely proportional to the penalty we assign
-    # to longer examples when measuring their length/duration;
-    # i.e. large quadratic factor is a small penalty, small quadratic factor is a large penalty.
-    # Tweaking this helps equalize the GPU memory usage for dynamic batch sizes when using bucketing.
-    quadratic_factor: float | None = None
-
-    # When False (default), we only consider the input part of the example to determine its length,
-    # e.g. for a Cut that means its audio duration converted to tokens, for text that means len(context_ids), etc.
-    # When True, we consider the sum of input and output lengths together (useful mostly for decoder-only models).
-    measure_total_length: bool = False
-
-    _internal = None
-
-    def __post_init__(self):
-        self._internal = TokenConstraint(
-            max_tokens=self.batch_tokens,
-            max_examples=self.batch_size,
-            quadratic_length=self.quadratic_factor,
-        )
-
-    def add(self, example: Any) -> None:
-        num_tokens = self.measure_length(example)
-        example.num_tokens = num_tokens
-        self._internal.add(example)
-
-    def exceeded(self) -> bool:
-        return self._internal.exceeded()
-
-    def close_to_exceeding(self) -> bool:
-        return self._internal.close_to_exceeding()
-
-    def reset(self) -> None:
-        self._internal.reset()
-
-    def measure_length(self, example: Any) -> float:
-        if isinstance(example, Cut):
-            audio_len_in_tokens = math.ceil(example.duration / self.token_equivalent_duration)
-            if self.measure_total_length:
-                # Total length of a Cut (audio+text example) is counted as the sum of:
-                # * num_tokens in each supervision segment ("utterance") in the Cut
-                # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
-                text_tokens = 0
-                for s in example.supervisions:
-                    if s.has_custom("tokens"):
-                        text_tokens += len(s.tokens)
-                return audio_len_in_tokens + text_tokens
-            else:
-                return audio_len_in_tokens
-        elif isinstance(example, Formattable):
-            try:
-                return example.total_length if self.measure_total_length else example.input_length
-            except (AttributeError, AssertionError) as e:
-                raise RuntimeError(
-                    "Couldn't determine the length of a text example; "
-                    "have you provided both prompt_format and tokenizer when instantiating the dataloader?"
-                ) from e
-        raise RuntimeError(f"Unsupported example type: {type(example)}")
-
-
-@dataclass
-class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
-    @property
-    def bucketing_2d_enabled(self) -> bool:
-        return isinstance(self.max_seq_len_buckets[0], Sequence) and len(self.max_seq_len_buckets[0]) == 2
-
-    def measure_length(self, example: Any) -> tuple[float, float]:
-        if self.bucketing_2d_enabled:
-            return example.duration, _measure_tokens(example)
-        else:
-            return example.duration
-
-    def select_bucket(self, buckets: Any, example: Any = None, example_len: Any = None) -> int:
-        if not self.bucketing_2d_enabled:
-            return super().select_bucket(buckets=buckets, example=example, example_len=example_len)
-        if example_len is None:
-            example_len = self.measure_length(example)
-        bucket_idx = bisect.bisect_left(buckets, example_len)
-        # For 2D bucketing we have to refine the initially found bucket_idx, as bisect
-        # looks primarily at the first index of a tuple (i.e. duration).
-        # For example, with buckets [(1, 1), (1, 2), (2, 2), (2, 4)] and example (1.5, 3)
-        # bisect would allocate it to bucket_idx=2 instead of bucket_idx=3.
-        # To refine, we'll try to push the example to as many buckets to the right as possible,
-        # as long as they have the same dim0 length (e.g. audio duration) and the example's dim1
-        # is smaller than the bin's dim1 (e.g., output token sequence length).
-        bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
-        num_buckets = len(self.max_seq_len_buckets)
-        while (
-            (next_idx := bucket_idx + 1) < num_buckets  # There is a next bucket
-            and (bin := self.max_seq_len_buckets[next_idx])[0] == bin_dim0  # The next bucket has the same 1st dim.
-            # The example's 2nd dim is between that of the current and the next bucket; or,
-            # the next bucket's 2nd dim is still smaller than example.
-            and (bin_dim1 < example_len[1] <= bin[1] or bin[1] < example_len[1])
-        ):
-            bucket_idx = next_idx
-            bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
-        return bucket_idx
-
-
-@dataclass
-class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2D):
-    # How many seconds of audio is a text token worth; balances audio to text ratio in a mini-batch.
-    # Generally set this to frame_shift * total_subsampling_factor of your audio encoder.
-    token_equivalent_duration: float | None = None
-
-    # When False (default), we only consider the input part of the example to determine its length,
-    # e.g. for a Cut that means its audio duration converted to tokens, for text that means len(context_ids), etc.
-    # When True, we consider the sum of input and output lengths together (useful mostly for decoder-only models).
-    measure_total_length: bool = False
-
-    def measure_length(self, example: Any) -> float | tuple[float, float]:
-        if isinstance(example, Cut):
-            audio_len_in_tokens = math.ceil(example.duration / self.token_equivalent_duration)
-            if self.measure_total_length:
-                # Total length of a Cut (audio+text example) is counted as the sum of:
-                # * num_tokens in each supervision segment ("utterance") in the Cut
-                # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
-                text_tokens = 0
-                for s in example.supervisions:
-                    if s.has_custom("tokens"):
-                        text_tokens += len(s.tokens)
-                return audio_len_in_tokens + text_tokens
-            else:
-                return audio_len_in_tokens
-        elif isinstance(example, Formattable):
-            return example.total_length if self.measure_total_length else example.input_length
-        raise RuntimeError(f"Unsupported example type: {type(example)}")
-
-
 def tokenize(example, tokenizer):
     if isinstance(example, Cut):
         for s in example.supervisions:
@@ -781,117 +662,6 @@ def tokenize_with_prompt(example, tokenizer, prompt_format: str | PromptFormatte
 # Lambdas are not serializable across processes by pickle.
 # Note: lhotse offers LHOTSE_DILL_ENABLED=1 and ``lhotse.lazy.set_dill_enabled(True)``
 # to support pickling lambdas if its ever truly necessary.
-
-
-class DurationFilter:
-    """Callable, returns ``True`` if a cut's duration is in range [d_min, d_max] and ``False`` otherwise."""
-
-    def __init__(self, d_min: float, d_max: float) -> None:
-        self.d_min = d_min
-        self.d_max = d_max
-
-    def __call__(self, example) -> bool:
-        if isinstance(example, Cut):
-            return self.d_min <= example.duration <= self.d_max
-        else:
-            return True  # does not apply to text etc.
-
-
-class TokenCountFilter:
-    """
-    Callable, returns ``True`` if an example's number of tokens is in range [t_min, t_max] and ``False`` otherwise.
-
-    It is only applicable to data types that derive from class ``Formattable`` and lhotse ``Cut`` objects.
-    Acts as a passthrough for Cuts.
-    Raises exception if a non-Formattable and non-Cut data are provided.
-
-    The ``measure_total_length`` option allows to select whether we should filter on context_ids length (=False)
-    or input_ids length (=True).
-    The difference is that for decoder-only models, we collapse input and output into a single sequence,
-    so we should measure the example length using input_ids (measure_total_length=True).
-    However, for models which have separate inputs and outputs such as encoder-decoder models,
-    we want to measure the input lengths only here (measure_total_length=False),
-    and enable ``TokenPerTokenFilter`` for additional filtering on the output sequence length.
-    """
-
-    def __init__(self, t_min: float, t_max: float, measure_total_length: bool) -> None:
-        self.t_min = t_min
-        self.t_max = t_max
-        self.measure_total_length = measure_total_length
-
-    def __call__(self, example) -> bool:
-        if self.t_min is None and self.t_max is None:
-            return True  # disabled
-        if isinstance(example, Cut):
-            return True  # does not apply to Cuts
-        assert isinstance(example, Formattable), (
-            f"TokenCountFilter can only be applied to data examples that derive Formattable class. "
-            f"Formattable objects define properties input_length, output_length, and total_length that "
-            f"allow us to select the right sequence length for filtering. We got: {example}"
-        )
-        try:
-            length = example.total_length if self.measure_total_length else example.input_length
-        except (AttributeError, AssertionError) as e:
-            raise RuntimeError(
-                f"Cannot measure token count for example: {example} "
-                f"-- did you forget to apply prompt formatting? If instantiating Lhotse dataloader, "
-                f"make sure you provided 'prompt_format' option and passed the tokenizer."
-            ) from e
-        return self.t_min <= length <= self.t_max
-
-
-class TokenPerSecondFilter:
-    """
-    Callable, returns ``True`` if a cut's num_tokens (sum of len(tokens) for each supervision)
-    is in range [tps_min, tps_max] and ``False`` otherwise.
-    """
-
-    def __init__(self, tps_min: float, tps_max: float) -> None:
-        assert tps_min <= tps_max
-        self.tps_min = tps_min
-        self.tps_max = tps_max
-        self.enabled = tps_min > 0 or tps_max < float("inf")
-
-    def __call__(self, example) -> bool:
-        if not isinstance(example, Cut) or not self.enabled:
-            return True  # pass-through for non-audio examples.
-        tps = _measure_tps(example)
-        return self.tps_min <= tps <= self.tps_max
-
-
-class TokenPerTokenFilter:
-    """
-    Callable, returns ``True`` if a cut's num_tokens (sum of len(tokens) for each supervision)
-    is in range [tps_min, tps_max] and ``False`` otherwise.
-    """
-
-    def __init__(self, tpt_min: float, tpt_max: float) -> None:
-        assert tpt_min <= tpt_max
-        self.tpt_min = tpt_min
-        self.tpt_max = tpt_max
-        self.enabled = tpt_min > 0 or tpt_max < float("inf")
-
-    def __call__(self, example) -> bool:
-        if isinstance(example, Cut) or not self.enabled:
-            return True  # pass-through for non-text examples.
-        tpt = example.answer_ids.shape[0] / example.context_ids.shape[0]
-        return self.tpt_min <= tpt <= self.tpt_max
-
-
-def _measure_tokens(cut: Cut) -> int:
-    if hasattr(cut, "input_ids"):
-        return len(cut.input_ids)  # tokenized with prompt formatter
-    supervisions_with_tokens = [s for s in cut.supervisions if hasattr(s, "tokens")]
-    assert len(supervisions_with_tokens) > 0, (
-        "Cannot measure tokens-per-second with untokenized supervisions. "
-        "Did you forget to provide the tokenizer argument to get_lhotse_dataloader_from_config() method?"
-    )
-    return sum(len(s.tokens) for s in supervisions_with_tokens)
-
-
-def _measure_tps(cut: Cut) -> float:
-    num_tokens = _measure_tokens(cut)
-    return num_tokens / cut.duration
 
 
 def _normalize_loudness(cuts: CutSet, db_norm: float) -> CutSet:

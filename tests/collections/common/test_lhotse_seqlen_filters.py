@@ -5,7 +5,7 @@ import pytest
 from lhotse import SupervisionSegment
 from lhotse.testing.dummies import dummy_cut
 
-from nemo.collections.common.data.lhotse.dataloader import (
+from nemo.collections.common.data.lhotse.sampling import (
     DurationFilter,
     TokenCountFilter,
     TokenPerSecondFilter,
