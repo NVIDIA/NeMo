@@ -541,7 +541,7 @@ def add_task(
     partition=None,
     run_after=None,
 ):
-    if run_after is not None and cluster_config["executor"] == "slurm":
+    if run_after is not None and isinstance(run_after, str) and cluster_config["executor"] == "slurm":
         dependencies = tuple(get_exp_handles(run_after))
     else:
         dependencies = None
@@ -569,13 +569,15 @@ def add_task(
 
     if len(commands) == 1:
         # to keep sbatch script simpler, we don't wrap in a list in this case
-        exp.add(run.Script(inline=commands[0]), executor=executors[0], name="nemo-run")
+        task = exp.add(run.Script(inline=commands[0]), executor=executors[0], name="nemo-run")
     else:
-        exp.add(
+        task = exp.add(
             [run.Script(inline=command) for command in commands],
             executor=executors,
             name="nemo-run",
         )
+
+    return task
 
 
 def run_exp(exp, cluster_config, sequential=False):

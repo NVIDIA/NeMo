@@ -148,11 +148,12 @@ def check_config_mount_paths(script_config, cluster_config):
     else:
         ais_endpoint = None
 
-    def mount_check(v, cluster_cfg):
+    def filepath_check(v, cluster_cfg):
         if v.startswith(os.path.sep):
             logging.info(f"Checking if {v} is a mounted path")
             run_utils.check_if_mounted(cluster_cfg, v)
 
+            # Check the file exists in the cluster at the unmounted path
             unmounted_path = run_utils.get_unmounted_filepath(cluster_cfg, v)
             run_utils.check_remote_mount_directories(unmounted_path, cluster_cfg)
 
@@ -176,10 +177,10 @@ def check_config_mount_paths(script_config, cluster_config):
                 elif isinstance(v, list):  # if the value is a list, check if its items are an absolute path
                     for item in v:
                         if isinstance(item, str):
-                            mount_check(item, cluster_cfg)
+                            filepath_check(item, cluster_cfg)
 
                 elif isinstance(v, str):  # if the value is a string, check if its an absolute a path
-                    mount_check(v, cluster_cfg)
+                    filepath_check(v, cluster_cfg)
 
     check_mounted_path(script_config, cluster_config)
 
@@ -266,30 +267,41 @@ def main(cluster_cfg):
         config_dir = os.path.join(results_dir, 'configs')
         run_utils.create_remote_config(merged_config, config_name, config_dir, cluster_cfg)
 
+        # Prepare arguments for the task
         job_name = f"{exp_name}_job"
+        num_runs = cluster_cfg.num_runs  # Number of dependent jobs for this script
         num_gpus = cluster_cfg.get('num_gpus', merged_config['trainer']['devices'])
         if isinstance(num_gpus, list):
             num_gpus = len(num_gpus)
         if num_gpus == -1:
             num_gpus = 1 if cluster_cfg['executor'] == 'local' else 8
             logging.warning(f"\n\nSetting num_gpus to {num_gpus} as it was set to -1\n\n")
-
         num_nodes = cluster_cfg.get('num_nodes', merged_config['trainer'].get('num_nodes', 1))
+
         cluster_cfg = OmegaConf.to_object(cluster_cfg)
 
-        run_utils.add_task(
-            exp,
-            cmd=cmd,
-            task_name=job_name,
-            cluster_config=cluster_cfg,
-            container=cluster_cfg['containers']['asr'],
-            num_tasks=cluster_cfg.get('num_tasks', cluster_cfg.get('num_tasks_per_node', 1)),
-            num_gpus=num_gpus,
-            num_nodes=num_nodes,
-            log_dir=run_utils.get_mounted_filepath(cluster_cfg, log_dir),
-            partition=cluster_cfg.get('partition', None),
-            run_after=cluster_cfg.get('run_after', None),
-        )
+        logging.info(f"Scheduling {num_runs} runs of the script {script_path}...")
+
+        task = None
+        for run_id in range(num_runs):
+
+            if run_id == 0:
+                run_after = cluster_cfg.get('run_after', None)
+            else:
+                run_after = task
+
+            task = run_utils.add_task(exp,
+                cmd=cmd,
+                task_name=job_name,
+                cluster_config=cluster_cfg,
+                container=cluster_cfg['containers']['asr'],
+                num_tasks=cluster_cfg.get('num_tasks', cluster_cfg.get('num_tasks_per_node', 1)),
+                num_gpus=num_gpus,
+                num_nodes=num_nodes,
+                log_dir=run_utils.get_mounted_filepath(cluster_cfg, log_dir),
+                partition=cluster_cfg.get('partition', None),
+                run_after=run_after,
+            )
 
         run_utils.run_exp(exp, cluster_cfg)
 
