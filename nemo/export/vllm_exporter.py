@@ -52,26 +52,28 @@ except Exception:
 
 class vLLMExporter(ITritonDeployable):
     """
-    The Exporter class implements conversion from a Nemo checkpoint format to something compatible with vLLM,
+    The vLLMExporter class implements conversion from a Nemo checkpoint format to something compatible with vLLM,
     loading the model in vLLM, and binding that model to a Triton server.
 
     Example:
-        from nemo.export.vllm import Exporter
+        from nemo.export.vllm_exporter import vLLMExporter
         from nemo.deploy import DeployPyTriton
 
-        exporter = Exporter()
+        exporter = vLLMExporter()
+
         exporter.export(
             nemo_checkpoint='/path/to/checkpoint.nemo',
             model_dir='/path/to/temp_dir',
-            model_type='llama')
+            model_type='llama',
+        )
 
         server = DeployPyTriton(
             model=exporter,
-            triton_model_name='LLAMA')
+            triton_model_name='LLAMA',
+        )
 
         server.deploy()
         server.serve()
-        server.stop()
     """
 
     def __init__(self):
