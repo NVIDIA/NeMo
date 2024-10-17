@@ -143,7 +143,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, performance_mode: bool = False, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, performance_mode: bool = False, fn: Callable = pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3 8B model.
@@ -156,7 +156,7 @@ def pretrain_recipe(
         name (str): Name of the pre-training run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        performance_mode (bool): If true, enables optimizations for maximum performance
+        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -211,7 +211,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         Use this method with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
