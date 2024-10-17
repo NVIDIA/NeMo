@@ -279,10 +279,11 @@ class PromptFormatter(ABC):
             turn_token_counts.append(len(tokens))
             turn_mask_values.append(role == self.OUTPUT_ROLE)
 
-        if self.INSERT_EOS:
+        # Insert EOS only when the last turn comes from the OUTPUT_ROLE.
+        if self.INSERT_EOS and turns[-1]["role"] == self.OUTPUT_ROLE:
             turn_tokens.append(self.tokenizer.eos)
-            turn_token_counts.append(1)
-            turn_mask_values.append(False)
+            turn_token_counts[-1] += 1
+            turn_mask_values.append(True)
 
         ans = {"input_ids": torch.tensor(turn_tokens, dtype=torch.long)}
         if turn_mask_values[-1]:
