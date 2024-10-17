@@ -490,9 +490,6 @@ def run_existing_checkpoints(
     else:
         use_embedding_sharing = False
 
-    if trt_llm_export_kwargs is None:
-        trt_llm_export_kwargs = {}
-
     if in_framework:
         return run_in_framework_inference(
             model_name=model_name,
