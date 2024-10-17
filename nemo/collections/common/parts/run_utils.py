@@ -393,6 +393,8 @@ def get_exp_handles(expname):
             expname = expname[: expname.rfind("_")]
         except:
             job_id = None
+    else:
+        job_id = None
 
     parent_dir = os.path.join(NEMORUN_HOME, "experiments", expname)
     exp_dir = _get_latest_dir(parent_dir, expname, job_id)
