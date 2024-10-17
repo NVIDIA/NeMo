@@ -23,13 +23,12 @@ from tokenizers import (
     processors,
     trainers,
 )
-from transformers import PreTrainedTokenizerFast
-
-
+from transformers import PreTrainedTokenizerFast  
+    
 def check_parent_directory_exists(directory_path):
     parent_directory = os.path.dirname(directory_path)
     if not os.path.exists(parent_directory):
-        raise FileNotFoundError(f"Parent directory '{parent_directory}' does not exist.")
+        raise FileNotFoundError(f"Parent directory '{parent_directory}' does not exist. Please create it.")
     else:
         print(f"Parent directory '{parent_directory}' exists.")
 

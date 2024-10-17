@@ -12,9 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import torch
 
 
+def check_directory_exists(directory):
+    if os.path.isdir(directory):
+        print(f"Directory '{directory}' exists")
+    else:
+        raise FileNotFoundError(f"The directory '{directory}' does not exist. Please create it.")
+    
+    
 def load_weights(load_path, save_path):
     """
     This function loads llama2 weights (hugging face) and converts it to a Dict format suitable for NeMo
@@ -60,5 +69,6 @@ def merge_embed(old_embd_path, new_embd_path, save_path):
             state_dict['output.weight'] = batch_dict['output_layer']
             print("embedding shape: ", state_dict['model']['embedding.word_embeddings.weight'].shape)
             print("output shape: ", state_dict['model']['output_layer.weight'].shape)
+        check_directory_exists(save_path)
         torch.save(state_dict, f"{save_path}/consolidated.0{i}.pth")
         print(f"Done merging snapshot {i}")
