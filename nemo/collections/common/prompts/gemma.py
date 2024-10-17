@@ -19,6 +19,8 @@ GEMMA_NL = "\n\n"
 class GemmaPromptFormatter(PromptFormatter):
     NAME = "gemma"
     OUTPUT_ROLE = "assistant"
+    INSERT_BOS = True
+    INSERT_EOS = True
     TEMPLATE = {
         "user": {
             "template": f"{GEMMA_BOS}user\n|message|{GEMMA_END_OF_TURN}\n{GEMMA_BOS}model\n",

@@ -26,7 +26,7 @@ class Llama2PromptFormatter(PromptFormatter):
             },
         },
         "user": {
-            "template": "|bos|[INST] |message| [/INST]",
+            "template": f"{BOS_SLOT}[INST] |message| [/INST]",
             "slots": {
                 "message": Modality.Text,
             },
