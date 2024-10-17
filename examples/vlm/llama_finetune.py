@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import argparse
-
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
@@ -22,69 +21,12 @@ from transformers import AutoProcessor
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.multimodal.data.energon.conversation import MLlamaTemplateConfig
-from nemo.collections.vlm.llama.data.task_encoder import LlamaTaskEncoder
+
+from nemo.collections.vlm import ImageDataConfig
+from nemo.collections.vlm.llama.data.lazy import MLlamaLazyDataModule
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-
-
-def get_data_module(data_path, micro_batch_size, global_batch_size, model_id=None):
-    """
-    Initializes and returns a data module configured for multimodal training.
-
-    This function sets up the data paths, tokenizers, image processors,
-    and other configurations necessary for multimodal training.
-
-    Args:
-        data_path (str): Path to the dataset.
-        micro_batch_size (int): Micro batch size.
-        global_batch_size (int): Global batch size.
-
-    Returns:
-        tuple: Contains the data module and tokenizer.
-    """
-    # encoder (vision) seq length
-    # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
-    seq_length = 6404
-    decoder_seq_length = 512  # decoder (llm) seq length
-
-    if model_id is None:
-        model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
-    processor = AutoProcessor.from_pretrained(model_id)
-    image_processor = processor.image_processor
-    tokenizer = processor.tokenizer
-
-    multimodal_sample_config = MultiModalSampleConfig()
-    if model_id.endswith("Instruct"):
-        multimodal_sample_config.conversation_template_config.chat_template = None
-    else:
-        # TODO this doesn't work
-        multimodal_sample_config.conversation_template_config = MLlamaTemplateConfig()
-
-    multimodal_sample_config.image_token.token_id = 128256
-    multimodal_sample_config.conversation_template_config.stop_string = '<|eot_id|>'
-
-    task_encoder = LlamaTaskEncoder(
-        tokenizer=tokenizer,
-        image_processor=image_processor,
-        multimodal_sample_config=multimodal_sample_config,
-        seq_length=decoder_seq_length,
-    )
-    data_module = SimpleMultiModalDataModule(
-        path=data_path,
-        tokenizer=tokenizer,
-        image_processor=image_processor,
-        num_workers=16,
-        micro_batch_size=micro_batch_size,
-        global_batch_size=global_batch_size,
-        multimodal_sample_config=multimodal_sample_config,
-        task_encoder=task_encoder,
-        seq_length=seq_length,
-        decoder_seq_length=decoder_seq_length,
-    )
-    return data_module, tokenizer
 
 
 def main(args):
@@ -100,11 +42,38 @@ def main(args):
     """
     gbs = 128
     mbs = 2
+    # encoder (vision) seq length
+    # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
+    seq_length = 6404
+    decoder_seq_length = 512  # decoder (llm) seq length
+
     if args.restore_path is not None and args.restore_path.startswith("nemo://"):
         model_id = args.restore_path[len("nemo://") :]
     else:
         model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
-    data, tokenizer = get_data_module(args.data_path, mbs, gbs, model_id=model_id)
+
+    processor = AutoProcessor.from_pretrained(model_id)
+    image_processor = processor.image_processor
+    tokenizer = processor.tokenizer
+
+    # Data configuration
+    data_config = ImageDataConfig(
+        image_folder=args.image_folder,
+        conv_template="mllama",
+    )
+
+    # Data module setup
+    data = MLlamaLazyDataModule(
+        paths=args.data_path,
+        data_config=data_config,
+        seq_length=seq_length,
+        decoder_seq_length=decoder_seq_length,
+        global_batch_size=gbs,
+        micro_batch_size=mbs,
+        tokenizer=tokenizer,
+        image_processor=image_processor,
+        num_workers=16,
+    )
 
     model_configs = {
         "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
@@ -214,6 +183,7 @@ if __name__ == "__main__":
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
     parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset")
+    parser.add_argument("--image_folder", type=str, required=True, help="Path to the image folder")
     parser.add_argument(
         "--log_dir",
         type=str,

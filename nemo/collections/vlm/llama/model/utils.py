@@ -144,7 +144,7 @@ def create_vision_mask_tensor(tokens: torch.Tensor, vision_token_id: int) -> tor
 
     # If no vision token found, return an empty tensor
     if vision_token_locations.numel() == 0:
-        return torch.empty(0, 2, dtype=torch.long)
+        return torch.empty(1, 2, dtype=torch.long)
 
     vision_masks = []
 
