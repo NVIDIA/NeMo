@@ -68,6 +68,7 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
 
         return extra
 
+
 def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving: bool = False) -> Path:
     """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
     base_dir = ckpt_to_dir(filepath=filepath)
@@ -82,6 +83,7 @@ def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving: bool = False) 
         if maybe_base_model_path.is_dir() or is_saving:
             base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
     return base_dir
+
 
 class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
