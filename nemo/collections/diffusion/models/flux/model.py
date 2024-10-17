@@ -16,9 +16,9 @@ from dataclasses import dataclass
 from typing import Callable
 
 import torch
+from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
-from megatron.core.models.common.vision_module.vision_module import VisionModule
 from torch import nn
 
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
@@ -50,7 +50,6 @@ class FluxParams:
 
 class Flux(VisionModule):
     def __init__(self, config: FluxParams):
-
 
         self.out_channels = config.in_channels
         self.hidden_size = config.hidden_size
