@@ -55,18 +55,10 @@ def merge_embed(old_embd_path, new_embd_path, save_path):
             state_dict['tok_embeddings.weight'] = batch_dict['word_embeddings']
             print("embedding shape: ", state_dict['tok_embeddings.weight'].shape)
             print("output shape: ", state_dict['output.weight'].shape)
-        #             state_dict['args'].padded_vocab_size = state_dict['model']['language_model']['embedding']['word_embeddings']['weight'].shape[0] * 8
-        #             state_dict['args'].vocab_size = state_dict['args'].padded_vocab_size - 768
-        #             print("vocab_size: ", state_dict['args'].vocab_size)
-        #             print("padded_vocab_size: ", state_dict['args'].padded_vocab_size)
         else:
             state_dict['tok_embeddings.weight'] = batch_dict['word_embeddings']
             state_dict['output.weight'] = batch_dict['output_layer']
             print("embedding shape: ", state_dict['model']['embedding.word_embeddings.weight'].shape)
             print("output shape: ", state_dict['model']['output_layer.weight'].shape)
-        #             state_dict['args'].padded_vocab_size = state_dict['model']['embedding.word_embeddings.weight'].shape[0] * 8
-        #             state_dict['args'].vocab_size = state_dict['args'].padded_vocab_size - 768
-        #             print("vocab_size: ", state_dict['args'].vocab_size)
-        #             print("padded_vocab_size: ", state_dict['args'].padded_vocab_size)
         torch.save(state_dict, f"{save_path}/consolidated.0{i}.pth")
         print(f"Done merging snapshot {i}")
