@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import datetime
+import os
 from pathlib import Path
 
 import nemo_run as run
@@ -22,7 +22,6 @@ from omegaconf import OmegaConf, open_dict
 from nemo.collections.common.parts import run_utils
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
 
 NEMO_ROOT = Path(__file__).absolute().parents[2]
 
@@ -124,9 +123,11 @@ def merge_configs(script_config, cluster_cfg):
 
     # Do name check as a special case
     if 'name' in result and result['name'] == '':
-        raise ValueError(f"Missing value for key 'name' in the merged config file (value={result['name']}).\n"
-                         f"Check if your ++ override is using single quote (') instead of double quote (\") for resolution.\n"
-                         "Example: ++name='${exp_name}'")
+        raise ValueError(
+            f"Missing value for key 'name' in the merged config file (value={result['name']}).\n"
+            f"Check if your ++ override is using single quote (') instead of double quote (\") for resolution.\n"
+            "Example: ++name='${exp_name}'"
+        )
 
     return result
 
@@ -185,6 +186,7 @@ def check_config_mount_paths(script_config, cluster_config):
 
     check_mounted_path(script_config, cluster_config)
 
+
 def update_exp_manager_runtime(script_config, cluster_cfg):
     """
     Update the max_time_per_run in the exp_manager config in the script config with the max_runtime from the cluster config.
@@ -238,7 +240,9 @@ ls -l;
             if merged_cfg['exp_manager']['create_wandb_logger']:
                 # If WANDB logging is enabled, the user is expected to provide the key.
                 # Raise an error
-                raise ValueError("WANDB key not found in your local environment variables. Please set WANDB_API_KEY to use WANDB logging.")
+                raise ValueError(
+                    "WANDB key not found in your local environment variables. Please set WANDB_API_KEY to use WANDB logging."
+                )
 
     # Prepare the format dictionary
     format_dict = dict(
@@ -334,7 +338,8 @@ def main(cluster_cfg):
             else:
                 run_after = [task]
 
-            task = run_utils.add_task(exp,
+            task = run_utils.add_task(
+                exp,
                 cmd=cmd,
                 task_name=job_name,
                 cluster_config=cluster_cfg,
