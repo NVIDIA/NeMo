@@ -1,3 +1,15 @@
+from nemo.collections.vlm.llama.model.base import (
+    CrossAttentionTextConfig,
+    CrossAttentionVisionConfig,
+    MLlamaModel,
+    MLlamaModelConfig,
+)
+from nemo.collections.vlm.llama.model.mllama import (
+    MLlamaConfig11B,
+    MLlamaConfig11BInstruct,
+    MLlamaConfig90B,
+    MLlamaConfig90BInstruct,
+)
 from nemo.collections.vlm.neva.data import (
     DataConfig,
     ImageDataConfig,
@@ -19,6 +31,8 @@ from nemo.collections.vlm.neva.model import (
     NevaConfig,
     NevaModel,
 )
+from nemo.collections.vlm.peft import LoRA
+from nemo.collections.vlm.recipes import *
 
 __all__ = [
     "MockDataModule",
@@ -38,4 +52,14 @@ __all__ = [
     "Llava1_5Config7B",
     "Llava1_5Config13B",
     "LlavaModel",
+    "MLlamaModel",
+    "MLlamaModelConfig",
+    "CrossAttentionTextConfig",
+    "CrossAttentionVisionConfig",
+    "MLlamaConfig11B",
+    "MLlamaConfig11BInstruct",
+    "MLlamaConfig90B",
+    "MLlamaConfig90BInstruct",
+    "mllama_11b",
+    "mllama_90b",
 ]
