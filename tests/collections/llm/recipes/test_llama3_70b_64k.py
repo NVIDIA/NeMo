@@ -30,7 +30,7 @@ class TestLlama3_70B_64k:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 32
+        assert trainer_config.num_nodes == 16
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
@@ -38,8 +38,8 @@ class TestLlama3_70B_64k:
         assert trainer_config.strategy.tensor_model_parallel_size == 8
         assert trainer_config.strategy.pipeline_model_parallel_size == 4
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
-        assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 5
-        assert trainer_config.strategy.context_parallel_size == 8
+        assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
+        assert trainer_config.strategy.context_parallel_size == 4
         assert trainer_config.strategy.sequence_parallel is True
 
         # Check for TimingCallback
@@ -72,8 +72,8 @@ class TestLlama3_70B_64k:
         assert trainer_config.strategy.tensor_model_parallel_size == 8
         assert trainer_config.strategy.pipeline_model_parallel_size == 4
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
-        assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 5
-        assert trainer_config.strategy.context_parallel_size == 8
+        assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
+        assert trainer_config.strategy.context_parallel_size == 4
         assert trainer_config.strategy.sequence_parallel is True
 
     def test_model_config_parameters(self, recipe_module):
