@@ -332,7 +332,7 @@ def parse_and_combine_datasets(
 
 @data_type_parser(["lhotse", "lhotse_shar"])
 def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
-    is_tarred = config.shar_path is not None
+    is_tarred = config.get("shar_path") is not None
     if is_tarred:
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
         # The combination of shuffle_shards, and repeat causes this to

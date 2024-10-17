@@ -44,12 +44,12 @@ def test_cut_token_per_second_filter(cut):
 
 
 def test_cut_passes_by_token_count_and_tpt_filter(cut):
-    assert TokenCountFilter(1, 10, use_total_length=True)(cut) == True
+    assert TokenCountFilter(1, 10, measure_total_length=True)(cut) == True
     assert TokenPerTokenFilter(1, 10)(cut) == True
 
 
 def test_cut_passes_by_token_count_and_tpt_filter(cut):
-    assert TokenCountFilter(1, 10, use_total_length=True)(cut) == True
+    assert TokenCountFilter(1, 10, measure_total_length=True)(cut) == True
     assert TokenPerTokenFilter(1, 10)(cut) == True
 
 
@@ -80,28 +80,28 @@ def test_src_tgt_token_filter(src_tgt_example):
     """
     Input length measurement / encoder-decoder models / 2D bucketing
     """
-    f = TokenCountFilter(1, 5, use_total_length=False)
+    f = TokenCountFilter(1, 5, measure_total_length=False)
     assert f(example) == True
 
-    f = TokenCountFilter(1, 3, use_total_length=False)
+    f = TokenCountFilter(1, 3, measure_total_length=False)
     assert f(example) == False
 
-    f = TokenCountFilter(10, 30, use_total_length=False)
+    f = TokenCountFilter(10, 30, measure_total_length=False)
     assert f(example) == False
 
     """
     Total length measurement / decoder-only models / 1D bucketing
     """
-    f = TokenCountFilter(1, 5, use_total_length=True)
+    f = TokenCountFilter(1, 5, measure_total_length=True)
     assert f(example) == False
 
-    f = TokenCountFilter(1, 20, use_total_length=True)
+    f = TokenCountFilter(1, 20, measure_total_length=True)
     assert f(example) == True
 
-    f = TokenCountFilter(1, 3, use_total_length=True)
+    f = TokenCountFilter(1, 3, measure_total_length=True)
     assert f(example) == False
 
-    f = TokenCountFilter(20, 30, use_total_length=True)
+    f = TokenCountFilter(20, 30, measure_total_length=True)
     assert f(example) == False
 
 
@@ -146,26 +146,26 @@ def test_nemo_sft_token_filter(nemo_sft_example):
     """
     Input length measurement / encoder-decoder models / 2D bucketing
     """
-    f = TokenCountFilter(1, 5, use_total_length=False)
+    f = TokenCountFilter(1, 5, measure_total_length=False)
     assert f(example) == True
 
-    f = TokenCountFilter(1, 2, use_total_length=False)
+    f = TokenCountFilter(1, 2, measure_total_length=False)
     assert f(example) == False
 
-    f = TokenCountFilter(10, 30, use_total_length=False)
+    f = TokenCountFilter(10, 30, measure_total_length=False)
     assert f(example) == False
 
     """
     Total length measurement / decoder-only models / 1D bucketing
     """
-    f = TokenCountFilter(1, 5, use_total_length=True)
+    f = TokenCountFilter(1, 5, measure_total_length=True)
     assert f(example) == False
 
-    f = TokenCountFilter(1, 20, use_total_length=True)
+    f = TokenCountFilter(1, 20, measure_total_length=True)
     assert f(example) == True
 
-    f = TokenCountFilter(1, 3, use_total_length=True)
+    f = TokenCountFilter(1, 3, measure_total_length=True)
     assert f(example) == False
 
-    f = TokenCountFilter(10, 30, use_total_length=True)
+    f = TokenCountFilter(10, 30, measure_total_length=True)
     assert f(example) == False
