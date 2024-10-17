@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
+from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -300,6 +301,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
+
+    def get_inference_wrapper(self, inference_wrapper_config) -> torch.Tensor:
+        model_inference_wrapper = GPTInferenceWrapper(self.module, inference_wrapper_config)
+        return model_inference_wrapper
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
