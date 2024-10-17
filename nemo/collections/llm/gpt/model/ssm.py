@@ -62,6 +62,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     post_process: bool = True
     pre_process: bool = True
     seq_length: int = 2048
+    bf16 : bool = True
+    fp16 : bool = False
+    params_dtype : torch.dtype = torch.bfloat16
     # Mamba with no attention has no need for position embeddings, so none is default
     position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'none'
     rotary_percent: float = 1.0
@@ -78,7 +81,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     layernorm_epsilon: float = 1e-5
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-
+    tokenizer_model_path: str = None
     forward_step_fn: Callable = ssm_forward_step
     data_step_fn: Callable = gpt_data_step
 
@@ -105,7 +108,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
 @io.model_importer(GPTModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
-    def __new__(cls, path: str, model_config=None):
+    def __new__(cls, path: str, model_config: SSMConfig):
         instance = super().__new__(cls, path)
         instance.model_config = model_config
         return instance
@@ -126,11 +129,34 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
             def state_dict(self):
                 return self._state_dict
+            
+            def to(self, precision):
+                casted_state_dict = {}
+                trigger_warning = 0
+                for name, tensor in self._state_dict.items():
+                    if isinstance(tensor, torch.Tensor):
+                        if tensor.dtype != precision:
+                            trigger_warning = 1
+                            source_precision = tensor.dtype
+                        casted_state_dict[name] = tensor.to(precision)
+                    else:
+                        casted_state_dict[name] = tensor
+                if trigger_warning:
+                    logging.warning(f"Warning: The source checkpoint precision is {source_precision},"
+                                    f"while the requested target checkpoint precision is {precision}."
+                                    "Converting the source to the target precision ...")
+                self._state_dict = casted_state_dict
+                return casted_state_dict
+
 
         source = ModelState(source)
         target = self.init()
         trainer = self.nemo_setup(target)
+        precision = target.config.params_dtype
+        target.to(precision)
+        source.to(precision)
         self.convert_state(source, target)
+
         self.nemo_save(output_path, trainer)
 
         logging.info(f"Converted SSM model to Nemo, model saved to {output_path}")
