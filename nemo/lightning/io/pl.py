@@ -68,6 +68,20 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
 
         return extra
 
+def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving: bool = False) -> Path:
+    """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
+    base_dir = ckpt_to_dir(filepath=filepath)
+    assert isinstance(base_dir, Path)
+    if base_dir.parts[-1] != WEIGHTS_PATH:
+        maybe_base_dir = base_dir / WEIGHTS_PATH
+        if maybe_base_dir.is_dir() or is_saving:
+            base_dir = maybe_base_dir
+    ## handle adapter paths
+    if hasattr(base_dir, "base_model_path") and base_dir.base_model_path.parts[-1] != WEIGHTS_PATH:
+        maybe_base_model_path = base_dir.base_model_path / WEIGHTS_PATH
+        if maybe_base_model_path.is_dir() or is_saving:
+            base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
+    return base_dir
 
 class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
@@ -100,21 +114,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self._save_sharded_strategy = None
         self.validated_consistency = False
 
-    def ckpt_to_weights_subdir(self, filepath: Union[str, Path], is_saving: bool = False) -> Path:
-        """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
-        base_dir = ckpt_to_dir(filepath=filepath)
-        assert isinstance(base_dir, Path)
-        if base_dir.parts[-1] != WEIGHTS_PATH:
-            maybe_base_dir = base_dir / WEIGHTS_PATH
-            if maybe_base_dir.is_dir() or is_saving:
-                base_dir = maybe_base_dir
-        ## handle adapter paths
-        if hasattr(base_dir, "base_model_path") and base_dir.base_model_path.parts[-1] != WEIGHTS_PATH:
-            maybe_base_model_path = base_dir.base_model_path / WEIGHTS_PATH
-            if maybe_base_model_path.is_dir() or is_saving:
-                base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
-        return base_dir
-
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         """Save model/training states as a checkpoint file through state-dump and file-write.
@@ -138,7 +137,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                 f" storage_options, but {storage_options=} was provided."
                 f" Ignoring given storage_options"
             )
-        checkpoint_dir = self.ckpt_to_weights_subdir(path, is_saving=True)
+        checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
         fs = get_filesystem(checkpoint_dir)
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
             logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
@@ -195,7 +194,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
         # Load from ckpt_path/weights (new format) if it exists
-        path = self.ckpt_to_weights_subdir(path)
+        path = ckpt_to_weights_subdir(path)
         if hasattr(path, "base_model_path") and not path.base_model_path.exists():
             path.base_model_path = path.base_model_path.parent
 
