@@ -43,7 +43,6 @@ def get_high_freq_tokens(token_usage_path, high_freq_tokens_path, p_th=0.98):
     topics = []
     p_ths = []
     for key in freq_dict:
-        print(key)
         topics.append(key)
         p_ths.append(p_th)
 
