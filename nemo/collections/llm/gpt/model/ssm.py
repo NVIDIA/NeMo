@@ -62,9 +62,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     post_process: bool = True
     pre_process: bool = True
     seq_length: int = 2048
-    bf16 : bool = True
-    fp16 : bool = False
-    params_dtype : torch.dtype = torch.bfloat16
+    bf16: bool = True
+    fp16: bool = False
+    params_dtype: torch.dtype = torch.bfloat16
     # Mamba with no attention has no need for position embeddings, so none is default
     position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'none'
     rotary_percent: float = 1.0
@@ -129,7 +129,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
             def state_dict(self):
                 return self._state_dict
-            
+
             def to(self, precision):
                 casted_state_dict = {}
                 trigger_warning = 0
@@ -142,12 +142,13 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
                     else:
                         casted_state_dict[name] = tensor
                 if trigger_warning:
-                    logging.warning(f"Warning: The source checkpoint precision is {source_precision},"
-                                    f"while the requested target checkpoint precision is {precision}."
-                                    "Converting the source to the target precision ...")
+                    logging.warning(
+                        f"Warning: The source checkpoint precision is {source_precision},"
+                        f"while the requested target checkpoint precision is {precision}."
+                        "Converting the source to the target precision ..."
+                    )
                 self._state_dict = casted_state_dict
                 return casted_state_dict
-
 
         source = ModelState(source)
         target = self.init()

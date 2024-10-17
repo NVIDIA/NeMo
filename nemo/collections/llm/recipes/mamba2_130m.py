@@ -20,8 +20,9 @@ import pytorch_lightning as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
-from nemo.collections import llm
+
 from nemo import lightning as nl
+from nemo.collections import llm
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -29,9 +30,9 @@ from nemo.collections.llm.recipes.finetune_default import default_finetune_train
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 NAME = "mamba2_130m"
 
@@ -39,10 +40,14 @@ NAME = "mamba2_130m"
 @run.cli.factory(name=NAME)
 def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, library='huggingface', 
-                      model_name="EleutherAI/gpt-neox-20b",  
-                      tokenizer_model=tokenizer_model,
-                      use_fast=True)
+    return run.Config(
+        get_nmt_tokenizer,
+        library='huggingface',
+        model_name="EleutherAI/gpt-neox-20b",
+        tokenizer_model=tokenizer_model,
+        use_fast=True,
+    )
+
 
 @run.cli.factory(name=NAME)
 def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
@@ -60,7 +65,10 @@ def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig130M), tokenizer=tokenizer(tokenizer_model=tokenizer_model))
+    return run.Config(
+        llm.GPTModel, config=run.Config(llm.BaseMambaConfig130M), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
+    )
+
 
 def trainer(
     tensor_parallelism: int = 1,
@@ -148,7 +156,12 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", tokenizer_model: str = None, num_nodes: int = 1, num_gpus_per_node: int = 1, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    tokenizer_model: str = None,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 1,
+    fn=pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mamba2 130M model.
@@ -187,12 +200,18 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=1, micro_batch_size=1, 
-                        tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
+        data=run.Config(
+            MockDataModule,
+            seq_length=4096,
+            global_batch_size=1,
+            micro_batch_size=1,
+            tokenizer=tokenizer(tokenizer_model=tokenizer_model),
+        ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
+
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
@@ -213,7 +232,7 @@ def finetune_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the fine-tuning run.
-        resume_path (str): Path to the NeMo checkpoint (refer to notes below 
+        resume_path (str): Path to the NeMo checkpoint (refer to notes below
                             on how to convert a pytorch checkpoint to NeMo)
         tokenizer_model (str): Path to tokenizer model (defaults to None)
         num_nodes (int): Number of compute nodes to use.
@@ -238,9 +257,9 @@ def finetune_recipe(
         llm.GPTModel(llm.BaseMambaConfig130M(), tokenizer=tokenizer()).import_ckpt(
             path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
             model_config=llm.BaseMambaConfig130M())
-        This line will cache the nemo checkpoint to following directory: 
+        This line will cache the nemo checkpoint to following directory:
             /root/.cache/nemo/models/your_pytorch_state_dict_file
-        
+
     """
     nemo_resume = run.Config(
         nl.AutoResume,
@@ -257,7 +276,13 @@ def finetune_recipe(
             limit_val_batches=10,
             val_check_interval=20,
         ),
-        data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
+        data=run.Config(
+            llm.SquadDataModule,
+            seq_length=2048,
+            global_batch_size=8,
+            micro_batch_size=1,
+            tokenizer=tokenizer(tokenizer_model=tokenizer_model),
+        ),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),
         resume=nemo_resume,

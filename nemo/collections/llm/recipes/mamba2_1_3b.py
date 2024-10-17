@@ -20,8 +20,9 @@ import pytorch_lightning as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
-from nemo.collections import llm
+
 from nemo import lightning as nl
+from nemo.collections import llm
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -29,9 +30,9 @@ from nemo.collections.llm.recipes.finetune_default import default_finetune_recip
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 NAME = "mamba2_1_3b"
 
@@ -54,10 +55,12 @@ def model() -> run.Config[pl.LightningModule]:
     """
     return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig1_3B))
 
+
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
+    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b", use_fast=True)
+
 
 def trainer(
     tensor_parallelism: int = 1,
