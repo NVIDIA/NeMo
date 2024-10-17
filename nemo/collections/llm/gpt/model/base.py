@@ -302,7 +302,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def predict_step(self, batch, batch_idx=None) -> torch.Tensor:
-        
+
         return self.forward_step(batch)
 
     @property

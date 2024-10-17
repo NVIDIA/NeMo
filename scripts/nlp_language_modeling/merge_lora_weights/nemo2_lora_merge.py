@@ -1,10 +1,12 @@
 # import nemo_run as run
+import pytorch_lightning as pl
+import torch
+from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.loggers import WandbLogger
+
 from nemo import lightning as nl
 from nemo.collections import llm
-from megatron.core.optimizer import OptimizerConfig
-import torch
-from pytorch_lightning.loggers import WandbLogger
-import pytorch_lightning as pl
+
 
 def logger() -> nl.NeMoLogger:
     # ckpt = None

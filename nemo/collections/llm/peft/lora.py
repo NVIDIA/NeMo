@@ -13,26 +13,22 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List, Literal
+from pathlib import Path
+from typing import Any, Dict, List, Literal
 
-from megatron.core import parallel_state
-from torch import nn
-
-from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
-from nemo.utils import logging
-from nemo.lightning.io.mixin import IOMixin
-from pytorch_lightning.trainer.states import TrainerFn
 import torch
+from megatron.core import parallel_state
+from pytorch_lightning.trainer.states import TrainerFn
+from torch import nn
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from typing import Any, Dict, List
-import torch
-from nemo.lightning.io import load_context, ModelConnector
+from nemo.lightning.io import ModelConnector, load_context
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.megatron_parallel import MegatronParallel
-from nemo.utils.get_rank import is_global_rank_zero
-from pathlib import Path
+from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.import_utils import safe_import_from
 
 TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
@@ -190,4 +186,4 @@ class LoRA(PEFT):
                 alpha=self.alpha,
             )
             return AdapterParallelAdd(m, adapter)
-        return m    
+        return m
