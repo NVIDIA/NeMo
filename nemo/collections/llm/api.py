@@ -432,7 +432,7 @@ def export_ckpt(
     return io.export_ckpt(path, target, output_path, overwrite, load_connector)
 
 
-@run.cli.entrypoint(name="generate", namespace="llm")
+@cli_entrypoint(name="generate", namespace="llm")
 def generate(
     path: Union[Path, str],
     prompts: list[str],
