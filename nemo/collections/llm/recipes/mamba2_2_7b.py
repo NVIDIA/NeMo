@@ -237,47 +237,47 @@ def pretrain_recipe_performance(
     return recipe
 
 
-# @run.cli.factory(target=finetune, name=NAME)
-# def finetune_recipe(
-#     dir: Optional[str] = None,
-#     name: str = "default",
-#     num_nodes: int = 1,
-#     num_gpus_per_node: int = 8,
-#     peft_scheme: Optional[str] = 'none',
-# ) -> run.Partial:
-#     """
-#     Create a fine-tuning recipe for Mamba2 2.7B model.
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    peft_scheme: Optional[str] = 'none',
+) -> run.Partial:
+    """
+    Create a fine-tuning recipe for Mamba2 2.7B model.
 
-#     This function sets up a complete configuration for fine-tuning, including
-#     model, trainer, data, logging, optimization, and resumption settings.
-#     The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, data, logging, optimization, and resumption settings.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
-#     Args:
-#         dir (Optional[str]): Directory for saving logs and checkpoints.
-#         name (str): Name of the fine-tuning run.
-#         num_nodes (int): Number of compute nodes to use.
-#         num_gpus_per_node (int): Number of GPUs per node.
-#         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
-#     Returns:
-#         run.Partial: Partial configuration for fine-tuning.
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the fine-tuning run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+    Returns:
+        run.Partial: Partial configuration for fine-tuning.
 
-#     Examples:
-#         CLI usage:
-#             $ nemo llm finetune --factory mamba2_2_7b
+    Examples:
+        CLI usage:
+            $ nemo llm finetune --factory mamba2_2_7b
 
-#         Python API usage:
-#             >>> recipe = finetune_recipe(name="mamba2_2_7b_finetune", num_nodes=1)
-#             >>> print(recipe)
+        Python API usage:
+            >>> recipe = finetune_recipe(name="mamba2_2_7b_finetune", num_nodes=1)
+            >>> print(recipe)
 
-#     Note:
-#         This recipe uses the SQuAD dataset for fine-tuning. For more information
-#         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
-#         `examples/llm/finetune/` directory.
-#     """
-#     recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node)
-#     if peft_scheme is None or peft_scheme.lower() == 'none':
-#         recipe.trainer.strategy.tensor_model_parallel_size = 1
-#         recipe.optim.config.lr = 5e-6
-#     else:
-#         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
-#     return recipe
+    Note:
+        This recipe uses the SQuAD dataset for fine-tuning. For more information
+        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
+        `examples/llm/finetune/` directory.
+    """
+    recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node)
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.tensor_model_parallel_size = 1
+        recipe.optim.config.lr = 5e-6
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
+    return recipe

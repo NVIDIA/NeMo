@@ -282,7 +282,6 @@ def finetune_recipe(
             /root/.cache/nemo/models/your_pytorch_state_dict_file
         
     """
-    resume_path = "/root/.cache/nemo/models/pytorch_model.bin"
     nemo_resume = run.Config(
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=resume_path),
@@ -294,7 +293,7 @@ def finetune_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
         ),
-        data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1, tokenizer=tokenizer()),
+        data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer()),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),
         resume=nemo_resume,

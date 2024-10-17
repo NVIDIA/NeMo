@@ -45,7 +45,7 @@ def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
                       use_fast=True)
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Mamba2 130M model configuration.
 
@@ -60,12 +60,7 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig130M), tokenizer=tokenizer())
-
-@run.cli.factory(name=NAME)
-def tokenizer() -> run.Config[pl.LightningModule]:
-
-    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
+    return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig130M), tokenizer=tokenizer(tokenizer_model=tokenizer_model))
 
 def trainer(
     tensor_parallelism: int = 1,
@@ -253,12 +248,16 @@ def finetune_recipe(
     )
     recipe = run.Partial(
         llm.finetune,
-        model=model(),
+        model=model(tokenizer_model=tokenizer_model),
         trainer=default_finetune_trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
+            max_steps=100,
+            limit_test_batches=10,
+            limit_val_batches=10,
+            val_check_interval=20,
         ),
-        data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1, tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
+        data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),
         resume=nemo_resume,

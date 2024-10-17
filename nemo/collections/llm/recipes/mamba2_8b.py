@@ -55,12 +55,12 @@ def model() -> run.Config[pl.LightningModule]:
     return run.Config(llm.GPTModel, config=run.Config(llm.NVIDIAMambaConfig8B))
 
 @run.cli.factory(name=NAME)
-def tokenizer() -> run.Config[pl.LightningModule]:
+def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b",  use_fast=True)
+    return run.Config(get_nmt_tokenizer, library='megatron', model_name="GPTSentencePieceTokenizer", tokenizer_model=tokenizer_model, use_fast=True)
 
 def trainer(
-    tensor_parallelism: int = 8,
+    tensor_parallelism: int = 2,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
@@ -145,7 +145,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", tokenizer_model: str = None, num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mamba2 8B model.
@@ -156,6 +156,7 @@ def pretrain_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the pre-training run.
+        tokenizer_model (str): Path to the tokenizer model.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         fn (Callable): The pre-training function to use.
@@ -184,100 +185,55 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=1, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=4, micro_batch_size=1, 
+                        tokenizer=tokenizer(tokenizer_model=tokenizer_model)),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_optimized")
-def pretrain_recipe_performance(
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    fn: Callable = pretrain,
+    peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Mamba2 8B model.
+    Create a fine-tuning recipe for Mamba2 8B model.
 
-    This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, data, logging, optimization, and resumption settings.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
+        name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
-
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
     Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
+        run.Partial: Partial configuration for fine-tuning.
 
     Examples:
-            $ nemo llm pretrain --factory mamba2_8b_optimized
+        CLI usage:
+            $ nemo llm finetune --factory mamba2_8b
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="mamba2_8b_perf", num_nodes=1)
+            >>> recipe = finetune_recipe(name="mamba2_8b_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
-        Use this recipe with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
+        This recipe uses the SQuAD dataset for fine-tuning. For more information
+        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
+        `examples/llm/finetune/` directory.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
-    )
+    recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node)
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.tensor_model_parallel_size = 1
+        recipe.optim.config.lr = 5e-6
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
-
-
-# @run.cli.factory(target=finetune, name=NAME)
-# def finetune_recipe(
-#     dir: Optional[str] = None,
-#     name: str = "default",
-#     num_nodes: int = 1,
-#     num_gpus_per_node: int = 8,
-#     peft_scheme: Optional[str] = 'none',
-# ) -> run.Partial:
-#     """
-#     Create a fine-tuning recipe for Mamba2 8B model.
-
-#     This function sets up a complete configuration for fine-tuning, including
-#     model, trainer, data, logging, optimization, and resumption settings.
-#     The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
-
-#     Args:
-#         dir (Optional[str]): Directory for saving logs and checkpoints.
-#         name (str): Name of the fine-tuning run.
-#         num_nodes (int): Number of compute nodes to use.
-#         num_gpus_per_node (int): Number of GPUs per node.
-#         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
-#     Returns:
-#         run.Partial: Partial configuration for fine-tuning.
-
-#     Examples:
-#         CLI usage:
-#             $ nemo llm finetune --factory mamba2_8b
-
-#         Python API usage:
-#             >>> recipe = finetune_recipe(name="mamba2_8b_finetune", num_nodes=1)
-#             >>> print(recipe)
-
-#     Note:
-#         This recipe uses the SQuAD dataset for fine-tuning. For more information
-#         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
-#         `examples/llm/finetune/` directory.
-#     """
-#     recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node)
-#     if peft_scheme is None or peft_scheme.lower() == 'none':
-#         recipe.trainer.strategy.tensor_model_parallel_size = 1
-#         recipe.optim.config.lr = 5e-6
-#     else:
-#         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
-#     return recipe
