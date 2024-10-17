@@ -17,7 +17,6 @@ import ast
 import math
 from functools import partial
 from itertools import islice
-from pathlib import Path
 from typing import Callable, Iterable
 
 import numpy as np
@@ -29,12 +28,9 @@ from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
 from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig, tokenize, tokenize_with_prompt
 from nemo.collections.common.data.lhotse.sampling import (
-    DurationFilter,
-    FixedBucketBatchSizeConstraint2D,
     MultimodalFixedBucketBatchSizeConstraint2D,
     MultimodalSamplingConstraint,
     TokenCountFilter,
-    TokenPerSecondFilter,
     TokenPerTokenFilter,
 )
 from nemo.collections.common.prompts.formatter import PromptFormatter
@@ -142,9 +138,9 @@ def estimate_token_buckets(
     is_2d = num_subbuckets is not None
 
     if is_2d:
-        constraint = MultimodalFixedBucketBatchSizeConstraint2D([(0.0, 0.0)], [0])
+        constraint = MultimodalFixedBucketBatchSizeConstraint2D([(0.0, 0.0)], [0], measure_total_length=False)
     else:
-        constraint = MultimodalSamplingConstraint()
+        constraint = MultimodalSamplingConstraint(measure_total_length=True)
 
     # Gather the duration and token count statistics for the dataset.
     num_input_tokens = []

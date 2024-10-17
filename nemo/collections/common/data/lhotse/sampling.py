@@ -298,7 +298,7 @@ def _measure_tokens(cut: Cut) -> int:
         return len(cut.input_ids)  # tokenized with prompt formatter
     supervisions_with_tokens = [s for s in cut.supervisions if hasattr(s, "tokens")]
     assert len(supervisions_with_tokens) > 0, (
-        "Cannot measure tokens-per-second with untokenized supervisions. "
+        "Cannot measure the number of tokens with untokenized supervisions. "
         "Did you forget to provide the tokenizer argument to get_lhotse_dataloader_from_config() method?"
     )
     return sum(len(s.tokens) for s in supervisions_with_tokens)
