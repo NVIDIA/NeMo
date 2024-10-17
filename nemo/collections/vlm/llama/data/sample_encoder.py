@@ -21,7 +21,7 @@ from megatron.energon import VQASample
 
 from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import VQASampleEncoder
-from nemo.collections.vlm.llama.model.vision import create_vision_mask_tensor
+from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor
 from nemo.utils import logging
 
 

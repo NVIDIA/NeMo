@@ -37,8 +37,9 @@ from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
-from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel, _get_xattn_mask
-from nemo.collections.vlm.llama.model.vision import VisionEncoder, _pad_masks
+from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
+from nemo.collections.vlm.llama.model.vision import VisionEncoder
+from nemo.collections.vlm.llama.model.utils import _pad_attention_masks, _generate_cross_attention_mask
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -400,7 +401,7 @@ class MLlamaBaseModel(MegatronModule):
             layer.compute_xattn_kv_cache(vision_tokens) for layer in self.language_model.decoder.xattn_layers
         ]
 
-        padded_masks = _pad_masks(
+        padded_masks = _pad_attention_masks(
             batch_masks,
             num_chunks,
             total_len,
@@ -410,8 +411,8 @@ class MLlamaBaseModel(MegatronModule):
         vision_tokens = rearrange(
             vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg, nchk=nchunk, ntok=ntok
         )
-        cross_attention_masks, full_text_row_masked_out_mask = _get_xattn_mask(
-            num_tokens=total_len,
+        cross_attention_masks, full_text_row_masked_out_mask = _generate_cross_attention_mask(
+            text_token_count=total_len,
             text_device="cuda",
             text_dtype=next(self.language_model.parameters()).dtype,
             vision_tokens=vision_tokens,
