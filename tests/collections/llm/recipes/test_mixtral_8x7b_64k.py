@@ -63,7 +63,7 @@ class TestMixtral8x7B_64k:
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
-    def test_trainer_parallelism_legal(self, recipe_module):
+    def test_valid_trainer_parallelism(self, recipe_module):
         trainer_config = recipe_module.trainer()
 
         assert isinstance(trainer_config.strategy, run.Config)
