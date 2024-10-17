@@ -390,8 +390,8 @@ class MLlamaBaseModel(MegatronModule):
         self,
         vision_tokens: torch.Tensor,
         vision_orig_shape: Tuple[int, int, int, int, int],
-        batch_masks: List[List[List[int]]],
-        num_chunks: List[List[int]],
+        batch_masks: torch.Tensor,
+        num_chunks: torch.Tensor,
         total_len: int,
     ) -> Tuple[List, torch.Tensor, torch.Tensor]:
         bsz, nimg, nchunk, ntok, image_token_dim = vision_orig_shape
@@ -426,8 +426,8 @@ class MLlamaBaseModel(MegatronModule):
         tokens: torch.Tensor,
         labels: Optional[torch.Tensor] = None,
         batch_images: Optional[torch.Tensor] = None,
-        batch_masks: Optional[List[List[List[int]]]] = None,
-        num_chunks: Optional[List[List[int]]] = None,
+        batch_masks: Optional[torch.Tensor] = None,
+        num_chunks: Optional[torch.Tensor] = None,
         aspect_ratio_ids: Optional[torch.Tensor] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
@@ -444,7 +444,7 @@ class MLlamaBaseModel(MegatronModule):
             )
             skip_vision_encoder = False
             if max_num_images == 0 or self.always_max_num_chunks:
-                num_chunks = [[self.max_num_chunks] for _ in batch_images]
+                num_chunks[num_chunks > 0] = self.max_num_chunks
                 if max_num_images == 0:
                     skip_vision_encoder = True
 
@@ -540,8 +540,8 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         batch_images: List[List[PIL_Image.Image]],
         tokens: torch.LongTensor,
         position_ids: torch.LongTensor,
-        batch_masks: Optional[List[List[List[int]]]] = None,
-        num_chunks: Optional[List[List[int]]] = None,
+        batch_masks: Optional[torch.Tensor] = None,
+        num_chunks: Optional[torch.Tensor] = None,
         aspect_ratio_ids: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         cross_attention_masks: Optional[torch.Tensor] = None,

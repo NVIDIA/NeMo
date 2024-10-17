@@ -97,7 +97,7 @@ def main(args):
     Args:
         args (argparse.Namespace): The command-line arguments passed to the script.
     """
-    gbs = 4
+    gbs = 128
     mbs = 2
     if args.restore_path is not None and args.restore_path.startswith("nemo://"):
         model_id = args.restore_path[len("nemo://") :]

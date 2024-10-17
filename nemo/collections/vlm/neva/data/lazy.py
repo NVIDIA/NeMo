@@ -270,6 +270,10 @@ class LazySupervisedDataset(Dataset):
         logging.warning("Formatting inputs...Skip in lazy mode")
         self.data_config = data_config
         self.tokenizer = tokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        if isinstance(self.tokenizer, AutoTokenizer):
+            self.tokenizer = self.tokenizer.tokenizer
+
         self.image_processor = image_processor
 
         self.conv_template = data_config.conv_template

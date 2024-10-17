@@ -118,8 +118,8 @@ def _stack_images(
 
 
 def _pad_masks(
-    all_masks: List[List[List[int]]],
-    all_num_chunks: List[List[int]],
+    all_masks: torch.Tensor,
+    all_num_chunks: torch.Tensor,
     total_len: int,
     max_num_chunks: int,
     device,
