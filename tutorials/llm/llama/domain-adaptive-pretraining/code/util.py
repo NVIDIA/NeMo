@@ -38,17 +38,14 @@ def load_weights(load_path, save_path):
     """
     model_type = "llama2"
     for i in range(8):
-        print(f"Snapshot {i}")
         state_dict = torch.load(f"{load_path}/consolidated.0{i}.pth")
         batch_dict = {}
         if model_type == "llama2":
             batch_dict['word_embeddings'] = state_dict['tok_embeddings.weight']
             batch_dict['output_layer'] = state_dict['output.weight']
         else:
-            batch_dict['word_embeddings'] = state_dict['model']['embedding.word_embeddings.weight']
-            batch_dict['output_layer'] = state_dict['model']['output_layer.weight']
-        print("Embedding layer dimension: ", batch_dict['word_embeddings'].shape)
-        print("Output layer dimension: ", batch_dict['output_layer'].shape)
+            batch_dict['word_embeddings'] = state_dict['model']['embedding.word_embeddings.weight']  # embedding layer
+            batch_dict['output_layer'] = state_dict['model']['output_layer.weight']  # output layer
         torch.save(batch_dict, f'{save_path}/embedding_{i}.pt')
 
 
@@ -56,19 +53,13 @@ def merge_embed(old_embd_path, new_embd_path, save_path):
     "Function to merge embeddings and convert back to hugging face format"
     model_type = "llama2"
     for i in range(8):
-        print(f"Snapshot {i}")
         state_dict = torch.load(f"{old_embd_path}/consolidated.0{i}.pth")
         batch_dict = torch.load(f'{new_embd_path}/embedding_{i}.pt')
         if model_type == "llama2":
             state_dict['output.weight'] = batch_dict['output_layer']
             state_dict['tok_embeddings.weight'] = batch_dict['word_embeddings']
-            print("embedding shape: ", state_dict['tok_embeddings.weight'].shape)
-            print("output shape: ", state_dict['output.weight'].shape)
         else:
             state_dict['tok_embeddings.weight'] = batch_dict['word_embeddings']
             state_dict['output.weight'] = batch_dict['output_layer']
-            print("embedding shape: ", state_dict['model']['embedding.word_embeddings.weight'].shape)
-            print("output shape: ", state_dict['model']['output_layer.weight'].shape)
         check_directory_exists(save_path)
         torch.save(state_dict, f"{save_path}/consolidated.0{i}.pth")
-        print(f"Done merging snapshot {i}")
