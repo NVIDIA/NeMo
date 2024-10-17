@@ -195,6 +195,7 @@ class GPTConfig126M(GPTConfig):
     ffn_hidden_size: int = 3072
     num_attention_heads: int = 12
 
+
 @dataclass
 class GPTConfig5B(GPTConfig):
     seq_length: int = 2048
