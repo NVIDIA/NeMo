@@ -48,7 +48,7 @@ class FluxInferencePipeline(nn.Module):
 
     def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model=None):
         if do_convert_from_hf:
-            ckpt = flux_transformer_converter(ckpt_path, self.transformer.transformer_config)
+            ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
             if save_converted_model:
                 save_path = os.path.join(ckpt_path, 'nemo_flux_transformer.safetensors')
                 save_safetensors(ckpt, save_path)
@@ -274,7 +274,7 @@ class FluxInferencePipeline(nn.Module):
             torch.cuda.empty_cache()
 
         ## prepare image latents
-        num_channels_latents = self.transformer.config.in_channels // 4
+        num_channels_latents = self.transformer.in_channels // 4
         latents, latent_image_ids = self.prepare_latents(
             batch_size * num_images_per_prompt, num_channels_latents, height, width, dtype, device, generator, latents
         )
@@ -298,7 +298,7 @@ class FluxInferencePipeline(nn.Module):
         with torch.no_grad():
             for i, t in tqdm(enumerate(timesteps)):
                 timestep = t.expand(latents.shape[1]).to(device=latents.device, dtype=latents.dtype)
-                if self.transformer.config.guidance_embed:
+                if self.transformer.guidance_embed:
                     guidance = torch.tensor([guidance_scale], device=device).expand(latents.shape[1])
                 else:
                     guidance = None

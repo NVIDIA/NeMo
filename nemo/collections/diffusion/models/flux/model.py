@@ -18,6 +18,7 @@ from typing import Callable
 import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
+from megatron.core.models.common.vision_module.vision_module import VisionModule
 from torch import nn
 
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
@@ -47,26 +48,16 @@ class FluxParams:
     vec_in_dim: int = 768
 
 
-class Flux(nn.Module):
+class Flux(VisionModule):
     def __init__(self, config: FluxParams):
-        super().__init__()
-        self.config = config
+
+
         self.out_channels = config.in_channels
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
         self.patch_size = config.patch_size
-        self.pos_embed = EmbedND(dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56])
-        self.img_embed = nn.Linear(config.in_channels, self.hidden_size)
-        self.txt_embed = nn.Linear(config.context_dim, self.hidden_size)
-        self.timestep_embedding = TimeStepEmbedder(config.model_channels, self.hidden_size)
-        self.vector_embedding = MLPEmbedder(in_dim=config.vec_in_dim, hidden_dim=self.hidden_size)
-        if self.config.guidance_embed:
-            self.guidance_embedding = (
-                MLPEmbedder(in_dim=config.model_channels, hidden_dim=self.hidden_size)
-                if config.guidance_embed
-                else nn.Identity()
-            )
-
+        self.in_channels = config.in_channels
+        self.guidance_embed = config.guidance_embed
         transformer_config = TransformerConfig(
             num_layers=1,
             hidden_size=self.hidden_size,
@@ -79,7 +70,19 @@ class Flux(nn.Module):
             add_qkv_bias=config.add_qkv_bias,
             rotary_interleaved=True,
         )
-        self.transformer_config = transformer_config
+        super().__init__(transformer_config)
+
+        self.pos_embed = EmbedND(dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56])
+        self.img_embed = nn.Linear(config.in_channels, self.hidden_size)
+        self.txt_embed = nn.Linear(config.context_dim, self.hidden_size)
+        self.timestep_embedding = TimeStepEmbedder(config.model_channels, self.hidden_size)
+        self.vector_embedding = MLPEmbedder(in_dim=config.vec_in_dim, hidden_dim=self.hidden_size)
+        if config.guidance_embed:
+            self.guidance_embedding = (
+                MLPEmbedder(in_dim=config.model_channels, hidden_dim=self.hidden_size)
+                if config.guidance_embed
+                else nn.Identity()
+            )
 
         self.double_blocks = nn.ModuleList(
             [
