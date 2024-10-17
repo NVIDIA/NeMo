@@ -87,7 +87,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.max_train_samples = None
         self.pad_to_max_length = pad_to_max_length
         self.packed_sequence_specs = packed_sequence_specs
-        self.packed_sequence_size = packed_sequence_specs.packed_sequence_size
+        self.packed_sequence_size = -1 if not packed_sequence_specs else packed_sequence_specs.packed_sequence_size
         self.validate_batch_size_for_packed_sequence()
 
     def validate_batch_size_for_packed_sequence(self):
