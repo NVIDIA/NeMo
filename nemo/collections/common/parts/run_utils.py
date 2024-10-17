@@ -545,6 +545,8 @@ def add_task(
 ):
     if run_after is not None and isinstance(run_after, str) and cluster_config["executor"] == "slurm":
         dependencies = tuple(get_exp_handles(run_after))
+    elif run_after is not None and isinstance(run_after, list) and cluster_config["executor"] == "slurm":
+        dependencies = tuple(get_exp_handles(exp) for exp in run_after)
     else:
         dependencies = None
     commands = []

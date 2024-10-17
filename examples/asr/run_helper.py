@@ -288,7 +288,7 @@ def main(cluster_cfg):
             if run_id == 0:
                 run_after = cluster_cfg.get('run_after', None)
             else:
-                run_after = task
+                run_after = [task]
 
             task = run_utils.add_task(exp,
                 cmd=cmd,
