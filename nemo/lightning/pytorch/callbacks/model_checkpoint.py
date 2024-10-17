@@ -26,10 +26,10 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
+from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.model_utils import ckpt_to_dir
 
 
 class ModelCheckpoint(PTLModelCheckpoint):
@@ -73,7 +73,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         save_optim_on_train_end: Optional[bool] = False,
-        always_save_context: bool = True,
+        always_save_context: bool = False,
         save_context_on_train_end: bool = True,
         **kwargs,
     ):
@@ -290,7 +290,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
+                TrainerContext.from_trainer(trainer).io_dump(
+                    ckpt_to_dir(self.last_model_path) / "context", yaml_attrs=["model"]
+                )
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -488,7 +490,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             trainer.save_checkpoint(ckpt_filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context", yaml_attrs=["model"])
 
             if self.async_save:
                 self._last_checkpoint_saved = filepath
