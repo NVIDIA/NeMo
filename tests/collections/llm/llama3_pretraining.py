@@ -8,7 +8,6 @@ import os
 import nemo_run as run
 import torch
 
-from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 from tests.collections.llm.common import (
