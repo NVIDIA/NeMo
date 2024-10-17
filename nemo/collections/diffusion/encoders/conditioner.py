@@ -14,6 +14,7 @@
 
 import torch
 import torch.nn as nn
+from typing import Union
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
 
 

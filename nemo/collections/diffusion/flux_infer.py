@@ -48,9 +48,9 @@ def parse_args():
     )
     parser.add_argument(
         "--save_converted_model",
-        type=bool,
-        default=True,
-        help="Wether to save the converted NeMo transformer checkpoint for Flux",
+        action="store_true",
+        default=False,
+        help="Whether to save the converted NeMo transformer checkpoint for Flux",
     )
     parser.add_argument(
         "--version",
@@ -98,7 +98,6 @@ if __name__ == '__main__':
         do_convert_from_hf=args.do_convert_from_hf,
         save_converted_model=args.save_converted_model,
     )
-
     dtype = torch.bfloat16 if args.bf16 else torch.float32
     text = args.prompts.split(',')
     pipe(
