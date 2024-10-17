@@ -112,6 +112,8 @@ class LhotseDataLoadingConfig:
     #   * Text input
     min_tokens: int | None = None
     max_tokens: int | None = None
+    # When true, combine context+answer lengths into a total length; otherwise report context length.
+    # For 2D bucketing it's always false, as we report a tuple of (context_len, answer_len).
     measure_total_length: bool = True
     min_tpt: int = -1  # allowed tokens per token (text-only)
     max_tpt: float = float("inf")

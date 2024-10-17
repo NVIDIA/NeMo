@@ -163,14 +163,11 @@ class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2
 
     def measure_length(self, example: Any) -> float | tuple[float, float]:
         if isinstance(example, Cut):
-            audio_len_in_tokens = math.ceil(example.duration / self.token_equivalent_duration)
             # Total length of a Cut (audio+text example) is counted as the sum of:
             # * num_tokens in each supervision segment ("utterance") in the Cut
             # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
-            text_tokens = 0
-            for s in example.supervisions:
-                if s.has_custom("tokens"):
-                    text_tokens += len(s.tokens)
+            audio_len_in_tokens = math.ceil(example.duration / self.token_equivalent_duration)
+            text_tokens = _measure_tokens(example)
 
             if self.bucketing_2d_enabled:
                 return audio_len_in_tokens, text_tokens
@@ -183,9 +180,6 @@ class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2
 
         elif isinstance(example, Formattable):
             if self.bucketing_2d_enabled:
-                assert (
-                    not self.measure_total_length
-                ), "2D bucketing requires measure_total_length=False, but it was set to True."
                 return example.input_length, example.output_length
             else:
                 return example.total_length if self.measure_total_length else example.input_length
