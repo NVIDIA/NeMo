@@ -69,8 +69,23 @@ class TestLlama3_8B_64k:
 
         assert trainer_config.strategy.expert_model_parallel_size == 1
 
-        assert trainer_config.strategy.tensor_model_parallel_size * trainer_config.strategy.pipeline_model_parallel_size * trainer_config.strategy.context_parallel_size * trainer_config.strategy.expert_model_parallel_size % trainer_config.devices == 0
-        assert trainer_config.strategy.tensor_model_parallel_size * trainer_config.strategy.pipeline_model_parallel_size * trainer_config.strategy.context_parallel_size * trainer_config.strategy.expert_model_parallel_size / trainer_config.devices % trainer_config.num_nodes == 0
+        assert (
+            trainer_config.strategy.tensor_model_parallel_size
+            * trainer_config.strategy.pipeline_model_parallel_size
+            * trainer_config.strategy.context_parallel_size
+            * trainer_config.strategy.expert_model_parallel_size
+            % trainer_config.devices
+            == 0
+        )
+        assert (
+            trainer_config.strategy.tensor_model_parallel_size
+            * trainer_config.strategy.pipeline_model_parallel_size
+            * trainer_config.strategy.context_parallel_size
+            * trainer_config.strategy.expert_model_parallel_size
+            / trainer_config.devices
+            % trainer_config.num_nodes
+            == 0
+        )
 
         if trainer_config.strategy.pipeline_model_parallel_size != 1:
             assert trainer_config.strategy.pipeline_dtype is not None
