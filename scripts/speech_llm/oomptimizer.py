@@ -391,7 +391,10 @@ def oomptimizer(
 
     from megatron.core.parallel_state import initialize_model_parallel
     from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-    initialize_model_parallel_for_nemo(world_size=1, global_rank=0, local_rank=0, micro_batch_size=16, global_batch_size=16)
+
+    initialize_model_parallel_for_nemo(
+        world_size=1, global_rank=0, local_rank=0, micro_batch_size=16, global_batch_size=16
+    )
     torch.distributed.init_process_group("nccl", world_size=1, rank=0)
     initialize_model_parallel()
 
@@ -517,7 +520,7 @@ def oomptimizer(
                     #       but we have found out empirically that this causes a mismatched condition
                     #       between OOMptimizer and the actual training. During training, there is some
                     #       degree of memory fragmentation and it's better to simulate that in OOMptimizer.
-                    #torch.cuda.memory.empty_cache()
+                    # torch.cuda.memory.empty_cache()
                     torch.cuda.reset_max_memory_allocated()
                 return oom
 
