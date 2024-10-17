@@ -68,9 +68,7 @@ def get_high_freq_tokens(token_usage_path, high_freq_tokens_path, p_th=0.98):
     L = []
     for key in tokens:
         L = L + tokens[key]
-    # print(len(L))
     L = set(L)
-    # print(len(L))
 
     token_category_dict = {}
     for key in freq_dict:
