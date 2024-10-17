@@ -203,7 +203,7 @@ def pretrain_recipe(
         data=run.Config(
             MockDataModule,
             seq_length=4096,
-            global_batch_size=1,
+            global_batch_size=8,
             micro_batch_size=1,
             tokenizer=tokenizer(tokenizer_model=tokenizer_model),
         ),
