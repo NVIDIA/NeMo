@@ -183,7 +183,6 @@ def extend_tokenizer_llama(
     m.ParseFromString(open(original_tokenizer_path, 'rb').read())
     print(f'Original model pieces: {len(m.pieces)}')
     print(m.trainer_spec)
-    # exit()
     ori_vol = []
     for piece in m.pieces:
         ori_vol.append(piece.piece)
@@ -302,24 +301,20 @@ def extend_tokenizer_llama(
             old_ebd['output_layer'][idx] = torch.mean(old_ebd['output_layer'][ids], dim=0)
 
     if split > 1:
-        KK, K = word_embedding.shape
-        print("embedding size: ", K)
-        print("vocab size: ", KK)
-        print("#split: ", split)
-        T = K // split
-        R = KK // split
+        vocab_size, dimension = word_embedding.shape
+        split_dimension = dimension // (split)
+        split_vocab_size = vocab_size // split
         prefix = new_ebd_path + "/embedding_"
         for i in range(split):
-            start = i * T
-            end = (i + 1) * T
-            st = i * R
-            ed = (i + 1) * R
+            start = i * split_dimension
+            end = (i + 1) * split_dimension
+            st = i * split_vocab_size
+            ed = (i + 1) * split_vocab_size
             save_name = prefix + f"{i}" + ".pt"
             temp = {}
-            temp['word_embeddings'] = word_embedding[:, start:end]
-            temp['output_layer'] = output_layer[st:ed, :]
-            # print("split word_embedding shape: ", temp['word_embeddings'].shape)
-            # print("split output_layer shape: ", temp['output_layer'].shape)
+            temp['word_embeddings'] = word_embedding[:, start:end]   # split word_embedding
+            temp['output_layer'] = output_layer[st:ed, :]            # split output_layer 
+            check_parent_directory_exists(save_name)
             torch.save(temp, save_name)
     else:
         torch.save(old_ebd, new_ebd_path + str(len(m.pieces)) + ".pt")
