@@ -34,10 +34,10 @@ class TestLlama3_8B_16k:
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
         assert trainer_config.strategy.__fn_or_cls__.__name__ == "MegatronStrategy"
-        assert trainer_config.strategy.tensor_model_parallel_size == 2
-        assert trainer_config.strategy.pipeline_model_parallel_size == 4
+        assert trainer_config.strategy.tensor_model_parallel_size == 4
+        assert trainer_config.strategy.pipeline_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
-        assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 5
+        assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
         assert trainer_config.strategy.context_parallel_size == 2
         assert trainer_config.strategy.sequence_parallel is True
 
@@ -63,10 +63,10 @@ class TestLlama3_8B_16k:
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer()
-        assert trainer_config.strategy.tensor_model_parallel_size == 2
-        assert trainer_config.strategy.pipeline_model_parallel_size == 4
+        assert trainer_config.strategy.tensor_model_parallel_size == 4
+        assert trainer_config.strategy.pipeline_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
-        assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 5
+        assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
         assert trainer_config.strategy.context_parallel_size == 2
         assert trainer_config.strategy.sequence_parallel is True
 

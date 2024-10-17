@@ -78,10 +78,10 @@ def trainer(
         This configuration uses increased parallelism to handle the longer sequence length efficiently.
     """
     return mixtral_8x7b.trainer(
-        tensor_parallelism=2,
-        pipeline_parallelism=4,
+        tensor_parallelism=4,
+        pipeline_parallelism=2,
         pipeline_parallelism_type=torch.bfloat16,
-        virtual_pipeline_parallelism=8,
+        virtual_pipeline_parallelism=None,
         context_parallelism=4,
         sequence_parallelism=True,
         expert_parallelism=1,
