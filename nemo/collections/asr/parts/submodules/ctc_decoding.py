@@ -16,7 +16,7 @@ import re
 import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union, Set
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -65,7 +65,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             segment_seperators:
                 List containing tokens representing the seperator(s) between segments.
 
-            segment_gap_threshold: 
+            segment_gap_threshold:
                 The threshold (in frames) that caps the gap between two words necessary for forming the segments.
 
             preserve_alignments:
@@ -193,7 +193,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         blank_id:
             The id of the RNNT blank token.
-        supported_punctuation: 
+        supported_punctuation:
             Set of punctuation marks in the vocabulary.
     """
 
@@ -678,10 +678,12 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         segment_offsets = None
         if timestamp_type in ['segment', 'all']:
-            segment_offsets = segment_offsets = self._get_segment_offsets(word_offsets, 
-                                                        segment_delimiter_tokens=self.segment_seperators,
-                                                        supported_punctuation=self.supported_punctuation,
-                                                        segment_gap_threshold=self.segment_gap_threshold)
+            segment_offsets = segment_offsets = self._get_segment_offsets(
+                word_offsets,
+                segment_delimiter_tokens=self.segment_seperators,
+                supported_punctuation=self.supported_punctuation,
+                segment_gap_threshold=self.segment_gap_threshold,
+            )
 
         # attach results
         if len(hypothesis.timestep) > 0:
@@ -921,10 +923,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
         """
         if supported_punctuation and not set(segment_delimiter_tokens).intersection(supported_punctuation) and not segment_gap_threshold:
             logging.warning(
-                f"Specified segment seperators are not in supported punctuation {supported_punctuation}. " 
+                f"Specified segment seperators are not in supported punctuation {supported_punctuation}. "
                 "If the seperators are not punctuation marks, ignore this warning. "
                 "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments."
-                )
+            )
 
         segment_offsets = []
         segment_words = []
@@ -937,7 +939,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             # check if thr word ends with any delimeter token or the word itself is a delimeter
             if segment_gap_threshold and segment_words:
                 gap_between_words = offset['start_offset'] - offsets[i - 1]['end_offset']
-                
+
                 if gap_between_words >= segment_gap_threshold:
                     segment_offsets.append(
                         {
@@ -980,7 +982,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
         segment_words.clear()
 
         return segment_offsets
-
 
     @property
     def preserve_alignments(self):
@@ -1048,7 +1049,7 @@ class CTCDecoding(AbstractCTCDecoding):
             segment_seperators:
                 List containing tokens representing the seperator(s) between segments.
 
-            segment_gap_threshold: 
+            segment_gap_threshold:
                 The threshold (in frames) that caps the gap between two words necessary for forming the segments.
 
             preserve_alignments:
@@ -1186,8 +1187,9 @@ class CTCDecoding(AbstractCTCDecoding):
         self.vocabulary = vocabulary
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
-        supported_punctuation = {char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')}
-
+        supported_punctuation = {
+            char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')
+        }
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id, supported_punctuation=supported_punctuation)
 

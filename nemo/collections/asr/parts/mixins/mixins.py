@@ -474,7 +474,6 @@ class ASRBPEMixin(ABC):
 
                     logging.info(f"Saved {nemo_object_name} at {os.path.join(dir, new_name)}")
 
-
     def _derive_tokenizer_properties(self):
         vocab = self.tokenizer.tokenizer.get_vocab()
 
