@@ -175,8 +175,8 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
                   tgt_lang: en
     """
     propagate_attrs = {
-        "shuffle": config.shuffle,
-        "shard_seed": config.shard_seed,
+        "shuffle": config.get("shuffle", False),
+        "shard_seed": config.get("shard_seed", "trng"),
         "text_field": config.get("text_field", "text"),
         "lang_field": config.get("lang_field", "lang"),
         "metadata_only": config.get("metadata_only", False),

@@ -51,16 +51,17 @@ def get_prompt_format_fn(example: Type | object, prompt: Type | object = None) -
         prompt = type(prompt)
 
     # For the example type, first try to match it directly, then fall back to its parent classes.
-    for subtype in example.mro():
+    for example_subtype in example.mro():
 
-        # First check the match for specific example type and a specific prompt format.
-        if (subtype, prompt) in PROMPT_FORMAT_FNS:
-            return PROMPT_FORMAT_FNS[(subtype, prompt)]
+        # First check the match for specific example type and a specific prompt format,
+        # and all parent types of that specific prompt formatter type.
+        for prompt_subtype in prompt.mro():
+            if (example_subtype, prompt_subtype) in PROMPT_FORMAT_FNS:
+                return PROMPT_FORMAT_FNS[(example_subtype, prompt_subtype)]
 
         # Then for the same specific example type, fall back to its default prompt formatter implementation.
-        # Note: the data example type takes precedence over the prompt formatter type for this resolution.
-        if subtype in PROMPT_FORMAT_FNS:
-            return PROMPT_FORMAT_FNS[subtype]
+        if example_subtype in PROMPT_FORMAT_FNS:
+            return PROMPT_FORMAT_FNS[example_subtype]
 
     raise ValueError(
         f"Unknown prompt format function for ({example}, {prompt}). "

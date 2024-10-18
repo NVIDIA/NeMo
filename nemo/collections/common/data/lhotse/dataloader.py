@@ -313,8 +313,6 @@ def get_lhotse_dataloader_from_multi_config(
 
     The first config is treated as a "main" config that determines the RNG, CUDA allocator, and sampler fusion settings.
     """
-    logging.info(f"We will be using a multi config Lhotse DataLoader with groups: {list(configs.keys())}.")
-
     configs = [make_structured_with_schema_warnings(c) for c in configs.values() if isinstance(c, DictConfig)]
     main_config = configs[0]
     maybe_set_cuda_expandable_segments(enabled=main_config.cuda_expandable_segments)
