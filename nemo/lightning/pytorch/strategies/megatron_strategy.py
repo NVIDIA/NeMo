@@ -645,7 +645,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         checkpoint: Dict[str, Any],
         filepath: Union[str, Path],
         storage_options: Optional[Any] = None,
-        allow_meta_tensors=False,
+        allow_meta_tensors: bool = True,
     ) -> None:
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
