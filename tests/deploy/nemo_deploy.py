@@ -180,7 +180,6 @@ def run_trt_llm_inference(
     stop_words_list=None,
     test_deployment=False,
     test_data_path=None,
-    backend="TensorRT-LLM",
     save_engine=False,
 ):
     if Path(checkpoint_path).exists():
