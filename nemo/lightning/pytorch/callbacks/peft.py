@@ -24,7 +24,7 @@ from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.trainer.states import TrainerFn
 from typing_extensions import override
 
-from nemo.lightning.io.pl import ckpt_to_dir
+from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.utils import logging
 
@@ -279,7 +279,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_dir(path) / "weights" / _ADAPTER_META_FILENAME
+            adapter_meta_path = ckpt_to_weights_subdir(path, is_saving=True) / _ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
 
