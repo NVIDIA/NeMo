@@ -15,11 +15,13 @@
 import sys
 from typing import Optional, Union
 
+import hydra
 from lightning_fabric.utilities.exceptions import MisconfigurationException
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+from pytorch_lightning.profilers import Profiler
 
 from nemo.collections.common.metrics.perf_metrics import FLOPsMeasurementCallback
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -185,6 +187,31 @@ class MegatronTrainerBuilder:
 
         return callbacks
 
+    def _profiler(self) -> Optional[Union[Profiler, str]]:
+        """
+        Returns:
+            profiler: None if `trainer.profiler` is None or unspecified,
+                      string value if `trainer.profiler` is a string(expected lightning constants `simple`, `advanced` or `pytorch`),
+                      or an instance of a class specified in `_target_` field:
+
+                      profiler:
+                        _target_: pytorch_lightning.profilers.PyTorchProfiler
+                        schedule:
+                          _target_: torch.profiler.schedule
+                          skip_first: 10
+                          wait: 5
+                          warmup: 1
+                          active: 3
+                          repeat: 2
+
+        """
+        profiler = self.cfg.trainer.get('profiler', None)
+        del self.cfg.trainer.profiler
+        if profiler is None or isinstance(profiler, str):
+            return profiler
+        else:
+            return hydra.utils.instantiate(profiler)
+
     def create_trainer(self, callbacks=None) -> Trainer:
         # Make a dummy train step if skip_train
         if self.cfg.model.get("skip_train", False):
@@ -200,9 +227,18 @@ class MegatronTrainerBuilder:
         strategy = self._training_strategy()
         plugins = self._plugins()
         callbacks = self._callbacks(callbacks)
-        trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
+        # save cfg.trainer.profiler because it will be deleted
+        original_profiler = self.cfg.trainer.get('profiler', None)
+        profiler = self._profiler()
+        trainer = Trainer(
+            plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks, profiler=profiler
+        )
         # Restore the precision value after Trainer is built.
         self.cfg.trainer.precision = precision
+        # Restore the original profiler value after Trainer is built.
+        OmegaConf.set_struct(self.cfg, False)
+        self.cfg.trainer.profiler = original_profiler
+        OmegaConf.set_struct(self.cfg, True)
         return trainer
 
 
