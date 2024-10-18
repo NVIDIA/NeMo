@@ -18,7 +18,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
-import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from typing_extensions import Annotated
@@ -26,6 +25,7 @@ from typing_extensions import Annotated
 import nemo.lightning as nl
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
+from nemo.lightning.run import cli_entrypoint
 from nemo.utils import logging
 
 if TYPE_CHECKING:
@@ -36,13 +36,13 @@ if TYPE_CHECKING:
 TokenizerType = Any
 
 
-@run.cli.entrypoint(namespace="llm")
+@cli_entrypoint(namespace="llm")
 def train(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], 'run.Config[NeMoLogger]'] = None,
+    resume: Annotated[Optional[AutoResume], 'run.Config[AutoResume]'] = None,
     optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[TokenizerType] = None,
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
@@ -94,13 +94,13 @@ def train(
     return app_state.exp_dir
 
 
-@run.cli.entrypoint(namespace="llm")
+@cli_entrypoint(namespace="llm")
 def pretrain(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], 'run.Config[NeMoLogger]'] = None,
+    resume: Annotated[Optional[AutoResume], 'run.Config[AutoResume]'] = None,
     optim: Optional[OptimizerModule] = None,
 ) -> Path:
     """
@@ -142,13 +142,13 @@ def pretrain(
     )
 
 
-@run.cli.entrypoint(namespace="llm")
+@cli_entrypoint(namespace="llm")
 def finetune(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], 'run.Config[NeMoLogger]'] = None,
+    resume: Annotated[Optional[AutoResume], 'run.Config[AutoResume]'] = None,
     optim: Optional[OptimizerModule] = None,
     peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> Path:
@@ -193,13 +193,13 @@ def finetune(
     )
 
 
-@run.cli.entrypoint(namespace="llm")
+@cli_entrypoint(namespace="llm")
 def validate(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
+    log: Annotated[Optional[NeMoLogger], 'run.Config[NeMoLogger]'] = None,
+    resume: Annotated[Optional[AutoResume], 'run.Config[AutoResume]'] = None,
     optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[TokenizerType] = None,
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
@@ -318,7 +318,7 @@ def store_args_to_json(triton_http_address, triton_port, triton_request_timeout,
         json.dump(args_dict, f)
 
 
-@run.cli.entrypoint(namespace="llm")
+@cli_entrypoint(namespace="llm")
 def deploy(
     nemo_checkpoint: Path = None,
     model_type: str = "llama",
@@ -407,7 +407,7 @@ def deploy(
     nm.stop()
 
 
-@run.cli.entrypoint(name="import", namespace="llm")
+@cli_entrypoint(name="import", namespace="llm")
 def import_ckpt(
     model: pl.LightningModule,
     source: str,
@@ -421,7 +421,7 @@ def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnect
     return io.load_context(path).model.exporter(target, path)
 
 
-@run.cli.entrypoint(name="export", namespace="llm")
+@cli_entrypoint(name="export", namespace="llm")
 def export_ckpt(
     path: Path,
     target: str,
@@ -432,7 +432,7 @@ def export_ckpt(
     return io.export_ckpt(path, target, output_path, overwrite, load_connector)
 
 
-@run.cli.entrypoint(name="generate", namespace="llm")
+@cli_entrypoint(name="generate", namespace="llm")
 def generate(
     path: Union[Path, str],
     prompts: list[str],

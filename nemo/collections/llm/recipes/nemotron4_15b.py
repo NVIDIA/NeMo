@@ -14,7 +14,6 @@
 
 from typing import Callable, Optional
 
-import nemo_run as run
 import pytorch_lightning as pl
 import torch
 
@@ -24,12 +23,13 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.run import cli_factory
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "nemotron4_15b"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Nemotron4 15b model configuration.
@@ -49,7 +49,7 @@ def model() -> run.Config[pl.LightningModule]:
     return nemotron_model(version=NAME)
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     # General
     dir: Optional[str] = None,
@@ -172,7 +172,7 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
+@cli_factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
     dir: Optional[str] = None,
     name: str = "default",

@@ -22,12 +22,13 @@ import torch
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes import llama3_70b
+from nemo.lightning.run import cli_factory
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_70b_64k"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Llama3 70B model configuration with 64k sequence length.
@@ -89,7 +90,7 @@ def trainer(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
