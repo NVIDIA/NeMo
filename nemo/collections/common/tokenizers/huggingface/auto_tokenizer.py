@@ -77,6 +77,10 @@ class AutoTokenizer(TokenizerSpec):
                     use_fast=use_fast,
                     trust_remote_code=trust_remote_code,
                 )
+                # DEBUGGING
+                additional_tokens = {'additional_special_tokens': [f'<extra_id_{i}>' for i in range(100)]}
+                self.tokenizer.add_special_tokens(additional_tokens)
+                # print(stop_here)
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
                     pretrained_model_name_or_path=pretrained_model_name,
