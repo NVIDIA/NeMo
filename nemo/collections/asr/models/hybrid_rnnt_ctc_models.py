@@ -124,6 +124,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            timestamps: (Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['word']). Refer to `Hypothesis` class for more details.
             verbose: (bool) whether to display tqdm progress bar
             logprobs: (bool) whether to return ctc logits insted of hypotheses
 
@@ -136,6 +137,21 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             raise ValueError(
                 f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
             )
+
+        decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
+
+        if timestamps:
+            logging.info("Timestamps requested, setting decoding timestamps to True")
+            return_hypotheses=True
+            with open_dict(decoding_cfg):
+                decoding_cfg.decoding.compute_timestamps = True
+                decoding_cfg.decoding.preserve_alignments = True
+            self.change_decoding_strategy(decoding_cfg, self.cur_decoder, verbose=False)
+        else: # This is done to ensure the timestamps are not computed if not requested
+            with open_dict(decoding_cfg):
+                decoding_cfg.compute_timestamps = decoding_cfg.get('compute_timestamps', False)
+                decoding_cfg.preserve_alignments = decoding_cfg.get('preserve_alignments', False)
+            self.change_decoding_strategy(decoding_cfg, self.cur_decoder, verbose=False)
 
         return super().transcribe(
             audio=audio,
@@ -302,7 +318,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
                 logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None, verbose: bool = True):
         """
         Changes decoding strategy used during RNNT decoding process.
 
@@ -312,10 +328,11 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             decoder_type: (str) Can be set to 'rnnt' or 'ctc' to switch between appropriate decoder in a
                 model having RNN-T and CTC decoders. Defaults to None, in which case RNN-T decoder is
                 used. If set to 'ctc', it raises error if 'ctc_decoder' is not an attribute of the model.
+            verbose: (bool) whether to display logging information
         """
         if decoder_type is None or decoder_type == 'rnnt':
             self.cur_decoder = "rnnt"
-            return super().change_decoding_strategy(decoding_cfg=decoding_cfg)
+            return super().change_decoding_strategy(decoding_cfg=decoding_cfg, verbose=verbose)
 
         assert decoder_type == 'ctc' and hasattr(self, 'ctc_decoder')
         if decoding_cfg is None:
@@ -344,7 +361,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             self.cfg.aux_ctc.decoding = decoding_cfg
 
         self.cur_decoder = "ctc"
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}")
+        if verbose:
+            logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}")
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
