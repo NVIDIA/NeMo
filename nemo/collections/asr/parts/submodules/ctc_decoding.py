@@ -16,7 +16,7 @@ import re
 import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union, Set
 
 import numpy as np
 import torch
@@ -64,6 +64,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             segment_seperators:
                 List containing tokens representing the seperator(s) between segments.
+
+            segment_gap_threshold: 
+                The threshold (in frames) that caps the gap between two words necessary for forming the segments.
 
             preserve_alignments:
                 Bool flag which preserves the history of logprobs generated during
@@ -188,11 +191,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
                         of calculation of beam search, so that users may update / change the decoding strategy
                         to point to the correct file.
 
-        blank_id
+        blank_id:
             The id of the RNNT blank token.
+        supported_punctuation: 
+            Set of punctuation marks in the vocabulary.
     """
 
-    def __init__(self, decoding_cfg, blank_id: int):
+    def __init__(self, decoding_cfg, blank_id: int, supported_punctuation: Set):
         super().__init__()
 
         # Convert dataclas to config
@@ -212,11 +217,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         self.cfg = decoding_cfg
         self.blank_id = blank_id
+        self.supported_punctuation = supported_punctuation
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
         self.segment_seperators = self.cfg.get('segment_seperators', ['.', '?', '!'])
+        self.segment_gap_threshold = self.cfg.get('segment_gap_threshold', None)
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'pyctcdecode', 'flashlight', 'wfst']
         if self.cfg.strategy not in possible_strategies:
@@ -647,7 +654,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         for i, char in enumerate(hypothesis.text):
             char_offsets[i]["char"] = self.decode_tokens_to_str([char])
 
-        char_offsets = self._refine_timestamps(char_offsets)
+        char_offsets = self._refine_timestamps(char_offsets, self.supported_punctuation)
 
         # detect char vs subword models
         lens = [len(list(v["char"])) > 1 for v in char_offsets]
@@ -671,7 +678,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         segment_offsets = None
         if timestamp_type in ['segment', 'all']:
-            segment_offsets = self._get_segment_offsets(word_offsets, segment_delimiter_tokens=self.segment_seperators)
+            segment_offsets = segment_offsets = self._get_segment_offsets(word_offsets, 
+                                                        segment_delimiter_tokens=self.segment_seperators,
+                                                        supported_punctuation=self.supported_punctuation,
+                                                        segment_gap_threshold=self.segment_gap_threshold)
 
         # attach results
         if len(hypothesis.timestep) > 0:
@@ -737,19 +747,15 @@ class AbstractCTCDecoding(ConfidenceMixin):
         return offsets
 
     @staticmethod
-    def _refine_timestamps(char_offsets: List[Dict[str, Union[str, int]]]) -> List[Dict[str, Union[str, int]]]:
+    def _refine_timestamps(char_offsets: List[Dict[str, Union[str, int]]],
+                           supported_punctuation: Set) -> List[Dict[str, Union[str, int]]]:
 
         for i, offset in enumerate(char_offsets):
-
-            if len(offset['char']) != 1:
-                continue
-
-            char_type = unicodedata.category(offset['char'])
 
             # Check if token is a punctuation mark
             # If so, set its start and end offset as start and end of the previous token
             # This is done because there was observed a behaviour, when punctuation marks are predicted long after preceding token (i.e. after silence)
-            if char_type.startswith('P') and i > 0:
+            if offset['char'][0] in supported_punctuation and i > 0:
                 offset['end_offset'] = offset['start_offset']
 
         return char_offsets
@@ -895,6 +901,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
     def _get_segment_offsets(
         offsets: Dict[str, Union[str, float]],
         segment_delimiter_tokens: List[str],
+        supported_punctuation: Set,
+        segment_gap_threshold: int,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs segment time stamps out of word time stamps.
@@ -902,10 +910,20 @@ class AbstractCTCDecoding(ConfidenceMixin):
         Args:
             offsets: A list of dictionaries, each containing "word", "start_offset" and "end_offset".
             segments_delimiter_tokens: List containing tokens representing the seperator(s) between segments.
+            supported_punctuation: Set containing punctuation marks in the vocabulary.
+            segment_gap_threshold: Number of frames between 2 consecutive words necessary to form segments out of plain text.
+
         Returns:
             A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
             "end_offset".
         """
+        if not set(segment_delimiter_tokens).intersection(supported_punctuation) and not segment_gap_threshold:
+            logging.warning(
+                f"Specified segment seperators are not in supported punctuation {supported_punctuation}. " 
+                "If the seperators are not punctuation marks, ignore this warning. "
+                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments."
+                )
+
         segment_offsets = []
         segment_words = []
         previous_word_index = 0
@@ -915,7 +933,23 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             word = offset['word']
             # check if thr word ends with any delimeter token or the word itself is a delimeter
-            if word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
+            if segment_gap_threshold and segment_words:
+                gap_between_words = offset['start_offset'] - offsets[i - 1]['end_offset']
+                
+                if gap_between_words >= segment_gap_threshold:
+                    segment_offsets.append(
+                        {
+                            "segment": ' '.join(segment_words),
+                            "start_offset": offsets[previous_word_index]["start_offset"],
+                            "end_offset": offsets[i - 1]["end_offset"],
+                        }
+                    )
+
+                    segment_words = [word]
+                    previous_word_index = i
+                    continue
+
+            elif word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
                 segment_words.append(word)
                 if segment_words:
                     segment_offsets.append(
@@ -928,9 +962,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
                 segment_words = []
                 previous_word_index = i + 1
+                continue
 
-            else:
-                segment_words.append(word)
+            segment_words.append(word)
 
         if segment_words:
             start_offset = offsets[previous_word_index]["start_offset"]
@@ -944,6 +978,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         segment_words.clear()
 
         return segment_offsets
+
 
     @property
     def preserve_alignments(self):
@@ -1010,6 +1045,9 @@ class CTCDecoding(AbstractCTCDecoding):
 
             segment_seperators:
                 List containing tokens representing the seperator(s) between segments.
+
+            segment_gap_threshold: 
+                The threshold (in frames) that caps the gap between two words necessary for forming the segments.
 
             preserve_alignments:
                 Bool flag which preserves the history of logprobs generated during
@@ -1146,7 +1184,10 @@ class CTCDecoding(AbstractCTCDecoding):
         self.vocabulary = vocabulary
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
-        super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
+        supported_punctuation = {char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')}
+
+
+        super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id, supported_punctuation=supported_punctuation)
 
         # Finalize Beam Search Decoding framework
         if isinstance(self.decoding, ctc_beam_decoding.AbstractBeamCTCInfer):
@@ -1353,8 +1394,9 @@ class CTCBPEDecoding(AbstractCTCDecoding):
     def __init__(self, decoding_cfg, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
+        supported_punctuation = tokenizer.supported_punctuation
 
-        super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
+        super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id, supported_punctuation=supported_punctuation)
 
         # Finalize Beam Search Decoding framework
         if isinstance(self.decoding, ctc_beam_decoding.AbstractBeamCTCInfer):
@@ -1430,6 +1472,9 @@ class CTCDecodingConfig:
 
     # tokens representing segments seperators
     segment_seperators: Optional[List[str]] = field(default_factory=lambda: [".", "!", "?"])
+
+    # threshold (in frames) that caps the gap between two words necessary for forming the segments
+    segment_gap_threshold: Optional[int] = None
 
     # type of timestamps to calculate
     ctc_timestamp_type: str = "all"  # can be char, word or all for both

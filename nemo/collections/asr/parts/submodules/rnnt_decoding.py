@@ -74,7 +74,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
             segment_seperators: List containing tokens representing the seperator(s) between segments.
 
-            segment_gap_threshold: The threshold (in sec) that caps the gap between two words necessary for forming the segments.
+            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming the segments.
 
             preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
                 generated during decoding (sample / batched). When set to true, the Hypothesis will contain
@@ -1104,6 +1104,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         Args:
             offsets: A list of dictionaries, each containing "word", "start_offset" and "end_offset".
             segments_delimiter_tokens: List containing tokens representing the seperator(s) between segments.
+            supported_punctuation: Set containing punctuation marks in the vocabulary.
+            segment_gap_threshold: Number of frames between 2 consecutive words necessary to form segments out of plain text.
         Returns:
             A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
             "end_offset".
@@ -1477,6 +1479,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             word_seperator: Str token representing the seperator between words.
 
             segment_seperators: List containing tokens representing the seperator(s) between segments.
+
+            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming the segments.
 
             preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
                 generated during decoding (sample / batched). When set to true, the Hypothesis will contain
