@@ -142,12 +142,12 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
         if timestamps:
             logging.info("Timestamps requested, setting decoding timestamps to True")
-            return_hypotheses=True
+            return_hypotheses = True
             with open_dict(decoding_cfg):
                 decoding_cfg.decoding.compute_timestamps = True
                 decoding_cfg.decoding.preserve_alignments = True
             self.change_decoding_strategy(decoding_cfg, self.cur_decoder, verbose=False)
-        else: # This is done to ensure the timestamps are not computed if not requested
+        else:  # This is done to ensure the timestamps are not computed if not requested
             with open_dict(decoding_cfg):
                 decoding_cfg.compute_timestamps = decoding_cfg.get('compute_timestamps', False)
                 decoding_cfg.preserve_alignments = decoding_cfg.get('preserve_alignments', False)
@@ -221,8 +221,12 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         #         logits_list.append(logit[:elen])
 
         if trcfg.timestamps:
-            hypotheses = process_timestamp_outputs(best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
-            all_hyp = process_timestamp_outputs(all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
+            hypotheses = process_timestamp_outputs(
+                best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
+            all_hyp = process_timestamp_outputs(
+                all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
 
         del logits, encoded_len
 
@@ -318,7 +322,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
                 logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None, verbose: bool = True):
+    def change_decoding_strategy(
+        self, decoding_cfg: DictConfig = None, decoder_type: str = None, verbose: bool = True
+    ):
         """
         Changes decoding strategy used during RNNT decoding process.
 

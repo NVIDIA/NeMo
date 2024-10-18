@@ -586,7 +586,7 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
 
     if isinstance(outputs, rnnt_utils.Hypothesis):
         outputs = [outputs]
-    
+
     if not isinstance(outputs[0], rnnt_utils.Hypothesis):
         raise ValueError(f"Expected Hypothesis object, got {type(outputs[0])}")
 
@@ -604,19 +604,23 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
             val['end'] = end
 
         return timestamp
-    
+
     for idx, hyp in enumerate(outputs):
         if not hasattr(hyp, 'timestep'):
-            raise ValueError(f"Expected Hypothesis object to have 'timestep' attribute, when compute_timestamps is enabled but got {hyp}")
+            raise ValueError(
+                f"Expected Hypothesis object to have 'timestep' attribute, when compute_timestamps is enabled but got {hyp}"
+            )
         timestep = hyp.timestep
         if 'word' in timestep:
             outputs[idx].timestep['word'] = process_timestamp(timestep['word'], subsampling_factor, window_stride)
         if 'char' in timestep:
             outputs[idx].timestep['char'] = process_timestamp(timestep['char'], subsampling_factor, window_stride)
         if 'segment' in timestep:
-            outputs[idx].timestep['segment'] = process_timestamp(timestep['segment'], subsampling_factor, window_stride)
+            outputs[idx].timestep['segment'] = process_timestamp(
+                timestep['segment'], subsampling_factor, window_stride
+            )
     return outputs
-        
+
 
 class PunctuationCapitalization:
     def __init__(self, punctuation_marks: str):
