@@ -60,6 +60,7 @@ class BaseMegatronBatchSampler:
         data_parallel_size: int,
         drop_last: bool,
         pad_samples_to_global_batch_size=False,
+        limit_train_batches=None,
     ) -> None:
         """Constructor of Megatron-LM style Batch Sampler.
 
@@ -95,6 +96,17 @@ class BaseMegatronBatchSampler:
         self.drop_last: bool = drop_last
         self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
         self.micro_batch_times_data_parallel_size = self.micro_batch_size * self.data_parallel_size
+
+        if (
+            limit_train_batches is None
+            or (isinstance(limit_train_batches, float) and limit_train_batches > 1.0)
+            or (limit_train_batches <= 0)
+        ):
+            limit_train_batches = 1.0
+        if isinstance(limit_train_batches, float):
+            self.total_samples = int(limit_train_batches * self.total_samples)
+        elif isinstance(limit_train_batches, int):
+            self.total_samples = min(limit_train_batches * global_batch_size, self.total_samples)
 
         self.update_global_batch_size(global_batch_size)
 
@@ -133,8 +145,7 @@ class BaseMegatronBatchSampler:
             return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
 
     @abc.abstractmethod
-    def __iter__(self):
-        ...
+    def __iter__(self): ...
 
 
 class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
@@ -151,7 +162,12 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             if len(batch) == self._global_batch_size:
                 # start_idx, end_idx = self.get_start_end_idx()
                 indices = [
-                    batch[i] for i in range(self.data_parallel_rank, self._global_batch_size, self.data_parallel_size,)
+                    batch[i]
+                    for i in range(
+                        self.data_parallel_rank,
+                        self._global_batch_size,
+                        self.data_parallel_size,
+                    )
                 ]
                 assert len(indices) == self._global_batch_size_on_this_data_parallel_rank
                 yield indices
@@ -193,6 +209,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         drop_last: bool,
         pad_samples_to_global_batch_size: bool = False,
         seed: int = 0,
+        limit_train_batches=None,
     ) -> None:
         super().__init__(
             total_samples=total_samples,
@@ -203,6 +220,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             drop_last=drop_last,
             global_batch_size=global_batch_size,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
+            limit_train_batches=limit_train_batches,
         )
         assert (
             not pad_samples_to_global_batch_size
