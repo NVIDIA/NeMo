@@ -49,7 +49,7 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    num_nodes: int = 16,
+    num_nodes: int = 32,
     num_gpus_per_node: int = 8,
 ) -> run.Config:
     """
@@ -58,7 +58,7 @@ def trainer(
     This function sets up the distributed training strategy optimized for the large 70B model with long sequences.
 
     Args:
-        num_nodes (int, optional): Number of compute nodes to use. Defaults to 16.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 32.
         num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
@@ -69,7 +69,7 @@ def trainer(
             $ nemo llm pretrain trainer=llama3_70b_64k ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=16, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=32, num_gpus_per_node=8)
             >>> print(trainer_config)
 
     Note:
@@ -81,7 +81,7 @@ def trainer(
         pipeline_parallelism=4,
         pipeline_parallelism_type=torch.bfloat16,
         virtual_pipeline_parallelism=None,
-        context_parallelism=4,
+        context_parallelism=8,
         sequence_parallelism=True,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
@@ -93,7 +93,7 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 16,
+    num_nodes: int = 32,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
     """
@@ -105,7 +105,7 @@ def pretrain_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the pre-training run.
-        num_nodes (int, optional): Number of compute nodes to use. Defaults to 16.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 32.
         num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
@@ -114,10 +114,10 @@ def pretrain_recipe(
     Examples:
         CLI usage:
             $ nemo llm pretrain --factory llama3_70b_64k
-            $ nemo llm pretrain --factory "llama3_70b_64k(num_nodes=16, name='my_70b_64k_pretrain')"
+            $ nemo llm pretrain --factory "llama3_70b_64k(num_nodes=32, name='my_70b_64k_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_70b_64k_pretrain", num_nodes=16)
+            >>> recipe = pretrain_recipe(name="llama3_70b_64k_pretrain", num_nodes=32)
             >>> print(recipe)
 
     Note:
