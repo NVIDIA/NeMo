@@ -270,7 +270,9 @@ class vLLMExporter(ITritonDeployable):
             log_stats=log_stats,
         )
 
-    def _prepare_lora_checkpoints(self, model_dir: str, lora_checkpoints: Optional[List[str]], dtype: str) -> LoRAConfig:
+    def _prepare_lora_checkpoints(
+        self, model_dir: str, lora_checkpoints: Optional[List[str]], dtype: str
+    ) -> LoRAConfig:
         self.lora_checkpoints = []
 
         if not lora_checkpoints:
