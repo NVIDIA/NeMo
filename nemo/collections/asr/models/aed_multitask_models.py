@@ -457,6 +457,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: bool = False,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
         **prompt,
     ) -> Union[List[str], List[Hypothesis]]:
@@ -474,6 +475,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            timestamps: Bool: whether to provide timestamps along with the transcriptions, currently its not supported.
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[MultiTaskTranscriptionConfig]) A config to override the default config.
             **prompt: Optional input to construct the prompts for the model. Accepted formats are: 1) legacy Canary-1B API source_lang=<lang>, target_lang=<lang>, etc. 2) explicit single-turn role=<role>, slots={<slot>: <value>, ...} 3) explicit multi-turn: turns=[{"role": <role>, "slots": {<slot>: <value>, ...}}]
@@ -481,6 +483,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
+        if timestamps:
+            raise NotImplementedError("Timestamps are not supported for this model yet.")
+        
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(
                 batch_size=batch_size,
@@ -498,7 +503,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     f"but got {type(override_config)}"
                 )
             trcfg = override_config
-
+        import pdb; pdb.set_trace()
         return super().transcribe(audio=audio, override_config=trcfg)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):

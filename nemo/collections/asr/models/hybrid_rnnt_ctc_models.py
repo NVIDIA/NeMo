@@ -31,6 +31,7 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin, Transc
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_outputs
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
@@ -104,6 +105,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: bool = False,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
@@ -144,6 +146,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             channel_selector=channel_selector,
             augmentor=augmentor,
             verbose=verbose,
+            timestamps=timestamps,
             override_config=override_config,
         )
 
@@ -200,6 +203,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         # if logprobs:
         #     for logit, elen in zip(logits, encoded_len):
         #         logits_list.append(logit[:elen])
+
+        if trcfg.timestamps:
+            hypotheses = process_timestamp_outputs(best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
+            all_hyp = process_timestamp_outputs(all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
 
         del logits, encoded_len
 

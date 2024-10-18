@@ -572,6 +572,12 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
     """
     Process the timestamps from list of hypothesis to user friendly format.
     Converts the start and end duration from frames to seconds.
+    Args:
+        outputs: List of Hypothesis objects.
+        subsampling_factor: int, Subsampling factor used in the model.
+        window_stride: float, Window stride used in the model. (sometimes referred to as hop length/shift)
+    Returns:
+        List of Hypothesis objects with processed timestamps
 
     """
 
@@ -585,6 +591,10 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
         raise ValueError(f"Expected Hypothesis object, got {type(outputs[0])}")
 
     def process_timestamp(timestamp, subsampling_factor, window_stride):
+        """
+        Process the timestamp for a single hypothesis.
+        return the start and end duration in seconds.
+        """
         for idx, val in enumerate(timestamp):
             start_offset = val['start_offset']
             end_offset = val['end_offset']
