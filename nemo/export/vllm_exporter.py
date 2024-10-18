@@ -88,7 +88,7 @@ class vLLMExporter(ITritonDeployable):
         tensor_parallel_size: int = 1,
         pipeline_parallel_size: int = 1,
         max_model_len: int = None,
-        lora_checkpoints: List[str] = [],
+        lora_checkpoints: Optional[List[str]] = None,
         dtype: str = 'auto',
         seed: int = 0,
         log_stats: bool = True,
@@ -111,6 +111,7 @@ class vLLMExporter(ITritonDeployable):
             pipeline_parallel_size (int): pipeline parallelism.
                 Values over 1 are not currently supported by vLLM.
             max_model_len (int): model context length.
+            lora_checkpoints List[str]: paths to LoRA checkpoints.
             dtype (str): data type for model weights and activations.
                 Possible choices: auto, half, float16, bfloat16, float, float32
                 "auto" will use FP16 precision for FP32 and FP16 models,
@@ -269,10 +270,10 @@ class vLLMExporter(ITritonDeployable):
             log_stats=log_stats,
         )
 
-    def _prepare_lora_checkpoints(self, model_dir: str, lora_checkpoints: List[str], dtype) -> LoRAConfig:
+    def _prepare_lora_checkpoints(self, model_dir: str, lora_checkpoints: Optional[List[str]], dtype: str) -> LoRAConfig:
         self.lora_checkpoints = []
 
-        if lora_checkpoints is None or len(lora_checkpoints) == 0:
+        if not lora_checkpoints:
             return None
 
         index = 0
