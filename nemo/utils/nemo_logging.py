@@ -339,6 +339,15 @@ class Logger(metaclass=Singleton):
                 warnings.showwarning = self.old_warnings_showwarning
                 self.old_warnings_showwarning = None
 
+    def _warning_is_ignored(self, category):
+        from warnings import filters
+        # Search the filters
+        for (action, msg, cat, mod, ln) in filters:
+            # least-common demoninator if multiple filters for the same class.
+            if cat == category and action == 'ignore':
+                return True
+        return False
+
     def _showwarning(self, message, category, filename, lineno, file=None, line=None):
         """
         Implementation of showwarnings which redirects to logging.
@@ -346,6 +355,8 @@ class Logger(metaclass=Singleton):
         with level logging.WARNING.
         """
         s = warnings.formatwarning(message, category, filename, lineno, line)
+        if self._warning_is_ignored(category):
+            return
         self.warning("%s", s)
 
     def _logged_once(self, msg, mode):
