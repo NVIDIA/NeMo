@@ -1,4 +1,4 @@
-pfrom functools import partial
+from functools import partial
 
 import pytest
 
