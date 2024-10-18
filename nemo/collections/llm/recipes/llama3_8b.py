@@ -15,7 +15,6 @@
 
 from typing import Callable, Optional
 
-import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -118,6 +117,7 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
+            average_in_collective=True,
         ),
     )
 
@@ -189,7 +189,7 @@ def pretrain_recipe(
     )
 
 
-@cli_factory(target=pretrain, name=NAME + "_optimized")
+@cli_factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
     dir: Optional[str] = None,
     name: str = "default",

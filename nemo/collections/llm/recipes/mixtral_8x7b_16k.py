@@ -52,7 +52,7 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    num_nodes: int = 2,
+    num_nodes: int = 4,
     num_gpus_per_node: int = 8,
 ) -> run.Config:
     """
@@ -61,8 +61,8 @@ def trainer(
     This function sets up the distributed training strategy optimized for longer sequences.
 
     Args:
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 4.
+        num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
         run.Config: Configuration for the NeMo Lightning Trainer.
@@ -72,17 +72,17 @@ def trainer(
             $ nemo llm pretrain trainer=mixtral_8x7b_16k ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=4, num_gpus_per_node=8)
             >>> print(trainer_config)
 
     Note:
         This configuration uses increased parallelism to handle the longer sequence length efficiently.
     """
     return mixtral_8x7b.trainer(
-        tensor_parallelism=2,
-        pipeline_parallelism=4,
+        tensor_parallelism=4,
+        pipeline_parallelism=2,
         pipeline_parallelism_type=torch.bfloat16,
-        virtual_pipeline_parallelism=8,
+        virtual_pipeline_parallelism=None,
         context_parallelism=4,
         sequence_parallelism=True,
         expert_parallelism=1,
@@ -96,7 +96,7 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 2,
+    num_nodes: int = 4,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
     """
@@ -108,8 +108,8 @@ def pretrain_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 4.
+        num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
         run.Partial: Partial configuration for pre-training.
@@ -117,10 +117,10 @@ def pretrain_recipe(
     Examples:
         CLI usage:
             $ nemo llm pretrain --factory mixtral_8x7b_16k
-            $ nemo llm pretrain --factory "mixtral_8x7b_16k(num_nodes=2, name='my_16k_pretrain')"
+            $ nemo llm pretrain --factory "mixtral_8x7b_16k(num_nodes=4, name='my_16k_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="mixtral_8x7b_16k_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe(name="mixtral_8x7b_16k_pretrain", num_nodes=4)
             >>> print(recipe)
     """
     recipe = mixtral_8x7b.pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
