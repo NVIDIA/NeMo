@@ -307,13 +307,14 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig, verbose: bool = True):
         """
         Changes decoding strategy used during CTC decoding process.
 
         Args:
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            verbose: Whether to print the new config or not.
         """
         if decoding_cfg is None:
             # Assume same decoding config as before
@@ -343,7 +344,8 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+        if verbose:
+            logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:

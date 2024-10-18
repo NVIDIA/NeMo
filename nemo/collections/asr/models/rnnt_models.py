@@ -270,6 +270,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
+            timestamps: (Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['word']). Refer to `Hypothesis` class for more details.
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
@@ -279,6 +280,26 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
+        if timestamps:
+            logging.info("Timestamps requested, setting decoding timestamps to True")
+            return_hypotheses=True
+            with open_dict(self.cfg.decoding):
+                self.cfg.decoding.compute_timestamps = True
+                self.cfg.decoding.preserve_alignments = True
+            self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+        else:  # This is done to ensure the state is preserved when decoding_strategy is set outside
+            with open_dict(self.cfg.decoding):
+                self.cfg.decoding.compute_timestamps = self.cfg.decoding.get('compute_timestamps', False)
+                self.cfg.decoding.preserve_alignments = self.cfg.decoding.get('preserve_alignments', False)
+            self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+
+        self.decoding = RNNTDecoding(
+            decoding_cfg=self.cfg.decoding,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.joint.vocabulary,
+        )
+
         return super().transcribe(
             audio=audio,
             batch_size=batch_size,
@@ -384,13 +405,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
 
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig, verbose=True):
         """
         Changes decoding strategy used during RNNT decoding process.
 
         Args:
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            verbose: (bool) whether to display logging information
         """
         if decoding_cfg is None:
             # Assume same decoding config as before
@@ -431,7 +453,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+        if verbose:
+            logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         # Automatically inject args from model config to dataloader config

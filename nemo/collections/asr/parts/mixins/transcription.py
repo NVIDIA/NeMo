@@ -441,16 +441,6 @@ class TranscriptionMixin(ABC):
                 trcfg._internal.pad_to_value = self.preprocessor.featurizer.pad_to
                 self.preprocessor.featurizer.pad_to = 0
 
-        # if timestamps option is set
-        if trcfg.timestamps:
-            trcfg.return_hypotheses = True
-            model_decoding_cfg = self.cfg.get('decoding', None)
-            if model_decoding_cfg is not None:
-                with omegaconf.open_dict(model_decoding_cfg):
-                    model_decoding_cfg.compute_timestamps = trcfg.timestamps
-                    model_decoding_cfg.preserve_alignments = trcfg.timestamps
-                self.change_decoding_strategy(model_decoding_cfg)
-
         # Switch model to evaluation mode
         self.eval()
 

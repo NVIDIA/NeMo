@@ -451,13 +451,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig, verbose: bool = True):
         """
         Changes decoding strategy used during RNNT decoding process.
 
         Args:
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            verbose: A flag to enable/disable logging.
         """
         if decoding_cfg is None:
             # Assume same decoding config as before
@@ -498,7 +499,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+        if verbose:
+            logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
