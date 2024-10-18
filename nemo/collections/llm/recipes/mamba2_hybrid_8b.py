@@ -66,7 +66,9 @@ def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(
-        llm.GPTModel, config=run.Config(llm.NVIDIAMambaHybridConfig8B), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
+        llm.GPTModel,
+        config=run.Config(llm.NVIDIAMambaHybridConfig8B),
+        tokenizer=tokenizer(tokenizer_model=tokenizer_model),
     )
 
 
@@ -276,7 +278,8 @@ def finetune_recipe(
         ckpt_save_optimizer=False,
         ckpt_async_save=False,
     )
-    checkpoint_callback = run.Config(nl.ModelCheckpoint,
+    checkpoint_callback = run.Config(
+        nl.ModelCheckpoint,
         every_n_train_steps=10,
         dirpath=dir,
     )
@@ -290,7 +293,8 @@ def finetune_recipe(
         log_every_n_steps=20,
         max_steps=100,
         num_nodes=num_nodes,
-        plugins=run.Config(nl.MegatronMixedPrecision,
+        plugins=run.Config(
+            nl.MegatronMixedPrecision,
             precision="bf16-mixed",
             params_dtype=torch.bfloat16,
         ),

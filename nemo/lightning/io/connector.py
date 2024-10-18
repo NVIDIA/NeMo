@@ -134,7 +134,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             Loads a model from the specified path, optionally using a CPU-focused strategy, and returns the model and trainer.
     """
 
-    def nemo_setup(self, model: pl.LightningModule, trainer: Optional[pl.Trainer] = None, *args, **kwargs) -> pl.Trainer:
+    def nemo_setup(
+        self, model: pl.LightningModule, trainer: Optional[pl.Trainer] = None, *args, **kwargs
+    ) -> pl.Trainer:
         """
         Sets up the model and trainer using a specified strategy, preparing it for training or inference.
 
