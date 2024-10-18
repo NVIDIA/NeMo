@@ -159,7 +159,7 @@ class vLLMExporter(ITritonDeployable):
         # vllm/huggingface doesn't like the absense of config file. Place config in load dir.
         if model_config.model and not os.path.exists(os.path.join(model_config.model, 'config.json')):
             with open(os.path.join(model_config.model, 'config.json'), "w") as f:
-                json.dump(model_config.hf_text_config.to_dict(), f)
+                json.dump(model_config.hf_text_config.to_dict(), f, indent=2)
 
         # See if we have an up-to-date safetensors file
         safetensors_file = os.path.join(model_config.model, 'model.safetensors')
