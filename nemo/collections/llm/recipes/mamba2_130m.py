@@ -220,7 +220,9 @@ def finetune_recipe(
     resume_path: str = None,
     tokenizer_model: str = None,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 1,
+    num_gpus_per_node: int = 2,
+    gbs: int = 8,
+    mbs: int = 1,
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
@@ -261,26 +263,52 @@ def finetune_recipe(
             /root/.cache/nemo/models/your_pytorch_state_dict_file
 
     """
+    resume_path = "/home/ataghibakhsh/checkpoints/converted_ux_mamba2_130m"
+    dir="/home/ataghibakhsh/temp_ckpt"
     nemo_resume = run.Config(
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=resume_path),
     )
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        tensor_model_parallel_size=1,
+        pipeline_model_parallel_size=1,
+        gradient_as_bucket_view=True,
+        ckpt_load_optimizer=False,
+        ckpt_save_optimizer=False,
+    )
+    checkpoint_callback = nl.ModelCheckpoint(
+        every_n_train_steps=10,
+        dirpath=dir,
+    )
+    trainer = run.Config(
+        nl.Trainer,
+        accelerator="gpu",
+        accumulate_grad_batches=1,
+        devices=num_gpus_per_node,
+        limit_test_batches=10,
+        limit_val_batches=10,
+        log_every_n_steps=20,
+        max_steps=100,
+        num_nodes=num_nodes,
+        plugins=nl.MegatronMixedPrecision(
+            precision="bf16-mixed",
+            params_dtype=torch.bfloat16,
+        ),
+        callbacks=[checkpoint_callback],
+        strategy=strategy,
+        use_distributed_sampler=False,
+        val_check_interval=20,
+    )
     recipe = run.Partial(
         llm.finetune,
         model=model(tokenizer_model=tokenizer_model),
-        trainer=default_finetune_trainer(
-            num_nodes=num_nodes,
-            num_gpus_per_node=num_gpus_per_node,
-            max_steps=100,
-            limit_test_batches=10,
-            limit_val_batches=10,
-            val_check_interval=20,
-        ),
+        trainer=trainer,
         data=run.Config(
             llm.SquadDataModule,
             seq_length=2048,
-            global_batch_size=8,
-            micro_batch_size=1,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
             tokenizer=tokenizer(tokenizer_model=tokenizer_model),
         ),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
