@@ -83,7 +83,7 @@ def pretrain_recipe(
     constant_steps=0,
     min_lr=3.0e-5,
     max_lr=3e-4,
-    performance_mode: bool =False,
+    performance_mode: bool = False,
     # Training function
     fn=pretrain,
 ) -> run.Partial:

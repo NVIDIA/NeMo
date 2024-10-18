@@ -145,7 +145,12 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 16, num_gpus_per_node: int = 8, performance_mode: bool = False, fn: Callable = pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 16,
+    num_gpus_per_node: int = 8,
+    performance_mode: bool = False,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mixtral 8x22B model.
@@ -209,10 +214,10 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         It may not be suitable for all hardware configurations or use cases.
     """
 
-    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically 
+    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
     # by MegatronCommOverlapCallback. They are added here for user's knowledge.
     # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
-    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else 
+    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
     # each PP stage launches independently as needed.
 
     recipe.trainer.callbacks.extend(

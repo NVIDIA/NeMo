@@ -79,7 +79,6 @@ class TestLlama3_70B:
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
-
     def test_pretrain_performance_optimizations(self, recipe_module):
         recipe = recipe_module.pretrain_recipe(performance_mode=True)
         assert any(

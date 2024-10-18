@@ -143,7 +143,12 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, performance_mode: bool = False, fn: Callable = pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    performance_mode: bool = False,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3 8B model.
@@ -193,6 +198,7 @@ def pretrain_recipe(
         recipe = pretrain_performance_optimizations(recipe)
 
     return recipe
+
 
 def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
