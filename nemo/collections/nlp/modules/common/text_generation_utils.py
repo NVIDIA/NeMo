@@ -894,6 +894,11 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
+def ceil_to_mult(n, m):
+    assert m > 0
+    return ((n + m - 1) // m) * m
+
+
 def sample_sequence_batch(
     model,
     inference_strategy,
@@ -907,9 +912,14 @@ def sample_sequence_batch(
     temperature=None,
     end_strings=['<|endoftext|>'],
     image_list=None,
+    pad_seq_to_mult=1,
     extra={},
 ):
-    # Importing here to avoid circular import errors
+    if hasattr(model, 'cfg'):
+        pad_seq_to_mult = model.cfg.get('tensor_model_parallel_size', 1)
+        pad_seq_to_mult *= model.cfg.get('context_parallel_size', 1)
+        if pad_seq_to_mult > 0:
+            logging.warning(f"Padding sequences to be a multiple of {pad_seq_to_mult}")
 
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
@@ -951,7 +961,7 @@ def sample_sequence_batch(
         output_logits = None
         all_generated_indices = None  # used to track all generated indices
         # Generate enough tokens for the longest sequence
-        maxlen = tokens_to_generate + context_lengths.max().item()
+        maxlen = ceil_to_mult(tokens_to_generate + context_lengths.max().item(), pad_seq_to_mult)
 
         maxlen = inference_strategy.clip_max_len(maxlen)
 
@@ -966,9 +976,18 @@ def sample_sequence_batch(
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                     tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
                 )
-            output = inference_strategy.forward_step(batch, tensor_shape)
+            pad_len = 0
+            if pad_seq_to_mult > 0:
+                pad_len = pad_seq_to_mult - batch[0].shape[1] % pad_seq_to_mult
+                # pad input tokens to make them dividable by pad_seq_to_mult
+                if pad_len > 0:
+                    batch[0] = F.pad(batch[0], pad=(0, pad_len, 0, 0), mode='constant', value=eod_id)
 
+            output = inference_strategy.forward_step(batch, tensor_shape)
             if parallel_state.is_pipeline_last_stage():
+                # remove padding
+                if pad_len > 0:
+                    output[0]['logits'] = output[0]['logits'][:, :-pad_len]
 
                 if compute_logprob:
                     output = output[0]['logits']
