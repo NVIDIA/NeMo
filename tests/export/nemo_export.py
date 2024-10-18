@@ -241,7 +241,7 @@ def run_inference(
     test_cpp_runtime=False,
     test_deployment=False,
     test_data_path=None,
-    save_trt_engine=False,
+    save_engine=False,
     fp8_quantized=False,
     fp8_kvcache=False,
     trt_llm_export_kwargs=None,
@@ -436,7 +436,7 @@ def run_inference(
         if test_deployment:
             nm.stop()
 
-        if not save_trt_engine and model_dir:
+        if not save_engine and model_dir:
             shutil.rmtree(model_dir)
 
         return (functional_result, accuracy_result)
@@ -458,7 +458,7 @@ def run_existing_checkpoints(
     test_deployment=False,
     stop_words_list=None,
     test_data_path=None,
-    save_trt_engine=False,
+    save_engine=False,
     in_framework=False,
     fp8_quantized=False,
     fp8_kvcache=False,
@@ -532,7 +532,7 @@ def run_existing_checkpoints(
             test_cpp_runtime=test_cpp_runtime,
             test_deployment=test_deployment,
             test_data_path=test_data_path,
-            save_trt_engine=save_trt_engine,
+            save_engine=save_engine,
             fp8_quantized=fp8_quantized,
             fp8_kvcache=fp8_kvcache,
             trt_llm_export_kwargs=trt_llm_export_kwargs,
@@ -733,7 +733,7 @@ def get_args():
         default=None,
     )
     parser.add_argument(
-        "--save_trt_engine",
+        "--save_engine",
         type=str,
         default="False",
     )
@@ -794,7 +794,7 @@ def get_args():
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.functional_test = str_to_bool("functional_test", args.functional_test)
-    args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
+    args.save_engine = str_to_bool("save_engine", args.save_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.lora = str_to_bool("lora", args.lora)
@@ -854,7 +854,7 @@ def run_inference_tests(args):
                 test_cpp_runtime=args.test_cpp_runtime,
                 run_accuracy=args.run_accuracy,
                 test_data_path=args.test_data_path,
-                save_trt_engine=args.save_trt_engine,
+                save_engine=args.save_engine,
                 in_framework=args.in_framework,
                 fp8_quantized=args.export_fp8_quantized,
                 fp8_kvcache=args.use_fp8_kv_cache,
@@ -914,7 +914,7 @@ def run_inference_tests(args):
                     test_deployment=args.test_deployment,
                     test_cpp_runtime=args.test_cpp_runtime,
                     test_data_path=args.test_data_path,
-                    save_trt_engine=args.save_trt_engine,
+                    save_engine=args.save_engine,
                     fp8_quantized=args.export_fp8_quantized,
                     fp8_kvcache=args.use_fp8_kv_cache,
                     trt_llm_export_kwargs=args.trt_llm_export_kwargs,
