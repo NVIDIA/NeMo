@@ -55,7 +55,7 @@ class LhotseAudioToTargetDataset(torch.utils.data.Dataset):
         retained_cuts = [
             cut._first_non_padding_cut if isinstance(cut, MixedCut) else cut for cut in retained_padded_cuts
         ]
-        
+
         # if online augmentation is applied, some retained cuts still may be MixedCuts (including the original speech, noise, and augmentation)
         # get the first non-padding cut from there, which is supposed to be the clean speech signal
         for n, cut in enumerate(retained_cuts):
