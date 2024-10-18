@@ -197,7 +197,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             Set of punctuation marks in the vocabulary.
     """
 
-    def __init__(self, decoding_cfg, blank_id: int, supported_punctuation: Set):
+    def __init__(self, decoding_cfg, blank_id: int, supported_punctuation: Set = None):
         super().__init__()
 
         # Convert dataclas to config
@@ -748,10 +748,12 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
     @staticmethod
     def _refine_timestamps(char_offsets: List[Dict[str, Union[str, int]]],
-                           supported_punctuation: Set) -> List[Dict[str, Union[str, int]]]:
+                           supported_punctuation: Set = None) -> List[Dict[str, Union[str, int]]]:
+
+        if not supported_punctuation:
+            return char_offsets
 
         for i, offset in enumerate(char_offsets):
-
             # Check if token is a punctuation mark
             # If so, set its start and end offset as start and end of the previous token
             # This is done because there was observed a behaviour, when punctuation marks are predicted long after preceding token (i.e. after silence)
@@ -901,8 +903,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
     def _get_segment_offsets(
         offsets: Dict[str, Union[str, float]],
         segment_delimiter_tokens: List[str],
-        supported_punctuation: Set,
-        segment_gap_threshold: int,
+        supported_punctuation: Set = None,
+        segment_gap_threshold: int = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs segment time stamps out of word time stamps.
@@ -917,7 +919,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
             "end_offset".
         """
-        if not set(segment_delimiter_tokens).intersection(supported_punctuation) and not segment_gap_threshold:
+        if supported_punctuation and not set(segment_delimiter_tokens).intersection(supported_punctuation) and not segment_gap_threshold:
             logging.warning(
                 f"Specified segment seperators are not in supported punctuation {supported_punctuation}. " 
                 "If the seperators are not punctuation marks, ignore this warning. "

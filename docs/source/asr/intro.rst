@@ -17,7 +17,7 @@ After :ref:`installing NeMo<installation>`, you can transcribe an audio file as 
     transcript = asr_model.transcribe(["path/to/audio_file.wav"])
 
 Obtain word/segment timestamps
-^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You can also obtain timestamps for each word or segment in the transcription as follows:
 

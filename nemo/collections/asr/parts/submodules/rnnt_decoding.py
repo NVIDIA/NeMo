@@ -203,7 +203,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         supported_punctuation: set of punctuation marks in the vocabulary
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, supported_punctuation: Set):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, supported_punctuation: Set = None):
         super(AbstractRNNTDecoding, self).__init__()
 
         # Convert dataclass to config object
@@ -927,7 +927,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
     def _refine_timestamps(
         encoded_char_offsets: List[Dict[str, Union[str, int]]], 
         char_offsets: List[Dict[str, Union[str, int]]],
-        supported_punctuation: Set,
+        supported_punctuation: Set = None,
     ) -> List[Dict[str, Union[str, int]]]:
 
         ## no refinement for rnnt
@@ -938,8 +938,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
     def _refine_timestamps_tdt(
         encoded_char_offsets: List[Dict[str, Union[str, int]]], 
         char_offsets: List[Dict[str, Union[str, int]]],
-        supported_punctuation: Set,
+        supported_punctuation: Set = None,
     ) -> List[Dict[str, Union[str, int]]]:
+
+        if not supported_punctuation:
+            return encoded_char_offsets, char_offsets
 
         for i, offset in enumerate(char_offsets):
 
@@ -1095,8 +1098,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
     def _get_segment_offsets(
         offsets: Dict[str, Union[str, float]],
         segment_delimiter_tokens: List[str],
-        supported_punctuation: Set,
-        segment_gap_threshold: int,
+        supported_punctuation: Set = None,
+        segment_gap_threshold: int = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs segment time stamps out of word time stamps.
@@ -1110,7 +1113,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
             "end_offset".
         """
-        if not set(segment_delimiter_tokens).intersection(supported_punctuation) and not segment_gap_threshold:
+        if supported_punctuation and not set(segment_delimiter_tokens).intersection(supported_punctuation) and not segment_gap_threshold:
             logging.warning(
                 f"Specified segment seperators are not in supported punctuation {supported_punctuation}. " 
                 "If the seperators are not punctuation marks, ignore this warning. "

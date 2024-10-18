@@ -37,6 +37,11 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         special_tokens: either list of special tokens or dictionary of token name to token value
         legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored,
             including the possibility to add special tokens inside wrapper.
+        ignore_extra_whitespaces: whether to ignore extra whitespaces in the input text while encoding.
+            Note: 
+            This is done for the current models tokenizers that don't handle extra whitespaces as by default tokenizer learned to ignore it.
+            To check if the tokenizer by default ignores extra whitespaces refer to `self.removed_extra_spaces` attribute of the tokenizer.
+            We added a parameter to process_asr_tokenizer.py for upcoming models to handle it inbuilt.
     """
 
     def __init__(
@@ -44,7 +49,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         model_path: str,
         special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
         legacy: bool = False,
-        ignore_extra_whitespaces: bool = True,
+        ignore_extra_whitespaces: bool = False,
         chat_template: Optional[Dict] = None,
     ):
         self.chat_template = chat_template
