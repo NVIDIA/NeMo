@@ -38,7 +38,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored,
             including the possibility to add special tokens inside wrapper.
         ignore_extra_whitespaces: whether to ignore extra whitespaces in the input text while encoding.
-            Note: 
+            Note:
             This is done for the current models tokenizers that don't handle extra whitespaces as by default tokenizer learned to ignore it.
             To check if the tokenizer by default ignores extra whitespaces refer to `self.removed_extra_spaces` attribute of the tokenizer.
             We added a parameter to process_asr_tokenizer.py for upcoming models to handle it inbuilt.
