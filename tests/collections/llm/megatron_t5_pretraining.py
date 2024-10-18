@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument('--data-path', type=str, help="Path to data file")
     parser.add_argument('--vocab-path', type=str, default=None, help="Path to vocab file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
+    parser.add_argument('--ci-config', action='store_true', help="small config for CI purposes")
 
     return parser.parse_args()
 
@@ -59,16 +60,16 @@ if __name__ == '__main__':
         paths=args.data_path,
         seq_length=512,
         seq_length_dec=128,
-        micro_batch_size=args.devices,
-        global_batch_size=2 * args.devices,
+        micro_batch_size=args.devices if args.ci_config else 64,
+        global_batch_size=2 * args.devices if args.ci_config else 512,
         seed=1234,
         tokenizer=tokenizer,
         split="99982,9,9",
         index_mapping_dir=args.index_mapping_dir,
     )
     t5_config = llm.t5.model.t5.T5Config(
-        num_layers=args.devices,
-        encoder_num_layers=args.devices,
+        num_layers=args.devices if args.ci_config else 12,
+        encoder_num_layers=args.devices if args.ci_config else 12,
         hidden_size=768,
         ffn_hidden_size=3072,
         num_attention_heads=12,
