@@ -11,6 +11,9 @@ from megatron.core.inference.model_inference_wrappers.inference_wrapper_config i
 from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
     SimpleTextGenerationController,
 )
+from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
+    EncoderDecoderTextGenerationController,
+)
 from megatron.core.transformer.module import MegatronModule
 from pytorch_lightning.trainer.states import TrainerFn
 
@@ -20,7 +23,7 @@ from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
 
-# We need this wrapper since mcore generate uses tokenizer.detokenize, tokenizer.tokenize to encode and decode prompts
+# We need this wrapper since mcore generate uses methods/properties such as tokenizer.detokenize, tokenizer.tokenize, tokenizer.bos, tokenizer.pad, etc. to encode and decode prompts
 class MCoreTokenizerWrappper:
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
@@ -33,6 +36,17 @@ class MCoreTokenizerWrappper:
     def tokenize(self, prompt):
         return self.tokenizer.text_to_ids(prompt)
 
+    @property
+    def additional_special_tokens_ids(self):
+        return self.tokenizer.additional_special_tokens_ids
+
+    @property
+    def bos(self):
+        return self.tokenizer.bos_id
+
+    @property
+    def pad(self):
+        return self.tokenizer.pad_id
 
 # TODO: Move to lightning Fabric API.
 def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule):
@@ -91,7 +105,7 @@ def generate(
     inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
     if encoder_prompts is not None:
-        text_generation_controller = EncosderDecoderTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+        text_generation_controller = EncoderDecoderTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     else:
         text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(
