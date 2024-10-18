@@ -350,7 +350,7 @@ def generic_base_config(config) -> dict:
         config.num_tokens_in_b,
         config.model_type,
     )
-    base_cfg = BaseConfig(config)
+    base_cfg = config.recipe #BaseConfig(config)
 
     if default_model:
         params = ModelSizeParams(
@@ -362,14 +362,14 @@ def generic_base_config(config) -> dict:
         params.init_params()
 
         if config.model_type in GPT_BASED_MODELS:
-            base_cfg.model.num_layers = params.layers
-            base_cfg.model.hidden_size = params.hs
-            base_cfg.model.num_attention_heads = params.att_h
-            base_cfg.model.kv_channels = params.kv
+            base_cfg.model.config.num_layers = params.layers
+            base_cfg.model.config.hidden_size = params.hs
+            base_cfg.model.config.num_attention_heads = params.att_h
+            base_cfg.model.config.kv_channels = params.kv
             if not params.ffn:
-                base_cfg.model.ffn_hidden_size = params.hs * 4
+                base_cfg.model.config.ffn_hidden_size = params.hs * 4
             else:
-                base_cfg.model.ffn_hidden_size = params.ffn
+                base_cfg.model.config.ffn_hidden_size = params.ffn
 
     config.model_size_in_b = model_size_in_b
 
@@ -416,16 +416,16 @@ def modify_cfg(
     """
 
     if model_name in GPT_BASED_MODELS:
-        att_heads = base_cfg.model.num_attention_heads
-        num_layers = base_cfg.model.num_layers
+        att_heads = base_cfg.model.config.num_attention_heads
+        num_layers = base_cfg.model.config.num_layers
     else:
-        att_heads = base_cfg.model.encoder.num_attention_heads
-        num_layers = base_cfg.model.encoder.num_layers
+        att_heads = base_cfg.model.config.encoder.num_attention_heads
+        num_layers = base_cfg.model.config.encoder.num_layers
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
     gbs = base_cfg.data.global_batch_size
-    seq_len = base_cfg.model.seq_length
+    seq_len = base_cfg.model.config.seq_length
 
     new_cfg = dict(run=base_cfg.run)
     if act is not None:

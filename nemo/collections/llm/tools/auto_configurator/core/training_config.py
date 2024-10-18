@@ -53,13 +53,13 @@ def generate_grid_search_configs(
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
 
-    seq_length = base_cfg.model.seq_length
-    num_layers = base_cfg.model.num_layers if model_name in GPT_BASED_MODELS else base_cfg.model.encoder.num_layers
+    seq_length = base_cfg.model.config.seq_length
+    num_layers = base_cfg.model.config.num_layers if model_name in GPT_BASED_MODELS else base_cfg.model.config.encoder.num_layers
 
     if model_name in GPT_BASED_MODELS:
         act_method = None
     else:
-        act_method = base_cfg.model.encoder.activations_checkpoint_method
+        act_method = base_cfg.model.config.encoder.activations_checkpoint_method
 
     params = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
@@ -82,11 +82,11 @@ def generate_grid_search_configs(
                         num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
                         base_cfg.data.global_batch_size = params.gbs
                         if model_name in GPT_BASED_MODELS:
-                            att_heads = base_cfg.model.num_attention_heads
-                            num_layers = base_cfg.model.num_layers
+                            att_heads = base_cfg.model.config.num_attention_heads
+                            num_layers = base_cfg.model.config.num_layers
                         else:
-                            att_heads = base_cfg.model.encoder.num_attention_heads
-                            num_layers = base_cfg.model.encoder.num_layers
+                            att_heads = base_cfg.model.config.encoder.num_attention_heads
+                            num_layers = base_cfg.model.config.encoder.num_layers
                         model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
                         mod_gbs = params.gbs % (mbs * num_gpus / model_parallelism)
                         mod_att_heads = att_heads % tp
@@ -160,6 +160,7 @@ def generate_grid_search_configs(
                     configs[config_name] = new_cfg
 
     print(f"\nAll candidate configurations created correctly. Total number of configs: {len(configs)}.\n")
+    print(base_cfg, configs)
     return base_cfg, configs
 
 
