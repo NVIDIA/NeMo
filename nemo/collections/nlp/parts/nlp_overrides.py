@@ -158,6 +158,7 @@ def init_model_parallel(
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                 context_parallel_size=app_state.context_parallel_size,
+                context_parallel_comm_backend=app_state.context_parallel_comm_backend,
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
