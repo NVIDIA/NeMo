@@ -1,20 +1,22 @@
-from nemo import lightning as nl
-from nemo.collections import llm
-from nemo.lightning.io.pl import TrainerContext
-from nemo.utils.get_rank import is_global_rank_zero
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
-from pathlib import Path
-from argparse import ArgumentParser
-from nemo.utils import logging
-from transformers import AutoTokenizer as HFAutoTokenizer
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+import shutil
 import tempfile
-from omegaconf import OmegaConf
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from argparse import ArgumentParser
+from pathlib import Path
+
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
-import shutil
+from omegaconf import OmegaConf
+from transformers import AutoTokenizer as HFAutoTokenizer
+
+from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.io.pl import TrainerContext
+from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 """
 Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. 
