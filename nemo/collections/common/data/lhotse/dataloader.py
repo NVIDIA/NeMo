@@ -169,6 +169,20 @@ class LhotseDataLoadingConfig:
     # In most cases (such as regular multi-GPU training) it will result in a deadlock due to
     # a different number of steps on different DDP ranks.
     force_finite: bool = False
+    # The following two options may be used to override auto-detection of appropriate PyTorch dataset flavor
+    #   for your data types. PyTorch DataLoader uses two objects to yield data: dataset and sampler.
+    # *Map-dataset flavor.* There is one sampler per GPU that lives in the training loop process;
+    #   it selects the examples to be prepared by map-dataset class. Each batch selection determined by the sampler
+    #   is then passed by the dataloader to one of its worker processes to be processed by the dataset class.
+    # *Iterable-dataset flavor.* Each dataloading worker has its own sampler replica instead;
+    #   the sampler must have the logic for either data deduplication or unique order shuffling to avoid
+    #   duplicated data across workers and GPUs. Lhotse relies on unique order shuffling.
+    # The default settings are:
+    # * use iterable dataset for tarred audio data.
+    # * use iterable dataset for any text data.
+    # * use map dataset for non-tarred audio data (we might change this in the future).
+    force_map_dataset: bool = False
+    force_iterable_dataset: bool = False
 
 
 def get_lhotse_dataloader_from_config(
@@ -249,12 +263,12 @@ def get_lhotse_dataloader_from_single_config(
         "In order to use a sampler_fusion strategy different than 'mux', "
         "create your dataloader using 'get_lhotse_dataloader_from_multi_config' instead."
     )
-    sampler, is_tarred = get_lhotse_sampler_from_config(
+    sampler, use_iterable_dataset = get_lhotse_sampler_from_config(
         config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
     )
 
     # 4. Creating dataloader.
-    if is_tarred:
+    if use_iterable_dataset:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
@@ -307,7 +321,7 @@ def get_lhotse_dataloader_from_multi_config(
     seed = resolve_seed(main_config.seed)
     fix_random_seed(seed)
 
-    source_samplers, source_tarred = [], []
+    source_samplers, source_use_iterable_dataset = [], []
     for config in configs:
         # TODO(pzelasko): perhaps emit a warning in the unlikely case somebody defines different seeds explicitly.
         config.seed = seed
@@ -316,12 +330,12 @@ def get_lhotse_dataloader_from_multi_config(
             config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
         )
         source_samplers.append(s)
-        source_tarred.append(t)
+        source_use_iterable_dataset.append(t)
 
     assert all(
-        st == source_tarred[0] for st in source_tarred[1:]
+        st == source_use_iterable_dataset[0] for st in source_use_iterable_dataset[1:]
     ), "When using multiple input_cfg sources ensure they are all tarred or non-tarred (can't mix)."
-    is_tarred = all(source_tarred)
+    use_iterable_dataset = all(source_use_iterable_dataset)
     if main_config.sampler_fusion == "zip":
         sampler = ZipSampler(*source_samplers)
     elif main_config.sampler_fusion == "round_robin":
@@ -341,7 +355,7 @@ def get_lhotse_dataloader_from_multi_config(
         raise RuntimeError(f"Unsupported sampler fusion strategy: {main_config.sampler_fusion}")
 
     # 4. Creating dataloader.
-    if is_tarred:
+    if use_iterable_dataset:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
@@ -352,7 +366,7 @@ def get_lhotse_dataloader_from_multi_config(
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
             worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
-            persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
+            persistent_workers=main_config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
         # For non-tarred data, the sampler resides in the training loop process and
@@ -362,8 +376,8 @@ def get_lhotse_dataloader_from_multi_config(
     dloader = torch.utils.data.DataLoader(
         **dloader_kwargs,
         batch_size=None,
-        num_workers=config.num_workers,
-        pin_memory=config.pin_memory,
+        num_workers=main_config.num_workers,
+        pin_memory=main_config.pin_memory,
     )
 
     return dloader
@@ -371,7 +385,8 @@ def get_lhotse_dataloader_from_multi_config(
 
 def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
     # 1. Load a manifest as a Lhotse CutSet.
-    cuts, is_tarred = read_cutset_from_config(config)
+    cuts, use_iterable_dataset = read_cutset_from_config(config)
+    use_iterable_dataset = determine_use_iterable_dataset(use_iterable_dataset, config)
 
     # Apply channel selector
     if config.channel_selector is not None:
@@ -391,7 +406,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         )
 
     if tokenizer is not None and config.pretokenize:
-        if not is_tarred:
+        if not use_iterable_dataset:
             logging.warning(
                 "You are using a non-tarred dataset and requested tokenization during data sampling (pretokenize=True). "
                 "This will cause the tokenization to happen in the main (GPU) process, possibly impacting the training speed "
@@ -482,8 +497,8 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
             concurrent=config.concurrent_bucketing,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            rank=0 if use_iterable_dataset else global_rank,
+            world_size=1 if use_iterable_dataset else world_size,
         )
     else:
         # Non-bucketing sampler, similar to original NeMo dataloading without bucketing,
@@ -500,8 +515,8 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
             seed=config.shard_seed,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            rank=0 if use_iterable_dataset else global_rank,
+            world_size=1 if use_iterable_dataset else world_size,
         )
 
     if config.concatenate_samples:
@@ -532,7 +547,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             )
         )
 
-    return sampler, is_tarred
+    return sampler, use_iterable_dataset
 
 
 def determine_sampling_constraint(bucket_duration_bins, config):
@@ -637,6 +652,14 @@ def make_structured_with_schema_warnings(config: DictConfig | dict) -> DictConfi
     config = OmegaConf.masked_copy(config, list(supported_keys))
 
     return OmegaConf.merge(default, config)
+
+
+def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
+    assert not (
+        config.force_map_dataset and config.force_iterable_dataset
+    ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
+    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
+    return use_iterable_dataset
 
 
 def tokenize(example, tokenizer):
