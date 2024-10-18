@@ -196,6 +196,13 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         Use this method with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
+
+    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically 
+    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
+    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
+    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else 
+    # each PP stage launches independently as needed.
+
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
