@@ -2138,3 +2138,43 @@ def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_p
     np.testing.assert_equal(
         audio, full_audio[:, compute_num_samples(4.0, cut.sampling_rate) : compute_num_samples(9.0, cut.sampling_rate)]
     )
+
+
+def test_force_iterable_dataset(cutset_path: Path):
+    config = OmegaConf.create({"cuts_path": cutset_path, "batch_size": 2, "num_workers": 2})
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_map = [b for b in dl]
+
+    config = OmegaConf.create(
+        {"cuts_path": cutset_path, "batch_size": 2, "num_workers": 2, "force_iterable_dataset": True}
+    )
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_iter = [b for b in dl]
+
+    # 2x duplicated data due to iterable dataset lack of deduplication
+    assert len(batches_iter) == 2 * len(batches_map)
+    # assertion that this is in fact the same data (same ids)
+    assert set(c.id for b in batches_iter for c in b) == set(c.id for b in batches_map for c in b)
+
+
+def test_force_map_dataset(cutset_shar_path: Path):
+    config = OmegaConf.create({"shar_path": cutset_shar_path, "batch_size": 2, "num_workers": 2, "force_finite": True})
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_iter = [b for b in dl]
+
+    config = OmegaConf.create(
+        {
+            "shar_path": cutset_shar_path,
+            "batch_size": 2,
+            "num_workers": 2,
+            "force_map_dataset": True,
+            "force_finite": True,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_map = [b for b in dl]
+
+    # 2x duplicated data due to iterable dataset lack of deduplication
+    assert len(batches_iter) == 2 * len(batches_map)
+    # assertion that this is in fact the same data (same ids)
+    assert set(c.id for b in batches_iter for c in b) == set(c.id for b in batches_map for c in b)
