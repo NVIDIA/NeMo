@@ -118,7 +118,7 @@ def pretrain_recipe(
             $ nemo llm pretrain --factory "mixtral_8x7b_64k(num_nodes=16, name='my_64k_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="mixtral_8x7b_64k_pretrain", num_nodes=8)
+            >>> recipe = pretrain_recipe(name="mixtral_8x7b_64k_pretrain", num_nodes=16)
             >>> print(recipe)
 
     Note:
