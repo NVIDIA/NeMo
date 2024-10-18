@@ -918,8 +918,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         del encoded, encoded_len
 
         if trcfg.timestamps:
-            hypotheses = process_timestamp_outputs(best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
-            all_hyp = process_timestamp_outputs(all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
+            hypotheses = process_timestamp_outputs(
+                best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
+            all_hyp = process_timestamp_outputs(
+                all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
 
         hypotheses = []
         all_hypotheses = []
@@ -931,7 +935,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             all_hypotheses += best_hyp
 
         return (hypotheses, all_hypotheses)
-
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """

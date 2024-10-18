@@ -703,8 +703,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         del logits, logits_len
 
         if trcfg.timestamps:
-            current_hypotheses = process_timestamp_outputs(current_hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
-            all_hyp = process_timestamp_outputs(all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
+            current_hypotheses = process_timestamp_outputs(
+                current_hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
+            all_hyp = process_timestamp_outputs(
+                all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
 
         hypotheses = []
         if all_hyp is None:
