@@ -542,32 +542,29 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     def replace_media_embeddings(self, input_ids, inputs_embeds, media):
         if media is None:
             return inputs_embeds
-        
+
+        # Create mask for media tokens
+        special_image_mask = (input_ids == self.media_token_id)  # Shape: (batch_size, sequence_length)
+
+        # Find indices of media tokens
+        media_indices = special_image_mask.nonzero(as_tuple=False)  # Shape: (num_media_tokens, 2)
+
         batch_size, sequence_length, hidden_size = inputs_embeds.shape
         # Encode media features with gradients
         media_features = self.encode_vision_x(media)  # Shape: (batch_size, num_media_tokens, hidden_size)
-    
-        # Create mask for media tokens
-        special_image_mask = (input_ids == self.media_token_id)  # Shape: (batch_size, sequence_length)
-    
-        # Find indices of media tokens
-        media_indices = special_image_mask.nonzero(as_tuple=False)  # Shape: (num_media_tokens, 2)
-    
-        if media_indices.size(0) == 0: 
-            return inputs_embeds
-        else:
-            # Ensure the number of media tokens matches the media features
-            if media_indices.size(0) != media_features.size(1):
-                raise ValueError(f"Mismatch between number of media tokens and media features: {media_indices.size(0) = }\t{media_features.size(1) = }\t{media[0].shape = }")
 
-            # Clone inputs_embeds to maintain gradient flow
-            updated_embeds = inputs_embeds.clone()
+        # Clone inputs_embeds to maintain gradient flow
+        updated_embeds = inputs_embeds.clone()
 
+        if media_indices.size(0) > 0:
             # Replace the embeddings at media token positions
             updated_embeds[media_indices[:, 0], media_indices[:, 1], :] = media_features
+        else:
+            # If there are no media tokens, add a dummy computation to ensure media_features is used in the computation graph
+            updated_embeds = updated_embeds + media_features.sum(dim=(1, 2), keepdim=True) * 0
 
-            return updated_embeds
-
+        return updated_embeds
+    
     def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
         sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
 
