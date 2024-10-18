@@ -177,6 +177,16 @@ class Llama31Config405B(Llama31Config):
 
 
 @dataclass
+class Llama32Config1B(Llama31Config):
+    rotary_base: int = 500_000
+    seq_length: int = 131072
+    num_layers: int = 16
+    hidden_size: int = 2048
+    ffn_hidden_size: int = 8192
+    num_attention_heads: int = 32
+
+
+@dataclass
 class CodeLlamaConfig7B(Llama2Config7B):
     rotary_base: int = 1_000_000
     seq_length: int = 16384
