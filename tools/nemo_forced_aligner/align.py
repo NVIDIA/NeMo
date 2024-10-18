@@ -88,6 +88,9 @@ Arguments:
     total_buffer_in_secs: float  Length of buffer (chunk + left and right padding) in seconds
     chunk_batch_size: int batch size for buffered chunk inference,
                       which will cut one audio into segments and do inference on chunk_batch_size segments at a time
+    model_downsample_factor: int interval at which the model processes overlapping segments of audio input, impacting 
+                      its ability to capture temporal features in speech (8 for Citrinet and FasConformer models and 
+                      4 for Conformer models).
 
     simulate_cache_aware_streaming: False, if set True, using cache aware streaming to do get the logits for alignment
 
@@ -143,6 +146,7 @@ class AlignmentConfig:
     chunk_len_in_secs: float = 1.6
     total_buffer_in_secs: float = 4.0
     chunk_batch_size: int = 32
+    model_downsample_factor: int = 8
 
     # Cache aware streaming configs
     simulate_cache_aware_streaming: Optional[bool] = False
