@@ -263,8 +263,8 @@ def finetune_recipe(
             /root/.cache/nemo/models/your_pytorch_state_dict_file
 
     """
-    resume_path = "/home/ataghibakhsh/checkpoints/converted_ux_mamba2_130m"
-    dir="/home/ataghibakhsh/temp_ckpt"
+    # resume_path = "/home/ataghibakhsh/checkpoints/converted_ux_mamba2_130m"
+    # dir="/home/ataghibakhsh/temp_ckpt"
     nemo_resume = run.Config(
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=resume_path),
