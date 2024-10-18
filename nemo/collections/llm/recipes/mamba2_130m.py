@@ -277,7 +277,7 @@ def finetune_recipe(
         ckpt_load_optimizer=False,
         ckpt_save_optimizer=False,
     )
-    checkpoint_callback = nl.ModelCheckpoint(
+    checkpoint_callback = run.Config(nl.ModelCheckpoint,
         every_n_train_steps=10,
         dirpath=dir,
     )
@@ -291,7 +291,7 @@ def finetune_recipe(
         log_every_n_steps=20,
         max_steps=100,
         num_nodes=num_nodes,
-        plugins=nl.MegatronMixedPrecision(
+        plugins=run.Config(nl.MegatronMixedPrecision,
             precision="bf16-mixed",
             params_dtype=torch.bfloat16,
         ),
