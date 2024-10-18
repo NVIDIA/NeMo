@@ -12,12 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import typing
+from pathlib import Path
 
 import numpy as np
 import torch
 from PIL import Image
 from pytriton.model_config import Tensor
+
+from nemo.export.tarutils import TarPath
+
+NEMO2 = "NEMO 2.0"
+NEMO1 = "NEMO 1.0"
 
 
 def typedict2tensor(
@@ -83,3 +90,15 @@ def cast_output(data, required_dtype):
     if data.ndim < 2:
         data = data[..., np.newaxis]
     return data.astype(required_dtype)
+
+
+def nemo_checkpoint_version(path: str) -> str:
+    if os.path.isdir(path):
+        path = Path(path)
+    else:
+        path = TarPath(path)
+
+    if (path / "context").exists() and (path / "weights").exists():
+        return NEMO2
+    else:
+        return NEMO1
