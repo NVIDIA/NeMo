@@ -755,7 +755,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             # Check if token is a punctuation mark
             # If so, set its start and end offset as start and end of the previous token
             # This is done because there was observed a behaviour, when punctuation marks are predicted long after preceding token (i.e. after silence)
-            if offset['char'][0] in supported_punctuation and i > 0:
+            if offset['char'] and offset['char'][0] in supported_punctuation and i > 0:
                 offset['end_offset'] = offset['start_offset']
 
         return char_offsets
@@ -949,7 +949,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                     previous_word_index = i
                     continue
 
-            elif word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
+            elif word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
                 segment_words.append(word)
                 if segment_words:
                     segment_offsets.append(
