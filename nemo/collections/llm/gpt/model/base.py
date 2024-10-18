@@ -26,8 +26,7 @@ from torch import nn
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import DDP
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.megatron_parallel import DDP, MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
@@ -309,10 +308,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         if isinstance(mcore_model, DDP):
             mcore_model = self.module.module
 
-        model_inference_wrapper = GPTInferenceWrapper(
-            mcore_model,
-            inference_wrapper_config
-        )
+        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
         return model_inference_wrapper
 
     @property
