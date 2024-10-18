@@ -13,6 +13,7 @@ from torch import nn
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
+from nemo.lightning.megatron_parallel import DDP
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
@@ -246,8 +247,13 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def get_inference_wrapper(self, inference_wrapper_config) -> torch.Tensor:
+        # get mcore, unwrapped model
+        mcore_model = self.module
+        if isinstance(mcore_model, DDP):
+            mcore_model = self.module.module
+
         model_inference_wrapper = T5InferenceWrapper(
-            self.module,
+            mcore_model,
             inference_wrapper_config
         )
         return model_inference_wrapper
