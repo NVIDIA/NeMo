@@ -62,8 +62,8 @@ class TranscribeConfig:
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
-    timestamps: bool = False # returns timestamps for each word and segments if model supports punctuations
-    verbose: bool = True 
+    timestamps: bool = False  # returns timestamps for each word and segments if model supports punctuations
+    verbose: bool = True
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = None

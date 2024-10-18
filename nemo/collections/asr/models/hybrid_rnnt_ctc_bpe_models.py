@@ -415,7 +415,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             logging.info(f"Changed tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None, verbose: bool = True):
+    def change_decoding_strategy(
+        self, decoding_cfg: DictConfig = None, decoder_type: str = None, verbose: bool = True
+    ):
         """
         Changes decoding strategy used during RNNT decoding process.
         Args:
@@ -468,7 +470,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             self.cur_decoder = "rnnt"
             if verbose:
-                logging.info(f"Changed decoding strategy of the RNNT decoder to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+                logging.info(
+                    f"Changed decoding strategy of the RNNT decoder to \n{OmegaConf.to_yaml(self.cfg.decoding)}"
+                )
 
         elif decoder_type == 'ctc':
             if not hasattr(self, 'ctc_decoding'):
@@ -501,7 +505,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             self.cur_decoder = "ctc"
             if verbose:
                 logging.info(
-                f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
+                    f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
                 )
         else:
             raise ValueError(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")

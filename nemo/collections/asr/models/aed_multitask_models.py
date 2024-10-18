@@ -485,7 +485,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         if timestamps:
             raise NotImplementedError("Timestamps are not supported for this model yet.")
-        
+
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(
                 batch_size=batch_size,
@@ -503,7 +503,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     f"but got {type(override_config)}"
                 )
             trcfg = override_config
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         return super().transcribe(audio=audio, override_config=trcfg)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
