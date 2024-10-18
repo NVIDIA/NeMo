@@ -97,89 +97,89 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
     with open(test_data_path, 'r') as file:
         records = json.load(file)
 
-        eval_start = time.monotonic()
-        for record in records:
-            prompt = record["text_before_last_word"]
-            expected_output = record["last_word"].strip().lower()
-            all_expected_outputs.append(expected_output)
-            if model is not None:
-                if isinstance(model, MegatronLLMDeployable):
-                    model_output = model.generate(
-                        inputs=[prompt],
-                        length_params={"min_length": 1, "max_length": 1},
-                        sampling_params={
-                            "use_greedy": True,
-                            "temperature": 0.1,
-                            "top_k": 1,
-                            "top_p": 0,
-                            "repetition_penalty": 1.0,
-                            "add_BOS": True,
-                            "all_probs": False,
-                            "compute_logprob": False,
-                            "end_strings": ["<|endoftext|>", "<extra_id_1>"],
-                        },
-                    )
-                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
-                    model_output = model_output["sentences"][0][len(prompt) :].strip().lower()
-                else:
-                    model_output = model.forward(
-                        input_texts=[prompt],
-                        max_output_len=1,
-                        top_k=1,
-                        top_p=0,
-                        temperature=0.1,
-                        task_ids=task_ids,
-                        lora_uids=lora_uids,
-                    )
-                    model_output = model_output[0][0].strip().lower()
-                all_actual_outputs.append(model_output)
+    eval_start = time.monotonic()
+    for record in records:
+        prompt = record["text_before_last_word"]
+        expected_output = record["last_word"].strip().lower()
+        all_expected_outputs.append(expected_output)
+        if model is not None:
+            if isinstance(model, MegatronLLMDeployable):
+                model_output = model.generate(
+                    inputs=[prompt],
+                    length_params={"min_length": 1, "max_length": 1},
+                    sampling_params={
+                        "use_greedy": True,
+                        "temperature": 0.1,
+                        "top_k": 1,
+                        "top_p": 0,
+                        "repetition_penalty": 1.0,
+                        "add_BOS": True,
+                        "all_probs": False,
+                        "compute_logprob": False,
+                        "end_strings": ["<|endoftext|>", "<extra_id_1>"],
+                    },
+                )
+                # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
+                model_output = model_output["sentences"][0][len(prompt) :].strip().lower()
+            else:
+                model_output = model.forward(
+                    input_texts=[prompt],
+                    max_output_len=1,
+                    top_k=1,
+                    top_p=0,
+                    temperature=0.1,
+                    task_ids=task_ids,
+                    lora_uids=lora_uids,
+                )
+                model_output = model_output[0][0].strip().lower()
+            all_actual_outputs.append(model_output)
 
-                if expected_output == model_output:
-                    correct_answers += 1
+            if expected_output == model_output:
+                correct_answers += 1
 
-                if (
-                    expected_output == model_output
-                    or model_output.startswith(expected_output)
-                    or expected_output.startswith(model_output)
-                ):
-                    if len(model_output) == 1 and len(expected_output) > 1:
-                        continue
-                    correct_answers_relaxed += 1
+            if (
+                expected_output == model_output
+                or model_output.startswith(expected_output)
+                or expected_output.startswith(model_output)
+            ):
+                if len(model_output) == 1 and len(expected_output) > 1:
+                    continue
+                correct_answers_relaxed += 1
 
-            if nq is not None:
-                if isinstance(nq, NemoQueryLLMPyTorch):
-                    deployed_output = nq.query_llm(
-                        prompts=[prompt],
-                        max_length=1,
-                        top_k=1,
-                        top_p=0,
-                        temperature=0.1,
-                    )
-                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
-                    deployed_output = deployed_output["sentences"][0][0][len(prompt) :].decode().strip().lower()
-                else:
-                    deployed_output = nq.query_llm(
-                        prompts=[prompt],
-                        max_output_len=1,
-                        top_k=1,
-                        top_p=0,
-                        temperature=0.1,
-                        task_id=task_ids,
-                    )
-                    deployed_output = deployed_output[0][0].strip().lower()
+        if nq is not None:
+            if isinstance(nq, NemoQueryLLMPyTorch):
+                deployed_output = nq.query_llm(
+                    prompts=[prompt],
+                    max_length=1,
+                    top_k=1,
+                    top_p=0,
+                    temperature=0.1,
+                )
+                # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
+                deployed_output = deployed_output["sentences"][0][0][len(prompt) :].decode().strip().lower()
+            else:
+                deployed_output = nq.query_llm(
+                    prompts=[prompt],
+                    max_output_len=1,
+                    top_k=1,
+                    top_p=0,
+                    temperature=0.1,
+                    task_id=task_ids,
+                )
+                deployed_output = deployed_output[0][0].strip().lower()
 
-                if expected_output == deployed_output:
-                    correct_answers_deployed += 1
+            if expected_output == deployed_output:
+                correct_answers_deployed += 1
 
-                if (
-                    expected_output == deployed_output
-                    or deployed_output.startswith(expected_output)
-                    or expected_output.startswith(deployed_output)
-                ):
-                    if len(deployed_output) == 1 and len(expected_output) > 1:
-                        continue
-                    correct_answers_deployed_relaxed += 1
-        eval_end = time.monotonic()
+            if (
+                expected_output == deployed_output
+                or deployed_output.startswith(expected_output)
+                or expected_output.startswith(deployed_output)
+            ):
+                if len(deployed_output) == 1 and len(expected_output) > 1:
+                    continue
+                correct_answers_deployed_relaxed += 1
+    eval_end = time.monotonic()
 
     return AccuracyResult(
         accuracy=correct_answers / len(all_expected_outputs),
@@ -248,200 +248,200 @@ def run_inference(
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if trt_llm_export_kwargs is None:
         trt_llm_export_kwargs = {}
-    if Path(checkpoint_path).exists():
-        if tp_size > torch.cuda.device_count():
-            print(
-                "Path: {0} and model: {1} with {2} tps won't be tested since available # of gpus = {3}".format(
-                    checkpoint_path, model_name, tp_size, torch.cuda.device_count()
-                )
+    if not Path(checkpoint_path).exists():
+        raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
+
+    if tp_size > torch.cuda.device_count():
+        print(
+            "Path: {0} and model: {1} with {2} tps won't be tested since available # of gpus = {3}".format(
+                checkpoint_path, model_name, tp_size, torch.cuda.device_count()
             )
-            return (None, None)
+        )
+        return None, None
 
-        Path(model_dir).mkdir(parents=True, exist_ok=True)
+    Path(model_dir).mkdir(parents=True, exist_ok=True)
 
-        if debug:
-            print("")
-            print("")
-            print(
-                "################################################## NEW TEST ##################################################"
-            )
-            print("")
+    if debug:
+        print("")
+        print("")
+        print(
+            "################################################## NEW TEST ##################################################"
+        )
+        print("")
 
-            print("Path: {0} and model: {1} with {2} tps will be tested".format(checkpoint_path, model_name, tp_size))
+        print("Path: {0} and model: {1} with {2} tps will be tested".format(checkpoint_path, model_name, tp_size))
 
-        prompt_embeddings_checkpoint_path = None
-        task_ids = None
-        max_prompt_embedding_table_size = 0
+    prompt_embeddings_checkpoint_path = None
+    task_ids = None
+    max_prompt_embedding_table_size = 0
 
-        if ptuning:
-            if Path(p_tuning_checkpoint).exists():
-                prompt_embeddings_checkpoint_path = p_tuning_checkpoint
-                max_prompt_embedding_table_size = 8192
-                task_ids = ["0"]
-                if debug:
-                    print("---- PTuning enabled.")
-            else:
-                print("---- PTuning could not be enabled and skipping the test.")
-                return (None, None)
-
-        lora_ckpt_list = None
-        lora_uids = None
-        use_lora_plugin = None
-        lora_target_modules = None
-
-        if lora:
-            if Path(lora_checkpoint).exists():
-                lora_ckpt_list = [lora_checkpoint]
-                lora_uids = ["0", "-1", "0"]
-                use_lora_plugin = "bfloat16"
-                lora_target_modules = ["attn_qkv"]
-                if debug:
-                    print("---- LoRA enabled.")
-            else:
-                print("---- LoRA could not be enabled and skipping the test.")
-                return (None, None)
-
-        if use_vllm:
-            exporter = vLLMExporter()
-
-            exporter.export(
-                nemo_checkpoint=checkpoint_path,
-                model_dir=model_dir,
-                model_type=model_type,
-                tensor_parallel_size=tp_size,
-                pipeline_parallel_size=pp_size,
-                max_model_len=max_input_len + max_output_len,
-                gpu_memory_utilization=args.gpu_memory_utilization,
-            )
+    if ptuning:
+        if Path(p_tuning_checkpoint).exists():
+            prompt_embeddings_checkpoint_path = p_tuning_checkpoint
+            max_prompt_embedding_table_size = 8192
+            task_ids = ["0"]
+            if debug:
+                print("---- PTuning enabled.")
         else:
-            exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
+            print("---- PTuning could not be enabled and skipping the test.")
+            return None, None
 
-            exporter.export(
-                nemo_checkpoint_path=checkpoint_path,
-                model_type=model_type,
-                tensor_parallelism_size=tp_size,
-                pipeline_parallelism_size=pp_size,
-                max_input_len=max_input_len,
-                max_output_len=max_output_len,
-                max_batch_size=max_batch_size,
-                use_parallel_embedding=use_parallel_embedding,
-                max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                use_lora_plugin=use_lora_plugin,
-                lora_target_modules=lora_target_modules,
-                max_num_tokens=max_num_tokens,
-                use_embedding_sharing=use_embedding_sharing,
-                fp8_quantized=fp8_quantized,
-                fp8_kvcache=fp8_kvcache,
-                **trt_llm_export_kwargs,
-            )
+    lora_ckpt_list = None
+    lora_uids = None
+    use_lora_plugin = None
+    lora_target_modules = None
 
-        if ptuning:
-            exporter.add_prompt_table(
-                task_name="0",
-                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
-            )
+    if lora:
+        if Path(lora_checkpoint).exists():
+            lora_ckpt_list = [lora_checkpoint]
+            lora_uids = ["0", "-1", "0"]
+            use_lora_plugin = "bfloat16"
+            lora_target_modules = ["attn_qkv"]
+            if debug:
+                print("---- LoRA enabled.")
+        else:
+            print("---- LoRA could not be enabled and skipping the test.")
+            return None, None
 
-        output = exporter.forward(
+    if use_vllm:
+        exporter = vLLMExporter()
+
+        exporter.export(
+            nemo_checkpoint=checkpoint_path,
+            model_dir=model_dir,
+            model_type=model_type,
+            tensor_parallel_size=tp_size,
+            pipeline_parallel_size=pp_size,
+            max_model_len=max_input_len + max_output_len,
+            gpu_memory_utilization=args.gpu_memory_utilization,
+        )
+    else:
+        exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
+
+        exporter.export(
+            nemo_checkpoint_path=checkpoint_path,
+            model_type=model_type,
+            tensor_parallelism_size=tp_size,
+            pipeline_parallelism_size=pp_size,
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
+            max_batch_size=max_batch_size,
+            use_parallel_embedding=use_parallel_embedding,
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_num_tokens=max_num_tokens,
+            use_embedding_sharing=use_embedding_sharing,
+            fp8_quantized=fp8_quantized,
+            fp8_kvcache=fp8_kvcache,
+            **trt_llm_export_kwargs,
+        )
+
+    if ptuning:
+        exporter.add_prompt_table(
+            task_name="0",
+            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+        )
+
+    output = exporter.forward(
+        input_texts=prompts,
+        max_output_len=max_output_len,
+        top_k=top_k,
+        top_p=top_p,
+        temperature=temperature,
+        task_ids=task_ids,
+        lora_uids=lora_uids,
+        streaming=streaming,
+        stop_words_list=stop_words_list,
+    )
+
+    # Unwrap the generator if needed
+    output = list(output)
+
+    functional_result = FunctionalResult()
+
+    # Check non-deployed funcitonal correctness
+    if args.functional_test:
+        functional_result.regular_pass = True
+        if not check_model_outputs(streaming, output, expected_outputs):
+            LOGGER.warning("Model outputs don't match the expected result.")
+            functional_result.regular_pass = False
+
+    output_cpp = ""
+    if test_cpp_runtime and not use_lora_plugin and not ptuning and not use_vllm:
+        # This may cause OOM for large models as it creates 2nd instance of a model
+        exporter_cpp = TensorRTLLM(
+            model_dir,
+            load_model=True,
+            use_python_runtime=False,
+        )
+
+        output_cpp = exporter_cpp.forward(
             input_texts=prompts,
             max_output_len=max_output_len,
             top_k=top_k,
             top_p=top_p,
             temperature=temperature,
-            task_ids=task_ids,
+        )
+
+    nq = None
+    nm = None
+    output_deployed = ""
+    if test_deployment:
+        nm = DeployPyTriton(
+            model=exporter,
+            triton_model_name=model_name,
+            port=8000,
+        )
+        nm.deploy()
+        nm.run()
+        nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+
+        output_deployed = nq.query_llm(
+            prompts=prompts,
+            max_output_len=max_output_len,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
             lora_uids=lora_uids,
-            streaming=streaming,
-            stop_words_list=stop_words_list,
         )
 
         # Unwrap the generator if needed
-        output = list(output)
+        output_deployed = list(output_deployed)
 
-        functional_result = FunctionalResult()
-
-        # Check non-deployed funcitonal correctness
+        # Check deployed funcitonal correctness
         if args.functional_test:
-            functional_result.regular_pass = True
-            if not check_model_outputs(streaming, output, expected_outputs):
-                LOGGER.warning("Model outputs don't match the expected result.")
-                functional_result.regular_pass = False
+            functional_result.deployed_pass = True
+            if not check_model_outputs(streaming, output_deployed, expected_outputs):
+                LOGGER.warning("Deployed model outputs don't match the expected result.")
+                functional_result.deployed_pass = False
 
-        output_cpp = ""
-        if test_cpp_runtime and not use_lora_plugin and not ptuning and not use_vllm:
-            # This may cause OOM for large models as it creates 2nd instance of a model
-            exporter_cpp = TensorRTLLM(
-                model_dir,
-                load_model=True,
-                use_python_runtime=False,
-            )
+    if debug or functional_result.regular_pass == False or functional_result.deployed_pass == False:
+        print("")
+        print("--- Prompt: ", prompts)
+        print("")
+        print("--- Expected keywords: ", expected_outputs)
+        print("")
+        print("--- Output: ", output)
+        print("")
+        print("--- Output deployed: ", output_deployed)
+        print("")
+        print("")
+        print("--- Output with C++ runtime: ", output_cpp)
+        print("")
 
-            output_cpp = exporter_cpp.forward(
-                input_texts=prompts,
-                max_output_len=max_output_len,
-                top_k=top_k,
-                top_p=top_p,
-                temperature=temperature,
-            )
+    accuracy_result = None
+    if run_accuracy:
+        print("Start model accuracy testing ...")
+        accuracy_result = get_accuracy_with_lambada(exporter, nq, task_ids, lora_uids, test_data_path)
 
-        nq = None
-        nm = None
-        output_deployed = ""
-        if test_deployment:
-            nm = DeployPyTriton(
-                model=exporter,
-                triton_model_name=model_name,
-                port=8000,
-            )
-            nm.deploy()
-            nm.run()
-            nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+    if test_deployment:
+        nm.stop()
 
-            output_deployed = nq.query_llm(
-                prompts=prompts,
-                max_output_len=max_output_len,
-                top_k=1,
-                top_p=0.0,
-                temperature=1.0,
-                lora_uids=lora_uids,
-            )
+    if not save_engine and model_dir:
+        shutil.rmtree(model_dir)
 
-            # Unwrap the generator if needed
-            output_deployed = list(output_deployed)
-
-            # Check deployed funcitonal correctness
-            if args.functional_test:
-                functional_result.deployed_pass = True
-                if not check_model_outputs(streaming, output_deployed, expected_outputs):
-                    LOGGER.warning("Deployed model outputs don't match the expected result.")
-                    functional_result.deployed_pass = False
-
-        if debug or functional_result.regular_pass == False or functional_result.deployed_pass == False:
-            print("")
-            print("--- Prompt: ", prompts)
-            print("")
-            print("--- Expected keywords: ", expected_outputs)
-            print("")
-            print("--- Output: ", output)
-            print("")
-            print("--- Output deployed: ", output_deployed)
-            print("")
-            print("")
-            print("--- Output with C++ runtime: ", output_cpp)
-            print("")
-
-        accuracy_result = None
-        if run_accuracy:
-            print("Start model accuracy testing ...")
-            accuracy_result = get_accuracy_with_lambada(exporter, nq, task_ids, lora_uids, test_data_path)
-
-        if test_deployment:
-            nm.stop()
-
-        if not save_engine and model_dir:
-            shutil.rmtree(model_dir)
-
-        return (functional_result, accuracy_result)
-    else:
-        raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
+    return functional_result, accuracy_result
 
 
 def run_existing_checkpoints(
@@ -466,7 +466,7 @@ def run_existing_checkpoints(
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if tp_size > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
-        return (None, None)
+        return None, None
 
     test_data = get_infer_test_data()
     if model_name not in test_data:
@@ -476,7 +476,7 @@ def run_existing_checkpoints(
 
     if tp_size < model_info.min_tps:
         print("Min tps for this model is {0}".format(tp_size))
-        return (None, None)
+        return None, None
 
     if ptuning and model_info.p_tuning_checkpoint is None:
         raise Exception("There is not ptuning checkpoint path defined.")
@@ -552,51 +552,51 @@ def run_in_framework_inference(
     debug=True,
     test_data_path=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
-    if Path(checkpoint_path).exists():
-        if debug:
-            print("")
-            print("")
-            print(
-                "################################################## NEW TEST ##################################################"
-            )
-            print("")
-
-            print("Path: {0} and model: {1} will be tested".format(checkpoint_path, model_name))
-
-        deployed_model = MegatronLLMDeployable(checkpoint_path, num_gpus)
-
-        nm = DeployPyTriton(
-            model=deployed_model,
-            triton_model_name=model_name,
-            port=8000,
-        )
-        nm.deploy()
-        nm.run()
-        nq = NemoQueryLLMPyTorch(url="localhost:8000", model_name=model_name)
-
-        output_deployed = nq.query_llm(
-            prompts=prompts, top_k=top_k, top_p=top_p, temperature=temperature, max_length=max_output_len
-        )
-        output_deployed = output_deployed["sentences"]
-        # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
-        for i, output in enumerate(output_deployed):
-            output = output[len(prompts[i]) :]
-
-        # Unwrap the generator if needed
-        output_deployed = list(output_deployed)
-        print("\n --------- Output: ", output_deployed)
-
-        accuracy_result = None
-        if run_accuracy:
-            print("Start model accuracy testing ...")
-            # This script is not written with torch.distributed support in mind, so running non-deployed in-framework models on multiple devices will not work
-            accuracy_result = get_accuracy_with_lambada(deployed_model, nq, None, None, test_data_path)
-
-        nm.stop()
-
-        return (None, accuracy_result)
-    else:
+    if not Path(checkpoint_path).exists():
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
+
+    if debug:
+        print("")
+        print("")
+        print(
+            "################################################## NEW TEST ##################################################"
+        )
+        print("")
+
+        print("Path: {0} and model: {1} will be tested".format(checkpoint_path, model_name))
+
+    deployed_model = MegatronLLMDeployable(checkpoint_path, num_gpus)
+
+    nm = DeployPyTriton(
+        model=deployed_model,
+        triton_model_name=model_name,
+        port=8000,
+    )
+    nm.deploy()
+    nm.run()
+    nq = NemoQueryLLMPyTorch(url="localhost:8000", model_name=model_name)
+
+    output_deployed = nq.query_llm(
+        prompts=prompts, top_k=top_k, top_p=top_p, temperature=temperature, max_length=max_output_len
+    )
+    output_deployed = output_deployed["sentences"]
+    # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
+    for i, output in enumerate(output_deployed):
+        output = output[len(prompts[i]) :]
+
+    # Unwrap the generator if needed
+    output_deployed = list(output_deployed)
+    print("\n --------- Output: ", output_deployed)
+
+    accuracy_result = None
+    if run_accuracy:
+        print("Start model accuracy testing ...")
+        # This script is not written with torch.distributed support in mind, so running non-deployed in-framework models on multiple devices will not work
+        accuracy_result = get_accuracy_with_lambada(deployed_model, nq, None, None, test_data_path)
+
+    nm.stop()
+
+    return None, accuracy_result
 
 
 def get_args():
