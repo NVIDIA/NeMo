@@ -71,10 +71,11 @@ if __name__ == "__main__":
         "",
     ]
     encoder_prompts = [
-        "Hello, how are you?",
-        "How many r's are in the word 'strawberry'?",
-        "Which number is bigger? 10.119 or 10.19?",
+        "Hello, how are <mask>?",
+        "How many r's are in the <mask> 'strawberry'?",
+        "Which number is <mask>? 10.119 <mask> 10.19?",
     ]
+
     results = api.generate(
         path=args.checkpoint_path,
         prompts=prompts,

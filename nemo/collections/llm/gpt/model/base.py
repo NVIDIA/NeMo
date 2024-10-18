@@ -330,8 +330,6 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self._validation_loss_reduction
 
 
-
-
 def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 

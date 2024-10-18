@@ -83,12 +83,12 @@ def setup_model_and_tokenizer(
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     model_inference_wrapper_config = InferenceWrapperConfig(
-        hidden_size=model.module.module.config.hidden_size,
+        hidden_size=model.module.module.module.config.hidden_size,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
         padded_vocab_size=model.tokenizer.vocab_size,
     )
-    
+
     inference_wrapped_model = model.get_inference_wrapper(model_inference_wrapper_config)
 
     return inference_wrapped_model, MCoreTokenizerWrappper(model.tokenizer)
