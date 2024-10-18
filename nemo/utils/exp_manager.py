@@ -1119,10 +1119,13 @@ def configure_checkpointing(
         params.prefix = name
     if params.always_save_nemo:
         app_state = AppState()
-        if (app_state.model_parallel_size is not None and app_state.model_parallel_size > 1) or (
-            app_state.context_parallel_size is not None and app_state.context_parallel_size > 1
-        ):
-            logging.error("always_save_nemo is set to True, please ensure that model parallel is not used.")
+        if (app_state.tensor_model_parallel_size is not None and app_state.tensor_model_parallel_size > 1) or (app_state.pipeline_model_parallel_size is not None and app_state.pipeline_model_parallel_size > 1) or (app_state.context_parallel_size is not None and app_state.context_parallel_size > 1):
+            raise LoggerMisconfigurationError(
+                "always_save_nemo is set to True, please ensure that model parallel is not used."
+                f"tensor_model_parallel_size: {app_state.tensor_model_parallel_size},"
+                f"pipeline_model_parallel_size: {app_state.pipeline_model_parallel_size},"
+                f"context_parallel_size: {app_state.context_parallel_size},"
+            )
 
     NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
 

@@ -1106,13 +1106,13 @@ class TestExpManager:
         """
 
         test_dir = tmp_path / "test"
-        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=7)
 
-        with pytest.raises(Exception):
+        with pytest.raises(LoggerMisconfigurationError):
             appstate = AppState()
             appstate.tensor_model_parallel_size = 2
             appstate.pipeline_model_parallel_size = 1
             appstate.context_parallel_size = 1
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
             exp_manager(
                 test_trainer,
                 {
@@ -1120,14 +1120,15 @@ class TestExpManager:
                         "always_save_nemo": True,
                     },
                     "explicit_log_dir": str(test_dir),
-                },
+                }
             )
 
-        with pytest.raises(Exception):
+        with pytest.raises(LoggerMisconfigurationError):
             appstate = AppState()
             appstate.tensor_model_parallel_size = 1
             appstate.pipeline_model_parallel_size = 2
             appstate.context_parallel_size = 1
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
             exp_manager(
                 test_trainer,
                 {
@@ -1138,11 +1139,12 @@ class TestExpManager:
                 },
             )
 
-        with pytest.raises(Exception):
+        with pytest.raises(LoggerMisconfigurationError):
             appstate = AppState()
             appstate.tensor_model_parallel_size = 1
             appstate.pipeline_model_parallel_size = 1
             appstate.context_parallel_size = 2
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
             exp_manager(
                 test_trainer,
                 {
@@ -1157,6 +1159,7 @@ class TestExpManager:
         appstate.tensor_model_parallesl_size = 1
         appstate.pipeline_model_parallel_size = 1
         appstate.context_parallel_size = 1
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
         exp_manager(
             test_trainer,
             {
