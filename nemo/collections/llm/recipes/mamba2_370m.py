@@ -38,13 +38,19 @@ NAME = "mamba2_370m"
 
 
 @run.cli.factory(name=NAME)
-def tokenizer() -> run.Config[pl.LightningModule]:
+def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
 
-    return run.Config(get_nmt_tokenizer, library='huggingface', model_name="EleutherAI/gpt-neox-20b", use_fast=True)
+    return run.Config(
+        get_nmt_tokenizer,
+        library='huggingface',
+        model_name="EleutherAI/gpt-neox-20b",
+        tokenizer_model=tokenizer_model,
+        use_fast=True,
+    )
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Mamba2 370M model configuration.
 
@@ -59,7 +65,9 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(llm.GPTModel, config=run.Config(llm.BaseMambaConfig370M), tokenizer=tokenizer())
+    return run.Config(
+        llm.GPTModel, config=run.Config(llm.BaseMambaConfig370M), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
+    )
 
 
 def trainer(
@@ -99,7 +107,7 @@ def trainer(
             $ nemo llm pretrain trainer=mamba2_370m ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
             >>> print(trainer_config)
 
     Note:
@@ -115,7 +123,7 @@ def trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
-        ckpt_async_save=True,
+        ckpt_async_save=False,
         ckpt_parallel_load=True,
         ddp=run.Config(
             DistributedDataParallelConfig,
@@ -148,7 +156,12 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    tokenizer_model: str = None,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn=pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mamba2 370M model.
@@ -188,7 +201,11 @@ def pretrain_recipe(
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(
-            MockDataModule, seq_length=4096, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer()
+            MockDataModule,
+            seq_length=4096,
+            global_batch_size=8,
+            micro_batch_size=1,
+            tokenizer=tokenizer(tokenizer_model=tokenizer_model),
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
@@ -196,59 +213,16 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_optimized")
-def pretrain_recipe_performance(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    fn: Callable = pretrain,
-) -> run.Partial:
-    """
-    Create a performance-optimized pre-training recipe for Mamba2 370M model.
-
-    This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
-
-    Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
-
-    Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
-
-    Examples:
-            $ nemo llm pretrain --factory mamba2_370m_optimized
-
-        Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="mamba2_370m_perf", num_nodes=1)
-            >>> print(recipe)
-
-    Note:
-        Use this recipe with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
-    """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
-    )
-    return recipe
-
-
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     resume_path: str = None,
+    tokenizer_model: str = None,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 1,
+    num_gpus_per_node: int = 8,
+    gbs: int = 8,
+    mbs: int = 1,
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
@@ -262,6 +236,7 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         resume_path (str): Path to the NeMo checkpoint (refer to notes below
                             on how to convert a pytorch checkpoint to NeMo)
+        tokenizer_model (str): Path to tokenizer model (defaults to None)
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
     Returns:
@@ -292,15 +267,48 @@ def finetune_recipe(
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=resume_path),
     )
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        tensor_model_parallel_size=1,
+        pipeline_model_parallel_size=1,
+        gradient_as_bucket_view=True,
+        ckpt_load_optimizer=False,
+        ckpt_save_optimizer=False,
+        ckpt_async_save=False,
+    )
+    checkpoint_callback = run.Config(nl.ModelCheckpoint,
+        every_n_train_steps=10,
+        dirpath=dir,
+    )
+    trainer = run.Config(
+        nl.Trainer,
+        accelerator="gpu",
+        accumulate_grad_batches=1,
+        devices=num_gpus_per_node,
+        limit_test_batches=10,
+        limit_val_batches=10,
+        log_every_n_steps=20,
+        max_steps=100,
+        num_nodes=num_nodes,
+        plugins=run.Config(nl.MegatronMixedPrecision,
+            precision="bf16-mixed",
+            params_dtype=torch.bfloat16,
+        ),
+        callbacks=[checkpoint_callback],
+        strategy=strategy,
+        use_distributed_sampler=False,
+        val_check_interval=20,
+    )
     recipe = run.Partial(
         llm.finetune,
-        model=model(),
-        trainer=default_finetune_trainer(
-            num_nodes=num_nodes,
-            num_gpus_per_node=num_gpus_per_node,
-        ),
+        model=model(tokenizer_model=tokenizer_model),
+        trainer=trainer,
         data=run.Config(
-            llm.SquadDataModule, seq_length=2048, global_batch_size=8, micro_batch_size=1, tokenizer=tokenizer()
+            llm.SquadDataModule,
+            seq_length=2048,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=tokenizer(tokenizer_model=tokenizer_model),
         ),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),

@@ -1,4 +1,3 @@
-import inspect
 import logging
 import os
 import shutil
@@ -8,6 +7,7 @@ from typing import Generic, Optional, Tuple, TypeVar
 import pytorch_lightning as pl
 from filelock import FileLock, Timeout
 from pytorch_lightning.trainer.states import TrainerFn
+
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
@@ -134,7 +134,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             Loads a model from the specified path, optionally using a CPU-focused strategy, and returns the model and trainer.
     """
 
-    def nemo_setup(self, model: pl.LightningModule, trainer: Optional[pl.Trainer] = None) -> pl.Trainer:
+    def nemo_setup(self, model: pl.LightningModule, trainer: Optional[pl.Trainer] = None, *args, **kwargs) -> pl.Trainer:
         """
         Sets up the model and trainer using a specified strategy, preparing it for training or inference.
 
@@ -150,7 +150,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         _trainer = trainer or Trainer(
             devices=1,
             accelerator="cpu",
-            strategy=MegatronStrategy(ckpt_save_optimizer=False, always_save_context=True),
+            strategy=MegatronStrategy(ckpt_save_optimizer=False, always_save_context=True, *args, **kwargs),
         )
         # Note: set trainer to fitting state to avoid the following code path. Feel free to refactor if we no longer
         #  need to avoid this:
@@ -188,7 +188,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero() and dump_io:
-            TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path))
+            TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path), yaml_attrs=["model"])
 
     def nemo_load(
         self, path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True

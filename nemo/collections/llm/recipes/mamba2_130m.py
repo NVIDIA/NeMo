@@ -78,7 +78,7 @@ def trainer(
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 1,
+    num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
@@ -123,7 +123,7 @@ def trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
-        ckpt_async_save=True,
+        ckpt_async_save=False,
         ckpt_parallel_load=True,
         ddp=run.Config(
             DistributedDataParallelConfig,
@@ -160,7 +160,7 @@ def pretrain_recipe(
     name: str = "default",
     tokenizer_model: str = None,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 1,
+    num_gpus_per_node: int = 8,
     fn=pretrain,
 ) -> run.Partial:
     """
@@ -220,7 +220,7 @@ def finetune_recipe(
     resume_path: str = None,
     tokenizer_model: str = None,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 2,
+    num_gpus_per_node: int = 8,
     gbs: int = 8,
     mbs: int = 1,
     peft_scheme: Optional[str] = 'none',
@@ -263,8 +263,6 @@ def finetune_recipe(
             /root/.cache/nemo/models/your_pytorch_state_dict_file
 
     """
-    # resume_path = "/home/ataghibakhsh/checkpoints/converted_ux_mamba2_130m"
-    # dir="/home/ataghibakhsh/temp_ckpt"
     nemo_resume = run.Config(
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=resume_path),
@@ -276,6 +274,7 @@ def finetune_recipe(
         gradient_as_bucket_view=True,
         ckpt_load_optimizer=False,
         ckpt_save_optimizer=False,
+        ckpt_async_save=False,
     )
     checkpoint_callback = run.Config(nl.ModelCheckpoint,
         every_n_train_steps=10,
