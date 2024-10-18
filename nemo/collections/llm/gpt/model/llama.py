@@ -50,9 +50,6 @@ class LlamaConfig(GPTConfig):
     attention_dropout: float = 0.0
     hidden_dropout: float = 0.0
     share_embeddings_and_output_weights: bool = False
-    deallocate_pipeline_outputs: bool = True
-    distribute_saved_activations: bool = False
-    fp16_lm_cross_entropy: bool = False
     # Fusions
     bias_activation_fusion: bool = True
     masked_softmax_fusion: bool = True
