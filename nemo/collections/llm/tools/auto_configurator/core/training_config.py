@@ -54,7 +54,11 @@ def generate_grid_search_configs(
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
 
     seq_length = base_cfg.model.config.seq_length
-    num_layers = base_cfg.model.config.num_layers if model_name in GPT_BASED_MODELS else base_cfg.model.config.encoder.num_layers
+    num_layers = (
+        base_cfg.model.config.num_layers
+        if model_name in GPT_BASED_MODELS
+        else base_cfg.model.config.encoder.num_layers
+    )
 
     if model_name in GPT_BASED_MODELS:
         act_method = None

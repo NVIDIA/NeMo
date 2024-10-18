@@ -350,7 +350,7 @@ def generic_base_config(config) -> dict:
         config.num_tokens_in_b,
         config.model_type,
     )
-    base_cfg = config.recipe #BaseConfig(config)
+    base_cfg = config.recipe  # BaseConfig(config)
 
     if default_model:
         params = ModelSizeParams(

@@ -14,9 +14,8 @@
 
 import copy
 import re
-
-from typing import List, Optional
 from functools import partial
+from typing import List, Optional
 
 from nemo.collections.llm import GPTModel
 from nemo.collections.llm.api import pretrain
@@ -92,7 +91,13 @@ class AutoConfigurator:
 
         model_type = self._get_model_type(recipe.model.config)
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
-        assert recipe.data.seq_length in [2048, 4096, 8192, 16384, 32768], "Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768]."
+        assert recipe.data.seq_length in [
+            2048,
+            4096,
+            8192,
+            16384,
+            32768,
+        ], "Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768]."
         assert path_to_logs, f"path_to_logs parameter must be specified."
 
         self.num_gpus = recipe.trainer.devices
@@ -195,6 +200,7 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
     base_cfg = copy.deepcopy(base_cfg)
     # Launch grid search for training constraints
     import nemo_run as run
+
     base_config, train_configs = run.Partial(generate_grid_search_configs, base_cfg, train_cfg)
     print(base_config, dir(train_configs))
     configs = {}
