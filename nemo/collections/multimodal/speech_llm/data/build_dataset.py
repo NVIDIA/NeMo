@@ -14,6 +14,7 @@
 import copy
 from pathlib import Path
 
+import omegaconf
 import torch
 from megatron.core import parallel_state
 from omegaconf.omegaconf import OmegaConf
@@ -121,6 +122,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            tokenizer=dataset.text_processor.tokenizer,
                         )
                     )
             else:
@@ -131,16 +133,25 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                     assert len(input_cfg) == 1, "Only one dataset with multiple manifest paths is supported for eval"
                     data_cfg.input_cfg = input_cfg
                     # for getting names
-                    manifest_filepath = [ic.manifest_filepath for ic in input_cfg[0].input_cfg]
+                    manifest_filepath = []
+                    for ic in input_cfg[0].input_cfg:
+                        if hasattr(ic, "manifest_filepath"):
+                            manifest_filepath.append(ic.manifest_filepath)
+                        else:
+                            assert ic.type == "txt_pair"
+                            manifest_filepath.append(ic.target_paths)
                 for cur_input_cfg in input_cfg[0].input_cfg:
                     conf = copy.deepcopy(data_cfg)
                     conf.input_cfg[0].input_cfg = [cur_input_cfg]
+                    OmegaConf.set_struct(conf, False)
+                    conf.force_finite = True
                     dls.append(
                         get_lhotse_dataloader_from_config(
                             conf,
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            tokenizer=dataset.text_processor.tokenizer,
                         )
                     )
 
