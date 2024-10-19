@@ -24,7 +24,6 @@ from pytorch_lightning.callbacks.callback import Callback
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config70B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
@@ -64,7 +63,7 @@ def trainer(
     virtual_pipeline_parallelism: Optional[int] = 5,
     context_parallelism: int = 2,
     sequence_parallelism: bool = True,
-    num_nodes: int = 1,
+    num_nodes: int = 4,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
@@ -117,6 +116,7 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
+            average_in_collective=True,
         ),
     )
 
@@ -142,7 +142,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 4, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3 70B model.
@@ -189,7 +189,7 @@ def pretrain_recipe(
 
 @run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 4, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for Llama3 70B model.
@@ -221,6 +221,11 @@ def pretrain_recipe_performance(
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
 
+    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically by MegatronCommOverlapCallback
+    # They are added here for user's knowledge
+    # overlap_param_gather_with_optimizer_step- If true, overlap param all-gather of first bucket with optimizer step.
+    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else each PP stage launches independently as needed
+
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
@@ -228,6 +233,8 @@ def pretrain_recipe_performance(
             tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=22,
+            overlap_param_gather_with_optimizer_step=True,
+            align_param_gather=True,
         )
     )
 
