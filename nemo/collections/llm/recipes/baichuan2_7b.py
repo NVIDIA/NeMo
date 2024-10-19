@@ -22,7 +22,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
-from nemo.collections.llm import Baichuan2Model, Baichuan2Config7B
+from nemo.collections.llm import Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.peft.lora import LoRA
@@ -271,7 +271,9 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
-    recipe = default_finetune_recipe(model(), "baichuan-inc/Baichuan2-7B-Base", dir, name, num_nodes, num_gpus_per_node)
+    recipe = default_finetune_recipe(
+        model(), "baichuan-inc/Baichuan2-7B-Base", dir, name, num_nodes, num_gpus_per_node
+    )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6

@@ -21,7 +21,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
-from nemo.collections.llm import GemmaModel, GemmaConfig2B
+from nemo.collections.llm import GemmaConfig2B, GemmaModel
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.peft.lora import LoRA
