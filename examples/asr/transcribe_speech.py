@@ -136,11 +136,11 @@ class TranscriptionConfig:
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
     # Set to True to output greedy timestamp information (only supported models) and returns full alignment hypotheses
-    timestamps: bool = False 
-    
+    timestamps: bool = False
+
     # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
     return_hypotheses: bool = True
-    
+
     # Set to True to output language ID information
     compute_langs: bool = False
 
