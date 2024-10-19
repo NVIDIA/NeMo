@@ -81,7 +81,20 @@ class MCoreModelAttributeValidator(pl.Callback):
 
 
 def verify_distcp_dir(ckpt_path: str) -> None:
-    pass
+    ckpt_name = os.path.basename(ckpt_path)
+
+    weights_dir = os.path.join(ckpt_path, 'weights')
+    assert os.path.isdir(weights_dir), f"Weights not found in checkpoint {ckpt_name}"
+    assert os.path.isfile(os.path.join(weights_dir, 'common.pt')), f"No 'common.pt' file in checkpoint {ckpt_name}"
+    assert os.path.isfile(
+        os.path.join(weights_dir, 'metadata.json')
+    ), f"No 'metadata.json' file in checkpoint {ckpt_name}"
+
+    shards = [shard for shard in os.listdir(weights_dir) if shard.endswith('.distcp')]
+    world_size = torch.distributed.get_world_size()
+    assert (
+        len(shards) == 2 * world_size
+    ), f"Wrong number of .distcp files, Expected: {2*world_size} Found: {len(shards)}"
 
 
 def verify_ckpt_dir(
@@ -113,7 +126,7 @@ def verify_ckpt_dir(
 
         if dist_ckpts:
             assert os.path.isdir(ckpt_path), "Checkpoint is not correct type"
-            verify_distcp_dir(ckpt_name)
+            verify_distcp_dir(ckpt_path)
         else:
             assert os.path.isfile(ckpt_path), "Checkpoint is not correct type"
 
