@@ -142,6 +142,8 @@ class MegatronGenerate(Resource):
             del output['full_logprob']
 
         output_sentence = output['sentences'][0][len(conversation) :]
+        if output_sentence.endswith(special_tokens['end_of_turn'] + special_tokens['turn_start']):
+            output_sentence = output_sentence[:-len(special_tokens['end_of_turn'] + special_tokens['turn_start'])]
 
         return jsonify(
             {
