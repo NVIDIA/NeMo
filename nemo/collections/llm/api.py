@@ -528,3 +528,42 @@ def _set_with_io(obj, attr, value):
     setattr(obj, attr, value)
     if hasattr(obj, "__io__") and hasattr(value, "__io__"):
         setattr(obj.__io__, attr, deepcopy(value.__io__))
+
+
+def _validate_config(
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Optional[NeMoLogger],
+    resume: Optional[AutoResume],
+    optim: Optional[OptimizerModule],
+    tokenizer: Optional[TokenizerType],
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]],
+    ) -> None:
+
+    # Parallelism validation
+    assert isinstance(trainer.strategy, run.Config)
+
+    assert (
+        trainer.strategy.tensor_model_parallel_size
+        * trainer.strategy.pipeline_model_parallel_size
+        * trainer.strategy.context_parallel_size
+        * trainer.strategy.expert_model_parallel_size
+        % trainer.devices
+        == 0
+    )
+    assert (
+        trainer.strategy.tensor_model_parallel_size
+        * trainer.strategy.pipeline_model_parallel_size
+        * trainer.strategy.context_parallel_size
+        * trainer.strategy.expert_model_parallel_size
+        / trainer.devices
+        % trainer.num_nodes
+        == 0
+    )
+
+    if trainer.strategy.pipeline_model_parallel_size != 1:
+        assert trainer.strategy.pipeline_dtype is not None
+
+    if trainer.strategy.tensor_model_parallel_size == 1:
+        assert trainer.strategy.sequence_parallel is False
