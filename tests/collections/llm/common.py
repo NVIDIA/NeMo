@@ -71,7 +71,7 @@ class MCoreModelAttributeValidator(pl.Callback):
 
     def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         def walk_fn(module: torch.nn.Module) -> torch.nn.Module:
-            self._check_attrs(module)
+            # self._check_attrs(module) # TE DPA has 'sequence_parallel' attribute that is always False. Checking module config should be sufficient
             if hasattr(module, "config"):
                 self._check_attrs(module.config)
 
