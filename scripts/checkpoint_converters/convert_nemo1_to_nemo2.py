@@ -1,3 +1,4 @@
+import os
 import shutil
 import tempfile
 from argparse import ArgumentParser
@@ -25,13 +26,13 @@ Example usage:
 a. Convert a .nemo checkpoint in tp1
     python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
         --input_path=Meta-Llama-3-8B.nemo \
-        --output_path=my_output_dir \
+        --output_path=your_output_dir \
         --model_id=meta-llama/Meta-Llama-3-8B
 
 b. Convert a .nemo checkpoint in tp4
     torchrun --nproc_per_node=4 /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
         --input_path=Mixtral-8x7B.nemo \
-        --output_path=my_output_dir \
+        --output_path=your_output_dir \
         --model_id=mistralai/Mixtral-8x7B-v0.1 \
         --tp_size=4
 
@@ -39,9 +40,9 @@ c. Convert a model weight directory. The checkpoint should be similar to `model_
    Please also provide tokenizer_library and tokenizer_path when loading from weight directory.
     python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_nemo2.py \
         --input_path=nemotron3-8b-extracted/model_weights \
-        --tokenizer_path=nemotron3-8b-extracted/586f3f51a9cf43bc9369bd53fa08868c_a934dc7c3e1e46a6838bb63379916563_3feba89c944047c19d5a1d0c07a85c32_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model \
+        --tokenizer_path=path_to_your_tokenizer_model.model \
         --tokenizer_library=sentencepiece \
-        --output_path=my_output_dir \
+        --output_path=your_output_dir \
         --model_id=nvidia/nemotron-3-8b-base-4k
 
 """
@@ -76,9 +77,7 @@ def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
     return model_cls(config_cls(), tokenizer=tokenizer)
 
 
-def get_tokenizer(input_path: Path) -> AutoTokenizer:
-    tokenizer_tmp_dir = "tmp/nemo_tokenizer" #this dir needs to persist for io_dump
-
+def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
     if not input_path.is_dir(): #if .nemo tar
         with tempfile.TemporaryDirectory() as tmp_dir: #we want to clean up this tmp dir
             NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
@@ -104,12 +103,12 @@ def get_tokenizer(input_path: Path) -> AutoTokenizer:
     if tokenizer_lib=="huggingface":
         return AutoTokenizer(tokenizer_tmp_dir)
     else: #not directly use huggingface tokenizer in get_nmt_tokenizer since it will pull from HF and no reload
-        logging.info(f"Loading tokenizer from {tokenizer_model}")
         return get_nmt_tokenizer(library=tokenizer_lib, tokenizer_model=tokenizer_model)
 
 
 def main() -> None:
-    tokenizer = get_tokenizer(Path(args.input_path))
+    tokenizer_tmp_dir = "/tmp/nemo_tokenizer"
+    tokenizer = get_tokenizer(Path(args.input_path), Path(tokenizer_tmp_dir))
     model = get_nemo2_model(args.model_id, tokenizer=tokenizer)
 
     strategy = nl.MegatronStrategy(
@@ -163,6 +162,10 @@ def main() -> None:
         if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
             trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
         TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(args.output_path))
+    
+    #remove tmp dir
+    if os.path.isdir(tokenizer_tmp_dir):
+        shutil.rmtree(tokenizer_tmp_dir)
 
 if __name__ == '__main__':
     args = get_args()
