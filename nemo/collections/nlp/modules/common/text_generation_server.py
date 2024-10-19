@@ -212,7 +212,7 @@ class MegatronGenerate(Resource):
 
         output_sentence = output['sentences'][0][len(conversation) :]
         if output_sentence.endswith(special_tokens['end_of_turn'] + special_tokens['turn_start']):
-            output_sentence = output_sentence[:-len(special_tokens['end_of_turn'] + special_tokens['turn_start'])]
+            output_sentence = output_sentence[: -len(special_tokens['end_of_turn'] + special_tokens['turn_start'])]
         tokens = output['tokens'][0]
         logprobs = output['logprob'][0] if output['logprob'] is not None else None
         num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
