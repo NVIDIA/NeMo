@@ -155,7 +155,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
         if timestamps or override_config.timestamps:
-            logging.info("Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']")
+            logging.info(
+                "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
+            )
             return_hypotheses = True
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding.compute_timestamps = True
