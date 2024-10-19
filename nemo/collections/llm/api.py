@@ -539,7 +539,7 @@ def _validate_config(
     optim: Optional[OptimizerModule],
     tokenizer: Optional[TokenizerType],
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]],
-    ) -> None:
+) -> None:
 
     # Parallelism validation
     assert isinstance(trainer.strategy, run.Config)
