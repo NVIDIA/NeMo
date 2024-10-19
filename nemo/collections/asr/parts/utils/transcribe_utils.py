@@ -388,7 +388,7 @@ def write_transcription(
     model_name: str,
     filepaths: List[str] = None,
     compute_langs: bool = False,
-    compute_timestamps: bool = False,
+    timestamps: bool = False,
 ) -> Tuple[str, str]:
     """Write generated transcription to output file."""
     if cfg.append_pred:
@@ -433,7 +433,7 @@ def write_transcription(
                 else:  # transcription is Hypothesis
                     item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
 
-                    if compute_timestamps:
+                    if timestamps:
                         timestamps = transcription.timestep
                         if timestamps is not None and isinstance(timestamps, dict):
                             timestamps.pop(
@@ -441,7 +441,7 @@ def write_transcription(
                             )  # Pytorch tensor calculating index of each token, not needed.
                             for key in timestamps.keys():
                                 values = normalize_timestamp_output(timestamps[key])
-                                item[f'timestamps_{key}'] = values
+                                item[f'{key}'] = values
 
                     if compute_langs:
                         item['pred_lang'] = transcription.langs
@@ -458,7 +458,7 @@ def write_transcription(
                     else:  # transcription is Hypothesis
                         item[pred_text_attr_name] = best_hyps[idx].text
 
-                        if compute_timestamps:
+                        if timestamps:
                             timestamps = best_hyps[idx].timestep
                             if timestamps is not None and isinstance(timestamps, dict):
                                 timestamps.pop(
@@ -466,7 +466,7 @@ def write_transcription(
                                 )  # Pytorch tensor calculating index of each token, not needed.
                                 for key in timestamps.keys():
                                     values = normalize_timestamp_output(timestamps[key])
-                                    item[f'timestamps_{key}'] = values
+                                    item[f'{key}'] = values
 
                         if compute_langs:
                             item['pred_lang'] = best_hyps[idx].langs
