@@ -475,7 +475,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
-            timestamps: Bool: whether to provide timestamps along with the transcriptions, currently its not supported.
+            timestamps: Bool: whether to provide timestamps along with the transcriptions, currently its not supported for AED models.
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[MultiTaskTranscriptionConfig]) A config to override the default config.
             **prompt: Optional input to construct the prompts for the model. Accepted formats are: 1) legacy Canary-1B API source_lang=<lang>, target_lang=<lang>, etc. 2) explicit single-turn role=<role>, slots={<slot>: <value>, ...} 3) explicit multi-turn: turns=[{"role": <role>, "slots": {<slot>: <value>, ...}}]
@@ -484,7 +484,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
         if timestamps:
-            raise NotImplementedError("Timestamps are not supported for this model yet.")
+            raise NotImplementedError("Computing timestamps are not supported for this model yet.")
 
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(

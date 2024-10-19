@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
 import json
 import os
 import time
@@ -50,7 +49,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   audio_dir: path to directory with audio files
   dataset_manifest: path to dataset JSON manifest file (in NeMo format)
 
-  compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
+  timestamps: Bool to request greedy time stamp information (if the model supports it)
   compute_langs: Bool to request language ID information (if the model supports it)
 
   (Optionally: You can limit the type of timestamp computations using below overrides)
@@ -98,7 +97,7 @@ python transcribe_speech.py \
     clean_groundtruth_text=True \
     langid='en' \
     batch_size=32 \
-    compute_timestamps=False \
+    timestamps=False \
     compute_langs=False \
     cuda=0 \
     amp=True \
@@ -136,11 +135,12 @@ class TranscriptionConfig:
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
-    # Set to True to output greedy timestamp information (only supported models)
-    compute_timestamps: bool = False
-    # set to True if need to return full alignment information
-    preserve_alignment: bool = False
-
+    # Set to True to output greedy timestamp information (only supported models) and returns full alignment hypotheses
+    timestamps: bool = False 
+    
+    # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
+    return_hypotheses: bool = True
+    
     # Set to True to output language ID information
     compute_langs: bool = False
 
@@ -193,9 +193,6 @@ class TranscriptionConfig:
     # can be set to True to return list of transcriptions instead of the config
     # if True, will also skip writing anything to the output file
     return_transcriptions: bool = False
-
-    # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
-    return_hypotheses: bool = True
 
     # key for groundtruth text in manifest
     gt_text_attr_name: str = "text"
@@ -272,10 +269,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         asr_model.to(getattr(torch, cfg.compute_dtype))
 
     # we will adjust this flag if the model does not support it
-    compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
-    # has to be True if timestamps are required
-    preserve_alignment = True if cfg.compute_timestamps else cfg.preserve_alignment
 
     # Check whether model and decoder type match
     if isinstance(asr_model, EncDecCTCModel):
@@ -309,9 +303,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if cfg.extract_nbest:
                 decoding_cfg.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
-            decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
-            if 'preserve_alignments' in decoding_cfg:
-                decoding_cfg.preserve_alignments = preserve_alignment
             if 'compute_langs' in decoding_cfg:
                 decoding_cfg.compute_langs = cfg.compute_langs
             if hasattr(asr_model, 'cur_decoder'):
@@ -325,16 +316,12 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 cfg.rnnt_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
             cfg.rnnt_decoding.fused_batch_size = -1
-            cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
-            if 'preserve_alignments' in cfg.rnnt_decoding:
-                cfg.rnnt_decoding.preserve_alignments = preserve_alignment
 
             asr_model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
-            cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
             if cfg.extract_nbest:
                 cfg.ctc_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
@@ -396,6 +383,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             override_cfg.augmentor = augmentor
             override_cfg.text_field = cfg.gt_text_attr_name
             override_cfg.lang_field = cfg.gt_lang_attr_name
+            override_cfg.timestamps = cfg.timestamps
             if hasattr(override_cfg, "prompt"):
                 override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
 
@@ -433,7 +421,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         model_name,
         filepaths=filepaths,
         compute_langs=compute_langs,
-        compute_timestamps=compute_timestamps,
+        timestamps=cfg.timestamps,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 

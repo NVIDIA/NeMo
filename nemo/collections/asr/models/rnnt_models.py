@@ -281,7 +281,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
         if timestamps:
-            logging.info("Timestamps requested, setting decoding timestamps to True")
+            logging.info("Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[0][idx].timestep['word'/'segment'/'char']")
             return_hypotheses = True
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding.compute_timestamps = True

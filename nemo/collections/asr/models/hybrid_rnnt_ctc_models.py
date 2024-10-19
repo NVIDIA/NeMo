@@ -141,7 +141,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
 
         if timestamps:
-            logging.info("Timestamps requested, setting decoding timestamps to True")
+            logging.info("Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']")
             return_hypotheses = True
             with open_dict(decoding_cfg):
                 decoding_cfg.decoding.compute_timestamps = True
