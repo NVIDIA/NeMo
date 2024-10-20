@@ -44,7 +44,7 @@ With the `timestamps=True` flag, you can obtain timestamps for each character in
     char_timestamps = hypotheses[0][0].timestep['char'] # char level timestamps
 
     for stamp in segment_timestamps:
-        print(f"{stamp['start']}s - {end['start']}s - {stamp['word']}")
+        print(f"{stamp['start']}s - {stamp['end']}s : {stamp['segment']}")
 
     # segment level timestamps (if model supports Punctuation and Capitalization, segment level timestamps are displayed based on punctuation otherwise complete transcription is considered as a single segment)
     
