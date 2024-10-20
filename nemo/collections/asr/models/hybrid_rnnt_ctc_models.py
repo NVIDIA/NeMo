@@ -221,7 +221,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         # if logprobs:
         #     for logit, elen in zip(logits, encoded_len):
         #         logits_list.append(logit[:elen])
-        
+
         if trcfg.timestamps:
             best_hyp = process_timestamp_outputs(
                 best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
