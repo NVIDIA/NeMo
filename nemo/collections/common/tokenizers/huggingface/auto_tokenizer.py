@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import Optional
+from typing import List, Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
 
@@ -43,6 +43,7 @@ class AutoTokenizer(TokenizerSpec):
         sep_token: Optional[str] = None,
         cls_token: Optional[str] = None,
         unk_token: Optional[str] = None,
+        other_special_tokens: Optional[List] = [],
         use_fast: Optional[bool] = False,
         trust_remote_code: Optional[bool] = False,
     ):
@@ -60,6 +61,7 @@ class AutoTokenizer(TokenizerSpec):
             sep_token: token used for separating sequences
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
+            other_special_tokens: list of other tokens beside standard special tokens (bos, eos, pad, etc.). For example, sentinel tokens for T5 (<extra_id_0>, <extra_id_1>, etc.)
             use_fast: whether to use fast HuggingFace tokenizer
         """
         try:
@@ -77,10 +79,6 @@ class AutoTokenizer(TokenizerSpec):
                     use_fast=use_fast,
                     trust_remote_code=trust_remote_code,
                 )
-                # DEBUGGING
-                additional_tokens = {'additional_special_tokens': [f'<extra_id_{i}>' for i in range(100)]}
-                self.tokenizer.add_special_tokens(additional_tokens)
-                # print(stop_here)
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
                     pretrained_model_name_or_path=pretrained_model_name,
@@ -95,6 +93,11 @@ class AutoTokenizer(TokenizerSpec):
             )
 
         self.original_vocab_size = len(self.tokenizer)
+
+        # adding additional tokens (besides standard special tokens: bos, unk, sep, etc.). E.g. <extra_id_0>, <extra_id_1>, etc. as for T5 model
+        if other_special_tokens is not None:
+            self.tokenizer.add_special_tokens({'additional_special_tokens': other_special_tokens})
+
         special_tokens_dict = {}
 
         # # setting special tokens, by default the default model's special tokens will be preserved
@@ -219,9 +222,12 @@ class AutoTokenizer(TokenizerSpec):
         ids = self.tokens_to_ids(tokens)
         return ids
 
-    def ids_to_text(self, ids):
+    def ids_to_text(self, ids, remove_special_tokens = True):
         tokens = self.ids_to_tokens(ids)
-        tokens_clean = [t for t in tokens if t not in self.tokenizer.all_special_tokens]
+        if remove_special_tokens:
+            tokens_clean = [t for t in tokens if t not in self.tokenizer.all_special_tokens]
+        else:
+            tokens_clean = tokens
         text = self.tokens_to_text(tokens_clean)
         return text
 

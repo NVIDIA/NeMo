@@ -29,8 +29,8 @@ class MCoreTokenizerWrappper:
         self.eod = tokenizer.eod
         self.vocab_size = tokenizer.vocab_size
 
-    def detokenize(self, tokens):
-        return self.tokenizer.ids_to_text(tokens)
+    def detokenize(self, tokens, remove_special_tokens = False):
+        return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
 
     def tokenize(self, prompt):
         return self.tokenizer.text_to_ids(prompt)
