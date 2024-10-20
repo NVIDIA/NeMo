@@ -134,6 +134,7 @@ def trainer(
         plugins=bf16_mixed(),
         strategy=strategy,
         use_distributed_sampler=False,
+        # DEBUGGING
         val_check_interval=2000,
     )
 
