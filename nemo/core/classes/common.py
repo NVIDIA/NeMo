@@ -470,14 +470,14 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):
+    def from_config_dict(cls, config: Union['DictConfig', dict], trainer: Optional['Trainer'] = None):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if _HAS_HYDRA:
             if isinstance(config, DictConfig):
                 config = OmegaConf.to_container(config, resolve=True)
-                config = OmegaConf.create(config)
-                OmegaConf.set_struct(config, True)
+            config = OmegaConf.create(config)
+            OmegaConf.set_struct(config, True)
 
             config = maybe_update_config_version(config)
 

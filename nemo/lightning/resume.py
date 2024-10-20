@@ -20,6 +20,7 @@ from typing import Optional, Union
 
 import lightning_fabric as fl
 import pytorch_lightning as pl
+from megatron.core import dist_checkpointing
 
 from nemo.lightning import io
 from nemo.lightning.base import NEMO_MODELS_CACHE
