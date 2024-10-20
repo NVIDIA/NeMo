@@ -146,8 +146,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             )
             return_hypotheses = True
             with open_dict(decoding_cfg):
-                decoding_cfg.decoding.compute_timestamps = True
-                decoding_cfg.decoding.preserve_alignments = True
+                decoding_cfg.compute_timestamps = True
+                decoding_cfg.preserve_alignments = True
             self.change_decoding_strategy(decoding_cfg, self.cur_decoder, verbose=False)
         else:  # This is done to ensure the timestamps are not computed if not requested
             with open_dict(decoding_cfg):
@@ -223,9 +223,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         #         logits_list.append(logit[:elen])
 
         if trcfg.timestamps:
-            hypotheses = process_timestamp_outputs(
-                best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
-            )
             all_hyp = process_timestamp_outputs(
                 all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
