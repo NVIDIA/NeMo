@@ -921,7 +921,11 @@ class AbstractCTCDecoding(ConfidenceMixin):
             A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
             "end_offset".
         """
-        if supported_punctuation and not set(segment_delimiter_tokens).intersection(supported_punctuation) and not segment_gap_threshold:
+        if (
+            supported_punctuation
+            and not set(segment_delimiter_tokens).intersection(supported_punctuation)
+            and not segment_gap_threshold
+        ):
             logging.warning(
                 f"Specified segment seperators are not in supported punctuation {supported_punctuation}. "
                 "If the seperators are not punctuation marks, ignore this warning. "
