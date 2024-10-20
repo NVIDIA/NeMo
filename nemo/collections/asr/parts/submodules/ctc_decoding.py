@@ -930,7 +930,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
             logging.warning(
                 f"Specified segment seperators are not in supported punctuation {supported_punctuation}. "
                 "If the seperators are not punctuation marks, ignore this warning. "
-                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments."
+                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments.",
+                mode=logging_mode.ONCE,
             )
 
         segment_offsets = []
