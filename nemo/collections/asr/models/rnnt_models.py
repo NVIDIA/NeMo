@@ -295,13 +295,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                 self.cfg.decoding.preserve_alignments = self.cfg.decoding.get('preserve_alignments', False)
             self.change_decoding_strategy(self.cfg.decoding, verbose=False)
 
-        self.decoding = RNNTDecoding(
-            decoding_cfg=self.cfg.decoding,
-            decoder=self.decoder,
-            joint=self.joint,
-            vocabulary=self.joint.vocabulary,
-        )
-
         return super().transcribe(
             audio=audio,
             batch_size=batch_size,
@@ -947,6 +940,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         del encoded, encoded_len
 
         if trcfg.timestamps:
+            best_hyp = process_timestamp_outputs(
+                best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
             all_hyp = process_timestamp_outputs(
                 all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
