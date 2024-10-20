@@ -27,7 +27,6 @@ from nemo.collections.llm.gpt.data import (
 )
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
-    HfAutoModel,
     Baichuan2Config,
     Baichuan2Config7B,
     Baichuan2Model,
@@ -58,6 +57,7 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig126M,
     GPTConfig175B,
     GPTModel,
+    HfAutoModel,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
