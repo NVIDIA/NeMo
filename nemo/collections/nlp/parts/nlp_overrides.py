@@ -162,6 +162,7 @@ def init_model_parallel(
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 order='tp-pp-dp' if app_state.use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+                partial_data_parallel_shard_factor=app_state.partial_data_parallel_shard_factor,
                 distributed_timeout_minutes=distributed_timeout_minutes,
             )
 
