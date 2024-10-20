@@ -273,6 +273,7 @@ def _forward(
                 streaming=streaming,
                 output_sequence_lengths=True,
                 return_dict=True,
+                output_log_probs=sampling_kwargs.get('output_log_probs', False),
             )
 
             torch.cuda.synchronize()
@@ -685,6 +686,7 @@ def generate(
     output_ids = outputs['output_ids']
     sequence_lengths = outputs['sequence_lengths']
     input_lengths = [t.shape[0] for t in input_tensors]
+    log_probs = outputs['log_probs']
 
     output_lines_list = [
         tokenizer.batch_decode(output_ids[b, :, input_lengths[b] : sequence_lengths[b][0]])

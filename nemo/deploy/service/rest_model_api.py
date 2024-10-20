@@ -70,19 +70,27 @@ class CompletionRequest(BaseModel):
     max_tokens: int = 512
     temperature: float = 1.0
     top_p: float = 0.0
-    n: int = 1
+    top_k: int = 1
     stream: bool = False
     stop: str | None = None
     frequency_penalty: float = 1.0
 
 
-@app.get("/triton_health")
+@app.get("/v1/health")
+def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/v1/triton_health")
 async def check_triton_health():
     """
     This method exposes endpoint "/triton_health" which can be used to verify if Triton server is accessible while running the REST or FastAPI application.
-    Verify by running: curl http://service_http_address:service_port/triton_health and the returned status should inform if the server is accessible.
+    Verify by running: curl http://service_http_address:service_port/v1/triton_health and the returned status should inform if the server is accessible.
     """
-    triton_url = f"triton_settings.triton_service_ip:str(triton_settings.triton_service_port)/v2/health/ready"
+    triton_url = (
+        f"http://{triton_settings.triton_service_ip}:{str(triton_settings.triton_service_port)}/v2/health/ready"
+    )
+    print(f"Attempting to connect to Triton server at: {triton_url}")
     try:
         response = requests.get(triton_url, timeout=5)
         if response.status_code == 200:
@@ -101,11 +109,12 @@ def completions_v1(request: CompletionRequest):
         output = nq.query_llm(
             prompts=[request.prompt],
             max_output_len=request.max_tokens,
-            top_k=request.n,
+            top_k=request.top_k,
             top_p=request.top_p,
             temperature=request.temperature,
             init_timeout=triton_settings.triton_request_timeout,
             openai_format_response=triton_settings.openai_format_response,
+            compute_logprob=True,
         )
         if triton_settings.openai_format_response:
             return output
