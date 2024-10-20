@@ -15,7 +15,6 @@
 
 from typing import Callable, Optional
 
-import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -32,12 +31,13 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.run import cli_factory
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_8b"
 
 
-@run.cli.factory(name=NAME)
+@cli_factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Llama3 8B model configuration.
@@ -141,7 +141,7 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=pretrain, name=NAME)
+@cli_factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
@@ -189,7 +189,7 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
+@cli_factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
     dir: Optional[str] = None,
     name: str = "default",
@@ -235,7 +235,7 @@ def pretrain_recipe_performance(
     return recipe
 
 
-@run.cli.factory(target=finetune, name=NAME)
+@cli_factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
