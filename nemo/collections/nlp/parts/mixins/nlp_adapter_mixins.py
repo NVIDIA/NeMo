@@ -437,7 +437,7 @@ class NLPAdapterModelMixin:
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return super().state_dict()
+            return self._unwrap_model().state_dict(prefix="model.")
 
     def sharded_state_dict(self, prefix: str = ''):
         use_mcore = (getattr(self, 'mcore_gpt', False)) or (getattr(self, 'mcore_t5', False))
