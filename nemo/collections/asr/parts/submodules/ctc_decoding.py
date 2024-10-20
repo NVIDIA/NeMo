@@ -197,7 +197,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             Set of punctuation marks in the vocabulary.
     """
 
-    def __init__(self, decoding_cfg, blank_id: int, supported_punctuation: Set = None):
+    def __init__(self, decoding_cfg, blank_id: int, supported_punctuation: Optional[Set] = None):
         super().__init__()
 
         # Convert dataclas to config
@@ -750,7 +750,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
     @staticmethod
     def _refine_timestamps(char_offsets: List[Dict[str, Union[str, int]]],
-                           supported_punctuation: Set = None) -> List[Dict[str, Union[str, int]]]:
+                           supported_punctuation: Optional[Set] = None) -> List[Dict[str, Union[str, int]]]:
 
         if not supported_punctuation:
             return char_offsets
@@ -905,8 +905,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
     def _get_segment_offsets(
         offsets: Dict[str, Union[str, float]],
         segment_delimiter_tokens: List[str],
-        supported_punctuation: Set = None,
-        segment_gap_threshold: int = None,
+        supported_punctuation: Optional[Set] = None,
+        segment_gap_threshold: Optional[int] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs segment time stamps out of word time stamps.
@@ -925,7 +925,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
             logging.warning(
                 f"Specified segment seperators are not in supported punctuation {supported_punctuation}. "
                 "If the seperators are not punctuation marks, ignore this warning. "
-                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments."
+                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments.",
+                mode=logging_mode.ONCE,
             )
 
         segment_offsets = []

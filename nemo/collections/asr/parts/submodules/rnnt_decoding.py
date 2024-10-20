@@ -28,7 +28,7 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConf
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 
 
 class AbstractRNNTDecoding(ConfidenceMixin):
@@ -199,10 +199,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
         blank_id: The id of the RNNT blank token.
-        supported_punctuation: set of punctuation marks in the vocabulary
+        supported_punctuation: Set of punctuation marks in the vocabulary
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, supported_punctuation: Set = None):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, supported_punctuation: Optional[Set] = None):
         super(AbstractRNNTDecoding, self).__init__()
 
         # Convert dataclass to config object
@@ -927,7 +927,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
     def _refine_timestamps(
         encoded_char_offsets: List[Dict[str, Union[str, int]]],
         char_offsets: List[Dict[str, Union[str, int]]],
-        supported_punctuation: Set = None,
+        supported_punctuation: Optional[Set] = None,
     ) -> List[Dict[str, Union[str, int]]]:
 
         ## no refinement for rnnt
@@ -938,7 +938,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
     def _refine_timestamps_tdt(
         encoded_char_offsets: List[Dict[str, Union[str, int]]],
         char_offsets: List[Dict[str, Union[str, int]]],
-        supported_punctuation: Set = None,
+        supported_punctuation: Optional[Set] = None,
     ) -> List[Dict[str, Union[str, int]]]:
 
         if not supported_punctuation:
@@ -1098,8 +1098,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
     def _get_segment_offsets(
         offsets: Dict[str, Union[str, float]],
         segment_delimiter_tokens: List[str],
-        supported_punctuation: Set = None,
-        segment_gap_threshold: int = None,
+        supported_punctuation: Optional[Set] = None,
+        segment_gap_threshold: Optional[int] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs segment time stamps out of word time stamps.
@@ -1117,7 +1117,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             logging.warning(
                 f"Specified segment seperators are not in supported punctuation {supported_punctuation}. "
                 "If the seperators are not punctuation marks, ignore this warning. "
-                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments."
+                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments.",
+                mode=logging_mode.ONCE,
             )
 
         segment_offsets = []
