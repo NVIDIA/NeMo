@@ -50,6 +50,7 @@ def audio_files(test_data_dir):
     Returns a list of audio files for testing.
     """
     import soundfile as sf
+
     audio_file1 = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
     audio_file2 = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an104-mrcb-b.wav")
 
@@ -310,6 +311,7 @@ class TestTranscriptionMixin:
         assert outputs[0][2] == 3.0
 
     pytest.mark.with_downloads()
+
     @pytest.mark.unit
     def test_transcribe_return_hypothesis(self, test_data_dir, fast_conformer_ctc_model):
         audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
@@ -327,7 +329,7 @@ class TestTranscriptionMixin:
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_transcribe_tensor(self, audio_files, fast_conformer_ctc_model):
-        
+
         audio, _ = audio_files
         # Numpy array test
         outputs = fast_conformer_ctc_model.transcribe(audio, batch_size=1)
@@ -353,7 +355,7 @@ class TestTranscriptionMixin:
     def test_transcribe_dataloader(self, audio_files, fast_conformer_ctc_model):
 
         audio, audio2 = audio_files
-        
+
         dataset = DummyDataset([audio, audio2])
         collate_fn = lambda x: _speech_collate_fn(x, pad_id=0)
         dataloader = DataLoader(dataset, batch_size=2, shuffle=False, num_workers=0, collate_fn=collate_fn)
@@ -369,14 +371,14 @@ class TestTranscriptionMixin:
     def test_timestamps_with_transcribe(self, audio_files, fast_conformer_ctc_model):
         audio1, audio2 = audio_files
 
-        output = fast_conformer_ctc_model.transcribe([audio1,audio2], timestamps=True)
+        output = fast_conformer_ctc_model.transcribe([audio1, audio2], timestamps=True)
 
-        # check len of output 
-        assert len(output)==2
+        # check len of output
+        assert len(output) == 2
 
-        # check hypothesis object 
+        # check hypothesis object
         assert isinstance(output[0], Hypothesis)
-        # check transcript 
+        # check transcript
         assert output[0].text == 'stop'
         assert output[1].text == 'start'
 
@@ -384,28 +386,24 @@ class TestTranscriptionMixin:
         assert output[0].timestep['segment'][0]['start'] == pytest.approx(0.4)
         assert output[0].timestep['segment'][0]['end'] == pytest.approx(0.48)
 
-    
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_timestamps_with_transcribe_hybrid(self, audio_files, fast_conformer_hybrid_model):
         audio1, audio2 = audio_files
 
-        output = fast_conformer_hybrid_model.transcribe([audio1,audio2], timestamps=True)
+        output = fast_conformer_hybrid_model.transcribe([audio1, audio2], timestamps=True)
 
-        # check len of output 
-        assert len(output)==2
+        # check len of output
+        assert len(output) == 2
 
-        output = output[1] # Transducer returns tuple
+        output = output[1]  # Transducer returns tuple
 
-        # check hypothesis object 
+        # check hypothesis object
         assert isinstance(output[0], Hypothesis)
-        # check transcript 
+        # check transcript
         assert output[0].text == 'Stop?'
         assert output[1].text == 'Start.'
 
         # check timestamp
         assert output[0].timestep['segment'][0]['start'] == pytest.approx(0.48)
         assert output[0].timestep['segment'][0]['end'] == pytest.approx(0.72)
-
-
-        
