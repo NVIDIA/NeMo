@@ -1,20 +1,20 @@
+import argparse
 import os
 import sys
-from nemo.utils import logging
+
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
-import argparse
+from nemo.utils import logging
 
 logging.setLevel(logging.DEBUG)
-from transformers import AutoProcessor
-from megatron.energon import VQASample
 import requests
 import torch
+from megatron.energon import VQASample
 from PIL import Image
 from transformers import AutoProcessor
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.vlm import LlavaNextTaskEncoder
+
 from nemo import lightning as nl
-from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.vlm import Llava1_5Config7B, LlavaModel, LlavaNextTaskEncoder
 from nemo.utils import logging
 
 
