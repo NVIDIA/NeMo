@@ -52,30 +52,26 @@ SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized laye
 
 
 class Quantizer:
-    """Post-training quantization (PTQ) and TRT-LLM export of Nemo checkpoints.
+    """Post-training quantization (PTQ) and TensorRT-LLM checkpoint export for NeMo models.
 
     PTQ converts selected model layers to low-precision format (e.g., INT4, FP8) for efficient serving.
     The process consist of several steps:
 
-        1. Loading a Nemo model from disk using appropriate parallelism strategy
+        1. Loading a NeMo model from disk using appropriate parallelism strategy
         2. Calibrating the model to obtain appropriate algorithm-specific scaling factors
         3. Producing output directory or .qnemo tarball with model config (json),
            quantized weights (safetensors) and tokenizer config (yaml).
 
     The output directory (or .qnemo file) produced is intended to be consumed by TensorRT-LLM toolbox
-    for efficient inference. This can be achieved using Nemo inference containers.
-
-    Currently supported and tested model family is Llama2. Model type needs to be specified in
-    the quantization command with decoder_type parameter on exporting (see below). Quantizing other
-    model families is experimental and might not be fully supported.
+    for efficient inference. This can be achieved using nemo.export module.
 
     Available quantization methods are listed in `QUANT_CFG_CHOICES` dictionary above.
-    Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer/ for details.
+    Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer for details.
     You can also inspect different choices in examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml
-    for quantization algorithms and calibration data as well as recommended settings.
+    for different algorithms and calibration data as well as recommended settings.
 
     Quantization algorithm can also be conveniently set to 'null' to perform only weights export step
-    for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
+    for TensorRT-LLM deployment. This is useful to getting baseline results for a BF16/FP16 precision model.
     """
 
     def __init__(self, quantization_config: Optional[DictConfig], export_config: Optional[DictConfig]):
@@ -164,7 +160,7 @@ class Quantizer:
             if model_cfg.get("sequence_parallel", False):
                 logging.warning("Disabling sequence parallelism for quantization...")
                 model_cfg.sequence_parallel = False
-            # Only custom ModelOpt spec is supported for Quantization: this custom spec is largely based on local Megatron-LM
+            # Only custom ModelOpt spec is supported for quantization: this spec is mostly based on local Megatron-LM
             # layer definitions to avoid Transformer Engine implementations that are currently not supported.
             # This layer spec also requires RoPE fusion to be disabled for tensor view operations in attention
             # layer implementation from megatron/core/transformer/dot_product_attention.py to be functional.
