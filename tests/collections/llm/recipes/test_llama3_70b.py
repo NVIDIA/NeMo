@@ -20,14 +20,10 @@ class TestLlama3_70B:
 
     def test_model(self, recipe_module):
         model_config = recipe_module.model()
-        print("model_config: ", model_config)
-        print("model_config.__fn_or_cls__: ", model_config.__fn_or_cls__)
-        print("model_config.config: ", model_config.config)
-        print("model_config.config.__fn_or_cls__: ", model_config.config.__fn_or_cls__)
-        assert isinstance(model_config, run.Config), "Here!"
-        assert model_config.__fn_or_cls__ == LlamaModel, "Here!"
-        assert isinstance(model_config.config, run.Config), "Here!"
-        assert model_config.config.__fn_or_cls__ == Llama3Config70B, "Here!"
+        assert isinstance(model_config, run.Config)
+        assert model_config.__fn_or_cls__ == LlamaModel
+        assert isinstance(model_config.config, run.Config)
+        assert model_config.config.__fn_or_cls__ == Llama3Config70B
 
     def test_trainer(self, recipe_module):
         trainer_config = recipe_module.trainer()
