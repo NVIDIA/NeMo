@@ -16,13 +16,11 @@ import json
 import os
 import tempfile
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import omegaconf
 import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset

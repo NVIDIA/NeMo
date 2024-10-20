@@ -372,6 +372,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         if verbose:
             logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}")
 
+        return None
+
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         # Reset access registry
