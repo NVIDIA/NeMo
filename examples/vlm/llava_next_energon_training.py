@@ -71,7 +71,7 @@ def main(args):
 
     trainer = nl.Trainer(
         devices=args.devices,
-        max_steps=2170,
+        max_steps=10000,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
@@ -130,7 +130,7 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=None,
+        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
     resume.setup(trainer, model)
 

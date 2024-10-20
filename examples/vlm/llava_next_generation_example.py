@@ -47,7 +47,7 @@ def main(args) -> None:
     # Tokenize the input texts
     # processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
     processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
-    data_path = '/home/ykarnati/Downloads/LLaVA-Pretrain/wds'
+    data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/energon_datasets/LLaVA-Pretrain-LCS-558K'
     image_processor = processor.image_processor
     tokenizer = processor.tokenizer
 
