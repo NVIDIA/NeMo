@@ -280,7 +280,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
-        if timestamps:
+        if timestamps or (override_config is not None and override_config.timestamps):
             logging.info(
                 "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[0][idx].timestep['word'/'segment'/'char']"
             )
