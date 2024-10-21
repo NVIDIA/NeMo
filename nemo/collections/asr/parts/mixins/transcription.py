@@ -16,8 +16,7 @@ import json
 import os
 import tempfile
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -61,6 +60,7 @@ class TranscribeConfig:
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
+    timestamps: bool = False  # returns timestamps for each word and segments if model supports punctuations
     verbose: bool = True
 
     # Utility
@@ -179,6 +179,7 @@ class TranscriptionMixin(ABC):
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: bool = False,
         override_config: Optional[TranscribeConfig] = None,
         **config_kwargs,
     ) -> GenericTranscriptionType:
@@ -229,6 +230,7 @@ class TranscriptionMixin(ABC):
                 channel_selector=channel_selector,
                 augmentor=augmentor,
                 verbose=verbose,
+                timestamps=timestamps,
                 **config_kwargs,
             )
         else:
