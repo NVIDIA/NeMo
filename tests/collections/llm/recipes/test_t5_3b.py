@@ -2,7 +2,6 @@ import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import pretrain
-from nemo.collections.llm.t5.data.squad import SquadDataModule
 from nemo.collections.llm.t5.model.t5 import T5Config3B, T5Model
 from nemo.collections.llm.recipes import t5_3b
 from nemo.lightning import Trainer
