@@ -136,7 +136,7 @@ class AutoTokenizer(TokenizerSpec):
                 new_tokens_in_vocab.append(token)
         for token in additional_special_tokens:
             if token is not None and token not in self.tokenizer.get_vocab():
-                new_tokens_in_vocab.append(token)            
+                new_tokens_in_vocab.append(token)
 
         if len(new_tokens_in_vocab) > 0:
             """
