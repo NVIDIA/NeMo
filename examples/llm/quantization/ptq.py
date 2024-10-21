@@ -17,7 +17,7 @@ import sys
 import torch
 from tqdm import tqdm
 
-from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
+from nemo.collections.llm import quantization
 
 
 def get_args():
@@ -44,7 +44,9 @@ def get_args():
         '-awq_bs', '--awq_block_size', type=int, default=128, help='Block size for AWQ quantization algorithms'
     )
     parser.add_argument('--sq_alpha', type=float, default=0.5, help='Smooth-Quant alpha parameter')
-    parser.add_argument('--enable_kv_cache', type=bool, help='Enables KV-cache quantization')
+    parser.add_argument('--enable_kv_cache', help='Enables KV-cache quantization', action='store_true')
+    parser.add_argument('--disable_kv_cache', dest='enable_kv_cache', action='store_false')
+    parser.set_defaults(enable_kv_cache=True)
     parser.add_argument(
         '-dt', '--dtype', default="bf16", choices=["16", "bf16"], help='Default precision for non-quantized layers'
     )
@@ -57,42 +59,23 @@ def get_args():
         '-calib_ds',
         '--calibration_dataset',
         default="cnn_dailymail",
-        choices=["wikitext", "cnn_dailymail"],
         type=str,
-        help='Calibration dataset to be used',
+        help='Calibration dataset to be used. Should be \"wikitext\", \"cnn_dailymail\" or path to a local .json file',
     )
 
-    return parser.parse_args(sys.argv[1:])
-
-
-def get_quantizer_config(args):
+    args = parser.parse_args()
     if args.output_path is None:
         args.output_path = (
             f"./qnemo_{args.algorithm}_tp{args.tensor_parallelism_size}_pp{args.pipeline_parallelism_size}"
         )
-
-    quantization_config = {
-        "algorithm": None if args.algorithm == "no_quant" else args.algorithm,
-        "awq_block_size": args.awq_block_size,
-        "sq_alpha": args.sq_alpha,
-        "enable_kv_cache": args.enable_kv_cache,
-    }
-    export_config = {
-        "path": args.output_path,
-        "decoder_type": args.decoder_type,
-        "inference_tensor_parallel": args.tensor_parallelism_size,
-        "inference_pipeline_parallel": args.pipeline_parallelism_size,
-        "dtype": args.dtype,
-    }
-
-    return quantization_config, export_config
+    return args
 
 
 def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration_size):
     def _iterator():
         CHARACTERS_PER_TOKEN = 4
 
-        dataloader = get_calib_data_iter(
+        dataloader = quantization.get_calib_data_iter(
             data=dataset,
             max_sequence_length=CHARACTERS_PER_TOKEN * seq_len,
             batch_size=batch_size,
@@ -112,24 +95,40 @@ def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration
 
 
 def main():
-    params = get_args()
-    quantization_config, export_config = get_quantizer_config(params)
-    quantizer = Quantizer(quantization_config, export_config)
-    model = quantizer.load_quantizable_model(params.nemo_checkpoint, params.calib_tp, params.calib_pp)
+    args = get_args()
+
+    quantization_config = quantization.QuantizationConfig(
+        algorithm=None if args.algorithm == "no_quant" else args.algorithm,
+        awq_block_size=args.awq_block_size,
+        sq_alpha=args.sq_alpha,
+        enable_kv_cache=args.enable_kv_cache
+    )
+
+    export_config = quantization.ExportConfig(
+        path=args.output_path,
+        decoder_type=args.decoder_type,
+        inference_tensor_parallel=args.tensor_parallelism_size,
+        inference_pipeline_parallel=args.pipeline_parallelism_size,
+        dtype=args.dtype,
+    )
+
+
+    quantizer = quantization.Quantizer(quantization_config, export_config)
+    model = quantization.load_with_modelopt_layer_spec(args.nemo_checkpoint, args.calib_tp, args.calib_pp)
 
     get_dataloader = create_data_iterator_getter(
         model,
-        dataset=params.calibration_dataset,
-        seq_len=params.seq_len,
-        batch_size=params.batch_size,
-        calibration_size=params.calibration_dataset_size,
+        dataset=args.calibration_dataset,
+        seq_len=args.seq_len,
+        batch_size=args.batch_size,
+        calibration_size=args.calibration_dataset_size,
     )
 
     forward_loop = quantizer.create_megatron_forward_loop(
         get_dataloader,
-        num_batches=params.calibration_dataset_size // params.batch_size,
-        seq_length=params.seq_len,
-        micro_batch_size=params.batch_size,
+        num_batches=args.calibration_dataset_size // args.batch_size,
+        seq_length=args.seq_len,
+        micro_batch_size=args.batch_size,
     )
 
     model = quantizer.quantize(model, forward_loop)
