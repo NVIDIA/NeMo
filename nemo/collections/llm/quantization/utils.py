@@ -14,11 +14,12 @@
 
 from pathlib import Path
 
-from nemo.collections import llm
 from nemo import lightning as nl
-from nemo.utils import logging
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.collections import llm
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.utils import logging
+
 
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for quantization."""
@@ -56,6 +57,7 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
 
 def get_unwrapped_mcore_model(model: llm.GPTModel):
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+
     unwrapped_model = model
     while not isinstance(unwrapped_model, MCoreGPTModel):
         unwrapped_model = unwrapped_model.module

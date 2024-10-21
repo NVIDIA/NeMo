@@ -101,7 +101,7 @@ def main():
         algorithm=None if args.algorithm == "no_quant" else args.algorithm,
         awq_block_size=args.awq_block_size,
         sq_alpha=args.sq_alpha,
-        enable_kv_cache=args.enable_kv_cache
+        enable_kv_cache=args.enable_kv_cache,
     )
 
     export_config = quantization.ExportConfig(
@@ -111,7 +111,6 @@ def main():
         inference_pipeline_parallel=args.pipeline_parallelism_size,
         dtype=args.dtype,
     )
-
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
     model = quantization.load_with_modelopt_layer_spec(args.nemo_checkpoint, args.calib_tp, args.calib_pp)

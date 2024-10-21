@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 import os
 import shutil
+from dataclasses import dataclass
 from typing import Optional, Union
 
 import torch
@@ -24,6 +24,7 @@ from datasets import load_dataset
 from nemo.collections import llm
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
+
 from .utils import get_unwrapped_mcore_model
 
 try:
@@ -48,12 +49,14 @@ except (ImportError, ModuleNotFoundError) as e:
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 
+
 @dataclass
 class QuantizationConfig:
-    algorithm: Optional[str] = "fp8" # one of QUANT_CFG_CHOICES keys
+    algorithm: Optional[str] = "fp8"  # one of QUANT_CFG_CHOICES keys
     awq_block_size: int = 128
     sq_alpha: float = 0.5
     enable_kv_cache: bool = True
+
 
 @dataclass
 class ExportConfig:
@@ -109,7 +112,7 @@ class Quantizer:
     """
 
     def __init__(self, quantization_config: QuantizationConfig, export_config: ExportConfig):
-        """Initialize Quantizer with quantization and export configurations. """
+        """Initialize Quantizer with quantization and export configurations."""
 
         if not HAVE_MODELOPT:
             raise RuntimeError("nvidia-modelopt is needed to use Quantizer") from HAVE_MODELOPT_ERROR
@@ -129,7 +132,6 @@ class Quantizer:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
 
-
     def _setup(self, model: llm.GPTModel) -> None:
         """Setup model for quantization."""
         # TODO: disable activation checkpointing
@@ -137,10 +139,8 @@ class Quantizer:
         model.config.pipeline_dtype = self.torch_dtype  # TODO: for some reason model.pipeline.dtype does not work
         model.freeze()
 
-
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.decoder_type or get_modelopt_decoder_type(config)
-
 
     def quantize(self, model: llm.GPTModel, forward_loop):
         """Quantize the model and calibrate using given forward loop."""
@@ -200,7 +200,6 @@ class Quantizer:
 
         return model
 
-
     def create_megatron_forward_loop(
         self, get_dataloader, num_batches, seq_length=None, micro_batch_size=None, decoder_seq_length=None
     ):
@@ -233,7 +232,6 @@ class Quantizer:
             )
 
         return loop
-
 
     def export(self, model: llm.GPTModel, nemo_checkpoint_path: Optional[str] = None) -> None:
         assert self.export_config is not None, "Export config is not set"
