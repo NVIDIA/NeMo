@@ -4470,6 +4470,7 @@ jobs:
       - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_Megatron_GPT_Reranker
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
+      - L2_NeMo_2_PTQ_Llama2_FP8
     if: always()
     runs-on: ubuntu-latest
     steps:  

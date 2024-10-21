@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 import shutil
 from typing import Optional
 
@@ -21,6 +22,7 @@ import torch.distributed as dist
 from datasets import load_dataset
 
 from nemo import lightning as nl
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.collections import llm
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
@@ -141,7 +143,8 @@ class Quantizer:
         fabric = trainer.to_fabric()
         trainer.strategy.setup_environment()
 
-        model = nl.io.load_context(nemo_checkpoint_path).model
+        model_path = Path(nemo_checkpoint_path)
+        model = nl.io.load_context(ckpt_to_context_subdir(model_path)).model
         model.config = self.quantizable_model_config(model.config)
         model = fabric.load_model(nemo_checkpoint_path, model=model)
 

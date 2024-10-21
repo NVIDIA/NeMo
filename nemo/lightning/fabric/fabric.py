@@ -10,6 +10,7 @@ from torch import nn
 from typing_extensions import Self, override
 
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 
 if TYPE_CHECKING:
     from megatron.core.optimizer import OptimizerConfig
@@ -65,11 +66,11 @@ class Fabric(lb.Fabric, IOMixin):
 
         path = Path(path)
         if model is None:
-            context = load_context(path)
+            context = load_context(ckpt_to_context_subdir(path))
             model = context.model
 
         dist_model = self.setup_module(model)
-        self.load(path / 'weights', {"state_dict": dist_model})
+        self.load(ckpt_to_weights_subdir(path), {"state_dict": dist_model})
 
         return dist_model
 
