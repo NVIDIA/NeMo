@@ -35,6 +35,11 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
             self._tokenizer = HfAutoModel.configure_tokenizer(self.model_name)
         return self._tokenizer
 
+    @tokenizer.setter
+    def tokenizer(self, value):
+        assert self._tokenizer is None
+        self._tokenizer = value
+
     @staticmethod
     def configure_tokenizer(model_name):
         return AutoTokenizer(model_name)
