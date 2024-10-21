@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import argparse
-import sys
 import torch
 from tqdm import tqdm
 
