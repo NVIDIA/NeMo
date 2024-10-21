@@ -1,9 +1,11 @@
+import fiddle as fdl
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
+from torch.utils.data import DataLoader
+
 from nemo import lightning as nl
 from nemo.collections import llm
-from pytorch_lightning.loggers import WandbLogger
-import pytorch_lightning as pl
-import fiddle as fdl
-from torch.utils.data import DataLoader
+
 
 class SquadDataModuleWithMbs(llm.SquadDataModule):
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
@@ -39,6 +41,7 @@ def squad(tokenizer) -> pl.LightningDataModule:
         num_workers=0,
         sanity_check_dist_workers=False,
     )
+
 
 if __name__ == '__main__':
     import argparse

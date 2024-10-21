@@ -17,7 +17,12 @@ from typing import Optional
 import nemo_run as run
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, OptimizerModule, PytorchOptimizerModule
+from nemo.lightning.pytorch.optim import (
+    CosineAnnealingScheduler,
+    MegatronOptimizerModule,
+    OptimizerModule,
+    PytorchOptimizerModule,
+)
 
 
 @run.cli.factory
@@ -61,7 +66,6 @@ def distributed_fused_adam_with_cosine_annealing(
     )
 
 
-
 @run.cli.factory
 def pytorch_adam_with_cosine_annealing(
     precision: str = "bf16-mixed",  # or "16-mixed"
@@ -72,6 +76,7 @@ def pytorch_adam_with_cosine_annealing(
     clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:
     from torch.optim import Adam
+
     return run.Config(
         PytorchOptimizerModule,
         optim_cls=Adam,
@@ -86,8 +91,9 @@ def pytorch_adam_with_cosine_annealing(
             warmup_steps=warmup_steps,
             constant_steps=constant_steps,
             min_lr=min_lr or (0.1 * max_lr),
-        )
+        ),
     )
+
 
 @run.cli.factory
 def pytorch_adam_with_flat_lr(
@@ -99,6 +105,7 @@ def pytorch_adam_with_flat_lr(
     clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:
     from torch.optim import Adam
+
     return run.Config(
         PytorchOptimizerModule,
         optim_cls=Adam,

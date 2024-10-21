@@ -1,12 +1,12 @@
-
 import pytorch_lightning as pl
-from transformers import AutoModelForCausalLM
-from torch.optim import Adam
-from nemo.lightning import io
 import torch
 import torch.nn.functional as F
+from torch.optim import Adam
+from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.lightning import io
+
 
 def _extract_non_bias_params(model):
     return list(map(lambda x: x[1], filter(lambda x: not 'bias' in x[0], model.named_parameters())))
@@ -18,6 +18,7 @@ def masked_cross_entropy(logits, targets, mask=None):
         return torch.mean(loss[mask == 1])
     else:
         return F.cross_entropy(logits, targets)
+
 
 class HfAutoModel(pl.LightningModule, io.IOMixin):
     def __init__(self, model_name='gpt2', tokenizer=None, loss_fn=masked_cross_entropy):
@@ -51,9 +52,7 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
         labels = labels.to(self.model.device)
         loss_mask = loss_mask.to(self.model.device)
         n_cls = outputs.logits.shape[-1]
-        outputs.loss = self.loss_fn(
-            outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask.view(-1)
-        )
+        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask.view(-1))
         return outputs
 
     def training_step(self, *args, **kwargs):
