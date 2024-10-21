@@ -13,10 +13,9 @@
 # limitations under the License.
 
 from argparse import Namespace
-from typing import List, Dict
+from typing import Dict, List
 
 import torch
-
 from megatron.core import tensor_parallel
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
@@ -37,9 +36,7 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
     def __init__(self, model, args: Namespace):
         super().__init__(model, args)
 
-    def prep_model_for_inference(
-            self, prompts_tokens: torch.Tensor, image_dict: List[Dict] = None
-        ):
+    def prep_model_for_inference(self, prompts_tokens: torch.Tensor, image_dict: List[Dict] = None):
 
         super().prep_model_for_inference(prompts_tokens=prompts_tokens)
         self.pixel_values = image_dict[0]["pixel_values"]
@@ -52,10 +49,8 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
             .expand_as(prompts_tokens)
         )
 
-    def get_batch_for_context_window(
-        self, context_start_position: int, context_end_position: int
-    ) -> List:
-        tokens2use  = self.prompts_tokens[:, :context_end_position]
+    def get_batch_for_context_window(self, context_start_position: int, context_end_position: int) -> List:
+        tokens2use = self.prompts_tokens[:, :context_end_position]
         positions2use = self.position_ids[:, :context_end_position]
         data_at_step_idx = [tokens2use, positions2use]
 

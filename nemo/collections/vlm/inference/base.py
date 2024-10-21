@@ -22,14 +22,16 @@ from megatron.core.inference.model_inference_wrappers.inference_wrapper_config i
 
 import nemo.lightning as nl
 from nemo.collections import vlm
-from nemo.collections.vlm.inference.vlm_inference_wrapper import VLMInferenceWrapper
-from nemo.collections.vlm.inference.vlm_inference_controller import VLMTextGenerationController
 from nemo.collections.vlm.inference.vlm_engine import VLMEngine
+from nemo.collections.vlm.inference.vlm_inference_controller import VLMTextGenerationController
+from nemo.collections.vlm.inference.vlm_inference_wrapper import VLMInferenceWrapper
+
 
 def _setup_trainer_and_restore_model(path: str, trainer: nl.Trainer, model: pl.LightningModule):
     fabric = trainer.to_fabric()
     model = fabric.load_model(path, model)
     return model
+
 
 def setup_model_and_tokenizer(
     path: str,

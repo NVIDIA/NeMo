@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.inference.base import setup_model_and_tokenizer, generate
+from nemo.collections.vlm.inference.base import generate, setup_model_and_tokenizer

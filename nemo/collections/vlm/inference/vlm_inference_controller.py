@@ -21,6 +21,7 @@ from megatron.core.inference.text_generation_controllers.simple_text_generation_
     SimpleTextGenerationController,
 )
 
+
 class TokenizerWrapper:
     def __init__(self, tokenizer):
         self.eod = tokenizer.eos_token_id
@@ -30,18 +31,24 @@ class TokenizerWrapper:
     def detokenize(self, tokens):
         return self._tokenizer.decode(tokens, skip_special_tokens=True)
 
+
 class VLMTextGenerationController(SimpleTextGenerationController):
     def __init__(self, inference_wrapped_model, processor):
         super().__init__(inference_wrapped_model, TokenizerWrapper(processor.tokenizer))
         self.processor = processor
 
     def tokenize_prompt(self, prompt: str, image):
-        num_tiles = None if image is None \
+        num_tiles = (
+            None
+            if image is None
             else self.processor.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)["num_tiles"]
+        )
         batch = self.processor(image, prompt, add_special_tokens=False, return_tensors="pt")
         image_dict = dict(
             pixel_values=batch["pixel_values"].cuda(non_blocking=True) if "pixel_values" in batch else None,
-            aspect_ratio_ids=batch["aspect_ratio_ids"].cuda(non_blocking=True) if "aspect_ratio_ids" in batch else None,
+            aspect_ratio_ids=(
+                batch["aspect_ratio_ids"].cuda(non_blocking=True) if "aspect_ratio_ids" in batch else None
+            ),
             num_tiles=num_tiles,
         )
         return batch["input_ids"].tolist()[0], image_dict
@@ -55,10 +62,6 @@ class VLMTextGenerationController(SimpleTextGenerationController):
             prompts_tokens (torch.Tensor): A tensor of shape [batch_size, max_sequence_length]
             active_requests (OrderedDict[int, InferenceRequest]): The input active requests
         """
-        images = list(
-            map(lambda request: request.encoder_prompt, active_requests.values())
-        )
+        images = list(map(lambda request: request.encoder_prompt, active_requests.values()))
 
-        self.inference_wrapped_model.prep_model_for_inference(
-            prompts_tokens=prompts_tokens, image_dict=images
-        )
+        self.inference_wrapped_model.prep_model_for_inference(prompts_tokens=prompts_tokens, image_dict=images)
