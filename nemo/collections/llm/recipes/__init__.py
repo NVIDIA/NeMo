@@ -36,9 +36,9 @@ from nemo.collections.llm.recipes import (
     nemotron4_22b_16k,
     nemotron4_22b_64k,
     nemotron4_340b,
-    t5_220m,
     t5_3b,
     t5_11b,
+    t5_220m,
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam

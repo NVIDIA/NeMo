@@ -148,7 +148,6 @@ class _MockT5Dataset(Dataset):
         decoder_input = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length_dec], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length_dec], dtype=np.int64))
 
-
         batch = {
             "text_enc": encoder_input,
             "text_dec": decoder_input,
