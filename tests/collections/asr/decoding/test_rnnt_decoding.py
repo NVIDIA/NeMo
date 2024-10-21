@@ -22,8 +22,9 @@ from omegaconf import DictConfig
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
 from nemo.collections.asr.parts.mixins import mixins
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.submodules import tdt_beam_decoding
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
@@ -137,7 +138,8 @@ class TestRNNTDecoding:
         assert decoding is not None
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -178,7 +180,8 @@ class TestRNNTDecoding:
             print()
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -234,7 +237,8 @@ class TestRNNTDecoding:
                     t_u.append(int(label))
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -242,17 +246,28 @@ class TestRNNTDecoding:
         "beam_config",
         [
             {"search_type": "greedy"},
-            {"search_type": "default", "beam_size": 2,},
-            {"search_type": "alsd", "alsd_max_target_len": 0.5, "beam_size": 2,},
-            {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "beam_size": 2,},
+            {
+                "search_type": "default",
+                "beam_size": 2,
+            },
+            {
+                "search_type": "alsd",
+                "alsd_max_target_len": 0.5,
+                "beam_size": 2,
+            },
+            {
+                "search_type": "tsd",
+                "tsd_max_sym_exp_per_step": 3,
+                "beam_size": 2,
+            },
             {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
             {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "beam_size": 2},
         ],
     )
-    def test_beam_decoding_preserve_alignments(self, test_data_dir, beam_config):
+    def test_rnnt_beam_decoding_preserve_alignments(self, test_data_dir, beam_config):
         beam_size = beam_config.pop("beam_size", 1)
         model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
-        beam = beam_decode.BeamRNNTInfer(
+        beam = rnnt_beam_decoding.BeamRNNTInfer(
             model.decoder,
             model.joint,
             beam_size=beam_size,
@@ -305,6 +320,59 @@ class TestRNNTDecoding:
 
                     print(f"Tokens at timestep {t} = {t_u}")
                 print()
+
+                assert len(hyp_.timestep) > 0
+                print("Timesteps", hyp_.timestep)
+                print()
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {
+                "search_type": "default",
+                "beam_size": 2,
+            },
+            {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "beam_size": 2},
+            {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 1, "beam_size": 4},
+        ],
+    )
+    def test_tdt_beam_decoding(self, test_data_dir, beam_config):
+        beam_size = beam_config.pop("beam_size", 1)
+        model, encoded, encoded_len = get_model_encoder_output(
+            test_data_dir, 'nvidia/stt_kk_ru_fastconformer_hybrid_large'
+        )
+
+        model_config = model.to_config_dict()
+        durations = list(model_config["model_defaults"]["tdt_durations"])
+
+        beam = tdt_beam_decoding.BeamTDTInfer(
+            model.decoder,
+            model.joint,
+            beam_size=beam_size,
+            return_best_hypothesis=False,
+            durations=durations,
+            **beam_config,
+        )
+
+        enc_out = encoded
+        enc_len = encoded_len
+
+        with torch.no_grad():
+            hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
+            _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
+            all_hyps = all_hyps[0]
+
+            print("Beam search algorithm :", beam_config['search_type'])
+            # Use the following commented print statements to check
+            # the alignment of other algorithms compared to the default
+            for idx, hyp_ in enumerate(all_hyps):  # type: (int, rnnt_utils.Hypothesis)
+                print("Hyp index", idx + 1, "text :", hyp_.text)
 
                 assert len(hyp_.timestep) > 0
                 print("Timesteps", hyp_.timestep)
