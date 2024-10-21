@@ -43,7 +43,6 @@ class AutoTokenizer(TokenizerSpec):
         sep_token: Optional[str] = None,
         cls_token: Optional[str] = None,
         unk_token: Optional[str] = None,
-        other_special_tokens: Optional[List] = [],
         use_fast: Optional[bool] = False,
         trust_remote_code: Optional[bool] = False,
     ):
@@ -61,7 +60,6 @@ class AutoTokenizer(TokenizerSpec):
             sep_token: token used for separating sequences
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
-            other_special_tokens: list of other tokens beside standard special tokens (bos, eos, pad, etc.). For example, sentinel tokens for T5 (<extra_id_0>, <extra_id_1>, etc.)
             use_fast: whether to use fast HuggingFace tokenizer
         """
         try:
@@ -93,11 +91,6 @@ class AutoTokenizer(TokenizerSpec):
             )
 
         self.original_vocab_size = len(self.tokenizer)
-
-        # adding additional tokens (besides standard special tokens: bos, unk, sep, etc.). E.g. <extra_id_0>, <extra_id_1>, etc. as for T5 model
-        if other_special_tokens is not None:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': other_special_tokens})
-
         special_tokens_dict = {}
 
         # # setting special tokens, by default the default model's special tokens will be preserved
