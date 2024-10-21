@@ -81,6 +81,6 @@ if __name__ == '__main__':
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
         ),
-        optim=fdl.build(llm.adam.pytorch_adam_with_cosine_annealing(max_lr=1e-5, clip_grad = 0.5)),
+        optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(max_lr=1e-5, clip_grad=0.5)),
         log=None,
     )
