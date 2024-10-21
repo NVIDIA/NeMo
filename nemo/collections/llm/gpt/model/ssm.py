@@ -85,6 +85,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = ssm_forward_step
     data_step_fn: Callable = gpt_data_step
     tokenizer_model_path: str = None
+
     def configure_model(self, tokenizer) -> "MCoreMambaModel":
 
         return MCoreMambaModel(
