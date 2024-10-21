@@ -68,6 +68,9 @@ def init_parallel_ranks(
         init_local_rank = app_state.local_rank
     else:
         init_world_size = world_size
+        pp = parallel_config.pipeline_model_parallel_size or 1
+        if world_size < pp:
+            raise ValueError(f"Expected world_size ({world_size}) to be greater than/equal to pipeline size ({pp})")
         init_global_rank = global_rank
         init_local_rank = local_rank
 
@@ -154,6 +157,10 @@ def set_model_parallel_attributes(model, parallelism):
             setattr(config, attr_name, getattr(parallelism, attr_name))
             if hasattr(config, "__io__"):
                 setattr(config.__io__, attr_name, getattr(parallelism, attr_name))
+        if hasattr(config, '__post_init__'):
+            # MCore does not use args in __post_init__
+            # @akoumparouli: is there a better way (e.g. reinit config)?
+            config.__post_init__()
 
         return config
 
