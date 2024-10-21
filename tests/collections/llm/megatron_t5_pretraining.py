@@ -50,10 +50,13 @@ if __name__ == '__main__':
 
     args = get_args()
 
+    special_tokens = {}
+    special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
         vocab_file=args.vocab_path,
+        special_tokens=special_tokens,
     )
     data = PreTrainingDataModule(
         paths=args.data_path,
@@ -126,7 +129,7 @@ if __name__ == '__main__':
         callbacks=callbacks,
         log_every_n_steps=1,
         limit_val_batches=2,
-        val_check_interval=2,
+        val_check_interval=100,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     )
 
