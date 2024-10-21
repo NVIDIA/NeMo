@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from filelock import FileLock, Timeout
 from pytorch_lightning.trainer.states import TrainerFn
 
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
@@ -184,7 +184,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         trainer.strategy.setup(trainer)
         output_path = Path(output_path)
         output_path.mkdir(parents=True, exist_ok=True)
-        trainer.save_checkpoint(ckpt_to_weights_subdir(output_path))
+        trainer.save_checkpoint(output_path)
 
         from nemo.lightning.io.pl import TrainerContext
         from nemo.utils.get_rank import is_global_rank_zero
