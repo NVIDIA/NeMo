@@ -71,6 +71,7 @@ from nemo.collections.llm.gpt.model import (
     MistralConfig7B,
     MistralModel,
     MistralNeMoConfig12B,
+    MixtralConfig,
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
@@ -102,6 +103,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
+from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
 from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 
 __all__ = [
@@ -118,6 +120,7 @@ __all__ = [
     "MistralConfig7B",
     "MistralNeMoConfig12B",
     "MistralModel",
+    "MixtralConfig",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
