@@ -221,18 +221,15 @@ def pretrain_recipe_performance(
     return recipe
 
 
-@run.cli.factory(name=NAME + "_nemo")
-def nemo_resume() -> run.Config[nl.AutoResume]:
+@run.cli.factory(name=NAME + "_hf")
+def hf_resume() -> run.Config[nl.AutoResume]:
     """
-    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for Nemotron3 8B model.
+    Configure automatic resumption from a Hugging Face checkpoint for Nemotron3 8B model.
 
-    More info about the Huggingface model can be found at: https://huggingface.co/nvidia/nemotron-3-8b-base-4k.
+    This function sets up the configuration to resume training from a pre-trained
+    Hugging Face model checkpoint.
 
-    This NeMo checkpoint should be converted from Huggingface beforehand, using nemo.collections.llm.import_ckpt.
-    When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
-
-    This function sets up the configuration to resume training from path nemo://nvidia/nemotron-3-8b-base-4k.
-    This translates to the full path {NEMO_HOME}/models/nvidia/nemotron-3-8b-base-4k.
+    More info about the model can be found at: https://huggingface.co/nvidia/nemotron-3-8b-base-4k
 
     Returns:
         run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.

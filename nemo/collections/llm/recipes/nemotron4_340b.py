@@ -230,8 +230,8 @@ def pretrain_recipe_performance(
     return recipe
 
 
-@run.cli.factory(name=NAME + "_nemo")
-def nemo_resume() -> run.Config[nl.AutoResume]:
+@run.cli.factory(name=NAME + "_hf")
+def hf_resume() -> run.Config[nl.AutoResume]:
     """
     Configure automatic resumption from a Hugging Face checkpoint for Nemotron4 340B model.
 
