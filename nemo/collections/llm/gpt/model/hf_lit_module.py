@@ -1,13 +1,13 @@
+
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
+from transformers import AutoModelForCausalLM
+from torch.optim import Adam
+from nemo.lightning import io
 import torch
 import torch.nn.functional as F
-from pytorch_lightning.callbacks import ModelCheckpoint
-from torch.optim import Adam
-from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.lightning import io
-
 
 def _extract_non_bias_params(model):
     return list(map(lambda x: x[1], filter(lambda x: not 'bias' in x[0], model.named_parameters())))
@@ -20,22 +20,23 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
-
 class HfAutoModel(pl.LightningModule, io.IOMixin):
-    def __init__(
-        self, model_name='gpt2', tokenizer=None, optim_cls=Adam, optim_conf={'lr': 1e-5}, loss_fn=masked_cross_entropy
-    ):
+    def __init__(self, model_name='gpt2', tokenizer=None, loss_fn=masked_cross_entropy):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = model_name
-        self.tokenizer = AutoTokenizer(model_name)
-        self.optim_conf = optim_conf
-        self.optim_cls = optim_cls
+        self.tokenizer = None
         self.model = None
         self.loss_fn = loss_fn
 
+    @staticmethod
+    def configure_tokenizer(model_name):
+        return AutoTokenizer(model_name)
+
     def configure_model(self):
         # create all your layers here
+        if self.tokenizer is None:
+            self.tokenizer = HfAutoModel.configure_tokenizer(self.model_name)
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype='auto')
         self.model.train()
 
@@ -47,7 +48,9 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
         labels = labels.to(self.model.device)
         loss_mask = loss_mask.to(self.model.device)
         n_cls = outputs.logits.shape[-1]
-        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask.view(-1))
+        outputs.loss = self.loss_fn(
+            outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask.view(-1)
+        )
         return outputs
 
     def training_step(self, *args, **kwargs):
@@ -74,12 +77,3 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
 
         loss = output.loss
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
-
-    def configure_optimizers(self):
-        assert self.model is not None, "Call configure_model before calling configure_optimizers"
-        params = _extract_non_bias_params(self.model)
-        optimizer = self.optim_cls(
-            params,
-            **self.optim_conf,
-        )
-        return optimizer
