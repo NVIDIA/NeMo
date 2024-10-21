@@ -6,11 +6,10 @@ import fiddle as fdl
 import lightning_fabric as lb
 import pytorch_lightning as pl
 from torch import nn
-
 from typing_extensions import Self, override
 
-from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 
 if TYPE_CHECKING:
     from megatron.core.optimizer import OptimizerConfig
