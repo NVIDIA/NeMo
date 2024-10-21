@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import List, Optional
+from typing import Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
 

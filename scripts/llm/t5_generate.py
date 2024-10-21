@@ -15,9 +15,6 @@
 # NOTE: This script is just an example of using NeMo checkpoints for generating outputs and is subject to change without notice.
 
 import argparse
-
-import os
-
 import torch
 import torch.distributed
 from megatron.core.inference.common_inference_params import CommonInferenceParams
