@@ -162,8 +162,6 @@ def pretrain_recipe(
             >>> recipe = pretrain_recipe(name="auto_pretrain", num_nodes=2, model_name="mistralai/Mistral-Nemo-Instruct-2407")
             >>> print(recipe)
     """
-    # print(distributed_fused_adam_with_cosine_annealing(max_lr=3e-4))
-    # quit()
     return run.Partial(
         fn,
         model=model(model_name),
@@ -172,13 +170,7 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(
-            llm.SquadDataModule,
-            tokenizer=HfAutoModel.configure_tokenizer(model_name),
-            seq_length=2048, global_batch_size=2, micro_batch_size=1,
-            sanity_check_dist_workers=False
-        ),
-        # data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=pytorch_adam(max_lr=3e-4),
         resume=default_resume(),
