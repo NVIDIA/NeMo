@@ -1212,7 +1212,7 @@ def configure_checkpointing(
 
 def check_slurm(trainer):
     try:
-        return trainer.accelerator_connector.is_slurm_managing_tasks
+        return int(os.getenv('SLURM_STEP_NUM_TASKS', '0')) == trainer.world_size
     except AttributeError:
         return False
 
