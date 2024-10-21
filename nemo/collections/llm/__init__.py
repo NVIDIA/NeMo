@@ -17,7 +17,7 @@ from nemo.utils.import_utils import safe_import
 
 safe_import("transformer_engine")
 
-from nemo.collections.llm import peft, tokenizer
+from nemo.collections.llm import peft
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -70,6 +70,7 @@ from nemo.collections.llm.gpt.model import (
     MaskedTokenLossReduction,
     MistralConfig7B,
     MistralModel,
+    MistralNeMoConfig12B,
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
@@ -115,6 +116,7 @@ __all__ = [
     "t5_forward_step",
     "MaskedTokenLossReduction",
     "MistralConfig7B",
+    "MistralNeMoConfig12B",
     "MistralModel",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
@@ -188,7 +190,7 @@ from nemo.utils import logging
 try:
     import nemo_run as run
 
-    from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
+    from nemo.collections.llm.api import export_ckpt, finetune, generate, import_ckpt, pretrain, train, validate
     from nemo.collections.llm.recipes import *  # noqa
 
     __all__.extend(
@@ -199,6 +201,7 @@ try:
             "pretrain",
             "validate",
             "finetune",
+            "generate",
         ]
     )
 except ImportError as error:

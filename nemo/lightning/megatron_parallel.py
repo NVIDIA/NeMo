@@ -18,7 +18,7 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -45,6 +45,7 @@ import torch.distributed
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
@@ -221,6 +222,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         wrap_forward_step: bool = True,
     ) -> torch.Tensor:
         """The method performs the forward pass of the model.
@@ -268,6 +270,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
             seq_length=seq_length,
+            step_i=step_i,
         )
         _forward_context["step"] = step
         step = self.callbacks.transform_event("on_megatron_step_start", step)
@@ -333,6 +336,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         return self._step(
@@ -344,6 +348,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
+            step_i=step_i,
             forward_only=True,
             **kwargs,
         )
@@ -357,6 +362,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         return self._step(
@@ -368,6 +374,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
+            step_i=step_i,
             forward_only=True,
             **kwargs,
         )
@@ -381,6 +388,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         return self._step(
@@ -392,6 +400,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
+            step_i=step_i,
             forward_only=True,
             **kwargs,
         )
@@ -407,6 +416,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
         forward_only: bool = True,
+        step_i: Optional[int] = None,
         **kwargs,
     ) -> STEP_OUTPUT:
         if not hasattr(self.module, f"{step_type}_step"):
@@ -425,6 +435,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             micro_batch_size=micro_batch_size,
             num_microbatches=num_microbatches,
             forward_only=forward_only,
+            step_i=step_i,
             **kwargs,
         )
 
@@ -563,6 +574,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
             # PEFT with num_sanity_val_steps > 0 this is necessary.
             init_ddp_context = nullcontext if all(x.requires_grad for x in module.parameters()) else torch.enable_grad
+
+            # Turn off bucketing for model_chunk 2 onwards, since communication for these
+            # model chunks is overlapped with compute anyway, or if using VP and overlapping
+            # data parallel param gather with optimizer
+            overlap_param_gather_with_optimizer_step = False
+            if hasattr(self, "optim") and isinstance(self.optim.config, OptimizerConfig):
+                overlap_param_gather_with_optimizer_step = self.optim.config.overlap_param_gather_with_optimizer_step
+            disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
+
             with init_ddp_context():
                 ddp = DDP(
                     module.config,
@@ -570,9 +590,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     module,
                     data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
                     expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                    # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0),
+                    disable_bucketing=disable_bucketing,
                 )
 
             model_chunk.module = ddp
@@ -1035,6 +1053,7 @@ class MegatronStep(Generic[ModelT, DataT]):
     micro_batch_size: Optional[int] = None
     seq_length: Optional[int] = None
     num_microbatches: Optional[int] = None
+    step_i: Optional[int] = None
 
     @classmethod
     def infer(
@@ -1046,6 +1065,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         micro_batch_size: Optional[int] = None,
         seq_length: Optional[int] = None,
         num_microbatches: Optional[int] = None,
+        step_i: Optional[int] = None,
     ) -> "MegatronStep[ModelT, DataT]":
         """
         Creates a MegatronStep instance, inferring missing parameters if possible.
@@ -1061,10 +1081,13 @@ class MegatronStep(Generic[ModelT, DataT]):
             micro_batch_size (Optional[int]): Size of each micro-batch.
             seq_length (Optional[int]): Sequence length for the current step.
             num_microbatches (Optional[int]): Number of micro-batches in this step.
-
+            step_i (Optional[int]): Step index for the current step.
         Returns:
             MegatronStep[ModelT, DataT]: An instance of MegatronStep with inferred parameters.
         """
+        if step_i is None and pipeline.trainer:
+            step_i = pipeline.trainer.global_step
+
         return cls(
             pipeline=pipeline,
             data=data,
@@ -1073,6 +1096,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             micro_batch_size=micro_batch_size or cls.infer_micro_batch_size(data),
             seq_length=seq_length or cls.infer_seq_length(data),
             num_microbatches=num_microbatches or cls.infer_num_microbatches(data),
+            step_i=step_i,
         )
 
     def __call__(self) -> List[Any]:
@@ -1679,3 +1703,30 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
     torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
 
     return loss
+
+
+@contextmanager
+def moe_loss_tracker_ctx():
+    from megatron.core.transformer.moe.moe_utils import (
+        clear_aux_losses_tracker,
+        reduce_aux_losses_tracker_across_ranks,
+    )
+
+    reduce_aux_losses_tracker_across_ranks()
+    try:
+        yield
+    finally:
+        clear_aux_losses_tracker()
+
+
+@torch.no_grad()
+def aggregate_moe_loss_stats(loss_scale=1.0):
+    with moe_loss_tracker_ctx():
+        tracker = parallel_state.get_moe_layer_wise_logging_tracker()
+        aux_losses = {k: v['values'].float() * loss_scale for k, v in tracker.items()}
+        total_loss_dict = {}
+        for name, loss_list in aux_losses.items():
+            if name not in total_loss_dict:
+                total_loss_dict[name] = 0
+            total_loss_dict[name] += loss_list.mean().item()
+        return total_loss_dict
