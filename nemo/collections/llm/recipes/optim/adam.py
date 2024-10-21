@@ -63,11 +63,11 @@ def distributed_fused_adam_with_cosine_annealing(
 
 
 @run.cli.factory
-def pytorch_adam(
+def pytorch_adam_with_cosine_annealing(
     precision: str = "bf16-mixed",  # or "16-mixed"
     warmup_steps: int = 2000,
     constant_steps: int = 0,
-    max_lr: float = 1e-4,
+    max_lr: float = 1e-5,
     min_lr: Optional[float] = None,
     clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:

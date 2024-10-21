@@ -26,7 +26,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 
 from nemo.collections.llm.gpt.model.hf_lit_module import HfAutoModel
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam
+from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
 from nemo.collections import llm
 
@@ -165,6 +165,6 @@ def pretrain_recipe(
         ),
         data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=pytorch_adam(max_lr=3e-4),
+        optim=pytorch_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )

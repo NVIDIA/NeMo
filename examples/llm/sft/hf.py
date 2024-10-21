@@ -35,7 +35,7 @@ def squad(tokenizer) -> pl.LightningDataModule:
         tokenizer=tokenizer,
         seq_length=2048,
         micro_batch_size=2,
-        global_batch_size=8,
+        global_batch_size=128,
         num_workers=0,
         sanity_check_dist_workers=False,
     )
@@ -81,6 +81,6 @@ if __name__ == '__main__':
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
         ),
-        optim=fdl.build(llm.adam.pytorch_adam(max_lr=1e-5, clip_grad = 0.5)),
+        optim=fdl.build(llm.adam.pytorch_adam_with_cosine_annealing(max_lr=1e-5, clip_grad = 0.5)),
         log=None,
     )
