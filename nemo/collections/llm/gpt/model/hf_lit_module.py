@@ -1,6 +1,5 @@
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
 from transformers import AutoModelForCausalLM
 from torch.optim import Adam
 from nemo.lightning import io
