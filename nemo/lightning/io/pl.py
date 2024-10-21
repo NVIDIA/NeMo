@@ -83,8 +83,8 @@ def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
         if maybe_base_model_path.is_dir() or is_saving:
             base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
     if is_saving:
-        assert checkpoint_dir.parts[-1] == WEIGHTS_PATH
-        assert checkpoint_dir.parent == Path(path)
+        assert base_dir.parts[-1] == WEIGHTS_PATH
+        assert base_dir.parent == Path(filepath)
     return base_dir
 
 
