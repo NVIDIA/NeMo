@@ -556,8 +556,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         if self.convert_module_fn:
             self.apply_convert_module_fn()
-        if self.trainer.state.fn == TrainerFn.FITTING:
-            self.init_ddp()
+        try:
+            if self.trainer.state.fn == TrainerFn.FITTING:
+                self.init_ddp()
+        except RuntimeError as e:
+            if "is not attached to a `Trainer`" in str(e):
+                # Handle the case where the model is not attached to a Trainer
+                print("Model is not attached to a Trainer. Skipping trainer-specific logic.")
+            else:
+                raise
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
