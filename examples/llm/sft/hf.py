@@ -2,7 +2,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from pytorch_lightning.loggers import WandbLogger
 import pytorch_lightning as pl
-
+import fiddle as fdl
 from torch.utils.data import DataLoader
 
 class SquadDataModuleWithMbs(llm.SquadDataModule):
@@ -40,7 +40,6 @@ def squad(tokenizer) -> pl.LightningDataModule:
         sanity_check_dist_workers=False,
     )
 
-
 if __name__ == '__main__':
     import argparse
 
@@ -66,10 +65,9 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
-    model = llm.HfAutoModel(args.model, {"lr": 1e-5})
     llm.api.finetune(
-        model=model,
-        data=squad(model.tokenizer),
+        model=llm.HfAutoModel(args.model),
+        data=squad(llm.HfAutoModel.configure_tokenizer(args.model)),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -83,5 +81,6 @@ if __name__ == '__main__':
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
         ),
+        optim=fdl.build(llm.adam.pytorch_adam(max_lr=1e-5, clip_grad = 0.5)),
         log=None,
     )
