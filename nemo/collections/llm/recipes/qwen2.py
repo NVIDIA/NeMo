@@ -18,12 +18,13 @@ import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks.callback import Callback
+
 from nemo import lightning as nl
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config1P5B,
-    Qwen2Config500M,
-    Qwen2Config72B,
     Qwen2Config7B,
+    Qwen2Config72B,
+    Qwen2Config500M,
     Qwen2Model,
 )
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
