@@ -24,9 +24,15 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = model_name
-        self.tokenizer = None
+        self._tokenizer = None
         self.model = None
         self.loss_fn = loss_fn
+
+    @property
+    def tokenizer(self):
+        if self._tokenizer is None:
+            self._tokenizer = HfAutoModel.configure_tokenizer(self.model_name)
+        return self._tokenizer
 
     @staticmethod
     def configure_tokenizer(model_name):
@@ -34,8 +40,6 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
 
     def configure_model(self):
         # create all your layers here
-        if self.tokenizer is None:
-            self.tokenizer = HfAutoModel.configure_tokenizer(self.model_name)
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype='auto')
         self.model.train()
 
