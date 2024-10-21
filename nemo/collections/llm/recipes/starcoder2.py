@@ -23,7 +23,7 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
     Starcoder2Config3B,
     Starcoder2Config7B,
     Starcoder2Config15B,
-    Starcoder2Model
+    Starcoder2Model,
 )
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
 

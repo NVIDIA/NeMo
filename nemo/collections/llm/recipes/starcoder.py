@@ -17,23 +17,18 @@ from typing import Optional
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
-
-from typing import Optional
-
-import nemo_run as run
-import pytorch_lightning as pl
-import torch
 from pytorch_lightning.callbacks.callback import Callback
+
 from nemo import lightning as nl
-from nemo.collections.llm.api import pretrain, finetune
+from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "starcoder_15b"
 
@@ -56,7 +51,6 @@ def model() -> run.Config[pl.LightningModule]:
     """
 
     return run.Config(StarcoderModel, config=run.Config(StarcoderConfig15B))
-
 
 
 def starcoder_trainer(
@@ -141,7 +135,6 @@ def starcoder_trainer(
     )
 
     return trainer
-
 
 
 @run.cli.factory(target=pretrain, name=NAME)
