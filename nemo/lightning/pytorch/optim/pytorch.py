@@ -12,16 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 from typing import Callable, List, Optional
 
 import pytorch_lightning as pl
-from megatron.core.distributed import finalize_model_grads
-from megatron.core.optimizer import OptimizerConfig
-from megatron.core.utils import get_model_config
 from torch.optim import Optimizer
 
-from nemo.lightning._strategy_lib import setup_megatron_optimizer
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 
@@ -85,13 +80,13 @@ class PytorchOptimizerModule(OptimizerModule):
         """Defines the optimizers.
 
         Args:
-            model (MegatronParallel): The model for which the optimizers are being defined.
+            model (nn.Module): The model for which the optimizers are being defined.
 
         Returns:
             List[Optimizer]: The list of optimizers.
 
         Raises:
-            ValueError: If the model is not an instance of MegatronParallel.
+            ValueError: If the model is an instance of MegatronParallel.
         """
 
         if isinstance(model, MegatronParallel):
