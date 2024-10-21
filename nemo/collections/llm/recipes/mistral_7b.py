@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Callable, Optional
+from typing import Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -22,58 +22,55 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
-from nemo.collections.llm.api import pretrain
+from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.llama import Llama31Config405B, LlamaModel
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
+from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
-)
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama31_405b"
+NAME = "mistral_7b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama3.1 405B model configuration.
+    Factory function to create a Mistral 7B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama3.1 405B model.
+        run.Config[pl.LightningModule]: Configuration for the Mistral 7B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama31_405b ...
+            $ nemo llm pretrain model=mistral ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    conf = run.Config(Llama31Config405B)
-    conf.seq_length = 8192
-    return run.Config(LlamaModel, config=conf)
+    return run.Config(MistralModel, config=run.Config(MistralConfig7B))
 
 
 def trainer(
-    tensor_parallelism: int = 8,
-    pipeline_parallelism: int = 9,
-    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
-    virtual_pipeline_parallelism: Optional[int] = 2,
-    context_parallelism: int = 4,
-    sequence_parallelism: bool = True,
-    num_nodes: int = 72,
+    tensor_parallelism: int = 1,
+    pipeline_parallelism: int = 1,
+    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    virtual_pipeline_parallelism: Optional[int] = None,
+    context_parallelism: int = 2,
+    sequence_parallelism: bool = False,
+    num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    max_steps: int = 1168251,
+    max_steps: int = 100,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama3.1 405B model.
+    Configure the NeMo Lightning Trainer for Mistral 7B model.
 
-    This function sets up the distributed training strategy optimized for the large 405B model.
+    This function sets up the distributed training strategy and other training parameters.
 
     Args:
         tensor_parallelism (int): Degree of tensor model parallelism.
@@ -92,14 +89,11 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama31_405b ...
+            $ nemo llm pretrain trainer=mistral ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=4, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
             >>> print(trainer_config)
-
-    Note:
-        This configuration uses extensive parallelism to handle the large model size efficiently.
     """
     strategy = run.Config(
         nl.MegatronStrategy,
@@ -110,6 +104,7 @@ def trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
+        ckpt_include_optimizer=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
         ddp=run.Config(
@@ -118,7 +113,6 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
-            average_in_collective=True,
         ),
     )
 
@@ -147,7 +141,7 @@ def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Llama3.1 405B model.
+    Create a pre-training recipe for Mistral 7B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -164,84 +158,80 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama31_405b
-            $ nemo llm pretrain --factory "llama31_405b(num_nodes=4, name='my_405b_pretrain')"
+            $ nemo llm pretrain --factory mistral
+            $ nemo llm pretrain --factory "mistral(num_nodes=2, name='my_mistral_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama31_405b_pretrain", num_nodes=4)
+            >>> recipe = pretrain_recipe(name="mistral_pretrain", num_nodes=2)
             >>> print(recipe)
-
-    Note:
-        This recipe is optimized for the large 405B model and requires significant computational resources.
     """
     return run.Partial(
         fn,
         model=model(),
         trainer=trainer(
+            tensor_parallelism=1,
+            pipeline_parallelism=1,
+            pipeline_parallelism_type=None,
+            virtual_pipeline_parallelism=None,
+            context_parallelism=2,
+            sequence_parallelism=False,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
-def pretrain_recipe_performance(
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    fn: Callable = pretrain,
+    peft_scheme: Optional[str] = 'lora',
 ) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Llama3.1 405B model.
+    Create a fine-tuning recipe for Mistral 7B model.
 
-    This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, data, logging, optimization, and resumption settings.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
+        name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
 
     Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
+        run.Partial: Partial configuration for fine-tuning.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory "llama31_405b.pretrain_recipe_performance(num_nodes=4, name='perf_pretrain')"
+            $ nemo llm finetune --factory mistral
+            $ nemo llm finetune --factory "mistral(num_nodes=2, name='my_mistral_finetune')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama31_405b_perf", num_nodes=4)
+            >>> recipe = finetune_recipe(name="mistral_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
-        Use this recipe with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
+        This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-
-    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically by MegatronCommOverlapCallback
-    # They are added here for user's knowledge
-    # overlap_param_gather_with_optimizer_step- If true, overlap param all-gather of first bucket with optimizer step.
-    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else each PP stage launches independently as needed
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-            tp_comm_overlap_cfg=userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=50,
-            overlap_param_gather_with_optimizer_step=True,
-            align_param_gather=True,
-        )
+    recipe = default_finetune_recipe(
+        model(), "nemo://mistralai/Mistral-7B-v0.3", dir, name, num_nodes, num_gpus_per_node
     )
-
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.optim.config.lr = 5e-6
+    elif peft_scheme.lower() == 'lora':
+        recipe.peft = run.Config(LoRA)
+        recipe.optim.config.lr = 1e-4
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe

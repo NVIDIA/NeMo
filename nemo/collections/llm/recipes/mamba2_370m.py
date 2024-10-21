@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Callable, Optional
+from typing import Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -22,38 +22,49 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
+from nemo.collections import llm
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
-from nemo.collections.llm.peft.lora import LoRA
-from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama3_8b"
+NAME = "mamba2_370m"
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
+
+    return run.Config(
+        get_nmt_tokenizer,
+        library='huggingface',
+        model_name="EleutherAI/gpt-neox-20b",
+        tokenizer_model=tokenizer_model,
+        use_fast=True,
+    )
+
+
+@run.cli.factory(name=NAME)
+def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama3 8B model configuration.
+    Factory function to create a Mamba2 370M model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama3 8B model.
+        run.Config[pl.LightningModule]: Configuration for the Mamba2 370M model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama3_8b ...
+            $ nemo llm pretrain model=mamba2_370m ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(LlamaModel, config=run.Config(Llama3Config8B))
+    return run.Config(
+        llm.GPTModel, config=run.Config(llm.BaseMambaConfig370M), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
+    )
 
 
 def trainer(
@@ -61,7 +72,7 @@ def trainer(
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
-    context_parallelism: int = 2,
+    context_parallelism: int = 1,
     sequence_parallelism: bool = False,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
@@ -69,7 +80,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama3 8B model.
+    Configure the NeMo Lightning Trainer for Mamba2 370M model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -90,10 +101,10 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama3_8b ...
+            $ nemo llm pretrain trainer=mamba2_370m ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
             >>> print(trainer_config)
 
     Note:
@@ -109,7 +120,7 @@ def trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
-        ckpt_async_save=True,
+        ckpt_async_save=False,
         ckpt_parallel_load=True,
         ddp=run.Config(
             DistributedDataParallelConfig,
@@ -117,7 +128,6 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
-            average_in_collective=True,
         ),
     )
 
@@ -143,10 +153,15 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    tokenizer_model: str = None,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Llama3 8B model.
+    Create a pre-training recipe for Mamba2 370M model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -163,11 +178,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama3_8b
-            $ nemo llm pretrain --factory "llama3_8b(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory mamba2_370M
+            $ nemo llm pretrain --factory "mamba2_370M(num_nodes=1, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_8b_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe(name="mamba2_370M_pretrain", num_nodes=1)
             >>> print(recipe)
 
     Note:
@@ -182,104 +197,125 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(
+            MockDataModule,
+            seq_length=4096,
+            global_batch_size=8,
+            micro_batch_size=1,
+            tokenizer=tokenizer(tokenizer_model=tokenizer_model),
+        ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
-def pretrain_recipe_performance(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    fn: Callable = pretrain,
-) -> run.Partial:
-    """
-    Create a performance-optimized pre-training recipe for Llama3 8B model.
-
-    This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
-
-    Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
-
-    Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
-
-    Examples:
-            $ nemo llm pretrain --factory llama3_8b_optimized
-
-        Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama3_8b_perf", num_nodes=4)
-            >>> print(recipe)
-
-    Note:
-        Use this recipe with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
-    """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
-    )
-    return recipe
-
-
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
+    resume_path: str = None,
+    tokenizer_model: str = None,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    gbs: int = 8,
+    mbs: int = 1,
+    peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama3 8B model.
+    Create a fine-tuning recipe for Mamba2 370M model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
-    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the fine-tuning run.
+        resume_path (str): Path to the NeMo checkpoint (refer to notes below
+                            on how to convert a pytorch checkpoint to NeMo)
+        tokenizer_model (str): Path to tokenizer model (defaults to None)
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
-
     Returns:
         run.Partial: Partial configuration for fine-tuning.
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama3_8b
+            $ nemo llm finetune --factory mamba2_370m
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama3_8b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="mamba2_370m_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
         This recipe uses the SQuAD dataset for fine-tuning. For more information
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
+        For converting an SSM pytorch checkpoint, use the following line of python code:
+
+        llm.GPTModel(llm.BaseMambaConfig370M(), tokenizer=tokenizer()).import_ckpt(
+            path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
+            model_config=llm.BaseMambaConfig370M())
+        This line will cache the nemo checkpoint to following directory:
+            /root/.cache/nemo/models/your_pytorch_state_dict_file
+
     """
-    recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node)
+    nemo_resume = run.Config(
+        nl.AutoResume,
+        restore_config=run.Config(nl.RestoreConfig, path=resume_path),
+    )
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        tensor_model_parallel_size=1,
+        pipeline_model_parallel_size=1,
+        gradient_as_bucket_view=True,
+        ckpt_load_optimizer=False,
+        ckpt_save_optimizer=False,
+        ckpt_async_save=False,
+    )
+    checkpoint_callback = run.Config(
+        nl.ModelCheckpoint,
+        every_n_train_steps=10,
+        dirpath=dir,
+    )
+    trainer = run.Config(
+        nl.Trainer,
+        accelerator="gpu",
+        accumulate_grad_batches=1,
+        devices=num_gpus_per_node,
+        limit_test_batches=10,
+        limit_val_batches=10,
+        log_every_n_steps=20,
+        max_steps=100,
+        num_nodes=num_nodes,
+        plugins=run.Config(
+            nl.MegatronMixedPrecision,
+            precision="bf16-mixed",
+            params_dtype=torch.bfloat16,
+        ),
+        callbacks=[checkpoint_callback],
+        strategy=strategy,
+        use_distributed_sampler=False,
+        val_check_interval=20,
+    )
+    recipe = run.Partial(
+        llm.finetune,
+        model=model(tokenizer_model=tokenizer_model),
+        trainer=trainer,
+        data=run.Config(
+            llm.SquadDataModule,
+            seq_length=2048,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=tokenizer(tokenizer_model=tokenizer_model),
+        ),
+        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),
+        resume=nemo_resume,
+    )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA)
-        recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
