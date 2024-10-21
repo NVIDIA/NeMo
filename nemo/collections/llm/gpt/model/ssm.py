@@ -129,7 +129,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
         source = ModelState(source)
         target = self.init()
-        trainer = self.nemo_setup(target)
+        trainer = self.nemo_setup(target, ckpt_async_save=False)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
