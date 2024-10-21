@@ -260,3 +260,49 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
+    
+    
+from nemo.lightning import OptimizerModule, io, teardown
+from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel
+from transformers import LlavaForConditionalGeneration
+from pathlib import Path
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+@io.model_importer(BaseMimoModel, "hf")
+class HFLlavaMimoImporter(io.ModelConnector["LlavaForConditionalGeneration", BaseMimoModel]):
+    def init(self) -> BaseMimoModel:
+        breakpoint()
+        return BaseMimoModel(self.config, tokenizer=self.tokenizer)
+
+    def apply(self, output_path: Path) -> Path:
+        
+        source = LlavaForConditionalGeneration.from_pretrained(str(self))
+        target = self.init()
+        trainer = self.nemo_setup(target)
+        breakpoint()
+        self.convert_state(source, target)
+        
+        print(f"Converted Llava model to Nemo, saving to {output_path}")
+        self.nemo_save(output_path, trainer)
+        
+        print(f"Converted Llava model saved to {output_path}")
+        
+        teardown(trainer, target)
+        del trainer, target
+
+        return output_path
+    
+    def convert_state(self, source, target):
+        breakpoint()
+        pass
+    
+    @property
+    def tokenizer(self) -> "AutoTokenizer":
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        return AutoTokenizer(str(self))
+    
+    @property
+    def config(self) -> BaseMimoConfig:
+        breakpoint()
+        return BaseMimoConfig(vocab_size=self.tokenizer.vocab_size)
