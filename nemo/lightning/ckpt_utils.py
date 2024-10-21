@@ -41,7 +41,7 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     if isinstance(filepath, AdapterPath):
         return filepath
 
-      filepath = Path(filepath)
+    filepath = Path(filepath)
     if not filepath.suffix == ".ckpt":
         filepath = filepath.with_suffix(filepath.suffix + ".ckpt")
 
