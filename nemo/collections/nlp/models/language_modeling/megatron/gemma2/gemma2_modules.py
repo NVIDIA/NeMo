@@ -274,7 +274,7 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
 
 
 class Gemma2OutputLayer(ColumnParallelLinear):
-    def forward(self, input_: torch.Tensor, weight: Optional[torch.Tensor] = None):
-        output, bias = super().forward(input_, weight)
+    def forward(self, input_: torch.Tensor, weight: Optional[torch.Tensor] = None, runtime_gather_output: Optional[bool] = None):
+        output, bias = super().forward(input_, weight, runtime_gather_output)
         output = logit_softcapping(output, self.config.final_logit_softcapping)
         return output, bias
