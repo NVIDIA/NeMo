@@ -25,7 +25,7 @@ from nemo.lightning._strategy_lib import setup_megatron_optimizer
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 
-def _param_does_not_have_wd(param, param_name):
+def _param_does_not_have_wd(param_name, param):
     return not 'bias' in param_name
 
 class PytorchOptimizerModule(OptimizerModule):
