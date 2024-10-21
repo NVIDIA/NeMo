@@ -18,21 +18,15 @@ from typing import Optional
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-# from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 
 from nemo.collections.llm.gpt.model.hf_lit_module import HfAutoModel
-from nemo.collections.llm.peft.lora import LoRA
-from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe, default_finetune_trainer
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.utils.exp_manager import TimingCallback
 from torch.optim import Adam
 from nemo.collections import llm
