@@ -161,7 +161,7 @@ def main() -> None:
         #Corresponding to Connector: on_import_ckpt
         if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
             trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-        TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(args.output_path))
+        TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(args.output_path), yaml_attrs=["model"])
     
     #remove tmp dir
     if os.path.isdir(tokenizer_tmp_dir):
