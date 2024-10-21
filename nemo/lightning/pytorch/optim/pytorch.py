@@ -26,7 +26,7 @@ from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 
 def _param_does_not_have_wd(param_name, param):
-    return not 'bias' in param_name
+    return 'bias' in param_name
 
 class PytorchOptimizerModule(OptimizerModule):
     """A OptimizerModule for pytorch optimizers.
@@ -106,10 +106,12 @@ class PytorchOptimizerModule(OptimizerModule):
         else:
             params_with_wd = model.parameters()
 
-        optimizers = [self.optim_cls(
-            params_with_wd,
-            **self.config,
-        )]
+        optimizers = []
+        if len(params_with_wd) > 0:
+            optimizers.append(self.optim_cls(
+                params_with_wd,
+                **self.config,
+            ))
 
         if len(params_without_wd) > 0:
             wd = self.config.get('weight_decay', None)
@@ -122,6 +124,7 @@ class PytorchOptimizerModule(OptimizerModule):
             if wd is not None:
                 kwargs['weight_decay'] = wd
 
+        assert len(optimizers) > 0, "Expected at least one optimizer with params"
         return optimizers
 
     def finalize_model_grads(self, *args, **kwargs):
