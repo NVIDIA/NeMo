@@ -83,9 +83,8 @@ class CanaryTokenizer(AggregateTokenizer):
         Required because otherwise self.text_to_ids() returns a different result than what Canary had been trained with.
         """
         ans = []
-        assert text.count('>') == 5, f"Expected exactly 5 special tokens in Canary's prompt, got: {text}."
-        assert text.startswith(CANARY_BOS), text
-        for _ in range(5):
+        num_special_tokens = text.count(">")
+        for _ in range(num_special_tokens):
             token = text[: text.find(">") + 1]
             ans.append(self.special_tokens[token])
             text = text[len(token) :]
