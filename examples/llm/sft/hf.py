@@ -7,37 +7,25 @@ from nemo import lightning as nl
 from nemo.collections import llm
 
 
-class SquadDataModuleWithMbs(llm.SquadDataModule):
+class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
-        from nemo.lightning.data import add_megatron_sampler
-
-        kwargs1 = {
-            'consumed_samples': 0,
-            'dataloader_type': 'single',
-            'drop_last': True,
-            'pad_samples_to_global_batch_size': False,
-        }
-        return add_megatron_sampler(
-            DataLoader(
+        return DataLoader(
                 dataset,
                 num_workers=self.num_workers,
                 pin_memory=self.pin_memory,
                 persistent_workers=self.persistent_workers,
                 collate_fn=dataset.collate_fn,
+                batch_size=self.micro_batch_size,
                 **kwargs,
-            ),
-            self.micro_batch_size,
-            self.global_batch_size,
-            **kwargs1,
-        )
+            )
 
 
 def squad(tokenizer) -> pl.LightningDataModule:
-    return SquadDataModuleWithMbs(
+    return SquadDataModuleWithPthDataloader(
         tokenizer=tokenizer,
         seq_length=2048,
         micro_batch_size=2,
-        global_batch_size=128,
+        global_batch_size=128,  # assert gbs == mbs * accumulate_grad_batches
         num_workers=0,
         sanity_check_dist_workers=False,
     )
