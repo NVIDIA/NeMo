@@ -20,6 +20,7 @@ from typing import Callable, Dict, Optional, Set, Union
 import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
+from pytorch_lightning.utilities.logger import _is_json_serializable
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
@@ -1192,6 +1193,8 @@ class TestSaveRestore:
             # test parent can be saved/restored
             parent = self.__test_restore_elsewhere(parent, map_location='cpu')
             assert isinstance(parent.ctc_model, EncDecCTCModel)
+
+            assert _is_json_serializable(parent.ctc_model.hparams_initial)
 
     @pytest.mark.unit
     def test_mock_model_nested_custom_config_field(self):
