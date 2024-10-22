@@ -24,6 +24,7 @@ from nemo.collections.llm.gpt.data import (
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
+    HfDatasetDataModule,
 )
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (

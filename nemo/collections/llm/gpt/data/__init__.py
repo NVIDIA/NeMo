@@ -17,5 +17,13 @@ from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import HfDatasetDataModule
 
-__all__ = ["FineTuningDataModule", "SquadDataModule", "DollyDataModule", "MockDataModule", "PreTrainingDataModule"]
+__all__ = [
+    "FineTuningDataModule",
+    "SquadDataModule",
+    "DollyDataModule",
+    "MockDataModule",
+    "PreTrainingDataModule",
+    "HfDatasetDataModule"
+]
