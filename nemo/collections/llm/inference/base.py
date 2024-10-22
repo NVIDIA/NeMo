@@ -13,6 +13,7 @@ from megatron.core.inference.text_generation_controllers.simple_text_generation_
 )
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from pytorch_lightning.trainer.states import TrainerFn
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
 import nemo.lightning as nl
 from nemo.lightning import io
@@ -44,6 +45,7 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
         load_optim_state=False,
     )
     trainer.strategy.restore_config = restore_config
+    trainer.strategy._setup_optimizers = False
     trainer.ckpt_path = None
     trainer.strategy.connect(model)
     if trainer.strategy.launcher is not None:
@@ -62,19 +64,23 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
 def setup_model_and_tokenizer(
     path: Path,
     trainer: Optional[nl.Trainer] = None,
+    tensor_parallel_size: int = -1,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
 ) -> tuple[MCoreGPTModel, MCoreTokenizerWrappper]:
-    model: io.TrainerContext = io.load_context(path=path, subpath="model")
-    trainer = trainer or io.load_context(path=path, subpath="trainer")
+    model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+    trainer = trainer or io.load_context(path=ckpt_to_context_subdir(path), subpath="trainer")
+    if tensor_parallel_size > 0:
+        trainer.strategy.tensor_model_parallel_size=tensor_parallel_size
+        trainer.devices=tensor_parallel_size
+        trainer.strategy.parallel_devices=[torch.device(f"cuda:{i}") for i in range(tensor_parallel_size)]
+        trainer.strategy.launcher.num_processes=len(trainer.strategy.parallel_devices)
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
-    # This is to get the MCore model required in GPTInferenceWrapper.
-    mcore_model = model.module.module.module
     inference_wrapped_model = GPTInferenceWrapper(
-        mcore_model,
+        model,
         InferenceWrapperConfig(
-            hidden_size=mcore_model.config.hidden_size,
+            hidden_size=model.config.hidden_size,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=model.tokenizer.vocab_size,
