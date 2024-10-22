@@ -33,7 +33,7 @@ NAME = "starcoder2_3b"
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Starcoder2 3b model configuration.
+    Factory function to create a Starcoder2 3B model configuration.
 
     Returns:
         run.Config[pl.LightningModule]: Configuration for the Starcoder2 3b model.
@@ -85,7 +85,7 @@ def pretrain_recipe(
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Starcoder2 3b model.
+    Create a pre-training recipe for Starcoder2 3B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.

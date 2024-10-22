@@ -85,7 +85,7 @@ def pretrain_recipe(
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Starcoder2 7b model.
+    Create a pre-training recipe for Starcoder2 7B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.

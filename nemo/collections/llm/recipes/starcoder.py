@@ -36,10 +36,10 @@ NAME = "starcoder_15b"
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Starcoder 15b model configuration.
+    Factory function to create a Starcoder 15B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Starcoder 15b model.
+        run.Config[pl.LightningModule]: Configuration for the Starcoder 15B model.
 
     Examples:
         CLI usage:
@@ -72,7 +72,7 @@ def starcoder_trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Starcoder2 models.
+    Configure the NeMo Lightning Trainer for Starcoder 15B models.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -172,7 +172,7 @@ def pretrain_recipe(
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Starcoder2 3b model.
+    Create a pre-training recipe for Starcoder 15B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -210,8 +210,8 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory starcoder2_3b
-            $ nemo llm pretrain --factory "starcoder2_3b(num_nodes=1, name='my_starcoder2_pretrain')"
+            $ nemo llm pretrain --factory starcoder_15b
+            $ nemo llm pretrain --factory "starcoder_15b(num_nodes=1, name='my_starcoder2_pretrain')"
 
         Python API usage:
             >>> recipe = pretrain_recipe(name="starcoder2_pretrain", num_nodes=1)
@@ -269,7 +269,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'lora',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Starcoder2 3B model.
+    Create a fine-tuning recipe for Starcoder 15B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -287,10 +287,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory starcoder2_3b
+            $ nemo llm finetune --factory starcoder_15b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="starcoder2_3b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="starcoder_15b_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
