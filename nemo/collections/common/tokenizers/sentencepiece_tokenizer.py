@@ -49,7 +49,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         model_path: str,
         special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
         legacy: bool = False,
-        ignore_extra_whitespaces: bool = False,
+        ignore_extra_whitespaces: bool = True,
         chat_template: Optional[Dict] = None,
     ):
         self.chat_template = chat_template
