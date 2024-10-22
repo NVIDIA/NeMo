@@ -17,6 +17,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Dict, List
 
+from nemo.collections.common.prompts.canary2 import CANARY2_BOCTX
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
@@ -76,13 +77,25 @@ class CanaryTokenizer(AggregateTokenizer):
 
     def _tokenize_special_prompt(self, text: str) -> list[int]:
         """
-        Tokenize the input special prompt of the following schema:
-
-        <|startoftranscript|><|source_lang|><|taskname|><|target_lang|><|pnc|>
+        Tokenize the input special prompt of Canary family of models.
 
         Required because otherwise self.text_to_ids() returns a different result than what Canary had been trained with.
         """
         ans = []
+
+        if text.startswith(CANARY2_BOCTX):
+            # Canary 2 prompt format. It starts with decoder context, which should be tokenized using
+            # a different tokenizer than spl_tokens. We don't really know what it is, so we'll use the
+            # following HACK solution: look up 5th token which is target_lang and tokenize this part
+            # using its tokenizer. We skip this when decoder context is empty.
+            ans.append(self.special_tokens[CANARY2_BOCTX])
+            text = text[len(CANARY2_BOCTX) :]
+            ctx_end_idx = text.find(CANARY_BOS)
+            if decoder_ctx := text[:ctx_end_idx]:
+                target_lang = text.split("<|")[4].replace("|>", "")  # sorry
+                ans.append(self.text_to_ids(decoder_ctx, target_lang))
+                text = text[:ctx_end_idx]
+
         num_special_tokens = text.count(">")
         for _ in range(num_special_tokens):
             token = text[: text.find(">") + 1]

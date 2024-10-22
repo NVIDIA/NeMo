@@ -144,10 +144,10 @@ def canary2(
 
         optional_slots = {
             "decodercontext": "",
-            "emotion": "emo:undefined",
-            "itn": "noitn",
-            "timestamp": "notimestamp",
-            "diarize": "nodiarize",
+            "emotion": "<|emo:undefined|>",
+            "itn": "<|noitn|>",
+            "timestamp": "<|notimestamp|>",
+            "diarize": "<|nodiarize|>",
         }
         slots = {slot: cut.custom[slot] for slot in expected_slots}
         slots[formatter.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
