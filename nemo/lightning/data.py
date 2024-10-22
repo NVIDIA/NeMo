@@ -219,11 +219,7 @@ def add_megatron_sampler(
         raise Exception(f'{dataloader_type} dataloader type is not supported.')
 
     if dataloader_mode in ["test", "predict"]:
-<<<<<<< HEAD
-        batch_sampler = _IndexBatchSamplerWrapper(batch_sampler)
-=======
         batch_sampler = _IndexBatchSamplerWrapper(batch_sampler)  # BatchSampler wrapper to capture its indices
->>>>>>> a386167678c83cac9e2583284569bb2da6b342b9
 
     return DataLoader(
         dataloader.dataset,
