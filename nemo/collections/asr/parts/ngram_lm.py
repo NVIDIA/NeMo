@@ -1,5 +1,3 @@
-import concurrent.futures
-
 import numpy as np
 from typing import Tuple
 import torch
@@ -9,7 +7,6 @@ import torch.nn as nn
 from tqdm.auto import tqdm
 from nemo.utils import logging
 from pathlib import Path
-from nemo.core.utils.cuda_python_utils import get_kernel, HAVE_CUDA_PYTHON, cuda_python_required, launch_kernel
 import re
 import random
 
@@ -155,39 +152,10 @@ class Arc(NamedTuple):
     to: int
 
 
-_SPECIAL_SYMBOLS = {"<s>": -1, "</s>": -2, "<unk>": -3}
-_SPECIAL_WORDS_PATTERN = '|'.join(re.escape(symbol) for symbol in _SPECIAL_SYMBOLS.keys())
-PATTERN = re.compile(rf'({_SPECIAL_WORDS_PATTERN}|.)\s?')
-
-
-def line_to_ngram(line: str) -> NGram:
-    token_offset = 100
-    weight, symbols_str, *backoff_opt = line.split("\t")
-    if backoff_opt:
-        assert len(backoff_opt) == 1
-        backoff = _log_e_score(float(backoff_opt[0]))
-    else:
-        backoff = 0.0
-    weight = _log_e_score(float(weight))
-    symbols_re = PATTERN.findall(symbols_str)
-
-    symbols = tuple(
-        ord(symbol) - token_offset if symbol not in _SPECIAL_SYMBOLS else _SPECIAL_SYMBOLS[symbol]
-        for symbol in symbols_re
-    )
-    return NGram(weight=weight, backoff=backoff, symbols=symbols)
-
-
 class FastLM(nn.Module):
     def __init__(self, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True):
         super().__init__()
         self.use_triton = use_triton
-        if HAVE_CUDA_PYTHON and not self.use_triton:
-            self._custom_kernel = self._compile_kernel()
-            logging.info(f"FastLM: using custom CUDA kernel")
-            # self._custom_kernel = None
-        else:
-            self._custom_kernel = None
         self.max_order = 0
         self.token_offset = token_offset
         self.vocab_size = vocab_size
@@ -264,35 +232,6 @@ class FastLM(nn.Module):
             for symbol in symbols_re
         )
         return NGram(weight=weight, backoff=backoff, symbols=symbols)
-
-        # symbols = []
-        #
-        # # space can be part of symbol table!
-        # i = 0
-        # while i < len(symbols_str):
-        #     if symbols_str[i] == "<":
-        #         for symbol in self.special_symbols:
-        #             if symbols_str[i : i + len(symbol)] == symbol:
-        #                 symbols.append(symbol)
-        #                 i += len(symbol)
-        #                 break
-        #         else:
-        #             symbols.append(symbols_str[i])
-        #             i += 1
-        #     else:
-        #         symbols.append(symbols_str[i])
-        #         i += 1
-        #     if i < len(symbols_str):
-        #         assert symbols_str[i] == " "
-        #         i += 1
-        # if cur_order is not None:
-        #     assert len(symbols) == cur_order
-        #
-        # symbols = tuple(
-        #     ord(symbol) - self.token_offset if symbol not in self.special_symbols else self.special_symbols[symbol]
-        #     for symbol in symbols
-        # )
-        # return NGram(weight=weight, backoff=backoff, symbols=tuple(symbols))
 
     def _build_prefix_tree(self):
         logging.info("FastLM: Building prefix tree")
@@ -477,12 +416,6 @@ class FastLM(nn.Module):
         with torch.no_grad():
             return self.compute_scores_batch(states=states)
 
-    @cuda_python_required
-    def _compile_kernel(self):
-        with open(Path(__file__).parent / "ngram.cu", "r", encoding="utf-8") as f:
-            compute_lm_src = f.read()
-        return get_kernel(compute_lm_src, kernel_name="compute_scores_and_states")
-
     def compute_scores_batch(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.use_triton and states.device.type == "cuda":
             return self._compute_scores_batch_triton(states=states)
@@ -522,55 +455,6 @@ class FastLM(nn.Module):
 
         return scores, new_states
 
-    @cuda_python_required
-    def _compute_scores_batch_cuda(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        def next_power_of_2(x):
-            # src: https://stackoverflow.com/a/14267557
-            return 1 if x == 0 else 2 ** (x - 1).bit_length()
-
-        batch_size = states.shape[0]
-        device = states.device
-        assert device.type == "cuda"
-        assert self.arcs_weights.dtype == torch.float32
-        scores = torch.zeros([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
-        new_states = torch.full([batch_size, self.vocab_size], fill_value=-1, dtype=torch.long, device=device)
-
-        NUM_THREADS_B = 1
-        NUM_BLOCKS_B = batch_size
-        NUM_THREADS_L = min(
-            torch.cuda.get_device_properties(device).max_threads_per_multi_processor, next_power_of_2(self.vocab_size)
-        )
-        NUM_BLOCKS_L = 1
-
-        assert states.is_contiguous()
-        kernel_args = [
-            np.array(batch_size, dtype=np.int64),
-            np.array(self.vocab_size, dtype=np.int64),
-            np.array([states.data_ptr()], dtype=np.uint64),
-            np.array([new_states.data_ptr()], dtype=np.uint64),
-            np.array([scores.data_ptr()], dtype=np.uint64),
-            np.array(self.start_state, dtype=np.int64),
-            np.array(self.max_order, dtype=np.int64),
-            np.array([self.backoff_to_states.data_ptr()], dtype=np.uint64),
-            np.array([self.backoff_weights.data_ptr()], dtype=np.uint64),
-            np.array([self.state_start_arcs.data_ptr()], dtype=np.uint64),
-            np.array([self.state_end_arcs.data_ptr()], dtype=np.uint64),
-            np.array([self.to_states.data_ptr()], dtype=np.uint64),
-            np.array([self.ilabels.data_ptr()], dtype=np.uint64),
-            np.array([self.arcs_weights.data_ptr()], dtype=np.uint64),
-        ]
-        launch_kernel(
-            self._custom_kernel,
-            NUM_BLOCKS_B,
-            NUM_BLOCKS_L,
-            1,
-            NUM_THREADS_B,
-            NUM_THREADS_L,
-            1,
-            kernel_args=kernel_args,
-        )
-        return scores, new_states
-
     def _compute_scores_batch_pytorch(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         batch_size = states.shape[0]
         device = states.device
@@ -597,8 +481,10 @@ class FastLM(nn.Module):
 
             # scores_add = torch.zeros_like(scores)
             # new_states_add = torch.full_like(new_states, fill_value=-1)
-            # scores_add[batch_indices.repeat_interleave(self.vocab_size)[mask_flat], self.ilabels[indices_flat][mask_flat]] = self.arcs_weights[indices_flat][mask_flat]
-            # new_states_add[batch_indices.repeat_interleave(self.vocab_size)[mask_flat], self.ilabels[indices_flat][mask_flat]] = self.to_states[indices_flat][mask_flat]
+            # scores_add[batch_indices.repeat_interleave(self.vocab_size)[mask_flat], \
+            # self.ilabels[indices_flat][mask_flat]] = self.arcs_weights[indices_flat][mask_flat]
+            # new_states_add[batch_indices.repeat_interleave(self.vocab_size)[mask_flat], \
+            # self.ilabels[indices_flat][mask_flat]] = self.to_states[indices_flat][mask_flat]
             scores_add = torch.zeros([batch_size, self.vocab_size + 1], device=device, dtype=out_scores.dtype)
             out_states_add = torch.full(
                 [batch_size, self.vocab_size + 1], fill_value=-1, device=device, dtype=torch.long
