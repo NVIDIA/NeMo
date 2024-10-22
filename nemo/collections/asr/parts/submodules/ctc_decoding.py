@@ -749,8 +749,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
         return offsets
 
     @staticmethod
-    def _refine_timestamps(char_offsets: List[Dict[str, Union[str, int]]],
-                           supported_punctuation: Optional[Set] = None) -> List[Dict[str, Union[str, int]]]:
+    def _refine_timestamps(
+        char_offsets: List[Dict[str, Union[str, int]]], supported_punctuation: Optional[Set] = None
+    ) -> List[Dict[str, Union[str, int]]]:
 
         if not supported_punctuation:
             return char_offsets
