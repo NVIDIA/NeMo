@@ -1,3 +1,5 @@
+import os
+
 import pytorch_lightning as pl
 import torch
 
@@ -108,8 +110,6 @@ def verify_ckpt_dir(
     - a checkpoint for the last step
     - all checkpoints in the correct format
     """
-
-    import os
 
     ckpt_dir = os.path.join(exp_dir, 'checkpoints')
     ckpts = os.listdir(ckpt_dir)
