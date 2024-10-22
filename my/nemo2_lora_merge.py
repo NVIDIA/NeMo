@@ -1,15 +1,17 @@
 # import nemo_run as run
+import pytorch_lightning as pl
+import torch
+from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.loggers import WandbLogger
+
 from nemo import lightning as nl
 from nemo.collections import llm
-from megatron.core.optimizer import OptimizerConfig
-import torch
-from pytorch_lightning.loggers import WandbLogger
-import pytorch_lightning as pl
+
 
 def logger() -> nl.NeMoLogger:
     # ckpt = None
     ckpt = nl.ModelCheckpoint(
-        #save_best_model=True,
+        # save_best_model=True,
         save_last=True,
         every_n_train_steps=10,
         monitor="reduced_train_loss",
@@ -29,8 +31,9 @@ def logger() -> nl.NeMoLogger:
         log_dir="/workspace/peftmerge/exp/peft_iomixin0",
         use_datetime_version=False,  # must be false if using auto resume
         ckpt=ckpt,
-        wandb=wandb
+        wandb=wandb,
     )
+
 
 def trainer(devices=1) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
@@ -49,6 +52,7 @@ def trainer(devices=1) -> nl.Trainer:
         num_sanity_val_steps=0,
     )
 
+
 def resume() -> nl.AutoResume:
     return nl.AutoResume(
         restore_config=nl.RestoreConfig(
@@ -58,8 +62,10 @@ def resume() -> nl.AutoResume:
         # resume_ignore_no_checkpoint=True,
     )
 
+
 def llama3_8b() -> pl.LightningModule:
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
     return llm.LlamaModel(llm.Llama3Config8B(), tokenizer=tokenizer)
 
@@ -70,5 +76,5 @@ if __name__ == '__main__':
         trainer=trainer(),
         log=logger(),
         resume=resume(),
-        output_path="/workspace/peftmerge/my_mergedump"
+        output_path="/workspace/peftmerge/my_mergedump",
     )
