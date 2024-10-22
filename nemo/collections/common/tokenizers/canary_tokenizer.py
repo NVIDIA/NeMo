@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import re
 from functools import cached_property
 from pathlib import Path
 from typing import Dict, List
@@ -106,7 +107,9 @@ class CanaryTokenizer(AggregateTokenizer):
             for file in ["tokenizer.model", "tokenizer.vocab", "vocab.txt", "train_text.txt"]:
                 if os.path.exists(file):
                     os.remove(file)
-        tokens = DEFAULT_TOKENS + [f"<|{t}|>" for t in tokens]
+        spl_tok_re = re.compile(r"<\|.+\|>")
+        tokens = DEFAULT_TOKENS + [f"<|{t}|>" if spl_tok_re.match(t) is None else t for t in tokens]
+        tokens = list(dict.fromkeys(tokens))  # remove duplicates while preserving order
         output_dir = Path(model_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
         text_path = output_dir / "train_text.txt"
