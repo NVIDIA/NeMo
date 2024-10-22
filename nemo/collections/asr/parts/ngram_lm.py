@@ -20,69 +20,70 @@ except (ModuleNotFoundError, ImportError):
 try:
     import triton
     import triton.language as tl
+    HAVE_TRITON = True
 except (ModuleNotFoundError, ImportError):
-    pass
+    HAVE_TRITON = False
 
 
 def _log_e_score(score):
     return score / np.log10(np.e)
 
+if HAVE_TRITON:
+    @triton.jit
+    def _ngram_triton_kernel(
+        vocab_size: "tl.constexpr",
+        states_ptr,
+        new_states_ptr,
+        scores_ptr,
+        start_state: int,
+        max_order: int,
+        backoff_to_states_ptr,
+        backoff_weights_ptr,
+        state_start_arcs_ptr,
+        state_end_arcs_ptr,
+        to_states_ptr,
+        ilabels_ptr,
+        arcs_weights_ptr,
+        BLOCK_SIZE: "tl.constexpr",
+    ):
+        batch_i = tl.program_id(0)
+        cur_state = tl.load(states_ptr + batch_i)
 
-@triton.jit
-def _ngram_triton_kernel(
-    vocab_size: "tl.constexpr",
-    states_ptr,
-    new_states_ptr,
-    scores_ptr,
-    start_state: int,
-    max_order: int,
-    backoff_to_states_ptr,
-    backoff_weights_ptr,
-    state_start_arcs_ptr,
-    state_end_arcs_ptr,
-    to_states_ptr,
-    ilabels_ptr,
-    arcs_weights_ptr,
-    BLOCK_SIZE: "tl.constexpr",
-):
-    batch_i = tl.program_id(0)
-    cur_state = tl.load(states_ptr + batch_i)
+        vocab_offsets = tl.arange(0, BLOCK_SIZE)
+        vocab_mask = vocab_offsets < vocab_size
+        tl.store(new_states_ptr + batch_i * vocab_size + vocab_offsets, -1, mask=vocab_mask)
+        tl.store(scores_ptr + batch_i * vocab_size + vocab_offsets, 0.0, mask=vocab_mask)
 
-    vocab_offsets = tl.arange(0, BLOCK_SIZE)
-    vocab_mask = vocab_offsets < vocab_size
-    tl.store(new_states_ptr + batch_i * vocab_size + vocab_offsets, -1, mask=vocab_mask)
-    tl.store(scores_ptr + batch_i * vocab_size + vocab_offsets, 0.0, mask=vocab_mask)
+        # done = False
+        for i in range(max_order):
+            start_idx = tl.load(state_start_arcs_ptr + cur_state)
+            end_idx = tl.load(state_end_arcs_ptr + cur_state)
+            indices = start_idx + vocab_offsets
+            mask = indices < end_idx
 
-    # done = False
-    for i in range(max_order):
-        start_idx = tl.load(state_start_arcs_ptr + cur_state)
-        end_idx = tl.load(state_end_arcs_ptr + cur_state)
-        indices = start_idx + vocab_offsets
-        mask = indices < end_idx
+            cur_ilabels = tl.load(ilabels_ptr + indices, mask=mask)
+            cur_weights = tl.load(arcs_weights_ptr + indices, mask=mask)
+            cur_to_states = tl.load(to_states_ptr + indices, mask=mask)
 
-        cur_ilabels = tl.load(ilabels_ptr + indices, mask=mask)
-        cur_weights = tl.load(arcs_weights_ptr + indices, mask=mask)
-        cur_to_states = tl.load(to_states_ptr + indices, mask=mask)
+            not_final_mask = tl.load(new_states_ptr + batch_i * vocab_size + cur_ilabels, mask=mask, other=0) == -1
+            # not_final_mask &= mask
+            tl.store(
+                scores_ptr + batch_i * vocab_size + cur_ilabels,
+                tl.load(scores_ptr + batch_i * vocab_size + cur_ilabels, mask=mask) + cur_weights,
+                mask=not_final_mask,
+            )
+            tl.store(new_states_ptr + batch_i * vocab_size + cur_ilabels, cur_to_states, mask=not_final_mask)
 
-        not_final_mask = tl.load(new_states_ptr + batch_i * vocab_size + cur_ilabels, mask=mask, other=0) == -1
-        # not_final_mask &= mask
-        tl.store(
-            scores_ptr + batch_i * vocab_size + cur_ilabels,
-            tl.load(scores_ptr + batch_i * vocab_size + cur_ilabels, mask=mask) + cur_weights,
-            mask=not_final_mask,
-        )
-        tl.store(new_states_ptr + batch_i * vocab_size + cur_ilabels, cur_to_states, mask=not_final_mask)
-
-        # done |= (cur_state == start_state)
-        # backoff
-        cur_backoff_weight = tl.load(backoff_weights_ptr + cur_state)
-        not_final_mask = tl.load(new_states_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask, other=0) == -1
-        tl.store(
-            scores_ptr + batch_i * vocab_size + vocab_offsets,
-            tl.load(scores_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask) + cur_backoff_weight,
-            mask=not_final_mask,
-        )
-        cur_state = tl.load(backoff_to_states_ptr + cur_state)
+            # done |= (cur_state == start_state)
+            # backoff
+            cur_backoff_weight = tl.load(backoff_weights_ptr + cur_state)
+            not_final_mask = tl.load(new_states_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask, other=0) == -1
+            tl.store(
+                scores_ptr + batch_i * vocab_size + vocab_offsets,
+                tl.load(scores_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask) + cur_backoff_weight,
+                mask=not_final_mask,
+            )
+            cur_state = tl.load(backoff_to_states_ptr + cur_state)
 
 
 class KenLMWrapper:
@@ -154,6 +155,12 @@ class Arc(NamedTuple):
 class FastNGramLM(nn.Module):
     def __init__(self, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True):
         super().__init__()
+        if not use_triton:
+            logging.warning("Triton is disabled, falling back to PyTorch. "
+                            "NB: version without Triton is not compatible with Cuda graphs, decoding can be slow")
+        if not HAVE_TRITON and use_triton:
+            logging.warning("Triton not found, falling back to PyTorch")
+            use_triton = False
         self.use_triton = use_triton
         self.max_order = 0
         self.token_offset = token_offset
