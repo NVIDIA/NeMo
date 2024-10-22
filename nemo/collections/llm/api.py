@@ -437,7 +437,6 @@ def generate(
     path: Union[Path, str],
     prompts: list[str],
     trainer: Optional[nl.Trainer] = None,
-    tensor_parallel_size: int = -1,
     params_dtype: torch.dtype = torch.bfloat16,
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
@@ -450,7 +449,6 @@ def generate(
     inference_wrapped_model, mcore_tokenizer = inference.setup_model_and_tokenizer(
         path=path,
         trainer=trainer,
-        tensor_parallel_size=tensor_parallel_size,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )

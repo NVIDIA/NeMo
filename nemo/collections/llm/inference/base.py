@@ -63,22 +63,24 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
 
 def setup_model_and_tokenizer(
     path: Path,
-    trainer: Optional[nl.Trainer] = None,
-    tensor_parallel_size: int = -1,
+    trainer: nl.Trainer,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
 ) -> tuple[MCoreGPTModel, MCoreTokenizerWrappper]:
     model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
-    trainer = trainer or io.load_context(path=ckpt_to_context_subdir(path), subpath="trainer")
-    if tensor_parallel_size > 0:
-        trainer.strategy.tensor_model_parallel_size = tensor_parallel_size
-        trainer.devices = tensor_parallel_size
-        trainer.strategy.parallel_devices = [torch.device(f"cuda:{i}") for i in range(tensor_parallel_size)]
-        trainer.strategy.launcher.num_processes = len(trainer.strategy.parallel_devices)
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
+    # This is to get the MCore model required in GPTInferenceWrapper.
+    mcore_model = model
+    while mcore_model:
+        if type(mcore_model) is MCoreGPTModel:
+            break
+        mcore_model = getattr(mcore_model, "module", None)
+    if mcore_model is None or type(mcore_model) is not MCoreGPTModel:
+        raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
+
     inference_wrapped_model = GPTInferenceWrapper(
-        model,
+        mcore_model,
         InferenceWrapperConfig(
             hidden_size=model.config.hidden_size,
             params_dtype=params_dtype,
