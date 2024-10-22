@@ -1,7 +1,6 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from torch.optim import Adam
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
