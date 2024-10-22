@@ -334,9 +334,9 @@ def main(cluster_cfg):
         for run_id in range(num_runs):
             # Add the task to the experiment
             if run_id == 0:
-                run_after = cluster_cfg.get('run_after', None)
+                task = None
             else:
-                run_after = [task]
+                task = [task]
 
             task = run_utils.add_task(
                 exp,
@@ -349,7 +349,7 @@ def main(cluster_cfg):
                 num_nodes=num_nodes,
                 log_dir=run_utils.get_mounted_filepath(cluster_cfg, log_dir),
                 partition=cluster_cfg.get('partition', None),
-                run_after=run_after,
+                task_dependencies=task,
             )
 
         # Run the experiment on the cluster with all the tasks

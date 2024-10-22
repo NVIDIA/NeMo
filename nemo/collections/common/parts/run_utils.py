@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from typing import List
+
 import nemo_run as run
 from nemo_run.config import NEMORUN_HOME
 from nemo_run.core.execution.docker import DockerExecutor
@@ -468,15 +470,7 @@ def _get_latest_dir(path, expname, job_id) -> str:
 
 
 def get_exp_handles(expname):
-    # TODO: remove this after we can properly use .from_title api
-    if "_" in expname:
-        try:
-            job_id = int(expname.split("_")[-1])
-            expname = expname[: expname.rfind("_")]
-        except:
-            job_id = None
-    else:
-        job_id = None
+    job_id = None
 
     parent_dir = os.path.join(NEMORUN_HOME, "experiments", expname)
     exp_dir = _get_latest_dir(parent_dir, expname, job_id)
@@ -645,6 +639,7 @@ def add_task(
     log_dir: str = None,
     partition: str = None,
     run_after: str = None,
+    task_dependencies: List[str] = None,
 ):
     """
     Utility to add a task to the NeMo Run experiment based on the cluster config.
@@ -660,16 +655,17 @@ def add_task(
         num_nodes: The number of nodes to be used for the task.
         log_dir: The directory path where the logs will be stored.
         partition: The partition to be used for the task.
-        run_after:
+        run_after: a str referring to previous experiment name, to make it a dependency of this task. This exp name
+            can be a previous run name.
+        task_dependencies: a list of task names returned from add_exp in order to make it a depdendency of this task.
+            This task dependency MUST be from the same experiment.
 
     Returns:
         Task: The task object added to the NeMo Run experiment.
     """
     # Checj if dependencies are provided
     if run_after is not None and isinstance(run_after, str) and cluster_config["executor"] == "slurm":
-        dependencies = tuple([run_after])
-    elif run_after is not None and isinstance(run_after, list) and cluster_config["executor"] == "slurm":
-        dependencies = tuple(run_after)
+        dependencies = tuple(get_exp_handles(run_after))
     else:
         dependencies = None
 
@@ -703,14 +699,12 @@ def add_task(
     # Future proofing when we want multiple container coordinators
     if len(commands) == 1:
         # to keep sbatch script simpler, we don't wrap in a list in this case
-        task = exp.add(
-            run.Script(inline=commands[0]), executor=executors[0], dependencies=dependencies, name="nemo-run"
-        )
+        task = exp.add(run.Script(inline=commands[0]), executor=executors[0], dependencies=task_dependencies, name="nemo-run")
     else:
         task = exp.add(
             [run.Script(inline=command) for command in commands],
             executor=executors,
-            dependencies=dependencies,
+            dependencies=task_dependencies,
             name="nemo-run",
         )
 
