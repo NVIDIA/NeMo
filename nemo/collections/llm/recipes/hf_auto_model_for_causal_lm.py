@@ -21,7 +21,6 @@ import torch
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
-from nemo.collections import llm
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
