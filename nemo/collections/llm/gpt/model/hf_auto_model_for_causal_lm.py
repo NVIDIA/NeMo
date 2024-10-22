@@ -42,6 +42,7 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin):
         self.model = None
         self.loss_fn = loss_fn
         self.load_pretrained_weights = load_pretrained_weights
+        self.is_hf_model = True
 
     @property
     def tokenizer(self):
