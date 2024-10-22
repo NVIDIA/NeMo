@@ -282,9 +282,7 @@ def finetune_recipe(
     recipe = default_finetune_recipe(
         model(), "meta-llama/Meta-Llama-3.1-405B", dir, name, num_nodes, num_gpus_per_node
     )
-    import pdb
-
-    pdb.set_trace()
+    
     if peft_scheme is None or peft_scheme.lower() == 'none':
         assert num_nodes >= 4
         recipe.trainer.strategy.tensor_model_parallel_size = 8
