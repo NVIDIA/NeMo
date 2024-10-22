@@ -15,6 +15,7 @@ def idempotent_path_append(base_dir: Union[str, Path], suffix) -> Path:
         base_dir = base_dir / suffix
     if isinstance(base_dir, AdapterPath) and base_dir.base_model_path.parts[-1] != suffix:
         base_dir.base_model_path = base_dir.base_model_path / suffix
+
     return base_dir
 
 
@@ -39,6 +40,7 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
 
     if isinstance(filepath, AdapterPath):
         return filepath
+
     filepath = Path(filepath)
     if not filepath.suffix == ".ckpt":
         filepath = filepath.with_suffix(filepath.suffix + ".ckpt")
