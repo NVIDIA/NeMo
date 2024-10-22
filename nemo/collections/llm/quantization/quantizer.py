@@ -55,7 +55,7 @@ class QuantizationConfig:
     algorithm: Optional[str] = "fp8"  # one of QUANT_CFG_CHOICES keys
     awq_block_size: int = 128
     sq_alpha: float = 0.5
-    enable_kv_cache: bool = True
+    enable_kv_cache: Optional[bool] = None
 
 
 @dataclass
@@ -121,11 +121,9 @@ class Quantizer:
 
         self.quantization_config: QuantizationConfig = quantization_config
         self.export_config: ExportConfig = export_config
-        self.nemo_checkpoint_path = None
 
         algorithm = quantization_config.algorithm
         dtype = export_config.dtype
-
         # Export and Quantization config sanity checks
         assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
         if export_config is not None:
@@ -233,7 +231,7 @@ class Quantizer:
 
         return loop
 
-    def export(self, model: llm.GPTModel, nemo_checkpoint_path: Optional[str] = None) -> None:
+    def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
         # TODO: Add sample generate
         # TODO: Support NeMo 2:
@@ -257,15 +255,11 @@ class Quantizer:
         logging.info(f"Export succeeded, model has been exported to {export_dir}. Saving tokenizer if possible...")
 
         if dist.get_rank() == 0:
-            self.nemo_checkpoint_path = nemo_checkpoint_path or self.nemo_checkpoint_path
-            if self.nemo_checkpoint_path is not None:
-                tokenizer_src = os.path.join(self.nemo_checkpoint_path, 'context', 'nemo_tokenizer')
+            try:
                 tokenizer_dst = os.path.join(export_dir, 'tokenizer')
-
-                if os.path.exists(tokenizer_src) and not os.path.exists(tokenizer_dst):
-                    shutil.copytree(tokenizer_src, tokenizer_dst)
-                else:
-                    logging.info("Could not copy tokenizer from the NeMo checkpoint")
+                model.tokenizer.tokenizer.save_pretrained(tokenizer_dst)
+            except Exception as err:
+                logging.warning("Could not save the tokenizer: " + str(err))
 
 
 def get_calib_data_iter(

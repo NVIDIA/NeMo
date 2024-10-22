@@ -35,7 +35,7 @@ def get_args():
         '-algo',
         '--algorithm',
         type=str,
-        default="no_quant",
+        default="fp8",
         choices=["no_quant", "int8", "int8_sq", "fp8", "int4_awq", "w4a8_awq", "int4"],
         help='TensorRT-Model-Optimizer quantization algorithm',
     )
@@ -45,7 +45,7 @@ def get_args():
     parser.add_argument('--sq_alpha', type=float, default=0.5, help='Smooth-Quant alpha parameter')
     parser.add_argument('--enable_kv_cache', help='Enables KV-cache quantization', action='store_true')
     parser.add_argument('--disable_kv_cache', dest='enable_kv_cache', action='store_false')
-    parser.set_defaults(enable_kv_cache=True)
+    parser.set_defaults(enable_kv_cache=None)
     parser.add_argument(
         '-dt', '--dtype', default="bf16", choices=["16", "bf16"], help='Default precision for non-quantized layers'
     )
