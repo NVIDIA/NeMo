@@ -271,6 +271,7 @@ class LazySupervisedDataset(Dataset):
         self.data_config = data_config
         self.tokenizer = tokenizer
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
         if isinstance(self.tokenizer, AutoTokenizer):
             self.tokenizer = self.tokenizer.tokenizer
 
