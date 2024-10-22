@@ -3955,19 +3955,16 @@ jobs:
         NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_pretraining.py \
         --devices=2 \
         --max-steps=3 \
-        --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
+        --experiment-dir=/tmp/t5_pretrain_results/${{ github.run_id }} \
         --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
-        --index-mapping-dir=tests/collections/llm/t5_index_mappings/${{ github.run_id }}
+        --index-mapping-dir=/tmp/t5_index_mappings/${{ github.run_id }}
 
         NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_pretraining.py \
         --devices=2 \
         --max-steps=6 \
-        --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
+        --experiment-dir=/tmp/t5_pretrain_results/${{ github.run_id }} \
         --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
-        --index-mapping-dir=tests/collections/llm/t5_index_mappings/${{ github.run_id }}
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
-        rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
+        --index-mapping-dir=/tmp/t5_index_mappings/${{ github.run_id }}
 
   L2_NeMo_2_T5_Finetuning:
     needs: [cicd-test-container-setup]
@@ -3979,10 +3976,8 @@ jobs:
         NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_finetuning.py \
         --devices=2 \
         --max-steps=250 \
-        --experiment-dir=tests/collections/llm/t5_finetune_results/${{ github.run_id }} \
+        --experiment-dir=/tmp/t5_finetune_results/${{ github.run_id }} \
         --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_150steps
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
 
   L2_NeMo_2_T5_LoRA:
     needs: [cicd-test-container-setup]
@@ -3995,10 +3990,8 @@ jobs:
         --devices=2 \
         --max-steps=250 \
         --peft=lora \
-        --experiment-dir=tests/collections/llm/t5_peft_results/${{ github.run_id }} \
+        --experiment-dir=/tmp/t5_peft_results/${{ github.run_id }} \
         --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_150steps
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_peft_results/${{ github.run_id }}
 
   L2_NeMo_2_Mixtral_Pretraining:
       needs: [cicd-test-container-setup]
