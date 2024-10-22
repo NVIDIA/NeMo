@@ -94,7 +94,7 @@ def main():
             ("fp16", True): mp_recipes.fp16_with_fp8_mixed,
             # Need fp32
         }[key]
-        pretrain_recipe.plugins = precision_recipe()
+        pretrain_recipe.trainer.plugins = precision_recipe()
     dtype_map = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}
     debugger_callback = ParameterDebugger(
         param_fn=create_verify_precision(dtype_map[args.precision]),
