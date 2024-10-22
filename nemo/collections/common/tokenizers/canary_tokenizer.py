@@ -17,7 +17,6 @@ from functools import cached_property
 from pathlib import Path
 from typing import Dict, List
 
-from nemo.collections.common.prompts.canary2 import CANARY2_BOCTX
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
@@ -32,6 +31,7 @@ CANARY_PAD = "<pad>"
 CANARY_NOSPEECH = "<|nospeech|>"
 CANARY_PNC = "<|pnc|>"
 CANARY_NOPNC = "<|nopnc|>"
+CANARY2_BOCTX = "<|startofcontext|>"
 DEFAULT_TOKENS = [CANARY_NOSPEECH, CANARY_PAD, CANARY_EOS, CANARY_BOS, CANARY_PNC, CANARY_NOPNC]
 
 CANARY_SPECIAL_TOKENIZER = "spl_tokens"
@@ -93,8 +93,8 @@ class CanaryTokenizer(AggregateTokenizer):
             ctx_end_idx = text.find(CANARY_BOS)
             if decoder_ctx := text[:ctx_end_idx]:
                 target_lang = text.split("<|")[4].replace("|>", "")  # sorry
-                ans.append(self.text_to_ids(decoder_ctx, target_lang))
-                text = text[:ctx_end_idx]
+                ans.extend(self.text_to_ids(decoder_ctx, target_lang))
+                text = text[ctx_end_idx:]
 
         num_special_tokens = text.count(">")
         for _ in range(num_special_tokens):

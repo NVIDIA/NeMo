@@ -1,5 +1,3 @@
-from typing import Any
-
 import torch
 from lhotse import CutSet, MonoCut
 from lhotse.cut import MixedCut
@@ -8,9 +6,12 @@ from lhotse.utils import ifnone
 from nemo.collections.common.prompts.fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_BOS, CANARY_EOS, CANARY_SPECIAL_TOKENIZER
-
-CANARY2_BOCTX = "<|startofcontext|>"
+from nemo.collections.common.tokenizers.canary_tokenizer import (
+    CANARY2_BOCTX,
+    CANARY_BOS,
+    CANARY_EOS,
+    CANARY_SPECIAL_TOKENIZER,
+)
 
 
 class Canary2PromptFormatter(PromptFormatter):
@@ -25,22 +26,50 @@ class Canary2PromptFormatter(PromptFormatter):
                 # Empty string or previous transcript / other context to bias predictions.
                 "decodercontext": Modality.Text,
                 # Emotion of the speaker - may be predicted by the model with a partial prompt.
-                "emotion": Modality.TextLiteral("emo:undefined", "emo:neutral", "emo:angry", "emo:happy", "emo:sad"),
+                "emotion": Modality.TextLiteral(
+                    "<|emo:undefined|>", "<|emo:neutral|>", "<|emo:angry|>", "<|emo:happy|>", "<|emo:sad|>"
+                ),
                 # Audio input language - may be predicted by the model with a partial prompt.
                 "source_lang": Modality.Text,
                 # Transcription language - specified by the user.
                 "target_lang": Modality.Text,
                 # Should we predict punctuation and capitalization?
-                "pnc": Modality.TextLiteral("yes", "no", "true", "True", "false", "False", "1", "0", "pnc", "nopnc"),
+                "pnc": Modality.TextLiteral(
+                    "yes", "no", "true", "True", "false", "False", "1", "0", "pnc", "nopnc", "<|pnc|>", "<|nopnc|>"
+                ),
                 # Should we predict with inverse text normalization (numerals as digits, abbreviations, etc.)
-                "itn": Modality.TextLiteral("yes", "no", "true", "True", "false", "False", "1", "0", "itn", "noitn"),
+                "itn": Modality.TextLiteral(
+                    "yes", "no", "true", "True", "false", "False", "1", "0", "itn", "noitn", "<|itn|>", "<|noitn|>"
+                ),
                 # Should we predict timestamps?
                 "timestamp": Modality.TextLiteral(
-                    "yes", "no", "true", "True", "false", "False", "1", "0", "timestamp", "notimestamp"
+                    "yes",
+                    "no",
+                    "true",
+                    "True",
+                    "false",
+                    "False",
+                    "1",
+                    "0",
+                    "timestamp",
+                    "notimestamp",
+                    "<|timestamp|>",
+                    "<|notimestamp|>",
                 ),
                 # Should we diarize speech?
                 "diarize": Modality.TextLiteral(
-                    "yes", "no", "true", "True", "false", "False", "1", "0", "diarize", "nodiarize"
+                    "yes",
+                    "no",
+                    "true",
+                    "True",
+                    "false",
+                    "False",
+                    "1",
+                    "0",
+                    "diarize",
+                    "nodiarize",
+                    "<|diarize|>",
+                    "<|nodiarize|>",
                 ),
             },
         },
@@ -81,19 +110,11 @@ def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[s
 
     any_special_token_present = False
 
+    lang_dict_compat = {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE"}
     for k in ("source_lang", "target_lang"):
         if k in slot_values and not ((v := slot_values[k]).startswith("<|") and v.endswith("|>")):
             val = slot_values[k]
-            match val:  # default mapping for legacy Canary-1B inputs
-                case "en":
-                    val = "en-US"
-                case "es":
-                    val = "es-ES"
-                case "fr":
-                    val = "fr-FR"
-                case "de":
-                    val = "de-DE"
-            val = "fr-FR"
+            val = lang_dict_compat.get(val, val)
             slot_values[k] = "<|" + val + "|>"
             any_special_token_present = True
 
@@ -109,6 +130,9 @@ def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[s
     # and slots for this turn correspond to user prompt.
     if any_special_token_present and PromptFormatter.PROMPT_LANGUAGE_SLOT not in slot_values:
         slot_values[PromptFormatter.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
+    else:
+        if (l := slot_values.get(PromptFormatter.PROMPT_LANGUAGE_SLOT)) is not None:
+            slot_values[PromptFormatter.PROMPT_LANGUAGE_SLOT] = lang_dict_compat.get(l, l)
 
     return slot_values
 
