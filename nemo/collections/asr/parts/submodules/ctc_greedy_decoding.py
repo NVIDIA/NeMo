@@ -362,6 +362,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         compute_timestamps: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        ngram_lm_model: Optional[str | Path] = None,
+        ngram_lm_alpha: float = 0.0,
     ):
         super().__init__()
 
@@ -373,6 +375,14 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # set confidence calculation method
         self._init_confidence_method(confidence_method_cfg)
+
+        # init ngram lm
+        if ngram_lm_model is not None:
+            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+        else:
+            self.ngram_lm_batch = None
+        self.ngram_lm_alpha = ngram_lm_alpha
+        self._repeated_symbols_allowed = True
 
     @typecheck()
     def forward(
@@ -409,9 +419,15 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         decoder_lengths = decoder_lengths.to(decoder_output.device)
 
         if decoder_output.ndim == 2:
+            if self.ngram_lm_batch is not None:
+                raise NotImplementedError
             hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
         else:
-            hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
+            if self.ngram_lm_batch is None:
+                hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
+            else:
+                self.ngram_lm_batch.to(decoder_output.device)
+                hypotheses = self._greedy_decode_logprobs_batched_lm(decoder_output, decoder_lengths)
         packed_result = pack_hypotheses(hypotheses, input_decoder_lengths)
         return (packed_result,)
 
@@ -517,70 +533,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         return hypotheses
 
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-
-
-class GreedyBatchedCTCLMInfer(GreedyBatchedCTCInfer):
-    def __init__(
-            self,
-            blank_id: int,
-            preserve_alignments: bool = False,
-            compute_timestamps: bool = False,
-            preserve_frame_confidence: bool = False,
-            confidence_method_cfg: Optional[DictConfig] = None,
-            ngram_lm_model: Optional[str | Path] = None,
-            ngram_lm_alpha: float = 0.0,
-    ):
-        super().__init__(
-            blank_id=blank_id,
-            preserve_alignments=preserve_alignments,
-            compute_timestamps=compute_timestamps,
-            preserve_frame_confidence=preserve_frame_confidence,
-            confidence_method_cfg=confidence_method_cfg)
-        if ngram_lm_model is not None:
-            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
-        else:
-            self.ngram_lm_batch = None
-        self.ngram_lm_alpha = ngram_lm_alpha
-        self.ngram_lm_alpha = ngram_lm_alpha
-
-        # default for CTC: True
-        self.repeated_symbols_allowed = True  # TODO: parameter?
-
-        # set confidence calculation method
-        self._init_confidence_method(confidence_method_cfg)
-
-    @typecheck()
-    def forward(
-            self,
-            decoder_output: torch.Tensor,
-            decoder_lengths: Optional[torch.Tensor],
-    ):
-        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
-        Output token is generated auto-repressively.
-
-        Args:
-            decoder_output: A tensor of size (batch, timesteps, features) or (batch, timesteps) (each timestep is a label).
-            decoder_lengths: list of int representing the length of each sequence
-                output sequence.
-
-        Returns:
-            packed list containing batch number of sentences (Hypotheses).
-        """
-        if self.ngram_lm_batch is None:
-            return super().forward(decoder_output=decoder_output, decoder_lengths=decoder_lengths)
-
-        if decoder_output.ndim == 2:
-            # hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
-            raise NotImplementedError
-        self.ngram_lm_batch.to(decoder_output.device)
-        return super().forward(decoder_output=decoder_output, decoder_lengths=decoder_lengths)
-
-
     @torch.no_grad()
-    def _greedy_decode_logprobs_batched(self, x: torch.Tensor, out_len: torch.Tensor):
+    def _greedy_decode_logprobs_batched_lm(self, x: torch.Tensor, out_len: torch.Tensor):
         # x: [B, T, D]
         # out_len: [B]
 
@@ -627,7 +581,6 @@ class GreedyBatchedCTCLMInfer(GreedyBatchedCTCInfer):
             predictions_labels[:, i] = labels
             # TODO: logprobs
             last_labels = labels
-
 
         # In CTC greedy decoding, each output maximum likelihood token
         # is calculated independent of the other tokens.
@@ -679,6 +632,9 @@ class GreedyBatchedCTCLMInfer(GreedyBatchedCTCInfer):
             hypotheses.append(hypothesis)
 
         return hypotheses
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
 
 
