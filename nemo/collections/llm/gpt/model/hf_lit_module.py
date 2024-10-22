@@ -54,15 +54,16 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
             attention_mask=attention_mask,
         )
         labels = labels.to(self.model.device)
-        loss_mask = loss_mask.to(self.model.device)
+        if loss_mask is not None:
+            loss_mask = loss_mask.to(self.model.device).view(-1)
         n_cls = outputs.logits.shape[-1]
-        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask.view(-1))
+        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
         return outputs
 
     def training_step(self, *args, **kwargs):
         tokens = args[0]['tokens']
         labels = args[0]['labels']
-        loss_mask = args[0]['loss_mask']
+        loss_mask = args[0].get('loss_mask', None)
         output = self.forward(
             input_ids=tokens,
             labels=labels,
