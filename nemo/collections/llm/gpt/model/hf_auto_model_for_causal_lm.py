@@ -19,7 +19,7 @@ def masked_cross_entropy(logits, targets, mask=None):
         return F.cross_entropy(logits, targets)
 
 
-class HfAutoModel(pl.LightningModule, io.IOMixin):
+class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin):
     def __init__(self, model_name='gpt2', tokenizer=None, loss_fn=masked_cross_entropy):
         super().__init__()
         self.save_hyperparameters()
@@ -31,7 +31,7 @@ class HfAutoModel(pl.LightningModule, io.IOMixin):
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            self._tokenizer = HfAutoModel.configure_tokenizer(self.model_name)
+            self._tokenizer = HfAutoModelForCausalLM.configure_tokenizer(self.model_name)
         return self._tokenizer
 
     @tokenizer.setter
