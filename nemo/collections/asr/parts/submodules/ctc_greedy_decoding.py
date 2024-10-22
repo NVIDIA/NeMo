@@ -557,7 +557,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             labels = torch.argmax(log_probs[:, i], dim=-1)
             # lm_scores[batch_indices[last_labels != self.blank_id], last_labels[last_labels != self.blank_id]] = 0.0
             labels_w_lm = (log_probs[:, i, :-1] + self.ngram_lm_alpha * lm_scores).argmax(dim=-1)
-            if self.repeated_symbols_allowed:
+            if self._repeated_symbols_allowed:
                 # is_blank = (labels == self.blank_id)
                 # torch.where(is_blank, labels, labels_w_lm, out=labels)
                 blank_or_repeated = ((labels == self.blank_id) | (labels == last_labels) | (labels_w_lm == last_labels))
