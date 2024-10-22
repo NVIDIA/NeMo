@@ -33,7 +33,7 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
-from nemo.collections.asr.parts.ngram_lm import KenLMWrapper, FastLM
+from nemo.collections.asr.parts.ngram_lm import KenLMWrapper, FastNGramLM
 
 try:
     from cuda import cudart
@@ -263,7 +263,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
 
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
-            self.ngram_lm_batch = FastLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha

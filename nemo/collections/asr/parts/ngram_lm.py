@@ -152,7 +152,7 @@ class Arc(NamedTuple):
     to: int
 
 
-class FastLM(nn.Module):
+class FastNGramLM(nn.Module):
     def __init__(self, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True):
         super().__init__()
         self.use_triton = use_triton
@@ -162,7 +162,7 @@ class FastLM(nn.Module):
 
         self.special_symbols = {"<s>": -1, "</s>": -2, "<unk>": -3}
 
-        logging.info(f"FastLM: reading LM {lm_path}")
+        logging.info(f"FastNGramLM: reading LM {lm_path}")
 
         special_words_pattern = '|'.join(re.escape(symbol) for symbol in self.special_symbols.keys())
         self._pattern = re.compile(rf'({special_words_pattern}|.)\s?')
@@ -234,7 +234,7 @@ class FastLM(nn.Module):
         return NGram(weight=weight, backoff=backoff, symbols=symbols)
 
     def _build_prefix_tree(self):
-        logging.info("FastLM: Building prefix tree")
+        logging.info("FastNGramLM: Building prefix tree")
         self.start_state = 0
         self.bos_state = 1
         self.backoff_id = -10
@@ -513,7 +513,7 @@ if __name__ == "__main__":
     _ = torch.tensor(0, device=device)
 
     lm = KenLMWrapper(arpa_lm_path)
-    gpu_lm = FastLM(arpa_lm_path, vocab_size=1024).to(device)
+    gpu_lm = FastNGramLM(arpa_lm_path, vocab_size=1024).to(device)
 
     with torch.no_grad():
         scores1, states1 = gpu_lm._compute_scores_batch_pytorch(states=gpu_lm.get_init_states(1, bos=True))

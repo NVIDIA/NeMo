@@ -19,7 +19,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 
-from nemo.collections.asr.parts.ngram_lm import FastLM
+from nemo.collections.asr.parts.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
@@ -613,7 +613,7 @@ class GreedyBatchedCTCLMInfer(Typing, ConfidenceMethodMixin):
         self.preserve_frame_confidence = preserve_frame_confidence
         if ngram_lm_model is None:
             raise NotImplementedError
-        self.ngram_lm_batch = FastLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+        self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
         self.ngram_lm_alpha = ngram_lm_alpha
 
         # default for CTC: True
