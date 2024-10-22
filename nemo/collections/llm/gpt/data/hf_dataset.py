@@ -15,13 +15,15 @@ class HfDatasetDataModule(pl.LightningDataModule):
         pad_token_id = 0,
     ) -> None:
         super().__init__()
+        assert pad_token_id is not None
+
         self.dataset = dataset
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
-        self.pad_token_id =pad_token_id
+        self.pad_token_id = pad_token_id
 
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
@@ -30,7 +32,7 @@ class HfDatasetDataModule(pl.LightningDataModule):
                 return tensor.unsqueeze_(0)
             return tensor
 
-        def extract(batch, key):
+        def extract_key_from_dicts(batch, key):
             return list(map(lambda x: x[key], batch))
 
         def pad_within_micro(batch, pad_token_id):
@@ -43,7 +45,7 @@ class HfDatasetDataModule(pl.LightningDataModule):
             key: batchify(
                 torch.LongTensor(
                     pad_within_micro(
-                        extract(batch, key),
+                        extract_key_from_dicts(batch, key),
                         pad_token_id,
                     )
                 )
