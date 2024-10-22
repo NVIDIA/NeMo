@@ -71,7 +71,6 @@ def main(args):
         num_workers=0,
     )
 
-
     conf = model_configs[model_id]()
     if args.pp_size > 1:
         conf.language_model_config.first_pipeline_num_layers = 0
