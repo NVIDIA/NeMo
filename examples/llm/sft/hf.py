@@ -69,8 +69,8 @@ if __name__ == '__main__':
     use_dist_samp = False
 
     llm.api.finetune(
-        model=llm.HfAutoModel(args.model),
-        data=squad(llm.HfAutoModel.configure_tokenizer(args.model)),
+        model=llm.HfAutoModelForCausalLM(args.model),
+        data=squad(llm.HfAutoModelForCausalLM.configure_tokenizer(args.model)),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
