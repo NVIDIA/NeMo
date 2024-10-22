@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import os
 import re
 from functools import partial
 from typing import List, Optional
@@ -31,12 +32,6 @@ SUPPORTED_MODELS = [
     "mistral",
     "gemma",
     "nemotron",
-]
-
-SUPPORTED_TOKENIZERS = [
-    "autotokenizer",
-    "sentencepiece",
-    "huggingface",
 ]
 
 
@@ -196,13 +191,11 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
     """
 
     # Generate base config for the given model size
-    base_cfg, train_cfg = generic_base_config(runner_config)
-    base_cfg = copy.deepcopy(base_cfg)
-    # Launch grid search for training constraints
-    import nemo_run as run
+    base_config, train_config = generic_base_config(runner_config)
 
-    base_config, train_configs = run.Partial(generate_grid_search_configs, base_cfg, train_cfg)
-    print(base_config, dir(train_configs))
+    # Launch grid search for training constraints
+    base_config, train_configs = generate_grid_search_configs(base_config, train_config)
+
     configs = {}
     for name, config in train_configs.items():
         trainer = copy.deepcopy(base_config.trainer)
@@ -223,16 +216,21 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
         )
         if config.get("tensor_model_parallel_size") > 1:
             trainer.strategy.sequence_parallel = True
+        trainer.max_steps = config.get("max_steps")
+        trainer.log_every_n_steps = 1
+
+        log.log_dir = os.path.join(config.get("path_to_logs"), name)
+        log.ckpt.save_last = False
 
         # Set the directory where to save the logs
         configs[name] = Partial(
             pretrain,
-            model=base_config.model.config,
+            model=base_config.model,
             trainer=trainer,
             data=data,
             optim=base_config.optim,
             log=log,
             resume=None,
         )
-
-    return base_cfg, configs
+    print(log)
+    return base_config, configs
