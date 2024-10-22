@@ -66,10 +66,10 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin):
         outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
         return outputs
 
-    def training_step(self, *args, **kwargs):
-        tokens = args[0]['tokens']
-        labels = args[0]['labels']
-        loss_mask = args[0].get('loss_mask', None)
+    def training_step(self, batch):
+        tokens = batch['tokens']
+        labels = batch['labels']
+        loss_mask = batch.get('loss_mask', None)
         output = self.forward(
             input_ids=tokens,
             labels=labels,
@@ -81,8 +81,8 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens = args[0]['tokens']
-        labels = args[0]['labels']
+        tokens = batch['tokens']
+        labels = batch['labels']
         output = self.forward(
             input_ids=tokens,
             labels=labels,
