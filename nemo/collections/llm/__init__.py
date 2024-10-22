@@ -58,7 +58,7 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig126M,
     GPTConfig175B,
     GPTModel,
-    HfAutoModel,
+    HfAutoModelForCausalLM,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
@@ -184,7 +184,7 @@ __all__ = [
     "squad",
     "dolly",
     "peft",
-    "HfAutoModel",
+    "HfAutoModelForCausalLM",
 ]
 
 

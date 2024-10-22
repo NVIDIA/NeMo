@@ -24,34 +24,34 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.hf_auto_model import HfAutoModel
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "HfAutoModel"
+NAME = "hf_auto_model_for_causal_lm"
 
 
 @run.cli.factory(name=NAME)
 def model(model_name) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create HfAutoModel model configurations.
+    Factory function to create HfAutoModelForCausalLM model configurations.
 
     Args:
         model_name (str): Model id on HF.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the HfAutoModel.
+        run.Config[pl.LightningModule]: Configuration for the HfAutoModelForCausalLM.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory 'HfAutoModel(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
+            $ nemo llm pretrain --factory 'HfAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
 
         Python API usage:
             >>> model_config = model(model_name="mistralai/Mistral-Nemo-Instruct-2407")
             >>> print(model_config)
     """
-    return run.Config(HfAutoModel, model_name=model_name)
+    return run.Config(HfAutoModelForCausalLM, model_name=model_name)
 
 
 def trainer(
@@ -69,7 +69,7 @@ def trainer(
     gradient_clip_val: float = 1.0,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for HfAutoModel.
+    Configure the NeMo Lightning Trainer for HfAutoModelForCausalLM.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -91,7 +91,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=HfAutoModel ...
+            $ nemo llm pretrain trainer=HfAutoModelForCausalLM ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
@@ -148,7 +148,7 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory 'HfAutoModel(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
+            $ nemo llm pretrain --factory 'HfAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
 
         Python API usage:
             >>> recipe = pretrain_recipe(name="auto_pretrain", num_nodes=2, model_name="mistralai/Mistral-Nemo-Instruct-2407")
