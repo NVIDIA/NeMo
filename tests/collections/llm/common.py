@@ -48,7 +48,9 @@ class StopBeforeEnd(pl.Callback):
     def __init__(self, stop_on_step: int):
         self.stop_on_step = stop_on_step
 
-    def on_train_batch_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch, batch_idx) -> None:
+    def on_train_batch_end(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs, batch, batch_idx
+    ) -> None:
         if trainer.global_step >= self.stop_on_step:
             logging.info(f"Global step {trainer.global_step} >= {self.stop_on_step}, signaling Trainer to stop.")
             trainer.should_stop = True
