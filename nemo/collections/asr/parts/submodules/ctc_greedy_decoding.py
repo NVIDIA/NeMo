@@ -522,78 +522,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
 
 
-class GreedyBatchedCTCLMInfer(Typing, ConfidenceMethodMixin):
-    """A vectorized greedy CTC decoder.
-
-    This is basically always faster than GreedyCTCInfer, and supports
-    the same interface. See issue #8891 on github for what is wrong
-    with GreedyCTCInfer. GreedyCTCInfer loops over each element in the
-    batch, running kernels at batch size one. CPU overheads end up
-    dominating. This implementation does appropriate masking to
-    appropriately do the same operation in a batched manner.
-
-    Args:
-        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
-        preserve_alignments: Bool flag which preserves the history of logprobs generated during
-            decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
-        compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
-                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
-                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
-        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
-            generated during decoding. When set to true, the Hypothesis will contain
-            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
-        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
-            confidence scores.
-
-            name: The method name (str).
-                Supported values:
-                    - 'max_prob' for using the maximum token probability as a confidence.
-                    - 'entropy' for using a normalized entropy of a log-likelihood vector.
-
-            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
-                Supported values:
-                    - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
-                        the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                        Note that for this entropy, the alpha should comply the following inequality:
-                        (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
-                        where V is the model vocabulary size.
-                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
-                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
-                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                    - 'renyi' for the Rényi entropy.
-                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
-                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
-
-            alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                When the alpha equals one, scaling is not applied to 'max_prob',
-                and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
-
-            entropy_norm: A mapping of the entropy value to the interval [0,1].
-                Supported values:
-                    - 'lin' for using the linear mapping.
-                    - 'exp' for using exponential mapping with linear shift.
-
-    """
-
-    @property
-    def input_types(self):
-        """Returns definitions of module input ports."""
-        # Input can be of dimension -
-        # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
-
-        return {
-            "decoder_output": NeuralType(None, LogprobsType()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
-        }
-
-    @property
-    def output_types(self):
-        """Returns definitions of module output ports."""
-        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
-
+class GreedyBatchedCTCLMInfer(GreedyBatchedCTCInfer):
     def __init__(
             self,
             blank_id: int,
@@ -604,16 +533,17 @@ class GreedyBatchedCTCLMInfer(Typing, ConfidenceMethodMixin):
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
     ):
-        super().__init__()
-
-        self.blank_id = blank_id
-        self.preserve_alignments = preserve_alignments
-        # we need timestamps to extract non-blank per-frame confidence
-        self.compute_timestamps = compute_timestamps | preserve_frame_confidence
-        self.preserve_frame_confidence = preserve_frame_confidence
-        if ngram_lm_model is None:
-            raise NotImplementedError
-        self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+        super().__init__(
+            blank_id=blank_id,
+            preserve_alignments=preserve_alignments,
+            compute_timestamps=compute_timestamps,
+            preserve_frame_confidence=preserve_frame_confidence,
+            confidence_method_cfg=confidence_method_cfg)
+        if ngram_lm_model is not None:
+            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+        else:
+            self.ngram_lm_batch = None
+        self.ngram_lm_alpha = ngram_lm_alpha
         self.ngram_lm_alpha = ngram_lm_alpha
 
         # default for CTC: True
@@ -639,31 +569,15 @@ class GreedyBatchedCTCLMInfer(Typing, ConfidenceMethodMixin):
         Returns:
             packed list containing batch number of sentences (Hypotheses).
         """
-        self.ngram_lm_batch.to(decoder_output.device)
-
-        input_decoder_lengths = decoder_lengths
-
-        if decoder_lengths is None:
-            logging.warning(_DECODER_LENGTHS_NONE_WARNING, mode=logging_mode.ONCE)
-            decoder_lengths = torch.tensor(
-                [decoder_output.shape[1]], dtype=torch.long, device=decoder_output.device
-            ).expand(decoder_output.shape[0])
-
-        # GreedyCTCInfer::forward(), by accident, works with
-        # decoder_lengths on either CPU or GPU when decoder_output is
-        # on GPU. For the sake of backwards compatibility, we also
-        # allow decoder_lengths to be on the CPU device. In this case,
-        # we simply copy the decoder_lengths from CPU to GPU. If both
-        # tensors are already on the same device, this is a no-op.
-        decoder_lengths = decoder_lengths.to(decoder_output.device)
+        if self.ngram_lm_batch is None:
+            return super().forward(decoder_output=decoder_output, decoder_lengths=decoder_lengths)
 
         if decoder_output.ndim == 2:
             # hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
             raise NotImplementedError
-        else:
-            hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
-        packed_result = pack_hypotheses(hypotheses, input_decoder_lengths)
-        return (packed_result,)
+        self.ngram_lm_batch.to(decoder_output.device)
+        return super().forward(decoder_output=decoder_output, decoder_lengths=decoder_lengths)
+
 
     @torch.no_grad()
     def _greedy_decode_logprobs_batched(self, x: torch.Tensor, out_len: torch.Tensor):
@@ -766,8 +680,6 @@ class GreedyBatchedCTCLMInfer(Typing, ConfidenceMethodMixin):
 
         return hypotheses
 
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
 
 
 @dataclass
