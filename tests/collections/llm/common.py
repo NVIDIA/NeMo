@@ -102,8 +102,11 @@ def verify_distcp_dir(ckpt_path: str) -> None:
 def verify_ckpt_dir(
     model_ckpt: nl.ModelCheckpoint, max_steps: int, val_check_interval: int, exp_dir: str, dist_ckpts: bool = True
 ) -> None:
-    """Ensures a checkpoint directory has the correct number of checkpoints, followed top-k, a checkpoint
-    for the last step exists, and the checkpoints are the correct format.
+    """Ensures that the provided checkpoint directory has
+    - no more than top-k checkpoints
+    - no unfinished checkpoints
+    - a checkpoint for the last step
+    - all checkpoints in the correct format
     """
 
     import os
@@ -111,20 +114,22 @@ def verify_ckpt_dir(
     ckpt_dir = os.path.join(exp_dir, 'checkpoints')
     ckpts = os.listdir(ckpt_dir)
 
-    expected_ckpts = (max_steps // val_check_interval) + model_ckpt.save_last
     if model_ckpt.save_last:
         assert any([c.endswith('-last') for c in ckpts]), "No -last checkpoint found after training"
     if model_ckpt.save_top_k > 0:
         assert (
-            len(ckpts) == expected_ckpts or len(ckpts) == model_ckpt.save_top_k + model_ckpt.save_last
-        ), f"Expected {expected_ckpts} checkpoints, or at most top {model_ckpt.save_top_k}"
-    else:
-        assert len(ckpts) == expected_ckpts, f"Expected {expected_ckpts} checkpoints"
+            len(ckpts) <= model_ckpt.save_top_k + model_ckpt.save_last
+        ), f"Expected at most top {model_ckpt.save_top_k} checkpoints besides '-last'"
 
     for ckpt_name in ckpts:
         ckpt_path = os.path.join(ckpt_dir, ckpt_name)
+
+        assert (
+            '-unfinished' not in ckpt_name
+        ), f"Unfinished checkpoint found. Something went wrong with saving checkpoint {ckpt_name}"
+
         if ckpt_name.endswith('-last') and 'step' in model_ckpt.filename:
-            assert f'step={max_steps-1}' in ckpt_name
+            assert f'step={max_steps-1}' in ckpt_name, f"Last checkpoint {ckpt_name} not for final step {max_steps}"
 
         if dist_ckpts:
             assert os.path.isdir(ckpt_path), "Checkpoint is not correct type"
