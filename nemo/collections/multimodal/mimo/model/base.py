@@ -88,8 +88,8 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 class BaseInputProjectorConfig(TransformerConfig, io.IOMixin):
     projector_type: str = "mlp2x_gelu"
     input_size: Optional[int] = 1024
-    hidden_size: int = 1024
-    ffn_hidden_size: int = 1024
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 4096
     activation_func: Callable = F.gelu
     bias: bool = True
     bias_activation_fusion: bool = True
@@ -108,7 +108,7 @@ class BaseInputProjectorConfig(TransformerConfig, io.IOMixin):
 @dataclass
 class BaseVisionTransformerConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 24
-    num_attention_heads: int = 32
+    num_attention_heads: int = 16 # was 32?
     add_bias_linear: bool = True
     add_qkv_bias: bool = True
     hidden_size: int = 1024
@@ -143,7 +143,7 @@ class Llama2Config1B(LlamaConfig):
 
 @dataclass
 class BaseMimoConfig(TransformerConfig, io.IOMixin):
-    language_transformer_config: Optional[TransformerConfig] = field(default_factory=lambda: Llama2Config1B())
+    language_transformer_config: Optional[TransformerConfig] = field(default_factory=lambda: Llama2Config7B())
     vision_transformer_config: Optional[TransformerConfig] = field(
         default_factory=lambda: BaseVisionTransformerConfig()
     )
