@@ -167,5 +167,5 @@ __all__ = [
     "gpt_forward_step",
     "transformer_engine_layer_spec",
     "local_layer_spec",
-    "HfAutoModel",
+    "HfAutoModelForCausalLM",
 ]
