@@ -31,7 +31,6 @@ def _log_e_score(score):
 @triton.jit
 def _ngram_triton_kernel(
     vocab_size: "tl.constexpr",
-    vocab_size_next_power_of_2: "tl.constexpr",
     states_ptr,
     new_states_ptr,
     scores_ptr,
@@ -49,7 +48,7 @@ def _ngram_triton_kernel(
     batch_i = tl.program_id(0)
     cur_state = tl.load(states_ptr + batch_i)
 
-    vocab_offsets = tl.arange(0, vocab_size_next_power_of_2)
+    vocab_offsets = tl.arange(0, BLOCK_SIZE)
     vocab_mask = vocab_offsets < vocab_size
     tl.store(new_states_ptr + batch_i * vocab_size + vocab_offsets, -1, mask=vocab_mask)
     tl.store(scores_ptr + batch_i * vocab_size + vocab_offsets, 0.0, mask=vocab_mask)
@@ -430,14 +429,10 @@ class FastNGramLM(nn.Module):
         new_states = torch.empty([batch_size, self.vocab_size], dtype=torch.long, device=device)
 
         NUM_BLOCKS = batch_size
-        BLOCK_SIZE = min(
-            torch.cuda.get_device_properties(device).max_threads_per_multi_processor,
-            triton.next_power_of_2(self.vocab_size),
-        )
+        BLOCK_SIZE = triton.next_power_of_2(self.vocab_size)
 
         _ngram_triton_kernel[NUM_BLOCKS,](
             vocab_size=self.vocab_size,
-            vocab_size_next_power_of_2=triton.next_power_of_2(self.vocab_size),
             states_ptr=states,
             new_states_ptr=new_states,
             scores_ptr=scores,
