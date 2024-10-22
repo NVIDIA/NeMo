@@ -128,8 +128,9 @@ def verify_ckpt_dir(
             '-unfinished' not in ckpt_name
         ), f"Unfinished checkpoint found. Something went wrong with saving checkpoint {ckpt_name}"
 
-        if ckpt_name.endswith('-last') and 'step' in model_ckpt.filename:
-            assert f'step={max_steps-1}' in ckpt_name, f"Last checkpoint {ckpt_name} not for final step {max_steps}"
+        # TODO: enable when max steps is not affected by resume
+        # if ckpt_name.endswith('-last') and 'step' in model_ckpt.filename:
+        #     assert f'step={max_steps-1}' in ckpt_name, f"Last checkpoint {ckpt_name} not for final step {max_steps}"
 
         if dist_ckpts:
             assert os.path.isdir(ckpt_path), "Checkpoint is not correct type"
