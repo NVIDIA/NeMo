@@ -87,6 +87,10 @@ from nemo.collections.llm.gpt.model.ssm import (
     NVIDIAMambaHybridConfig8B,
     SSMConfig,
 )
+from nemo.collections.llm.gpt.model.hyena import (
+    HyenaTestConfig,
+    HyenaConfig,
+)
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (
     Starcoder2Config,
@@ -99,6 +103,8 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 __all__ = [
     "GPTConfig",
     "GPTModel",
+    "HyenaTestConfig",
+    "HyenaConfig",
     "MistralConfig7B",
     "MistralModel",
     "MixtralConfig8x3B",
