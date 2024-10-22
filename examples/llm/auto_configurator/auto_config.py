@@ -14,18 +14,17 @@
 
 import argparse
 import os
+from dataclasses import dataclass
+from functools import partial
 
 import fiddle as fdl
 import nemo_run as run
 
-from dataclasses import dataclass
-from functools import partial
-
 from nemo.collections import llm
+from nemo.collections.common.tokenizers import SentencePieceTokenizer
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config, LlamaModel
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs, get_results
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.common.tokenizers import SentencePieceTokenizer
 
 
 def get_args():
@@ -74,7 +73,7 @@ def train_config(args):
     # This example will generate 3 configs.
     # It is expected that this script will be run 3 times with changing --run_number flag for each run from 1 to 3.
     # After all configurations are trained, please trigger the script using --get_results flag.
-    
+
     # Get Auto Conf runner
     runner = AutoConfigurator(
         recipe=partial(llama3_145m)(),
@@ -96,7 +95,7 @@ def train_config(args):
         names = list(configs.keys())
 
         # Run pre-training
-        pretrain_cfg = partials[args.run_number - 1] #partial(llama3_145m)() #
+        pretrain_cfg = partials[args.run_number - 1]  # partial(llama3_145m)() #
         pretrain = fdl.build(pretrain_cfg)
         pretrain()
     else:

@@ -336,7 +336,7 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
             if file.startswith(tb_prefix):
                 absolute_path = os.path.abspath(os.path.join(root, file))
                 tb_files.append(absolute_path)
-    
+
     return tb_files
 
 

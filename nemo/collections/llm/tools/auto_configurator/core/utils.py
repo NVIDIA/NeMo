@@ -426,7 +426,7 @@ def modify_cfg(
     gbs = base_cfg.data.global_batch_size
     seq_len = base_cfg.model.config.seq_length
 
-    new_cfg = {} #dict(run=base_cfg.run)
+    new_cfg = {}  # dict(run=base_cfg.run)
     if act is not None:
         if model_name in GPT_BASED_MODELS:
             new_cfg["activations_checkpoint_num_layers"] = act
@@ -461,9 +461,9 @@ def modify_cfg(
     mod_layers = num_layers % pp
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        new_cfg[
-            "name"
-        ] = f"{model_name}_{str(model_size)}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}"
+        new_cfg["name"] = (
+            f"{model_name}_{str(model_size)}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}"
+        )
         print(
             f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, VP={virtual_pipelines}. Adding to directory."
         )
