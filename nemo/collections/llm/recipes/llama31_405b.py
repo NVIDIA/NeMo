@@ -240,6 +240,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 
     return recipe
 
+
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
@@ -278,8 +279,12 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning. Be aware that fine-tuning a 405B model
         requires substantial computational resources.
     """
-    recipe = default_finetune_recipe(model(), "meta-llama/Meta-Llama-3.1-405B", dir, name, num_nodes, num_gpus_per_node)
-    import pdb; pdb.set_trace()
+    recipe = default_finetune_recipe(
+        model(), "meta-llama/Meta-Llama-3.1-405B", dir, name, num_nodes, num_gpus_per_node
+    )
+    import pdb
+
+    pdb.set_trace()
     if peft_scheme is None or peft_scheme.lower() == 'none':
         assert num_nodes >= 4
         recipe.trainer.strategy.tensor_model_parallel_size = 8
