@@ -41,7 +41,7 @@ def test_set_model_parallel_attributes() -> None:
 
     class DummyModel:
         def __init__(self):
-            self.config = TransformerConfig(hidden_size=128, num_attention_heads=2, num_layers=2)
+            self.config = TransformerConfig(hidden_size=128, num_attention_heads=2, num_layers=2, num_moe_experts=2)
 
         def configure_model(self):
             pass
@@ -80,7 +80,7 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
     mock_parallel_config.pipeline_model_parallel_split_rank = None
 
     _strategy_lib.init_parallel_ranks(
-        world_size=2,
+        world_size=3,
         global_rank=1,
         local_rank=0,
         parallel_config=mock_parallel_config,
@@ -88,7 +88,7 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
         fp8=False,
     )
     mock_initialize_model_parallel.assert_called_once_with(
-        world_size=2,
+        world_size=3,
         global_rank=1,
         local_rank=0,
         tensor_model_parallel_size=2,
