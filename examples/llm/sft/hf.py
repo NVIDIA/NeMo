@@ -24,14 +24,14 @@ from nemo.collections import llm
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
         return DataLoader(
-                dataset,
-                num_workers=self.num_workers,
-                pin_memory=self.pin_memory,
-                persistent_workers=self.persistent_workers,
-                collate_fn=dataset.collate_fn,
-                batch_size=self.micro_batch_size,
-                **kwargs,
-            )
+            dataset,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            persistent_workers=self.persistent_workers,
+            collate_fn=dataset.collate_fn,
+            batch_size=self.micro_batch_size,
+            **kwargs,
+        )
 
 
 def squad(tokenizer) -> pl.LightningDataModule:

@@ -65,6 +65,7 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin):
             self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype='auto')
         else:
             from transformers import AutoConfig
+
             config = AutoConfig.from_pretained(self.model_name)
             self.model = AutoModelForCausalLM.from_config(config)
         self.model.train()

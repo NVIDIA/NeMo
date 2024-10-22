@@ -21,14 +21,14 @@ class HfDatasetDataModule(pl.LightningDataModule):
     def __init__(
         self,
         dataset,
-        num_workers = 2,
-        pin_memory = True,
-        persistent_workers = True,
-        micro_batch_size = 2,
-        global_batch_size = 2,
-        pad_token_id = 0,
-        use_mcore_sampler = False,
-        mcore_dataloader_type = 'cyclic',
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=True,
+        micro_batch_size=2,
+        global_batch_size=2,
+        pad_token_id=0,
+        use_mcore_sampler=False,
+        mcore_dataloader_type='cyclic',
     ) -> None:
         super().__init__()
         assert pad_token_id is not None
@@ -56,10 +56,8 @@ class HfDatasetDataModule(pl.LightningDataModule):
 
         def pad_within_micro(batch, pad_token_id):
             max_len = max(map(len, batch))
-            return [
-                item + [pad_token_id] * (max_len - len(item))
-                for item in batch
-            ]
+            return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+
         return {
             key: batchify(
                 torch.LongTensor(
@@ -103,4 +101,3 @@ class HfDatasetDataModule(pl.LightningDataModule):
             rank=rank,
             world_size=world_size,
         )
-
