@@ -128,7 +128,7 @@ def _generate_cross_attention_mask(
     )
 
 
-def create_vision_mask_tensor(tokens: torch.Tensor, vision_token_id: int) -> torch.Tensor:
+def create_vision_mask_tensor(tokens: torch.Tensor, vision_token_id: int = 128256) -> torch.Tensor:
     """
     Create a vision mask from a tensor of tokens and a vision token ID.
 

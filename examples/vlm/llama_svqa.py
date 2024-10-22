@@ -186,7 +186,7 @@ def predict_answers(args, model, processor):
         if image is not None:
             # messages[0]["content"].insert(0, {"type": "image"})
             cur_prompt = cur_prompt.replace("<image>", "<|image|>", 1)
-            num_tiles = processor.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)["num_tiles"]
+            num_tiles = processor.image_processor.preprocess(image, return_tensors='pt')["num_tiles"]
         messages = [{"role": "user", "content": [{"type": "text", "text": cur_prompt}]}]
         prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
 
