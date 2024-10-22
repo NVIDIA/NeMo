@@ -13,6 +13,8 @@ class HfDatasetDataModule(pl.LightningDataModule):
         micro_batch_size = 2,
         global_batch_size = 2,
         pad_token_id = 0,
+        use_mcore_sampler = False,
+        mcore_dataloader_type = 'cyclic',
     ) -> None:
         super().__init__()
         assert pad_token_id is not None
@@ -24,6 +26,9 @@ class HfDatasetDataModule(pl.LightningDataModule):
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.pad_token_id = pad_token_id
+
+        self.use_mcore_sampler = use_mcore_sampler
+        self.mcore_dataloader_type = mcore_dataloader_type
 
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
@@ -59,15 +64,29 @@ class HfDatasetDataModule(pl.LightningDataModule):
         if collate_fn is None:
             collate_fn = lambda x: HfDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
+        dataloader = DataLoader(
+            self.dataset,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            persistent_workers=self.persistent_workers,
+            collate_fn=collate_fn,
+            batch_size=self.micro_batch_size,
+        )
+        if not self.use_mcore_sampler:
+            return dataloader
+
+        rank = 0
+        world_size = 1
+        if torch.distributed.is_initialized():
+            rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+
         return add_megatron_sampler(
-            DataLoader(
-                self.dataset,
-                num_workers=self.num_workers,
-                pin_memory=self.pin_memory,
-                persistent_workers=self.persistent_workers,
-                collate_fn=collate_fn,
-            ),
+            dataloader,
             self.micro_batch_size,
             self.global_batch_size,
+            dataloader_type=self.mcore_dataloader_type,
+            rank=rank,
+            world_size=world_size,
         )
 
