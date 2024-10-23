@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from pathlib import Path
+
+import torch
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -45,9 +46,7 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
     trainer = nl.Trainer(
         devices=calib_tp * calib_pp,
         strategy=nl.MegatronStrategy(
-            tensor_model_parallel_size=calib_tp,
-            pipeline_model_parallel_size=calib_pp,
-            pipeline_dtype=torch.float32
+            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.float32
         ),
         plugins=nl.MegatronMixedPrecision(precision='32', pipeline_dtype=torch.float32),
     )
