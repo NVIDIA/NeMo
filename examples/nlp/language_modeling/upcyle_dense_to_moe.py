@@ -22,7 +22,6 @@ Conversion script to convert NeMo Mistral-7B checkpoints into HuggingFace checkp
 """
 
 from argparse import ArgumentParser
-from collections import OrderedDict
 
 import torch
 import torch.nn
