@@ -212,7 +212,7 @@ class LoRA(PEFT):
                 in_features = m.input_size
                 out_features = m.output_size
             elif isinstance(m, nn.Linear):
-                return LinearAdapter(m, dim=self.dim, lora_alpha=self.alpha, lora_dropout=self.dropout, lora_A_init_method=self.lora_A_init_method)
+                return LinearAdapter(m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method)
             else:
                 raise NotImplementedError(f"Layer type is unrecognized for LoRA: {type(m)}")
 
