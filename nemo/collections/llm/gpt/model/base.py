@@ -27,7 +27,6 @@ from torch import nn
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import DDP
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
