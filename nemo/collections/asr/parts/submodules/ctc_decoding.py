@@ -1404,7 +1404,11 @@ class CTCBPEDecoding(AbstractCTCDecoding):
     def __init__(self, decoding_cfg, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
-        supported_punctuation = tokenizer.supported_punctuation
+        vocabulary = self.tokenizer.vocab
+
+        supported_punctuation = {
+            char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')
+            }
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id, supported_punctuation=supported_punctuation)
 

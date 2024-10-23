@@ -298,7 +298,7 @@ class BatchedHyps:
         labels: torch.Tensor,
         time_indices: torch.Tensor,
         scores: torch.Tensor,
-        token_durations: torch.Tensor = None,
+        token_durations: Optional[torch.Tensor] = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses.
@@ -329,7 +329,7 @@ class BatchedHyps:
         labels: torch.Tensor,
         time_indices: torch.Tensor,
         scores: torch.Tensor,
-        token_durations: torch.Tensor = None,
+        token_durations: Optional[torch.Tensor] = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses without checks.
@@ -341,6 +341,7 @@ class BatchedHyps:
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
+            token_durations: predicted durations for each token by TDT head
         """
         # accumulate scores
         self.scores[active_indices] += scores
@@ -365,7 +366,7 @@ class BatchedHyps:
         labels: torch.Tensor,
         time_indices: torch.Tensor,
         scores: torch.Tensor,
-        token_durations: torch.Tensor = None,
+        token_durations: Optional[torch.Tensor] = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses.
@@ -392,7 +393,7 @@ class BatchedHyps:
         labels: torch.Tensor,
         time_indices: torch.Tensor,
         scores: torch.Tensor,
-        token_durations: torch.Tensor = None,
+        token_durations: Optional[torch.Tensor] = None,
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses without checks.
