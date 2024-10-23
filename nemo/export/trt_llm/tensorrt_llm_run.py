@@ -273,6 +273,7 @@ def _forward(
                 streaming=streaming,
                 output_sequence_lengths=True,
                 return_dict=True,
+                **sampling_kwargs,
             )
 
             torch.cuda.synchronize()
@@ -692,8 +693,9 @@ def generate(
     ]
 
     if output_log_probs:
-        return output_lines_list, log_probs
-    return output_lines_list
+        return output_lines_list, outputs['log_probs'].cpu()
+    else:
+        return output_lines_list, None
 
 
 def generate_streaming(

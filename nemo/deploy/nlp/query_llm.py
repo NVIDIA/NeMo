@@ -170,7 +170,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
         repetition_penalty: float = None,
         add_BOS: bool = None,
         all_probs: bool = None,
-        compute_logprob: bool = None,
+        log_probs: bool = False,
         end_strings=None,
         init_timeout=60.0,
         openai_format_response: bool = False,
@@ -242,8 +242,8 @@ class NemoQueryLLM(NemoQueryLLMBase):
         if all_probs is not None:
             inputs["all_probs"] = np.full(prompts.shape, all_probs, dtype=np.bool_)
 
-        if compute_logprob is not None:
-            inputs["compute_logprob"] = np.full(prompts.shape, compute_logprob, dtype=np.bool_)
+        if log_probs:
+            inputs["log_probs"] = np.full(prompts.shape, log_probs, dtype=np.bool_)
 
         if end_strings is not None:
             inputs["end_strings"] = str_list2numpy(end_strings)
@@ -251,6 +251,10 @@ class NemoQueryLLM(NemoQueryLLMBase):
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
+
+            log_probs = [0.0]
+            if "log_props" in result_dict.keys():
+                log_probs = result_dict["log_props"]
 
             if output_type == np.bytes_:
                 if "outputs" in result_dict.keys():
@@ -268,10 +272,11 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "created": int(time.time()),
                         "model": self.model_name,
                         "choices": [{"text": str(sentences)}],
+                        "log_probs": log_probs,
                     }
                     return openai_response
                 else:
-                    return sentences
+                    return sentences, log_probs
             else:
                 return result_dict["outputs"]
 
