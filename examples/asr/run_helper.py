@@ -166,7 +166,9 @@ def check_config_mount_paths(script_config, cluster_config):
             unmounted_path = run_utils.get_unmounted_filepath(cluster_cfg, v)
             run_utils.check_remote_mount_directories(unmounted_path, cluster_cfg)
 
-        elif check_ais_paths and "ais://" in v and ais_endpoint is not None:  # if the value is a string, check if its an ais path
+        elif (
+            check_ais_paths and "ais://" in v and ais_endpoint is not None
+        ):  # if the value is a string, check if its an ais path
             # Try to import ais module
             try:
                 from aistore.sdk import Client
