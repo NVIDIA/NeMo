@@ -17,10 +17,11 @@ from nemo.utils.import_utils import safe_import
 
 safe_import("transformer_engine")
 
-from nemo.collections.llm import peft, tokenizer
+from nemo.collections.llm import peft
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
+    HfDatasetDataModule,
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
@@ -57,6 +58,7 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig126M,
     GPTConfig175B,
     GPTModel,
+    HfAutoModelForCausalLM,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
@@ -70,6 +72,7 @@ from nemo.collections.llm.gpt.model import (
     MaskedTokenLossReduction,
     MistralConfig7B,
     MistralModel,
+    MistralNeMoConfig12B,
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
@@ -115,6 +118,7 @@ __all__ = [
     "t5_forward_step",
     "MaskedTokenLossReduction",
     "MistralConfig7B",
+    "MistralNeMoConfig12B",
     "MistralModel",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
@@ -180,6 +184,7 @@ __all__ = [
     "squad",
     "dolly",
     "peft",
+    "HfAutoModelForCausalLM",
 ]
 
 

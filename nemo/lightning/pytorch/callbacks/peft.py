@@ -108,6 +108,7 @@ class PEFT(ABC, ModelTransform):
             nn.Module: The transformed model with PEFT applied.
         """
         model.freeze()
+        model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage=stage)
