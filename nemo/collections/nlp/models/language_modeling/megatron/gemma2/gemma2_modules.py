@@ -66,6 +66,8 @@ class Gemma2DotProductAttention(MegatronModule):
         attn_mask_type: AttnMaskType,
         attention_type: str,
         attention_dropout: float = None,
+        softmax_scale: float = None,
+        cp_comm_type: str = None,
     ):
         super().__init__(config=config)
 
