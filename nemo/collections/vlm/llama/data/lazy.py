@@ -33,7 +33,7 @@ from typing import Any, Dict, List, Sequence
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset, default_collate
+from torch.utils.data import default_collate
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor

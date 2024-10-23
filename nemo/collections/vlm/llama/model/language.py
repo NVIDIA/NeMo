@@ -15,7 +15,7 @@
 import math
 from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import List, Literal, Optional, Tuple, Union
+from typing import List, Literal, Optional, Union
 
 import torch
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
