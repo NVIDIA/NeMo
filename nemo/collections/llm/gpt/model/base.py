@@ -329,10 +329,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             padded_vocab_size=self.tokenizer.vocab_size,
         )
 
-        model_inference_wrapper = GPTInferenceWrapper(
-            mcore_model,
-            inference_wrapper_config
-        )
+        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
         return model_inference_wrapper
 
     @property

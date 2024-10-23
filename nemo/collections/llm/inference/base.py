@@ -6,12 +6,14 @@ import torch
 import torch.distributed
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
-from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import AbstractModelInferenceWrapper
-from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
-    SimpleTextGenerationController,
+from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
+    AbstractModelInferenceWrapper,
 )
 from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
     EncoderDecoderTextGenerationController,
+)
+from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
+    SimpleTextGenerationController,
 )
 from megatron.core.transformer.module import MegatronModule
 from pytorch_lightning.trainer.states import TrainerFn
@@ -22,6 +24,7 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
+
 # We need this wrapper since mcore generate uses methods/properties such as tokenizer.detokenize, tokenizer.tokenize, tokenizer.bos, tokenizer.pad, etc. to encode and decode prompts
 class MCoreTokenizerWrappper:
     def __init__(self, tokenizer):
@@ -29,7 +32,7 @@ class MCoreTokenizerWrappper:
         self.eod = tokenizer.eod
         self.vocab_size = tokenizer.vocab_size
 
-    def detokenize(self, tokens, remove_special_tokens = False):
+    def detokenize(self, tokens, remove_special_tokens=False):
         return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
 
     def tokenize(self, prompt):
@@ -46,6 +49,7 @@ class MCoreTokenizerWrappper:
     @property
     def pad(self):
         return self.tokenizer.pad_id
+
 
 # TODO: Move to lightning Fabric API.
 def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule):
@@ -97,7 +101,9 @@ def generate(
     inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
     if encoder_prompts is not None:
-        text_generation_controller = EncoderDecoderTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+        text_generation_controller = EncoderDecoderTextGenerationController(
+            inference_wrapped_model=model, tokenizer=tokenizer
+        )
     else:
         text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(
