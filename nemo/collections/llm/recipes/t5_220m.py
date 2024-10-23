@@ -133,7 +133,7 @@ def trainer(
         strategy=strategy,
         use_distributed_sampler=False,
         # DEBUGGING
-        val_check_interval=20,
+        val_check_interval=2000,
     )
 
     return trainer
