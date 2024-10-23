@@ -14,6 +14,11 @@
 
 
 from nemo.collections.llm.recipes import (
+    baichuan2_7b,
+    chatglm3_6b,
+    gemma_2b,
+    gemma_7b,
+    hf_auto_model_for_causal_lm,
     llama3_8b,
     llama3_8b_16k,
     llama3_8b_64k,
@@ -21,6 +26,13 @@ from nemo.collections.llm.recipes import (
     llama3_70b_16k,
     llama3_70b_64k,
     llama31_405b,
+    mamba2_1_3b,
+    mamba2_2_7b,
+    mamba2_8b,
+    mamba2_130m,
+    mamba2_370m,
+    mamba2_780m,
+    mamba2_hybrid_8b,
     mistral_7b,
     mistral_nemo_12b,
     mixtral_8x7b,
@@ -42,6 +54,10 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam
 
 __all__ = [
+    "baichuan2_7b",
+    "chatglm3_6b",
+    "gemma_2b",
+    "gemma_7b",
     "llama3_8b",
     "llama3_8b_16k",
     "llama3_8b_64k",
@@ -49,8 +65,16 @@ __all__ = [
     "llama3_70b_16k",
     "llama3_70b_64k",
     "llama31_405b",
+    "mamba2_130m",
+    "mamba2_370m",
+    "mamba2_780m",
+    "mamba2_1_3b",
+    "mamba2_2_7b",
+    "mamba2_8b",
+    "mamba2_hybrid_8b",
     "mistral_7b",
     "mistral_nemo_12b",
+    "hf_auto_model_for_causal_lm",
     "mixtral_8x7b",
     "mixtral_8x7b_16k",
     "mixtral_8x7b_64k",
