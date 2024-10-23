@@ -78,38 +78,11 @@ def setup_model_and_tokenizer(
     trainer: nl.Trainer,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
-<<<<<<< HEAD
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
     model: io.TrainerContext = io.load_context(path=path, subpath="model")
-    trainer = trainer or io.load_context(path=path, subpath="trainer")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(params_dtype, inference_batch_times_seqlen_threshold)
-=======
-) -> tuple[MCoreGPTModel, MCoreTokenizerWrappper]:
-    model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
-    _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
-
-    # This is to get the MCore model required in GPTInferenceWrapper.
-    mcore_model = model
-    while mcore_model:
-        if type(mcore_model) is MCoreGPTModel:
-            break
-        mcore_model = getattr(mcore_model, "module", None)
-    if mcore_model is None or type(mcore_model) is not MCoreGPTModel:
-        raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
-
-    inference_wrapped_model = GPTInferenceWrapper(
-        mcore_model,
-        InferenceWrapperConfig(
-            hidden_size=mcore_model.config.hidden_size,
-            params_dtype=params_dtype,
-            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=model.tokenizer.vocab_size,
-        ),
-    )
->>>>>>> origin/main
-
     return inference_wrapped_model, MCoreTokenizerWrappper(model.tokenizer)
 
 

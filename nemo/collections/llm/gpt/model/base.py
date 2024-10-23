@@ -324,10 +324,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
         inference_wrapper_config = InferenceWrapperConfig(
-            hidden_size=mcore_model.module.config.hidden_size,
+            hidden_size=mcore_model.config.hidden_size,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=model.tokenizer.vocab_size,
+            padded_vocab_size=self.tokenizer.vocab_size,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(
