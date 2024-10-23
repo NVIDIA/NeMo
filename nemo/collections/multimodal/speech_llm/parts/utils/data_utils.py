@@ -18,7 +18,8 @@ import numpy as np
 import torch
 from lhotse.cut import Cut
 
-from nemo.collections.common.prompts import PromptFormatter, get_prompt_format_fn
+from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.utils import logging, logging_mode
 
 
@@ -403,7 +404,8 @@ class PromptFormatterTextProcessing:
         audio_locator: Optional[str] = None,
         max_seq_length: Optional[int] = 8192,
     ):
-        self.prompt_format_fn = get_prompt_format_fn(prompt_format)
+        self.prompt = PromptFormatter.resolve(prompt_format)(tokenizer)
+        self.prompt_format_fn = get_prompt_format_fn(Cut, self.prompt)
         self.tokenizer = tokenizer
         self.audio_locator = audio_locator
         self.max_seq_length = max_seq_length
@@ -418,8 +420,7 @@ class PromptFormatterTextProcessing:
             )
 
     def _process_example(self, cut: Cut):
-        ans = self.prompt_format_fn([cut], self.tokenizer)
-        ans = {k: v[0] for k, v in ans.items()}
+        ans = self.prompt_format_fn(cut, self.prompt)
         context_start_idx = [0]
         if self.audio_locator_id is not None:
             if len(self.audio_locator_id) == 1:  # fast case, special "insert audio" token

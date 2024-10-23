@@ -84,7 +84,6 @@ def test_speechllm_dataset(tokenizer, cuts):
     )
 
     batch = dataset[cuts]
-    print(batch)
 
     expected_keys = {
         "sample_ids",
@@ -368,8 +367,8 @@ def test_speechllm_dataset_tokens_to_generate_increases_seq_len(llama_tokenizer,
         max_seq_length=512,
     )
     batch = dataset[cuts]
-    assert batch["tokens"].shape == (1, 347)  # was 351 before padding optimization
-    assert batch["labels"].shape == (1, 347)  # was 351 before padding optimization
-    assert batch["contexts"].shape == (1, 337)  # was 352 before padding optimization
-    assert batch["answers"].shape == (1, 267)  # was 352 before padding optimization
-    assert batch["position_ids"].shape == (1, 348)  # was 352 before padding optimization
+    assert batch["tokens"].shape == (1, 91)
+    assert batch["labels"].shape == (1, 91)
+    assert batch["contexts"].shape == (1, 337)
+    assert batch["answers"].shape == (1, 11)
+    assert batch["position_ids"].shape == (1, 92)
