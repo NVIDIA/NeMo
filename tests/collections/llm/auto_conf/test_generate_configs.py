@@ -1,5 +1,6 @@
-import nemo_run as run
 from functools import partial
+
+import nemo_run as run
 
 from nemo.collections import llm
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
