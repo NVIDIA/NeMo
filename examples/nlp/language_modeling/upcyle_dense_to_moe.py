@@ -22,19 +22,16 @@ Conversion script to convert NeMo Mistral-7B checkpoints into HuggingFace checkp
 """
 
 from argparse import ArgumentParser
+from pathlib import Path
 
 import torch
 import torch.nn
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.utils import logging
 
-from pathlib import Path
 
 def get_args():
     parser = ArgumentParser()
@@ -60,11 +57,13 @@ def make_moe_config_from_dense(config, num_experts=8):
     moe_config['num_moe_experts'] = num_experts
     return moe_config
 
+
 def unwrap(model):
     tmp = model
     while hasattr(tmp, 'module'):
-          tmp = tmp.module
+        tmp = tmp.module
     return tmp
+
 
 def upcycle(in_file, num_experts, cpu_only=True) -> None:
     """
