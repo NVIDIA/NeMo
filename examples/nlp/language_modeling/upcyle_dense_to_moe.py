@@ -37,6 +37,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.utils import logging
 
+from pathlib import Path
 
 def get_args():
     parser = ArgumentParser()
@@ -100,6 +101,9 @@ def upcycle(in_file, num_experts, cpu_only=True) -> None:
     moe_state_dict = upcycle_state_dict([moe_model.model.module], [dense_model.model.module])
     moe_model.model.module.load_state_dict(moe_state_dict['model'])
     moe_model._save_restore_connector = NLPSaveRestoreConnector()
+    # hack
+    if Path(args.model).is_dir():
+        moe_model._save_restore_connector._model_extracted_dir = args.model
 
     moe_model.save_to(args.output_path)
 
