@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
 from pathlib import Path
 
 from nemo import lightning as nl
@@ -46,8 +47,9 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
         strategy=nl.MegatronStrategy(
             tensor_model_parallel_size=calib_tp,
             pipeline_model_parallel_size=calib_pp,
+            pipeline_dtype=torch.float32
         ),
-        plugins=nl.MegatronMixedPrecision(precision='16-mixed'),
+        plugins=nl.MegatronMixedPrecision(precision='32', pipeline_dtype=torch.float32),
     )
     fabric = trainer.to_fabric()
     fabric.launch()

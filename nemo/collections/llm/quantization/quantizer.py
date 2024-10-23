@@ -144,7 +144,6 @@ class Quantizer:
         """Setup model for quantization."""
         # TODO: disable activation checkpointing
         model.config.vocab_size = model.tokenizer.vocab_size
-        model.config.pipeline_dtype = self.torch_dtype  # TODO: for some reason model.pipeline.dtype does not work
         model.freeze()
 
     def _get_decoder_type(self, config: llm.GPTConfig):
