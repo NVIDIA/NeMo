@@ -19,7 +19,8 @@ from nemo.collections import llm
 
 
 def mk_hf_dataset(tokenizer):
-    EOS_TOKEN = tokenizer.eos_token # Must add EOS_TOKEN
+    EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
+
     def formatting_prompts_func(examples):
         alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 
@@ -32,18 +33,22 @@ def mk_hf_dataset(tokenizer):
     ### Response:
     {}"""
         instruction = examples["context"]
-        input       = examples["question"]
-        output      = examples["answers"]['text']
+        input = examples["question"]
+        output = examples["answers"]['text']
         if isinstance(output, list):
             output = output[0]
         text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
         ans = tokenizer(text)
         tokens = ans['input_ids']
-        return {'tokens': tokens, 'labels': tokens[1:] + [tokens[-1]], }
+        return {
+            'tokens': tokens,
+            'labels': tokens[1:] + [tokens[-1]],
+        }
 
     from datasets import load_dataset
-    dataset = load_dataset("rajpurkar/squad", split = "train")
-    dataset = dataset.map(formatting_prompts_func, batched = False, batch_size = 2)
+
+    dataset = load_dataset("rajpurkar/squad", split="train")
+    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2)
     return dataset
 
 
@@ -76,8 +81,7 @@ if __name__ == '__main__':
     llm.api.finetune(
         model=llm.HfAutoModelForCausalLM(args.model),
         data=llm.HfDatasetDataModule(
-            mk_hf_dataset(tokenizer.tokenizer),
-            pad_token_id=tokenizer.tokenizer.eos_token_id
+            mk_hf_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
         ),
         trainer=nl.Trainer(
             devices=args.devices,

@@ -16,9 +16,9 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
-from nemo.collections.llm import fn
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.llm import fn
 from nemo.lightning import io
 
 

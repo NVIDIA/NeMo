@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-import torch
 import math
+import re
 from dataclasses import dataclass, field
 from typing import List, Literal
 
+import torch
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 from torch import nn
@@ -72,7 +72,9 @@ class AdapterParallelAdd(AdapterWrapper):
 
 
 class LinearAdapter(nn.Module):
-    def __init__(self, orig_linear, dim=8, alpha=32, dropout=0.1, dropout_position='post', lora_A_init_method='xavier'):
+    def __init__(
+        self, orig_linear, dim=8, alpha=32, dropout=0.1, dropout_position='post', lora_A_init_method='xavier'
+    ):
         super(LinearAdapter, self).__init__()
         assert isinstance(orig_linear, nn.Linear)
 
@@ -110,6 +112,7 @@ class LinearAdapter(nn.Module):
         if self.dropout_position == 'post':
             lora_res = self.dropout(lora_res)
         return res + lora_res
+
 
 @dataclass
 class LoRA(PEFT):
@@ -212,7 +215,9 @@ class LoRA(PEFT):
                 in_features = m.input_size
                 out_features = m.output_size
             elif isinstance(m, nn.Linear):
-                return LinearAdapter(m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method)
+                return LinearAdapter(
+                    m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
+                )
             else:
                 raise NotImplementedError(f"Layer type is unrecognized for LoRA: {type(m)}")
 
