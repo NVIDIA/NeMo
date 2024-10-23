@@ -48,13 +48,14 @@ class MLlamaDataset(LazySupervisedDataset):
         data_config,
         tokenizer,
         image_processor,
+        sequence_length,
     ):
 
         if data_path.endswith(".json"):
-            super().__init__(data_path, data_config, tokenizer, image_processor)
+            super().__init__(data_path, data_config, tokenizer, image_processor, sequence_length)
 
         elif data_path.endswith(".jsonl"):
-            super().__init__(None, data_config, tokenizer, image_processor)
+            super().__init__(None, data_config, tokenizer, image_processor, sequence_length)
             logging.warning("Loading image inputs from SteerLM Dataset...")
             if data_config.media_type == 'image':
                 image_folder = data_config.image_folder
@@ -67,7 +68,7 @@ class MLlamaDataset(LazySupervisedDataset):
 
                     record['image'] = []
                     for turn in record['conversations']:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                        matches = re.finditer(r'<img src=["\']([^"\']+)["\']', turn['value'])
                         for match in matches:
                             image_name = match.group(1).split("/")[-1]
                             image_path = os.path.join(image_folder, image_name)
@@ -75,7 +76,7 @@ class MLlamaDataset(LazySupervisedDataset):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
                             record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
+                        turn['value'] = re.sub('<img src=["\']([^"\']+)["\']', "<image>", turn['value'])
 
                     self.list_data_dict.append(record)
 
@@ -124,8 +125,10 @@ class MLlamaDataset(LazySupervisedDataset):
 
     def collate_fn(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         data_config = self.data_config
-        max_len = max(instance['tokens'].shape[0] for instance in instances)
-        max_len = 512
+        max_len = (max(instance['tokens'].shape[0] for instance in instances) - 1) // 64 * 64 + 64
+        if max_len > self.sequence_length:
+            logging.warning(f"Truncating sequence length {max_len} to {self.seq_length}.")
+            max_len = self.sequence_length
         max_num_concurrent_media =  max(instance['pixel_values'].shape[0] for instance in instances)
         for instance in instances:
             pad_len = max_len - instance['tokens'].shape[0]
@@ -243,8 +246,8 @@ class MLlamaLazyDataModule(pl.LightningDataModule):
             # TODO:
             # rng = torch.Generator().manual_seed(self.seed)
             # train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size], generator=rng)
-            self._train_ds = MLlamaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor)
-            self._validation_ds = MLlamaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor)
+            self._train_ds = MLlamaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.seq_length)
+            self._validation_ds = MLlamaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.seq_length)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._create_dataloader(self._train_ds)

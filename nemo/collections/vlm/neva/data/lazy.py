@@ -259,6 +259,7 @@ class LazySupervisedDataset(Dataset):
         data_config,
         tokenizer,
         image_processor,
+        sequence_length,
     ):
         super().__init__()
         if data_path is not None:
@@ -275,6 +276,7 @@ class LazySupervisedDataset(Dataset):
             self.tokenizer = self.tokenizer.tokenizer
 
         self.image_processor = image_processor
+        self.sequence_length = sequence_length
 
         self.conv_template = data_config.conv_template
         self.conv = supported_conv_templates[self.conv_template]
@@ -327,8 +329,12 @@ class LazySupervisedDataset(Dataset):
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         source = source['conversations']
-        if roles[source[0]["from"]] != conv.roles[0]:
-            source = source[1:]
+
+        def _fix_roles(roles):
+            if len(source) < 2:
+                return roles
+            return {source[0]["from"]: conv.roles[0], source[1]["from"]: conv.roles[1]}
+        roles = _fix_roles(roles)
 
         conv.messages = []
         for j, sentence in enumerate(source):
