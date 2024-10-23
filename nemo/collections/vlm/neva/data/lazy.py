@@ -335,6 +335,7 @@ class LazySupervisedDataset(Dataset):
             if len(source) < 2:
                 return roles
             return {source[0]["from"]: conv.roles[0], source[1]["from"]: conv.roles[1]}
+
         roles = _fix_roles(roles)
 
         conv.messages = []

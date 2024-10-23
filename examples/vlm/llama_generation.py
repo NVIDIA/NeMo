@@ -17,12 +17,11 @@ import argparse
 import requests
 import torch
 from PIL import Image
+from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import vlm
-from transformers import AutoProcessor
 from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor
-
 
 model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
@@ -37,15 +36,14 @@ def load_image(image_url: str) -> Image.Image:
         print(f"Error loading image from {image_url}: {e}")
         return None
 
+
 def generate(model, processor, image, text):
     tokenizer = processor.tokenizer
 
     messages = [
         {
             "role": "user",
-            "content": [
-                {"type": "text", "text": text}
-            ],
+            "content": [{"type": "text", "text": text}],
         }
     ]
     input_text = processor.apply_chat_template(messages, add_generation_prompt=True)
@@ -92,6 +90,7 @@ def generate(model, processor, image, text):
         print("=======================================")
     return generated_texts
 
+
 def main(args) -> None:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
@@ -129,6 +128,7 @@ def main(args) -> None:
         return  # Exit if the image can't be loaded
 
     generate(model, processor, image=raw_image, text="<|image|>\nDescribe the image.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")

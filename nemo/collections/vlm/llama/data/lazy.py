@@ -253,8 +253,12 @@ class MLlamaLazyDataModule(pl.LightningDataModule):
             # TODO:
             # rng = torch.Generator().manual_seed(self.seed)
             # train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size], generator=rng)
-            self._train_ds = MLlamaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.seq_length)
-            self._validation_ds = MLlamaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.seq_length)
+            self._train_ds = MLlamaDataset(
+                self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.seq_length
+            )
+            self._validation_ds = MLlamaDataset(
+                self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.seq_length
+            )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._create_dataloader(self._train_ds)
