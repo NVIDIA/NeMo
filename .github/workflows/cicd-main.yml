@@ -150,6 +150,8 @@ jobs:
        RUNNER: self-hosted-azure
        TIMEOUT: 20
        SCRIPT: |
+         echo cuda error 
+         exit 1
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Common:
