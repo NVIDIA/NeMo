@@ -8,17 +8,17 @@ from nemo.collections.llm import import_ckpt
 
 if __name__ == '__main__':
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=2,
         ckpt_include_optimizer=False,
     )
-    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
+    processor = AutoProcessor.from_pretrained("hf://llava-hf/llava-v1.6-vicuna-7b-hf")
     tokenizer = processor.tokenizer
     trainer = nl.Trainer(
-        devices=1,
+        devices=2,
         max_steps=1000,
         accelerator="gpu",
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="16-mixed"),
+        plugins=nl.MegatronMixedPrecision(precision="32"),
         val_check_interval=1000,
         limit_val_batches=50,
     )
@@ -73,4 +73,19 @@ if __name__ == '__main__':
     #         source="hf://llava-hf/llava-v1.6-vicuna-7b-hf",
     #         )
     model = fabric.import_model("hf://llava-hf/llava-v1.6-vicuna-7b-hf", BaseMimoModel)
+    model = model.module
+    model.eval()
+    device = model.device
+    batch = next(iter(dataloader))
+    
+    forward_args = {
+        "images": batch["images"],
+        "input_ids": batch["tokens"],
+        "position_ids": batch["position_ids"],
+        "attention_mask": batch.get("attention_mask", None),
+        "loss_mask": batch.get("loss_mask", None),
+        # "labels": batch.get("labels", None),
+         "labels": None,
+    }
+    fw_out = model(**forward_args)
     breakpoint()

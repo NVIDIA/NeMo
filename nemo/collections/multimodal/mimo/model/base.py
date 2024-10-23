@@ -372,9 +372,11 @@ class HFLlavaMimoImporter(io.ModelConnector["LlavaForConditionalGeneration", Bas
     
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        from transformers import AutoTokenizer
-        temp = str(self)
-        return AutoTokenizer.from_pretrained(str(self))
+        # from transformers import AutoTokenizer
+        # return AutoTokenizer.from_pretrained(str(self))
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        return AutoTokenizer(str(self))
     
     @property
     def config(self) -> BaseMimoConfig:
