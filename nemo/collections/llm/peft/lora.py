@@ -78,7 +78,7 @@ class LinearAdapter(nn.Module):
 
         self.orig_linear = orig_linear
         self.dim = dim
-        self.scale = self.alpha / self.r
+        self.scale = alpha / dim
 
         # Freezer
         device = self.orig_linear.weight.device
