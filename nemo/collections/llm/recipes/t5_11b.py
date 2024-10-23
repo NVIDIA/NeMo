@@ -38,10 +38,10 @@ NAME = "t5_11b"
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama3 8B model configuration.
+    Factory function to create a T5 11B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama3 8B model.
+        run.Config[pl.LightningModule]: Configuration for the T5 11B model.
 
     Examples:
         CLI usage:
@@ -88,7 +88,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama3_8b ...
+            $ nemo llm pretrain trainer=t5_11b ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
@@ -143,7 +143,7 @@ def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 20, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
-    Create a pre-training recipe for T5 220m model.
+    Create a pre-training recipe for T5 11b model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -175,7 +175,7 @@ def pretrain_recipe(
     opt_config = OptimizerConfig(
         optimizer='adam',
         lr=0.0001,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
         weight_decay=0.01,
     )

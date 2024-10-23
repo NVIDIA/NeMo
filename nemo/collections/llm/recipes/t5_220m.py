@@ -133,7 +133,7 @@ def trainer(
         strategy=strategy,
         use_distributed_sampler=False,
         # DEBUGGING
-        val_check_interval=2000,
+        val_check_interval=20,
     )
 
     return trainer
@@ -176,7 +176,7 @@ def pretrain_recipe(
     opt_config = OptimizerConfig(
         optimizer='adam',
         lr=0.0001,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
         weight_decay=0.01,
     )
