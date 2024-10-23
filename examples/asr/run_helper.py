@@ -137,6 +137,9 @@ def check_config_mount_paths(script_config, cluster_config):
     Check if all path-like strings in the script config are mounted paths in the cluster config.
     If a path-like string is not a mounted path, raise an error.
 
+    For AIS paths, the script will check if the ais module is installed and if the path is accessible.
+    You can disable this check by setting `check_ais_paths=False` in the cluster config.
+
     Args:
         script_config: Script config dictionary that represents the Model training/inference config
         cluster_config: Cluster config dictionary that represents the cluster configuration
@@ -149,6 +152,10 @@ def check_config_mount_paths(script_config, cluster_config):
     else:
         ais_endpoint = None
 
+    # Check if ais paths should be checked at all
+    # This can be disabled using `++check_ais_paths=False` passed when calling the script
+    check_ais_paths = cluster_config.get('check_ais_paths', True)
+
     def filepath_check(v, cluster_cfg):
         if v.startswith(os.path.sep):  # check for absolute paths only
             logging.info(f"Checking if {v} is a mounted path")
@@ -159,7 +166,7 @@ def check_config_mount_paths(script_config, cluster_config):
             unmounted_path = run_utils.get_unmounted_filepath(cluster_cfg, v)
             run_utils.check_remote_mount_directories(unmounted_path, cluster_cfg)
 
-        elif "ais://" in v and ais_endpoint is not None:  # if the value is a string, check if its an ais path
+        elif check_ais_paths and "ais://" in v and ais_endpoint is not None:  # if the value is a string, check if its an ais path
             # Try to import ais module
             try:
                 from aistore.sdk import Client
