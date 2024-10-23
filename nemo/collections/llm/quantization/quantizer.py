@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import shutil
 from dataclasses import dataclass
 from typing import Optional, Union
 
@@ -22,7 +21,6 @@ import torch.distributed as dist
 from datasets import load_dataset
 
 from nemo.collections import llm
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 from .utils import get_unwrapped_mcore_model
@@ -52,7 +50,15 @@ SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized laye
 
 @dataclass
 class QuantizationConfig:
-    algorithm: Optional[str] = "fp8"  # one of QUANT_CFG_CHOICES keys
+    """Quantization parameters.
+
+    Available quantization methods are listed in `QUANT_CFG_CHOICES` dictionary above.
+    Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer/ for details.
+
+    Quantization algorithm can also be conveniently set to None to perform only weights export step
+    for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
+    """
+    algorithm: Optional[str] = "fp8"
     awq_block_size: int = 128
     sq_alpha: float = 0.5
     enable_kv_cache: Optional[bool] = None
@@ -60,6 +66,7 @@ class QuantizationConfig:
 
 @dataclass
 class ExportConfig:
+    """Inference configuration for the quantized TensorRT-LLM engine"""
     path: str
     dtype: Union[str, int] = "bf16"
     decoder_type: Optional[str] = None
@@ -103,16 +110,11 @@ class Quantizer:
 
     The output directory produced is intended to be consumed by TensorRT-LLM toolbox
     for efficient inference. This can be achieved using NeMo inference containers.
-
-    Available quantization methods are listed in `QUANT_CFG_CHOICES` dictionary above.
-    Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer/ for details.
-
-    Quantization algorithm can also be conveniently set to None to perform only weights export step
-    for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
     """
 
     def __init__(self, quantization_config: QuantizationConfig, export_config: ExportConfig):
         """Initialize Quantizer with quantization and export configurations."""
+        from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 
         if not HAVE_MODELOPT:
             raise RuntimeError("nvidia-modelopt is needed to use Quantizer") from HAVE_MODELOPT_ERROR
@@ -234,9 +236,7 @@ class Quantizer:
     def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
         # TODO: Add sample generate
-        # TODO: Support NeMo 2:
-        # if model.cfg.megatron_amp_O2:
-        #     model.model = unwrap_model(model.model, Float16Module)
+        # TODO: Support megatron_amp_O2
         export_dir = self.export_config.path
         use_nfs_workspace = (model.trainer._fabric.__io__.num_nodes > 1) or (
             model.config.pipeline_model_parallel_size > 1

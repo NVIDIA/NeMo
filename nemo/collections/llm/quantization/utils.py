@@ -16,14 +16,14 @@ from pathlib import Path
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 
 
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Modify model config for quantization."""
+    """Modify model config for TensorRT Model Optimizer"""
 
+    from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
     model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec()
     if model_cfg.sequence_parallel:
         logging.warning("Disabling sequence parallelism for quantization...")
