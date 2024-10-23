@@ -137,9 +137,6 @@ def check_config_mount_paths(script_config, cluster_config):
     Check if all path-like strings in the script config are mounted paths in the cluster config.
     If a path-like string is not a mounted path, raise an error.
 
-    For AIS paths, the script will check if the ais module is installed and if the path is accessible.
-    You can disable this check by setting `check_ais_paths=False` in the cluster config.
-
     Args:
         script_config: Script config dictionary that represents the Model training/inference config
         cluster_config: Cluster config dictionary that represents the cluster configuration
