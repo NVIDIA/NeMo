@@ -13,11 +13,7 @@
 # limitations under the License.
 
 import argparse
-import torch
-from tqdm import tqdm
-
 from nemo.collections.llm import quantization
-
 
 def get_args():
     parser = argparse.ArgumentParser(
@@ -70,29 +66,6 @@ def get_args():
     return args
 
 
-def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration_size):
-    def _iterator():
-        CHARACTERS_PER_TOKEN = 4
-
-        dataloader = quantization.get_calib_data_iter(
-            data=dataset,
-            max_sequence_length=CHARACTERS_PER_TOKEN * seq_len,
-            batch_size=batch_size,
-            calib_size=calibration_size,
-        )
-        for batch in dataloader:
-            batch = [model.tokenizer.text_to_ids(text)[:seq_len] for text in batch]
-            batch = [ids + (seq_len - len(ids)) * [model.tokenizer.eos] for ids in batch]
-            yield torch.tensor(batch, device=model.device)
-
-    def _iterator_getter():
-        dataloader = _iterator()
-        dataloader = [data for data in dataloader]
-        return iter(tqdm(dataloader))
-
-    return _iterator_getter
-
-
 def main():
     args = get_args()
 
@@ -101,6 +74,10 @@ def main():
         awq_block_size=args.awq_block_size,
         sq_alpha=args.sq_alpha,
         enable_kv_cache=args.enable_kv_cache,
+        calibration_dataset=args.calibration_dataset,
+        calibration_dataset_size=args.calibration_dataset_size,
+        calibration_batch_size=args.batch_size,
+        calibration_seq_len=args.seq_len,
     )
 
     export_config = quantization.ExportConfig(
@@ -113,23 +90,7 @@ def main():
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
     model = quantization.load_with_modelopt_layer_spec(args.nemo_checkpoint, args.calib_tp, args.calib_pp)
-
-    get_dataloader = create_data_iterator_getter(
-        model,
-        dataset=args.calibration_dataset,
-        seq_len=args.seq_len,
-        batch_size=args.batch_size,
-        calibration_size=args.calibration_dataset_size,
-    )
-
-    forward_loop = quantizer.create_megatron_forward_loop(
-        get_dataloader,
-        num_batches=args.calibration_dataset_size // args.batch_size,
-        seq_length=args.seq_len,
-        micro_batch_size=args.batch_size,
-    )
-
-    model = quantizer.quantize(model, forward_loop)
+    model = quantizer.quantize(model)
     quantizer.export(model)
 
 

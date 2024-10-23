@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .quantizer import ExportConfig, QuantizationConfig, Quantizer, get_calib_data_iter
+from .quantizer import ExportConfig, QuantizationConfig, Quantizer, get_calib_data_iter, create_data_iterator_getter
 from .utils import load_with_modelopt_layer_spec
 
-__all__ = ["Quantizer", "QuantizationConfig", "ExportConfig", "get_calib_data_iter", "load_with_modelopt_layer_spec"]
+__all__ = ["Quantizer", "QuantizationConfig", "ExportConfig", "get_calib_data_iter", "load_with_modelopt_layer_spec", "create_data_iterator_getter"]

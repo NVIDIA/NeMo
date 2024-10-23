@@ -14,6 +14,7 @@
 
 import os
 from dataclasses import dataclass
+from tqdm import tqdm
 from typing import Optional, Union
 
 import torch
@@ -63,6 +64,12 @@ class QuantizationConfig:
     awq_block_size: int = 128
     sq_alpha: float = 0.5
     enable_kv_cache: Optional[bool] = None
+
+    calibration_dataset: str = "cnn_dailymail"
+    calibration_dataset_size: int = 512
+    calibration_batch_size: int = 64
+    calibration_seq_len: int = 128
+
 
 
 @dataclass
@@ -144,8 +151,25 @@ class Quantizer:
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.decoder_type or get_modelopt_decoder_type(config)
 
-    def quantize(self, model: llm.GPTModel, forward_loop):
+    def quantize(self, model: llm.GPTModel, forward_loop = None):
         """Quantize the model and calibrate using given forward loop."""
+        if forward_loop is None:
+            get_dataloader = create_data_iterator_getter(
+                model,
+                dataset=self.quantization_config.calibration_dataset,
+                seq_len=self.quantization_config.calibration_seq_len,
+                batch_size=self.quantization_config.calibration_batch_size,
+                calibration_size=self.quantization_config.calibration_dataset_size,
+            )
+
+            number_of_batches = self.quantization_config.calibration_dataset_size // self.quantization_config.calibration_batch_size
+            forward_loop = self.create_megatron_forward_loop(
+                get_dataloader,
+                num_batches=number_of_batches,
+                seq_length=self.quantization_config.calibration_seq_len,
+                micro_batch_size=self.quantization_config.calibration_batch_size,
+            )
+
         algorithm = self.quantization_config.algorithm
         if algorithm is None:
             logging.info("Quantization algorithm set to None, returning the non-quantized model")
@@ -284,3 +308,26 @@ def get_calib_data_iter(
         for j in range(len(batch)):
             batch[j] = batch[j][:max_sequence_length]
         yield batch
+
+
+def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration_size):
+    def _iterator():
+        CHARACTERS_PER_TOKEN = 4
+
+        dataloader = get_calib_data_iter(
+            data=dataset,
+            max_sequence_length=CHARACTERS_PER_TOKEN * seq_len,
+            batch_size=batch_size,
+            calib_size=calibration_size,
+        )
+        for batch in dataloader:
+            batch = [model.tokenizer.text_to_ids(text)[:seq_len] for text in batch]
+            batch = [ids + (seq_len - len(ids)) * [model.tokenizer.eos] for ids in batch]
+            yield torch.tensor(batch, device=model.device)
+
+    def _iterator_getter():
+        dataloader = _iterator()
+        dataloader = [data for data in dataloader]
+        return iter(tqdm(dataloader))
+
+    return _iterator_getter
