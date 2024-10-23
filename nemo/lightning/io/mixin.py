@@ -584,8 +584,12 @@ def _io_path_elements_fn(x):
 def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
         # Allow optional artifacts
-        if artifact.skip:
+        if artifact.skip or (not hasattr(cfg, artifact.attr) and not artifact.required):
             continue
+
+        if not hasattr(cfg, artifact.attr) and artifact.required:
+            raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
+
         current_val = getattr(cfg, artifact.attr)
         if current_val is None:
             if artifact.required:
@@ -605,6 +609,15 @@ def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: P
 
 def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+        # We expect an artifact.attr to be a string or a fdl.Config.
+        # Some parameteres can be a string or a filepath. When those parameters are just strings,
+        # we will represent it with a fdl.Config, and will skip the rest of the loop (base-dir adjustment).
+        current_val = getattr(cfg, artifact.attr)
+        if isinstance(current_val, fdl.Config):
+            # artifact.attr is a string not a path.
+            setattr(cfg, artifact.attr, fdl.build(current_val).attr)
+            continue
+
         if artifact.skip:
             continue
         current_val = getattr(cfg, artifact.attr)
