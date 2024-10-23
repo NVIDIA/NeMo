@@ -293,7 +293,7 @@ def finetune_recipe(
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 6
         recipe.trainer.strategy.virtual_pipeline_parallelism = 7
-        recipe.data.global_batch_size = 24
+        recipe.data.global_batch_size = 128
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
