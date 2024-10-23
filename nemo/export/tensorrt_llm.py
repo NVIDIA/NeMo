@@ -861,14 +861,14 @@ class TensorRTLLM(ITritonDeployable):
 
     @property
     def get_triton_output(self):
-        outputs = (
+        return (
             Tensor(name="outputs", shape=(-1,), dtype=bytes),
-            Tensor(name="log_props", shape=(-1,), dtype=np.single),
+            Tensor(name="log_probs", shape=(-1,), dtype=np.single),
         )
-        return outputs
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
+        output_infer = {}
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
@@ -898,13 +898,18 @@ class TensorRTLLM(ITritonDeployable):
             if "log_probs" in inputs:
                 infer_input["log_probs"] = inputs.pop("log_probs")[0][0]
 
-            output_texts, log_probs = self.forward(**infer_input)
-            output_texts = cast_output(output_texts, np.bytes_)
+            if "log_probs" in infer_input:
+                output_texts, log_probs = self.forward(**infer_input)
+                output_infer["log_probs"] = np.array(log_probs)
+            else:
+                output_texts = self.forward(**infer_input)
+
+            output_infer["outputs"] = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output_texts = cast_output([err_msg], np.bytes_)
+            output_infer["outputs"] = cast_output([err_msg], np.bytes_)
 
-        return {"outputs": output_texts, "log_props": np.array(log_probs)}
+        return output_infer
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):

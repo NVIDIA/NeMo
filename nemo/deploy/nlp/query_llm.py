@@ -252,9 +252,9 @@ class NemoQueryLLM(NemoQueryLLMBase):
             result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
 
-            log_probs = [0.0]
-            if "log_props" in result_dict.keys():
-                log_probs = result_dict["log_props"]
+            log_probs_output = None
+            if "log_probs" in result_dict.keys():
+                log_probs_output = result_dict["log_probs"]
 
             if output_type == np.bytes_:
                 if "outputs" in result_dict.keys():
@@ -272,11 +272,15 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "created": int(time.time()),
                         "model": self.model_name,
                         "choices": [{"text": str(sentences)}],
-                        "log_probs": log_probs,
                     }
+                    if log_probs_output is not None:
+                        openai_response["log_probs"] = log_probs_output
                     return openai_response
                 else:
-                    return sentences, log_probs
+                    if log_probs_output is not None:
+                        return sentences, log_probs_output
+                    else:
+                        return sentences
             else:
                 return result_dict["outputs"]
 

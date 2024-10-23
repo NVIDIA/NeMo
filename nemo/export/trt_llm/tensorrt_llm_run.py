@@ -695,7 +695,7 @@ def generate(
     if output_log_probs:
         return output_lines_list, outputs['log_probs'].cpu()
     else:
-        return output_lines_list, None
+        return output_lines_list
 
 
 def generate_streaming(
