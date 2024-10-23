@@ -58,6 +58,7 @@ class QuantizationConfig:
     Quantization algorithm can also be conveniently set to None to perform only weights export step
     for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
     """
+
     algorithm: Optional[str] = "fp8"
     awq_block_size: int = 128
     sq_alpha: float = 0.5
@@ -67,6 +68,7 @@ class QuantizationConfig:
 @dataclass
 class ExportConfig:
     """Inference configuration for the quantized TensorRT-LLM engine"""
+
     path: str
     dtype: Union[str, int] = "bf16"
     decoder_type: Optional[str] = None

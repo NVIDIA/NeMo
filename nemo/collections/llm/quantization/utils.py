@@ -23,7 +23,10 @@ from nemo.utils import logging
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT Model Optimizer"""
 
-    from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
+    from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
+        get_gpt_layer_modelopt_spec,
+    )
+
     model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec()
     if model_cfg.sequence_parallel:
         logging.warning("Disabling sequence parallelism for quantization...")
