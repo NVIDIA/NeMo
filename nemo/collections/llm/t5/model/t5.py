@@ -246,11 +246,18 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
-    def get_inference_wrapper(self, inference_wrapper_config) -> torch.Tensor:
+    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
         # get mcore, unwrapped model
         mcore_model = self.module
         if isinstance(mcore_model, DDP):
             mcore_model = self.module.module
+
+        inference_wrapper_config = InferenceWrapperConfig(
+            hidden_size=mcore_model.module.config.hidden_size,
+            params_dtype=params_dtype,
+            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+            padded_vocab_size=model.tokenizer.vocab_size,
+        )
 
         model_inference_wrapper = T5InferenceWrapper(
             mcore_model,
