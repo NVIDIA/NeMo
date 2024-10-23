@@ -15,7 +15,6 @@
 import copy
 import os
 import re
-from functools import partial
 from typing import List, Optional
 
 from nemo.collections.llm import GPTModel
@@ -232,5 +231,5 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
             log=log,
             resume=None,
         )
-    print(log)
+        
     return base_config, configs

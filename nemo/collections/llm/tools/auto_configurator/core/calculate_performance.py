@@ -146,8 +146,6 @@ def get_results(
                 gpus_per_node=gpus_per_node,
                 time_per_step=avg_global_step_time,
             )
-            print(m_tflops)
-            config_name = f"tp{tp}_pp{pp}_cp{cp}_ep{ep}_mbs{mbs}_vp{vp}"
             result.append(
                 [
                     model_name,

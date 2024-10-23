@@ -21,8 +21,6 @@ import fiddle as fdl
 import nemo_run as run
 
 from nemo.collections import llm
-from nemo.collections.common.tokenizers import SentencePieceTokenizer
-from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config, LlamaModel
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs, get_results
 
