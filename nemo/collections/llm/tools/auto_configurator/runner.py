@@ -231,5 +231,5 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
             log=log,
             resume=None,
         )
-        
+
     return base_config, configs
