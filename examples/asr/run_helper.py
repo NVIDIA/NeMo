@@ -164,8 +164,9 @@ def check_config_mount_paths(script_config, cluster_config):
             try:
                 from aistore.sdk import Client
 
+                # Do actual data check for this ais path
                 ais_client = Client(ais_endpoint)
-
+                ais_client.fetch_object_by_url(v).head()
 
             except ImportError:
                 logging.warning("\nais module is not installed. Please install it to use ais paths.\n")
