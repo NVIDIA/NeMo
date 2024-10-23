@@ -60,6 +60,11 @@ def make_moe_config_from_dense(config, num_experts=8):
     moe_config['num_moe_experts'] = num_experts
     return moe_config
 
+def unwrap(model):
+    tmp = model
+    while hasattr(tmp, 'module'):
+          tmp = tmp.module
+    return tmp
 
 def upcycle(in_file, num_experts, cpu_only=True) -> None:
     """
@@ -95,7 +100,7 @@ def upcycle(in_file, num_experts, cpu_only=True) -> None:
     # convert state dict dense -> MoE
     from megatron.core.transformer.moe.upcycling_utils import upcycle_state_dict
 
-    moe_state_dict = upcycle_state_dict([moe_model.model.module], [dense_model.model.module])
+    moe_state_dict = upcycle_state_dict([unwrap(moe_model.model)], [unwrap(dense_model.model)])
     moe_model.model.module.load_state_dict(moe_state_dict['model'])
     moe_model._save_restore_connector = NLPSaveRestoreConnector()
     # hack
