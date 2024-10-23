@@ -881,7 +881,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
         if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
-            start_index = max(0, hypothesis.timestep[0] - 1)
+            first_timestep = hypothesis.timestep[0]
+            first_timestep = first_timestep if isinstance(first_timestep, int) else first_timestep.item()
+            start_index = max(0, first_timestep - 1)
 
         # Construct the start and end indices brackets
         end_indices = np.asarray(token_repetitions).cumsum()
