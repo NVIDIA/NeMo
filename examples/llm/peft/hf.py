@@ -51,10 +51,6 @@ def mk_hf_dataset(tokenizer):
 if __name__ == '__main__':
     import argparse
 
-    lora = llm.peft.LoRA(
-        target_modules=['*_proj'],
-        dim=32,
-    )
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
@@ -99,5 +95,8 @@ if __name__ == '__main__':
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(max_lr=1e-5, clip_grad=0.5)),
         log=None,
-        peft=lora,
+        peft=llm.peft.LoRA(
+            target_modules=['*_proj'],
+            dim=32,
+        ),
     )
