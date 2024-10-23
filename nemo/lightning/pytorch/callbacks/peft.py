@@ -114,6 +114,7 @@ class PEFT(ABC, ModelTransform):
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
+
         super().setup(trainer, pl_module, stage=stage)
 
         trainer.strategy.trainer = trainer
@@ -126,13 +127,14 @@ class PEFT(ABC, ModelTransform):
             "parallel_save": trainer.strategy.parallel_save,
             "parallel_save_within_dp": trainer.strategy.parallel_save_within_dp,
             "parallel_load": trainer.strategy.parallel_load,
-            "load_directly_on_device": trainer.strategy.load_directly_on_device
+            "load_directly_on_device": trainer.strategy.load_directly_on_device,
         }
-        trainer.strategy._checkpoint_io = create_checkpoint_io(
-            wrapping_ckpt_io=wrapped_io,
-            **ckpt_io_kwargs
+        trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
+        self.wrapped_io = (
+            trainer.strategy._checkpoint_io._checkpoint_io
+            if trainer.strategy.async_save
+            else trainer.strategy._checkpoint_io
         )
-        self.wrapped_io = trainer.strategy._checkpoint_io._checkpoint_io if trainer.strategy.async_save else trainer.strategy._checkpoint_io
         trainer.strategy._init_model_parallel = False
         trainer.strategy._setup_optimizers = False
 
