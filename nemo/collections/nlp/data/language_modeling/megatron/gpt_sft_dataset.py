@@ -630,15 +630,27 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
 
             # the last seq needs to be the max seq len because rope and attn kernels expect no padding
-            cu_seqlens[-1][-1] = max_length
+            assert cu_seqlens[-1][-1] <= max_length
+
+            # since data is prepadded when cp_size > 1, there may be some extra padding at the end
+            # of the packed sequence. In this case, we need to add the max seq len to the end.
+            if cu_seqlens[-1][-1] != max_length:
+                cu_seqlens[-1].append(max_length)
 
             for i in range(len(item['seq_boundaries']) - 1):
-                seqlen_unpadded = np.where(
+                # since the data is prepadded with tokenizer's eos_id, we can find out the index of all the eos_id
+                eos_idx = np.where(
                     np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1])
                     == self.tokenizer.eos_id
                 )
-                seqlen_unpadded = seqlen_unpadded[0][1] if seqlen_unpadded[0].size > 1 else seqlen_unpadded[0][0]
+
+                # The second eos_id index marks the length of the original unpadded sequence 
+                seqlen_unpadded = eos_idx[0][1] if eos_idx[0].size > 1 else eos_idx[0][0] + 1
                 cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
+
+            # the last seq needs to be the max seq len because rope and attn kernels expect no padding
+            if len(cu_seqlen) > len(cu_seqlens_unpadded):
+                cu_seqlens_unpadded[-1].append(max_length)
 
         assert len(input_ids[0]) == len(
             position_ids[0]
