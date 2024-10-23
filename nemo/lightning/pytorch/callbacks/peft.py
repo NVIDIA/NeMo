@@ -304,7 +304,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         checkpoint['sharded_state_dict'] = dict(
             filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint['sharded_state_dict'].items())
         )
-        self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
+        finalize_fn = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -313,6 +313,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
             adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
+        return finalize_fn
 
     @override
     def load_checkpoint(
