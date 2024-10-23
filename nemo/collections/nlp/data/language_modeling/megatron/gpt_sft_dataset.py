@@ -644,7 +644,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                     == self.tokenizer.eos_id
                 )
 
-                # The second eos_id index marks the length of the original unpadded sequence 
+                # The second eos_id index marks the length of the original unpadded sequence
                 seqlen_unpadded = eos_idx[0][1] if eos_idx[0].size > 1 else eos_idx[0][0] + 1
                 cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
 
