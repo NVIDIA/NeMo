@@ -52,7 +52,7 @@ if __name__ == '__main__':
     import argparse
 
     lora = llm.peft.LoRA(
-        target_modules=['qkv_proj'],
+        target_modules=['*_proj'],
         dim=32,
     )
     parser = argparse.ArgumentParser()
