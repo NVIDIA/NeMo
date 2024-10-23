@@ -54,8 +54,13 @@ def default_finetune_recipe(
     See usages of this recipe for further details.
     """
     if packed_sequence:
-        datamodule = run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=8, micro_batch_size=1,
-                                packed_sequence_specs=PackedSequenceSpecs(packed_sequence_size=2048))
+        datamodule = run.Config(
+            llm.SquadDataModule,
+            seq_length=2048,
+            global_batch_size=8,
+            micro_batch_size=1,
+            packed_sequence_specs=PackedSequenceSpecs(packed_sequence_size=2048),
+        )
     else:
         datamodule = run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1)
     recipe = run.Partial(
