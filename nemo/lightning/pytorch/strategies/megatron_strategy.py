@@ -141,7 +141,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_assume_constant_structure (bool): Allows caching some computation across checkpoint saves.
             Set to True only if the state dict structure doesn't change within a single job.
         ckpt_parallel_save (bool): If true, each worker will write its own part of the dist checkpoint.
-            Defaults to True. Note that this is set to False for SSMs due to a known bug.
+            Defaults to True.
         ckpt_parallel_save_within_dp (bool): If true, save will be parallelized only within a DP group
             (whole world otherwise), which might slightly reduce the save overhead. Defaults to False.
         ckpt_parallel_load (bool): If true, each worker will load part of the dist checkpoint
