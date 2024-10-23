@@ -268,11 +268,11 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama3_405b
-            $ nemo llm finetune --factory "llama3_405b(num_nodes=3, name='my_405b_finetune')"
+            $ nemo llm finetune --factory llama31_405b
+            $ nemo llm finetune --factory "llama31_405b(num_nodes=3, name='my_llama31_405b_finetune')"
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama3_405b_finetune", num_nodes=3)
+            >>> recipe = finetune_recipe(name="llama31_405b_finetune", num_nodes=3)
             >>> print(recipe)
 
     Note:
