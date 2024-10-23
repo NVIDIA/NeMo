@@ -141,6 +141,8 @@ def add_megatron_sampler(
     drop_last: bool = True,
     pad_samples_to_global_batch_size: bool = False,
     dataloader_mode: Literal["train", "validation", "test", "predict"] = "train",
+    rank: int = 0,
+    world_size: int = 1,
     # data_sharding: bool = False
 ) -> DataLoader:
     """
@@ -175,9 +177,6 @@ def add_megatron_sampler(
     Returns:
         DataLoader: A new DataLoader instance with the configured Megatron sampler.
     """
-
-    from megatron.core import parallel_state
-
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataloader.dataset),
@@ -185,8 +184,8 @@ def add_megatron_sampler(
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
             drop_last=drop_last,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
@@ -195,8 +194,8 @@ def add_megatron_sampler(
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
             drop_last=drop_last,
             # data_sharding=data_sharding
         )
@@ -210,8 +209,8 @@ def add_megatron_sampler(
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
             drop_last=drop_last,
             pad_samples_to_global_batch_size=not drop_last,
         )
