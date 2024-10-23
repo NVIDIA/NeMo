@@ -62,7 +62,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         self.vocab_size = self.tokenizer.get_piece_size()
         self.legacy = legacy
         self.ignore_extra_whitespaces = ignore_extra_whitespaces
-        self.extra_space_token = '<extra_space>'
+        #using special symbol for extra_space token, so it is not likely to be in the vocabulary
+        self.extra_space_token = '☯'
         self.special_token_to_id = {}
         self.id_to_special_token = {}
         if special_tokens:
