@@ -1893,6 +1893,9 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-2-h100
       SCRIPT: |
+        echo cuda
+        cat failure
+        
         # This is to improve p2p overlap on H100
         export NVTE_FWD_LAYERNORM_SM_MARGIN=8
         export NVTE_BWD_LAYERNORM_SM_MARGIN=8
