@@ -1408,7 +1408,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
         supported_punctuation = {
             char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')
-            }
+        }
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id, supported_punctuation=supported_punctuation)
 
