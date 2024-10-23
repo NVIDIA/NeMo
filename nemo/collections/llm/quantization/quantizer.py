@@ -14,12 +14,12 @@
 
 import os
 from dataclasses import dataclass
-from tqdm import tqdm
 from typing import Optional, Union
 
 import torch
 import torch.distributed as dist
 from datasets import load_dataset
+from tqdm import tqdm
 
 from nemo.collections import llm
 from nemo.utils import logging
@@ -69,7 +69,6 @@ class QuantizationConfig:
     calibration_dataset_size: int = 512
     calibration_batch_size: int = 64
     calibration_seq_len: int = 128
-
 
 
 @dataclass
@@ -151,7 +150,7 @@ class Quantizer:
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.decoder_type or get_modelopt_decoder_type(config)
 
-    def quantize(self, model: llm.GPTModel, forward_loop = None):
+    def quantize(self, model: llm.GPTModel, forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
         if forward_loop is None:
             get_dataloader = create_data_iterator_getter(
@@ -162,7 +161,9 @@ class Quantizer:
                 calibration_size=self.quantization_config.calibration_dataset_size,
             )
 
-            number_of_batches = self.quantization_config.calibration_dataset_size // self.quantization_config.calibration_batch_size
+            number_of_batches = (
+                self.quantization_config.calibration_dataset_size // self.quantization_config.calibration_batch_size
+            )
             forward_loop = self.create_megatron_forward_loop(
                 get_dataloader,
                 num_batches=number_of_batches,

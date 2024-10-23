@@ -15,6 +15,7 @@
 import argparse
 from nemo.collections.llm import quantization
 
+
 def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
