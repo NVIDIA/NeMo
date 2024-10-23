@@ -437,7 +437,7 @@ def generate(
     path: Union[Path, str],
     prompts: list[str],
     encoder_prompts: Optional[list[str]] = None,
-    trainer: Optional[nl.Trainer] = None,
+    trainer: nl.Trainer,
     params_dtype: torch.dtype = torch.bfloat16,
     add_BOS: bool = False,
     max_batch_size: int = 4,

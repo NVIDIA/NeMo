@@ -314,10 +314,14 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
-        # get mcore, unwrapped model
+        # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
-        if isinstance(mcore_model, DDP):
-            mcore_model = self.module.module
+        while mcore_model:
+            if type(mcore_model) is MCoreGPTModel:
+                break
+            mcore_model = getattr(mcore_model, "module", None)
+        if mcore_model is None or type(mcore_model) is not MCoreGPTModel:
+            raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
         inference_wrapper_config = InferenceWrapperConfig(
             hidden_size=mcore_model.module.config.hidden_size,
