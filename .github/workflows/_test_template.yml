@@ -43,6 +43,7 @@ jobs:
     outputs:
       conclusion: ${{ steps.main.conclusion }}
       log: ${{ steps.main.outputs.log }}
+      potential_infra_failure: ${{ steps.main.outputs.potential_infra_failure }}
     steps:
         - name: Docker system cleanup
           run: |
