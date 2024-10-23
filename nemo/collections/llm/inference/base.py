@@ -82,7 +82,7 @@ def setup_model_and_tokenizer(
     inference_wrapped_model = GPTInferenceWrapper(
         mcore_model,
         InferenceWrapperConfig(
-            hidden_size=model.config.hidden_size,
+            hidden_size=mcore_model.config.hidden_size,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=model.tokenizer.vocab_size,
