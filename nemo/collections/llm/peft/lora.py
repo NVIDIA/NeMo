@@ -73,7 +73,7 @@ class AdapterParallelAdd(AdapterWrapper):
 
 class LinearAdapter(nn.Module):
     def __init__(self, orig_linear, dim=8, alpha=32, dropout=0.1, dropout_position='post', lora_A_init_method='xavier'):
-        super(LoraLinear, self).__init__()
+        super(LinearAdapter, self).__init__()
         assert isinstance(orig_linear, nn.Linear)
 
         self.orig_linear = orig_linear
