@@ -38,8 +38,8 @@ from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
+from nemo.collections.vlm.llama.model.utils import _generate_cross_attention_mask, _pad_attention_masks
 from nemo.collections.vlm.llama.model.vision import VisionEncoder
-from nemo.collections.vlm.llama.model.utils import _pad_attention_masks, _generate_cross_attention_mask
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule

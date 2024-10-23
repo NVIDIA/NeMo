@@ -35,9 +35,10 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, default_collate
 
-from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor
 from nemo.collections.vlm.neva.data.lazy import IGNORE_INDEX, LazySupervisedDataset
+
 
 class MLlamaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
@@ -111,12 +112,13 @@ class MLlamaDataset(LazySupervisedDataset):
         if len(images) > 0:
             image_dict = self.image_processor.preprocess(images, return_tensors='pt')
             image_dict = {
-                k: v[0] for k, v in image_dict.items()
-                if k in ["pixel_values", "aspect_ratio_ids", "num_tiles"]
+                k: v[0] for k, v in image_dict.items() if k in ["pixel_values", "aspect_ratio_ids", "num_tiles"]
             }  # remove batch dim
         else:
             image_dict = dict(
-                pixel_values=torch.zeros(1, 4, 3, self.image_processor.size['height'], self.image_processor.size['width']),
+                pixel_values=torch.zeros(
+                    1, 4, 3, self.image_processor.size['height'], self.image_processor.size['width']
+                ),
                 aspect_ratio_ids=torch.tensor([0], dtype=torch.long),
                 num_tiles=[0],
             )
@@ -129,18 +131,21 @@ class MLlamaDataset(LazySupervisedDataset):
         if max_len > self.sequence_length:
             logging.warning(f"Truncating sequence length {max_len} to {self.seq_length}.")
             max_len = self.sequence_length
-        max_num_concurrent_media =  max(instance['pixel_values'].shape[0] for instance in instances)
+        max_num_concurrent_media = max(instance['pixel_values'].shape[0] for instance in instances)
         for instance in instances:
             pad_len = max_len - instance['tokens'].shape[0]
             instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
             instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
             pad_num_images = max_num_concurrent_media - instance['pixel_values'].shape[0]
             instance['pixel_values'] = F.pad(
-                instance['pixel_values'], (0, 0, 0, 0, 0, 0, 0, 0, 0, pad_num_images), 'constant', 0)
+                instance['pixel_values'], (0, 0, 0, 0, 0, 0, 0, 0, 0, pad_num_images), 'constant', 0
+            )
             instance['aspect_ratio_ids'] = F.pad(
-                instance['aspect_ratio_ids'], (0, max(pad_num_images-1, 0)), 'constant', 0)
+                instance['aspect_ratio_ids'], (0, max(pad_num_images - 1, 0)), 'constant', 0
+            )
             instance['num_tiles'] = F.pad(
-                torch.tensor(instance['num_tiles']), (0, max(pad_num_images-1, 0)), 'constant', 0)
+                torch.tensor(instance['num_tiles']), (0, max(pad_num_images - 1, 0)), 'constant', 0
+            )
 
         batch_masks = [create_vision_mask_tensor(instance['tokens'], 128256) for instance in instances]
         batch = default_collate(instances)
@@ -223,7 +228,9 @@ class MLlamaLazyDataModule(pl.LightningDataModule):
         self.image_processor = image_processor
 
         if tokenizer is None or image_processor is None:
-            logging.warning(f"Processor and tokenizer are not provided! Fall back to `meta-llama/Llama-3.2-11B-Vision-Instruct`.")
+            logging.warning(
+                f"Processor and tokenizer are not provided! Fall back to `meta-llama/Llama-3.2-11B-Vision-Instruct`."
+            )
             from transformers import AutoProcessor
 
             processor = AutoProcessor.from_pretrained("meta-llama/Llama-3.2-11B-Vision-Instruct")

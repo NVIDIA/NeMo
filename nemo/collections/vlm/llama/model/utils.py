@@ -3,14 +3,13 @@ from typing import Tuple
 import torch
 
 
-
 def _pad_attention_masks(
-        masks: torch.Tensor,
-        num_chunks: torch.Tensor,
-        total_length: int,
-        max_chunks: int,
-        device: torch.device,
-        dtype=torch.bfloat16,
+    masks: torch.Tensor,
+    num_chunks: torch.Tensor,
+    total_length: int,
+    max_chunks: int,
+    device: torch.device,
+    dtype=torch.bfloat16,
 ) -> torch.Tensor:
     """
     Pads the provided masks to a uniform shape for batching.
@@ -44,13 +43,14 @@ def _pad_attention_masks(
                 mask[1] = min(mask[1], total_length)
                 if mask[1] == -1:
                     mask[1] = total_length
-                padded_masks[idx, mask[0]:mask[1], media_idx, :chunk_count].fill_(0.0)
+                padded_masks[idx, mask[0] : mask[1], media_idx, :chunk_count].fill_(0.0)
 
     return padded_masks
 
+
 def _get_full_row_masked_out_mask(
-        attention_bias: torch.Tensor,
-        mask_value: float,
+    attention_bias: torch.Tensor,
+    mask_value: float,
 ):
     """
     Determines whether each row in the attention bias tensor contains masked values.
@@ -70,13 +70,12 @@ def _get_full_row_masked_out_mask(
     return (attention_bias != mask_value).any(dim=-1).type_as(attention_bias)[..., None]
 
 
-
 def _generate_cross_attention_mask(
-        text_token_count: int,
-        text_device: torch.device,
-        text_dtype: torch.dtype,
-        vision_tokens: torch.Tensor,
-        cross_attention_masks: torch.Tensor,
+    text_token_count: int,
+    text_device: torch.device,
+    text_dtype: torch.dtype,
+    vision_tokens: torch.Tensor,
+    cross_attention_masks: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Generates a cross-attention mask for aligning text and vision tokens.
@@ -116,9 +115,7 @@ def _generate_cross_attention_mask(
     batch_size, _, num_images, num_chunks = cross_attention_masks.shape
     cross_attention_masks = cross_attention_masks.view(batch_size, text_token_count, -1).unsqueeze(1)
 
-    full_row_mask_status = _get_full_row_masked_out_mask(
-        cross_attention_masks, mask_value=1.0
-    )
+    full_row_mask_status = _get_full_row_masked_out_mask(cross_attention_masks, mask_value=1.0)
     cross_attention_masks = cross_attention_masks.repeat_interleave(vision_token_length, dim=3)
     cross_attention_masks *= full_row_mask_status
 
