@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import os
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, Optional, Union
+from typing import Any, Dict, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -30,15 +28,14 @@ from nemo.collections import llm
 from nemo.collections.llm.api import _set_with_io
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.utils import factory
-from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
-from nemo.lightning.io import ModelConnector, load_context
+from nemo.lightning import AutoResume, NeMoLogger, Trainer
+from nemo.lightning.io import load_context
 from nemo.lightning.io.pl import TrainerContext
-from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
+from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-
-# from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 
 
 @factory
@@ -60,17 +57,13 @@ def merge_lora(
         resume_if_exists=getattr(resume, "resume_if_exists", False),
         task_config=None,
     )
-    # resume will import hf LLM to default path if it doesn't already exists.
-    # if exists -> ok;
-    # if doesnt exist -> will download to a new(maybe default) dir;
-    #                 if new dir == old dir -> ok, otherwise throw error
     resume.setup(trainer, model)
     lora = load_context(resume.get_context_path(), "model.model_transform")
     if lora:
         _set_with_io(model, "model_transform", lora)
         trainer.callbacks.append(lora)
     else:
-        raise ("Cannot find LoRA config")
+        raise Exception("Cannot find LoRA config")
 
     predict_dataloader = llm.SquadDataModule(seq_length=2048, micro_batch_size=2, global_batch_size=8, num_workers=0)
 
@@ -80,7 +73,7 @@ def merge_lora(
 
         def run(self):
             self._on_predict_start()  # trigger ModelTransform on_predict_start hook to enter PEFT load ckpt for the second time, loading adapter state_dict
-            if trainer.state.fn == TrainerFn.PREDICTING:
+            if trainer.state.fn == TrainerFn.PREDICTING: #no need ?
                 # base_state_dict = {k:v for k,v in trainer.model.state_dict().items() if 'adapter' not in k and 'extra_state' not in k }
                 base_sharded_dict = {k: v for k, v in trainer.model.sharded_state_dict().items() if 'adapter' not in k}
                 lora_sharded_dict = {
@@ -91,18 +84,19 @@ def merge_lora(
                 merged_weights = self._merge_lora_weights(
                     base_model_state_dict=base_sharded_dict,
                     lora_state_dict=lora_sharded_dict,
-                    num_layers=trainer.model._modules['0'].config.num_layers,
+                    num_layers=trainer.model.config.num_layers,
                     tp_size=trainer.strategy.tensor_model_parallel_size,
                     rank=torch.distributed.get_rank(),
                 )
-            Path(output_path).mkdir(parents=True, exist_ok=True)
-            dist_checkpointing.save(merged_weights, str(output_path))
+            weight_path = ckpt_to_weights_subdir(output_path)
+            Path(weight_path).mkdir(parents=True, exist_ok=True)
+            dist_checkpointing.save(merged_weights, str(ckpt_to_weights_subdir(weight_path)))
             if is_global_rank_zero():
                 # trainer.model.io_dump(output_path)
                 if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
                     trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-                TrainerContext.from_trainer(trainer).io_dump(output_path)
-            print("Dump state here")
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path), yaml_attrs="model")
+            logging.info(f"Merged checkpoint saved to {output_path}")
 
         def _merge_lora_weights(
             self,
@@ -170,10 +164,10 @@ def merge_lora(
                         ).type_as(wt_base)
                         logging.info(f'merging for weight {key_base}')
 
-            return base_model_state_dict
+            return base_model_state_dict #reference, no need to return. return for clarity??
 
     trainer.predict_loop = LoRAMergeLoop(trainer)
-    trainer.predict(model, dataloaders=predict_dataloader)
+    trainer.predict(model, dataloaders=predict_dataloader) #How to get rid of this dummy data loader??
 
 
 __all__ = ["gpt_lora", "merge_lora"]
