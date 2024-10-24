@@ -301,6 +301,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         self.callbacks.event("on_megatron_step_end", step=step, microbatch_outputs=microbatch_outputs, reduced=reduced)
 
+        if hasattr(_loss_reduction, 'cleanup'):
+            _loss_reduction.cleanup()
+        del step
+
         return reduced
 
     def training_step(
@@ -1123,15 +1127,18 @@ class MegatronStep(Generic[ModelT, DataT]):
         if self.micro_batch_size is None:
             raise ValueError("micro_batch_size is not set")
 
-        return self.forward_backward_func(
-            forward_step_func=self.forward_step_func,
-            data_iterator=self.data_iterator,
-            model=self.model,
-            num_microbatches=self.num_microbatches,
-            seq_length=self.seq_length,
-            micro_batch_size=self.micro_batch_size,
-            forward_only=self.forward_only,
-        )
+        try:
+            return self.forward_backward_func(
+                forward_step_func=self.forward_step_func,
+                data_iterator=self.data_iterator,
+                model=self.model,
+                num_microbatches=self.num_microbatches,
+                seq_length=self.seq_length,
+                micro_batch_size=self.micro_batch_size,
+                forward_only=self.forward_only,
+            )
+        finally:
+            self.cleanup()
 
     def to_data_iterator_list(
         self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]
@@ -1158,6 +1165,11 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         # For a single data item or any other type, wrap it in an iterator and return as a list
         return cast(List[Iterator[DataT]], [iter([data])])
+    
+    def cleanup(self):
+        """Cleanup any cached properties and release resources."""
+        if hasattr(self, '_data_iterator'):
+            self._data_iterator = None
 
     @classmethod
     def infer_micro_batch_size(cls, data: DataT) -> Optional[int]:
@@ -1274,27 +1286,19 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         return get_forward_backward_func()
 
-    @functools.cached_property
+    @property
     def data_iterator(self) -> List[Iterator[DataT]]:
-        """
-        Cached property that converts the provided data into a list of iterators.
-
-        This property ensures that the data is converted to the required format
-        only once and then cached for subsequent uses.
-
-        Returns:
-            List[Iterator[DataT]]: A list of iterators created from the input data.
-        """
-        if self.has_global_batch_sampler:
-            batch = next(self.data)
-            if isinstance(batch, tuple) and len(batch) == 3:
-                batch = batch[0]
-            from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
-
-            data = get_iterator_k_split(batch, self.num_microbatches, True)
-        else:
-            data = self.data
-        return self.to_data_iterator_list(data)
+        if not getattr(self, "_data_iterator", None):
+            if self.has_global_batch_sampler:
+                batch = next(self.data)
+                if isinstance(batch, tuple) and len(batch) == 3:
+                    batch = batch[0]
+                from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+                data = get_iterator_k_split(batch, self.num_microbatches, True)
+            else:
+                data = self.data
+            self._data_iterator = self.to_data_iterator_list(data)
+        return self._data_iterator
 
     @functools.cached_property
     def has_global_batch_sampler(self) -> bool:
@@ -1480,6 +1484,9 @@ class MegatronLossReduction(nn.Module, Generic[DataT, ReductionT]):
 
     def setup(self, batch) -> None:
         self.batch = batch
+
+    def cleanup(self) -> None:
+        self.batch = None
 
     def _pre_forward_hook(self, module, x):
         return (self.batch,) + x
