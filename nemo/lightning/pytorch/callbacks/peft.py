@@ -24,14 +24,15 @@ from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.trainer.states import TrainerFn
 from typing_extensions import override
 
-from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.utils import logging
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+
 
 class PEFT(IOMixin, ABC, ModelTransform):
     """Abstract base class for Parameter-Efficient Fine-Tuning (PEFT) methods.

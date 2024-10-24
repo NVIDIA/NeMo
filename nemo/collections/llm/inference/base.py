@@ -18,7 +18,7 @@ from pytorch_lightning.trainer.states import TrainerFn
 import nemo.lightning as nl
 from nemo.collections.llm.peft import LoRA
 from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir, ADAPTER_META_FILENAME
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir, ckpt_to_weights_subdir
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
@@ -75,14 +75,12 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     lora: Union[io.TrainerContext, LoRA] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
     if isinstance(lora, LoRA):
         model = lora(model)
-        adapter_sharded_state_dict = {
-            k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k
-        }
+        adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}
         adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
-            ckpt_to_weights_subdir(path),
-            sharded_state_dict=adapter_sharded_state_dict
+            ckpt_to_weights_subdir(path), sharded_state_dict=adapter_sharded_state_dict
         )
         trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+
 
 def setup_model_and_tokenizer(
     path: Path,
