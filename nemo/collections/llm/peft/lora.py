@@ -113,16 +113,6 @@ class LinearAdapter(nn.Module):
             lora_res = self.dropout(lora_res)
         return res + lora_res
 
-    def sharded_state_dict(
-        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
-    ) -> ShardedStateDict:
-        sharded_state_dict = {}
-        sharded_state_dict.update(self.lora_a.sharded_state_dict(f"{prefix}lora_a.", sharded_offsets, metadata))
-        sharded_state_dict.update(
-            self.lora_b.sharded_state_dict(f"{prefix}lora_b.", sharded_offsets, metadata)
-        )
-        return sharded_state_dict
-
 
 @dataclass
 class LoRA(PEFT):
