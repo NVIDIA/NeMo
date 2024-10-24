@@ -15,7 +15,7 @@
 import math
 import re
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 import torch
 from megatron.core import parallel_state
