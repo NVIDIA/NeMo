@@ -195,6 +195,7 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
 
     try:
         from megatron.core.extensions import transformer_engine as _te
+
         _te._get_extra_te_kwargs = original  # noqa: SLF001
     except ImportError:
         pass
