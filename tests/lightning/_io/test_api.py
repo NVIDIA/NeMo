@@ -15,6 +15,7 @@
 import os
 from functools import partial
 from pathlib import Path
+import fiddle as fdl
 
 import pytest
 import yaml
@@ -75,5 +76,5 @@ class TestLoad:
         assert config.model.config.seq_length == ckpt.model.config.seq_length
         assert config.model.tokenizer.vocab_file.startswith(str(tmpdir))
         assert config.model.tokenizer.merges_file.startswith(str(tmpdir))
-        assert config.extra["dummy"] == partial_function_with_pos_and_key_args
+        assert config.extra["dummy"] == fdl.Partial(dummy_extra, 10, c=15)
 

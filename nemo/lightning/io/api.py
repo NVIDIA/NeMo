@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Callable, Optional, Type, overload
+import fiddle as fdl
 
 import pytorch_lightning as pl
 
