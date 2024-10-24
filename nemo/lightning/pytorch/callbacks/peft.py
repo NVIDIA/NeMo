@@ -25,6 +25,7 @@ from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.trainer.states import TrainerFn
 from typing_extensions import override
 
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.utils import logging
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
 _ADAPTER_META_FILENAME = "adapter_metadata.json"
 
 
-class PEFT(ABC, ModelTransform):
+class PEFT(IOMixin, ABC, ModelTransform):
     """Abstract base class for Parameter-Efficient Fine-Tuning (PEFT) methods.
 
     This class defines the interface for PEFT methods, which are used to fine-tune
@@ -152,7 +153,7 @@ class PEFT(ABC, ModelTransform):
                 k: v for k, v in trainer.model.sharded_state_dict().items() if self.adapter_key_filter(k)
             }
 
-        if hasattr(trainer.strategy, "init_model_parallel"):
+        if trainer.state.fn == TrainerFn.FITTING and hasattr(trainer.strategy, "init_model_parallel"):
             logging.info("Initializing model parallel")
             trainer.strategy.init_model_parallel()
 
