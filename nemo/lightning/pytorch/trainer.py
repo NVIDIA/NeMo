@@ -12,18 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from copy import deepcopy
 
 import fiddle as fdl
 import pytorch_lightning as pl
+from pytorch_lightning.loops import _TrainingEpochLoop
 from typing_extensions import Self
 
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
+from nemo.utils.exp_manager import SkipResumeTrainingValidationLoop
 
 
 class Trainer(pl.Trainer, IOMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _configure_no_restart_validation_training_loop(self) -> None:
+        if not isinstance(self.fit_loop.epoch_loop, _TrainingEpochLoop):
+            warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
+            return
+
+        ## Pass trainer object to avoid trainer getting overwritten as None
+        loop = SkipResumeTrainingValidationLoop(self, self.min_steps, self.max_steps)
+        self.fit_loop.epoch_loop = loop
 
     def add_io(self, obj):
         """Recurse to the leaves of a container and add io functionality to non-serializable leaves"""
