@@ -2,6 +2,7 @@ from nemo.collections.vlm.neva.data import (
     DataConfig,
     ImageDataConfig,
     ImageToken,
+    LlavaNextTaskEncoder,
     MockDataModule,
     MultiModalToken,
     NevaLazyDataModule,
@@ -38,4 +39,5 @@ __all__ = [
     "Llava1_5Config7B",
     "Llava1_5Config13B",
     "LlavaModel",
+    "LlavaNextTaskEncoder",
 ]
