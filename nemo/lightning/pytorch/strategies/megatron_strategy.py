@@ -103,8 +103,9 @@ class ParallelismConfig:
 def unwrap_module(model):
     tmp = model
     while hasattr(model, 'module'):
-          tmp = model.module
+        tmp = model.module
     return tmp
+
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
@@ -273,7 +274,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def connect(self, model: pl.LightningModule) -> None:
         super().connect(model)
 
-        assert not hasattr(unwrap_module(model), 'is_hf_model'), "Cannot use HfAutoModelForCausalLM with MegatronParallel"
+        assert not hasattr(
+            unwrap_module(model), 'is_hf_model'
+        ), "Cannot use HfAutoModelForCausalLM with MegatronParallel"
 
         _maybe_mcore_config = _strategy_lib.set_model_parallel_attributes(model, self.parallelism)
         if _maybe_mcore_config:
