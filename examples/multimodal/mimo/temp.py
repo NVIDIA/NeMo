@@ -40,7 +40,7 @@ if __name__ == '__main__':
     )
     fabric = trainer.to_fabric()
     fabric.launch()
-    data_module = MockDataModule(vocab_size = tokenizer.vocab_size )
+    data_module = MockDataModule(tokenizer=tokenizer,vocab_size = tokenizer.vocab_size )
     data_module.setup()
     dataloader = data_module.test_dataloader()
     custom_config = CustomMimoConfig(vocab_size=tokenizer.vocab_size, image_special_token_indices=image_special_token_indices, image_special_tokens=image_special_tokens)
@@ -71,6 +71,7 @@ if __name__ == '__main__':
         "attention_mask": batch.get("attention_mask", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
+        "input_text": batch.get("input_text", None)
         #  "labels": None,
     }
     fw_out = model(**forward_args)

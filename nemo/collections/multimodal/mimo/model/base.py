@@ -55,6 +55,7 @@ def mimo_forward_step(model, batch) -> torch.Tensor:
         "position_ids": batch["position_ids"],
         "attention_mask": batch.get("attention_mask", None),
         "labels": batch.get("labels", None),
+        "input_text": batch.get("input_text", None),
     }
     loss_mask = batch.get("loss_mask", None)
     return model(**forward_args), loss_mask
@@ -74,9 +75,9 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     required_keys = set()
     required_keys.add("attention_mask")
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("images", "tokens", "position_ids"))
+        required_keys.update(("images", "tokens", "position_ids", "input_text"))
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask"))
+        required_keys.update(("labels", "loss_mask", "input_text"))
 
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
@@ -87,7 +88,26 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     return output
 
+class TransformersProjector(nn.Module):
+    def __init__(self, in_features, out_features, num_query_token, **kwargs):
+        super().__init__()
+        hidden_dim = 512
+        self.in_fc = nn.Linear(in_features, hidden_dim)
+        self.tfm = nn.Transformer(batch_first=True, norm_first=True,
+                                      d_model=hidden_dim, num_encoder_layers=4, num_decoder_layers=4,
+                                      dim_feedforward=hidden_dim * 4, dropout=0.0, nhead=4)
+        self.out_fc = nn.Linear(hidden_dim, out_features)
 
+        self.query_embs = nn.Parameter(torch.randn(1, num_query_token, hidden_dim))
+        self.query_embs.data.normal_(mean=0.0, std=0.0)
+
+    def forward(self, x):
+        # x = x + input_embs # Yash TODO: pass in input embeddings
+        x = self.in_fc(x)
+        x = self.tfm(x, self.query_embs.repeat(x.shape[0], 1, 1))
+        outputs = self.out_fc(x)
+        return outputs
+    
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 class MimoGPTModel(MCoreGPTModel):
     from megatron.core.packed_seq_params import PackedSeqParams
@@ -302,6 +322,7 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
         logging.info(f"padded vocab size to {self.vocab_size}")
 
         model = CustomMimoModel(
+            model_config=self,
             language_transformer_config=self.language_transformer_config,
             language_transformer_layer_spec=transformer_engine_layer_spec(self.language_transformer_config),
             language_vocab_size=self.vocab_size,
@@ -329,6 +350,7 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
 class CustomMimoModel(MCoreLLaVAModel):
     def __init__(
         self,
+        model_config:TransformerConfig,
         language_transformer_config: TransformerConfig,
         language_transformer_layer_spec: ModuleSpec,
         language_vocab_size: int,
@@ -383,7 +405,7 @@ class CustomMimoModel(MCoreLLaVAModel):
             language_rotary_base=language_rotary_base,
             language_rope_scaling=language_rope_scaling,
         )
-
+        self.model_config = model_config
         # Now re-enable add_decoder after parent constructor is done
         self.add_decoder = True
 
@@ -419,12 +441,13 @@ class CustomMimoModel(MCoreLLaVAModel):
         
         # output projection Megatron Module
         
-        self.vision_output_projection_module = MCoreMultimodalProjector(
-                vision_output_projection_config,
-                vision_output_projection_spec,
-                projector_type="mlp" ,
-                input_size=vision_output_projection_config.input_size,
-            )
+        # self.vision_output_projection_module = MCoreMultimodalProjector(
+        #         vision_output_projection_config,
+        #         vision_output_projection_spec,
+        #         projector_type="mlp" ,
+        #         input_size=vision_output_projection_config.input_size,
+        #     )
+        # self.vision_output_projection_module = TransformersProjector(in_features=self.config.hidden_size, out_features=1024, num_query_token=77) # Yash : TODO Fix hard coding
     
     def get_image_caption_embeddings(self,text_input):
         with torch.no_grad():
@@ -444,6 +467,7 @@ class CustomMimoModel(MCoreLLaVAModel):
         self,
         images: torch.Tensor,
         input_ids: torch.Tensor,
+        input_text:str,
         position_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         labels: Optional[torch.Tensor] = None,
@@ -560,7 +584,16 @@ class CustomMimoModel(MCoreLLaVAModel):
         # if labels is None output is logits (b,s,vocab_size) or its loss (b,s)
         
         # send hidden_state for special tokens to output_projection module. 
+        image_caption_embeddings = self.get_image_caption_embeddings(input_text ) # (bs, 77, 1024)
         
+        special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
+        for idx in self.model_config.image_special_token_indices:
+            special_token_mask |= (new_labels == idx)
+        special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
+        special_token_mask = special_token_mask.expand_as(hidden_states) 
+        selected_hidden_states = hidden_states[special_token_mask].view(hidden_states.size(1), -1, hidden_states.size(-1))
+
+        # output_projection_embeddings = self.vision_output_projection_module(selected_hidden_states) #(bs, no_special_tokens, 1024)
         # Image caption embeddings
         
         if labels is None or loss_mask is None:
@@ -571,7 +604,7 @@ class CustomMimoModel(MCoreLLaVAModel):
 class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
-        config: BaseMimoConfig,
+        config: CustomMimoConfig,
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
@@ -594,6 +627,7 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
+        input_text: str = None,
         loss_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
@@ -609,6 +643,7 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
             attention_mask=attention_mask,
             labels=labels,
             inference_params=inference_params,
+            input_text = input_text
         )
 
         return output_tensor

@@ -38,7 +38,7 @@ class MockDataModule(pl.LightningDataModule):
         num_train_samples: int = 10_000,
         num_val_samples: int = 10_000,
         num_test_samples: int = 10_000,
-        num_workers: int = 8,
+        num_workers: int = 1,
         pin_memory: bool = True,
         persistent_workers: bool = False,
     ):
