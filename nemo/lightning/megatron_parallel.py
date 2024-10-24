@@ -1165,7 +1165,7 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         # For a single data item or any other type, wrap it in an iterator and return as a list
         return cast(List[Iterator[DataT]], [iter([data])])
-    
+
     def cleanup(self):
         """Cleanup any cached properties and release resources."""
         if hasattr(self, '_data_iterator'):
@@ -1294,6 +1294,7 @@ class MegatronStep(Generic[ModelT, DataT]):
                 if isinstance(batch, tuple) and len(batch) == 3:
                     batch = batch[0]
                 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
                 data = get_iterator_k_split(batch, self.num_microbatches, True)
             else:
                 data = self.data
