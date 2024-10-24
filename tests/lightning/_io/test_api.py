@@ -15,13 +15,12 @@
 import os
 from functools import partial
 from pathlib import Path
-import fiddle as fdl
 
+import fiddle as fdl
 import pytest
 import yaml
 from pytorch_lightning.loggers import TensorBoardLogger
 
-import fiddle as fdl
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -77,4 +76,3 @@ class TestLoad:
         assert config.model.tokenizer.vocab_file.startswith(str(tmpdir))
         assert config.model.tokenizer.merges_file.startswith(str(tmpdir))
         assert config.extra["dummy"] == fdl.Partial(dummy_extra, 10, c=15)
-

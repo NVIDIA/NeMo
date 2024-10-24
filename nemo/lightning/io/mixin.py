@@ -636,12 +636,7 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
             pass
 
 
-def load(
-    path: Path, 
-    output_type: Type[CkptType] = Any, 
-    subpath: Optional[str] = None,
-    build: bool = True
-) -> CkptType:
+def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None, build: bool = True) -> CkptType:
     """
     Loads a configuration from a pickle file and constructs an object of the specified type.
 
@@ -704,7 +699,7 @@ def load(
 
     config = serialization.Deserialization(json_config).result
     _artifact_transform_load(config, path)
-    
+
     if not build:
         return config
 
