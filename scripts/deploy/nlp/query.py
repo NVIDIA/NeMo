@@ -38,6 +38,7 @@ def get_args(argv):
     parser.add_argument("-tpp", "--top_p", default=0.0, type=float, help="top_p")
     parser.add_argument("-t", "--temperature", default=1.0, type=float, help="temperature")
     parser.add_argument("-ti", "--task_id", type=str, help="Task id for the prompt embedding tables")
+    parser.add_argument("-lp", "--log_probs", default=False, action='store_true', help="Returns log_probs")
     parser.add_argument(
         "-lt",
         "--lora_task_uids",
@@ -74,6 +75,7 @@ def query_llm(
     random_seed=None,
     task_id=None,
     lora_uids=None,
+    log_probs=False,
     init_timeout=60.0,
 ):
     prompts = str_list2numpy(prompts)
@@ -113,15 +115,21 @@ def query_llm(
         lora_uids = np.char.encode(lora_uids, "utf-8")
         inputs["lora_uids"] = np.full((prompts.shape[0], len(lora_uids)), lora_uids)
 
+    if log_probs:
+        inputs["log_probs"] = np.full(prompts.shape, log_probs, dtype=np.bool_)
+
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
         result_dict = client.infer_batch(**inputs)
         output_type = client.model_config.outputs[0].dtype
 
     if output_type == np.bytes_:
         sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
-        return sentences
+        log_probs = None
+        if "log_probs" in result_dict.keys():
+            log_probs = result_dict["log_probs"]
+        return sentences, log_probs
     else:
-        return result_dict["outputs"]
+        return result_dict["outputs"], None
 
 
 def query_llm_streaming(
@@ -225,7 +233,7 @@ def query(argv):
         print()
 
     else:
-        outputs = query_llm(
+        outputs, log_probs = query_llm(
             url=args.url,
             model_name=args.model_name,
             prompts=[args.prompt],
@@ -238,9 +246,12 @@ def query(argv):
             temperature=args.temperature,
             task_id=args.task_id,
             lora_uids=args.lora_task_uids,
+            log_probs=args.log_probs,
             init_timeout=args.init_timeout,
         )
-        print(outputs[0][0])
+        print("Generated output:", outputs[0][0])
+        if log_probs is not None:
+            print("log-probs:", log_probs)
 
 
 if __name__ == '__main__':
