@@ -15,7 +15,7 @@
 import math
 import re
 from dataclasses import dataclass, field
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 import torch
 from megatron.core import parallel_state
@@ -112,6 +112,16 @@ class LinearAdapter(nn.Module):
         if self.dropout_position == 'post':
             lora_res = self.dropout(lora_res)
         return res + lora_res
+
+    def sharded_state_dict(
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+    ) -> ShardedStateDict:
+        sharded_state_dict = {}
+        sharded_state_dict.update(self.lora_a.sharded_state_dict(f"{prefix}lora_a.", sharded_offsets, metadata))
+        sharded_state_dict.update(
+            self.lora_b.sharded_state_dict(f"{prefix}lora_b.", sharded_offsets, metadata)
+        )
+        return sharded_state_dict
 
 
 @dataclass
