@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping, Optio
 import torch
 from torch import nn
 
+from nemo.lightning.megatron_init import initialize_model_parallel_for_nemo
+
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
@@ -57,7 +59,6 @@ def init_parallel_ranks(
         seed (int, optional): The seed for random number generation. Defaults to 1234.
         fp8 (bool, optional): Whether to use fp8 precision for model parameters. Defaults to False.
     """
-    from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
     from nemo.utils import AppState
 
     app_state = AppState()
