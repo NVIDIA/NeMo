@@ -29,6 +29,7 @@ from nemo.utils.exp_manager import SkipResumeTrainingValidationLoop
 class Trainer(pl.Trainer, IOMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._configure_no_restart_validation_training_loop()
 
     def _configure_no_restart_validation_training_loop(self) -> None:
         if not isinstance(self.fit_loop.epoch_loop, _TrainingEpochLoop):
