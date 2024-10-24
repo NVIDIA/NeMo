@@ -133,8 +133,7 @@ def generate(
     prompts: list[str],
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
-    add_BOS: bool = False,
-        inference_params: Optional[CommonInferenceParams] = None,
+    inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
     text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(
@@ -146,7 +145,6 @@ def generate(
     results = mcore_engine.generate(
         prompts=prompts,
         common_inference_params=common_inference_params,
-        add_BOS=add_BOS,
     )
 
     return results
