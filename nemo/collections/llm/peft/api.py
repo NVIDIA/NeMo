@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional
 

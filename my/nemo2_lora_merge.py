@@ -1,8 +1,5 @@
 # import nemo_run as run
 import pytorch_lightning as pl
-import torch
-from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -28,7 +25,7 @@ def logger() -> nl.NeMoLogger:
 
     return nl.NeMoLogger(
         name="nemo2_peft",
-        log_dir="/workspace/peftmerge/exp/peft_iomixin0",
+        log_dir="/workspace/peftmerge/exp/",
         use_datetime_version=False,  # must be false if using auto resume
         ckpt=ckpt,
         wandb=wandb,
@@ -56,7 +53,7 @@ def trainer(devices=1) -> nl.Trainer:
 def resume() -> nl.AutoResume:
     return nl.AutoResume(
         restore_config=nl.RestoreConfig(
-            path="hf://meta-llama/Meta-Llama-3-8B",
+            path="/workspace/peftmerge/llama3-8b-nemo2",
         ),
         resume_if_exists=True,
         # resume_ignore_no_checkpoint=True,
