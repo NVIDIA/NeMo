@@ -14,6 +14,7 @@
 
 
 from nemo.collections.llm.recipes import (
+    gpt3_175b,
     llama3_8b,
     llama3_8b_16k,
     llama3_8b_64k,
@@ -61,6 +62,7 @@ __all__ = [
     "nemotron4_22b_16k",
     "nemotron4_22b_64k",
     "nemotron4_340b",
+    "gpt3_175b",
     "adam",
     "default_log",
     "default_resume",
