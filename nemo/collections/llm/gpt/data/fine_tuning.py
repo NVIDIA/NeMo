@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, List, Optional, Union
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
@@ -208,6 +207,8 @@ class FineTuningDataModule(pl.LightningDataModule):
         return self.dataset_root / "test.jsonl"
 
     def _extract_tokenizer_model_name(self) -> str:
+        from nemo.collections.common.tokenizers import AutoTokenizer
+
         if self.packed_sequence_specs.tokenizer_model_name is not None:
             tokenizer_model_name = self.packed_sequence_specs.tokenizer_model_name
         elif isinstance(self.tokenizer, AutoTokenizer):
