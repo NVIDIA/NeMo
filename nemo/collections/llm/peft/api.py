@@ -29,13 +29,13 @@ from nemo.collections.llm.api import _set_with_io
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.utils import factory
 from nemo.lightning import AutoResume, NeMoLogger, Trainer
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 from nemo.lightning.io import load_context
 from nemo.lightning.io.pl import TrainerContext
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 
 
 @factory
@@ -73,7 +73,7 @@ def merge_lora(
 
         def run(self):
             self._on_predict_start()  # trigger ModelTransform on_predict_start hook to enter PEFT load ckpt for the second time, loading adapter state_dict
-            if trainer.state.fn == TrainerFn.PREDICTING: #no need ?
+            if trainer.state.fn == TrainerFn.PREDICTING:  # no need ?
                 # base_state_dict = {k:v for k,v in trainer.model.state_dict().items() if 'adapter' not in k and 'extra_state' not in k }
                 base_sharded_dict = {k: v for k, v in trainer.model.sharded_state_dict().items() if 'adapter' not in k}
                 lora_sharded_dict = {
@@ -164,10 +164,10 @@ def merge_lora(
                         ).type_as(wt_base)
                         logging.info(f'merging for weight {key_base}')
 
-            return base_model_state_dict #reference, no need to return. return for clarity??
+            return base_model_state_dict  # reference, no need to return. return for clarity??
 
     trainer.predict_loop = LoRAMergeLoop(trainer)
-    trainer.predict(model, dataloaders=predict_dataloader) #How to get rid of this dummy data loader??
+    trainer.predict(model, dataloaders=predict_dataloader)  # How to get rid of this dummy data loader??
 
 
 __all__ = ["gpt_lora", "merge_lora"]
