@@ -24,6 +24,8 @@ from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.trainer.states import TrainerFn
 from typing_extensions import override
 
+from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.pl import ckpt_to_dir
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.utils import logging
@@ -31,11 +33,7 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 
-
-_ADAPTER_META_FILENAME = "adapter_metadata.json"
-
-
-class PEFT(ABC, ModelTransform):
+class PEFT(IOMixin, ABC, ModelTransform):
     """Abstract base class for Parameter-Efficient Fine-Tuning (PEFT) methods.
 
     This class defines the interface for PEFT methods, which are used to fine-tune
@@ -293,7 +291,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+            adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
 
@@ -326,7 +324,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
 
         assert self.checkpoint_io is not None
 
-        adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+        adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
         adapter_ckpt = None
         if getattr(path, "base_model_path", None):
             ## PEFT Resume, FIRST TIME

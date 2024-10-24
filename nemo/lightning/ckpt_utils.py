@@ -5,6 +5,7 @@ from typing import Union
 #  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
 WEIGHTS_PATH: str = "weights"
 CONTEXT_PATH: str = "context"
+ADAPTER_META_FILENAME = "adapter_metadata.json"
 
 
 def idempotent_path_append(base_dir: Union[str, Path], suffix) -> Path:
