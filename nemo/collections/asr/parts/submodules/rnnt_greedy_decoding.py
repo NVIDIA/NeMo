@@ -27,6 +27,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -592,6 +593,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
         use_cuda_graph_decoder: bool = True,
+        ngram_lm_model: Optional[Union[str, Path]] = None,
+        ngram_lm_alpha: float = 0.0,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -622,6 +625,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                     allow_cuda_graphs=self.use_cuda_graph_decoder,
+                    ngram_lm_model=ngram_lm_model,
+                    ngram_lm_alpha=ngram_lm_alpha,
                 )
             else:
                 # Frame-Looping algorithm
@@ -2359,6 +2364,8 @@ class GreedyBatchedRNNTInferConfig:
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = True
     use_cuda_graph_decoder: bool = True
+    ngram_lm_model: Optional[str] = None
+    ngram_lm_alpha: float = 0.0
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
@@ -2710,6 +2717,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         use_cuda_graph_decoder: bool = True,
+        ngram_lm_model: Optional[Union[str, Path]] = None,
+        ngram_lm_alpha: float = 0.0,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2739,6 +2748,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 include_duration_confidence=include_duration_confidence,
                 confidence_method_cfg=confidence_method_cfg,
                 allow_cuda_graphs=use_cuda_graph_decoder,
+                ngram_lm_model=ngram_lm_model,
+                ngram_lm_alpha=ngram_lm_alpha,
             )
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:
