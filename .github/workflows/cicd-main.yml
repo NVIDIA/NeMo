@@ -150,6 +150,8 @@ jobs:
        RUNNER: self-hosted-azure
        TIMEOUT: 20
        SCRIPT: |
+         echo cuda error 
+         exit 1
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Common:
@@ -253,7 +255,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_ASR') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -263,7 +265,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Audio') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -272,7 +274,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Common') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -282,7 +284,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_LLM') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -291,7 +293,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Multimodal') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -300,7 +302,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_NLP') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -310,7 +312,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_TTS') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -319,7 +321,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Core') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -329,7 +331,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Hydra') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -338,7 +340,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Lightning') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -347,7 +349,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Others') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-cpu
+       RUNNER: test-cpu-runner
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat \
          --ignore=tests/collections/asr \
@@ -1890,6 +1892,9 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-2-h100
       SCRIPT: |
+        echo cuda
+        cat failure
+        
         # This is to improve p2p overlap on H100
         export NVTE_FWD_LAYERNORM_SM_MARGIN=8
         export NVTE_BWD_LAYERNORM_SM_MARGIN=8
@@ -2876,6 +2881,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-2-h100
       SCRIPT: |
+        echo cuda error
+        cat failure
         CUDA_DEVICE_MAX_CONNECTIONS=1 NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=1 python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
@@ -4499,7 +4506,10 @@ jobs:
         if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
         env: 
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_ADMIN: <!subteam^${{ secrets.SLACK_WEBHOOK_ADMIN }}>
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           PR_NUMBER: ${{ github.event.number }}
@@ -4555,13 +4565,15 @@ jobs:
             echo "* [$JOB_NAME]($JOB_URL)" | tee -a $GITHUB_STEP_SUMMARY
 
             LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
+            LOGS=$([[ $(echo $LOGS | wc -c) -gt 0 ]] && echo -E "\`\`\`\n$LOGS\n\`\`\`" || echo "")
+            LOGS=$([[ $(echo $JOB | yq '.value.outputs.potential_infra_failure') == "true" ]] && echo -E "$LOGS\n\ncc: $SLACK_WEBHOOK_ADMIN" || echo -E "$LOGS")
             
             SUMMARY=$(echo "$SUMMARY" | jq \
               --arg pr "<$PR_URL|$PR_TITLE>" \
               --arg job "<$JOB_URL|$JOB_NAME>" \
-              --arg logs "$LOGS" \
-              --arg author "<https://github.com/${{ github.actor }}|${{ github.actor }}>" \
-              --arg branch "<https://github.com/$REPOSITORY/tree/${{ github.head_ref || github.ref_name }}|${{ github.head_ref || github.ref_name }}>"\
+              --arg logs "$(echo "$LOGS")" \
+              --arg author "<https://github.com/$GITHUB_ACTOR|$GITHUB_ACTOR>" \
+              --arg branch "<https://github.com/$REPOSITORY/tree/$BRANCH|$BRANCH>"\
               '. += [
               {
                 "type": "section",
@@ -4572,8 +4584,7 @@ jobs:
                     + "\nJob: " + $job
                     + "\nAuthor: " + $author
                     + "\nBranch: " + $branch
-                    + "\nLogs:" 
-                    + "```\n" + $logs + "\n```" 
+                    + "\nLogs:" + $logs
                   )
                 }
               }
