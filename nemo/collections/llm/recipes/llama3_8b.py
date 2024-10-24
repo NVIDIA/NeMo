@@ -221,6 +221,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         run.Config(
             MegatronCommOverlapCallback,
             tp_comm_overlap=False,
+            bucket_size=256 * 1024 * 1024,
         )
     )
     return recipe
