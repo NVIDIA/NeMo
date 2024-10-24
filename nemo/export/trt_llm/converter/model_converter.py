@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import tensorrt_llm
 import torch
-from tensorrt_llm._utils import pad_vocab_size
+from tensorrt_llm._utils import pad_vocab_size, torch_to_numpy
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
@@ -259,11 +259,12 @@ def model_to_trtllm_ckpt(
             weights_dict_local[new_key] = v
 
         if mapping.is_first_pp_rank():
-            embedding_weight = (
-                split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
-                if use_parallel_embedding
-                else weights_dict["transformer.vocab_embedding.weight"]
-            )
+            embedding_weight = weights_dict["transformer.vocab_embedding.weight"]
+            if use_parallel_embedding:
+                embedding_weight = split(embedding_weight, mapping.tp_size, mapping.tp_rank)
+                if torch.is_tensor(embedding_weight):
+                    embedding_weight = torch_to_numpy(embedding_weight)
+                embedding_weight = np.ascontiguousarray(embedding_weight)
 
             weights_dict_local["transformer.vocab_embedding.weight"] = embedding_weight
 
