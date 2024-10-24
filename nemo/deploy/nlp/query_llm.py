@@ -158,7 +158,6 @@ class NemoQueryLLM(NemoQueryLLMBase):
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
-        min_output_len=None,
         max_output_len=None,
         top_k=None,
         top_p=None,
@@ -166,12 +165,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
         random_seed=None,
         task_id=None,
         lora_uids=None,
-        use_greedy: bool = None,
-        repetition_penalty: float = None,
-        add_BOS: bool = None,
-        all_probs: bool = None,
         log_probs: bool = False,
-        end_strings=None,
         init_timeout=60.0,
         openai_format_response: bool = False,
     ):
@@ -188,15 +182,15 @@ class NemoQueryLLM(NemoQueryLLMBase):
             stop_words_list (List(str)): list of stop words.
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
-            task_id (str): downstream task id if virtual tokens are used.
+            task_id (List[str]): downstream task id if virtual tokens are used.
+            lora_uids (List[str]): downstream lora id.
+            log_probs (bool): get log-probabilities or not.
             init_timeout (flat): timeout for the connection.
+            openai_format_response (bool): return in open AI format or not.
         """
 
         prompts = str_list2numpy(prompts)
         inputs = {"prompts": prompts}
-
-        if min_output_len is not None:
-            inputs["min_output_len"] = np.full(prompts.shape, max_output_len, dtype=np.int_)
 
         if max_output_len is not None:
             inputs["max_output_len"] = np.full(prompts.shape, max_output_len, dtype=np.int_)
@@ -230,23 +224,8 @@ class NemoQueryLLM(NemoQueryLLMBase):
             lora_uids = np.char.encode(lora_uids, "utf-8")
             inputs["lora_uids"] = np.full((prompts.shape[0], len(lora_uids)), lora_uids)
 
-        if use_greedy is not None:
-            inputs["use_greedy"] = np.full(prompts.shape, use_greedy, dtype=np.bool_)
-
-        if repetition_penalty is not None:
-            inputs["repetition_penalty"] = np.full(prompts.shape, repetition_penalty, dtype=np.single)
-
-        if add_BOS is not None:
-            inputs["add_BOS"] = np.full(prompts.shape, add_BOS, dtype=np.bool_)
-
-        if all_probs is not None:
-            inputs["all_probs"] = np.full(prompts.shape, all_probs, dtype=np.bool_)
-
         if log_probs:
             inputs["log_probs"] = np.full(prompts.shape, log_probs, dtype=np.bool_)
-
-        if end_strings is not None:
-            inputs["end_strings"] = str_list2numpy(end_strings)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
