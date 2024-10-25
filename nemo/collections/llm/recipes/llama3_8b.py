@@ -360,6 +360,6 @@ def finetune_performance_optimizations(
             100,
             100,
         )
-    ]
+    )
 
      return recipe
