@@ -19,8 +19,8 @@ from megatron.core.extensions.transformer_engine import SplitAlongDim
 from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
-from megatron.core.models.common.embeddings import apply_rotary_pos_emb
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+from megatron.core.models.common.embeddings import apply_rotary_pos_emb
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.mlp import MLP
