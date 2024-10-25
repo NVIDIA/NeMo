@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from torch import nn
+from megatron.core import parallel_state
 
 from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
@@ -95,7 +96,8 @@ class GemmaModel(GPTModel):
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
 
         super().configure_model()
-        extend_instance(self.module.embedding, EmbeddingScalingMixin)
+        if parallel_state.is_pipeline_first_stage():
+            extend_instance(self.module.embedding, EmbeddingScalingMixin)
 
 
 @io.model_importer(GemmaModel, "hf")

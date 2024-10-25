@@ -56,7 +56,7 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     # Trainer
-    tensor_parallelism: int = 1,
+    tensor_parallelism: int = 2,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
@@ -71,7 +71,7 @@ def pretrain_recipe(
     limit_test_batches: int = 32,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
-    val_check_interval: int = 2000,
+    val_check_interval: int = 500,
     # Data
     global_batch_size=32,
     micro_batch_size=2,

@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
 from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core import parallel_state
 from torch import nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
@@ -114,10 +115,12 @@ class Gemma2Model(GPTModel):
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
 
         super().configure_model()
-        # Apply Embedding Scaling: sqrt(hidden_size)
-        extend_instance(self.module.embedding, EmbeddingScalingMixin)
-        # Prevents final logits from growing excessively by scaling them to a fixed range
-        extend_instance(self.module.output_layer, Gemma2OutputLayer)
+        if parallel_state.is_pipeline_first_stage():
+            # Apply Embedding Scaling: sqrt(hidden_size)
+            extend_instance(self.module.embedding, EmbeddingScalingMixin)
+        if parallel_state.is_pipeline_last_stage():
+            # Prevents final logits from growing excessively by scaling them to a fixed range
+            extend_instance(self.module.output_layer, Gemma2OutputLayer)
 
 
 @io.model_importer(Gemma2Model, "hf")

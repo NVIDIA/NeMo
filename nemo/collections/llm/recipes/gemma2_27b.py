@@ -56,9 +56,9 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     # Trainer
-    tensor_parallelism: int = 4,
+    tensor_parallelism: int = 8,
     pipeline_parallelism: int = 2,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
@@ -71,7 +71,7 @@ def pretrain_recipe(
     limit_test_batches: int = 32,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
-    val_check_interval: int = 2000,
+    val_check_interval: int = 500,
     # Data
     global_batch_size=32,
     micro_batch_size=2,
@@ -211,10 +211,11 @@ def finetune_recipe(
     recipe = default_finetune_recipe(model(), "google/gemma-2-27b", dir, name, num_nodes, num_gpus_per_node)
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.optim.config.lr = 5e-6
-        recipe.trainer.strategy.tensor_model_parallel_size = 4
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 2
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
+        recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
