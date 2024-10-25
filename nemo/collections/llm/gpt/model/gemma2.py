@@ -135,7 +135,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Gemma model to Nemo, model saved to {output_path}")
+        print(f"Converted Gemma2 model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
