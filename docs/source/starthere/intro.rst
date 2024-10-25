@@ -32,7 +32,7 @@ Before using NeMo, make sure you meet the following prerequisites:
 Installation
 ------------
 
-Refer to the `NeMo GitHub README<https://github.com/NVIDIA/NeMo?tab=readme-ov-file#install-nemo-framework>`__ for the latest installation instructions.
+Refer to the NeMo Framework `User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/installation.html>`__ for the latest installation instructions.
 
 Quick Start Guide
 -----------------
