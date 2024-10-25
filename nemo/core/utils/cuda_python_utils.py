@@ -63,7 +63,8 @@ def skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported():
         import pytest
 
         pytest.skip(
-            f"Test using cuda graphs with conditional nodes is being skipped because cuda graphs with conditional nodes aren't supported. Error message: {e}"
+            "Test using cuda graphs with conditional nodes is being skipped because "
+            f"cuda graphs with conditional nodes aren't supported. Error message: {e}"
         )
 
 
