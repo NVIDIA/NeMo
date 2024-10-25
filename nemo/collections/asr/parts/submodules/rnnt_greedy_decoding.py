@@ -646,7 +646,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                             )
 
                             self._greedy_decode = RNNTGreedyDecodeCudaGraph(max_symbols_per_step, self)
-                        except (ImportError, ModuleNotFoundError, ValueError) as e:
+                        except (ImportError, ModuleNotFoundError, ValueError, EnvironmentError) as e:
                             self.use_cuda_graph_decoder = False
                             logging.warning(f"Cannot use decoder with CUDA graphs, reason: {e.msg}")
                             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
