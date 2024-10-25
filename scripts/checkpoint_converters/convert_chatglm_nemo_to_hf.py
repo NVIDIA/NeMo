@@ -50,7 +50,11 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -169,9 +173,21 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
 
         qkv_bias_base_name = f'transformer.encoder.layers.{l}.self_attention.query_key_value.bias'
-        q_bias = param_to_weights(qkv_bias[q_slice].reshape(-1,))
-        k_bias = param_to_weights(qkv_bias[k_slice].reshape(-1,))
-        v_bias = param_to_weights(qkv_bias[v_slice].reshape(-1,))
+        q_bias = param_to_weights(
+            qkv_bias[q_slice].reshape(
+                -1,
+            )
+        )
+        k_bias = param_to_weights(
+            qkv_bias[k_slice].reshape(
+                -1,
+            )
+        )
+        v_bias = param_to_weights(
+            qkv_bias[v_slice].reshape(
+                -1,
+            )
+        )
         checkpoint[qkv_bias_base_name] = torch.cat((q_bias, k_bias, v_bias))
 
         # attention dense
