@@ -4564,7 +4564,7 @@ jobs:
             SUMMARY=$(echo "$SUMMARY" | jq \
               --arg pr "<$PR_URL|$PR_TITLE>" \
               --arg job "<$JOB_URL|$JOB_NAME>" \
-              --arg logs "$(echo "$LOGS")" \
+              --arg logs "$(echo -e "$LOGS")" \
               --arg author "<https://github.com/$GITHUB_ACTOR|$GITHUB_ACTOR>" \
               --arg branch "<https://github.com/$REPOSITORY/tree/$BRANCH|$BRANCH>"\
               '. += [
