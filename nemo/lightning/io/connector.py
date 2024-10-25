@@ -250,9 +250,10 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
                 model.__io__.tokenizer = self.tokenizer.__io__
 
     def save_hf_tokenizer_assets(self, tokenizer_name_or_path, save_path="/tmp/nemo_tokenizer"):
-        from transformers import AutoTokenizer
-
-        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
-        # Save tokenizer assets to save_path.
-        tok.save_pretrained(save_path)
+        if not (hasattr(self, "hf_tokenizer_assets_saved") and self.hf_tokenizer_assets_saved):
+            from transformers import AutoTokenizer
+            tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path, trust_remote_code=True)
+            # Save tokenizer assets to save_path.
+            tok.save_pretrained(save_path)
+            self.hf_tokenizer_assets_saved = True
         return save_path

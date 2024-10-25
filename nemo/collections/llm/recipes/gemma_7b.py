@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import os
 from typing import Callable, Optional
 
 import nemo_run as run
@@ -22,10 +21,9 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
+from nemo.collections.llm import GemmaConfig7B, GemmaModel
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
@@ -34,26 +32,26 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama3_8b"
+NAME = "gemma_7b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama3 8B model configuration.
+    Factory function to create a Gemma 7B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama3 8B model.
+        run.Config[pl.LightningModule]: Configuration for the Gemma 7B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama3_8b ...
+            $ nemo llm pretrain model=gemma_7b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(LlamaModel, config=run.Config(Llama3Config8B))
+    return run.Config(GemmaModel, config=run.Config(GemmaConfig7B))
 
 
 def trainer(
@@ -69,7 +67,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama3 8B model.
+    Configure the NeMo Lightning Trainer for Gemma 7B model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -90,7 +88,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama3_8b ...
+            $ nemo llm pretrain trainer=gemma_7b ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
@@ -117,7 +115,6 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
-            average_in_collective=True,
         ),
     )
 
@@ -146,7 +143,7 @@ def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Llama3 8B model.
+    Create a pre-training recipe for Gemma 7B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -163,11 +160,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama3_8b
-            $ nemo llm pretrain --factory "llama3_8b(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory gemma_7b
+            $ nemo llm pretrain --factory "gemma_7b(num_nodes=2, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_8b_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe(name="gemma_7b_pretrain", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -189,7 +186,7 @@ def pretrain_recipe(
     )
 
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
+@run.cli.factory(target=pretrain, name=NAME + "_optimized")
 def pretrain_recipe_performance(
     dir: Optional[str] = None,
     name: str = "default",
@@ -198,7 +195,7 @@ def pretrain_recipe_performance(
     fn: Callable = pretrain,
 ) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Llama3 8B model.
+    Create a performance-optimized pre-training recipe for Gemma 7B model.
 
     This recipe enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
@@ -214,10 +211,10 @@ def pretrain_recipe_performance(
         run.Partial: Partial configuration for performance-optimized pre-training.
 
     Examples:
-            $ nemo llm pretrain --factory llama3_8b_optimized
+            $ nemo llm pretrain --factory gemma_7b_optimized
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama3_8b_perf", num_nodes=4)
+            >>> recipe = pretrain_recipe_performance(name="gemma_7b_perf", num_nodes=4)
             >>> print(recipe)
 
     Note:
@@ -242,10 +239,10 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
-    packed_sequence: bool = False,  # once packing recipe is well tested, change this default to true
+    packed_sequence: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama3 8B model.
+    Create a fine-tuning recipe for Gemma 7B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -263,10 +260,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama3_8b
+            $ nemo llm finetune --factory gemma_7b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama3_8b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="gemma_7b_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -274,8 +271,11 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
+    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
+    os.environ['NVTE_FUSED_ATTN'] = "0"
+
     recipe = default_finetune_recipe(
-        model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), "google/gemma-7b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
