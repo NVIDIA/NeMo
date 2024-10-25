@@ -648,9 +648,10 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 seqlen_unpadded = eos_idx[0][1] if eos_idx[0].size > 1 else eos_idx[0][0] + 1
                 cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
 
-            # the last seq needs to be the max seq len because rope and attn kernels expect no padding
-            if len(cu_seqlen) > len(cu_seqlens_unpadded):
-                cu_seqlens_unpadded[-1].append(max_length)
+            # if extra paddings are added in the packed sequence, they can't be counted as
+            # actual tokens for training
+            if len(cu_seqlens[-1]) > len(cu_seqlens_unpadded[-1]):
+                cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1])
 
         assert len(input_ids[0]) == len(
             position_ids[0]
