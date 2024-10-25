@@ -95,7 +95,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     bf16: bool = True
     num_layers: int = 2
     mamba_ssm_ngroups: int = 8
-    num_attention_heads: int = 1
+    num_attention_heads: int = 8
     hybrid_attention_ratio: float = 0.0
     hybrid_mlp_ratio: float = 0.0
     hybrid_override_pattern: str = None
@@ -143,15 +143,14 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class HyenaTestConfig(HyenaConfig):
-    hybrid_override_pattern: str = "SSSS"
-    num_layers: int = 4
+    hybrid_override_pattern: str = "SDH*SHDSDH*SDHSDH*"
+    num_layers: int = 18
     seq_length: int = 128
     hidden_size: int = 4096
     mamba_ssm_ngroups: int = 1
     ffn_hidden_size: int = 4096
     make_vocab_size_divisible_by: int = 16
-    tokenizer_library: str = 'huggingface'
-    tokenizer_name: str = "EleutherAI/gpt-neox-20b"
+    tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
 
 

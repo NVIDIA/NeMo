@@ -29,11 +29,11 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 """
-CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 /home/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --devices=1 \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
+                                --devices=2 \
                                 --max-steps=10 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
-                                --data-path=/home/ataghibakhsh/datasets/legal-mc4/train_text_document
+                                --experiment-dir=<path to experiment dir> \
+                                --data-path=<path to data path>
 """
 
 def get_args():
@@ -56,24 +56,22 @@ if __name__ == '__main__':
     seq_length = 512
 
     tokenizer = get_nmt_tokenizer(
-        "huggingface",
-        "EleutherAI/gpt-neox-20b",
-        tokenizer_model=None,
-        use_fast=True,
+        "byte-level",
     )
     data = PreTrainingDataModule(
         paths=args.data_path,
         seq_length=seq_length,
-        micro_batch_size=2,
-        global_batch_size=16,
+        micro_batch_size=1,
+        global_batch_size=1,
         seed=1234,
         tokenizer=tokenizer,
     )
-    hyena_config = llm.HyenaTestConfig
+    hyena_config = llm.HyenaTestConfig()
     model = llm.GPTModel(hyena_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
-        pipeline_model_parallel_size=1,
+        pipeline_model_parallel_size=2,
+        pipeline_dtype = torch.bfloat16
     )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=10,
