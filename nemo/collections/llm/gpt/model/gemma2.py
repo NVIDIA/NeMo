@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
-from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core import parallel_state
+from megatron.core.transformer.spec_utils import ModuleSpec
 from torch import nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
