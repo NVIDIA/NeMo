@@ -57,8 +57,7 @@ def test_set_model_parallel_attributes() -> None:
     assert model.config.pipeline_dtype == torch.float32
 
 
-@patch('nemo.collections.nlp.modules.common.megatron.megatron_init.initialize_model_parallel_for_nemo')
-def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
+def test_init_parallel_ranks() -> None:
     from nemo.utils import AppState
 
     app_state = AppState()
@@ -80,7 +79,7 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
     mock_parallel_config.pipeline_model_parallel_split_rank = None
 
     _strategy_lib.init_parallel_ranks(
-        world_size=3,
+        world_size=24,
         global_rank=1,
         local_rank=0,
         parallel_config=mock_parallel_config,
