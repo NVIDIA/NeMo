@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Callable, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -23,6 +23,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "nemotron4_22b"
@@ -56,7 +57,7 @@ def pretrain_recipe(
     # Trainer
     tensor_parallelism: int = 2,
     pipeline_parallelism: int = 4,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = 10,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
@@ -79,6 +80,7 @@ def pretrain_recipe(
     constant_steps=0,
     min_lr=1e-5,
     max_lr=1e-4,
+    performance_mode: bool = False,
     # Training function
     fn=pretrain,
 ) -> run.Partial:
@@ -114,6 +116,7 @@ def pretrain_recipe(
         constant_steps (int): Number of constant steps.
         min_lr (float): Minimum learning rate.
         max_lr (float): Maximum learning rate.
+        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -131,7 +134,7 @@ def pretrain_recipe(
     Note:
         This recipe uses a mock dataset, look for the finetune examples to see how to change the dataset.
     """
-    return run.Partial(
+    recipe = run.Partial(
         fn,
         model=model(),
         trainer=nemotron_trainer(
@@ -169,3 +172,45 @@ def pretrain_recipe(
         ),
         resume=default_resume(),
     )
+
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
+
+    return recipe
+
+
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
+    """
+    Create a performance-optimized pre-training recipe for Nemotron4 22B model.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+
+    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
+    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
+    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
+    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
+    # each PP stage launches independently as needed.
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=True,
+            defer_embedding_wgrad_compute=True,
+            wgrad_deferral_limit=22,
+            overlap_param_gather_with_optimizer_step=True,
+            align_param_gather=True,
+        )
+    )
+    return recipe
