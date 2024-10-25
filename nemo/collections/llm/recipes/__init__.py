@@ -33,6 +33,8 @@ from nemo.collections.llm.recipes import (
     llama31_8b,
     llama31_70b,
     llama31_405b,
+    llama32_1b,
+    llama32_3b,
     mamba2_1_3b,
     mamba2_2_7b,
     mamba2_8b,
@@ -56,6 +58,7 @@ from nemo.collections.llm.recipes import (
     nemotron4_15b_16k,
     nemotron4_15b_64k,
     nemotron4_340b,
+    phi3_mini_4k_instruct,
     qwen2,
     qwen2_1p5b,
     qwen2_7b,
@@ -72,6 +75,7 @@ from nemo.collections.llm.recipes import (
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam
+from nemo.collections.llm.recipes.run.executor import torchrun
 
 __all__ = [
     "baichuan2_7b",
@@ -87,6 +91,8 @@ __all__ = [
     "llama31_8b",
     "llama31_70b",
     "llama31_405b",
+    "llama32_1b",
+    "llama32_3b",
     "mamba2_130m",
     "mamba2_370m",
     "mamba2_780m",
@@ -111,6 +117,7 @@ __all__ = [
     "nemotron4_15b_16k",
     "nemotron4_15b_64k",
     "nemotron4_340b",
+    "phi3_mini_4k_instruct",
     "t5_220m",
     "t5_3b",
     "t5_11b",
@@ -132,4 +139,5 @@ __all__ = [
     "adam",
     "default_log",
     "default_resume",
+    "torchrun",
 ]
