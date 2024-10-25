@@ -94,6 +94,7 @@ __all__ = [
     "nemotron4_22b_16k",
     "nemotron4_22b_64k",
     "nemotron4_340b",
+    "gpt3_175b",
     "gemma2",
     "gemma2_2b",
     "gemma2_9b",
