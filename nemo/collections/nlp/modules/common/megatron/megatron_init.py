@@ -328,6 +328,7 @@ def fake_initialize_model_parallel(
 
     encoder_world_size = encoder_model_size * data_parallel_size
     decoder_world_size = decoder_model_size * data_parallel_size
+    assert encoder_world_size + decoder_world_size == world_size
 
     virtual_pipeline_model_parallel_rank = None
     if virtual_pipeline_model_parallel_size_ is not None:
