@@ -97,7 +97,6 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
         model_config.use_cpu_initialization = True
         model_config.tensor_model_parallel_size = 1
-        model_config.name = "te_gpt"
     else:
         map_location, model_config = None, None
 
