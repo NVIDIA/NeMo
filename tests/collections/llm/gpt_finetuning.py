@@ -16,11 +16,11 @@ import os
 from dataclasses import dataclass
 
 from megatron.core.optimizer import OptimizerConfig
-from nemo.collections.llm import Llama3Config8B
 from transformers import AutoTokenizer
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm import Llama3Config8B
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
