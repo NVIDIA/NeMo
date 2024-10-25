@@ -47,6 +47,7 @@ from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
@@ -555,8 +556,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         if self.convert_module_fn:
             self.apply_convert_module_fn()
-
-        self.init_ddp()
+        try:
+            if self.trainer.state.fn == TrainerFn.FITTING:
+                self.init_ddp()
+        except RuntimeError as e:
+            if "is not attached to a `Trainer`" in str(e):
+                # Handle the case where the model is not attached to a Trainer
+                print("Model is not attached to a Trainer. Skipping trainer-specific logic.")
+            else:
+                raise
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
@@ -1040,6 +1048,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         micro_batch_size (Optional[int]): Size of each micro-batch.
         seq_length (Optional[int]): Sequence length for the current step.
         num_microbatches (Optional[int]): Number of micro-batches in this step.
+        decoder_seq_length (Optional[int]): Sequence length of decoder (used only in encoder-decoder style models) for the current step.
 
     Type Parameters:
         ModelT: The type of the model being used.
@@ -1054,6 +1063,7 @@ class MegatronStep(Generic[ModelT, DataT]):
     seq_length: Optional[int] = None
     num_microbatches: Optional[int] = None
     step_i: Optional[int] = None
+    decoder_seq_length: Optional[int] = None
 
     @classmethod
     def infer(
@@ -1131,6 +1141,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             seq_length=self.seq_length,
             micro_batch_size=self.micro_batch_size,
             forward_only=self.forward_only,
+            decoder_seq_length=self.decoder_seq_length,
         )
 
     def to_data_iterator_list(

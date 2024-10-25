@@ -259,6 +259,7 @@ class LazySupervisedDataset(Dataset):
         data_config,
         tokenizer,
         image_processor,
+        sequence_length,
     ):
         super().__init__()
         if data_path is not None:
@@ -270,7 +271,13 @@ class LazySupervisedDataset(Dataset):
         logging.warning("Formatting inputs...Skip in lazy mode")
         self.data_config = data_config
         self.tokenizer = tokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        if isinstance(self.tokenizer, AutoTokenizer):
+            self.tokenizer = self.tokenizer.tokenizer
+
         self.image_processor = image_processor
+        self.sequence_length = sequence_length
 
         self.conv_template = data_config.conv_template
         self.conv = supported_conv_templates[self.conv_template]
@@ -323,8 +330,13 @@ class LazySupervisedDataset(Dataset):
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         source = source['conversations']
-        if roles[source[0]["from"]] != conv.roles[0]:
-            source = source[1:]
+
+        def _fix_roles(roles):
+            if len(source) < 2:
+                return roles
+            return {source[0]["from"]: conv.roles[0], source[1]["from"]: conv.roles[1]}
+
+        roles = _fix_roles(roles)
 
         conv.messages = []
         for j, sentence in enumerate(source):
@@ -354,6 +366,7 @@ class LazySupervisedDataset(Dataset):
                 return_tensors="pt",
             )[0]
             answer_start, answer_end = find_pattern_indices(tokens, answer_tokens, search_start_index)
+            assert answer_start > 0, "Not found valid answer in conversation."
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
             search_start_index = answer_end
         tokens = tokens[:-1]

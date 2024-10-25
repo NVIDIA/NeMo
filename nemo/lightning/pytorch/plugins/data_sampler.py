@@ -44,9 +44,11 @@ class MegatronDataSampler(DataSampler):
         init_consumed_samples: int = 0,
         init_global_step: int = 0,
         output_log: bool = True,
+        decoder_seq_len: Optional[int] = None,
         drop_last: bool = True,
     ):
         self.seq_len = seq_len
+        self.decoder_seq_len = decoder_seq_len
         self.output_log = output_log
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
@@ -111,6 +113,7 @@ class MegatronDataSampler(DataSampler):
             seq_length=self.seq_len,
             micro_batch_size=self.micro_batch_size,
             num_microbatches=self.num_microbatches,
+            decoder_seq_length=self.decoder_seq_len,
         )
 
     def on_megatron_microbatches_start(self, step: MegatronStep) -> None:
