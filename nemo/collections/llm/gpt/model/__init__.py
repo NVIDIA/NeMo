@@ -37,14 +37,14 @@ from nemo.collections.llm.gpt.model.gemma import (
     GemmaConfig7B,
     GemmaModel,
 )
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Config,
-    Gemma2Config27B,
     Gemma2Config2B,
     Gemma2Config9B,
+    Gemma2Config27B,
     Gemma2Model,
 )
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,

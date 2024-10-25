@@ -16,14 +16,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
-from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
-from megatron.core.transformer.spec_utils import ModuleSpec
 import torch
+from megatron.core.transformer.spec_utils import ModuleSpec
 from torch import nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
+from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:
     return get_gemma2_layer_spec()
+
 
 # Note: Gemma requires huggingface transformers >= 4.38
 # Note: these Gemma configs are copied from the corresponding HF model. You may need to modify the parameter for
@@ -76,6 +77,7 @@ class Gemma2Config2B(Gemma2Config):
     ffn_hidden_size: int = 9216
     query_pre_attn_scalar: int = 256
 
+
 @dataclass
 class Gemma2Config9B(Gemma2Config):
     num_layers: int = 42
@@ -108,8 +110,8 @@ class Gemma2Model(GPTModel):
 
     def configure_model(self):
         from nemo.collections.common.parts.utils import extend_instance
-        from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
         from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
+        from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
 
         super().configure_model()
         # Apply Embedding Scaling: sqrt(hidden_size)
@@ -128,7 +130,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
 
         source = Gemma2ForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
-        
+
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
@@ -298,6 +300,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     return qkv_weights
 
+
 @io.state_transform(
     source_key="model.layers.*.post_feedforward_layernorm.weight",
     target_key=(
@@ -307,6 +310,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 )
 def _import_post_ffn_ln(ctx: io.TransformCTX, ln):
     return ln, ln
+
 
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
