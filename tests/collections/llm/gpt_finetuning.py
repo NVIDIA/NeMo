@@ -16,11 +16,9 @@ import os
 from dataclasses import dataclass
 
 from megatron.core.optimizer import OptimizerConfig
-from transformers import AutoTokenizer
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm import Llama3Config8B
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -57,7 +55,6 @@ if __name__ == '__main__':
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_parallel_size=args.pp_size,
-        ckpt_async_save=True,
     )
 
     trainer = nl.Trainer(
@@ -115,8 +112,6 @@ if __name__ == '__main__':
 
     tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model"))
     llama3_8b = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
-    # tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
-    # llama3_8b = llm.LlamaModel(Llama3Config8B(), tokenizer=tokenizer)
 
     resume = nl.AutoResume(
         restore_config=nl.RestoreConfig(path=args.restore_path),

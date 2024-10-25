@@ -163,13 +163,10 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
         if hasattr(self, 'vocab_size'):
             vocab_size = self.vocab_size
-            if tokenizer is None:
-                logging.info(f"Use preset vocab_size: {vocab_size}.")
-            else:
-                logging.info(
-                    f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
-                    f" {vocab_size - tokenizer.vocab_size}."
-                )
+            logging.info(
+                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                f" {vocab_size - tokenizer.vocab_size}."
+            )
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
