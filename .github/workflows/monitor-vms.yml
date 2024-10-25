@@ -2,7 +2,7 @@
 name: Reboots VMs in a controlled way
 on:
   schedule:
-    - cron: 0 0,4,8,12,16,20 * * *
+    - cron: /15 * * * *
   workflow_dispatch:
   pull_request:
   
