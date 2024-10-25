@@ -259,7 +259,7 @@ class LazySupervisedDataset(Dataset):
         data_config,
         tokenizer,
         image_processor,
-        sequence_length,
+        sequence_length=None,
     ):
         super().__init__()
         if data_path is not None:

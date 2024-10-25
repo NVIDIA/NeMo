@@ -37,6 +37,7 @@ from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
+from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR
 from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
 from nemo.collections.vlm.llama.model.utils import _generate_cross_attention_mask, _pad_attention_masks
 from nemo.collections.vlm.llama.model.vision import VisionEncoder
@@ -240,35 +241,8 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = llama_data_step
 
     def __post_init__(self):
-        model_config_attr = [
-            'num_layers',
-            'hidden_size',
-            'num_attention_heads',
-            'num_query_groups',
-            'ffn_hidden_size',
-            'kv_channels',
-            'hidden_dropout',
-            'attention_dropout',
-            'fp32_residual_connection',
-            'apply_residual_connection_post_layernorm',
-            'layernorm_epsilon',
-            'layernorm_zero_centered_gamma',
-            'add_bias_linear',
-            'add_qkv_bias',
-            'gated_linear_unit',
-            'activation_func',
-            'activation_func_fp8_input_store',
-            'num_moe_experts',
-            'rotary_interleaved',
-            'window_size',
-            'normalization',
-            'qk_layernorm',
-            'test_mode',
-            'calculate_per_token_loss',
-        ]
-
         if self.language_model_config is not None:
-            for attr in model_config_attr:
+            for attr in MODEL_CONFIG_ATTR:
                 setattr(self, attr, getattr(self.language_model_config, attr))
 
     def configure_model(self, tokenizer) -> "MLlamaBaseModel":
