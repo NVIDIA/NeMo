@@ -338,7 +338,7 @@ def finetune_performance_optimizations(
         recipe.trainer.callbacks = []
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        ddp = run.Config(
+        recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=False,
