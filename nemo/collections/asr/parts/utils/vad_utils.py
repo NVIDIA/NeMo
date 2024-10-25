@@ -1753,5 +1753,7 @@ def ts_vad_post_processing(
     else:
         cfg_vad_params.onset=0.5
         cfg_vad_params.offset=0.5
+        cfg_vad_params.pad_onset=0.0
+        cfg_vad_params.pad_offset=0.0
         speech_segments = binarization(ts_vad_binary_frames, cfg_vad_params)
     return speech_segments

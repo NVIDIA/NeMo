@@ -97,11 +97,13 @@ class DiarizationConfig:
     ignore_overlap: bool = False # If True, DER will be calculated only for non-overlapping segments
     
     # Streaming diarization configs
-    streaming_mode: bool = False # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
+    streaming_mode: bool = True # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
     mem_len: int = 100
+    mem_refresh_rate: int = 0
+    fifo_len: int = 100
     step_len: int = 100
-    step_left_context: int = 0
-    step_right_context: int = 0
+    step_left_context: int = 100
+    step_right_context: int = 100
 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
@@ -254,6 +256,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.mem_len = cfg.mem_len
     diar_model.sortformer_modules.step_left_context = cfg.step_left_context
     diar_model.sortformer_modules.step_right_context = cfg.step_right_context
+    diar_model.fifo_len = cfg.fifo_len
+    diar_model.mem_refresh_rate = cfg.mem_refresh_rate
     
     # Save the list of tensors
     diar_model.test_batch()
