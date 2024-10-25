@@ -49,7 +49,12 @@ class MockDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
 
-
+        self.data_sampler = MegatronDataSampler(
+            seq_len=10,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+            rampup_batch_size=rampup_batch_size,
+        )
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockT2IDataset(image_H=1024, image_W=1024, length=self.num_train_samples)
@@ -113,8 +118,6 @@ class _MockT2IDataset(Dataset):
         else:
             item[self.image_key] = torch.randn(self.H, self.W, 3)
             item[self.txt_key] = "This is a sample caption input"
-
-
         return item
 
     def __len__(self):

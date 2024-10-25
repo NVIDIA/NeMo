@@ -16,31 +16,26 @@ from dataclasses import dataclass
 
 import torch
 from megatron.core.transformer.utils import openai_gelu
-
-from nemo.collections.diffusion.models.flux.model import FluxParams
+from megatron.core.transformer.transformer_config import TransformerConfig
+from nemo.lightning import io
+from typing import Callable
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderParams
+from nemo.collections.diffusion.models.flux.model import FluxModelParams, FluxConfig
 
 
-@dataclass
-class FluxModelParams:
-    flux_params: FluxParams
-    vae_params: AutoEncoderParams
-    clip_params: dict | None
-    t5_params: dict | None
-    scheduler_params: dict | None
-    device: str | torch.device
+
+
 
 
 configs = {
     "dev": FluxModelParams(
-        flux_params=FluxParams(
+        flux_params=FluxConfig(
             num_joint_layers=19,
             num_single_layers=38,
             hidden_size=3072,
             num_attention_heads=24,
             activation_func=openai_gelu,
             add_qkv_bias=True,
-            ffn_hidden_size=16384,
             in_channels=64,
             context_dim=4096,
             model_channels=256,
