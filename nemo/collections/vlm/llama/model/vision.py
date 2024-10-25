@@ -619,6 +619,7 @@ class VisionEncoder(MegatronModule):
             attention_mask=attn_mask,
             return_intermediate=self.return_intermediate,
         )
+        # [ntok * num_concurrent_media * num_chunks, bsz, hidden_size] ->  [bsz, ntok * num_concurrent_media * num_chunks, hidden_size]
         x, int_x = x.transpose(0, 1).contiguous(), int_x.transpose(0, 1).contiguous()
         x = self.ln_post(x)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
