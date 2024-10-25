@@ -245,9 +245,14 @@ def run_inference(
     fp8_quantized=False,
     fp8_kvcache=False,
     trt_llm_export_kwargs=None,
+    vllm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if trt_llm_export_kwargs is None:
         trt_llm_export_kwargs = {}
+
+    if vllm_export_kwargs is None:
+        vllm_export_kwargs = {}
+
     if Path(checkpoint_path).exists():
         if tp_size > torch.cuda.device_count():
             print(
@@ -312,6 +317,7 @@ def run_inference(
                 pipeline_parallel_size=pp_size,
                 max_model_len=max_input_len + max_output_len,
                 gpu_memory_utilization=args.gpu_memory_utilization,
+                **vllm_export_kwargs,
             )
         else:
             exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
@@ -436,7 +442,7 @@ def run_inference(
         if test_deployment:
             nm.stop()
 
-        if not save_trt_engine:
+        if not save_trt_engine and model_dir:
             shutil.rmtree(model_dir)
 
         return (functional_result, accuracy_result)
@@ -463,6 +469,7 @@ def run_existing_checkpoints(
     fp8_quantized=False,
     fp8_kvcache=False,
     trt_llm_export_kwargs=None,
+    vllm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if tp_size > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -539,6 +546,7 @@ def run_existing_checkpoints(
             fp8_quantized=fp8_quantized,
             fp8_kvcache=fp8_kvcache,
             trt_llm_export_kwargs=trt_llm_export_kwargs,
+            vllm_export_kwargs=vllm_export_kwargs,
         )
 
 
@@ -677,8 +685,8 @@ def get_args():
     )
     parser.add_argument(
         "--ptuning",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--lora_checkpoint",
@@ -686,8 +694,8 @@ def get_args():
     )
     parser.add_argument(
         "--lora",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--top_k",
@@ -777,6 +785,12 @@ def get_args():
         type=json.loads,
         help="Extra keyword arguments passed to TensorRTLLM.export",
     )
+    parser.add_argument(
+        "--vllm_export_kwargs",
+        default={},
+        type=json.loads,
+        help="Extra keyword arguments passed to vLLMExporter.export",
+    )
 
     args = parser.parse_args()
 
@@ -784,6 +798,8 @@ def get_args():
         s = s.lower()
         true_strings = ["true", "1"]
         false_strings = ["false", "0"]
+        if s == '':
+            return False
         if s in true_strings:
             return True
         if s in false_strings:
@@ -798,6 +814,8 @@ def get_args():
     args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
+    args.lora = str_to_bool("lora", args.lora)
+    args.ptuning = str_to_bool("ptuning", args.ptuning)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
     args.in_framework = str_to_bool("in_framework", args.in_framework)
     args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
@@ -858,6 +876,7 @@ def run_inference_tests(args):
                 fp8_quantized=args.export_fp8_quantized,
                 fp8_kvcache=args.use_fp8_kv_cache,
                 trt_llm_export_kwargs=args.trt_llm_export_kwargs,
+                vllm_export_kwargs=args.vllm_export_kwargs,
             )
 
             tps = tps * 2
@@ -917,6 +936,7 @@ def run_inference_tests(args):
                     fp8_quantized=args.export_fp8_quantized,
                     fp8_kvcache=args.use_fp8_kv_cache,
                     trt_llm_export_kwargs=args.trt_llm_export_kwargs,
+                    vllm_export_kwargs=args.vllm_export_kwargs,
                 )
 
             tps = tps * 2
