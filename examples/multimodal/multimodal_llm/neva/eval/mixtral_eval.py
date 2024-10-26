@@ -75,7 +75,10 @@ def get_eval(content: str, max_tokens: int):
                 'role': 'system',
                 'content': 'You are a helpful and precise assistant for checking the quality of the answer.',
             },
-            {'role': 'user', 'content': content,},
+            {
+                'role': 'user',
+                'content': content,
+            },
         ],
         "temperature": 0.2,
         "top_p": 0.7,
