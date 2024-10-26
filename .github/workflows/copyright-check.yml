@@ -28,17 +28,13 @@ jobs:
 
       - name: Run on change-set
         run: |
-          # Files ending with .py should have Copyright notice in the first line.
-          SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-          # Move to the project root
-          cd $SCRIPT_DIR/..
+          # Files ending with .py should have Copyright notice in the first 10 lines
           find_files_with_missing_copyright() {
-          find ./megatron/ -type f -name '*.py' | while read path; do
+          find ./ -type f -name '*.py' | while read path; do
               echo -en $path"\t"
-              head -2 $path | grep -iv 'coding=' | head -1
+              head -n 10 $path | tr '\n' '\t' | sed 's/\t$/\n/'
           done \
-             | egrep -iv 'Copyright.*NVIDIA CORPORATION.*All rights reserved.' \
+             | egrep -iv 'Copyright.*NVIDIA CORPORATION.*' \
              | while read line; do
                echo $line | cut -d' ' -f1
              done
@@ -54,5 +50,5 @@ jobs:
              done
              exit 1;
           else
-             echo "Ok: All files start with copyright notice"
+             echo "Ok: All (Python) files start with copyright notice"
           fi
