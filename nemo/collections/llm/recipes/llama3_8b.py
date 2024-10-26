@@ -334,7 +334,7 @@ def finetune_performance_optimizations(
     """
     recipe.trainer.strategy.tensor_model_parallel_size = 1
 
-    if recipe.trainer.get("callbacks", None) is None:
+    if not hasattr(recipe.trainer, "callbacks"):
         recipe.trainer.callbacks = []
 
     if peft_scheme is None or peft_scheme.lower() == 'none':

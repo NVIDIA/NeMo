@@ -348,6 +348,9 @@ def finetune_performance_optimizations(
         It may not be suitable for all hardware configurations or use cases.
     """
 
+    if not hasattr(recipe.trainer, "callbacks"):
+        recipe.trainer.callbacks = []
+
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
@@ -370,9 +373,6 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
 
     recipe.trainer.strategy.sequence_parallel = True
-
-    if recipe.trainer.get("callbacks", None) is None:
-        recipe.trainer.callbacks = []
 
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(
