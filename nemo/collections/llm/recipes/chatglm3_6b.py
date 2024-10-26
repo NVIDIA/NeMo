@@ -22,10 +22,9 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
+from nemo.collections.llm import ChatGLM3Config6B, ChatGLMModel
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
@@ -34,26 +33,26 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama3_8b"
+NAME = "chatglm3_6b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama3 8B model configuration.
+    Factory function to create a ChatGLM3 6B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama3 8B model.
+        run.Config[pl.LightningModule]: Configuration for the ChatGLM3 6B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama3_8b ...
+            $ nemo llm pretrain model=chatglm3_6b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(LlamaModel, config=run.Config(Llama3Config8B))
+    return run.Config(ChatGLMModel, config=run.Config(ChatGLM3Config6B))
 
 
 def trainer(
@@ -69,7 +68,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama3 8B model.
+    Configure the NeMo Lightning Trainer for ChatGLM3 6B model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -90,7 +89,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama3_8b ...
+            $ nemo llm pretrain trainer=chatglm3_6b ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
@@ -117,7 +116,6 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
-            average_in_collective=True,
         ),
     )
 
@@ -143,15 +141,10 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    performance_mode: bool = False,
-    fn: Callable = pretrain,
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Llama3 8B model.
+    Create a pre-training recipe for ChatGLM3 6B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -161,7 +154,6 @@ def pretrain_recipe(
         name (str): Name of the pre-training run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -169,18 +161,18 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama3_8b
-            $ nemo llm pretrain --factory "llama3_8b(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory chatglm3_6b
+            $ nemo llm pretrain --factory "chatglm3_6b(num_nodes=2, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_8b_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe(name="chatglm3_6b_pretrain", num_nodes=2)
             >>> print(recipe)
 
     Note:
         For more details on pre-training LLMs with NeMo, see the pre-training
         guide in the `examples/llm/pretrain/` directory.
     """
-    recipe = run.Partial(
+    return run.Partial(
         fn,
         model=model(),
         trainer=trainer(
@@ -194,29 +186,44 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
-    if performance_mode:
-        recipe = pretrain_performance_optimizations(recipe)
 
-    return recipe
-
-
-def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
+@run.cli.factory(target=pretrain, name=NAME + "_optimized")
+def pretrain_recipe_performance(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn: Callable = pretrain,
+) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Llama3 8B model.
+    Create a performance-optimized pre-training recipe for ChatGLM3 6B model.
 
-    This method enables performance optimizations that may not be suitable for all use cases.
+    This recipe enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
 
     Args:
-        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        fn (Callable): The pre-training function to use.
 
     Returns:
         run.Partial: Partial configuration for performance-optimized pre-training.
 
+    Examples:
+            $ nemo llm pretrain --factory chatglm3_6b_optimized
+
+        Python API usage:
+            >>> recipe = pretrain_recipe_performance(name="chatglm3_6b_perf", num_nodes=4)
+            >>> print(recipe)
+
     Note:
-        Use this method with caution and only when you need maximum performance.
+        Use this recipe with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
@@ -233,10 +240,10 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
-    packed_sequence: bool = False,  # once packing recipe is well tested, change this default to true
+    packed_sequence: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama3 8B model.
+    Create a fine-tuning recipe for ChatGLM3 6B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -254,10 +261,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama3_8b
+            $ nemo llm finetune --factory chatglm3_6b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama3_8b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="chatglm3_6b_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -266,7 +273,7 @@ def finetune_recipe(
         `examples/llm/finetune/` directory.
     """
     recipe = default_finetune_recipe(
-        model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), "THUDM/chatglm3-6b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
