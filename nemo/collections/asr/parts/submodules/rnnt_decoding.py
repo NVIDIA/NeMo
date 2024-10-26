@@ -22,7 +22,7 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding, rnnt_batched_beam_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
@@ -231,7 +231,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'beam_batch']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -425,7 +425,19 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
                 hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
             )
-
+            
+        elif self.cfg.strategy == 'beam_batch':
+            
+            self.decoding = rnnt_batched_beam_decoding.BeamTDTInferBatched(
+                blank_index=self.blank_id,
+                decoder_model=decoder,
+                joint_model=joint,
+                beam_size=self.cfg.beam.beam_size,
+                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                score_norm=self.cfg.beam.get('score_norm', True),
+                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                preserve_alignments=self.preserve_alignments,
+            )
         else:
 
             raise ValueError(
