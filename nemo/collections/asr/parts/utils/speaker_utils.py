@@ -489,6 +489,7 @@ def perform_clustering(
             multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
             oracle_num_speakers=int(num_speakers),
             max_num_speakers=int(clustering_params.max_num_speakers),
+            enhanced_count_thres=int(clustering_params.enhanced_count_thres),
             max_rp_threshold=float(clustering_params.max_rp_threshold),
             sparse_search_volume=int(clustering_params.sparse_search_volume),
             chunk_cluster_count=clustering_params.get('chunk_cluster_count', None),
