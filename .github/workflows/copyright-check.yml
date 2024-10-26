@@ -28,7 +28,7 @@ jobs:
 
       - name: Run on change-set
         run: |
-          cd ${{ github.run_id }} 
+          cd ${{ github.run_id }}
 
           # Files ending with .py should have Copyright notice in the first 10 lines
           find_files_with_missing_copyright() {
