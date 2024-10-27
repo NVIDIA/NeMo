@@ -134,7 +134,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             Loads a model from the specified path, optionally using a CPU-focused strategy, and returns the model and trainer.
     """
 
-    def nemo_setup(self, model: pl.LightningModule, trainer: Optional[pl.Trainer] = None) -> pl.Trainer:
+    def nemo_setup(
+        self, model: pl.LightningModule, trainer: Optional[pl.Trainer] = None, *args, **kwargs
+    ) -> pl.Trainer:
         """
         Sets up the model and trainer using a specified strategy, preparing it for training or inference.
 
@@ -150,7 +152,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         _trainer = trainer or Trainer(
             devices=1,
             accelerator="cpu",
-            strategy=MegatronStrategy(ckpt_save_optimizer=False, always_save_context=True),
+            strategy=MegatronStrategy(ckpt_save_optimizer=False, always_save_context=True, *args, **kwargs),
         )
         # Note: set trainer to fitting state to avoid the following code path. Feel free to refactor if we no longer
         #  need to avoid this:
@@ -183,6 +185,8 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         output_path = Path(output_path)
         output_path.mkdir(parents=True, exist_ok=True)
         trainer.save_checkpoint(ckpt_to_weights_subdir(output_path))
+        if getattr(trainer.strategy, "async_save", False):
+            trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
 
         from nemo.lightning.io.pl import TrainerContext
         from nemo.utils.get_rank import is_global_rank_zero
