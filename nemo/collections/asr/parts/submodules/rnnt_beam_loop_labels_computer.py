@@ -230,8 +230,10 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
         float_dtype = encoder_output_projected.dtype
         
         batch_indices = torch.arange(batch_size, device=device)
+        beam_indices = torch.arange(self.beam_size, device=device)
         batch_blank = torch.full((batch_size, 1), self._blank_index, device=device)
         batch_zeros = torch.full((batch_size, 1), 0, device=device)
+        batch_beam_zeros = torch.full((batch_size, self.beam_size, 1), 0, device=device)
         
         # init empty batched hypotheses
         batched_hyps = rnnt_utils.BeamBatchedHyps(
@@ -289,35 +291,39 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
         
         active_mask = batched_hyps.last_timestep < encoder_output_length.unsqueeze(1)
         
+        big_iter_count = 0
         batch_beam_indices = torch.arange(self.beam_size * batch_size, device=device)
         while active_mask.any():
-            print(encoder_output_projected.shape)
-            print(batch_indices.shape)
-            print(time_indices.shape)
             time_indices = batched_hyps.last_timestep.flatten()
             
             decoder_output, state, *_ = self.decoder.predict(labels.view(-1, 1), state, add_sos=False, batch_size=batch_size)
             decoder_output = self.joint.project_prednet(decoder_output)
         
             logits = self.joint.joint_after_projection(encoder_output_projected[batch_beam_indices, time_indices].unsqueeze(1), decoder_output)
-            logps = torch.log_softmax(logits, dim=-1).view(batch_size, -1).squeeze(1).squeeze(1)
+            logps = torch.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)
+        
             label_logps, labels = logps.topk(self.beam_size, dim=-1)
-            blank_logps = logps[batch_indices, -1].unsqueeze(1)
+            blank_logps = logps[batch_indices.unsqueeze(1), beam_indices.unsqueeze(0), -1].unsqueeze(-1)
             blank_mask = labels == self._blank_index
             
             labels_list = [labels]
             label_logps_list = [label_logps]
-            blank_logps_list = [batch_zeros, blank_logps]
+            blank_logps_list = [batch_beam_zeros, blank_logps]
             
+            print("##### labels shape: ", labels.shape)
+
             iter_count = 0
             while blank_mask.any():
                 time_indices += 1
+                assert((time_indices < encoder_output_length.unsqueeze(1)).all())
 
                 old_blank_mask = blank_mask.clone()
                 
-                logits = self.joint.joint_after_projection(encoder_output_projected[batch_indices, time_indices].unsqueeze(1), decoder_output)
-                logps = torch.log_softmax(logits, dim=-1).view(batch_size, -1).squeeze(1).squeeze(1)
+                logits = self.joint.joint_after_projection(encoder_output_projected[batch_beam_indices, time_indices].unsqueeze(1), decoder_output)
+                logps = torch.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)
                 label_logps, labels = logps.topk(self.beam_size, dim=-1)
+                
+                print(labels.shape)
 
                 labels_list.append(labels)
                 label_logps_list.append(label_logps)
@@ -327,12 +333,12 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
                 
                 # add blank logps if not last loop
                 if blank_mask.any():
-                    blank_logps = logps[batch_indices, -1].unsqueeze(1)
+                    blank_logps = logps[batch_indices.unsqueeze(1), beam_indices.unsqueeze(0), -1].unsqueeze(-1)
                     blank_logps_list.append(blank_logps)
                 iter_count += 1
             
-            print(labels_list)
-            exit()
+            self.update_beam(batched_hyps, labels_list, label_logps_list, blank_logps_list)
+            big_iter_count += 1
             
         # print("####"*5)
         # print(label_logps_list)
@@ -600,6 +606,59 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
         
         return batched_hyps, labels
         
+    def update_beam(self,
+                        batched_beam_hyps,
+                        labels_list,
+                        label_logps_list,
+                        blank_logps_list,):
+        labels = torch.stack(labels_list, dim=1)
+        label_logps = torch.stack(label_logps_list, dim=1)
+        
+        blank_logps = torch.stack(blank_logps_list, dim=1)
+        blank_logps = torch.cumsum(blank_logps, dim=-1)
+        blank_logps = blank_logps.repeat_interleave(self.beam_size, dim=-1)
+        
+        curr_scores = batched_beam_hyps.scores.unsqueeze(1).unsqueeze(-1)
+        total_logps = curr_scores + label_logps + blank_logps
+        
+        batch_size = labels.shape[0]
+        device = labels.device
+        batch_indices = torch.arange(batch_size, device=device).unsqueeze(1)
+        
+        # masking blank ending hypothesis
+        blank_mask = labels == self._blank_index
+        total_logps[blank_mask] = float("-inf")
+        
+        print(labels_list)
+        print(labels.shape)
+        print(labels)
+        print(labels.view(batched_beam_hyps.batch_size, -1))
+        
+        labels = labels.view(batched_beam_hyps.batch_size, -1)
+        label_logps = label_logps.view(batched_beam_hyps.batch_size, -1)
+        blank_logps = blank_logps.view(batched_beam_hyps.batch_size, -1)
+        total_logps = total_logps.view(batched_beam_hyps.batch_size, -1)
+        
+        logps, idx = total_logps.topk(k = self.beam_size, dim=-1)
+        num_blanks = idx // (self.beam_size * self.beam_size)
+        beam_index = idx % (self.beam_size * self.beam_size) // self.beam_size
+        
+        labels = labels[batch_indices, idx]
+        label_logps = label_logps[batch_indices, idx]
+        blank_logps = blank_logps[batch_indices, idx]
+        
+        assert((logps != float("-inf")).all())
+        assert((beam_index < self.beam_size).all())
+        assert((num_blanks < len(labels_list)).all())
+        
+        batched_beam_hyps.update_beam(labels=labels,
+                                   label_logps=label_logps,
+                                   blank_logps=blank_logps,
+                                   num_blanks=num_blanks)
+        batched_hyps.print()
+        
+        return batched_hyps, labels
+                
 
     def __call__(
         self,

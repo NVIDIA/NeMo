@@ -849,6 +849,47 @@ class BeamBatchedHyps:
         assert(num_blanks.shape == shape)
           
         self.transcripts[self._batch_indices, self._beam_indices, self.current_lengths] = labels
+        self._full_transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths] = labels
+        
+        self._label_scores += label_logps
+        self._blank_scores += blank_logps
+        self.scores += self._calculate_score(label_logps, blank_logps)
+        
+        # TODO vectorize this
+        for batch_idx in self._batch_indices.flatten():
+            for beam_idx in self._beam_indices.flatten():                
+                start_index = self._full_current_lengths[batch_idx, beam_idx]
+                blanks_length = num_blanks[batch_idx, beam_idx]
+                self._full_transcripts[batch_idx, beam_idx, start_index : start_index + blanks_length] = 1024
+        
+        self.timesteps_end[self._batch_indices, self._beam_indices, self.current_lengths] = num_blanks + 1
+        self.current_lengths += 1
+        self._full_current_lengths += num_blanks + 1
+        self.last_timestep = num_blanks + 1
+    
+    def update_beam(self,
+                     labels: torch.Tensor,
+                     label_logps: torch.Tensor,
+                     blank_logps: torch.Tensor,
+                     num_blanks: torch.Tensor,
+                     beam_idx: torch.Tensor):
+        
+        self.transcripts[self._batch_indices, self._beam_indices, self.current_lengths] = labels
+        self._full_transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths] = labels
+        
+        self._label_scores += label_logps
+        self._blank_scores += blank_logps
+        self.scores += self._calculate_score(label_logps, blank_logps)
+        
+        
+        shape = labels.shape
+        assert(shape[0] == self.batch_size)
+        assert(shape[1] == self.beam_size)
+        assert(label_logps.shape == shape)
+        assert(blank_logps.shape == shape)
+        assert(num_blanks.shape == shape)
+          
+        self.transcripts[self._batch_indices, self._beam_indices, self.current_lengths] = labels
         self.transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths] = labels
         
         self._label_scores += label_logps
