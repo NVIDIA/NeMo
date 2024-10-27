@@ -65,13 +65,13 @@ def check_char_timestamps(hyp: Hypothesis, decoding: CTCDecoding):
 
     for word in words:
         segment.append(word)
-        if word[-1] in decoding.segment_seperators:   
+        if word[-1] in decoding.segment_seperators:
             segments.append(' '.join(segment))
             segment = []
-    
+
     if segment:
         segments.append(' '.join(segment))
-    
+
     assert len(hyp.timestep['segment']) == len(segments)
 
 
