@@ -17,10 +17,11 @@ from nemo.utils.import_utils import safe_import
 
 safe_import("transformer_engine")
 
-from nemo.collections.llm import peft, tokenizer
+from nemo.collections.llm import peft
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
+    HfDatasetDataModule,
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
@@ -57,6 +58,7 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig126M,
     GPTConfig175B,
     GPTModel,
+    HfAutoModelForCausalLM,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
@@ -70,6 +72,8 @@ from nemo.collections.llm.gpt.model import (
     MaskedTokenLossReduction,
     MistralConfig7B,
     MistralModel,
+    MistralNeMoConfig12B,
+    MixtralConfig,
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
@@ -101,6 +105,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
+from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
 from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 
 __all__ = [
@@ -115,7 +120,9 @@ __all__ = [
     "t5_forward_step",
     "MaskedTokenLossReduction",
     "MistralConfig7B",
+    "MistralNeMoConfig12B",
     "MistralModel",
+    "MixtralConfig",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
@@ -180,6 +187,7 @@ __all__ = [
     "squad",
     "dolly",
     "peft",
+    "HfAutoModelForCausalLM",
 ]
 
 
@@ -188,7 +196,7 @@ from nemo.utils import logging
 try:
     import nemo_run as run
 
-    from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
+    from nemo.collections.llm.api import export_ckpt, finetune, generate, import_ckpt, pretrain, train, validate
     from nemo.collections.llm.recipes import *  # noqa
 
     __all__.extend(
@@ -199,6 +207,7 @@ try:
             "pretrain",
             "validate",
             "finetune",
+            "generate",
         ]
     )
 except ImportError as error:
