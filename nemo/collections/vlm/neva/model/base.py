@@ -100,11 +100,11 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.add("attention_mask")
+    required_keys.update(("tokens", "attention_mask", "media",))
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("media", "tokens", "position_ids"))
+        required_keys.update(("position_ids",))
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask"))
+        required_keys.update(("labels", "loss_mask",))
 
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
@@ -475,26 +475,21 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )  # [text_seq_len, b, h_language]
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
-        if media is None:
-            combined_embeddings = language_embeddings.transpose(1, 0).contiguous()
-            final_labels = labels
-            final_loss_mask = loss_mask
-        else:
-            # Assume 1 tile per image if the number of tiles is not provided.
-            if num_media_tiles is None:
-                num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
+        # Assume 1 tile per image if the number of tiles is not provided.
+        if num_media_tiles is None:
+            num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
 
-            # Preprocess input, labels and loss mask.
-            combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
-                media_embeddings,
-                language_embeddings,
-                input_ids,
-                loss_mask,
-                labels,
-                use_inference_kv_cache,
-                media_token_index,
-                num_media_tiles,
-            )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
+        # Preprocess input, labels and loss mask.
+        combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
+            media_embeddings,
+            language_embeddings,
+            input_ids,
+            loss_mask,
+            labels,
+            use_inference_kv_cache,
+            media_token_index,
+            num_media_tiles,
+        )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         output = self.language_model(
             input_ids=None,
@@ -510,6 +505,24 @@ class MCoreNevaModel(MCoreLLaVAModel):
             return output
 
         return output, final_loss_mask.contiguous()
+
+    def set_input_tensor(self, input_tensor) -> None:
+
+        """Set model chunk input tensor."""
+        # This is usually handled in schedules.py but some inference code still
+        # gives us non-lists or None
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
+
+        if self.add_encoder and self.add_decoder:
+            self.vision_model.set_input_tensor(input_tensor[0])
+        elif self.add_encoder:
+            self.vision_model.set_input_tensor(input_tensor[0])
+        elif self.pre_process:
+            self.encoder_hidden_state = input_tensor[0]
+        else:
+            self.language_model.set_input_tensor(input_tensor[0])
 
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
