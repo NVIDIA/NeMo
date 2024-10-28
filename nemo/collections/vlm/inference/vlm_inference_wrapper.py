@@ -17,14 +17,14 @@ from typing import Dict, List
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import default_collate
-
 from megatron.core import tensor_parallel
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
 )
+from torch.utils.data import default_collate
 
 from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor
+
 
 class VLMInferenceWrapper(AbstractModelInferenceWrapper):
     """Constructor for the model inference wrapper
