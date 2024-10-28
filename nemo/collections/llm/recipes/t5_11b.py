@@ -216,7 +216,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'lora',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for T5 220M model.
+    Create a fine-tuning recipe for T5 11B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -235,10 +235,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory t5_220m
+            $ nemo llm finetune --factory t5_11b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="t5_220m_finetune", num_nodes=1)
+            >>> recipe = finetune_recipe(name="t5_11b_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
