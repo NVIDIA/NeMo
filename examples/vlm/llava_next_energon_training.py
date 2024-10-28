@@ -28,9 +28,13 @@ def main(args):
     seq_length = 256
 
     processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
+    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
     data_path = args.data_path
     # data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/energon_datasets/LLaVA-Pretrain-LCS-558K'
     image_processor = processor.image_processor
+    # tokenizer = processor.tokenizer
+
+    tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
     # tokenizer = processor.tokenizer
 
     tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
@@ -71,7 +75,7 @@ def main(args):
 
     trainer = nl.Trainer(
         devices=args.devices,
-        max_steps=10000,
+        max_steps=2170,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
@@ -130,7 +134,7 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=None,
     )
     resume.setup(trainer, model)
 
