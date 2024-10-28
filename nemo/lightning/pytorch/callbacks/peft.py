@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 import pytorch_lightning as pl
 import torch.nn as nn
 from lightning_fabric.utilities.types import _PATH
-from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.trainer.states import TrainerFn
 from typing_extensions import override
@@ -30,6 +29,7 @@ from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
