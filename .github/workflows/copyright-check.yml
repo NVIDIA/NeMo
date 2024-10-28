@@ -37,6 +37,9 @@ jobs:
               head -n 10 $path | tr '\n' '\t' | sed 's/\t$/\n/'
           done \
              | egrep -iv 'Copyright.*NVIDIA CORPORATION.*' \
+             | egrep -iv '*MIT.*License.*' \
+             | egrep -iv '*MIT.*Licence.*' \
+             | egrep -iv 'Copyright.*Apache.*' \
              | while read line; do
                echo $line | cut -d' ' -f1
              done
