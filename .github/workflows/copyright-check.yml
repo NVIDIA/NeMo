@@ -32,8 +32,7 @@ jobs:
 
           # Files ending with .py should have Copyright notice in the first 10 lines
           find_files_with_missing_copyright() {
-          find ./ -type f -name '*.py' -not -path "./.git/*"   -not -path "./*__init__.py" \ 
-          | while read path; do
+          find ./ -type f -name '*.py' -not -path "./.git/*"   -not -path "./*__init__.py" | while read path; do
               echo -en $path"\t"
               head -n 10 $path | tr '\n' '\t' | sed 's/\t$/\n/'
           done \
