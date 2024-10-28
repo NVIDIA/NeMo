@@ -110,6 +110,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
         self.enforce_divisible_batch = False
         self.setup_perception_modules(cfg)
+        self.extract_codec_on_the_fly = cfg.get('extract_codec_on_the_fly', False)
+        self.codec_model_downsampling_factor = cfg.get('codec_model_downsampling_factor', 1023.5)
 
         # print out params in more details
         self.summarize(max_depth=2)
@@ -335,6 +337,29 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             text_embeddings = text_embeddings + position_embeddings
         return text_embeddings.transpose(0, 1)
 
+    def _get_codec_embeddings(self, audio_signal, audio_signal_length):
+        """Get codec embeddings for the input audio signal."""
+        if 'codec_model' not in self.additional_models:
+            self.additional_models['codec_model'] = self.codec_model
+            self.additional_models['codec_model'].to(self.device)
+            self.additional_models['codec_model'].eval()
+        codec_model = self.additional_models['codec_model']
+        codec_model.eval()
+        with torch.no_grad():
+            original_codec_codes, _ = codec_model.encode(audio=audio_signal, audio_len=audio_signal_length)
+            original_codec_codes = original_codec_codes.transpose(1, 2)
+        out_codec_codes = []
+        out_codec_lens = []
+        for sidx in range(audio_signal.shape[0]):
+            codec_len = min(
+                torch.ceil(audio_signal_length[sidx] / self.codec_model_downsampling_factor).int().to(self.device),
+                original_codec_codes[sidx].shape[0]
+            )
+            out_codec_codes.append(original_codec_codes[sidx][:codec_len].to(self.device))
+            out_codec_lens.append(codec_len)
+
+        return out_codec_codes, out_codec_lens
+
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
         input_signal = audio_batch['audio_signal']
@@ -346,6 +371,17 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             audio_batch['labels'],
             audio_batch['loss_mask'],
         )
+
+        if self.extract_codec_on_the_fly:
+            answer_signal = audio_batch['answer_audio']
+            answer_signal_length = audio_batch['answer_audio_lens']
+            target_text_lengths = audio_batch['target_text_lengths']
+
+            answer_codecs, answer_codecs_lens = self._get_codec_embeddings(answer_signal, answer_signal_length) # list, list
+            for i, answer_codec in enumerate(answer_codecs):
+                input_ids[i, target_text_lengths[i] + 1: target_text_lengths[i] + 1 + answer_codecs_lens[i], 1:] = answer_codec
+                labels[i, target_text_lengths[i]: target_text_lengths[i] + answer_codecs_lens[i], 1:] = answer_codec
+            
 
         num_audios = audio_batch.get("num_audios", None)
         context_start_idx = audio_batch.get("context_start_idx", None)
