@@ -15,9 +15,10 @@
 import json
 import os
 from dataclasses import dataclass
-from pathlib import Path, PosixPath, WindowsPath
-from typing import Optional, Union, Dict, Callable
 from functools import wraps
+from pathlib import Path, PosixPath, WindowsPath
+from typing import Callable, Dict, Optional, Union
+
 import lightning_fabric as fl
 import pytorch_lightning as pl
 
@@ -184,7 +185,7 @@ class AutoResume:
         )
 
         checkpoint = get_checkpoint(checkpoint_dir, resolver="latest")
-        
+
         if checkpoint is None:
             if self.resume_ignore_no_checkpoint:
                 logging.warning(f"No checkpoints found in {checkpoint_dir}. Training from scratch.")
@@ -192,7 +193,7 @@ class AutoResume:
             if self.restore_config:
                 return None
             raise NotFoundError(f"No checkpoints found in {checkpoint_dir}. Cannot resume.")
-            
+
         return checkpoint
 
     def get_context_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
@@ -251,26 +252,26 @@ class AdapterPath(BasePath):
 
     def __repr__(self):
         return "{}({!r}, base_model_path={})".format(self.__class__.__name__, self.as_posix(), self.base_model_path)
-    
+
 
 def get_checkpoint(
-    path: Optional[Union[str, Path]], 
+    path: Optional[Union[str, Path]],
     resolver: Optional[Union[Callable[[Path], Optional[Path]], str]] = None,
 ) -> Optional[Path]:
     """Resolves checkpoint paths using an optional resolution strategy.
-    
+
     Args:
         path: The input path to resolve
-        resolver: Either a callable that takes a Path and returns a Path, 
+        resolver: Either a callable that takes a Path and returns a Path,
         or a string matching a registered resolver
-        
+
     Returns:
         Resolved Path object or None if input path is None
-        
+
     Example:
         # Using a registered resolver
         path = get_checkpoint("/path/to/checkpoints", resolver="latest")
-        
+
         # Using a custom resolver
         def my_resolver(path: Path) -> Optional[Path]:
             return path / "best_checkpoint"
@@ -278,10 +279,10 @@ def get_checkpoint(
     """
     if path is None:
         return None
-        
+
     # Convert string to Path if needed
     path = Path(path) if isinstance(path, str) else path
-    
+
     # Resolve the resolver callable
     resolver_fn = None
     if resolver is not None:
@@ -294,69 +295,71 @@ def get_checkpoint(
             resolver_fn = CHECKPOINT_RESOLVERS[resolver]
         else:
             resolver_fn = resolver
-            
+
     # Apply resolution if provided
     if resolver_fn is not None:
         resolved_path = resolver_fn(path)
         if resolved_path is not None:
             path = resolved_path
-            
+
     return path
 
 
 def register_checkpoint_resolver(name: str):
     """Decorator to register checkpoint resolution strategies.
-    
+
     Args:
         name: Name of the resolution strategy
-    
+
     Example:
         @register_checkpoint_resolver("my_strategy")
         def my_resolver(path: Path) -> Optional[Path]:
             # Custom resolution logic
             return resolved_path
     """
+
     def decorator(func: Callable[[Path], Optional[Path]]) -> Callable[[Path], Optional[Path]]:
         @wraps(func)
         def wrapper(path: Path) -> Optional[Path]:
             return func(path)
-            
+
         CHECKPOINT_RESOLVERS[name] = wrapper
         return wrapper
+
     return decorator
 
 
 @register_checkpoint_resolver("latest")
 def latest_checkpoint_resolver(path: Path) -> Optional[Path]:
     """Resolves to the latest checkpoint in a directory using NeMo's existing logic.
-    
+
     Args:
         path: Directory path containing checkpoints
     Returns:
         Path to the latest valid checkpoint or None
     """
     from nemo.utils.exp_manager import _filter_out_unfinished_checkpoints
-    
+
     if not path.exists():
         return None
-        
+
     # Check for distributed checkpoints
     dist_checkpoints = [d for d in list(path.glob("*")) if d.is_dir()]
     end_checkpoints = _filter_out_unfinished_checkpoints([d for d in dist_checkpoints if d.match("*end")])
     last_checkpoints = _filter_out_unfinished_checkpoints([d for d in dist_checkpoints if d.match("*last")])
-    
+
     if len(end_checkpoints) > 0:
         if len(end_checkpoints) > 1:
             if "mp_rank" in str(end_checkpoints[0]):
                 return end_checkpoints[0]
             raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
         return end_checkpoints[0]
-        
+
     if len(last_checkpoints) > 1:
         if any([s for s in ["mp_rank", "tp_rank", "fsdp_shard"] if s in str(last_checkpoints[0])]):
             checkpoint = last_checkpoints[0]
             return uninject_model_parallel_rank(checkpoint)
         # Select checkpoint with latest modified time
         return sorted(last_checkpoints, key=lambda pth: pth.lstat().st_mtime, reverse=True)[0]
-        
+
     return last_checkpoints[0] if last_checkpoints else None
