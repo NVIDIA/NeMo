@@ -61,21 +61,31 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     else:
         _batch = batch
 
-    required_keys = set()
-    required_keys.add("attention_mask")
+    required_device_keys = set()
+    required_host_keys = set()
+
+    required_device_keys.add("attention_mask")
     if 'cu_seqlens' in _batch:
-        required_keys.add('cu_seqlens')
-        required_keys.add('cu_seqlens_argmin')
-        required_keys.add('max_seqlen')
+        required_device_keys.add('cu_seqlens')
+        required_host_keys.add('cu_seqlens_argmin')
+        required_host_keys.add('max_seqlen')
 
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("tokens", "position_ids"))
+        required_device_keys.update(("tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask"))
+        required_device_keys.update(("labels", "loss_mask"))
 
-    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    _batch_required_keys = {}
+    for key, val in _batch.items():
+        if key in required_device_keys:
+            _batch_required_keys[key] = val.cuda(non_blocking=True)
+        elif key in required_host_keys:
+            _batch_required_keys[key] = val.cpu()
+        else:
+            _batch_required_keys[key] = None
+
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_context_parallel_rank(_batch_required_keys)
 
     return output
 
