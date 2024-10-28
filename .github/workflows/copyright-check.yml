@@ -38,8 +38,8 @@ jobs:
           done \
              | egrep -iv 'Copyright.*NVIDIA CORPORATION.*' \
              | egrep -iv '*MIT.*Licen.e.*' \
-             | egrep -iv 'Copyright.*Apache.*' \
-             | egrep -iv 'Apache.*License.*' \
+             | egrep -iv '*Copyright.*Apache.*' \
+             | egrep -iv '*Apache.*License.*' \
              | while read line; do
                echo $line | cut -d' ' -f1
              done
