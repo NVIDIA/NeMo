@@ -148,37 +148,22 @@ class _MockMimoDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate images with normal distribution
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        images = torch.from_numpy(np_gen.standard_normal((3, self.image_height, self.image_width))).float()
+        images = torch.zeros((3, self.image_height, self.image_width), dtype=torch.float16)
 
         # Tokenize input text and label text
         input_tokens = self.tokenize_text(self.input_text)
         label_tokens = self.tokenize_text(self.label_text)
 
-        # Manually add special tokens (IMG_1, IMG_2, etc.) after tokenization
         special_token_ids = [self.tokenizer.tokenizer.convert_tokens_to_ids(token) for token in self.special_tokens]
         label_tokens = torch.cat([label_tokens, torch.tensor(special_token_ids, dtype=torch.long)])
-
-        # Combine input and label tokens into one sequence
+       
         combined_tokens = torch.cat([input_tokens, label_tokens])
-
-        # Create labels with placeholder values initially
         labels = torch.ones_like(combined_tokens) * self.ignore_placeholder
-
-        # Assign labels for the answer portion (the part containing the label text and special tokens)
         answer_start = len(input_tokens)
         labels[answer_start:] = combined_tokens[answer_start:]
 
-        # Shift tokens and labels for next-token prediction
-        # tokens = combined_tokens[:-1]
-        # labels = labels[1:]
-        #inseting dummy image token
         tokens = torch.cat([torch.tensor([-200]), combined_tokens[:-1]])
-
-        # Adjust labels: Insert -100 at index 0 (used as ignored index)
         labels = torch.cat([torch.tensor([self.ignore_placeholder]), labels[1:]])
-
-        # Adjust loss mask: Insert 0.0 at index 0 (to ignore this position in loss computation)
-        # loss_mask = torch.cat([torch.tensor([0.0]), (labels != self.ignore_placeholder).float()])
         loss_mask = (labels != self.ignore_placeholder).float()
 
         return {

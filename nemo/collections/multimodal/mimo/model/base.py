@@ -38,9 +38,10 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TERowParallelLinear,
 )
 from nemo.lightning import get_vocab_size, io
+from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
-
+from megatron.core.transformer.enums import ModelType
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
@@ -48,17 +49,59 @@ if TYPE_CHECKING:
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 # from nemo.collections.multimodal.mimo.model.gpt import MimoGPTModel
 
+
+class MimoLossReduction(MaskedTokenLossReduction):
+    def __init__(self, validation_step: bool = False, val_drop_last: bool = True, l2_weight: float = 1.0) -> None:
+        super().__init__(validation_step, val_drop_last)
+        self.l2_weight = l2_weight 
+
+    def forward(
+        self, 
+        batch: Dict[str, torch.Tensor], 
+        forward_out: Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        """
+        Calculate masked token loss using superclass logic and add L2 loss.
+        """
+        # output_triple,new_loss_mask = forward_out
+        # output, output_projection_embeddings, image_caption_embeddings = output_triple
+        output_dict = forward_out
+        
+        output = output_dict['output']
+        new_loss_mask = output_dict['new_loss_mask']
+        output_projection_embeddings = output_dict['output_projection_embeddings']
+        image_caption_embeddings = output_dict['image_caption_embeddings']
+        # Use the superclass's forward method to calculate token loss
+        token_loss, token_loss_info = super().forward(
+            batch={"loss_mask": new_loss_mask}, 
+            forward_out=output
+        )
+
+        l2_loss = self._calculate_l2_loss(output_projection_embeddings, image_caption_embeddings)
+
+        total_loss = token_loss + self.l2_weight * l2_loss
+
+        token_loss_info.update({"l2_loss": l2_loss})
+
+        return total_loss, token_loss_info
+
+    def _calculate_l2_loss(self, embeddings1: torch.Tensor, embeddings2: torch.Tensor) -> torch.Tensor:
+        """Calculate L2 loss (mean squared error) between two sets of embeddings."""
+        return torch.nn.functional.mse_loss(embeddings1, embeddings2)
 def mimo_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
         "images": batch["images"],
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
         "attention_mask": batch.get("attention_mask", None),
+        "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
         "input_text": batch.get("input_text", None),
     }
-    loss_mask = batch.get("loss_mask", None)
-    return model(**forward_args), loss_mask
+    # loss_mask = batch.get("loss_mask", None)
+    output_dict = model(**forward_args)
+    return output_dict
+    # return model(**forward_args), loss_mask
 
 
 def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -79,8 +122,10 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask", "input_text"))
 
+    
     _batch = {
-        key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
+        key: (val.cuda(non_blocking=True) if hasattr(val, "cuda") else val)
+        if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
@@ -408,6 +453,7 @@ class CustomMimoModel(MCoreLLaVAModel):
         self.model_config = model_config
         # Now re-enable add_decoder after parent constructor is done
         self.add_decoder = True
+        self.model_type = ModelType.encoder_or_decoder
 
         # Initialize MimoGPTModel
         self.language_model = MimoGPTModel(
@@ -447,7 +493,7 @@ class CustomMimoModel(MCoreLLaVAModel):
         #         projector_type="mlp" ,
         #         input_size=vision_output_projection_config.input_size,
         #     )
-        # self.vision_output_projection_module = TransformersProjector(in_features=self.config.hidden_size, out_features=1024, num_query_token=77) # Yash : TODO Fix hard coding
+        self.vision_output_projection_module = TransformersProjector(in_features=self.config.hidden_size, out_features=1024, num_query_token=77) # Yash : TODO Fix hard coding
     
     def get_image_caption_embeddings(self,text_input):
         with torch.no_grad():
@@ -593,13 +639,16 @@ class CustomMimoModel(MCoreLLaVAModel):
         special_token_mask = special_token_mask.expand_as(hidden_states) 
         selected_hidden_states = hidden_states[special_token_mask].view(hidden_states.size(1), -1, hidden_states.size(-1))
 
-        # output_projection_embeddings = self.vision_output_projection_module(selected_hidden_states) #(bs, no_special_tokens, 1024)
+        output_projection_embeddings = self.vision_output_projection_module(selected_hidden_states) #(bs, no_special_tokens, 1024)
         # Image caption embeddings
-        
+        image_caption_embeddings = image_caption_embeddings.to(output_projection_embeddings.device,dtype=output_projection_embeddings.dtype)
         if labels is None or loss_mask is None:
             return output
-
-        return output, new_loss_mask
+        return {'output': output,
+                'new_loss_mask': new_loss_mask,
+                'output_projection_embeddings':output_projection_embeddings,
+                'image_caption_embeddings':image_caption_embeddings}
+        # return (output,output_projection_embeddings, image_caption_embeddings), new_loss_mask
 
 class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
@@ -665,16 +714,16 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
         return self.forward_step(batch)
 
     @property
-    def training_loss_reduction(self) -> MaskedTokenLossReduction:
+    def training_loss_reduction(self) -> MimoLossReduction:
         if not self._training_loss_reduction:
-            self._training_loss_reduction = MaskedTokenLossReduction()
+            self._training_loss_reduction = MimoLossReduction()
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+    def validation_loss_reduction(self) -> MimoLossReduction:
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+            self._validation_loss_reduction = MimoLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
     
@@ -991,4 +1040,3 @@ def _transform_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
     assert qkv_bias.shape == expected_shape, f"Expected shape {expected_shape}, but got {qkv_bias.shape}"
 
     return qkv_bias
-

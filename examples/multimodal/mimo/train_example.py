@@ -16,8 +16,8 @@ import sys
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 32
-    mbs = 4
+    gbs = 1
+    mbs = 1
     seq_length = 256
 
     tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
@@ -53,7 +53,7 @@ def main(args):
         max_steps=10000,
         accelerator="gpu",
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+        plugins=nl.MegatronMixedPrecision(precision="16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
         val_check_interval=100,
         limit_val_batches=gbs,
@@ -121,3 +121,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main(args)
+    
+#  s s s s s s || x x x x s s
+#  0 0 0 0 0 0 || x x x x 0 0
+
+#  s s s s x x || x x s s s s
+#  0 0 0 0 x x || x x 0 0 0 0
