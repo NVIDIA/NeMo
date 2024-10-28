@@ -230,7 +230,9 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
             ),
         ]
     )
-
+    recipe.trainer.strategy.expert_model_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 8
+    recipe.trainer.strategy.sequence_parallel = True
     return recipe
 
 
@@ -241,6 +243,7 @@ def finetune_recipe(
     num_nodes: int = 8,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
+    packed_sequence: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Mixtral 8x22B model.
@@ -272,7 +275,7 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning.
     """
     recipe = default_finetune_recipe(
-        model(), "mistralai/Mixtral-8x22B-v0.1mistralai/Mixtral-8x22B-v0.1", dir, name, num_nodes, num_gpus_per_node
+        model(), "mistralai/Mixtral-8x22B-v0.1", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     recipe.trainer.strategy.expert_model_parallel_size = 8
     recipe.trainer.strategy.tensor_model_parallel_size = 8
