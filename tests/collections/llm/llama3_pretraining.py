@@ -12,6 +12,7 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,
+    MiscAttributeValidator,
     StopBeforeEnd,
     create_verify_precision,
     small_llama_cfg,
@@ -115,6 +116,9 @@ def main():
             setattr(pretrain_recipe.trainer.strategy, k, v)
         parallelisms[k] = getattr(pretrain_recipe.trainer.strategy, k)
     pretrain_recipe.trainer.callbacks.append(MCoreModelAttributeValidator(parallelisms))
+
+    misc_checker = MiscAttributeValidator({"max_steps": args.max_steps})
+    pretrain_recipe.trainer.callbacks.append(misc_checker)
 
     run.run(pretrain_recipe, direct=True)
 

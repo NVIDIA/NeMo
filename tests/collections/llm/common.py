@@ -84,6 +84,24 @@ class MCoreModelAttributeValidator(pl.Callback):
         trainer.model.walk(walk_fn)
 
 
+class MiscAttributeValidator(pl.Callback):
+    """Place for any miscellaneous attribute assertions. Extend as needed."""
+
+    def __init__(self, attr_dict: dict):
+        super().__init__()
+        self.attr_dict = attr_dict
+
+    def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if 'max_steps' in self.attr_dict:
+            sched_max = trainer.model.optim.lr_scheduler._scheduler['lr_scheduler']['scheduler'].max_steps
+            assert (
+                trainer.max_steps == self.attr_dict['max_steps']
+            ), f"Trainer max_steps {trainer.max_steps} did not match provided {self.attr_dict['max_steps']}"
+            assert (
+                sched_max == self.attr_dict['max_steps']
+            ), f"Scheduler max_steps {sched_max} did not match provided {self.attr_dict['max_steps']}"
+
+
 def verify_distcp_dir(ckpt_path: str) -> None:
     ckpt_name = os.path.basename(ckpt_path)
 
