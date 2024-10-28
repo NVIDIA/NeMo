@@ -183,7 +183,7 @@ class AutoResume:
             Path(self.resume_from_directory) if self.resume_from_directory else Path(Path(log_dir) / "checkpoints")
         )
 
-        checkpoint = get_checkpoint(checkpoint_dir, resolver="latest", weights_path=False)
+        checkpoint = get_checkpoint(checkpoint_dir, resolver="latest")
         
         if checkpoint is None:
             if self.resume_ignore_no_checkpoint:
@@ -256,15 +256,13 @@ class AdapterPath(BasePath):
 def get_checkpoint(
     path: Optional[Union[str, Path]], 
     resolver: Optional[Union[Callable[[Path], Optional[Path]], str]] = None,
-    weights_path: bool = True,
 ) -> Optional[Path]:
     """Resolves checkpoint paths using an optional resolution strategy.
     
     Args:
         path: The input path to resolve
         resolver: Either a callable that takes a Path and returns a Path, 
-                 or a string matching a registered resolver
-        weights_path: Whether to check for a weights subdirectory
+        or a string matching a registered resolver
         
     Returns:
         Resolved Path object or None if input path is None
@@ -302,12 +300,6 @@ def get_checkpoint(
         resolved_path = resolver_fn(path)
         if resolved_path is not None:
             path = resolved_path
-    
-    # Check for weights subdirectory if requested
-    if weights_path:
-        weights_dir = path / "weights"
-        if weights_dir.is_dir():
-            return weights_dir
             
     return path
 
