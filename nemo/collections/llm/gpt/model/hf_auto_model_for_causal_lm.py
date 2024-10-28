@@ -20,6 +20,7 @@ from transformers import AutoModelForCausalLM
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
+from nemo.utils import logging
 
 
 def _extract_non_bias_params(model):
@@ -34,7 +35,7 @@ def masked_cross_entropy(logits, targets, mask=None):
         return F.cross_entropy(logits, targets)
 
 
-class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
+class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(self, model_name='gpt2', load_pretrained_weights=True, tokenizer=None, loss_fn=masked_cross_entropy):
         super().__init__()
         self.save_hyperparameters()
@@ -48,7 +49,7 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            self._tokenizer = HfAutoModelForCausalLM.configure_tokenizer(self.model_name)
+            self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(self.model_name)
         return self._tokenizer
 
     @tokenizer.setter
@@ -107,3 +108,11 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         loss = output.loss
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+
+    def save_pretrained(self, path):
+        assert self.model is not None, "Model has to be created first."
+        self.model.save_pretrained(path)
+        if self._tokenizer is not None:
+            self._tokenizer.save_pretrained(path)
+        else:
+            logging.warning("A tokenizer wasn't created before to save.")
