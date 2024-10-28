@@ -71,6 +71,7 @@ class CanaryTokenizer(AggregateTokenizer):
     def text_to_ids(self, text, lang_id) -> list[int]:
         if lang_id == CANARY_SPECIAL_TOKENIZER:
             return self._tokenize_special_prompt(text)
+        lang_id = _map_canary1_to_canary2_lang(lang_id, self.langs)
         if text.endswith(CANARY_EOS):
             return super().text_to_ids(text[: -len(CANARY_EOS)], lang_id) + [self.eos_id]
         return super().text_to_ids(text, lang_id)
@@ -138,3 +139,15 @@ class CanaryTokenizer(AggregateTokenizer):
         )
         spl_tokenizer = SentencePieceTokenizer(str(model_path))
         return spl_tokenizer
+
+
+def _map_canary1_to_canary2_lang(lang: str, available_langs: list[str]) -> str:
+    if len(lang) != 2 or lang in available_langs:
+        return lang
+
+    if (
+        mapped := {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE"}.get(lang)
+    ) is not None and mapped in available_langs:
+        return mapped
+
+    raise RuntimeError(f"Unsupported language: '{lang}' for CanaryTokenizer with languages: {available_langs}")
