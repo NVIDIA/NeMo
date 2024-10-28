@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-from functools import partial
-=======
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +11,8 @@ from functools import partial
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
->>>>>>> main
 
-import nemo_run as run
+from functools import partial
 
 from nemo.collections import llm
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
