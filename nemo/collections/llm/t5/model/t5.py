@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.model_inference_wrappers.t5.t5_inference_wrapper import T5InferenceWrapper
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -42,22 +44,28 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     else:
         _batch = batch
 
-    # if Dataset object is NeMo 1.0's T5SFTDataset (e.g. when finetuning with SQUAD)
-    if 'enc_dec_mask' not in _batch:
-        encoder_attn_mask_3d = build_attention_mask_3d(_batch['enc_mask'], _batch['enc_mask'], AttnMaskType.padding)
-        decoder_attn_mask_3d = build_attention_mask_3d(_batch['dec_mask'], _batch['dec_mask'], AttnMaskType.causal)
-        enc_dec_attn_mask_3d = build_attention_mask_3d(_batch['dec_mask'], _batch['enc_mask'], AttnMaskType.padding)
-        _batch['enc_mask'] = encoder_attn_mask_3d
-        _batch['dec_mask'] = decoder_attn_mask_3d
-        _batch['enc_dec_mask'] = enc_dec_attn_mask_3d
+    # work for both mcore's T5 pre-train dataset object, and NeMo's T5SFTDataset dataset
+    enc_mask = _batch['enc_mask'] < 0.5
+    dec_mask = _batch['dec_mask'] < 0.5
+    # process for Flash/Fused
+    enc_mask = enc_mask.unsqueeze(1).unsqueeze(1)
+    dec_mask = dec_mask.unsqueeze(1).unsqueeze(1)
+    enc_dec_mask = (
+        dec_mask,
+        enc_mask,
+    )
+    _batch['enc_mask'] = enc_mask
+    _batch['dec_mask'] = dec_mask
+    _batch['enc_dec_mask'] = enc_dec_mask
 
-    # if Dataset object is Mcore T5 dataset (e.g. pretraining)
-    else:
-        # convert attention mask values from int to True/False
-        _batch['enc_mask'] = _batch['enc_mask'] < 0.5
-        _batch['dec_mask'] = _batch['dec_mask'] < 0.5
-        _batch['enc_dec_mask'] = _batch['enc_dec_mask'] < 0.5
+    # bring to device
+    for key in _batch.keys():
+        if key == "enc_dec_mask": # because enc_dec_mask is a tuple
+            _batch[key] = (_batch[key][0].cuda(non_blocking=True), _batch[key][1].cuda(non_blocking=True))
+        else:
+            _batch[key] = _batch[key].cuda(non_blocking=True)
 
+    # set up forward arguments for pipeline parallelism
     required_keys = set()
     required_keys.update(["enc_mask", "dec_mask", "enc_dec_mask"])
     if parallel_state.is_pipeline_first_stage():
@@ -65,7 +73,7 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
-    output = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    output = {key: val if key in required_keys else None for key, val in _batch.items()}
 
     return output
 
@@ -243,6 +251,31 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
+
+    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+
+        # DEBUGGING
+        from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
+
+
+        # This is to get the MCore model required in T5InferenceWrapper.
+        mcore_model = self.module
+        while mcore_model:
+            if type(mcore_model) is MCoreT5Model:
+                break
+            mcore_model = getattr(mcore_model, "module", None)
+        if mcore_model is None or type(mcore_model) is not MCoreT5Model:
+            raise ValueError("Exact MCoreT5Model instance not found in the model structure.")
+
+        inference_wrapper_config = InferenceWrapperConfig(
+            hidden_size=mcore_model.config.hidden_size,
+            params_dtype=params_dtype,
+            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+            padded_vocab_size=self.tokenizer.vocab_size,
+        )
+
+        model_inference_wrapper = T5InferenceWrapper(mcore_model, inference_wrapper_config)
+        return model_inference_wrapper
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:

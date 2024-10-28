@@ -683,14 +683,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             if self.mcore_t5:
                 # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
-                encoder_attn_mask_3d = build_attention_mask_3d(
-                    encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
-                )
-                decoder_attn_mask_3d = build_attention_mask_3d(
-                    decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal
-                )
-                enc_dec_attn_mask_3d = build_attention_mask_3d(
-                    decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                enc_dec_attn_mask_3d = (
+                    decoder_attn_mask_3d,
+                    encoder_attn_mask_3d,
                 )
 
                 output = model(  # model is MCoreT5Model
@@ -816,10 +813,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         encoder_attn_mask,
                     ) = batch
 
-                    # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
-                    encoder_attn_mask_3d = build_attention_mask_3d(
-                        encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
-                    )
+                    encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
 
                     output = model(
                         encoder_input_ids=encoder_input_ids,
@@ -841,15 +835,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         decoder_attn_mask,
                     ) = batch
 
-                    # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
-                    encoder_attn_mask_3d = build_attention_mask_3d(
-                        encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
-                    )
-                    decoder_attn_mask_3d = build_attention_mask_3d(
-                        decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal
-                    )
-                    enc_dec_attn_mask_3d = build_attention_mask_3d(
-                        decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                    encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                    decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                    enc_dec_attn_mask_3d = (
+                        decoder_attn_mask_3d,
+                        encoder_attn_mask_3d,
                     )
 
                     # re-transpose encoder_hidden_states from [batch, seq_len, hidden] to [seq_len, batch, hidden]
