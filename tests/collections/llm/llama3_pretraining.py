@@ -117,7 +117,9 @@ def main():
         parallelisms[k] = getattr(pretrain_recipe.trainer.strategy, k)
     pretrain_recipe.trainer.callbacks.append(MCoreModelAttributeValidator(parallelisms))
 
-    misc_checker = MiscAttributeValidator({"max_steps": args.max_steps})
+    misc_checker = MiscAttributeValidator(
+        {"max_steps": args.max_steps, "stop_on_step": args.early_stop or args.max_steps}
+    )
     pretrain_recipe.trainer.callbacks.append(misc_checker)
 
     run.run(pretrain_recipe, direct=True)

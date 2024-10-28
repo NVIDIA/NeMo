@@ -101,6 +101,11 @@ class MiscAttributeValidator(pl.Callback):
                 sched_max == self.attr_dict['max_steps']
             ), f"Scheduler max_steps {sched_max} did not match provided {self.attr_dict['max_steps']}"
 
+    def on_train_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        if 'stop_on_step' in self.attr_dict:
+            total_steps = trainer.fit_loop.epoch_loop.batch_progress.total.completed
+            assert total_steps == self.attr_dict['stop_on_step']
+
 
 def verify_distcp_dir(ckpt_path: str) -> None:
     ckpt_name = os.path.basename(ckpt_path)
