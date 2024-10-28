@@ -16,7 +16,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Union
-
+from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 import pytorch_lightning as L
 import torch
 import torch.distributed
@@ -246,9 +246,12 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
-            loaded_state_dict = dist_checkpointing.load(
-                sharded_state_dict=sharded_state_dict, checkpoint_dir=self.language_model_from_pretrained
-            )
+            path = ckpt_to_weights_subdir(self.language_model_from_pretrained, is_saving=False)
+            print(f"**** Yash debug initial path {self.language_model_from_pretrained} new path {path} ***")
+            # loaded_state_dict = dist_checkpointing.load(
+            #     sharded_state_dict=sharded_state_dict, checkpoint_dir=self.language_model_from_pretrained
+            # )
+            loaded_state_dict = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=path)
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
             language_model.load_state_dict(loaded_state_dict)
             logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")

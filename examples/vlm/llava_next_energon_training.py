@@ -18,6 +18,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
 from nemo.utils.exp_manager import TimingCallback
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 def main(args):
@@ -26,16 +27,20 @@ def main(args):
     mbs = 4
     seq_length = 256
 
-    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
+    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
     data_path = args.data_path
     # data_path = '/lustre/fsw/coreai_dlalgo_genai/datasets/energon_datasets/LLaVA-Pretrain-LCS-558K'
     image_processor = processor.image_processor
-    tokenizer = processor.tokenizer
+    # tokenizer = processor.tokenizer
+
+    tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
 
     multimodal_sample_config = MultiModalSampleConfig()
 
     task_encoder = LlavaNextTaskEncoder(
-        tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config
+        tokenizer=tokenizer.tokenizer,
+        image_processor=image_processor,
+        multimodal_sample_config=multimodal_sample_config,
     )
     data = SimpleMultiModalDataModule(
         path=data_path,
@@ -66,7 +71,7 @@ def main(args):
 
     trainer = nl.Trainer(
         devices=args.devices,
-        max_steps=10000,
+        max_steps=2170,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
@@ -76,8 +81,16 @@ def main(args):
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
+    from nemo.collections.llm.gpt.model.llama import LlamaModel
+    from nemo.collections.llm import import_ckpt
 
     language_transformer_config = llm.Llama2Config7B()
+
+    # import_ckpt(
+    #     model=LlamaModel(language_transformer_config),
+    #     source='hf://lmsys/vicuna-7b-v1.5',
+    # )
+
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
@@ -117,7 +130,7 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=None,
     )
     resume.setup(trainer, model)
 

@@ -103,6 +103,7 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         return output_path
 
     def convert_state(self, source, target):
+        breakpoint()
         mapping = {
             "language_model.model.embed_tokens.weight": "language_model.embedding.word_embeddings.weight",
             "language_model.model.layers.*.self_attn.o_proj.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
