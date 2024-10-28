@@ -55,6 +55,11 @@ from nemo.collections.llm.recipes import (
     starcoder2_3b,
     starcoder2_7b,
     starcoder2_15b,
+    qwen2,
+    qwen2_1p5b,
+    qwen2_7b,
+    qwen2_72b,
+    qwen2_500m,
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam
@@ -100,6 +105,11 @@ __all__ = [
     "starcoder2_3b",
     "starcoder2_7b",
     "starcoder2_15b",
+    "qwen2",
+    "qwen2_500m",
+    "qwen2_1p5b",
+    "qwen2_7b",
+    "qwen2_72b",
     "gpt3_175b",
     "adam",
     "default_log",
