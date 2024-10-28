@@ -415,6 +415,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             # update MEM and FIFO_QUEUE
             if MAX_FIFO_LEN > 0:
                 FIFO_QUEUE = torch.cat([FIFO_QUEUE, chunk_embs], dim=1)
+                
                 # logging.info(f"FIFO_QUEUE shape: {FIFO_QUEUE.shape}")
                 if MEM_REFRESH_RATE == 0 and FIFO_QUEUE.size(1) > MAX_FIFO_LEN:
                     MEM = self._compress_memory(emb_seq=mem_chunk_pre_encode_embs, preds=mem_chunk_preds)
@@ -422,14 +423,21 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                     # FIFO_QUEUE = FIFO_QUEUE[:, -MAX_FIFO_LEN:]
                     
                 elif MEM_REFRESH_RATE > 0:
-                    if step_idx % MEM_REFRESH_RATE == 0 and FIFO_QUEUE.size(1) > MAX_FIFO_LEN:
-                        MEM = self._compress_memory(emb_seq=mem_chunk_pre_encode_embs, preds=mem_chunk_preds)
+                    if FIFO_QUEUE.size(1) > MAX_FIFO_LEN:
+                        pop_out_embs = FIFO_QUEUE[:, :-MAX_FIFO_LEN]
+                        pop_out_preds = fifo_preds[:, :pop_out_embs.size(1)]
+                        MEM = torch.cat([MEM, pop_out_embs], dim=1)
+                        if step_idx % MEM_REFRESH_RATE == 0:                     
+
+                            if MEM.size(1) >= self.sortformer_modules.mem_len:
+                                MEM = self._compress_memory(emb_seq=MEM, preds=torch.cat([mem_preds, pop_out_preds], dim=1))
+
                     FIFO_QUEUE = FIFO_QUEUE[:, -MAX_FIFO_LEN:]
-                    
+
             else:
                 MEM = self._compress_memory(emb_seq=mem_chunk_pre_encode_embs, preds=mem_chunk_preds)      
             logging.info(f"step_idx: {step_idx}, FIFO_QUEUE shape: {FIFO_QUEUE.shape}")
-            # logging.info(f"step_idx: {step_idx}, MEM shape: {MEM.shape}")
+            logging.info(f"step_idx: {step_idx}, MEM shape: {MEM.shape}")
        
 
         preds = torch.cat(total_pred_list, dim=1)
