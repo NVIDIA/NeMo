@@ -56,6 +56,9 @@ class StopBeforeEnd(pl.Callback):
         if trainer.global_step >= self.stop_on_step:
             logging.info(f"Global step {trainer.global_step} >= {self.stop_on_step}, signaling Trainer to stop.")
             trainer.should_stop = True
+            # skip EarlyStopping validation unless val_check_interval met
+            if trainer.global_step % trainer.val_check_interval != 0:
+                trainer.limit_val_batches = 0
 
 
 class MCoreModelAttributeValidator(pl.Callback):
@@ -128,6 +131,7 @@ def verify_ckpt_dir(
     model_ckpt: nl.ModelCheckpoint, max_steps: int, val_check_interval: int, exp_dir: str, dist_ckpts: bool = True
 ) -> None:
     """Ensures that the provided checkpoint directory has
+    - correct number of checkpoints
     - no more than top-k checkpoints
     - no unfinished checkpoints
     - a checkpoint for the last step
@@ -139,10 +143,14 @@ def verify_ckpt_dir(
 
     if model_ckpt.save_last:
         assert any([c.endswith('-last') for c in ckpts]), "No -last checkpoint found after training"
+
+    expected_count = (max_steps // val_check_interval) + model_ckpt.save_last
     if model_ckpt.save_top_k > 0:
         assert (
-            len(ckpts) <= model_ckpt.save_top_k + model_ckpt.save_last
-        ), f"Expected at most top {model_ckpt.save_top_k} checkpoints besides '-last'"
+            len(ckpts) == expected_count or len(ckpts) == model_ckpt.save_top_k + model_ckpt.save_last
+        ), f"Expected {expected_count} checkpoints or at most top {model_ckpt.save_top_k} checkpoints besides '-last'"
+    else:
+        assert len(ckpts) == expected_count, f"Expected {expected_count} checkpoints"
 
     for ckpt_name in ckpts:
         ckpt_path = os.path.join(ckpt_dir, ckpt_name)
@@ -151,9 +159,8 @@ def verify_ckpt_dir(
             '-unfinished' not in ckpt_name
         ), f"Unfinished checkpoint found. Something went wrong with saving checkpoint {ckpt_name}"
 
-        # TODO: enable when max steps is not affected by resume
-        # if ckpt_name.endswith('-last') and 'step' in model_ckpt.filename:
-        #     assert f'step={max_steps-1}' in ckpt_name, f"Last checkpoint {ckpt_name} not for final step {max_steps}"
+        if ckpt_name.endswith('-last') and 'step' in model_ckpt.filename:
+            assert f'step={max_steps-1}' in ckpt_name, f"Last checkpoint {ckpt_name} not for final step {max_steps}"
 
         if dist_ckpts:
             assert os.path.isdir(ckpt_path), "Checkpoint is not correct type"
