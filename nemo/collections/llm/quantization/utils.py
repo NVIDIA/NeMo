@@ -59,7 +59,7 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
     return fabric.load_model(nemo_checkpoint_path, model=model)
 
 
-def get_unwrapped_mcore_model(model: llm.GPTModel, return_ddp: bool = False):
+def get_unwrapped_mcore_model(model: llm.GPTModel):
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     unwrapped_model = model
