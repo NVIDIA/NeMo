@@ -93,8 +93,8 @@ class PEFT(ABC, ModelTransform):
         import torch
 
         if len(model) > 1:
-            for model_chunk in model: 
-                model_chunk.freeze() 
+            for model_chunk in model:
+                model_chunk.freeze()
                 model_chunk.walk(self.transform)
         else:
             model.freeze()

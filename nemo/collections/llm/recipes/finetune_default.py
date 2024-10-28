@@ -16,13 +16,13 @@ from typing import Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
+from megatron.core.distributed import DistributedDataParallelConfig
 
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from megatron.core.distributed import DistributedDataParallelConfig
 
 
 def default_finetune_recipe(
@@ -62,7 +62,8 @@ def default_finetune_recipe(
         data=run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(
-            max_lr=1e-4, min_lr=0, warmup_steps=50, use_distributed_optimizer=False),
+            max_lr=1e-4, min_lr=0, warmup_steps=50, use_distributed_optimizer=False
+        ),
         resume=nemo_resume(resume_path),
     )
 
