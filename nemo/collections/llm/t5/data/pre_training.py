@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 import warnings
 from pathlib import Path
@@ -129,10 +143,6 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         # add additional tokens for T5 tokenizer
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "BertWordPieceCase")
-        additional_tokens = {'additional_special_tokens': [f'<extra_id_{i}>' for i in range(100)]}
-        self.tokenizer.add_special_tokens(additional_tokens)
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
