@@ -371,6 +371,7 @@ def finetune_performance_optimizations(
                 MegatronCommOverlapCallback,
                 tp_comm_overlap=True,
                 defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
             )
         )
     else:
