@@ -46,9 +46,9 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
     trainer = nl.Trainer(
         devices=calib_tp * calib_pp,
         strategy=nl.MegatronStrategy(
-            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.float32
+            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.bfloat16,
         ),
-        plugins=nl.MegatronMixedPrecision(precision='32', pipeline_dtype=torch.float32),
+        plugins=nl.MegatronMixedPrecision(precision='bf16', pipeline_dtype=torch.bfloat16, autocast_enabled=True),
     )
     fabric = trainer.to_fabric()
     fabric.launch()
@@ -59,7 +59,7 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
     return fabric.load_model(nemo_checkpoint_path, model=model)
 
 
-def get_unwrapped_mcore_model(model: llm.GPTModel):
+def get_unwrapped_mcore_model(model: llm.GPTModel, return_ddp: bool = False):
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     unwrapped_model = model
