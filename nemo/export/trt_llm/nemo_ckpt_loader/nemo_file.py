@@ -395,7 +395,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                         nemo_model_config[k] = v
                     elif k == "activation_func":
                         if isinstance(v, torch.jit.ScriptFunction):
-                            nemo_model_config["activation"] = v.name.replace("_","-")
+                            nemo_model_config["activation"] = v.name.replace("_", "-")
                         else:
                             nemo_model_config["activation"] = v.__name__
 
