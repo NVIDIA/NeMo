@@ -67,7 +67,6 @@ from nemo.lightning.megatron_parallel import (
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
-    _MegatronBatchProgress,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -135,7 +134,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
             'torch_dist' or 'zarr'. Defaults to 'torch_dist'.
         ckpt_async_save (bool): Whether to save checkpoints asynchronously to reduce checkpointing overhead.
-            Defaults to False.
+            Defaults to True.
         ckpt_torch_dist_multiproc (int): Number of extra processes per rank used during ckpt save
             with PyTorch distributed format. Defaults to None.
         ckpt_assume_constant_structure (bool): Allows caching some computation across checkpoint saves.
@@ -145,7 +144,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_save_within_dp (bool): If true, save will be parallelized only within a DP group
             (whole world otherwise), which might slightly reduce the save overhead. Defaults to False.
         ckpt_parallel_load (bool): If true, each worker will load part of the dist checkpoint
-            and exchange with NCCL. Might use some extra GPU memory. Defaults to False.
+            and exchange with NCCL. Might use some extra GPU memory. Defaults to True.
         ckpt_parallel_save_optim (bool): Parallel save/load of a DistributedOptimizer. 'True'
             allows performant save and reshardable checkpoints. Set to 'False' only in order to minimize
             the number of checkpoint files.
@@ -160,8 +159,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             that prints the metrics to stdout. Suitable for non-interactive settings.
         progress_interval (int): How frequently to print progress to stdout. Only used when
             replace_progress_bar is True.
-        overwrite_batch_progress (bool): Whether to overwrite _BatchProgress class used in PTL by default with
-            _MegatronBatchProgress. This should be True whenever you're using a Megatron-based dataset.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -191,12 +188,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         save_ckpt_format: str = "torch_dist",
-        ckpt_async_save: bool = False,
+        ckpt_async_save: bool = True,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
         ckpt_assume_constant_structure: bool = False,
         ckpt_parallel_save: bool = True,
         ckpt_parallel_save_within_dp: bool = False,
-        ckpt_parallel_load: bool = False,
+        ckpt_parallel_load: bool = True,
         ckpt_parallel_save_optim: bool = True,
         ckpt_load_directly_on_device: bool = True,
         setup_optimizers: bool = True,
@@ -204,7 +201,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
         restore_config: Optional[RestoreConfig] = None,
-        overwrite_batch_progress: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -245,7 +241,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
-        self.overwrite_batch_progress = overwrite_batch_progress
 
         self.restore_config = restore_config
 
@@ -267,7 +262,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def connect(self, model: pl.LightningModule) -> None:
         super().connect(model)
 
-        assert not hasattr(model, 'is_hf_model'), "Cannot use HfAutoModelForCausalLM with MegatronParallel"
+        assert not 'is_hf_model' in model.__dict__, "Cannot use HfAutoModelForCausalLM with MegatronParallel"
 
         _maybe_mcore_config = _strategy_lib.set_model_parallel_attributes(model, self.parallelism)
         if _maybe_mcore_config:
@@ -345,8 +340,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.configure_ddp()
 
             trainer.fit_loop.epoch_loop.automatic_optimization = _MegatronAutomaticOptimization(trainer)
-            if self.overwrite_batch_progress:
-                trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
 
             import torch.distributed.algorithms.ddp_comm_hooks.post_localSGD_hook as post_localSGD
 
