@@ -16,7 +16,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Union
-from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
+
 import pytorch_lightning as L
 import torch
 import torch.distributed
@@ -46,6 +46,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
+from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging

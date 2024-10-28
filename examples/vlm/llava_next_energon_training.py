@@ -11,6 +11,7 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.vlm import ImageDataConfig, Llava1_5Config7B, LlavaModel, LlavaNextTaskEncoder
@@ -18,7 +19,6 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 def main(args):
@@ -81,8 +81,8 @@ def main(args):
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
-    from nemo.collections.llm.gpt.model.llama import LlamaModel
     from nemo.collections.llm import import_ckpt
+    from nemo.collections.llm.gpt.model.llama import LlamaModel
 
     language_transformer_config = llm.Llama2Config7B()
 
