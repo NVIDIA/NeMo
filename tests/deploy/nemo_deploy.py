@@ -52,59 +52,59 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path=Non
     with open(test_data_path, 'r') as file:
         records = json.load(file)
 
-    eval_start = time.perf_counter()
-    for record in records:
-        prompt = record["text_before_last_word"]
-        expected_output = record["last_word"].strip().lower()
-        trtllm_output = model.forward(
-            input_texts=[prompt],
-            max_output_len=1,
-            top_k=1,
-            top_p=0,
-            temperature=0.1,
-            task_ids=task_ids,
-            lora_uids=lora_uids,
-        )
-        trtllm_output = trtllm_output[0][0].strip().lower()
-
-        all_expected_outputs.append(expected_output)
-        all_trtllm_outputs.append(trtllm_output)
-
-        if expected_output == trtllm_output:
-            trtllm_correct += 1
-
-        if (
-            expected_output == trtllm_output
-            or trtllm_output.startswith(expected_output)
-            or expected_output.startswith(trtllm_output)
-        ):
-            if len(trtllm_output) == 1 and len(expected_output) > 1:
-                continue
-            trtllm_correct_relaxed += 1
-
-        if nq is not None:
-            trtllm_deployed_output = nq.query_llm(
-                prompts=[prompt],
+        eval_start = time.perf_counter()
+        for record in records:
+            prompt = record["text_before_last_word"]
+            expected_output = record["last_word"].strip().lower()
+            trtllm_output = model.forward(
+                input_texts=[prompt],
                 max_output_len=1,
                 top_k=1,
                 top_p=0,
                 temperature=0.1,
-                task_id=task_ids,
+                task_ids=task_ids,
+                lora_uids=lora_uids,
             )
-            trtllm_deployed_output = trtllm_deployed_output[0][0].strip().lower()
+            trtllm_output = trtllm_output[0][0].strip().lower()
 
-            if expected_output == trtllm_deployed_output:
-                trtllm_deployed_correct += 1
+            all_expected_outputs.append(expected_output)
+            all_trtllm_outputs.append(trtllm_output)
+
+            if expected_output == trtllm_output:
+                trtllm_correct += 1
 
             if (
-                expected_output == trtllm_deployed_output
-                or trtllm_deployed_output.startswith(expected_output)
-                or expected_output.startswith(trtllm_deployed_output)
+                expected_output == trtllm_output
+                or trtllm_output.startswith(expected_output)
+                or expected_output.startswith(trtllm_output)
             ):
-                if len(trtllm_deployed_output) == 1 and len(expected_output) > 1:
+                if len(trtllm_output) == 1 and len(expected_output) > 1:
                     continue
-                trtllm_deployed_correct_relaxed += 1
-    eval_end = time.perf_counter()
+                trtllm_correct_relaxed += 1
+
+            if nq is not None:
+                trtllm_deployed_output = nq.query_llm(
+                    prompts=[prompt],
+                    max_output_len=1,
+                    top_k=1,
+                    top_p=0,
+                    temperature=0.1,
+                    task_id=task_ids,
+                )
+                trtllm_deployed_output = trtllm_deployed_output[0][0].strip().lower()
+
+                if expected_output == trtllm_deployed_output:
+                    trtllm_deployed_correct += 1
+
+                if (
+                    expected_output == trtllm_deployed_output
+                    or trtllm_deployed_output.startswith(expected_output)
+                    or expected_output.startswith(trtllm_deployed_output)
+                ):
+                    if len(trtllm_deployed_output) == 1 and len(expected_output) > 1:
+                        continue
+                    trtllm_deployed_correct_relaxed += 1
+        eval_end = time.perf_counter()
 
     trtllm_accuracy = trtllm_correct / len(all_expected_outputs)
     trtllm_accuracy_relaxed = trtllm_correct_relaxed / len(all_expected_outputs)
@@ -182,155 +182,155 @@ def run_trt_llm_inference(
     test_data_path=None,
     save_engine=False,
 ):
-    if not Path(checkpoint_path).exists():
-        raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
-
-    if n_gpu > torch.cuda.device_count():
-        print(
-            "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
-                checkpoint_path, model_name, n_gpu, torch.cuda.device_count()
+    if Path(checkpoint_path).exists():
+        if n_gpu > torch.cuda.device_count():
+            print(
+                "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
+                    checkpoint_path, model_name, n_gpu, torch.cuda.device_count()
+                )
             )
-        )
-        return None, None, None, None, None
-
-    Path(trt_llm_model_dir).mkdir(parents=True, exist_ok=True)
-
-    if debug:
-        print("")
-        print("")
-        print(
-            "################################################## NEW TEST ##################################################"
-        )
-        print("")
-
-        print("Path: {0} and model: {1} with {2} gpus will be tested".format(checkpoint_path, model_name, n_gpu))
-
-    prompt_embeddings_checkpoint_path = None
-    task_ids = None
-    max_prompt_embedding_table_size = 0
-
-    if ptuning:
-        if Path(p_tuning_checkpoint).exists():
-            prompt_embeddings_checkpoint_path = p_tuning_checkpoint
-            max_prompt_embedding_table_size = 8192
-            task_ids = ["0"]
-            if debug:
-                print("---- PTuning enabled.")
-        else:
-            print("---- PTuning could not be enabled and skipping the test.")
             return None, None, None, None, None
 
-    lora_ckpt_list = None
-    lora_uids = None
-    use_lora_plugin = None
-    lora_target_modules = None
+        Path(trt_llm_model_dir).mkdir(parents=True, exist_ok=True)
 
-    if lora:
-        if Path(lora_checkpoint).exists():
-            lora_ckpt_list = [lora_checkpoint]
-            lora_uids = ["0", "-1", "0"]
-            use_lora_plugin = "bfloat16"
-            lora_target_modules = ["attn_qkv"]
-            if debug:
-                print("---- LoRA enabled.")
-        else:
-            print("---- LoRA could not be enabled and skipping the test.")
-            return None, None, None, None, None
+        if debug:
+            print("")
+            print("")
+            print(
+                "################################################## NEW TEST ##################################################"
+            )
+            print("")
 
-    trt_llm_exporter = TensorRTLLM(trt_llm_model_dir, lora_ckpt_list, load_model=False)
+            print("Path: {0} and model: {1} with {2} gpus will be tested".format(checkpoint_path, model_name, n_gpu))
 
-    trt_llm_exporter.export(
-        nemo_checkpoint_path=checkpoint_path,
-        model_type=model_type,
-        n_gpus=n_gpu,
-        tensor_parallelism_size=tp_size,
-        pipeline_parallelism_size=pp_size,
-        max_input_len=max_input_len,
-        max_output_len=max_output_len,
-        max_batch_size=max_batch_size,
-        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-        use_lora_plugin=use_lora_plugin,
-        lora_target_modules=lora_target_modules,
-        max_num_tokens=max_num_tokens,
-        opt_num_tokens=60,
-        use_embedding_sharing=use_embedding_sharing,
-    )
+        prompt_embeddings_checkpoint_path = None
+        task_ids = None
+        max_prompt_embedding_table_size = 0
 
-    if ptuning:
-        trt_llm_exporter.add_prompt_table(
-            task_name="0",
-            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
-        )
+        if ptuning:
+            if Path(p_tuning_checkpoint).exists():
+                prompt_embeddings_checkpoint_path = p_tuning_checkpoint
+                max_prompt_embedding_table_size = 8192
+                task_ids = ["0"]
+                if debug:
+                    print("---- PTuning enabled.")
+            else:
+                print("---- PTuning could not be enabled and skipping the test.")
+                return None, None, None, None, None
 
-    output = trt_llm_exporter.forward(
-        input_texts=prompt,
-        max_output_len=max_output_len,
-        top_k=top_k,
-        top_p=top_p,
-        temperature=temperature,
-        task_ids=task_ids,
-        lora_uids=lora_uids,
-        streaming=streaming,
-        stop_words_list=stop_words_list,
-    )
+        lora_ckpt_list = None
+        lora_uids = None
+        use_lora_plugin = None
+        lora_target_modules = None
 
-    if not use_lora_plugin and not ptuning:
-        test_cpp_runtime(
-            engine_path=trt_llm_model_dir,
-            prompt=prompt,
+        if lora:
+            if Path(lora_checkpoint).exists():
+                lora_ckpt_list = [lora_checkpoint]
+                lora_uids = ["0", "-1", "0"]
+                use_lora_plugin = "bfloat16"
+                lora_target_modules = ["attn_qkv"]
+                if debug:
+                    print("---- LoRA enabled.")
+            else:
+                print("---- LoRA could not be enabled and skipping the test.")
+                return None, None, None, None, None
+
+        trt_llm_exporter = TensorRTLLM(trt_llm_model_dir, lora_ckpt_list, load_model=False)
+
+        trt_llm_exporter.export(
+            nemo_checkpoint_path=checkpoint_path,
+            model_type=model_type,
+            n_gpus=n_gpu,
+            tensor_parallelism_size=tp_size,
+            pipeline_parallelism_size=pp_size,
+            max_input_len=max_input_len,
             max_output_len=max_output_len,
-            debug=True,
+            max_batch_size=max_batch_size,
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_num_tokens=max_num_tokens,
+            opt_num_tokens=60,
+            use_embedding_sharing=use_embedding_sharing,
         )
 
-    nq = None
-    nm = None
-    output_deployed = ""
-    if test_deployment:
-        nm = DeployPyTriton(
-            model=trt_llm_exporter,
-            triton_model_name=model_name,
-            port=8000,
-        )
-        nm.deploy()
-        nm.run()
-        nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+        if ptuning:
+            trt_llm_exporter.add_prompt_table(
+                task_name="0",
+                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+            )
 
-        output_deployed = nq.query_llm(
-            prompts=prompt,
+        output = trt_llm_exporter.forward(
+            input_texts=prompt,
             max_output_len=max_output_len,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
+            task_ids=task_ids,
             lora_uids=lora_uids,
+            streaming=streaming,
+            stop_words_list=stop_words_list,
         )
 
-    if debug:
-        print("")
-        print("--- Prompt: ", prompt)
-        print("")
-        print("--- Output: ", output)
-        print("")
-        print("")
-        print("--- Output deployed: ", output_deployed)
-        print("")
+        if not use_lora_plugin and not ptuning:
+            test_cpp_runtime(
+                engine_path=trt_llm_model_dir,
+                prompt=prompt,
+                max_output_len=max_output_len,
+                debug=True,
+            )
 
-    if run_accuracy:
-        print("Start model accuracy testing ...")
-        result = get_accuracy_with_lambada(trt_llm_exporter, nq, task_ids, lora_uids, test_data_path)
+        nq = None
+        nm = None
+        output_deployed = ""
+        if test_deployment:
+            nm = DeployPyTriton(
+                model=trt_llm_exporter,
+                triton_model_name=model_name,
+                port=8000,
+            )
+            nm.deploy()
+            nm.run()
+            nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+
+            output_deployed = nq.query_llm(
+                prompts=prompt,
+                max_output_len=max_output_len,
+                top_k=1,
+                top_p=0.0,
+                temperature=1.0,
+                lora_uids=lora_uids,
+            )
+
+        if debug:
+            print("")
+            print("--- Prompt: ", prompt)
+            print("")
+            print("--- Output: ", output)
+            print("")
+            print("")
+            print("--- Output deployed: ", output_deployed)
+            print("")
+
+        if run_accuracy:
+            print("Start model accuracy testing ...")
+            result = get_accuracy_with_lambada(trt_llm_exporter, nq, task_ids, lora_uids, test_data_path)
+            if test_deployment:
+                nm.stop()
+
+            if not save_engine:
+                shutil.rmtree(trt_llm_model_dir)
+            return result
+
         if test_deployment:
             nm.stop()
 
         if not save_engine:
             shutil.rmtree(trt_llm_model_dir)
-        return result
 
-    if test_deployment:
-        nm.stop()
-
-    if not save_engine:
-        shutil.rmtree(trt_llm_model_dir)
-
-    return None, None, None, None, None
+        return None, None, None, None, None
+    else:
+        raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
 
 
 def test_cpp_runtime(
