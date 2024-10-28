@@ -115,7 +115,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     add_bias_linear: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    layernorm_epsilon: float = 1e-5
+    layernorm_epsilon: float = 1e-6
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
 
@@ -143,16 +143,53 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class HyenaTestConfig(HyenaConfig):
-    hybrid_override_pattern: str = "SDH*SHDSDH*SDHSDH*"
-    num_layers: int = 18
-    seq_length: int = 128
+    hybrid_override_pattern: str = "SDH*"
+    num_layers: int = 4
+    seq_length: int = 8192
     hidden_size: int = 4096
     mamba_ssm_ngroups: int = 1
-    ffn_hidden_size: int = 4096
-    make_vocab_size_divisible_by: int = 16
+    make_vocab_size_divisible_by: int = 8
     tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
+    ffn_hidden_size: int = 11008
+    gated_linear_unit:bool = True
+    num_attention_heads: int = 32
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias:bool = False
+    add_bias_linear:bool = False
+    layernorm_epsilon: float = 1e-6
+    fp8: str = 'hybrid'
+    fp8_amax_history_len: int = 16
+    fp8_amax_compute_algo: str = "max"
 
+@dataclass
+class Hyena7bConfig(HyenaConfig):
+    hybrid_override_pattern: str = "SDH*SHDSDH*SDHSDH*SDHSDH*SDHSDH*"
+    num_layers: int = 32
+    seq_length: int = 8192
+    hidden_size: int = 4096
+    mamba_ssm_ngroups: int = 1
+    make_vocab_size_divisible_by: int = 8
+    tokenizer_library: str = 'byte-level'
+    mapping_type: str = "base"
+    ffn_hidden_size: int = 11008
+    gated_linear_unit:bool = True
+    num_attention_heads: int = 32
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias:bool = False
+    add_bias_linear:bool = False
+    layernorm_epsilon: float = 1e-6
+    fp8: str = 'hybrid'
+    fp8_amax_history_len: int = 16
+    fp8_amax_compute_algo: str = "max"
 
 __all__ = [
     "HyenaConfig",

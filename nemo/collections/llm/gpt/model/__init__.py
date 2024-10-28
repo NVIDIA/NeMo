@@ -89,6 +89,7 @@ from nemo.collections.llm.gpt.model.ssm import (
 )
 from nemo.collections.llm.gpt.model.hyena import (
     HyenaTestConfig,
+    Hyena7bConfig,
     HyenaConfig,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
@@ -104,6 +105,7 @@ __all__ = [
     "GPTConfig",
     "GPTModel",
     "HyenaTestConfig",
+    "Hyena7bConfig",
     "HyenaConfig",
     "MistralConfig7B",
     "MistralModel",
