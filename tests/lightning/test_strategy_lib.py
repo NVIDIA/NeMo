@@ -101,8 +101,8 @@ def test_init_parallel_ranks() -> None:
         "context_parallel_size": 2,
         "expert_model_parallel_size": 2,
         "pipeline_model_parallel_split_rank": None,
-        "encoder_pipeline_model_parallel_size": None,
-        "encoder_tensor_model_parallel_size": None,
+        "encoder_pipeline_model_parallel_size": 0,
+        "encoder_tensor_model_parallel_size": 0,
         "use_fp8": False,
         "init_mpi_proc_group": False,
     }
