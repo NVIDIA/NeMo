@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 import pytorch_lightning as pl
 import torch.nn as nn
 from lightning_fabric.utilities.types import _PATH
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.trainer.states import TrainerFn
 from typing_extensions import override
@@ -171,6 +172,13 @@ class PEFT(IOMixin, ABC, ModelTransform):
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
                 trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
+
+        for cb in trainer.callbacks[::-1]:
+            if isinstance(cb, MegatronOptimizerModule):
+                cb.on_fit_start(trainer, trainer.lightning_module)
+                break
+        else:
+            raise RuntimeError("finalize_model_grads could not be set up in PEFT")
 
     def adapter_key_filter(self, key: str) -> bool:
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
