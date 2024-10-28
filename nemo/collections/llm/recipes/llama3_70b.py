@@ -354,6 +354,7 @@ def finetune_performance_optimizations(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
