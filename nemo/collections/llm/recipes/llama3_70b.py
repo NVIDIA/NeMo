@@ -247,7 +247,7 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
-    seq_length: int = 4096,
+    seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
     performance_mode: bool = False,
 ) -> run.Partial:
@@ -289,11 +289,15 @@ def finetune_recipe(
     if packed_sequence is None:
         packed_sequence = performance_mode
 
+    # For unpacked sequence, most samples in SQuAD dataset are shorter than 2K
+    if seq_length is None:
+        seq_length = 4096 if packed_sequence else 2048
+
     recipe = default_finetune_recipe(
         model(), "meta-llama/Meta-Llama-3-70B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        assert (num_nodes >= 4) or performance_mode
+        assert num_nodes >= 4
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.optim.config.lr = 5e-6
@@ -305,8 +309,6 @@ def finetune_recipe(
 
         # some settings currently do not function correctly with LoRA
         recipe.model.config.cross_entropy_loss_fusion = False
-        recipe.trainer.strategy.ckpt_async_save = False
-        recipe.trainer.strategy.ddp = "megatron"
 
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.optim.config.lr = 1e-4
@@ -354,6 +356,7 @@ def finetune_performance_optimizations(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
@@ -367,6 +370,7 @@ def finetune_performance_optimizations(
             run.Config(
                 MegatronCommOverlapCallback,
                 tp_comm_overlap=True,
+                defer_embedding_wgrad_compute=True,
             )
         )
     else:
