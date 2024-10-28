@@ -3501,7 +3501,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 python examples/nlp/language_modeling/megatron_t5_eval.py \
-            --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+            --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_flashfusedattn.nemo \
             --prompt "How do I fix my GPU memory issue? I am seeing <mask> out of memory." \
             --tensor_model_parallel_size 1
 
@@ -3523,7 +3523,7 @@ jobs:
         exp_manager.exp_dir=/tmp/nlp_mcore_t5_lora_tuning_tp2 \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
-        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220_flashfusedattnm.nemo \
         model.peft.peft_scheme=lora \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
@@ -3536,7 +3536,7 @@ jobs:
         model.data.validation_ds.names=[quarel]
 
         NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
-        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_flashfusedattn.nemo \
         model.peft.restore_from_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/megatron_t5_peft_lora_tuning/checkpoints/megatron_t5_peft_lora_tuning.nemo \
         model.peft.restore_from_ckpt_name=null \
         model.peft.restore_from_hparams_path=null \
