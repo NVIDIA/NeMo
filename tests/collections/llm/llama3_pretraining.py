@@ -80,6 +80,7 @@ def main():
     pretrain_recipe.trainer.max_steps = args.max_steps
     pretrain_recipe.trainer.log_every_n_steps = 1
     pretrain_recipe.log.ckpt.every_n_train_steps = None
+    pretrain_recipe.log.ckpt.train_time_interval = None
     pretrain_recipe.trainer.val_check_interval = 2
 
     if args.early_stop:
