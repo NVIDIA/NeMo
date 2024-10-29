@@ -462,15 +462,6 @@ def _export_linear_fc1(linear_fc1):
 
     return gate_proj, up_proj
 
-# @io.state_transform(
-#     source_key="decoder.layers.*.mlp.linear_fc1.weight",
-#     target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-# )
-# def _export_embedding(linear_fc1):
-#     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-#     return gate_proj, up_proj
-
 
 def apply_rope_scaling(
     inv_freq,
