@@ -28,8 +28,8 @@ from typing_extensions import override
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir
-from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.megatron_parallel import MegatronParallel
+from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -93,8 +93,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
             nn.Module: The transformed model with PEFT applied.
         """
 
-        #If using megatron virtual pipeline parallelism, model is a list of 
-        #model chunks so iterate over model
+        # If using megatron virtual pipeline parallelism, model is a list of
+        # model chunks so iterate over model
         if isinstance(model, MegatronParallel) and len(model) > 1:
             for model_chunk in model:
                 model_chunk.freeze()
