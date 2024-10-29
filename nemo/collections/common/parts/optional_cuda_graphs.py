@@ -49,8 +49,8 @@ class WithOptionalCudaGraphs(abc.ABC):
                 continue  # loop over modules, no attribute
 
             if isinstance(object_to_check, cls):
-                object_to_check.disable_cuda_graphs()
-                logging.info(f"Disabled CUDA graphs for module {type(submodule)}" + ".".join([name] + attributes))
+                if object_to_check.disable_cuda_graphs():
+                    logging.info(f"Disabled CUDA graphs for module {type(submodule)}" + ".".join([name] + attributes))
 
     @classmethod
     def enable_cuda_graphs_recursive(cls, module: nn.Module, attribute_path: Optional[str] = None):
@@ -75,15 +75,15 @@ class WithOptionalCudaGraphs(abc.ABC):
                 continue  # loop over modules, no attribute
 
             if isinstance(object_to_check, cls):
-                object_to_check.maybe_enable_cuda_graphs()
-                logging.info(f"Enabled CUDA graphs for module {type(submodule)}" + ".".join([name] + attributes))
+                if object_to_check.maybe_enable_cuda_graphs():
+                    logging.info(f"Enabled CUDA graphs for module {type(submodule)}" + ".".join([name] + attributes))
 
     @abc.abstractmethod
-    def disable_cuda_graphs(self):
-        """Disable (maybe temporary) CUDA graphs"""
+    def disable_cuda_graphs(self) -> bool:
+        """Disable (maybe temporary) CUDA graphs. Return True if CUDA graphs status changed enabled->disabled"""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def maybe_enable_cuda_graphs(self):
-        """Enable CUDA graphs if all conditions met"""
+    def maybe_enable_cuda_graphs(self) -> bool:
+        """Enable CUDA graphs if all conditions met. Return True if CUDA graphs status changed disabled->enabled"""
         raise NotImplementedError
