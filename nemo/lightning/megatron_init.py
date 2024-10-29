@@ -390,7 +390,7 @@ def fake_initialize_model_parallel(
 
     # Build the data-parallel groups.
     all_data_parallel_group_ranks_with_cp = []
-    for ranks in generator_wrapper('pp'):
+    for ranks in generator_wrapper('dp'):
         if rank in ranks:
             data_parallel_group = list(ranks)
             logging.info(f'Rank {rank} has data parallel group : {data_parallel_group}')
