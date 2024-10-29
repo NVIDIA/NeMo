@@ -895,6 +895,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         x: torch.Tensor,
         out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        if self.cuda_graphs_mode is not None and torch.distributed.is_initialized():
+            # TODO(vbataev): fix torch.distributed + CUDA graphs, remove this switch
+            logging.warning(f"In distributed mode, CUDA graphs are not supported yet. Switching off CUDA graphs.")
+            self.disable_cuda_graphs()
+
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
