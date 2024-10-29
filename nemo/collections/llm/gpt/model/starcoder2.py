@@ -20,7 +20,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.llama import _export_embedding, _export_head
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
@@ -202,7 +203,6 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
 
     def convert_state(self, source, target):
         mapping = {
-            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.self_attention.linear_proj.bias": "model.layers.*.self_attn.o_proj.bias",
             "decoder.layers.*.mlp.linear_fc1.weight": "model.layers.*.mlp.c_fc.weight",
@@ -215,7 +215,6 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
             "decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "model.layers.*.post_attention_layernorm.bias",
             "decoder.final_layernorm.weight": "model.norm.weight",
             "decoder.final_layernorm.bias": "model.norm.bias",
-            "output_layer.weight": "lm_head.weight",
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv_weight, _export_qkv_bias])
