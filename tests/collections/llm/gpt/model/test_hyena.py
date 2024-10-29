@@ -65,8 +65,6 @@ if __name__ == '__main__':
 
     args = get_args()
 
-    seq_length = 512
-
     tokenizer = get_nmt_tokenizer(
         "byte-level",
     )
@@ -90,7 +88,7 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"Invalid model size: {args.model_size}")
     
-    hyena_config.seq_length = seq_length
+    hyena_config.seq_length = args.seq_length
     model = llm.GPTModel(hyena_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tensor_parallel_size,
