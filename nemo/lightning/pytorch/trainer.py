@@ -45,7 +45,7 @@ class Trainer(pl.Trainer, IOMixin):
         return fdl.Config(type(self), **cfg_kwargs)
 
     def to_fabric(self, callbacks=None, loggers=None) -> Fabric:
-        accelerator, devices, strategy, plugins = None, None, None, None
+        accelerator, devices, strategy, plugins, num_nodes = None, None, None, None, None
         if hasattr(self.__io__, "devices"):
             devices = self.__io__.devices
         if hasattr(self.__io__, "accelerator"):
@@ -62,7 +62,6 @@ class Trainer(pl.Trainer, IOMixin):
                 plugins = fdl.build(plugins)
             plugins = to_fabric(plugins)
 
-        num_nodes = None
         if hasattr(self.__io__, "num_nodes"):
             num_nodes = self.__io__.num_nodes
 
