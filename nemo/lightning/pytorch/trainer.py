@@ -62,6 +62,10 @@ class Trainer(pl.Trainer, IOMixin):
                 plugins = fdl.build(plugins)
             plugins = to_fabric(plugins)
 
+        num_nodes = None
+        if hasattr(self.__io__, "num_nodes"):
+            num_nodes = self.__io__.num_nodes
+
         out = Fabric(
             devices=devices,
             accelerator=accelerator,
@@ -69,6 +73,7 @@ class Trainer(pl.Trainer, IOMixin):
             plugins=plugins,
             callbacks=callbacks,
             loggers=loggers,
+            num_nodes=num_nodes
         )
 
         return out

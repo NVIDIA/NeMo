@@ -44,9 +44,10 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
 
 def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
     trainer = nl.Trainer(
-        devices=calib_tp * calib_pp,
+        devices=calib_tp,
+        num_nodes=calib_pp,
         strategy=nl.MegatronStrategy(
-            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.bfloat16,
+            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.bfloat16
         ),
         plugins=nl.MegatronMixedPrecision(precision='bf16', pipeline_dtype=torch.bfloat16, autocast_enabled=True),
     )
