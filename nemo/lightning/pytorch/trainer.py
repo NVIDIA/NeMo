@@ -73,7 +73,7 @@ class Trainer(pl.Trainer, IOMixin):
             plugins=plugins,
             callbacks=callbacks,
             loggers=loggers,
-            num_nodes=num_nodes
+            num_nodes=num_nodes,
         )
 
         return out
