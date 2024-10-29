@@ -178,7 +178,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
                 cb.on_fit_start(trainer, trainer.lightning_module)
                 break
         else:
-            raise RuntimeError("finalize_model_grads could not be set up in PEFT")
+            logging.warning("MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
+                            "properly set up for PEFT.")
 
     def adapter_key_filter(self, key: str) -> bool:
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
