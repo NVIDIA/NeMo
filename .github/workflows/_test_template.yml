@@ -51,7 +51,7 @@ jobs:
 
         - name: Docker pull image
           run: |
-            docker pull nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+            docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
         - name: Start container
           run: |
@@ -60,7 +60,7 @@ jobs:
               ARG=("--runtime=nvidia --gpus all")
             fi
 
-            docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
+            docker run --rm -d --name nemo_container:${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
 
         - id: main
           name: Run main script
@@ -72,7 +72,7 @@ jobs:
             (  
               set -e
 
-              docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
+              docker exec nemo_container:${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
             ) 2> >(tee err.log)
 
             EXIT_CODE=$?
@@ -89,10 +89,10 @@ jobs:
         - name: after_script
           if: always() && inputs.AFTER_SCRIPT != ':'
           run: |
-            docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
+            docker exec nemo_container:${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
 
         - name: Container shutdown
           if: always()
           run: |
-            docker container stop nemo_container_${{ github.run_id }} || true
-            docker container rm nemo_container_${{ github.run_id }} || true
+            docker container stop nemo_container:${{ github.run_id }} || true
+            docker container rm nemo_container:${{ github.run_id }} || true
