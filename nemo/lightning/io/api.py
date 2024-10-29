@@ -51,7 +51,8 @@ def load_context(path: Path, subpath: Optional[str] = None, build: bool = True):
         checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint", subpath="model.config")
 
     """
-    path = Path(path)
+    if not isinstance(path, Path):
+        path = Path(path)
     try:
         return load(path, output_type=TrainerContext, subpath=subpath, build=build)
     except FileNotFoundError:
