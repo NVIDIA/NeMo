@@ -354,6 +354,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
         # loop while there are active utterances
         while active_mask.any():
+            batched_hyps.print()
             active_mask_prev.copy_(active_mask, non_blocking=True)
             # stage 1: get decoder (prediction network) output
             decoder_output, state, *_ = self.decoder.predict(

@@ -31,6 +31,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 
+import time
+
 
 @dataclass
 class Hypothesis:
@@ -262,6 +264,8 @@ class BatchedHyps:
         self.last_timestep_lasts = torch.zeros(batch_size, device=device, dtype=torch.long)
         self._batch_indices = torch.arange(batch_size, device=device)
         self._ones_batch = torch.ones_like(self._batch_indices)
+        
+        self.batch_size = batch_size
 
     def clear_(self):
         self.current_lengths.fill_(0)
@@ -389,6 +393,13 @@ class BatchedHyps:
         # increase lengths
         self.current_lengths += active_mask
 
+    def print(self):
+        torch.set_printoptions(profile="full")
+        for idx in range(self.batch_size):
+            print("Sample id: ", idx)
+            print(f"Score: {self.scores[idx]}")
+            print(f"Labels: {self.transcript[self._batch_indices[idx], :self.current_lengths[idx]].clone().cpu().numpy()},")
+            print(f"Length: {self.timesteps[self._batch_indices[idx], :self.current_lengths[idx]].clone().cpu().numpy()}")
 
 class BatchedAlignments:
     """
@@ -633,6 +644,7 @@ class BeamBatchedHyps:
         self,
         batch_size: int,
         beam_size: int,
+        max_timesteps: torch.Tensor,
         init_length: int,
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
@@ -651,9 +663,10 @@ class BeamBatchedHyps:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
         self._max_length = init_length
         
-        self.batch_size = batch_size
+        self.device = device
         self.beam_size = beam_size
-
+        self.batch_size = batch_size
+        
         # batch of current lengths of hypotheses and correspoinding timesteps
         self.current_lengths = torch.zeros((batch_size, beam_size), device=device, dtype=torch.long)
         # tensor for storing transcripts
@@ -666,7 +679,7 @@ class BeamBatchedHyps:
 
         # tracking last timestep of each hyp to avoid infinite looping (when max symbols per frame is restricted)
         # last observed timestep (with label) for each hypothesis
-        self.last_timestep = torch.full((batch_size, beam_size), -1, device=device, dtype=torch.long)
+        self.last_timestep = torch.full((batch_size, beam_size), 0, device=device, dtype=torch.long)
         # number of labels for the last timestep
         self.last_timestep_lasts = torch.zeros((batch_size, beam_size), device=device, dtype=torch.long)
         self._batch_indices = torch.arange(batch_size, device=device).unsqueeze(1)
@@ -679,6 +692,9 @@ class BeamBatchedHyps:
         self._full_current_lengths = torch.zeros((batch_size, beam_size), device=device, dtype=torch.long)
         self._full_timesteps = torch.zeros((batch_size, beam_size, self._max_length), device=device, dtype=torch.long)
         self._full_transcripts = torch.zeros((batch_size, beam_size, self._max_length), device=device, dtype=torch.long)
+        
+        self.max_timesteps = max_timesteps
+        self.best_hyps = [[] for _ in range(batch_size)]
 
     def clear_(self):
         self.current_lengths.fill_(0)
@@ -693,16 +709,15 @@ class BeamBatchedHyps:
         Allocate 2x space for tensors, similar to common C++ std::vector implementations
         to maintain O(1) insertion time complexity
         """
-        self.transcripts = torch.cat((self.transcripts, torch.zeros_like(self.transcripts)), dim=-1)
+        # self.scores = torch.cat((self.scores, torch.zeros_like(self.scores)), dim=-1)
         self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
+        self.transcripts = torch.cat((self.transcripts, torch.zeros_like(self.transcripts)), dim=-1)
+        self.timesteps_end = torch.cat((self.timesteps_end, torch.zeros_like(self.timesteps_end)), dim=-1)
+        # self.last_timestep = torch.cat((self.last_timestep, torch.zeros_like(self.last_timestep)), dim=-1)
+        # self.current_lengths = torch.cat((self.current_lengths, torch.zeros_like(self.current_lengths)), dim=-1)
         
-        self._total_scores = torch.cat(self._total_scores, torch.zeros_like(self._total_scores), dim=-1)
-        self._label_scores = torch.cat(self._label_scores, torch.zeros_like(self._label_scores), dim=-1)
-        self._blank_scores = torch.cat(self._blank_scores, torch.zeros_like(self._blank_scores), dim=-1)
-        
-        self._full_timesteps = torch.cat(self._full_timesteps, torch.zeros_like(self._full_timesteps), dim=-1)
-        self._full_transcripts = torch.cat(self._full_transcripts, torch.zeros_like(self._full_transcripts), dim=-1)
-        self._full_current_lengths = torch.cat(self._full_current_lengths, torch.zeros_like(self._full_current_lengths), dim=-1)
+        self._full_timesteps = torch.cat((self._full_timesteps, torch.zeros_like(self._full_timesteps)), dim=-1)
+        self._full_transcripts = torch.cat((self._full_transcripts, torch.zeros_like(self._full_transcripts)), dim=-1)
         
         self._max_length *= 2
         
@@ -722,150 +737,45 @@ class BeamBatchedHyps:
         self._full_transcripts[self._batch_indices, self._beam_indices, self.current_lengths] = labels
         self._full_timesteps[self._batch_indices, self._beam_indices, self.current_lengths] = time_indices
         self._full_current_lengths += 1
-        
-    def add_results_(self,
-                     beam_idx: torch.Tensor,
-                     labels: torch.Tensor,
-                     time_indices: torch.Tensor,
-                     scores: torch.Tensor):
-        """
-        Add results (inplace) from a decoding step to the batched hypotheses.
-        We assume that all tensors have the same first dimension, and labels are non-blanks.
-        Args:
-            active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
-            labels: non-blank labels to add
-            time_indices: tensor of time index for each label
-            scores: label scores
-        """
-        if active_indices.shape[0] == 0:
-            return  # nothing to add
-        # if needed - increase storage
-        if self._full_current_lengths.max().item() >= self._max_length:
-            self._allocate_more()
-
-        self.add_results_no_checks_(
-            active_indices=active_indices, beam_idx=beam_idx, labels=labels, time_indices=time_indices, scores=scores
-        )
-
-    def add_results_no_checks_(self,
-                               beam_idx: torch.Tensor,
-                               labels: torch.Tensor,
-                               time_indices: torch.Tensor,
-                               scores: torch.Tensor):
-        """
-        Add results (inplace) from a decoding step to the batched hypotheses without checks.
-        We assume that all tensors have the same first dimension, and labels are non-blanks.
-        Useful if all the memory is pre-allocated, especially with cuda graphs
-        (otherwise prefer a more safe `add_results_`)
-        Args:
-            active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
-            labels: non-blank labels to add
-            time_indices: tensor of time index for each label
-            scores: label scores
-        """
-        # accumulate scores
-        self.scores[active_indices] += scores
-
-        # store transcript and timesteps
-        active_lengths = self.current_lengths[active_indices]
-        self.transcripts[active_indices, active_lengths] = labels
-        self.timesteps[active_indices, active_lengths] = time_indices
-        # store last observed timestep + number of observation for the current timestep
-        self.last_timestep_lasts[active_indices] = torch.where(
-            self.last_timestep[active_indices] == time_indices, self.last_timestep_lasts[active_indices] + 1, 1
-        )
-        self.last_timestep[active_indices] = time_indices
-        # increase lengths
-        self.current_lengths[active_indices] += 1
-
-    def add_results_masked_(
-        self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
-    ):
-        """
-        Add results (inplace) from a decoding step to the batched hypotheses.
-        We assume that all tensors have the same first dimension, and labels are non-blanks.
-        Args:
-            active_mask: tensor with mask for active hypotheses (of batch_size)
-            labels: non-blank labels to add
-            time_indices: tensor of time index for each label
-            scores: label scores
-        """
-        if (self.current_lengths + active_mask).max() >= self._max_length:
-            self._allocate_more()
-        self.add_results_masked_no_checks_(
-            active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores
-        )
-
-    def add_results_masked_no_checks_(
-        self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
-    ):
-        """
-        Add results (inplace) from a decoding step to the batched hypotheses without checks.
-        We assume that all tensors have the same first dimension, and labels are non-blanks.
-        Useful if all the memory is pre-allocated, especially with cuda graphs
-        (otherwise prefer a more safe `add_results_`)
-        Args:
-            active_mask: tensor with mask for active hypotheses (of batch_size)
-            labels: non-blank labels to add
-            time_indices: tensor of time index for each label
-            scores: label scores
-        """
-        # accumulate scores
-        # same as self.scores[active_mask] += scores[active_mask], but non-blocking
-        torch.where(active_mask, self.scores + scores, self.scores, out=self.scores)
-
-        # store transcript and timesteps
-        self.transcripts[self._batch_indices, self.current_lengths] = labels
-        self.timesteps[self._batch_indices, self.current_lengths] = time_indices
-        # store last observed timestep + number of observation for the current timestep
-        # if last_timestep == time_indices, increase; else set to 1
-        torch.where(
-            torch.logical_and(active_mask, self.last_timestep == time_indices),
-            self.last_timestep_lasts + 1,
-            self.last_timestep_lasts,
-            out=self.last_timestep_lasts,
-        )
-        torch.where(
-            torch.logical_and(active_mask, self.last_timestep != time_indices),
-            self._ones_batch,
-            self.last_timestep_lasts,
-            out=self.last_timestep_lasts,
-        )
-        # same as: self.last_timestep[active_mask] = time_indices[active_mask], but non-blocking
-        torch.where(active_mask, time_indices, self.last_timestep, out=self.last_timestep)
-        # increase lengths
-        self.current_lengths += active_mask
 
     def append_labels(self,
                      labels: torch.Tensor,
                      label_logps: torch.Tensor,
                      blank_logps: torch.Tensor,
                      num_blanks: torch.Tensor):
+        self._full_current_lengths += num_blanks + 1
+        if (self._full_current_lengths).max() > self._max_length - 1:
+            self._allocate_more()
+            
         shape = labels.shape
         assert(shape[0] == self.batch_size)
         assert(shape[1] == self.beam_size)
         assert(label_logps.shape == shape)
         assert(blank_logps.shape == shape)
         assert(num_blanks.shape == shape)
-          
+        
         self.transcripts[self._batch_indices, self._beam_indices, self.current_lengths] = labels
-        self._full_transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths] = labels
         
         self._label_scores += label_logps
         self._blank_scores += blank_logps
         self.scores += self._calculate_score(label_logps, blank_logps)
-        
-        # TODO vectorize this
+                
+        # TODO rewrite in vector form
         for batch_idx in self._batch_indices.flatten():
             for beam_idx in self._beam_indices.flatten():                
                 start_index = self._full_current_lengths[batch_idx, beam_idx]
                 blanks_length = num_blanks[batch_idx, beam_idx]
                 self._full_transcripts[batch_idx, beam_idx, start_index : start_index + blanks_length] = 1024
         
-        self.timesteps_end[self._batch_indices, self._beam_indices, self.current_lengths] = num_blanks + 1
+        self.timesteps[self._batch_indices, self._beam_indices, self.current_lengths] = self.timesteps_end[self._batch_indices, self._beam_indices, self.current_lengths - 1]
+        self.timesteps_end[self._batch_indices, self._beam_indices, self.current_lengths] = self.timesteps_end[self._batch_indices, self._beam_indices, self.current_lengths -1] + num_blanks
         self.current_lengths += 1
-        self._full_current_lengths += num_blanks + 1
-        self.last_timestep = num_blanks + 1
+        self.last_timestep += num_blanks
+        
+        print(self._full_current_lengths-1)
+        print(self._full_transcripts.shape[-1])
+        self._full_transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths - 1] = labels
+        
     
     def update_beam(self,
                      labels: torch.Tensor,
@@ -873,40 +783,28 @@ class BeamBatchedHyps:
                      blank_logps: torch.Tensor,
                      num_blanks: torch.Tensor,
                      beam_idx: torch.Tensor):
+        beam_idx = beam_idx
+        beam_idx_unsqueezed = beam_idx.unsqueeze(-1).expand(-1, -1, self._max_length)
         
-        self.transcripts[self._batch_indices, self._beam_indices, self.current_lengths] = labels
-        self._full_transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths] = labels
+        self.scores = self.scores.gather(dim=1, index=beam_idx)
+        self.last_timestep = self.last_timestep.gather(dim=1, index=beam_idx)
+        self.current_lengths = self.current_lengths.gather(dim=1, index=beam_idx)
         
-        self._label_scores += label_logps
-        self._blank_scores += blank_logps
-        self.scores += self._calculate_score(label_logps, blank_logps)
+        self.timesteps = self.timesteps.gather(dim=1, index=beam_idx_unsqueezed)
+        self.transcripts = self.transcripts.gather(dim=1, index=beam_idx_unsqueezed)
+        self.timesteps_end = self.timesteps_end.gather(dim=1, index=beam_idx_unsqueezed)
         
+        assert(self.timesteps.shape[-1] == self._max_length)
+        assert(self.transcripts.shape[-1] == self._max_length)
+        assert(self.timesteps_end.shape[-1] == self._max_length)
+        assert(self._full_transcripts.shape[-1] == self._max_length)
         
-        shape = labels.shape
-        assert(shape[0] == self.batch_size)
-        assert(shape[1] == self.beam_size)
-        assert(label_logps.shape == shape)
-        assert(blank_logps.shape == shape)
-        assert(num_blanks.shape == shape)
-          
-        self.transcripts[self._batch_indices, self._beam_indices, self.current_lengths] = labels
-        self.transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths] = labels
+        self._label_scores = self._label_scores.gather(dim=1, index=beam_idx)
+        self._blank_scores = self._blank_scores.gather(dim=1, index=beam_idx)
+        self._full_current_lengths = self._full_current_lengths.gather(dim=1, index=beam_idx)
+        self._full_transcripts = self._full_transcripts.gather(dim=1, index=beam_idx_unsqueezed)
         
-        self._label_scores += label_logps
-        self._blank_scores += blank_logps
-        self.scores += self._calculate_score(label_logps, blank_logps)
-        
-        # TODO vectorize this
-        for batch_idx in self._batch_indices.flatten():
-            for beam_idx in self._beam_indices.flatten():                
-                start_index = self._full_current_lengths[batch_idx, beam_idx]
-                blanks_length = num_blanks[batch_idx, beam_idx]
-                self._full_transcripts[batch_idx, beam_idx, start_index : start_index + blanks_length] = 1024
-        
-        self.timesteps_end[self._batch_indices, self._beam_indices, self.current_lengths] = num_blanks + 1
-        self.current_lengths += 1
-        self._full_current_lengths += num_blanks + 1
-        self.last_timestep = num_blanks + 1
+        self.append_labels(labels, label_logps, blank_logps, num_blanks)
         
     def _calculate_score(self,
                          label_logps,
@@ -995,8 +893,12 @@ class BeamBatchedExpansions:
         Allocate 2x space for tensors, similar to common C++ std::vector implementations
         to maintain O(1) insertion time complexity
         """
-        self.transcript = torch.cat((self.transcript, torch.zeros_like(self.transcript)), dim=-1)
+        self.scores = torch.cat(self.scores, torch.zeros_like(self.scores), dim=-1)
         self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
+        self.transcript = torch.cat((self.transcript, torch.zeros_like(self.transcript)), dim=-1)
+        self.last_timestep = torch.cat((self.last_timestep, torch.zeros_like(self.last_timestep)), dim=-1)
+        self.timesteps_end = torch.cat((self.timesteps_end, torch.zeros_like(self.timesteps_end)), dim=-1)
+        self.current_lengths = torch.cat(self.current_lengths, torch.zeros_like(self.current_lengths), dim=-1)
         
         self._total_scores = torch.cat(self._total_scores, torch.zeros_like(self._total_scores), dim=-1)
         self._label_scores = torch.cat(self._label_scores, torch.zeros_like(self._label_scores), dim=-1)

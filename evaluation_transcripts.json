@@ -1,0 +1,2 @@
+{"duration": 1.95, "audio_filepath": "audio/e308823c-77b1-48e7-ab66-41cb0c84fa45_000403.wav", "text": "so right when I turned it it was that error", "pred_text": "so right when i turned it it was that error", "wer": 0.1, "tokens": 10, "ins_rate": 0.0, "del_rate": 0.0, "sub_rate": 0.1}
+{"duration": 2.37, "audio_filepath": "audio/1365d1ee-65c0-4bed-8d43-fd095915103b_000388.wav", "text": "interpretation of their regulations", "pred_text": "interpretation of their regulations", "wer": 0.0, "tokens": 4, "ins_rate": 0.0, "del_rate": 0.0, "sub_rate": 0.0}
