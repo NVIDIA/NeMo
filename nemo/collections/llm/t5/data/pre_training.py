@@ -144,6 +144,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         # create tokenizer if tokenizer is None
         if tokenizer is None:
             from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
             special_tokens = {}
             special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
             tokenizer = get_nmt_tokenizer(

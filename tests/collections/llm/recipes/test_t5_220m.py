@@ -16,10 +16,10 @@ import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import t5_220m
 from nemo.collections.llm.t5.data.mock import MockDataModule
 from nemo.collections.llm.t5.data.squad import SquadDataModule
-from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.t5.model.t5 import T5Config220M, T5Model
 from nemo.lightning import Trainer
 
