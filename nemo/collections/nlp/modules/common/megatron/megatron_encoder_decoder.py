@@ -46,8 +46,7 @@ __all__ = ["MegatronTransformerEncoderDecoderModule"]
 
 
 class MegatronTransformerEncoderDecoderModule(MegatronModule):
-    """Transformer encoder-decoder model.
-    """
+    """Transformer encoder-decoder model."""
 
     def __init__(
         self,
@@ -144,7 +143,11 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # apply hidden transformations if needed
         if self.hiddens_module is not None:
             enc_output = self.hiddens_module.apply_hidden_transforms(
-                {"hiddens": enc_output, "hiddens_mask": self.get_hiddens_mask(enc_attn_mask),}, batch_data=batch_data,
+                {
+                    "hiddens": enc_output,
+                    "hiddens_mask": self.get_hiddens_mask(enc_attn_mask),
+                },
+                batch_data=batch_data,
             )
 
         return enc_output
@@ -163,7 +166,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         set_inference_key_value_memory=False,
         decoder_max_sequence_len=None,
         encoder_max_sequence_len=None,
-        enc_output_to_layers=None
+        enc_output_to_layers=None,
     ):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
@@ -181,7 +184,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             set_inference_key_value_memory=set_inference_key_value_memory,
             decoder_max_sequence_len=decoder_max_sequence_len,
             encoder_max_sequence_len=encoder_max_sequence_len,
-            enc_output_to_layers=enc_output_to_layers
+            enc_output_to_layers=enc_output_to_layers,
         )
 
         return dec_output
@@ -207,7 +210,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         set_inference_key_value_memory=False,
         decoder_max_sequence_len=None,
         encoder_max_sequence_len=None,
-        enc_output_to_layers=None
+        enc_output_to_layers=None,
     ):
         # encoder
         if enc_output is None:
@@ -236,9 +239,11 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_output = self.decode(
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
-            enc_output=enc_output["enc_output"]  # enc_output is a dict if we used hidden transformations
-            if self.hiddens_module is not None
-            else enc_output,
+            enc_output=(
+                enc_output["enc_output"]  # enc_output is a dict if we used hidden transformations
+                if self.hiddens_module is not None
+                else enc_output
+            ),
             # Adjust encoder attention mask if encoder is a perceiver.
             enc_attn_mask=self.get_hiddens_mask(enc_attn_mask),
             dec_layer_past=dec_layer_past,
@@ -249,7 +254,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             set_inference_key_value_memory=set_inference_key_value_memory,
             decoder_max_sequence_len=decoder_max_sequence_len,
             encoder_max_sequence_len=encoder_max_sequence_len,
-            enc_output_to_layers=enc_output_to_layers
+            enc_output_to_layers=enc_output_to_layers,
         )
 
         # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor

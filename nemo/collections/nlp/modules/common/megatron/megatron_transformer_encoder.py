@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """Transformer based language model."""
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_module import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -23,7 +25,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_attention_mask_3d,
 )
 from nemo.core.classes.exportable import Exportable
-import torch
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -164,7 +165,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def forward(
@@ -182,7 +183,9 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         else:
             enc_attn_mask_3d = attn_mask_postprocess(
                 build_attention_mask_3d(
-                    source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
+                    source_mask=enc_attn_mask,
+                    target_mask=enc_attn_mask,
+                    attn_mask_type=self.model_attn_mask_type,
                 )
             )
 
@@ -352,13 +355,13 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
                 use_flash_attention=use_flash_attention,
             )
             self.model.append(transformer)
-        
+
         self.model = torch.nn.ModuleList(self.model)
 
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         for mi in range(len(self.model)):
             self.model[mi].set_input_tensor(input_tensor)
 
@@ -379,7 +382,7 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
         enc_self_attention_relative_position_bias=None,
         set_inference_key_value_memory=False,
     ):
-        
+
         assert isinstance(enc_input, list)
         assert len(enc_input) == len(self.model)
         assert isinstance(enc_attn_mask, list)
@@ -391,13 +394,15 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
             enc_input_ = enc_input[encoder_number]
             enc_attn_mask_ = enc_attn_mask[encoder_number]
             enc_self_attention_relative_position_bias_ = enc_self_attention_relative_position_bias[encoder_number]
-        
+
             if self.use_flash_attention:
                 enc_attn_mask_3d = enc_attn_mask_ < 0.5
             else:
                 enc_attn_mask_3d = attn_mask_postprocess(
                     build_attention_mask_3d(
-                        source_mask=enc_attn_mask_, target_mask=enc_attn_mask_, attn_mask_type=self.model_attn_mask_type,
+                        source_mask=enc_attn_mask_,
+                        target_mask=enc_attn_mask_,
+                        attn_mask_type=self.model_attn_mask_type,
                     )
                 )
 
@@ -413,7 +418,7 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
             )
 
             enc_outputs.append(enc_output)
-        
+
         return enc_outputs
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

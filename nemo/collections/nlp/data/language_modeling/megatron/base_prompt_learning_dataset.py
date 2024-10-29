@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import omegaconf
+import torch
 
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.core import Dataset
@@ -74,7 +74,7 @@ class BasePromptLearningDataset(Dataset):
                 dataset = open(path, 'r', encoding='utf-8')
                 dataset_examples = self.load_data(dataset)
                 self.examples.extend(dataset_examples)
-        elif (isinstance(datasets[0], omegaconf.ListConfig) or isinstance(datasets[0], list)):
+        elif isinstance(datasets[0], omegaconf.ListConfig) or isinstance(datasets[0], list):
             # Dataset is a list of tuples with the first element being the probability of sampling from the dataset
             # This code repeates the smaller datasets to approximately match the target probabilities
             total_examples = 0
@@ -106,7 +106,9 @@ class BasePromptLearningDataset(Dataset):
             final_dataset_lengths = []
             for dataset_idx in range(len(datasets)):
                 num_samples_required = int(new_total_examples * target_probs[dataset_idx])
-                num_repeat = max(int(round(num_samples_required // dataset_lengths[dataset_idx])), 1) # At least 1 repeat
+                num_repeat = max(
+                    int(round(num_samples_required // dataset_lengths[dataset_idx])), 1
+                )  # At least 1 repeat
                 logging.info("dataset idx {}, num_repeat {}".format(dataset_idx, num_repeat))
                 dataset_examples_repeated = datasets_examples_list[dataset_idx] * num_repeat
                 final_dataset_lengths.append(len(dataset_examples_repeated))

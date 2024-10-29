@@ -61,7 +61,7 @@ class AudioDataset(Dataset):
         max_same_speaker_audios=1,
         use_context_as_same_speaker_audio=False,
         pad_multiple=320,
-        audio_type="actual", # actual or noise or silence
+        audio_type="actual",  # actual or noise or silence
     ):
         self.data = []
         speakerwise_records = {}
@@ -71,7 +71,7 @@ class AudioDataset(Dataset):
                     record = json.loads(line)
                     if 'answer_duration' not in record:
                         record['answer_duration'] = record['duration']
-                    
+
                     if isinstance(record['speaker'], str) and 'mls_english_' in record['speaker']:
                         record['speaker'] = record['speaker'].replace('mls_english_', '')
                         record['speaker'] = int(record['speaker'])
@@ -83,7 +83,7 @@ class AudioDataset(Dataset):
                         record['context_duration'] < min_duration or record['context_duration'] > max_duration
                     ):
                         continue
-                    
+
                     if self._is_record_valid(record):
                         self.data.append(record)
                         if record['speaker'] not in speakerwise_records:
@@ -136,7 +136,7 @@ class AudioDataset(Dataset):
         except:
             print("Skipping invalid record", record["audio_filepath"])
             return False
-        
+
     def filter_invalid_records(self):
         filtered_data = []
         for ridx, record in enumerate(self.data):
@@ -158,7 +158,7 @@ class AudioDataset(Dataset):
         # to ensure all context file paths have their codes extracted and saved.
         context_paths = {}
         target_paths = {}
-        
+
         for record in self.data:
             if 'context' in record:
                 if 'context_duration' not in record:
@@ -206,11 +206,14 @@ class AudioDataset(Dataset):
             if perturb:
                 perturbed_audio = audio * 1.0
                 perturbed_audio_length = (audio_length * 1.0).long()
-            
+
             return audio, audio_length, perturbed_audio, perturbed_audio_length
         elif self.audio_type == "actual":
             features = AudioSegment.segment_from_file(
-                audio_filepath, target_sr=self.sample_rate, n_segments=-1, trim=False,
+                audio_filepath,
+                target_sr=self.sample_rate,
+                n_segments=-1,
+                trim=False,
             )
             audio_samples = features.samples
             audio = torch.tensor(audio_samples)
@@ -231,7 +234,7 @@ class AudioDataset(Dataset):
                 # import ipdb; ipdb.set_trace()
 
             return audio, audio_length, perturbed_audio, perturbed_audio_length
-        
+
         else:
             raise ValueError("Unknown audio type {}".format(self.audio_type))
 
@@ -279,7 +282,7 @@ class AudioDataset(Dataset):
             "rel_audio_path_as_text_id",
             "samespeaker_audioids",
             "samespeaker_wavpaths",
-            "speaker"
+            "speaker",
         ]
 
         for key in final_batch:
@@ -445,7 +448,9 @@ def main():
     parser.add_argument('--dataset_name', type=str, default='LibriTTSCorrectContext_train')
     parser.add_argument('--codec_model_path', type=str, default='/Data/Checkpoints/rlang_codec/SpeechCodec.nemo')
     parser.add_argument('--codec_bw', type=float, default=6.0)  # 6 for 8 codebooks, 1.5 for 3 codebooks
-    parser.add_argument('--codec_model', type=str, default='nemo_codec')  # encodec, uniaudio_codec, dac, nemo_codec, nemo_codec21, nemo_codec211k, nemo_codec214k
+    parser.add_argument(
+        '--codec_model', type=str, default='nemo_codec'
+    )  # encodec, uniaudio_codec, dac, nemo_codec, nemo_codec21, nemo_codec211k, nemo_codec214k
     parser.add_argument('--use_context_as_same_speaker_audio', action='store_true')
     parser.add_argument('--save_only_tts_records', action='store_true')
     parser.add_argument('--shuffle', action='store_true')
@@ -504,7 +509,11 @@ def main():
     )
 
     dataloader = torch.utils.data.DataLoader(
-        dataset=dataset, batch_size=args.batch_size, collate_fn=dataset.pad_collate_fn, shuffle=False, num_workers=8,
+        dataset=dataset,
+        batch_size=args.batch_size,
+        collate_fn=dataset.pad_collate_fn,
+        shuffle=False,
+        num_workers=8,
     )
 
     _exp_name = "{}_{}_bw_{}".format(args.dataset_name, args.codec_model, args.codec_bw)
@@ -570,10 +579,10 @@ def main():
                     )
             else:
                 raise ValueError("Unknown codec model {}".format(args.codec_model))
-        
+
         if args.save_only_tts_records:
-            perturbed_codec_codes = original_codec_codes # Dummy values to not break the code
-            mixed_codec_codes = original_codec_codes # Dummy values to not break the code
+            perturbed_codec_codes = original_codec_codes  # Dummy values to not break the code
+            mixed_codec_codes = original_codec_codes  # Dummy values to not break the code
 
         # codec_codes = transformer_encodec_model.encode(batch["audio"].unsqueeze(1), audio_len_mask, bandwidth=6.0)
         target_codecs = []
@@ -629,7 +638,11 @@ def main():
                 "context_duration": batch['context_duration'][sidx],
                 "answer_duration": batch['duration'][sidx],
                 "taskname": "squad",
-                "speaker": batch['speaker'][sidx].item() if torch.is_tensor(batch['speaker'][sidx]) else batch['speaker'][sidx],
+                "speaker": (
+                    batch['speaker'][sidx].item()
+                    if torch.is_tensor(batch['speaker'][sidx])
+                    else batch['speaker'][sidx]
+                ),
             }
 
             phoneme_tts_record = {key: value for key, value in tts_record.items()}

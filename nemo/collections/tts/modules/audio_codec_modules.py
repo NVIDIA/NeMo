@@ -208,7 +208,7 @@ class Conv1dNorm(NeuralModule):
         stride: int = 1,
         dilation: int = 1,
         padding: Optional[int] = None,
-        activation: Optional[str] = None
+        activation: Optional[str] = None,
     ):
         super().__init__()
         if not padding:

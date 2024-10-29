@@ -207,8 +207,7 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         )
 
     def freeze_existing_word_embeddings(self):
-        """Freeze params of existing virtual prompts that should not be tuned further
-        """
+        """Freeze params of existing virtual prompts that should not be tuned further"""
         # Make sure word embeddings are frozen
         for params in self.word_embeddings.parameters():
             params.requires_grad = False

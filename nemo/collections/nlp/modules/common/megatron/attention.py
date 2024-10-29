@@ -517,7 +517,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # If we are in cross attention (inference_current_sequence_len == inference_max_sequence_len == inference_key_memory.size(0))
         # We only need to cache this once
         if inference_max_sequence_len and self.inference_current_sequence_len < inference_max_sequence_len:
-            logging.debug(f"inference_current_sequence_len={self.inference_current_sequence_len} | key_layer.shape={key_layer.shape} | inference_key_memory={self.inference_key_memory.size()} | inference_value_memory={self.inference_value_memory.size()}")
+            logging.debug(
+                f"inference_current_sequence_len={self.inference_current_sequence_len} | key_layer.shape={key_layer.shape} | inference_key_memory={self.inference_key_memory.size()} | inference_value_memory={self.inference_value_memory.size()}"
+            )
             # Adjust the range variables.
             start = self.inference_current_sequence_len
             self.inference_current_sequence_len += key_layer.size(0)
@@ -954,7 +956,12 @@ class CoreAttention(MegatronModule):
                 f"not returning scores: attn_type={self.attention_type} | attn_fn={self.attn_fn} | return_scores={return_scores}"
             )
             context_layer = self.attn_fn(
-                query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode,
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                relative_position_bias,
+                inference_mode,
             )
         else:
             # SpeechLLM TTS modifications
@@ -977,7 +984,12 @@ class CoreAttention(MegatronModule):
                     f"attn_fn: {self.attn_fn}, return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}"
                 )
                 context_layer = self.attn_fn(
-                    query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode,
+                    query_layer,
+                    key_layer,
+                    value_layer,
+                    attention_mask,
+                    relative_position_bias,
+                    inference_mode,
                 )
 
         if headscale_tensor is not None:
