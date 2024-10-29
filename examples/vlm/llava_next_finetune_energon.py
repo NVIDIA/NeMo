@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import argparse
-
+from nemo.utils.exp_manager import TimingCallback
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from transformers import AutoProcessor
@@ -25,12 +25,13 @@ from nemo.collections.multimodal.data.energon.config import MultiModalSampleConf
 from nemo.collections.vlm import ImageDataConfig, LlavaNextTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 128
-    mbs = 4
+    gbs = 4
+    mbs = 1
     seq_length = 4096
 
     # Data configuration
@@ -52,15 +53,18 @@ def main(args):
     # )
 
     # energon data config
-    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
+    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
     data_path = args.data_path
     image_processor = processor.image_processor
-    tokenizer = processor.tokenizer
+    # tokenizer = processor.tokenizer
+    tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
 
     multimodal_sample_config = MultiModalSampleConfig()
 
     task_encoder = LlavaNextTaskEncoder(
-        tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config
+        tokenizer=tokenizer.tokenizer,
+        image_processor=image_processor,
+        multimodal_sample_config=multimodal_sample_config,
     )
     data = SimpleMultiModalDataModule(
         path=data_path,
@@ -97,9 +101,14 @@ def main(args):
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
     # Training strategy setup
+    # strategy = nl.MegatronStrategy(
+    #     tensor_model_parallel_size=args.tp_size,
+    #     pipeline_model_parallel_size=1,
+    #     pipeline_dtype=torch.bfloat16,
+    # )
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
-        pipeline_model_parallel_size=1,
+        pipeline_model_parallel_size=args.pp_size,
         pipeline_dtype=torch.bfloat16,
     )
 
@@ -119,7 +128,7 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, TimingCallback()],
         val_check_interval=1000,
         limit_val_batches=gbs,
         log_every_n_steps=1,
@@ -191,8 +200,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
-    parser.add_argument("--devices", type=int, required=False, default=4)
-    parser.add_argument("--tp_size", type=int, required=False, default=4)
+    parser.add_argument("--devices", type=int, required=False, default=8)
+    # parser.add_argument("--tp_size", type=int, required=False, default=4)
+    parser.add_argument("--tp_size", type=int, required=False, default=2)
+    parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="neva_finetune")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
