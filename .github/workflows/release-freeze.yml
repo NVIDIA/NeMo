@@ -22,6 +22,7 @@ jobs:
       name_of_library: NeMo-Toolkit
       type_of_release: ${{ inputs.type_of_release }}
       python_package: nemo
+      slack_endpoint: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
   
   freeze-tags:
     runs-on: ubuntu-latest
