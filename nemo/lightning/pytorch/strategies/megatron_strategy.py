@@ -67,7 +67,6 @@ from nemo.lightning.megatron_parallel import (
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
-    _MegatronBatchProgress,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -160,8 +159,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             that prints the metrics to stdout. Suitable for non-interactive settings.
         progress_interval (int): How frequently to print progress to stdout. Only used when
             replace_progress_bar is True.
-        overwrite_batch_progress (bool): Whether to overwrite _BatchProgress class used in PTL by default with
-            _MegatronBatchProgress. This should be True whenever you're using a Megatron-based dataset.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -204,7 +201,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
         restore_config: Optional[RestoreConfig] = None,
-        overwrite_batch_progress: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -245,7 +241,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
-        self.overwrite_batch_progress = overwrite_batch_progress
 
         self.restore_config = restore_config
 
@@ -302,6 +297,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.accelerator.setup(trainer)
         self.trainer = trainer
 
+        try:
+            self.model.optim.lr_scheduler.max_steps = trainer.max_steps
+            logging.info(f"Copying Trainer's 'max_steps' ({trainer.max_steps}) to LR scheduler's 'max_steps'.")
+        except AttributeError:
+            logging.warning(
+                "Could not copy Trainer's 'max_steps' to LR scheduler's 'max_steps'. If you are not using an LR scheduler, this warning can safely be ignored."
+            )
+
         # move the model to the correct device
         # self.model_to_device()
 
@@ -345,8 +348,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.configure_ddp()
 
             trainer.fit_loop.epoch_loop.automatic_optimization = _MegatronAutomaticOptimization(trainer)
-            if self.overwrite_batch_progress:
-                trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
 
             import torch.distributed.algorithms.ddp_comm_hooks.post_localSGD_hook as post_localSGD
 

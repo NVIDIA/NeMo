@@ -25,8 +25,11 @@ from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.trainer.states import TrainerFn
 from typing_extensions import override
 
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -34,10 +37,7 @@ if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 
 
-_ADAPTER_META_FILENAME = "adapter_metadata.json"
-
-
-class PEFT(ABC, ModelTransform):
+class PEFT(IOMixin, ABC, ModelTransform):
     """Abstract base class for Parameter-Efficient Fine-Tuning (PEFT) methods.
 
     This class defines the interface for PEFT methods, which are used to fine-tune
@@ -172,6 +172,16 @@ class PEFT(ABC, ModelTransform):
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
                 trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
+
+        for cb in trainer.callbacks[::-1]:
+            if isinstance(cb, MegatronOptimizerModule):
+                cb.on_fit_start(trainer, trainer.lightning_module)
+                break
+        else:
+            logging.warning(
+                "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
+                "properly set up for PEFT."
+            )
 
     def adapter_key_filter(self, key: str) -> bool:
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
@@ -312,7 +322,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+            adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
         return request
@@ -346,7 +356,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
         assert self.checkpoint_io is not None
 
-        adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+        adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
         adapter_ckpt = None
         if getattr(path, "base_model_path", None):
             ## PEFT Resume, FIRST TIME
