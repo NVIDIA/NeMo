@@ -245,3 +245,20 @@ def test_multimodal_conversation_tarred_format(multimodal_conversations_path, tm
             assert lhs.audio_locator_tag == rhs.audio_locator_tag
             assert lhs.cut.id == rhs.cut.id
             np.testing.assert_allclose(lhs.cut.load_audio(), rhs.cut.load_audio())
+
+
+def test_multimodal_conversation_tarred_format_sharding_works(multimodal_conversations_path, tmp_path_factory):
+    (conversation,) = list(NeMoMultimodalConversationJsonlAdapter(multimodal_conversations_path, "[audio]"))
+    tar_dir = tmp_path_factory.mktemp("multi_convo_tarred")
+    with NeMoMultimodalConversationTarWriter(tar_dir, shard_size=10) as writer:
+        for i in range(30):
+            writer.write(conversation)
+
+    loader = NeMoMultimodalConversationJsonlAdapter(
+        manifest_filepath=tar_dir / "manifest_{0..2}.jsonl",
+        audio_locator_tag="[audio]",
+        tarred_audio_filepaths=tar_dir / "audio_{0..2}.tar",
+    )
+    restored = list(loader)
+    assert len(restored) == 30
+    assert all(c == restored[0] for c in restored[1:])

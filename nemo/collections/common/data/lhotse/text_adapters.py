@@ -522,10 +522,11 @@ class NeMoMultimodalConversationTarWriter:
     def __init__(self, output_dir: str, shard_size: int = 100):
         self.output_dir = output_dir
         self.shard_size = shard_size
-        self.manifest_writer = JsonlShardWriter(f"{output_dir}/manifest_%d.jsonl", shard_size=shard_size)
-        self.tar_writer = AudioTarWriter(f"{output_dir}/audio_%d.tar", shard_size=shard_size)
+        self._reset()
+        self._setup_writers()
 
     def write(self, example: NeMoMultimodalConversation):
+        self._maybe_increment_shard()
         serialized = example.to_dict()
         for turn in serialized["conversations"]:
             if turn["type"] == "audio":
@@ -536,18 +537,34 @@ class NeMoMultimodalConversationTarWriter:
                 cut.has_recording
             ), f"Cannot serialize multimodal conversation with cuts that have no recordings. We got: {cut}"
             self.tar_writer.write(cut.recording.id, cut.load_audio(), cut.sampling_rate, cut.recording)
+        self.item_cntr += 1
 
     def close(self):
         self.manifest_writer.close()
         self.tar_writer.close()
 
     def __enter__(self):
+        self._reset()
         self.manifest_writer.__enter__()
         self.tar_writer.__enter__()
         return self
 
     def __exit__(self, *args, **kwargs):
         self.close()
+
+    def _maybe_increment_shard(self):
+        if self.item_cntr > 0 and self.item_cntr % self.shard_size == 0:
+            self.item_cntr = 0
+            self.shard_idx += 1
+            self._setup_writers()
+
+    def _reset(self):
+        self.item_cntr = 0
+        self.shard_idx = 0
+
+    def _setup_writers(self):
+        self.manifest_writer = JsonlShardWriter(f"{self.output_dir}/manifest_{self.shard_idx}.jsonl", shard_size=None)
+        self.tar_writer = AudioTarWriter(f"{self.output_dir}/audio_{self.shard_idx}.tar", shard_size=None)
 
 
 """
