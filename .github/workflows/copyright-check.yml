@@ -26,7 +26,7 @@ jobs:
           path: ${{ github.run_id }}
           fetch-depth: 0
 
-      - name: Run on change-set
+      - name: Check files have copyright notice
         run: |
           cd ${{ github.run_id }}
 
