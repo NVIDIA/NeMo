@@ -14,7 +14,8 @@
 
 import copy
 import random
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import asdict, dataclass
 from itertools import groupby
 from pathlib import Path
 from typing import Iterator, Literal, Optional, Union
@@ -25,7 +26,8 @@ from lhotse import Recording
 from lhotse.cut import Cut
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
-from lhotse.utils import Pathlike
+from lhotse.shar import AudioTarWriter, JsonlShardWriter, TarIterator, TarWriter
+from lhotse.utils import Pathlike, asdict_nonull
 
 from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_filepaths
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -316,12 +318,27 @@ class TextTurn:
     value: str
     role: str
 
+    def to_dict(self):
+        return {"type": "text", "from": self.role.title(), "value": self.value}
+
 
 @dataclass
 class AudioTurn:
     cut: Cut
     role: str
     audio_locator_tag: str
+
+    def to_dict(self):
+        assert self.cut.has_recording and self.cut.recording.sources[0].type not in {
+            "shar",
+            "memory",
+        }, "Cannot serialize AudioTurn to dict because it doesn't reference an audio file (the audio is stored in memory)."
+        return {
+            "type": "audio",
+            "from": self.role.title(),
+            "duration": self.cut.duration,
+            "value": self.cut.recording.sources[0].source,
+        }
 
 
 @dataclass
@@ -376,6 +393,12 @@ class NeMoMultimodalConversation:
 
         return self
 
+    def to_dict(self):
+        return {"id": self.id, "conversations": [t.to_dict() for t in self.turns]}
+
+    def list_cuts(self) -> list[Cut]:
+        return [turn.cut for turn in self.turns if isinstance(turn, AudioTurn)]
+
 
 @dataclass
 class NeMoMultimodalConversationJsonlAdapter:
@@ -408,12 +431,63 @@ class NeMoMultimodalConversationJsonlAdapter:
     def __post_init__(self):
         self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
         if self.tarred_audio_filepaths is not None:
-            raise NotImplementedError(
-                "Tarred manifests are currently not supported yet for NeMoMultimodalConversation."
-            )
             self.tarred_audio_filepaths = expand_sharded_filepaths(self.tarred_audio_filepaths)
+            assert len(self.manifest_filepath) == len(
+                self.tarred_audio_filepaths
+            ), f"{len(self.manifest_filepath)} != {len(self.tarred_audio_filepaths)}"
 
     def __iter__(self) -> Iterator[NeMoMultimodalConversation]:
+        if self.tarred_audio_filepaths is not None:
+            yield from self._iter_tar()
+        else:
+            yield from self._iter_jsonl()
+
+    def _iter_tar(self):
+        paths = list(zip(self.manifest_filepath, self.tarred_audio_filepaths))
+        if self.shuffle_shards:
+            seed = resolve_seed(self.shard_seed)
+            random.Random(seed).shuffle(paths)
+        for jsonl_path, tar_path in paths:
+            tar = iter(TarIterator(tar_path))
+            for data in load_jsonl(jsonl_path):
+                audio_turns = [t for t in data["conversations"] if t["type"] == "audio"]
+                cuts = []
+                for turn in audio_turns:
+                    recording, audio_path = next(tar)
+                    audio_path = str(audio_path)
+                    cut = recording.to_cut()
+                    assert (
+                        audio_path == turn['value']
+                    ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"
+                    assert (
+                        cut.duration == turn["duration"]
+                    ), f"Mismatch between JSONL and tar. JSONL defines audio duration={turn['duration']} but we got the following from tar {cut.duration=}"
+                    cuts.append(cut)
+                cuts = deque(cuts)
+                yield NeMoMultimodalConversation(
+                    id=data["id"],
+                    turns=[
+                        (
+                            TextTurn(
+                                value=turn["value"],
+                                role=turn[
+                                    "from"
+                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                            )
+                            if turn["type"] == "text"
+                            else AudioTurn(
+                                cut=cuts.popleft(),
+                                role=turn[
+                                    "from"
+                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                                audio_locator_tag=self.audio_locator_tag,
+                            )
+                        )
+                        for turn in data["conversations"]
+                    ],
+                )
+
+    def _iter_jsonl(self):
         paths = self.manifest_filepath
         if self.shuffle_shards:
             seed = resolve_seed(self.shard_seed)
@@ -442,6 +516,38 @@ class NeMoMultimodalConversationJsonlAdapter:
                         for turn in data["conversations"]
                     ],
                 )
+
+
+class NeMoMultimodalConversationTarWriter:
+    def __init__(self, output_dir: str, shard_size: int = 100):
+        self.output_dir = output_dir
+        self.shard_size = shard_size
+        self.manifest_writer = JsonlShardWriter(f"{output_dir}/manifest_%d.jsonl", shard_size=shard_size)
+        self.tar_writer = AudioTarWriter(f"{output_dir}/audio_%d.tar", shard_size=shard_size)
+
+    def write(self, example: NeMoMultimodalConversation):
+        serialized = example.to_dict()
+        for turn in serialized["conversations"]:
+            if turn["type"] == "audio":
+                turn["value"] = Path(turn["value"]).with_suffix(".flac").name
+        self.manifest_writer.write(serialized)
+        for cut in example.list_cuts():
+            assert (
+                cut.has_recording
+            ), f"Cannot serialize multimodal conversation with cuts that have no recordings. We got: {cut}"
+            self.tar_writer.write(cut.recording.id, cut.load_audio(), cut.sampling_rate, cut.recording)
+
+    def close(self):
+        self.manifest_writer.close()
+        self.tar_writer.close()
+
+    def __enter__(self):
+        self.manifest_writer.__enter__()
+        self.tar_writer.__enter__()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.close()
 
 
 """
