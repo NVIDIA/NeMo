@@ -24,10 +24,10 @@ from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.t5.data.mock import MockDataModule
-from nemo.collections.llm.t5.model.t5 import T5Config3B, T5Model
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.t5.data.mock import MockDataModule
+from nemo.collections.llm.t5.model.t5 import T5Config3B, T5Model
 from nemo.lightning.pytorch.optim.lr_scheduler import WarmupAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -195,7 +195,9 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=512, seq_length_dec=128, global_batch_size=1920, micro_batch_size=24),
+        data=run.Config(
+            MockDataModule, seq_length=512, seq_length_dec=128, global_batch_size=1920, micro_batch_size=24
+        ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=MegatronOptimizerModule(config=opt_config, lr_scheduler=lr_scheduler),
         resume=default_resume(),

@@ -222,6 +222,7 @@ class T5Config3B(T5Config):
     ffn_hidden_size: int = 5120
     num_attention_heads: int = 32
 
+
 @dataclass
 class T5Config11B(T5Config):
     num_layers: int = 24
@@ -229,6 +230,7 @@ class T5Config11B(T5Config):
     hidden_size: int = 4096
     ffn_hidden_size: int = 10240
     num_attention_heads: int = 64
+
 
 class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
