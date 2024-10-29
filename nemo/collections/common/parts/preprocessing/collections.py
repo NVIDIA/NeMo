@@ -430,6 +430,8 @@ class InstructionTuningAudioText(_Collection):
                 return len(data.split(' ')) + 3
         elif field_type == "TOKENS":
             return len(data) + 3
+        else:
+            raise ValueError(f"Unknown field type {field_type}")
 
 
 class ASRAudioText(AudioText):
