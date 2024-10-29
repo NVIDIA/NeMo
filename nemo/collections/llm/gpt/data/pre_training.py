@@ -226,17 +226,17 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         assert train_iters > 0, "Please specify trainer.max_steps"
         num_train_samples = int(train_iters * self.data_sampler.global_batch_size)
 
+        if self.num_train_samples is not None:
+            assert self.num_train_samples > num_train_samples, f"num_train_samples must be greater than {num_train_samples}."
+            num_train_samples = self.num_train_samples
+            train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
+
         eval_iters = (train_iters // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
 
         test_iters = self.trainer.limit_test_batches
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
 
-        if self.num_train_samples is not None:
-            assert (
-                self.num_train_samples > num_train_samples
-            ), f"num_train_samples must be greater than {num_train_samples}."
-            num_train_samples = self.num_train_samples
         if self.num_val_samples is not None:
             assert self.num_val_samples > num_val_samples, f"num_val_samples must be greater than {num_val_samples}."
             num_val_samples = self.num_val_samples
