@@ -49,6 +49,7 @@ class NemotronConfig(GPTConfig):
     persist_layer_norm: bool = True
     bias_dropout_add_fusion: bool = False
     layernorm_zero_centered_gamma: bool = True
+    cross_entropy_loss_fusion: bool = True
 
     # Nemotron3Config4B as default configs
     num_layers: int = 32
@@ -139,7 +140,8 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
     def apply(self, output_path: Path) -> Path:
         from transformers import NemotronForCausalLM
-
+        
+        print('Start converting Nemotron model..')
         source = NemotronForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
