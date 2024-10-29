@@ -23,7 +23,7 @@ jobs:
       type_of_release: ${{ inputs.type_of_release }}
       python_package: nemo
   
-  update-mcore:
+  freeze-tags:
     runs-on: ubuntu-latest
     needs: [code-freeze]
     steps:
