@@ -50,7 +50,6 @@ jobs:
           echo "main=${{ contains(fromJSON(steps.test_to_run.outputs.main), 'all') }}" | tee -a "$GITHUB_OUTPUT" 
   
   cicd-test-container-build:
-    needs: [cicd-cluster-clean]
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@main
     with:
