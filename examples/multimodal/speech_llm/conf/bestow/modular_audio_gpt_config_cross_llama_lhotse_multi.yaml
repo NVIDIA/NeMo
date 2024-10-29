@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # This configuration is similar to modular_audio_gpt_config_cross_llama_lhotse.yaml,
 # with the difference being in how it performs multimodal sampling. 
 # The changes are in model.data.train_ds section.
@@ -24,6 +23,10 @@
 # round_robin (taking turns), randomized_round_robin (at each step select a sampler according to weights), 
 # or zip (sample mini-batch from each and combine them).
 name: megatron_audio_gpt_bestow_lhotse_multi_sampler
+
+# Note: This config has been updated to work with PromptFormatter API.
+#       If you used an older version that defined a `train_ds.prompt_template` field,
+#       you should specify the prompt format using `train_ds.<group>.prompt_format` now instead.
 
 trainer:
   devices: 1

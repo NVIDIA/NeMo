@@ -25,6 +25,10 @@
 # or zip (sample mini-batch from each and combine them).
 name: megatron_audio_t5_salm_lhotse_multi_sampler
 
+# Note: This config has been updated to work with PromptFormatter API.
+#       If you used an older version that defined a `train_ds.prompt_template` field,
+#       you should specify the prompt format using `train_ds.<group>.prompt_format` now instead.
+
 trainer:
   devices: 1
   accelerator: gpu

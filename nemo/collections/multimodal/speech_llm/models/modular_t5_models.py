@@ -344,13 +344,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         input_signal = audio_batch['audio_signal']
         input_signal_length = audio_batch['audio_signal_length']
-
-        input_ids, input_length, labels, loss_mask = (
-            audio_batch['contexts'],
-            audio_batch['context_lengths'],
-            audio_batch['answers'],
-            audio_batch['loss_mask'],
-        )
+        input_ids = audio_batch['contexts']
+        input_length = audio_batch['context_lengths']
 
         # [b, t, c]
         encoded, encoded_len = self.perception(
@@ -387,12 +382,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             # enc_input = speech and text prompt
             # dec_input and label = text output label
             b = audio_batch['answers'].shape[0]
-            device = audio_batch['answers'].device
-            dec_input = (
-                audio_batch['masked_answer_ids'] if 'masked_answer_ids' in audio_batch else audio_batch['answers']
-            )
-            dec_input = torch.cat([torch.full([b, 1], self.bos_id, device=device), dec_input[:, :-1]], dim=-1)
             labels = audio_batch['answers']
+            dec_input = torch.cat([torch.full([b, 1], self.bos_id, device=labels.device), labels[:, :-1]], dim=-1)
             dec_mask = (dec_input != self.tokenizer.pad_id).long().contiguous()
             output = self.frozen_model.enc_dec_model(
                 enc_input_ids=None,
@@ -994,7 +985,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             audio_batch or text_batch and not (audio_batch and text_batch)
         ), f"Expecting only text or audio batch, got {len(text_batch)=} and {len(audio_batch)=}"
 
-        if 'audio_signal' in audio_batch:
+        if audio_batch:
             input_text = audio_batch['contexts']
             labels = audio_batch['answers']
             encoder_input, attention_mask, enc_mask = self.prepare_llm_input(audio_batch)
