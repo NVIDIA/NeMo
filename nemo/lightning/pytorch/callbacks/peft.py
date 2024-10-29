@@ -311,7 +311,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_weights_subdir(path, is_saving=True) / _ADAPTER_META_FILENAME
+            adapter_meta_path = ckpt_to_weights_subdir(path, is_saving=True) / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
         return request
