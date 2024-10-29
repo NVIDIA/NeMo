@@ -154,6 +154,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         split: str = "900,50,50",
         index_mapping_dir: Optional[str] = None,
         num_dataset_builder_threads: int = 1,
+        num_train_samples: Optional[int] = None,
+        num_val_samples: Optional[int] = None,
+        num_test_samples: Optional[int] = None,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
@@ -196,6 +199,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.index_mapping_dir = index_mapping_dir
         self.num_dataset_builder_threads = num_dataset_builder_threads
         self.init_global_step = 0
+        self.num_train_samples = num_train_samples
+        self.num_val_samples = num_val_samples
+        self.num_test_samples = num_test_samples
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -216,13 +222,25 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         ), "Setup should be completed when trainer and config are attached."
 
         # Trainer API
-        max_train_steps = self.trainer.max_steps
-        assert max_train_steps > 0, "Please specify trainer.max_steps"
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
-        num_train_samples = int(max_train_steps * self.data_sampler.global_batch_size)
+        train_iters = self.trainer.max_steps
+        assert train_iters > 0, "Please specify trainer.max_steps"
+        num_train_samples = int(train_iters * self.data_sampler.global_batch_size)
+
+        eval_iters = (train_iters // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
+
+        test_iters = self.trainer.limit_test_batches
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
+
+        if self.num_train_samples is not None:
+            assert self.num_train_samples > num_train_samples, f"num_train_samples must be greater than {num_train_samples}."
+            num_train_samples = self.num_train_samples
+        if self.num_val_samples is not None:
+            assert self.num_val_samples > num_val_samples, f"num_val_samples must be greater than {num_val_samples}."
+            num_val_samples = self.num_val_samples
+        if self.num_test_samples is not None:
+            assert self.num_test_samples > num_test_samples, f"num_test_samples must be greater than {num_test_samples}."
+            num_test_samples = self.num_test_samples
 
         if (
             self.trainer.limit_val_batches > 0.0
