@@ -87,7 +87,6 @@ class vLLMHFExporter(ITritonDeployable):
                 infer_input["temperature"] = inputs.pop("temperature")[0][0]
 
             output_texts = self.forward(**infer_input)
-            print(output_texts)
             output = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
@@ -113,4 +112,4 @@ class vLLMHFExporter(ITritonDeployable):
         for o in request_output:
             output.append(o.outputs[0].text)
 
-        return self.model.generate(input_texts)
+        return output
