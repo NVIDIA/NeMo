@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from contextlib import ExitStack, contextmanager
 from datetime import timedelta
 from typing import (
@@ -350,13 +364,20 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @contextmanager
     def megatron_context(self) -> Generator[None, None, None]:
-        def monkey_patched(config):
-            return {"device": "meta"}
-
         from megatron.core.extensions import transformer_engine as _te
 
         original = _te._get_extra_te_kwargs  # noqa: SLF001
-        _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
+
+        def _get_extra_te_kwargs_meta(c):
+            """Forces device to meta"""
+            kwargs = original(c)
+            kwargs['device'] = 'meta'
+            return kwargs
+
+        _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
+
+        _orig_perform_initialization = self.parallelism.perform_initialization
+        _orig_use_cpu_initialization = self.parallelism.use_cpu_initialization
 
         self.parallelism.perform_initialization = False
         self.parallelism.use_cpu_initialization = True
@@ -364,6 +385,8 @@ class FabricMegatronStrategy(DDPStrategy):
         yield
 
         _te._get_extra_te_kwargs = original  # noqa: SLF001
+        self.parallelism.perform_initialization = _orig_perform_initialization
+        self.parallelism.use_cpu_initialization = _orig_use_cpu_initialization
 
     @property
     @override

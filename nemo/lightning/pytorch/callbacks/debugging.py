@@ -1,8 +1,21 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Callable, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from prettytable import PrettyTable
 from pytorch_lightning.callbacks import Callback
 
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -141,6 +154,8 @@ class ParameterDebugger(Callback):
 
         # create table only if there is something to print
         if any(param_keys) or any(grad_keys):
+            from prettytable import PrettyTable
+
             debug_table = PrettyTable()
             debug_table.add_column("Parameter", names_col)
 
