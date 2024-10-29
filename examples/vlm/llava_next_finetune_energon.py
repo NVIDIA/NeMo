@@ -13,19 +13,20 @@
 # limitations under the License.
 
 import argparse
-from nemo.utils.exp_manager import TimingCallback
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.vlm import ImageDataConfig, LlavaNextTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.utils.exp_manager import TimingCallback
 
 
 def main(args):
