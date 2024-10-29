@@ -315,7 +315,6 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
     def convert_state(self, source, target):
         mapping = {
-            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
