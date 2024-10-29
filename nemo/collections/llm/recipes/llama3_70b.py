@@ -378,6 +378,7 @@ def finetune_performance_optimizations(
     else:
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
 
     recipe.trainer.strategy.sequence_parallel = True
 
