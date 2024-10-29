@@ -17,7 +17,7 @@ on:
 
 jobs:
   code-freeze:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_code_freeze.yml@ko3n1g/feat/code-freeze
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_code_freeze.yml
     with:
       name_of_library: NeMo-Toolkit
       type_of_release: ${{ inputs.type_of_release }}
@@ -48,17 +48,17 @@ jobs:
           cd ${{ github.run_id }}
           sed -i 's/^ARG MCORE_TAG=.*$/ARG MCORE_TAG=${{ inputs.mcore_version }}/' Dockerfile.ci
 
-      # - name: Create PR
-      #   uses: peter-evans/create-pull-request@v6
-      #   id: create-pull-request
-      #   with:
-      #     path: ${{ github.run_id }}
-      #     base: ${{ needs.code-freeze.outputs.release-branch }}
-      #     branch: ci/freeze-tags-${{ needs.code-freeze.outputs.release-branch }}
-      #     title: 'Freeze tags in in `${{ needs.code-freeze.outputs.release-branch }}`'
-      #     body: |
-      #       🚀 PR to freeze tags in `${{ needs.code-freeze.outputs.release-branch }}`.
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        id: create-pull-request
+        with:
+          path: ${{ github.run_id }}
+          base: ${{ needs.code-freeze.outputs.release-branch }}
+          branch: ci/freeze-tags-${{ needs.code-freeze.outputs.release-branch }}
+          title: 'Freeze tags in in `${{ needs.code-freeze.outputs.release-branch }}`'
+          body: |
+            🚀 PR to freeze tags in `${{ needs.code-freeze.outputs.release-branch }}`.
 
-      #     commit-message: "[🤠]: Howdy folks, let's release NeMo `${{ needs.code-freeze.outputs.release-branch }}` !"
-      #     signoff: true
-      #     assignees: okoenig
+          commit-message: "[🤠]: Howdy folks, let's release NeMo `${{ needs.code-freeze.outputs.release-branch }}` !"
+          signoff: true
+          assignees: okoenig
