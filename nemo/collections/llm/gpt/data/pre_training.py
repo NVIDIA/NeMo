@@ -252,7 +252,11 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             ), f"num_test_samples must be greater than {num_test_samples}."
             num_test_samples = self.num_test_samples
 
-        if trainer_limit_val_batches > 0.0 and trainer_limit_val_batches <= 1.0 and isinstance(trainer_limit_val_batches, float):
+        if (
+            trainer_limit_val_batches > 0.0
+            and trainer_limit_val_batches <= 1.0
+            and isinstance(trainer_limit_val_batches, float)
+        ):
             assert "blend" not in self.build_kwargs, (
                 "When using a single data distribution, limit_val_batches <= 1.0 is not supported. If you'd "
                 "like to run with a fractional value of limit_val_batches, please pass in separate datasets for "
