@@ -24,7 +24,6 @@ from torch import nn
 from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
-from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
@@ -36,6 +35,8 @@ if TYPE_CHECKING:
 
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
+    
     return get_gemma2_layer_spec()
 
 
