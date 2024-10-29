@@ -588,7 +588,7 @@ def run_in_framework_inference(
         output_deployed = output_deployed["sentences"]
         # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
         for i, output in enumerate(output_deployed):
-            output_deployed[i, :] = output[0][len(prompts[i]):]
+            output_deployed[i, :] = output[0][len(prompts[i]) :]
 
         # Unwrap the generator if needed
         output_deployed = list(output_deployed)
