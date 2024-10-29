@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Callable, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -26,6 +26,7 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "nemotron3_8b"
@@ -82,6 +83,7 @@ def pretrain_recipe(
     constant_steps=0,
     min_lr=3.0e-5,
     max_lr=3e-4,
+    performance_mode: bool = False,
     # Training function
     fn=pretrain,
 ) -> run.Partial:
@@ -117,6 +119,7 @@ def pretrain_recipe(
         constant_steps (int): Number of constant steps.
         min_lr (float): Minimum learning rate.
         max_lr (float): Maximum learning rate.
+        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -134,7 +137,7 @@ def pretrain_recipe(
     Note:
         This recipe uses a mock dataset, look for the finetune examples to see how to change the dataset.
     """
-    return run.Partial(
+    recipe = run.Partial(
         fn,
         model=model(),
         trainer=nemotron_trainer(
@@ -173,26 +176,61 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
 
-@run.cli.factory(name=NAME + "_hf")
-def hf_resume() -> run.Config[nl.AutoResume]:
+    return recipe
+
+
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
-    Configure automatic resumption from a Hugging Face checkpoint for Nemotron3 8B model.
+    Create a performance-optimized pre-training recipe for Nemotron3 8B model.
 
-    This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint.
+    This method enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
 
-    More info about the model can be found at: https://huggingface.co/nvidia/nemotron-3-8b-base-4k
+    Args:
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=True,
+        )
+    )
+    return recipe
+
+
+@run.cli.factory(name=NAME + "_nemo")
+def nemo_resume() -> run.Config[nl.AutoResume]:
+    """
+    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for Nemotron3 8B model.
+
+    More info about the Huggingface model can be found at: https://huggingface.co/nvidia/nemotron-3-8b-base-4k.
+
+    This NeMo checkpoint should be converted from Huggingface beforehand, using nemo.collections.llm.import_ckpt.
+    When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
+
+    This function sets up the configuration to resume training from path nemo://nvidia/nemotron-3-8b-base-4k.
+    This translates to the full path {NEMO_HOME}/models/nvidia/nemotron-3-8b-base-4k.
+
+    Returns:
+        run.Config[nl.AutoResume]: Configuration for resuming from NeMo checkpoint.
 
     Note:
         This is particularly useful for fine-tuning scenarios where you want to
         start from the pre-trained Nemotron3 8B model.
     """
     return run.Config(
-        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="hf://nvidia/nemotron-3-8b-base-4k")
+        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="nemo://nvidia/nemotron-3-8b-base-4k")
     )
 
 
@@ -308,7 +346,7 @@ def finetune_recipe(
         max_lr=max_lr,
         fn=fn,
     )
-    recipe.resume = hf_resume()
+    recipe.resume = nemo_resume()
     recipe.peft = run.Config(LoRA)
     recipe.data = run.Config(
         SquadDataModule, seq_length=seq_length, global_batch_size=global_batch_size, micro_batch_size=micro_batch_size

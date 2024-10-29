@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Callable, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -24,9 +24,9 @@ from pytorch_lightning.callbacks.callback import Callback
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config70B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
@@ -63,7 +63,7 @@ def trainer(
     virtual_pipeline_parallelism: Optional[int] = 5,
     context_parallelism: int = 2,
     sequence_parallelism: bool = True,
-    num_nodes: int = 1,
+    num_nodes: int = 4,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
@@ -116,6 +116,7 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
+            average_in_collective=True,
         ),
     )
 
@@ -141,7 +142,12 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    performance_mode: bool = False,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3 70B model.
@@ -154,6 +160,7 @@ def pretrain_recipe(
         name (str): Name of the pre-training run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
+        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -171,7 +178,8 @@ def pretrain_recipe(
     Note:
         This recipe is optimized for the large 70B model and requires significant computational resources.
     """
-    return run.Partial(
+
+    recipe = run.Partial(
         fn,
         model=model(),
         trainer=trainer(
@@ -185,40 +193,35 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
 
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
-def pretrain_recipe_performance(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
-) -> run.Partial:
+    return recipe
+
+
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for Llama3 70B model.
 
-    This recipe enables performance optimizations that may not be suitable for all use cases.
+    This method enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
 
     Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
 
     Returns:
         run.Partial: Partial configuration for performance-optimized pre-training.
 
-    Examples:
-        CLI usage:
-            $ nemo llm pretrain --factory "llama3_70b.pretrain_recipe_performance(num_nodes=4, name='perf_pretrain')"
-
-        Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama3_70b_perf", num_nodes=4)
-            >>> print(recipe)
-
     Note:
-        Use this recipe with caution and only when you need maximum performance.
+        Use this method with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+
+    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
+    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
+    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
+    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
+    # each PP stage launches independently as needed.
 
     recipe.trainer.callbacks.append(
         run.Config(
@@ -227,32 +230,12 @@ def pretrain_recipe_performance(
             tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=22,
+            overlap_param_gather_with_optimizer_step=True,
+            align_param_gather=True,
         )
     )
 
     return recipe
-
-
-def hf_resume() -> run.Config[nl.AutoResume]:
-    """
-    Configure automatic resumption from a Hugging Face checkpoint for Llama3 70B model.
-
-    This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint.
-
-    More info about the model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3-70B
-
-    Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
-
-    Note:
-        This is particularly useful for fine-tuning scenarios where you want to
-        start from the pre-trained Llama3 70B model.
-    """
-    return run.Config(
-        nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-70B"),
-    )
 
 
 @run.cli.factory(target=finetune, name=NAME)
@@ -261,19 +244,22 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
+    peft_scheme: Optional[str] = 'lora',
+    packed_sequence: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Llama3 70B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
-    It uses LoRA (Low-Rank Adaptation) for efficient fine-tuning of the large model.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -291,8 +277,18 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning. Be aware that fine-tuning a 70B model
         requires substantial computational resources.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
-    recipe.resume = hf_resume()
-    recipe.peft = run.Config(LoRA)
-    recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    recipe = default_finetune_recipe(
+        model(), "meta-llama/Meta-Llama-3-70B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+    )
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        assert num_nodes >= 4
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.optim.config.lr = 5e-6
+    elif peft_scheme.lower() == 'lora':
+        recipe.peft = run.Config(LoRA)
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
+        recipe.optim.config.lr = 1e-4
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
