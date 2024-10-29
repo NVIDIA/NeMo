@@ -138,6 +138,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
+        # if torch.distributed.get_rank() == 0:
+        #     import pdb; pdb.set_trace()
+        # torch.distributed.barrier()
         return model    
 
 
