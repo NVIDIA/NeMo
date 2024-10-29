@@ -257,7 +257,9 @@ class GPTConfig175B(GPTConfig):
     hidden_size: int = 12288
     ffn_hidden_size: int = 49152
     num_attention_heads: int = 96
-
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    ffn_dropout: float = 0.0
     bias_activation_fusion: bool = True
     bias_dropout_add_fusion: bool = True
 
