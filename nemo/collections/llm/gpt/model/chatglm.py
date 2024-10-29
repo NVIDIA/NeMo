@@ -159,14 +159,12 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
 
     def convert_state(self, source, target):
         mapping = {
-            "embedding.word_embeddings.weight": "transformer.embedding.word_embeddings.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "transformer.encoder.layers.*.self_attention.dense.weight",
             "decoder.layers.*.mlp.linear_fc1.weight": "transformer.encoder.layers.*.mlp.dense_h_to_4h.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "transformer.encoder.layers.*.mlp.dense_4h_to_h.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "transformer.encoder.layers.*.input_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "transformer.encoder.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "transformer.encoder.final_layernorm.weight",
-            "output_layer.weight": "transformer.output_layer.weight",
         }
 
         return io.apply_transforms(
