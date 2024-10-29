@@ -332,7 +332,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
         if len(checkpoints) > self.save_last_n_optim_states:
             checkpoint_path = Path(checkpoints[checkpoint_index])
-            checkpoint_path = checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+            checkpoint_path = (
+                checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+            )
             print(f'dropping {checkpoint_path}')
 
             ## all odd files contain the optimizer states
