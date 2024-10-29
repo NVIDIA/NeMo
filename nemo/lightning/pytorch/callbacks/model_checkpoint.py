@@ -75,11 +75,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
         save_optim_on_train_end: Optional[bool] = False,
         always_save_context: bool = True,
         save_context_on_train_end: bool = True,
+        save_last_n_optim_states: int = -1,
         **kwargs,
     ):
         self.always_save_context = always_save_context
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
+        self.save_last_n_optim_states = save_last_n_optim_states
 
         ## stores the next -last checkpoint to be saved, used only when save_last = 'link'
         ## this is needed because when using symlinks, we need to update the non-last checkpoint's
@@ -320,6 +322,28 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 ema_callback = callback
         return ema_callback
 
+    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
+        from nemo.utils.get_rank import is_global_rank_zero
+
+        # Get list of saved checkpoints
+        checkpoints = self._get_checkpoints_list(filepath)
+
+        # Drop optimizer states
+        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
+        if len(checkpoints) > self.save_last_n_optim_states:
+            checkpoint_path = Path(checkpoints[checkpoint_index])
+            checkpoint_path = checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+            print(f'dropping {checkpoint_path}')
+
+            ## all odd files contain the optimizer states
+            distckpt_files = [f for f in os.listdir(checkpoint_path) if f.endswith("distcp")]
+            if is_global_rank_zero():
+                for f in distckpt_files:
+                    idx = int(f.strip(".distcp").split('_')[-1])
+                    if idx % 2 == 1:
+                        os.remove(checkpoint_path / f)
+            torch.distributed.barrier()
+
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
         """Format the path to the unfinished checkpoint marker file.
@@ -498,6 +522,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             else:
                 finalize_fn()
 
+            if self.save_last_n_optim_states >= 0 and '-last' in filepath:
+                self._drop_optimizer_states(trainer, filepath, storage_options)
+
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
@@ -639,3 +666,18 @@ class ModelCheckpoint(PTLModelCheckpoint):
             raise ValueError(f"{self.__class__}.dirpath is None.")
         dirpath = Path(self.dirpath).absolute()
         return dirpath in previous.parents
+
+    def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
+        # Get a checkpoints directory
+        checkpoints_dir = os.path.dirname(filepath)
+
+        # Get a list of saved checkpoints
+        checkpoints = [
+            os.path.join(checkpoints_dir, d)
+            for d in os.listdir(checkpoints_dir)
+            if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d
+        ]
+        ## sort by time saved. NOTE: this will not work if the checkpoint is loaded and re-saved
+        checkpoints = sorted(checkpoints, key=lambda pth: Path(pth).lstat().st_mtime)
+
+        return checkpoints
