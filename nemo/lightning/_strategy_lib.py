@@ -131,6 +131,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
             if app_state.init_mpi_proc_group:
                 torch.distributed.new_group(backend="mpi")
 
+
 def set_model_parallel_attributes(model, parallelism):
     # Right now mcore sub-classes ModelParellelConfig, we should remove that
     # Given Lightning's structure it would be better if parallelism is a different object
