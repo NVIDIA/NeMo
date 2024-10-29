@@ -82,6 +82,7 @@ def main():
     pretrain_recipe.log.ckpt.every_n_train_steps = None
     pretrain_recipe.log.ckpt.train_time_interval = None
     pretrain_recipe.trainer.val_check_interval = 2
+    pretrain_recipe.trainer.limit_val_batches = 2
 
     if args.early_stop:
         pretrain_recipe.trainer.callbacks.append(StopBeforeEnd(stop_on_step=args.early_stop))
