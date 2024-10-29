@@ -21,13 +21,13 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
-from typing_extensions import Annotated
 from rich.console import Console
+from typing_extensions import Annotated
 
 import nemo.lightning as nl
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
-from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.lightning.base import NEMO_MODELS_CACHE
+from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 
 if TYPE_CHECKING:
@@ -459,7 +459,7 @@ def import_ckpt(
             a file path, URL, or any other string identifier that the model's importer
             can recognize.
         output_path (Optional[Path]): The path where the imported checkpoint will be stored.
-            If not specified, the checkpoint will be saved to $NEMO_MODELS_CACHE 
+            If not specified, the checkpoint will be saved to $NEMO_MODELS_CACHE
             (defaults to ~/.cache/nemo/models/ if the environment variable is not set).
         overwrite (bool): If set to True, existing files at the output path will be overwritten.
             This is useful for model updates where retaining old checkpoint files is not required.
@@ -521,7 +521,7 @@ def export_ckpt(
 
     The exporter component of the model reads the model's state from the specified path and
     exports it into the format specified by the 'target' identifier. This is particularly
-    useful for adapting models that have been developed or fine-tuned within NeMo to be 
+    useful for adapting models that have been developed or fine-tuned within NeMo to be
     compatible with other environments or frameworks.
 
     Args:
