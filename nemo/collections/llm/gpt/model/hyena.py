@@ -70,7 +70,7 @@ def dict_to_dotdict(d):
     
     return DotDict(transformed_dict)
 
-GLOBAL_CONFIG = load_yaml_as_dotdict('/home/ataghibakhsh/savanna/dummy_config.yml')
+GLOBAL_CONFIG = load_yaml_as_dotdict('/opt/NeMo/nemo/collections/llm/gpt/model/7b.yml')
 #################################################
 
 def hyena_forward_step(model, batch) -> torch.Tensor:
