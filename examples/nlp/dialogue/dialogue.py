@@ -64,9 +64,13 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     pl.seed_everything(42)
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+    logging.warning('This script is no longer supported in NeMo and is scheduled for removal in the 24.11 release.')
 
     try:
-        strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=True,)
+        strategy = NLPDDPStrategy(
+            no_ddp_communication_hook=True,
+            find_unused_parameters=True,
+        )
     except (ImportError, ModuleNotFoundError):
         strategy = 'auto'
 
