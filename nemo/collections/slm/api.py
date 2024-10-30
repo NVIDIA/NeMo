@@ -139,13 +139,14 @@ def speetch_to_text_llm_validate(cfg: DictConfig):
     )
 
     trainer.validate(model, datamodule=data)
-    import pdb
 
-    pdb.set_trace()
     return app_state.log_dir
 
 
 def speetch_to_text_llm_generate(cfg: DictConfig):
+
+    raise NotImplementedError("This function is not implemented yet.")
+
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
