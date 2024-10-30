@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# siCopyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,9 +117,9 @@ def cleanup_local_folder():
         rmtree('./nemo_experiments', ignore_errors=True)
 
 
-@pytest.fixture(autouse=True)
-def reset_singletons():
-    Singleton._Singleton__instances = {}
+#@pytest.fixture(autouse=True)
+#def reset_singletons():
+#    Singleton._Singleton__instances = {}
 
 
 @pytest.fixture(scope="session")
