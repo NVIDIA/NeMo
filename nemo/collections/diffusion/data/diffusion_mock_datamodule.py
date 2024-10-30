@@ -94,6 +94,7 @@ class _MockT2IDataset(Dataset):
             length=100000,
             image_key='images',
             txt_key='txt',
+            hint_key='hint',
             seq_len=80,
             context_dim=768,
             precached_mode=False
@@ -118,6 +119,7 @@ class _MockT2IDataset(Dataset):
         else:
             item[self.image_key] = torch.randn(self.H, self.W, 3)
             item[self.txt_key] = "This is a sample caption input"
+            item[self.hint_key] = torch.randn(self.H, self.W, 3)
         return item
 
     def __len__(self):

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,7 +99,6 @@ class FluxConfig(TransformerConfig, io.IOMixin):
         model = Flux(
             config = self
         )
-
         return model
 
 @dataclass
@@ -175,6 +174,8 @@ class Flux(VisionModule):
         img_ids: torch.Tensor = None,
         txt_ids: torch.Tensor = None,
         guidance: torch.Tensor = None,
+        controlnet_double_block_samples: torch.Tensor = None,
+        controlnet_single_block_samples: torch.Tensor = None,
     ):
         hidden_states = self.img_embed(img)
         encoder_hidden_states = self.txt_embed(txt)
@@ -196,6 +197,11 @@ class Flux(VisionModule):
                 emb=vec_emb,
             )
 
+            if controlnet_double_block_samples is not None:
+                interval_control = len(self.double_blocks) / len(controlnet_double_block_samples)
+                interval_control = int(np.ceil(interval_control))
+                hidden_states = hidden_states + controlnet_single_block_samples[id_block // interval_control]
+
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
 
         for id_block, block in enumerate(self.single_blocks):
@@ -204,6 +210,14 @@ class Flux(VisionModule):
                 rotary_pos_emb=rotary_pos_emb,
                 emb=vec_emb,
             )
+
+            if controlnet_single_block_samples is not None:
+                interval_control = len(self.double_blocks) / len(controlnet_double_block_samples)
+                interval_control = int(np.ceil(interval_control))
+                hidden_states[encoder_hidden_states.shape[0] :, ...] = (
+                    hidden_states[encoder_hidden_states.shape[0] :, ...]
+                    + controlnet_single_block_samples[id_block // interval_control]
+                )
 
         hidden_states = hidden_states[encoder_hidden_states.shape[0] :, ...]
 
@@ -371,32 +385,8 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             u = torch.rand(size=(batch_size,), device="cpu")
         return u
     def prepare_image_latent(self, img):
-        def _prepare_latent_image_ids(batch_size: int, height: int, width: int, device: torch.device,
-                                      dtype: torch.dtype):
-            latent_image_ids = torch.zeros(height // 2, width // 2, 3)
-            latent_image_ids[..., 1] = latent_image_ids[..., 1] + torch.arange(height // 2)[:, None]
-            latent_image_ids[..., 2] = latent_image_ids[..., 2] + torch.arange(width // 2)[None, :]
-
-            latent_image_id_height, latent_image_id_width, latent_image_id_channels = latent_image_ids.shape
-
-            latent_image_ids = latent_image_ids[None, :].repeat(batch_size, 1, 1, 1)
-            latent_image_ids = latent_image_ids.reshape(
-                batch_size, latent_image_id_height * latent_image_id_width, latent_image_id_channels
-            )
-
-            return latent_image_ids.to(device=device, dtype=dtype)
-
-        def _pack_latents(latents, batch_size, num_channels_latents, height, width):
-            latents = latents.view(batch_size, num_channels_latents, height // 2, 2, width // 2, 2)
-            latents = latents.permute(0, 2, 4, 1, 3, 5)
-            latents = latents.reshape(batch_size, (height // 2) * (width // 2), num_channels_latents * 4)
-
-            return latents
-
-
-
         latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
-        latent_image_ids = _prepare_latent_image_ids(
+        latent_image_ids = self._prepare_latent_image_ids(
             latents.shape[0],
             latents.shape[2],
             latents.shape[3],
@@ -423,7 +413,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             sigma = sigma.unsqueeze(-1)
 
         noisy_model_input = (1.0 - sigma) * latents + sigma * noise
-        packed_noisy_model_input = _pack_latents(
+        packed_noisy_model_input = self._pack_latents(
             noisy_model_input,
             batch_size=latents.shape[0],
             num_channels_latents=latents.shape[1],
@@ -454,6 +444,28 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         latents = latents.permute(0, 3, 1, 4, 2, 5)
 
         latents = latents.reshape(batch_size, channels // (2 * 2), height * 2, width * 2)
+
+        return latents
+
+    def _prepare_latent_image_ids(self, batch_size: int, height: int, width: int, device: torch.device,
+                                  dtype: torch.dtype):
+        latent_image_ids = torch.zeros(height // 2, width // 2, 3)
+        latent_image_ids[..., 1] = latent_image_ids[..., 1] + torch.arange(height // 2)[:, None]
+        latent_image_ids[..., 2] = latent_image_ids[..., 2] + torch.arange(width // 2)[None, :]
+
+        latent_image_id_height, latent_image_id_width, latent_image_id_channels = latent_image_ids.shape
+
+        latent_image_ids = latent_image_ids[None, :].repeat(batch_size, 1, 1, 1)
+        latent_image_ids = latent_image_ids.reshape(
+            batch_size, latent_image_id_height * latent_image_id_width, latent_image_id_channels
+        )
+
+        return latent_image_ids.to(device=device, dtype=dtype)
+
+    def _pack_latents(self, latents, batch_size, num_channels_latents, height, width):
+        latents = latents.view(batch_size, num_channels_latents, height // 2, 2, width // 2, 2)
+        latents = latents.permute(0, 2, 4, 1, 3, 5)
+        latents = latents.reshape(batch_size, (height // 2) * (width // 2), num_channels_latents * 4)
 
         return latents
 
