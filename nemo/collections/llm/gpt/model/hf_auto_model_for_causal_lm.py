@@ -22,10 +22,6 @@ from nemo.collections.llm import fn
 from nemo.lightning import io
 
 
-def _extract_non_bias_params(model):
-    return list(map(lambda x: x[1], filter(lambda x: not 'bias' in x[0], model.named_parameters())))
-
-
 def masked_cross_entropy(logits, targets, mask=None):
     if mask is not None:
         loss = F.cross_entropy(logits, targets, reduction='none')
