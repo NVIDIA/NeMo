@@ -6,13 +6,13 @@ import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
-from megatron.core.utils import make_tp_sharded_tensor_for_checkpoint, make_sharded_tensor_for_checkpoint
+from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
 from torch import nn
 
 from nemo.collections.llm.peft.lora import LinearAdapter
-from nemo.lightning.pytorch.callbacks.peft import AdapterWrapper, PEFT
-from nemo.utils import logging
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
+from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
+from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
 TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
@@ -28,7 +28,6 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
 
-
 class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
     def init_weight_magnitude(self, value):
         # weight_magnitude has shape (d,) where d is the output dim of the linear layer
@@ -42,12 +41,11 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
         tp_rank = parallel_state.get_tensor_model_parallel_rank()
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         return self.weight_magnitude[
-               len(self.weight_magnitude) * tp_rank // tp_size :
-               len(self.weight_magnitude) * (tp_rank+1) // tp_size
-            ]
+            len(self.weight_magnitude) * tp_rank // tp_size : len(self.weight_magnitude) * (tp_rank + 1) // tp_size
+        ]
 
     def sharded_state_dict(
-            self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
     ) -> ShardedStateDict:
         sharded_state_dict = super().sharded_state_dict(prefix, sharded_offsets, metadata)
 
@@ -68,8 +66,8 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
 
 
 class DoRALinear(AdapterWrapper):
-    """TODO
-    """
+    """TODO"""
+
     def __init__(self, to_wrap: nn.Module, adapter: ParallelLinearDoRAAdapter):
         super().__init__(to_wrap, adapter)
         self.adapter: ParallelLinearDoRAAdapter

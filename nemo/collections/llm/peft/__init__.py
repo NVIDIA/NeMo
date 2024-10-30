@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.llm.peft.api import gpt_lora
-from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.peft.dora import DoRA
+from nemo.collections.llm.peft.lora import LoRA
 
 __all__ = ["LoRA", "DoRA", "gpt_lora"]
