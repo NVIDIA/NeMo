@@ -201,7 +201,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     # by MegatronCommOverlapCallback. They are added here for user's knowledge.
     # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
     # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
-    # each PP stage launches independently as needed.
+    # each PP stage launches independently as needed. Currently disabled due to an issue with checkpointing
 
     recipe.trainer.callbacks.append(
         run.Config(
@@ -209,7 +209,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
             tp_comm_overlap=True,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=22,
-            overlap_param_gather_with_optimizer_step=True,
+            overlap_param_gather_with_optimizer_step=False,
             align_param_gather=True,
         )
     )
