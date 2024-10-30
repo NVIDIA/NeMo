@@ -574,15 +574,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         sharded_state_dict.update(make_sharded_tensors_for_checkpoint(state_dict, prefix=prefix))
         return sharded_state_dict
 
-    def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
-        sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
-
-        state_dict = self.state_dict(prefix='', keep_vars=True)
-        state_dict.pop('weight')
-        # duplicate everything else
-        sharded_state_dict.update(make_sharded_tensors_for_checkpoint(state_dict, prefix=prefix))
-        return sharded_state_dict
-
 
 class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
     def init_lita(
@@ -1012,7 +1003,24 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.init_neva_adapter()
-
+        
+    def _get_all_keys(
+        self,
+    ):
+        # TODO (yuya): p-tuning need additional handle, check peft models.
+        """
+        Returns all the keys in the model
+        """
+        model = self._unwrap_model() if self.use_mcore_dist_optim else self
+        #k = [n for n, p in self.named_parameters()]
+        k = [n for n, p in model.named_parameters()]
+        if self.megatron_amp_O2:
+            if self.use_mcore_dist_optim:
+                k = [key.replace("module.", "model.", 1) for key in k]
+            else:
+                k = [key.replace("model.module.", "model.", 1) for key in k]
+        return set(k)
+    
     def init_neva_adapter(self):
         self.base_keys = self._get_all_keys()
         adapter_name = AdapterName.MULTIMODAL_PROJECTOR_ADAPTER
@@ -1022,7 +1030,14 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             out_features=self.cfg.hidden_size,
             bias=True,  # self.cfg.get("bias", False),
         )
-        for name, module in self.named_modules():
+
+        # Determine the appropriate named_modules source
+        if self.use_mcore_dist_optim:
+            named_modules_iterator = self._unwrap_model().named_modules()
+        else:
+            named_modules_iterator = self.named_modules()
+        
+        for name, module in named_modules_iterator:
             self._check_and_add_adapter(
                 name,
                 module,
@@ -1188,6 +1203,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
             base_lr = self._cfg.optim.get('lr')
             mm_projector_lr_ratio = 0.1  # hard-coded ratio
+            
             # Create two new optimizer param groups
             self._optimizer_param_groups = [
                 {'params': group1_params, 'lr': base_lr},
@@ -1652,12 +1668,17 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             keys_to_keep += llm_keys
         if not self.cfg.mm_cfg.vision_encoder.freeze:
             keys_to_keep += vision_encoder_keys
+            
         return keys_to_keep
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
+        # Unwrap the model if needed
+        model = self._unwrap_model()
         # Get the original state dictionary
-        original_state_dict = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+        original_state_dict = super(type(model), model).state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
         keys_to_keep = self.get_keys_to_keep()
+        if self.use_mcore_dist_optim:
+            keys_to_keep = [k.replace("model", "module", 1) for k in keys_to_keep]
         new_state_dict = {k: original_state_dict[k] for k in keys_to_keep}
         return new_state_dict
 
