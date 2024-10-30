@@ -27,7 +27,7 @@ from typing_extensions import override
 
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.io.pl import ckpt_to_dir
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
@@ -313,8 +313,11 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         assert self.checkpoint_io is not None
 
-        checkpoint['sharded_state_dict'] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint['sharded_state_dict'].items())
+        state_key = 'sharded_state_dict'
+        if not state_key in checkpoint:
+            state_key = 'state_dict'
+        checkpoint[state_key] = dict(
+            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
         )
         request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
@@ -322,7 +325,9 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_weights_subdir(path, is_saving=True) / ADAPTER_META_FILENAME
+            base_dir = ckpt_to_dir(path)
+            base_dir.mkdir(parents=True, exist_ok=True)
+            adapter_meta_path = base_dir / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
         return request
