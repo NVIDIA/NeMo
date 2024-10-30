@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch.nn.functional as F
 from torch import nn
+import torch
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
