@@ -117,8 +117,8 @@ def cleanup_local_folder():
         rmtree('./nemo_experiments', ignore_errors=True)
 
 
-#@pytest.fixture(autouse=True)
-#def reset_singletons():
+# @pytest.fixture(autouse=True)
+# def reset_singletons():
 #    Singleton._Singleton__instances = {}
 
 

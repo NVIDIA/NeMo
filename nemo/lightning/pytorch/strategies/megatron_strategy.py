@@ -610,6 +610,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def teardown(self) -> None:
         super().teardown()
         from nemo.utils.metaclasses import Singleton
+
         Singleton._Singleton__instances = {}
 
     @override
