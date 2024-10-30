@@ -458,6 +458,7 @@ def build_pretraining_datamodule(
         None
     """
     import torch
+
     # The indices in Megatron are built on rank 0, so we set the world size to 1 here.
     torch.distributed.init_process_group(world_size=1, rank=0)
 
