@@ -128,7 +128,6 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
 
 
 def main() -> None:
-    args = get_args()
     tokenizer_tmp_dir = Path("/tmp/nemo_tokenizer")
     tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)    
     tokenizer = get_tokenizer(Path(args.input_path), tokenizer_tmp_dir)
