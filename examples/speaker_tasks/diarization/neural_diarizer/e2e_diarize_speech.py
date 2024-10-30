@@ -91,6 +91,7 @@ class DiarizationConfig:
     num_workers: int = 0
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
     bypass_postprocessing: bool = True # If True, postprocessing will be bypassed
+    log: bool = False # If True, log will be printed
     
     # Eval Settings: (0.25, False) should be default setting for sortformer eval.
     collar: float = 0.25 # Collar in seconds for DER calculation
@@ -99,7 +100,7 @@ class DiarizationConfig:
     # Streaming diarization configs
     streaming_mode: bool = True # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
     mem_len: int = 100
-    mem_refresh_rate: int = 0
+    # mem_refresh_rate: int = 0
     fifo_len: int = 100
     step_len: int = 100
     step_left_context: int = 100
@@ -256,8 +257,9 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.mem_len = cfg.mem_len
     diar_model.sortformer_modules.step_left_context = cfg.step_left_context
     diar_model.sortformer_modules.step_right_context = cfg.step_right_context
-    diar_model.fifo_len = cfg.fifo_len
-    diar_model.mem_refresh_rate = cfg.mem_refresh_rate
+    diar_model.sortformer_modules.fifo_len = cfg.fifo_len
+    diar_model.sortformer_modules.log = cfg.log
+    # diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
     
     # Save the list of tensors
     diar_model.test_batch()
