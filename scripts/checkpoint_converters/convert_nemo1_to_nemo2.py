@@ -1,3 +1,38 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+r"""
+Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. 
+Example usage:
+
+a. Convert a .nemo checkpoint
+    python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
+        --input_path=Meta-Llama-3-8B.nemo \
+        --output_path=your_output_dir \
+        --model_id=meta-llama/Meta-Llama-3-8B
+
+b. Convert a model weight directory. The checkpoint should be similar to `model_weights` subdir after extracting the .nemo file.
+   Please also provide tokenizer_library and tokenizer_path when loading from weight directory.
+    python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_nemo2.py \
+        --input_path=nemotron3-8b-extracted/model_weights \
+        --tokenizer_path=path_to_your_tokenizer_model.model \
+        --tokenizer_library=sentencepiece \
+        --output_path=your_output_dir \
+        --model_id=nvidia/nemotron-3-8b-base-4k
+
+"""
+
 import os
 import shutil
 import tempfile
@@ -20,32 +55,6 @@ from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 import torch
 
-"""
-Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. 
-Example usage:
-
-a. Convert a .nemo checkpoint
-    python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
-        --input_path=Meta-Llama-3-8B.nemo \
-        --output_path=your_output_dir \
-        --model_id=meta-llama/Meta-Llama-3-8B
-
-b. Convert a .nemo checkpoint
-    python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
-        --input_path=Mixtral-8x7B.nemo \
-        --output_path=your_output_dir \
-        --model_id=mistralai/Mixtral-8x7B-v0.1 \
-
-c. Convert a model weight directory. The checkpoint should be similar to `model_weights` subdir after extracting the .nemo file.
-   Please also provide tokenizer_library and tokenizer_path when loading from weight directory.
-    python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_nemo2.py \
-        --input_path=nemotron3-8b-extracted/model_weights \
-        --tokenizer_path=path_to_your_tokenizer_model.model \
-        --tokenizer_library=sentencepiece \
-        --output_path=your_output_dir \
-        --model_id=nvidia/nemotron-3-8b-base-4k
-
-"""
 
 def get_args():
     parser = ArgumentParser(description="Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. This script may download from Hugging Face, make sure you have access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)")
