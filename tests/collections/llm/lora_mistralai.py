@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+
 import pytorch_lightning as pl
 import torch
 from megatron.core.optimizer import OptimizerConfig
-import argparse
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.mixin import track_io
-
 
 
 def get_args():
@@ -91,8 +92,10 @@ def logger() -> nl.NeMoLogger:
         wandb=None,
     )
 
+
 def squad(mbs, gbs) -> pl.LightningDataModule:
     return llm.SquadDataModule(seq_length=2048, micro_batch_size=mbs, global_batch_size=gbs, num_workers=0)
+
 
 def mixtral_8x7b() -> pl.LightningModule:
     tokenizer = OrdTokenizer()
@@ -100,11 +103,13 @@ def mixtral_8x7b() -> pl.LightningModule:
     lora = llm.peft.LoRA()
     return model, lora
 
+
 def mistral_7b() -> pl.LightningModule:
     tokenizer = OrdTokenizer()
     model = llm.MistralModel(llm.MistralConfig7B(num_layers=2), tokenizer=tokenizer)
     lora = llm.peft.LoRA()
     return model, lora
+
 
 if __name__ == '__main__':
     args = get_args()
@@ -119,7 +124,7 @@ if __name__ == '__main__':
         peft=lora,
         log=logger(),
         optim=nl.MegatronOptimizerModule(
-        config=OptimizerConfig(
+            config=OptimizerConfig(
                 optimizer="adam",
                 lr=0.0001,
                 adam_beta2=0.98,
