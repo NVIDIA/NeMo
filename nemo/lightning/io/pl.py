@@ -37,10 +37,9 @@ from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
 
-from nemo.lightning.ckpt_utils import ckpt_to_dir
+from nemo.lightning.ckpt_utils import ckpt_to_dir, WEIGHTS_PATH
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
-
 
 try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
@@ -53,10 +52,6 @@ log = logging.getLogger(__name__)
 
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
-
-# NeMo2 checkpoint structure is a checkpoint directory, with a WEIGHTS_PATH and CONTEXT_PATH subdirectory structure.
-#  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
-WEIGHTS_PATH: str = "weights"
 
 
 @dataclass
