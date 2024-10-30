@@ -81,15 +81,17 @@ def _partial_representer_with_defaults(dumper, data):
 
 
 def _safe_object_representer(dumper, data):
-    if not inspect.isclass(data):
-        cls = data.__class__
-        call = True
-    else:
+    try:
         cls = data
+        target = f"{inspect.getmodule(cls).__name__}.{cls.__qualname__}"
         call = False
+    except Exception:
+        cls = data.__class__
+        target = f"{inspect.getmodule(cls).__name__}.{cls.__qualname__}"
+        call = True
 
     value = {
-        "_target_": f"{inspect.getmodule(cls).__name__}.{cls.__qualname__}",  # type: ignore
+        "_target_": target,  # type: ignore
         "_call_": call,
     }
     return dumper.represent_data(value)
