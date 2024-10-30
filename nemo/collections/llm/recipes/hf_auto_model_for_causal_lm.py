@@ -19,12 +19,12 @@ import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks.callback import Callback
-from nemo.collections.llm.peft.lora import LoRA
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
+from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback

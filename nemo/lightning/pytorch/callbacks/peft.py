@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import json
-import torch
 from abc import ABC, abstractmethod
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 import pytorch_lightning as pl
+import torch
 import torch.nn as nn
 from lightning_fabric.utilities.types import _PATH
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO

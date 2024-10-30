@@ -31,7 +31,14 @@ def masked_cross_entropy(logits, targets, mask=None):
 
 
 class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
-    def __init__(self, model_name='gpt2', load_pretrained_weights=True, tokenizer=None, loss_fn=masked_cross_entropy, model_transform=None):
+    def __init__(
+        self,
+        model_name='gpt2',
+        load_pretrained_weights=True,
+        tokenizer=None,
+        loss_fn=masked_cross_entropy,
+        model_transform=None,
+    ):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = model_name
