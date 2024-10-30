@@ -27,7 +27,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
 from lhotse.shar import AudioTarWriter, JsonlShardWriter, TarIterator, TarWriter
-from lhotse.utils import Pathlike, asdict_nonull
+from lhotse.utils import Pathlike, asdict_nonull, is_valid_url
 
 from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_filepaths
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -563,6 +563,8 @@ class NeMoMultimodalConversationTarWriter:
         self.shard_idx = 0
 
     def _setup_writers(self):
+        if not is_valid_url(self.output_dir):  # skip dir creation for URLs
+            Path(self.output_dir).mkdir(exist_ok=True)
         self.manifest_writer = JsonlShardWriter(f"{self.output_dir}/manifest_{self.shard_idx}.jsonl", shard_size=None)
         self.tar_writer = AudioTarWriter(f"{self.output_dir}/audio_{self.shard_idx}.tar", shard_size=None)
 
