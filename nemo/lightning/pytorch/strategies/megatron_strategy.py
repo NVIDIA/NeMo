@@ -609,6 +609,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def teardown(self) -> None:
         super().teardown()
+        from nemo.utils.metaclasses import Singleton
+        Singleton._Singleton__instances = {}
 
     @override
     def model_sharded_context(self) -> ContextManager:
