@@ -28,50 +28,57 @@ try:
     HAVE_MEGATRON_CORE_OR_TE = True
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("The package `megatron.core` was not imported in this environment which is needed for Hyena models.")
+    logging.warning(
+        "The package `megatron.core` was not imported in this environment which is needed for Hyena models."
+    )
     HAVE_MEGATRON_CORE_OR_TE = False
 
+########## Temporary experimental code ##########
+import yaml
 from megatron.core.transformer.transformer_config import TransformerConfig
+
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
 
 
-########## Temporary experimental code ##########
-import yaml
-
 class DotDict(dict):
     """A dictionary that supports dot notation for accessing keys."""
+
     def __getattr__(self, attr):
         return self.get(attr)
-    
+
     def __setattr__(self, key, value):
         self[key] = value
 
     def __delattr__(self, item):
         del self[item]
 
+
 def load_yaml_as_dotdict(filepath):
     with open(filepath, 'r') as file:
         yaml_content = yaml.safe_load(file)
-    
+
     # Recursively convert dictionary to DotDict and replace "-" with "_"
     return dict_to_dotdict(yaml_content)
+
 
 def dict_to_dotdict(d):
     """Convert a dictionary into a DotDict recursively and replace '-' with '_' in keys."""
     if not isinstance(d, dict):
         return d
-    
+
     transformed_dict = {}
     for k, v in d.items():
         # Replace "-" with "_" in the key
         new_key = k.replace('-', '_')
         transformed_dict[new_key] = dict_to_dotdict(v)
-    
+
     return DotDict(transformed_dict)
+
 
 GLOBAL_CONFIG = load_yaml_as_dotdict('/opt/NeMo/nemo/collections/llm/gpt/model/7b.yml')
 #################################################
+
 
 def hyena_forward_step(model, batch) -> torch.Tensor:
 
@@ -123,7 +130,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreHyenaModel":
         self.hyena = GLOBAL_CONFIG
-        model =  MCoreHyenaModel(
+        model = MCoreHyenaModel(
             self,
             hyena_stack_spec=hyena_stack_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
@@ -137,7 +144,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             post_process=parallel_state.is_pipeline_last_stage(),
             share_embeddings_and_output_weights=True,
         )
-        return model    
+        return model
 
 
 @io.model_importer(GPTModel, "pytorch")
@@ -173,10 +180,12 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
                         if v.dtype != dtype:
                             logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
                         self._state_dict[k] = v.to(dtype)
+
             def transform_source_dict(self, source):
                 import re
-                layer_map = {i+2:i for i in range(self.num_layers)}
-                layer_map[self.num_layers+3] = self.num_layers+1
+
+                layer_map = {i + 2: i for i in range(self.num_layers)}
+                layer_map[self.num_layers + 3] = self.num_layers + 1
                 updated_data = {}
 
                 for key in list(source.keys()):
@@ -197,7 +206,7 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
                             updated_data[key] = source[key]
 
                 return updated_data
-    
+
         source = ModelState(source, self.config.num_layers)
         target = self.init()
         trainer = self.nemo_setup(target, ckpt_async_save=False)
@@ -212,58 +221,82 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
         del trainer, target
 
         return output_path
-    
+
     def convert_state(self, source, target):
 
         mapping = {}
         te_enabled = True
         scale_or_weight = 'weight'
         mapping['sequential.0.word_embeddings.weight'] = 'embedding.word_embeddings.weight'
-        mapping[f'sequential.{len(self.config.hybrid_override_pattern)+1}.norm.{scale_or_weight}'] = 'decoder.final_norm.weight'
+        mapping[f'sequential.{len(self.config.hybrid_override_pattern)+1}.norm.{scale_or_weight}'] = (
+            'decoder.final_norm.weight'
+        )
         for i, symbol in enumerate(self.config.hybrid_override_pattern):
             if te_enabled:
-                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
+                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = (
+                    f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
+                )
             else:
-                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.pre_mlp_layernorm.weight'
+                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = (
+                    f'decoder.layers.{i}.pre_mlp_layernorm.weight'
+                )
             mapping[f'sequential.{i}.mlp.w3.weight'] = f'decoder.layers.{i}.mlp.linear_fc2.weight'
 
             if symbol != '*':
                 if te_enabled:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.mixer.dense_projection.layer_norm_weight'
+                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                        f'decoder.layers.{i}.mixer.dense_projection.layer_norm_weight'
+                    )
                 else:
                     mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.norm.weight'
 
-                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = f'decoder.layers.{i}.mixer.dense_projection.weight'
-                mapping[f'sequential.{i}.mixer.hyena_proj_conv.short_conv_weight'] = f'decoder.layers.{i}.mixer.hyena_proj_conv.short_conv_weight'
+                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = (
+                    f'decoder.layers.{i}.mixer.dense_projection.weight'
+                )
+                mapping[f'sequential.{i}.mixer.hyena_proj_conv.short_conv_weight'] = (
+                    f'decoder.layers.{i}.mixer.hyena_proj_conv.short_conv_weight'
+                )
                 mapping[f'sequential.{i}.mixer.dense.weight'] = f'decoder.layers.{i}.mixer.dense.weight'
                 mapping[f'sequential.{i}.mixer.dense.bias'] = f'decoder.layers.{i}.mixer.dense.bias'
-                
+
                 if symbol == 'S':
-                    mapping[f'sequential.{i}.mixer.mixer.short_conv.short_conv_weight'] = f'decoder.layers.{i}.mixer.mixer.short_conv.short_conv_weight'
-                    
+                    mapping[f'sequential.{i}.mixer.mixer.short_conv.short_conv_weight'] = (
+                        f'decoder.layers.{i}.mixer.mixer.short_conv.short_conv_weight'
+                    )
+
                 elif symbol == 'D':
                     mapping[f'sequential.{i}.mixer.mixer.conv_bias'] = f'decoder.layers.{i}.mixer.mixer.conv_bias'
                     mapping[f'sequential.{i}.mixer.mixer.filter.h'] = f'decoder.layers.{i}.mixer.mixer.filter.h'
-                    mapping[f'sequential.{i}.mixer.mixer.filter.decay'] = f'decoder.layers.{i}.mixer.mixer.filter.decay'
+                    mapping[f'sequential.{i}.mixer.mixer.filter.decay'] = (
+                        f'decoder.layers.{i}.mixer.mixer.filter.decay'
+                    )
 
                 elif symbol == 'H':
                     mapping[f'sequential.{i}.mixer.mixer.conv_bias'] = f'decoder.layers.{i}.mixer.mixer.conv_bias'
-                    mapping[f'sequential.{i}.mixer.mixer.filter.gamma'] = f'decoder.layers.{i}.mixer.mixer.filter.gamma'
+                    mapping[f'sequential.{i}.mixer.mixer.filter.gamma'] = (
+                        f'decoder.layers.{i}.mixer.mixer.filter.gamma'
+                    )
                     mapping[f'sequential.{i}.mixer.mixer.filter.R'] = f'decoder.layers.{i}.mixer.mixer.filter.R'
                     mapping[f'sequential.{i}.mixer.mixer.filter.p'] = f'decoder.layers.{i}.mixer.mixer.filter.p'
-                    
+
             elif symbol == '*':
                 if te_enabled:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                        f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+                    )
                 else:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.input_layernorm.weight'
+                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                        f'decoder.layers.{i}.input_layernorm.weight'
+                    )
 
-                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = f'decoder.layers.{i}.self_attention.linear_qkv.weight'
+                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = (
+                    f'decoder.layers.{i}.self_attention.linear_qkv.weight'
+                )
                 mapping[f'sequential.{i}.mixer.dense.weight'] = f'decoder.layers.{i}.self_attention.linear_proj.weight'
                 mapping[f'sequential.{i}.mixer.dense.bias'] = f'decoder.layers.{i}.self_attention.linear_proj.bias'
             else:
                 raise ValueError(f'Unknown symbol: {symbol}')
-            
+
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_linear_fc1])
 
     @property
@@ -280,12 +313,14 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
     def config(self) -> HyenaConfig:
         return self.model_config
 
+
 @io.state_transform(
     source_key=("sequential.*.mlp.w1.weight", "sequential.*.mlp.w2.weight"),
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(w1, w2):
     return torch.cat((w1, w2), axis=0)
+
 
 @dataclass
 class HyenaTestConfig(HyenaConfig):
@@ -297,19 +332,20 @@ class HyenaTestConfig(HyenaConfig):
     tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
     ffn_hidden_size: int = 11008
-    gated_linear_unit:bool = True
+    gated_linear_unit: bool = True
     num_attention_heads: int = 32
     use_cpu_initialization: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     params_dtype: torch.dtype = torch.bfloat16
     normalization: str = "RMSNorm"
-    add_qkv_bias:bool = False
-    add_bias_linear:bool = False
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
     layernorm_epsilon: float = 1e-6
     fp8: str = 'hybrid'
     fp8_amax_history_len: int = 16
     fp8_amax_compute_algo: str = "max"
+
 
 @dataclass
 class Hyena7bConfig(HyenaConfig):
@@ -321,19 +357,20 @@ class Hyena7bConfig(HyenaConfig):
     tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
     ffn_hidden_size: int = 11008
-    gated_linear_unit:bool = True
+    gated_linear_unit: bool = True
     num_attention_heads: int = 32
     use_cpu_initialization: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     params_dtype: torch.dtype = torch.bfloat16
     normalization: str = "RMSNorm"
-    add_qkv_bias:bool = False
-    add_bias_linear:bool = False
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
     layernorm_epsilon: float = 1e-6
     fp8: str = 'hybrid'
     fp8_amax_history_len: int = 16
     fp8_amax_compute_algo: str = "max"
+
 
 __all__ = [
     "HyenaConfig",
