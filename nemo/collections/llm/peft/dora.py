@@ -70,8 +70,9 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
 class DoRALinear(AdapterWrapper):
     """TODO
     """
-    def __init__(self, to_wrap: nn.Module, adapter: 'ParallelLinearAdapter'):
+    def __init__(self, to_wrap: nn.Module, adapter: ParallelLinearDoRAAdapter):
         super().__init__(to_wrap, adapter)
+        self.adapter: ParallelLinearDoRAAdapter
         self.scaling = adapter.alpha / adapter.dim
         self.adapter.init_weight_magnitude(self._get_weight_norm())
 
@@ -80,6 +81,13 @@ class DoRALinear(AdapterWrapper):
         return torch.linalg.norm(weight, dim=1).to(weight.dtype).detach()
 
     def forward(self, x):
+        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        adapter_output = self.adapter(layernorm_output.contiguous())
+
+        # mag_norm_scale is  ||W_0 + B_0 A_0|| / ||W_0 + B A||  (scaling in front of BA not shown)
+        mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, -1)
+
+        mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, 1, -1)
         """
           mag_norm_scale * (linear_output + adapter_output)
         = ||W_0 + B_0 A_0|| / ||W_0 + B A|| * (W_0 x + B A x)
@@ -87,32 +95,6 @@ class DoRALinear(AdapterWrapper):
         = m ((W_0 + B A) / ||W_0 + B A||) x
         = equation 5 in DoRA paper
         """
-        linear_output = self.to_wrap(x)
-
-        # TODO take out common with LoRA linear forward
-        assert isinstance(
-            linear_output, tuple
-        ), f"{self.to_wrap} should return a tuple but instead returns {linear_output}"
-        """ Four cases for the wrapped module's return values
-        1. nothing: (out, None)
-        2. return_bias: (out, bias)
-        2. return_layernorm_output: ((out, ln_out), None)
-        3. both: (out, bias, ln_out)
-        """
-        if len(linear_output) == 2:
-            linear_output, bias = linear_output
-            if isinstance(linear_output, tuple) and len(linear_output) == 2:
-                linear_output, layernorm_output = linear_output
-                x = layernorm_output
-        elif len(linear_output) == 3:
-            linear_output, bias, layernorm_output = linear_output
-            x = layernorm_output
-
-        adapter_output = self.adapter(x)
-
-        # mag_norm_scale is  ||W_0 + B_0 A_0|| / ||W_0 + B A||  (scaling in front of BA not shown)
-        mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, -1)
-
         return mag_norm_scale * (linear_output + adapter_output), bias
 
 
@@ -135,17 +117,16 @@ class DoRA(PEFT):
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
-        Applies LoRA to a specific module within the model architecture.
+        Applies DoRA to a specific module within the model architecture.
 
         Args:
-            m (nn.Module): The module to apply LoRA to.
+            m (nn.Module): The module to apply DoRA to.
             name (str, optional): Name of the module (if applicable). Defaults to None.
             prefix (str, optional): Prefix for the module name (if applicable). Defaults to None.
 
         Returns:
-            nn.Module: The modified module with LoRA applied, or the original module if not a target.
+            nn.Module: The modified module with DoRA applied, or the original module if not a target.
         """
-        from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
         def wildcard_match(pattern, key):
             if key is None:
@@ -163,9 +144,9 @@ class DoRA(PEFT):
                 tp_size = parallel_state.get_tensor_model_parallel_world_size()
                 in_features = m.in_features
                 out_features = m.out_features * tp_size
-                # LoRA is applied after layernorm, so layernorm output must be returned
+                # DoRA is applied after layernorm, so layernorm output must be returned
                 m.return_layernorm_output = True
-                # perf optimization for LoRA + SP
+                # perf optimization for DoRA + SP (to check!)
                 if m.config.sequence_parallel and not m.ub_overlap_ag:
                     m.return_layernorm_output_gathered = True
             elif HAVE_TE and isinstance(m, TERowParallelLinear):
@@ -188,7 +169,7 @@ class DoRA(PEFT):
             else:
                 raise NotImplementedError(f"Layer type is unrecognized for LoRA: {type(m)}")
 
-            logging.info(f"Adding lora to: {full_name}")
+            logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(
                 in_features,
                 out_features,
