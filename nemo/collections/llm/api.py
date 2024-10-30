@@ -257,6 +257,10 @@ def default_quantization(
     awq_block_size: int = 128,
     sq_alpha: float = 0.5,
     enable_kv_cache: Optional[bool] = None,
+    calibration_dataset: str = "cnn_dailymail",
+    calibration_dataset_size: int = 512,
+    calibration_batch_size: int = 64,
+    calibration_seq_len: int = 128,
 ) -> QuantizationConfig:
     """Default quantization configuration."""
     return QuantizationConfig(
@@ -264,6 +268,10 @@ def default_quantization(
         awq_block_size=awq_block_size,
         sq_alpha=sq_alpha,
         enable_kv_cache=enable_kv_cache,
+        calibration_dataset=calibration_dataset,
+        calibration_dataset_size=calibration_dataset_size,
+        calibration_batch_size=calibration_batch_size,
+        calibration_seq_len=calibration_seq_len,
     )
 
 
@@ -289,12 +297,8 @@ def default_export(
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
     nemo_checkpoint: str,
-    # TODO: Maybe also create calibration_config for parallel and data settings?
     calib_tp: int = 1,
     calib_pp: int = 1,
-    dataset_size: int = 512,
-    batch_size: int = 64,
-    seq_len: int = 128,
     quantization_config: QuantizationConfig = default_quantization(),
     export_config: ExportConfig = default_export(None),
 ):
@@ -309,9 +313,6 @@ def ptq(
         nemo_checkpoint (str): The path to model to be quantized.
         calib_tp (int): Calibration tensor parallelism.
         calib_pp (int): Calibration pipeline parallelism.
-        dataset_size (int): Number of samples to run calibration.
-        batch_size (int): Batch size for calibration.
-        seq_len (int): Length of calibration samples (in tokens).
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
 
@@ -332,24 +333,10 @@ def ptq(
     from nemo.collections.llm import quantization
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
+
     model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calib_tp, calib_pp)
 
-    get_dataloader = quantization.create_data_iterator_getter(
-        model,
-        dataset=quantization_config.calibration_dataset,
-        seq_len=quantization_config.calibration_seq_len,
-        batch_size=quantization_config.calibration_batch_size,
-        calibration_size=quantization_config.calibration_dataset_size,
-    )
-
-    forward_loop = quantizer.create_megatron_forward_loop(
-        get_dataloader,
-        num_batches=dataset_size // batch_size,
-        seq_length=seq_len,
-        micro_batch_size=batch_size,
-    )
-
-    model = quantizer.quantize(model, forward_loop)
+    model = quantizer.quantize(model)
 
     quantizer.export(model)
 
