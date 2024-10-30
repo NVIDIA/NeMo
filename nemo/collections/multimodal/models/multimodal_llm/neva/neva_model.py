@@ -187,36 +187,28 @@ class RMSNorm(nn.Module):
         return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
 
 
-def _reshape_for_broadcast(freqs_cis: torch.Tensor,
-                           x: torch.Tensor) -> torch.Tensor:
+def _reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     """
-    freqs_cis: complex - (seq_len, head_dim / 2)
-    x: complex - (bsz, seq_len, head_dim / 2)
+    freqs_cis: real - (seq_len, head_dim / 2)
+    x: real - (bsz, seq_len, ..., head_dim / 2)
     """
     ndim = x.ndim
     assert ndim > 1
     assert freqs_cis.shape == (x.shape[1], x.shape[-1]), (
-        freqs_cis.shape,
-        (x.shape[1], x.shape[-1]),
+        "freqs_cis shape", freqs_cis.shape, "does not match required shape", (x.shape[1], x.shape[-1]),
     )
-    shape = [
-        d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)
-    ]
+    shape = [1] * ndim
+    shape[1] = x.shape[1]
+    shape[-1] = x.shape[-1]
     return freqs_cis.view(*shape)
-
 
 def precompute_freqs_cis_2d(
     dim: int,
     height: int,
     width: int,
     theta: float,
-) -> torch.Tensor:
-    """
-    freqs_cis: 2D complex tensor of shape (height, width, dim // 2)
-        to be indexed by (height, width) position tuples
-    """
-    # (dim / 2) frequency bases
-    freqs = 1.0 / (theta**(torch.arange(0, dim, 2).float() / dim))
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2).float() / dim))
 
     h = torch.arange(height, device=freqs.device)
     w = torch.arange(width, device=freqs.device)
@@ -230,20 +222,48 @@ def precompute_freqs_cis_2d(
         ],
         dim=-1,
     )
-    return torch.polar(torch.ones_like(freqs_2d), freqs_2d)
 
+    freqs_cis = torch.polar(torch.ones_like(freqs_2d), freqs_2d)
+    freqs_cis_real = freqs_cis.real
+    freqs_cis_imag = freqs_cis.imag
+    return freqs_cis_real, freqs_cis_imag
 
 def apply_rotary_emb_vit(
     xq: torch.Tensor,
     xk: torch.Tensor,
-    freqs_cis: torch.Tensor,
+    freqs_cis: Tuple[torch.Tensor, torch.Tensor],
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
-    xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
-    assert freqs_cis.dtype == torch.complex64
-    freqs_cis = _reshape_for_broadcast(freqs_cis, xq_)
-    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
-    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
+    # Reshape xq and xk to separate real and imaginary parts
+    xq_reshaped = xq.reshape(*xq.shape[:-1], -1, 2)
+    xk_reshaped = xk.reshape(*xk.shape[:-1], -1, 2)
+    
+    # Extract real and imaginary parts
+    xq_real = xq_reshaped[..., 0]
+    xq_imag = xq_reshaped[..., 1]
+    xk_real = xk_reshaped[..., 0]
+    xk_imag = xk_reshaped[..., 1]
+    
+    # Extract freqs_cis real and imaginary parts
+    freqs_cis_real, freqs_cis_imag = freqs_cis
+    assert freqs_cis_real.shape == freqs_cis_imag.shape, "freqs_cis real and imaginary parts must have the same shape"
+    
+    # Reshape freqs_cis for broadcasting
+    freqs_cis_real = _reshape_for_broadcast(freqs_cis_real, xq_real)
+    freqs_cis_imag = _reshape_for_broadcast(freqs_cis_imag, xq_real)
+    
+    # Perform complex multiplication using real arithmetic
+    xq_out_real = xq_real * freqs_cis_real - xq_imag * freqs_cis_imag
+    xq_out_imag = xq_real * freqs_cis_imag + xq_imag * freqs_cis_real
+    xk_out_real = xk_real * freqs_cis_real - xk_imag * freqs_cis_imag
+    xk_out_imag = xk_real * freqs_cis_imag + xk_imag * freqs_cis_real
+    
+    # Stack real and imaginary parts back together
+    xq_out = torch.stack([xq_out_real, xq_out_imag], dim=-1)
+    xk_out = torch.stack([xk_out_real, xk_out_imag], dim=-1)
+    
+    # Flatten the last two dimensions to match original shape
+    xq_out = xq_out.flatten(-2)
+    xk_out = xk_out.flatten(-2)
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
 
@@ -406,10 +426,10 @@ class PixtralVisionModel(nn.Module):
                 width=self.max_patches_per_side,
                 theta=self.args.rope_theta,
             )
-
-        if self._freqs_cis.device != self.device:
-            self._freqs_cis = self._freqs_cis.to(device=self.device)
-
+    
+        if self._freqs_cis[0].device != self.device:
+            self._freqs_cis = [self._freqs_cis[0].to(device=self.device), self._freqs_cis[1].to(device=self.device)]
+    
         return self._freqs_cis
 
     def forward(
@@ -437,7 +457,7 @@ class PixtralVisionModel(nn.Module):
 
         # positional embeddings
         positions = position_meshgrid(patch_embeds_list).to(self.device)
-        freqs_cis = self.freqs_cis[positions[:, 0], positions[:, 1]]
+        freqs_cis = (self.freqs_cis[0][positions[:, 0], positions[:, 1]], self.freqs_cis[1][positions[:, 0], positions[:, 1]])
 
         # Attention mask for multiple images
         mask = generate_block_attention_mask([p.shape[-2] * p.shape[-1] for p in patch_embeds_list], patch_embeds)
