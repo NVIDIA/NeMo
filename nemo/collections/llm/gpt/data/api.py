@@ -18,7 +18,7 @@ import nemo_run as run
 from nemo.collections.llm.gpt.data.dolly import DollyDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.data.hf_dataset import HFDatasetDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import HfDatasetDataModule
 
 
 @run.cli.factory
@@ -43,7 +43,7 @@ def dolly() -> pl.LightningDataModule:
 @run.cli.factory
 @run.autoconvert
 def hf_dataset(dataset: str) -> pl.LightningDataModule:
-    return HFDatasetDataModule(dataset=dataset, seq_length=4096, global_batch_size=16, micro_batch_size=2)
+    return HfDatasetDataModule(dataset=dataset, seq_length=4096, global_batch_size=16, micro_batch_size=2)
 
 
 __all__ = ["mock", "squad", "dolly", "hf_dataset"]
