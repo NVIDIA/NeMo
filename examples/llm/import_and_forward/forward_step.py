@@ -3,6 +3,7 @@ from nemo import lightning as nl
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
+
 def run_forward(model_path: str):
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
@@ -32,6 +33,7 @@ def run_forward(model_path: str):
             attention_mask=None,
         )
         print(output)
+
 
 if __name__ == "__main__":
     run_forward("/workspace/starcoder2_3b_nemo2")
