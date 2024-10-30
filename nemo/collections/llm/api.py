@@ -25,6 +25,7 @@ from rich.console import Console
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
@@ -77,7 +78,7 @@ def train(
         >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
         >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
-        >>> train(model, data, trainer, tokenizer="data")
+        >>> llm.train(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
     app_state = _setup(
@@ -179,7 +180,7 @@ def finetune(
         >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
         >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
-        >>> finetune(model, data, trainer, peft=llm.peft.LoRA()])
+        >>> llm.finetune(model, data, trainer, peft=llm.peft.LoRA()])
         PosixPath('/path/to/log_dir')
     """
 
@@ -230,7 +231,7 @@ def validate(
         >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
         >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
-        >>> validate(model, data, trainer, tokenizer="data")
+        >>> llm.validate(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
     app_state = _setup(
@@ -247,6 +248,112 @@ def validate(
     trainer.validate(model, data)
 
     return app_state.exp_dir
+
+
+@run.cli.factory
+@run.autoconvert
+def default_quantization(
+    algorithm: str = "fp8",
+    awq_block_size: int = 128,
+    sq_alpha: float = 0.5,
+    enable_kv_cache: Optional[bool] = None,
+) -> QuantizationConfig:
+    """Default quantization configuration."""
+    return QuantizationConfig(
+        algorithm=algorithm,
+        awq_block_size=awq_block_size,
+        sq_alpha=sq_alpha,
+        enable_kv_cache=enable_kv_cache,
+    )
+
+
+@run.cli.factory
+@run.autoconvert
+def default_export(
+    path: str,
+    dtype: Union[str, int] = "bf16",
+    decoder_type: Optional[str] = None,
+    inference_tensor_parallel: int = 1,
+    inference_pipeline_parallel: int = 1,
+) -> ExportConfig:
+    """Default export configuration."""
+    return ExportConfig(
+        path=path,
+        dtype=dtype,
+        decoder_type=decoder_type,
+        inference_tensor_parallel=inference_tensor_parallel,
+        inference_pipeline_parallel=inference_pipeline_parallel,
+    )
+
+
+@run.cli.entrypoint(name="ptq", namespace="llm")
+def ptq(
+    nemo_checkpoint: str,
+    # TODO: Maybe also create calibration_config for parallel and data settings?
+    calib_tp: int = 1,
+    calib_pp: int = 1,
+    dataset_size: int = 512,
+    batch_size: int = 64,
+    seq_len: int = 128,
+    quantization_config: QuantizationConfig = default_quantization(),
+    export_config: ExportConfig = default_export(None),
+):
+    """
+    Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
+    calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
+
+    This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
+    or direcly using TensorRT-LLM library.
+
+    Args:
+        nemo_checkpoint (str): The path to model to be quantized.
+        calib_tp (int): Calibration tensor parallelism.
+        calib_pp (int): Calibration pipeline parallelism.
+        dataset_size (int): Number of samples to run calibration.
+        batch_size (int): Batch size for calibration.
+        seq_len (int): Length of calibration samples (in tokens).
+        quantization_config (QuantizationConfig): Configuration for quantization algorithm.
+        export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+
+    Returns:
+        Path: The directory path where quantized model is saved.
+
+    Example:
+        >>> from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
+        >>> nemo_checkpoint = "/opt/checkpoints/LLAMA3-8B-fp16"
+        >>> quantization_config = QuantizationConfig(algorithm="fp8")
+        >>> export_config = ExportConfig(path="/opt/checkpoints/LLAMA3-8B-fp8")
+        >>> llm.ptq(nemo_checkpoint, quantization_config=quantization_config, export_config=export_config)
+        '/opt/checkpoints/LLAMA3-8B-fp8'
+    """
+    if export_config.path is None:
+        raise ValueError("The export_config.path needs to be specified, got None.")
+
+    from nemo.collections.llm import quantization
+
+    quantizer = quantization.Quantizer(quantization_config, export_config)
+    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calib_tp, calib_pp)
+
+    get_dataloader = quantization.create_data_iterator_getter(
+        model,
+        dataset=quantization_config.calibration_dataset,
+        seq_len=quantization_config.calibration_seq_len,
+        batch_size=quantization_config.calibration_batch_size,
+        calibration_size=quantization_config.calibration_dataset_size,
+    )
+
+    forward_loop = quantizer.create_megatron_forward_loop(
+        get_dataloader,
+        num_batches=dataset_size // batch_size,
+        seq_length=seq_len,
+        micro_batch_size=batch_size,
+    )
+
+    model = quantizer.quantize(model, forward_loop)
+
+    quantizer.export(model)
+
+    return export_config.path
 
 
 def get_trtllm_deployable(
