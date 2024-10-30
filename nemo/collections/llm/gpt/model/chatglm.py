@@ -198,7 +198,6 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
         )
 
 
-
 @io.state_transform(
     source_key="embedding.word_embeddings.weight",
     target_key="transformer.embedding.word_embeddings.weight",
@@ -206,7 +205,7 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
 def _export_embedding(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
-    return embedding[:megatron_config.vocab_size, :]
+    return embedding[: megatron_config.vocab_size, :]
 
 
 @io.state_transform(
@@ -216,7 +215,7 @@ def _export_embedding(ctx: io.TransformCTX, embedding):
 def _export_head(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
-    return embedding[:megatron_config.vocab_size, :]
+    return embedding[: megatron_config.vocab_size, :]
 
 
 @io.state_transform(

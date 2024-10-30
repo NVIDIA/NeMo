@@ -218,7 +218,12 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1, _export_embedding, _export_head])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv, _export_linear_fc1, _export_embedding, _export_head],
+        )
 
     @property
     def tokenizer(self):

@@ -228,7 +228,8 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
         model = load_context(path).model
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu" if cpu else "gpu",
+            devices=1,
+            accelerator="cpu" if cpu else "gpu",
             strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False),
         )
 

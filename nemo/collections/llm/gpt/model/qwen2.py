@@ -201,7 +201,10 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
         }
 
         return io.apply_transforms(
-            source, target, mapping=mapping, transforms=[_export_qkv, _export_qkv_bias, _export_linear_fc1, _export_embedding, _export_head]
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv, _export_qkv_bias, _export_linear_fc1, _export_embedding, _export_head],
         )
 
     @property

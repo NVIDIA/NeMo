@@ -16,9 +16,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
+import torch
 import torch.nn.functional as F
 from torch import nn
-import torch
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
@@ -233,7 +233,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
 def _export_embedding(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
-    return embedding[:megatron_config.vocab_size, :]
+    return embedding[: megatron_config.vocab_size, :]
 
 
 @io.state_transform(
@@ -243,4 +243,4 @@ def _export_embedding(ctx: io.TransformCTX, embedding):
 def _export_head(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
-    return embedding[:megatron_config.vocab_size, :]
+    return embedding[: megatron_config.vocab_size, :]

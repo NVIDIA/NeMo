@@ -322,7 +322,12 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1, _export_embedding, _export_head])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv, _export_linear_fc1, _export_embedding, _export_head],
+        )
 
     @property
     def tokenizer(self):
@@ -431,7 +436,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 def _export_embedding(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
-    return embedding[:megatron_config.vocab_size, :]
+    return embedding[: megatron_config.vocab_size, :]
 
 
 @io.state_transform(
@@ -441,7 +446,7 @@ def _export_embedding(ctx: io.TransformCTX, embedding):
 def _export_head(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
-    return embedding[:megatron_config.vocab_size, :]
+    return embedding[: megatron_config.vocab_size, :]
 
 
 @io.state_transform(

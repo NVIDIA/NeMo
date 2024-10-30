@@ -63,6 +63,7 @@ def load_context(path: Path, subpath: Optional[str] = None, build: bool = True):
             path = path / 'context'
         return load(path, output_type=TrainerContext, subpath=subpath, build=build)
 
+
 def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
     """
     Registers an importer for a model with a specified file extension and an optional default path.

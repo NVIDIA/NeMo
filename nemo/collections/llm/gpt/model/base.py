@@ -134,6 +134,7 @@ def torch_dtype_from_mcore_config(config: TransformerConfig):
     else:
         return torch.float
 
+
 @dataclass
 class GPTConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.gpt.gpt_model.GPTModel

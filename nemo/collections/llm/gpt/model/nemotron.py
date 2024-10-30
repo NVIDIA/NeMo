@@ -242,7 +242,9 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
             "decoder.final_layernorm.bias": "model.norm.bias",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_embedding, _export_head])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_export_qkv, _export_embedding, _export_head]
+        )
 
     @property
     def tokenizer(self):

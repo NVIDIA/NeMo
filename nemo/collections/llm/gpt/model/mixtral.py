@@ -301,7 +301,12 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_moe_w1_w3, _export_embedding, _export_head])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv, _export_moe_w1_w3, _export_embedding, _export_head],
+        )
 
     @property
     def tokenizer(self):
