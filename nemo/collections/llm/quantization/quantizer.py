@@ -73,7 +73,7 @@ class QuantizationConfig:
 
 @dataclass
 class ExportConfig:
-    """Inference configuration for the quantized TensorRT-LLM engine"""
+    """Inference configuration for the quantized TensorRT-LLM checkpoint."""
 
     path: str
     dtype: Union[str, int] = "bf16"
