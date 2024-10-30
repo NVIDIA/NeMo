@@ -21,6 +21,7 @@ import pytorch_lightning as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
+from megatron.core.enums import ModelType
 from megatron.core import dist_checkpointing
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
@@ -32,7 +33,7 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TENorm,
     TERowParallelLinear,
 )
-from megatron.core.transformer.enums import ModelType
+from megatron.core.extensions.transformer_engine import TEDotProductAttention
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -41,7 +42,7 @@ from transformers import CLIPVisionConfig, CLIPVisionModel
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
+from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
@@ -224,12 +225,17 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
     ln_pre_impl: Union[ModuleSpec, type] = TENorm
+    ln_post_impl: Union[ModuleSpec, type] = TENorm,
     add_class_token: bool = True
     class_token_len: int = 1
     patch_dim: int = 14
     img_h: int = 336
     img_w: int = 336
+    vision_model_type: str = "clip"  # ["clip", "siglip"]
     transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
+
+    num_layers: int = 1  # Placeholder, NOT used!
+    num_attention_heads: int = 8  # Placeholder, NOT used!
 
     def configure_model(self) -> "MCoreCLIPViTModel":
         transformer_layer_spec = self.transformer_layer_spec
@@ -239,13 +245,14 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
             self,
             transformer_layer_spec,
             ln_pre_impl=self.ln_pre_impl,
+            ln_post_impl=self.ln_post_impl,
             add_class_token=self.add_class_token,
             class_token_len=self.class_token_len,
             patch_dim=self.patch_dim,
             img_h=self.img_h,
             img_w=self.img_w,
+            model_subtype=self.vision_model_type,
         )
-
 
 @dataclass
 class NevaConfig(TransformerConfig, io.IOMixin):
@@ -336,9 +343,19 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.vision_projection = None
         self.language_model = None
 
+        self.sequence_parallel_lm = language_transformer_config.sequence_parallel
+        if self.sequence_parallel_lm:
+            assert (
+                self.language_transformer_config.transformer_layer_spec.submodules.self_attention.submodules.core_attention
+                == TEDotProductAttention
+            ), "Sequence Parallelism is supported only with Transformer Engine DotProductAttention."
+        self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
+
         self.share_embeddings_and_output_weights = False
         if self.add_decoder:
-            self.language_model = language_transformer_config.configure_model(tokenizer=tokenizer)
+            self.language_model = language_transformer_config.configure_model(
+                tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
+            )
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
             self._language_max_sequence_length = self.language_model.max_sequence_length
             self._language_is_pipeline_parallel = (
@@ -348,6 +365,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))
                 loaded_state_dict = dist_checkpointing.load(
                     sharded_state_dict=sharded_state_dict, checkpoint_dir=config.language_model_from_pretrained,
+                    validate_access_integrity=False,
                 )
                 loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
                 self.language_model.load_state_dict(loaded_state_dict)
@@ -414,8 +432,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         use_inference_kv_cache = (
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
-
         has_images = media.shape[0] > 0
+
         # If running inference, we can skip media token computation if they were computed already earlier for this sample.
         if use_inference_kv_cache:
             media_embeddings = None
@@ -436,6 +454,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 ]  # [num_images, img_seq_len, h_vision]
             else:
                 # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
+                media = media.to(next(self.vision_model.parameters()).dtype)
                 media_embeddings = self.vision_model(media)
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
@@ -460,7 +479,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             media_embeddings = self.encoder_hidden_state
 
         if not self.add_decoder:
-            return media_embeddings, loss_mask
+            return media_embeddings
 
         language_embeddings = None
         if self.pre_process:
@@ -470,17 +489,45 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Note: This adds absolute position embedding but not RoPE.
             # Each image is counted as one position.
             # RoPE is added in language_model forward. Each image embedding is one position.
+            if self.sequence_parallel_lm:
+                # Pad to nearest multiple of TP world size for embedding.
+                tp_world_size = get_tensor_model_parallel_world_size()
+                padded_seq_len = (
+                    int(
+                        (input_ids_text.shape[1] + tp_world_size - 1)
+                        // tp_world_size
+                        * tp_world_size
+                    )
+                    - input_ids_text.shape[1]
+                )
+                if padded_seq_len != 0:
+                    input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
+                    if position_ids is not None:
+                        position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
             language_embeddings = self.language_model.embedding(
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
+            if self.sequence_parallel_lm:
+                # Gather the language embeddings back.
+                # We use the full embedding to insert image embeddings
+                # and then scatter to avoid load imbalance.
+                language_embeddings = tensor_parallel.gather_from_sequence_parallel_region(
+                    language_embeddings, tensor_parallel_output_grad=False
+                )
+                # Remove the padding done for SP as we'll need new padding calculation
+                # after image embeddings are inserted.
+                if padded_seq_len != 0:
+                    language_embeddings = language_embeddings[:-padded_seq_len]
+            language_embeddings = language_embeddings.transpose(
+                1, 0
+            ).contiguous()  # [b, text_seq_len, h_language]
 
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_media_tiles is None:
             num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
 
         # Preprocess input, labels and loss mask.
-        combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
+        combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
             media_embeddings,
             language_embeddings,
             input_ids,
@@ -489,6 +536,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             use_inference_kv_cache,
             media_token_index,
             num_media_tiles,
+            attention_mask,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         output = self.language_model(
@@ -603,6 +651,4 @@ __all__ = [
     "NevaConfig",
     "neva_data_step",
     "neva_forward_step",
-    "transformer_engine_layer_spec",
-    "local_layer_spec",
 ]

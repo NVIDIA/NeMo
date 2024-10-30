@@ -506,6 +506,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         weights: Optional[List[float]] = None,
         data_config: Optional[DataConfig] = ImageDataConfig,
         seq_length: int = 2048,
+        decoder_seq_length: Optional[int] = None,
         tokenizer: Optional = None,
         image_processor: Optional = None,
         micro_batch_size: int = 4,
@@ -532,6 +533,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         self.weights = weights
         self.data_config = data_config
         self.seq_length = seq_length
+        self.decoder_seq_length = decoder_seq_length
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.num_train_samples = num_train_samples
@@ -547,13 +549,15 @@ class NevaLazyDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or processor.tokenizer
+            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
             self.image_processor = image_processor or processor.image_processor
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
+            decoder_seq_len=self.decoder_seq_length,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             dataloader_type="cyclic",
