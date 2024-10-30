@@ -4469,6 +4469,9 @@ jobs:
       - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
+      - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
+      - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
+      - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
       - L2_NeMo_2_Mixtral_Pretraining
       - L2_PTQ_Llama2_FP8
       - L2_Community_LLM_Checkpoints_tests_Llama3
