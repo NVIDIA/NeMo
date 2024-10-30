@@ -213,7 +213,9 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
-    recipe = default_finetune_recipe(model(), "Qwen/Qwen2-72B", dir, name, num_nodes, num_gpus_per_node, packed_sequence)
+    recipe = default_finetune_recipe(
+        model(), "Qwen/Qwen2-72B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+    )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         assert num_nodes >= 4
         recipe.trainer.strategy.tensor_model_parallel_size = 8
