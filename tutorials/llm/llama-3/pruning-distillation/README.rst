@@ -5,6 +5,8 @@ Llama 3.1 Pruning and Distillation with NeMo Framework
 
 `NVIDIA NeMo Framework <https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html>`_ provides tools to perform teacher finetuning, pruning and distillation on Llama 3.1 to fit your use case.
 
+`NVIDIA TensorRT Model Optimizer <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_ is a library (referred to as **Model Optimizer**, or **ModelOpt**) comprising state-of-the-art model optimization techniques including `quantization <https://github.com/NVIDIA/TensorRT-Model-Optimizer#quantization>`_, `sparsity <https://github.com/NVIDIA/TensorRT-Model-Optimizer#sparsity>`_, `distillation <https://github.com/NVIDIA/TensorRT-Model-Optimizer#distillation>`_, and `pruning <https://github.com/NVIDIA/TensorRT-Model-Optimizer#pruning>`_ to compress models.
+
 `LLM Pruning and Distillation in Practice: The Minitron Approach <https://arxiv.org/abs/2408.11796>`_ provides tools to perform teacher finetuning, pruning and distillation on Llama 3.1 as described in the `tech report <https://arxiv.org/abs/2408.11796>`_.
 
 `How to Prune and Distill Llama-3.1 8B to an NVIDIA Llama-3.1-Minitron 4B Model <https://developer.nvidia.com/blog/how-to-prune-and-distill-llama-3-1-8b-to-an-nvidia-llama-3-1-minitron-4b-model/>`_ provides practical and effective structured compression best practices for LLMs that combine depth, width, attention, and MLP pruning with knowledge distillation-based retraining. These strategies are presented in the `Compact Language Models via Pruning and Knowledge Distillation <https://arxiv.org/pdf/2407.14679>`_ paper.
@@ -34,6 +36,8 @@ Create a pruned and distilled model with NeMo Framework
 ------------------------------------------------------------------------------
 
 For pruning and distilling the model, you will use the NeMo Framework which is available as a `docker container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`_.
+
+``NOTE:`` These notebooks use `NVIDIA TensorRT Model Optimizer <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_ under the hood for pruning and distillation.
 
 
 1. Download the `Llama 3.1 8B .nemo <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3_1-8b-nemo>`_ from NVIDIA NGC using the `NGC CLI <https://org.ngc.nvidia.com/setup/installers/cli>`_. Generate the ``NGC_API_KEY`` following these `instructions <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#option-2-from-ngc>`_. The following command saves the ``.nemo`` format model in a folder named ``llama-3_1-8b-nemo_v1.0`` in the current directory. You can specify another path using the ``-d`` option in the CLI tool.
