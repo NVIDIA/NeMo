@@ -189,10 +189,10 @@
   "wall_clock_breakdown": false,
   # "save": "/home/zymrael/checkpoints/evo2/evo2_test", # change this
   "tokenizer_type": CharLevelTokenizer,   
-   "use_fp8_input_projections": false,
-   "use_fp8_output_projections": false,
-   "use_fp8_mlp_projections": false,
-   "use_fp8_norm": false,
+   "use_fp8_input_projections": true,
+   "use_fp8_output_projections": true,
+   "use_fp8_mlp_projections": true,
+   "use_fp8_norm": true,
   "checkpoint_strict_load": false,
 
 "make_gated_mlp_multiple_of": 128,

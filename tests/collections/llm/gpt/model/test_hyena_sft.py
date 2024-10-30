@@ -16,31 +16,32 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
+from nemo.lightning.resume import AutoResume
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.api import train
-from nemo.collections.llm.gpt.data import PreTrainingDataModule
+from nemo.collections.llm.api import _setup
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.api import _setup
 
 """
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
                                 --devices=2 \
                                 --max-steps=40 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
+                                --experiment-dir=<path-to-experiment-dir> \
                                 --seq-length=8192 \
                                 --tensor-parallel-size=2 \
                                 --pipeline-model-parallel-size=1 \
                                 --global-batch-size=2 \
                                 --micro-batch-size=1 \
-                                --model-size=test
+                                --model-size=test \
+                                --mode-path=<path-to-model>
+
 """
 
 def get_args():
@@ -57,97 +58,107 @@ def get_args():
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
     )
     parser.add_argument('--tokenizer-path', type=str, default=None, help="Path to tokenizer model")
-    # parser.add_argument('--data-path', type=str, default=None, help="Path to data file")
+    parser.add_argument('--model-path', type=str, default=None, help="Path to model to convert")
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = get_args()
 
-    tokenizer = get_nmt_tokenizer(
-        "byte-level",
-    )
 
-    data = MockDataModule(
-        seq_length=args.seq_length,
-        tokenizer=tokenizer,
-        micro_batch_size=args.micro_batch_size,
-        global_batch_size=args.global_batch_size,
-        num_train_samples=10_000,
-        num_val_samples=10,
-        num_test_samples=10,
-        num_workers=0,
-        pin_memory=False,
-    )
-
-    if args.model_size == "7b":
-        hyena_config = llm.Hyena7bConfig() 
-    elif args.model_size == "test":
-        hyena_config = llm.HyenaTestConfig()
-    else:
-        raise ValueError(f"Invalid model size: {args.model_size}")
-    
-    hyena_config.seq_length = args.seq_length
-    model = llm.GPTModel(hyena_config, tokenizer=data.tokenizer)
-    strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=args.tensor_parallel_size,
-        pipeline_model_parallel_size=args.pipeline_model_parallel_size,
-        pipeline_dtype = torch.bfloat16,
-        ckpt_load_optimizer=False,
-        ckpt_save_optimizer=False,
-        ckpt_async_save=False,
-    )
-    checkpoint_callback = ModelCheckpoint(
+    # Checkpoint callback setup
+    checkpoint_callback = nl.ModelCheckpoint(
         every_n_train_steps=10,
         dirpath=args.experiment_dir,
     )
-    callbacks = [checkpoint_callback]
-
-    loggers = []
-    tensorboard_logger = TensorBoardLogger(
-        save_dir='dummy',  ## NOTE: this gets overwritten by default
-    )
-    loggers.append(tensorboard_logger)
-
-    opt_config = OptimizerConfig(
-        optimizer='adam',
-        lr=6e-4,
-        min_lr=6e-5,
-        clip_grad=1.0,
-        use_distributed_optimizer=True,
-        bf16=True,
-    )
-    opt = MegatronOptimizerModule(config=opt_config)
 
     trainer = nl.Trainer(
         devices=args.devices,
         max_steps=args.max_steps,
         accelerator="gpu",
-        strategy=strategy,
-        logger=loggers,
-        callbacks=callbacks,
-        log_every_n_steps=1,
-        limit_val_batches=2,
+        strategy=nl.MegatronStrategy(
+            ckpt_load_optimizer=False,
+            ckpt_save_optimizer=False,
+            ckpt_async_save=False,
+            tensor_model_parallel_size=args.tensor_parallel_size,
+            pipeline_model_parallel_size=args.pipeline_model_parallel_size,
+            pipeline_dtype = torch.bfloat16,
+        ),
         plugins=nl.MegatronMixedPrecision(
             precision="bf16-mixed",
             params_dtype=torch.bfloat16,
         ),
+        callbacks=[checkpoint_callback],
+        log_every_n_steps=1,
+        limit_val_batches=5,
+        val_check_interval=10,
+        num_sanity_val_steps=0,
+    )
+
+    opt_config = OptimizerConfig(
+        optimizer='adam',
+        lr=1e-5,
+        min_lr=1e-5,
+        use_distributed_optimizer=True,
+        clip_grad=1.0,
+        bf16=True,
+    )
+
+    optim = MegatronOptimizerModule(config=opt_config)
+    model_config = llm.HyenaTestConfig()
+    model_config.seq_length = args.seq_length
+
+    tokenizer = get_nmt_tokenizer(
+        "byte-level",
+    )
+    model = llm.GPTModel(model_config, optim=optim, tokenizer=tokenizer)
+
+    ckpt_path = model.import_ckpt(
+        path="pytorch://" + args.model_path,
+        model_config=model_config,
     )
 
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,
     )
 
+    data = llm.SquadDataModule(
+        seq_length=args.seq_length,
+        micro_batch_size=args.micro_batch_size,
+        global_batch_size=args.global_batch_size,
+        tokenizer=model.tokenizer,
+        num_workers=0,
+        pad_to_max_length=True,
+    )
+
+    # data = MockDataModule(
+    #     seq_length=args.seq_length,
+    #     tokenizer=tokenizer,
+    #     micro_batch_size=args.micro_batch_size,
+    #     global_batch_size=args.global_batch_size,
+    #     num_train_samples=10_000,
+    #     num_val_samples=10,
+    #     num_test_samples=10,
+    #     num_workers=0,
+    #     pin_memory=False,
+    # )
+
+    ckpt_path = model.import_ckpt(
+        path="pytorch://" + args.model_path,
+        model_config=model_config,
+    )
+
     app_state = _setup(
         model=model,
         data=data,
+        resume=None,
         trainer=trainer,
         log=nemo_logger,
-        optim=opt,
-        resume=None,
-        tokenizer='data',
+        optim=optim,
+        tokenizer=tokenizer,
         model_transform=None,
     )
-    trainer.fit(model, data)
+
+    trainer.fit(model, data, ckpt_path=ckpt_path)
