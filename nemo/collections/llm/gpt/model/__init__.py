@@ -26,6 +26,7 @@ from nemo.collections.llm.gpt.model.base import (
     gpt_data_step,
     gpt_forward_step,
     local_layer_spec,
+    transformer_engine_full_layer_spec,
     transformer_engine_layer_spec,
 )
 from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
@@ -37,6 +38,14 @@ from nemo.collections.llm.gpt.model.gemma import (
     GemmaConfig7B,
     GemmaModel,
 )
+from nemo.collections.llm.gpt.model.gemma2 import (
+    Gemma2Config,
+    Gemma2Config2B,
+    Gemma2Config9B,
+    Gemma2Config27B,
+    Gemma2Model,
+)
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
@@ -55,6 +64,7 @@ from nemo.collections.llm.gpt.model.llama import (
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
 from nemo.collections.llm.gpt.model.mixtral import (
+    MixtralConfig,
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
@@ -104,6 +114,7 @@ __all__ = [
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
+    "MixtralConfig",
     "MixtralModel",
     "Starcoder2Config",
     "Starcoder2Model",
@@ -139,6 +150,11 @@ __all__ = [
     "CodeGemmaConfig2B",
     "CodeGemmaConfig7B",
     "GemmaModel",
+    "Gemma2Config",
+    "Gemma2Config27B",
+    "Gemma2Config2B",
+    "Gemma2Config9B",
+    "Gemma2Model",
     "LlamaModel",
     "Baichuan2Config",
     "Baichuan2Config7B",
@@ -165,5 +181,7 @@ __all__ = [
     "gpt_data_step",
     "gpt_forward_step",
     "transformer_engine_layer_spec",
+    "transformer_engine_full_layer_spec",
     "local_layer_spec",
+    "HfAutoModelForCausalLM",
 ]

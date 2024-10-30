@@ -19,6 +19,7 @@ from itertools import chain
 from typing import List, Literal, Optional
 
 import torch
+from pytorch_lightning.overrides.distributed import _IndexBatchSamplerWrapper
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -139,6 +140,9 @@ def add_megatron_sampler(
     dataloader_type: Literal["single", "cyclic", "batch"] = "single",
     drop_last: bool = True,
     pad_samples_to_global_batch_size: bool = False,
+    dataloader_mode: Literal["train", "validation", "test", "predict"] = "train",
+    rank: int = 0,
+    world_size: int = 1,
     # data_sharding: bool = False
 ) -> DataLoader:
     """
@@ -168,13 +172,11 @@ def add_megatron_sampler(
         pad_samples_to_global_batch_size (bool, optional): Whether to pad the last incomplete
             batch to the `global_batch_size`  (defaults to False, only applies when
             `drop_last` is False).
+        dataloader_mode (Literal["train", "validation", "test", "predict"]): The mode of dataloader.
 
     Returns:
         DataLoader: A new DataLoader instance with the configured Megatron sampler.
     """
-
-    from megatron.core import parallel_state
-
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataloader.dataset),
@@ -182,8 +184,8 @@ def add_megatron_sampler(
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
             drop_last=drop_last,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
@@ -192,8 +194,8 @@ def add_megatron_sampler(
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
             drop_last=drop_last,
             # data_sharding=data_sharding
         )
@@ -207,13 +209,16 @@ def add_megatron_sampler(
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
             drop_last=drop_last,
             pad_samples_to_global_batch_size=not drop_last,
         )
     else:
         raise Exception(f'{dataloader_type} dataloader type is not supported.')
+
+    if dataloader_mode in ["test", "predict"]:
+        batch_sampler = _IndexBatchSamplerWrapper(batch_sampler)  # BatchSampler wrapper to capture its indices
 
     return DataLoader(
         dataloader.dataset,
@@ -287,17 +292,16 @@ class BaseMegatronSampler:
         )
 
     def __len__(self):
-        num_available_samples: int = self.total_samples - self.consumed_samples
         if self.global_batch_size is not None:
             if self.drop_last:
-                num_global_batches = num_available_samples // self.global_batch_size
+                num_global_batches = self.total_samples // self.global_batch_size
             else:
-                num_global_batches = (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+                num_global_batches = (self.total_samples + self.global_batch_size - 1) // self.global_batch_size
             # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
             # num of batches fetched (as training step fetches in terms of micro batches)
             return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
         else:
-            return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size + 1
+            return (self.total_samples - 1) // self.micro_batch_times_data_parallel_size + 1
 
     @abc.abstractmethod
     def __iter__(self): ...
