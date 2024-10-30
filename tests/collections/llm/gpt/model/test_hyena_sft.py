@@ -27,28 +27,21 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+
 """
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
                                 --devices=2 \
-                                --max-steps=4 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
+                                --max-steps=40 \
+                                --experiment-dir=<path-to-experiment-dir> \
                                 --seq-length=8192 \
                                 --tensor-parallel-size=2 \
                                 --pipeline-model-parallel-size=1 \
                                 --global-batch-size=2 \
                                 --micro-batch-size=1 \
-                                --model-size=test
+                                --model-size=test \
+                                --mode-path=<path-to-model>
 
-CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
-                                --devices=1 \
-                                --max-steps=4 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
-                                --seq-length=8192 \
-                                --tensor-parallel-size=1 \
-                                --pipeline-model-parallel-size=1 \
-                                --global-batch-size=2 \
-                                --micro-batch-size=1 \
-                                --model-size=test
 """
 
 def get_args():
@@ -65,7 +58,7 @@ def get_args():
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
     )
     parser.add_argument('--tokenizer-path', type=str, default=None, help="Path to tokenizer model")
-    # parser.add_argument('--data-path', type=str, default=None, help="Path to data file")
+    parser.add_argument('--model-path', type=str, default=None, help="Path to model to convert")
 
     return parser.parse_args()
 
@@ -73,7 +66,6 @@ def get_args():
 if __name__ == "__main__":
 
     args = get_args()
-    ckpt_path = "/home/ataghibakhsh/temp_ckpt/default--val_loss=0.0000-epoch=1-last"
 
 
     # Checkpoint callback setup
@@ -93,15 +85,6 @@ if __name__ == "__main__":
             tensor_model_parallel_size=args.tensor_parallel_size,
             pipeline_model_parallel_size=args.pipeline_model_parallel_size,
             pipeline_dtype = torch.bfloat16,
-            restore_config=RestoreConfig(
-                path=ckpt_path,
-                adapter_path = None,
-                load_model_state = True,
-                load_optim_state = False,
-                # eg tokenizer, etc.
-                load_artifacts = True,
-            ),
-
         ),
         plugins=nl.MegatronMixedPrecision(
             precision="bf16-mixed",
@@ -118,7 +101,7 @@ if __name__ == "__main__":
         optimizer='adam',
         lr=1e-5,
         min_lr=1e-5,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         clip_grad=1.0,
         bf16=True,
     )
@@ -128,18 +111,14 @@ if __name__ == "__main__":
     model_config.seq_length = args.seq_length
 
     tokenizer = get_nmt_tokenizer(
-        "huggingface",
-        "EleutherAI/gpt-neox-20b",
-        tokenizer_model=None,
-        use_fast=True,
+        "byte-level",
     )
-
     model = llm.GPTModel(model_config, optim=optim, tokenizer=tokenizer)
 
-    # ckpt_path = model.import_ckpt(
-    #     path="pytorch://" + args.model_path,
-    #     model_config=model_config,
-    # )
+    ckpt_path = model.import_ckpt(
+        path="pytorch://" + args.model_path,
+        model_config=model_config,
+    )
 
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,
@@ -154,19 +133,27 @@ if __name__ == "__main__":
         pad_to_max_length=True,
     )
 
+    # data = MockDataModule(
+    #     seq_length=args.seq_length,
+    #     tokenizer=tokenizer,
+    #     micro_batch_size=args.micro_batch_size,
+    #     global_batch_size=args.global_batch_size,
+    #     num_train_samples=10_000,
+    #     num_val_samples=10,
+    #     num_test_samples=10,
+    #     num_workers=0,
+    #     pin_memory=False,
+    # )
+
+    ckpt_path = model.import_ckpt(
+        path="pytorch://" + args.model_path,
+        model_config=model_config,
+    )
+
     app_state = _setup(
         model=model,
         data=data,
-        resume=AutoResume(
-            restore_config=RestoreConfig(
-                path=ckpt_path,
-                adapter_path = None,
-                load_model_state = True,
-                load_optim_state = False,
-                load_artifacts = True,
-            ),
-            resume_from_directory=ckpt_path
-        ),
+        resume=None,
         trainer=trainer,
         log=nemo_logger,
         optim=optim,
@@ -174,5 +161,4 @@ if __name__ == "__main__":
         model_transform=None,
     )
 
-    # ckpt_path = "/home/ataghibakhsh/temp_ckpt/default--val_loss=0.0000-epoch=1-last"
     trainer.fit(model, data, ckpt_path=ckpt_path)

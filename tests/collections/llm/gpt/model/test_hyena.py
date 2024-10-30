@@ -33,21 +33,10 @@ from nemo.collections.llm.api import _setup
 """
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
                                 --devices=2 \
-                                --max-steps=4 \
+                                --max-steps=40 \
                                 --experiment-dir=/home/ataghibakhsh/temp_ckpt \
                                 --seq-length=8192 \
                                 --tensor-parallel-size=2 \
-                                --pipeline-model-parallel-size=1 \
-                                --global-batch-size=2 \
-                                --micro-batch-size=1 \
-                                --model-size=test
-
-CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --devices=1 \
-                                --max-steps=4 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
-                                --seq-length=8192 \
-                                --tensor-parallel-size=1 \
                                 --pipeline-model-parallel-size=1 \
                                 --global-batch-size=2 \
                                 --micro-batch-size=1 \
@@ -77,15 +66,10 @@ if __name__ == '__main__':
 
     args = get_args()
 
-    # tokenizer = get_nmt_tokenizer(
-    #     "byte-level",
-    # )
     tokenizer = get_nmt_tokenizer(
-        "huggingface",
-        "EleutherAI/gpt-neox-20b",
-        tokenizer_model=None,
-        use_fast=True,
+        "byte-level",
     )
+
     data = MockDataModule(
         seq_length=args.seq_length,
         tokenizer=tokenizer,
@@ -111,9 +95,9 @@ if __name__ == '__main__':
         tensor_model_parallel_size=args.tensor_parallel_size,
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
         pipeline_dtype = torch.bfloat16,
-        ckpt_load_optimizer=True,
-        ckpt_save_optimizer=True,
-        # ckpt_async_save=False,
+        ckpt_load_optimizer=False,
+        ckpt_save_optimizer=False,
+        ckpt_async_save=False,
     )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=10,
@@ -132,7 +116,7 @@ if __name__ == '__main__':
         lr=6e-4,
         min_lr=6e-5,
         clip_grad=1.0,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
     )
     opt = MegatronOptimizerModule(config=opt_config)
@@ -156,15 +140,6 @@ if __name__ == '__main__':
         log_dir=args.experiment_dir,
     )
 
-    # train(
-    #     model=model,
-    #     data=data,
-    #     trainer=trainer,
-    #     log=nemo_logger,
-    #     tokenizer='data',
-    #     optim=opt,
-    # )
-
     app_state = _setup(
         model=model,
         data=data,
@@ -175,5 +150,4 @@ if __name__ == '__main__':
         tokenizer='data',
         model_transform=None,
     )
-    ckpt_path = "/home/ataghibakhsh/temp_ckpt/default--val_loss=0.0000-epoch=1-last"
-    trainer.fit(model, data)#, ckpt_path=ckpt_path)
+    trainer.fit(model, data)
