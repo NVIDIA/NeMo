@@ -13,7 +13,8 @@
 # limitations under the License.
 
 r"""
-Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. 
+Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format.
+Available model listed in MODEL_CONFIG_MAPPING
 Example usage:
 
 a. Convert a .nemo checkpoint
@@ -24,7 +25,7 @@ a. Convert a .nemo checkpoint
 
 b. Convert a model weight directory. The checkpoint should be similar to `model_weights` subdir after extracting the .nemo file.
    Please also provide tokenizer_library and tokenizer_path when loading from weight directory.
-    python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_nemo2.py \
+    python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
         --input_path=nemotron3-8b-extracted/model_weights \
         --tokenizer_path=path_to_your_tokenizer_model.model \
         --tokenizer_library=sentencepiece \
@@ -56,6 +57,21 @@ from nemo.utils import logging
 import torch
 
 
+MODEL_CONFIG_MAPPING = {
+    "meta-llama/Llama-2-7b-hf":(llm.LlamaModel, llm.Llama2Config7B),
+    "meta-llama/Llama-2-13b-hf": (llm.LlamaModel, llm.Llama2Config13B),
+    "meta-llama/Llama-2-70b-hf": (llm.LlamaModel, llm.Llama2Config70B),
+    "meta-llama/Meta-Llama-3-8B": (llm.LlamaModel, llm.Llama3Config8B),
+    "meta-llama/Meta-Llama-3-70B": (llm.LlamaModel, llm.Llama3Config70B),
+    "mistralai/Mixtral-8x7B-v0.1": (llm.MixtralModel, llm.MixtralConfig8x7B),
+    "mistralai/Mixtral-8x22B-v0.1": (llm.MixtralModel, llm.MixtralConfig8x22B),
+    "mistralai/Mistral-7B-v0.1": (llm.MistralModel, llm.MistralConfig7B),
+    "nvidia/nemotron-3-8b-base-4k": (llm.NemotronModel, llm.Nemotron3Config8B),
+    "nemotron4-22b": (llm.NemotronModel, llm.Nemotron4Config22B),
+    "nemotron4-15b": (llm.NemotronModel, llm.Nemotron4Config15B),
+    "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
+}
+
 def get_args():
     parser = ArgumentParser(description="Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. This script may download from Hugging Face, make sure you have access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)")
     parser.add_argument(
@@ -66,7 +82,7 @@ def get_args():
         help="Path to NeMo 1.0 checkpoints. Could be .nemo file, or `model_weights` directory after untar the .nemo. Please also provide tokenizer_library and tokenizer_path if you pass in `model_weights` directory.",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output NeMo 2.0 directory.")
-    parser.add_argument("--model_id", type=str, default=None, required=True, help="Hugging Face model id for the model")
+    parser.add_argument("--model_id", type=str, default=None, required=True, help="Hugging Face or nemotron model id for the model")
     parser.add_argument("--tokenizer_path", type=str, default=None, required=False, help="Path to tokenizer. If not provided, will 1. try instantiate from nemo1 config 2. pull AutoTokenizer from Hugging Face according to model_id if 1 fails")
     parser.add_argument("--tokenizer_library", type=str, default=None, required=False, help="Tokenizer library, e.g. `sentencepiece`, `megatron`. Defaults to `sentencepiece`")
     args = parser.parse_args()
@@ -74,15 +90,11 @@ def get_args():
 
 
 def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
-    model_config_mapping = {
-        "meta-llama/Meta-Llama-3-8B": (llm.LlamaModel , llm.Llama3Config8B),
-        "mistralai/Mixtral-8x7B-v0.1": (llm.MixtralModel, llm.MixtralConfig8x7B),
-        "nvidia/nemotron-3-8b-base-4k": (llm.NemotronModel, llm.Nemotron3Config8B),
-        "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
-    }
-    if model_id not in model_config_mapping:
-        raise ValueError(f"Unsupported model_id: '{model_id}'. Please provide a valid model_id from {list(model_config_mapping.keys())}.")
-    model_cls, config_cls = model_config_mapping[model_id]
+    
+    if model_id not in MODEL_CONFIG_MAPPING:
+        valid_ids = "\n- ".join([""]+list(MODEL_CONFIG_MAPPING.keys()))
+        raise ValueError(f"Unsupported model_id: {model_id}. Please provide a valid model_id from {valid_ids}")
+    model_cls, config_cls = MODEL_CONFIG_MAPPING[model_id]
     # nemo1 ckpts are bf16
     return model_cls(config_cls(bf16=True, params_dtype=torch.bfloat16), tokenizer=tokenizer)
 
@@ -116,6 +128,7 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
 
 
 def main() -> None:
+    args = get_args()
     tokenizer_tmp_dir = Path("/tmp/nemo_tokenizer")
     tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)    
     tokenizer = get_tokenizer(Path(args.input_path), tokenizer_tmp_dir)
@@ -168,8 +181,7 @@ def main() -> None:
     #Corresponding to Connector: on_import_ckpt
     if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
         trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-    yaml_attrs = ["model"] if "nemotron" not in args.model_id.lower() else [] #Currently, doesn't support producing nemotron's model.yaml 
-    TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(args.output_path), yaml_attrs=yaml_attrs)
+    TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(args.output_path), yaml_attrs=["model"])
     
     #remove tmp dir
     if os.path.isdir(tokenizer_tmp_dir):
