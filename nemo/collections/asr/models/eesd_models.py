@@ -320,7 +320,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         """
         processed_signal, processed_signal_length = self.process_signal(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
         processed_signal = processed_signal[:, :, :processed_signal_length.max()]
-        if self._cfg.get("streaming_mode", False):
+        if self.streaming_mode:
             preds = self.forward_streaming(processed_signal, processed_signal_length)
         else:
             emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length, pre_encode_input=False)
@@ -352,7 +352,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 chunk=chunk_pre_encode_embs,
                 preds=mem_chunk_preds,
                 chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
-                chunk_right_offset=round(right_offset / self.encoder.subsampling_factor),
+                chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
             )
 
             total_pred_list.append(chunk_preds)

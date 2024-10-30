@@ -182,7 +182,7 @@ class SortformerModules(NeuralModule, Exportable):
         mem_len, fifo_len, chunk_len = mem.shape[1], fifo.shape[1], chunk.shape[1] - lc - rc
 
         mem_preds, fifo_preds = preds[:, :mem_len], preds[:, mem_len:mem_len + fifo_len]
-        chunk = chunk[:, lc:chunk_len + lc + rc]
+        chunk = chunk[:, lc:chunk_len + lc]
         chunk_preds = preds[:, mem_len + fifo_len + lc:mem_len + fifo_len + chunk_len + lc]
 
         if self.fifo_len == 0:
