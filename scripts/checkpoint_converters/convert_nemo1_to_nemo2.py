@@ -40,6 +40,7 @@ import tempfile
 from argparse import ArgumentParser
 from pathlib import Path
 
+import torch
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
 from omegaconf import OmegaConf
@@ -54,8 +55,6 @@ from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
-import torch
-
 
 MODEL_CONFIG_MAPPING = {
     "meta-llama/Llama-2-7b-hf":(llm.LlamaModel, llm.Llama2Config7B),
