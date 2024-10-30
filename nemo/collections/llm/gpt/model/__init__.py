@@ -26,6 +26,7 @@ from nemo.collections.llm.gpt.model.base import (
     gpt_data_step,
     gpt_forward_step,
     local_layer_spec,
+    transformer_engine_full_layer_spec,
     transformer_engine_layer_spec,
 )
 from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
@@ -165,5 +166,6 @@ __all__ = [
     "gpt_data_step",
     "gpt_forward_step",
     "transformer_engine_layer_spec",
+    "transformer_engine_full_layer_spec",
     "local_layer_spec",
 ]
