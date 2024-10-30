@@ -19,6 +19,7 @@ import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks.callback import Callback
+from nemo.collections.llm.peft.lora import LoRA
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
@@ -32,7 +33,7 @@ NAME = "hf_auto_model_for_causal_lm"
 
 
 @run.cli.factory(name=NAME)
-def model(model_name) -> run.Config[pl.LightningModule]:
+def model(model_name, load_pretrained_weights) -> run.Config[pl.LightningModule]:
     """
     Factory function to create HfAutoModelForCausalLM model configurations.
 
@@ -50,7 +51,7 @@ def model(model_name) -> run.Config[pl.LightningModule]:
             >>> model_config = model(model_name="mistralai/Mistral-Nemo-Instruct-2407")
             >>> print(model_config)
     """
-    return run.Config(HfAutoModelForCausalLM, model_name=model_name)
+    return run.Config(HfAutoModelForCausalLM, model_name=model_name, load_pretrained_weights=load_pretrained_weights)
 
 
 def trainer(
@@ -223,7 +224,7 @@ def finetune_recipe(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA)
+        recipe.peft = run.Config(LoRA, target_modules=['*_proj'])
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
