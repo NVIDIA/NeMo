@@ -90,7 +90,7 @@ def load_config(args, qwen_config):
         'trust_remote_code': True,
     }
     nemo_config.tokenizer = tokenizer_dict
-    
+
     nemo_config.override_vocab_size = qwen_config['vocab_size']
 
     base = 128
