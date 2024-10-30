@@ -502,8 +502,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
+        CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
+          --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf-tiny \
+          --output_path=/tmp/nlp_megatron_llama/llama_ci.nemo \
+          --precision=16
+
         python examples/nlp/language_modeling/megatron_gpt_ptq.py \
-          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+          model.restore_from_path=/tmp/nlp_megatron_llama/llama_ci.nemo \
           model.tensor_model_parallel_size=2 \
           trainer.devices=2 \
           quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
@@ -513,6 +518,9 @@ jobs:
           export.inference_tensor_parallel=2 \
           export.sample_output=False \
           export.save_path=/tmp/nlp_megatron_llama_eo/ci_fp8.qnemo
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nlp_megatron_llama_eo/ci_fp8.qnemo
 
   # OPTIONAL_L2_QAT_Llama2_INT4:
   #    needs: [cicd-test-container-setup]
