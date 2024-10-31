@@ -483,6 +483,7 @@ def perform_streaming(
     streaming_buffer_iter = iter(streaming_buffer)
     asr_pred_out_stream, diar_pred_out_stream  = None, None
     mem_last_time, fifo_last_time = None, None
+    left_offset, right_offset = 0, 0
     word_and_ts_seq = {"words": [], "token_frame_index": [], "offset_count": 0,
                         "status": "success", 
                         "sentences": None, 
@@ -519,16 +520,24 @@ def perform_streaming(
                         return_transcription=True,
                     )
 
+                    if step_num > 0:
+                        left_offset = 8
+                        chunk_audio = chunk_audio[..., 1:]
+                        chunk_lengths -= 1
+                    
+
                     (
                         diar_pred_out_stream,
                         mem_last_time,
                         fifo_last_time,
                     ) = diar_model.forward_streaming_step(
-                        processed_signal=chunk_audio,
+                        processed_signal=chunk_audio.transpose(1, 2),
                         processed_signal_length=chunk_lengths,
                         mem_last_time=mem_last_time,
                         fifo_last_time=fifo_last_time,
-                        previous_pred_out=diar_pred_out_stream
+                        previous_pred_out=diar_pred_out_stream,
+                        left_offset=left_offset,
+                        right_offset=right_offset,
                     )
                     # Get the word-level dictionaries for each word in the chunk
                     word_and_ts_seq = get_frame_and_words(tokenizer=asr_model.tokenizer, 
@@ -604,7 +613,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
 
     if cfg.diar_model_path.endswith(".ckpt"):
         diar_model = SortformerEncLabelModel.load_from_checkpoint(checkpoint_path=cfg.diar_model_path, map_location=map_location, strict=False)
-        import ipdb; ipdb.set_trace()
     elif cfg.diar_model_path.endswith(".nemo"):
         diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.diar_model_path, map_location=map_location)
     else:
