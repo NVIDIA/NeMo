@@ -36,9 +36,10 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections
                                 --max-steps=40 \
                                 --experiment-dir=/home/ataghibakhsh/temp_ckpt \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=2 \
-                                --pipeline-model-parallel-size=1 \
-                                --global-batch-size=2 \
+                                --tensor-parallel-size=1 \
+                                --pipeline-model-parallel-size=2 \
+                                --context-parallel-size=1 \
+                                --global-batch-size=1 \
                                 --micro-batch-size=1 \
                                 --model-size=test
 """
@@ -49,6 +50,7 @@ def get_args():
     parser.add_argument('--seq-length', type=int, default=4096, help="Training sequence length")
     parser.add_argument('--tensor-parallel-size', type=int, default=1, help="Tensor Parallel Size")
     parser.add_argument('--pipeline-model-parallel-size', type=int, default=1, help="Pipeline Parallel Size")
+    parser.add_argument('--context-parallel-size', type=int, default=1, help="Context Parallel Size")
     parser.add_argument('--micro-batch-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
@@ -94,6 +96,7 @@ if __name__ == '__main__':
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tensor_parallel_size,
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
+        context_parallel_size=args.context_parallel_size,
         pipeline_dtype = torch.bfloat16,
         ckpt_load_optimizer=False,
         ckpt_save_optimizer=False,
