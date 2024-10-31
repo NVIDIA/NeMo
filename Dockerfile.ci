@@ -85,7 +85,7 @@ popd
 export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 
 # Install nvidia-resiliency-ext
-pip install nvidia-resiliency-ext
+pip install --no-cache-dir "nvidia-resiliency-ext==0.1.3"
 
 EOF
 

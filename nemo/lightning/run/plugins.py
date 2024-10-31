@@ -110,24 +110,6 @@ class FaultTolerencePlugin(run.Plugin):
     rank_heartbeat_timeout: int = 300
     use_simulated_fault: bool = False
 
-    def ft_callback(
-        exp_dir: str = None,
-    ) -> run.Config[res_module.FaultToleranceCallback]:
-
-        simulated_fault = run.Config(
-            res_module.fault_tolerance_callback.SimulatedFaultParams,
-            fault_type="rank_hung",
-            base_delay=120.0,
-        )
-
-        return run.Config(
-            res_module.FaultToleranceCallback,
-            autoresume=True,
-            calculate_timeouts=True,
-            exp_dir=exp_dir,
-            simulated_fault_params=simulated_fault if self.use_simulated_fault else None,
-        )
-
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
 
@@ -142,7 +124,18 @@ class FaultTolerencePlugin(run.Plugin):
 
         assert isinstance(task, run.Partial)
 
-        callbacks = [self.ft_callback(exp_dir=task.log.log_dir)]
+        simulated_fault = run.Config(
+            res_module.fault_tolerance_callback.SimulatedFaultParams,
+            fault_type="rank_hung",
+            base_delay=120.0,
+        )
+        callbacks = [run.Config(
+            res_module.FaultToleranceCallback,
+            autoresume=True,
+            calculate_timeouts=True,
+            exp_dir=task.log.log_dir,
+            simulated_fault_params=simulated_fault if self.use_simulated_fault else None,
+        )]
 
         assert not executor.launcher.nsys_profile, "Nsys not supported with the FaultTolerencePlugin."
         if hasattr(task, "trainer") and hasattr(task.trainer, "callbacks"):
