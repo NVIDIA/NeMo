@@ -85,7 +85,7 @@ def trainer(
         sequence_parallelism=True,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
-        callbacks=[run.Config(TimingCallback)],
+        callbacks=[run.Config(TimingCallback), straggler_det_callback()],
     )
 
 

@@ -24,6 +24,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes import mixtral_8x7b
 from nemo.utils.exp_manager import TimingCallback
+from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 
 NAME = "mixtral_8x7b_16k"
 
@@ -87,7 +88,7 @@ def trainer(
         expert_parallelism=1,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
-        callbacks=[run.Config(TimingCallback)],
+        callbacks=[run.Config(TimingCallback), straggler_det_callback()],
     )
 
 

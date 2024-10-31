@@ -25,6 +25,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
@@ -195,7 +196,7 @@ def pretrain_recipe(
         trainer=trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
-            callbacks=[run.Config(TimingCallback)],
+            callbacks=[run.Config(TimingCallback), straggler_det_callback()],
         ),
         data=run.Config(
             MockDataModule,

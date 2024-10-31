@@ -239,7 +239,7 @@ def pretrain_recipe(
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
             val_check_interval=val_check_interval,
-            callbacks=[run.Config(TimingCallback)],
+            callbacks=[run.Config(TimingCallback), straggler_det_callback()],
         ),
         data=run.Config(
             MockDataModule,

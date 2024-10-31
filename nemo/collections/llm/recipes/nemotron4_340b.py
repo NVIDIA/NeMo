@@ -23,6 +23,7 @@ from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
@@ -156,7 +157,7 @@ def pretrain_recipe(
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
             val_check_interval=val_check_interval,
-            callbacks=[run.Config(TimingCallback)],
+            callbacks=[run.Config(TimingCallback), straggler_det_callback()],
         ),
         data=run.Config(
             MockDataModule,
