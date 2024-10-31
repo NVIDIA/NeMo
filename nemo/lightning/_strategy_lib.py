@@ -498,6 +498,7 @@ def optimizer_sharded_state_dict(
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.validation import parse_strict_flag, StrictHandling
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -534,6 +535,26 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key[len(to_remove) :]] = value
             else:
                 _state_dict[key] = value
+
+        ## convert from StrictHandling to bool for PTL
+        if strict is not None and not isinstance(strict, bool):
+            strict_options = [
+                StrictHandling.RAISE_UNEXPECTED,
+                StrictHandling.RAISE_ALL,
+            ]
+            non_strict_options = [
+                StrictHandling.ASSUME_OK_UNEXPECTED,
+                StrictHandling.LOG_UNEXPECTED,
+                StrictHandling.LOG_ALL,
+                StrictHandling.RETURN_UNEXPECTED,
+                StrictHandling.RETURN_ALL,
+                StrictHandling.IGNORE_ALL,
+            ]
+            strict = parse_strict_flag(strict)
+            if strict in strict_options:
+                strict = True
+            else:
+                strict = False
 
         module.load_state_dict(_state_dict, strict=strict)
 

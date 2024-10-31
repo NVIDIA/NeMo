@@ -254,6 +254,19 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
+    ## TODO: want this to apply to all mcore models, not just GPT
+    @property
+    def strict_loading(self) -> bool | str:
+        """Determines how Lightning loads this model using `.load_state_dict(..., strict=model.strict_loading)`."""
+        # We use None as the default internally to determine whether the user has set a value
+        if isinstance(self._strict_loading, str):
+            return self._strict_loading
+        return self._strict_loading in (None, True)
+
+    @strict_loading.setter
+    def strict_loading(self, strict_loading: bool | str) -> None:
+        self._strict_loading = strict_loading
+
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
