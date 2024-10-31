@@ -248,7 +248,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
-        timestamps: bool = False,
+        timestamps: Optional[bool] = None,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
@@ -270,7 +270,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
-            timestamps: (Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['word']). Refer to `Hypothesis` class for more details.
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details. Default is None and would retain the previous state set by using self.change_decoding_strategy().
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
@@ -280,20 +280,23 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
-        if timestamps or (override_config is not None and override_config.timestamps):
-            logging.info(
-                "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[0][idx].timestep['word'/'segment'/'char']"
-            )
-            return_hypotheses = True
-            with open_dict(self.cfg.decoding):
-                self.cfg.decoding.compute_timestamps = True
-                self.cfg.decoding.preserve_alignments = True
-            self.change_decoding_strategy(self.cfg.decoding, verbose=False)
-        else:  # This is done to ensure the state is preserved when decoding_strategy is set outside
-            with open_dict(self.cfg.decoding):
-                self.cfg.decoding.compute_timestamps = self.cfg.decoding.get('compute_timestamps', False)
-                self.cfg.decoding.preserve_alignments = self.cfg.decoding.get('preserve_alignments', False)
-            self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+
+        if timestamps is not None:
+            if timestamps or (override_config is not None and override_config.timestamps):
+                logging.info(
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[0][idx].timestep['word'/'segment'/'char']"
+                )
+                return_hypotheses = True
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = True
+                    self.cfg.decoding.preserve_alignments = True
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+            else:
+                return_hypotheses = False
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = False
+                    self.cfg.decoding.preserve_alignments = False
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
 
         return super().transcribe(
             audio=audio,

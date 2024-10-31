@@ -127,7 +127,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
-        timestamps: bool = False,
+        timestamps: Optional[bool] = None,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
@@ -145,7 +145,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
-            timestamps: (Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['word']). Refer to `Hypothesis` class for more details.
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details. Default is None and would retain the previous state set by using self.change_decoding_strategy().
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
@@ -154,20 +154,22 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
-        if timestamps or (override_config is not None and override_config.timestamps):
-            logging.info(
-                "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
-            )
-            return_hypotheses = True
-            with open_dict(self.cfg.decoding):
-                self.cfg.decoding.compute_timestamps = True
-                self.cfg.decoding.preserve_alignments = True
-            self.change_decoding_strategy(self.cfg.decoding, verbose=False)
-        else:  # This is done to ensure the state is preserved when decoding_strategy is set outside
-            with open_dict(self.cfg.decoding):
-                self.cfg.decoding.compute_timestamps = self.cfg.decoding.get('compute_timestamps', False)
-                self.cfg.decoding.preserve_alignments = self.cfg.decoding.get('preserve_alignments', False)
-            self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+        if timestamps is not None:
+            # else retain the decoder state (users can set it using change_decoding_strategy)
+            if timestamps or (override_config is not None and override_config.timestamps):
+                logging.info(
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
+                )
+                return_hypotheses = True
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = True
+                    self.cfg.decoding.preserve_alignments = True
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+            else:  # This is done to ensure the state is preserved when decoding_strategy is set outside
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = self.cfg.decoding.get('compute_timestamps', False)
+                    self.cfg.decoding.preserve_alignments = self.cfg.decoding.get('preserve_alignments', False)
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
 
         return super().transcribe(
             audio=audio,

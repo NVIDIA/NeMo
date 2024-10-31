@@ -124,7 +124,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
-            timestamps: (Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['word']). Refer to `Hypothesis` class for more details.
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details. Default is None and would retain the previous state set by using self.change_decoding_strategy().
             verbose: (bool) whether to display tqdm progress bar
             logprobs: (bool) whether to return ctc logits insted of hypotheses
 
@@ -134,27 +134,27 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
 
-        if timestamps or (override_config is not None and override_config.timestamps):
+        if timestamps is not None:
             if self.cur_decoder not in ["ctc", "rnnt"]:
-                raise ValueError(
-                    f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
+                    raise ValueError(
+                        f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
+                    )
+            decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding            
+            if timestamps or (override_config is not None and override_config.timestamps):
+                logging.info(
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
                 )
-
-            decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
-
-            logging.info(
-                "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
-            )
-            return_hypotheses = True
-            with open_dict(decoding_cfg):
-                decoding_cfg.compute_timestamps = True
-                decoding_cfg.preserve_alignments = True
-            self.change_decoding_strategy(decoding_cfg, self.cur_decoder, verbose=False)
-        else:  # This is done to ensure the timestamps are not computed if not requested
-            with open_dict(decoding_cfg):
-                decoding_cfg.compute_timestamps = decoding_cfg.get('compute_timestamps', False)
-                decoding_cfg.preserve_alignments = decoding_cfg.get('preserve_alignments', False)
-            self.change_decoding_strategy(decoding_cfg, self.cur_decoder, verbose=False)
+                return_hypotheses = True
+                with open_dict(decoding_cfg):
+                    decoding_cfg.compute_timestamps = True
+                    decoding_cfg.preserve_alignments = True
+                self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
+            else: 
+                return_hypotheses = False
+                with open_dict(decoding_cfg):
+                    decoding_cfg.compute_timestamps = False
+                    decoding_cfg.preserve_alignments = False
+                self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
 
         return super().transcribe(
             audio=audio,
