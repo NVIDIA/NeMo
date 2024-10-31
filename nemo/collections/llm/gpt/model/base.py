@@ -313,6 +313,7 @@ class GPTConfig175B(GPTConfig):
     bias_dropout_add_fusion: bool = True
     use_transformer_engine_full_layer_spec: bool = True
 
+
 class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
