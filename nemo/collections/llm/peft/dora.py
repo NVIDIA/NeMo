@@ -83,8 +83,6 @@ class DoRALinear(AdapterWrapper):
         adapter_output = self.adapter(layernorm_output.contiguous())
 
         # mag_norm_scale is  ||W_0 + B_0 A_0|| / ||W_0 + B A||  (scaling in front of BA not shown)
-        mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, -1)
-
         mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, 1, -1)
         """
           mag_norm_scale * (linear_output + adapter_output)
@@ -96,7 +94,6 @@ class DoRALinear(AdapterWrapper):
         return mag_norm_scale * (linear_output + adapter_output), bias
 
 
-# TODO possibly merge this with LoRA
 @dataclass
 class DoRA(PEFT):
     """
