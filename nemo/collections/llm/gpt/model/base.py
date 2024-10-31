@@ -317,7 +317,6 @@ class GPTConfig175B(GPTConfig):
     num_attention_heads: int = 96
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    ffn_dropout: float = 0.0
     bias_activation_fusion: bool = True
     bias_dropout_add_fusion: bool = True
     use_transformer_engine_full_layer_spec: bool = True
