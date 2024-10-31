@@ -25,7 +25,7 @@ from nemo.collections.llm.recipes.finetune_default import nemo_resume
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.vlm.llama.data.mock import MockDataModule
+from nemo.collections.vlm.mllama.data.mock import MockDataModule
 
 NAME = "mllama_90b"
 

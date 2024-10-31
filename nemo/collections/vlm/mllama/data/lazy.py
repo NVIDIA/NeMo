@@ -36,7 +36,7 @@ import torch.nn.functional as F
 from torch.utils.data import default_collate
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor
+from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
 from nemo.collections.vlm.neva.data.lazy import IGNORE_INDEX, LazySupervisedDataset
 
 
