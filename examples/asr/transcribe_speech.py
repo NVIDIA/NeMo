@@ -47,14 +47,9 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   model_path: path to .nemo ASR checkpoint
   pretrained_name: name of pretrained ASR model (from NGC registry)
   audio_dir: path to directory with audio files
-  dataset_manifest: path to dataset JSON manifest file (in NeMo format)
-
-  timestamps: Bool to request greedy time stamp information (if the model supports it)
+  dataset_manifest: path to dataset JSON manifest file (in NeMo formats
   compute_langs: Bool to request language ID information (if the model supports it)
-
-  (Optionally: You can limit the type of timestamp computations using below overrides)
-  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
-  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
+  timestamps: Bool to request greedy time stamp information (if the model supports it) by default None 
 
   (Optionally: You can limit the type of timestamp computations using below overrides)
   ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word, segment])
@@ -136,10 +131,10 @@ class TranscriptionConfig:
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
     # Set to True to output greedy timestamp information (only supported models) and returns full alignment hypotheses
-    timestamps: bool = False
+    timestamps: Optional[bool] = None
 
-    # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
-    return_hypotheses: bool = True
+    # Set to True to return hypotheses instead of text from the transcribe function
+    return_hypotheses: bool = False
 
     # Set to True to output language ID information
     compute_langs: bool = False
