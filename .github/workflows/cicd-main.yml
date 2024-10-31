@@ -69,7 +69,7 @@ jobs:
     steps:
     - name: Run some checks
       run: |
-        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '\
+        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
           # PyTorch Lightning version
           python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
 
@@ -434,7 +434,7 @@ jobs:
   #   needs: [cicd-test-container-setup]
   #   runs-on: self-hosted-azure
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
@@ -486,7 +486,7 @@ jobs:
   #    runs-on: self-hosted-azure
   #    timeout-minutes: 10
   #    container:
-  #      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #      image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #      options:
   #        # --user 0:128
   #        --device=/dev/nvidia0
@@ -3570,7 +3570,7 @@ jobs:
   #   runs-on: self-hosted-azure
   #   timeout-minutes: 10
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
@@ -3635,7 +3635,7 @@ jobs:
   #   needs: [cicd-test-container-setup]
   #   runs-on: self-hosted-azure
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
