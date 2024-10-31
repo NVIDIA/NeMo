@@ -57,7 +57,7 @@ from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 
 MODEL_CONFIG_MAPPING = {
-    "meta-llama/Llama-2-7b-hf":(llm.LlamaModel, llm.Llama2Config7B),
+    "meta-llama/Llama-2-7b-hf": (llm.LlamaModel, llm.Llama2Config7B),
     "meta-llama/Llama-2-13b-hf": (llm.LlamaModel, llm.Llama2Config13B),
     "meta-llama/Llama-2-70b-hf": (llm.LlamaModel, llm.Llama2Config70B),
     "meta-llama/Meta-Llama-3-8B": (llm.LlamaModel, llm.Llama3Config8B),
@@ -71,8 +71,11 @@ MODEL_CONFIG_MAPPING = {
     "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
 }
 
+
 def get_args():
-    parser = ArgumentParser(description="Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. This script may download from Hugging Face, make sure you have access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)")
+    parser = ArgumentParser(
+        description="Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. This script may download from Hugging Face, make sure you have access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)"
+    )
     parser.add_argument(
         "--input_path",
         type=str,
@@ -80,18 +83,34 @@ def get_args():
         required=True,
         help="Path to NeMo 1.0 checkpoints. Could be .nemo file, or `model_weights` directory after untar the .nemo. Please also provide tokenizer_library and tokenizer_path if you pass in `model_weights` directory.",
     )
-    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output NeMo 2.0 directory.")
-    parser.add_argument("--model_id", type=str, default=None, required=True, help="Hugging Face or nemotron model id for the model")
-    parser.add_argument("--tokenizer_path", type=str, default=None, required=False, help="Path to tokenizer. If not provided, will 1. try instantiate from nemo1 config 2. pull AutoTokenizer from Hugging Face according to model_id if 1 fails")
-    parser.add_argument("--tokenizer_library", type=str, default=None, required=False, help="Tokenizer library, e.g. `sentencepiece`, `megatron`. Defaults to `sentencepiece`")
+    parser.add_argument(
+        "--output_path", type=str, default=None, required=True, help="Path to output NeMo 2.0 directory."
+    )
+    parser.add_argument(
+        "--model_id", type=str, default=None, required=True, help="Hugging Face or nemotron model id for the model"
+    )
+    parser.add_argument(
+        "--tokenizer_path",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to tokenizer. If not provided, will 1. try instantiate from nemo1 config 2. pull AutoTokenizer from Hugging Face according to model_id if 1 fails",
+    )
+    parser.add_argument(
+        "--tokenizer_library",
+        type=str,
+        default=None,
+        required=False,
+        help="Tokenizer library, e.g. `sentencepiece`, `megatron`. Defaults to `sentencepiece`",
+    )
     args = parser.parse_args()
     return args
 
 
 def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
-    
+
     if model_id not in MODEL_CONFIG_MAPPING:
-        valid_ids = "\n- ".join([""]+list(MODEL_CONFIG_MAPPING.keys()))
+        valid_ids = "\n- ".join([""] + list(MODEL_CONFIG_MAPPING.keys()))
         raise ValueError(f"Unsupported model_id: {model_id}. Please provide a valid model_id from {valid_ids}")
     model_cls, config_cls = MODEL_CONFIG_MAPPING[model_id]
     # nemo1 ckpts are bf16
@@ -99,44 +118,46 @@ def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
 
 
 def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
-    if not input_path.is_dir(): #if .nemo tar
-        with tempfile.TemporaryDirectory() as tmp_dir: #we want to clean up this tmp dir
+    if not input_path.is_dir():  # if .nemo tar
+        with tempfile.TemporaryDirectory() as tmp_dir:  # we want to clean up this tmp dir
             NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
             cfg = OmegaConf.load(f"{tmp_dir}/model_config.yaml")
             tokenizer_lib = cfg.tokenizer.library
             tokenizer_model = cfg.tokenizer.get("model") and cfg.tokenizer.get("model").split("nemo:", 1)[-1]
             if tokenizer_model:
                 shutil.copy(f"{tmp_dir}/{tokenizer_model}", f"{tokenizer_tmp_dir}/{tokenizer_model}")
-            elif cfg.tokenizer.library=="huggingface":
+            elif cfg.tokenizer.library == "huggingface":
                 HFAutoTokenizer.from_pretrained(cfg.tokenizer.type).save_pretrained(tokenizer_tmp_dir)
             tokenizer_model = f"{tokenizer_tmp_dir}/{tokenizer_model}" if tokenizer_model else None
-    else: 
-        if args.tokenizer_path: #not .nemo file, only weight dir need to specify tokenizer lib and path
+    else:
+        if args.tokenizer_path:  # not .nemo file, only weight dir need to specify tokenizer lib and path
             tokenizer_lib = args.tokenizer_library or "sentencepiece"
             if args.tokenizer_library is None:
-                logging.warning("You specified tokenizer_path but did not provide tokenizer_library, will default to sentencepiece")
-            tokenizer_model=args.tokenizer_path
-        else: #no .nemo config, no tokenizer path specified, grab from HF, reload
+                logging.warning(
+                    "You specified tokenizer_path but did not provide tokenizer_library, will default to sentencepiece"
+                )
+            tokenizer_model = args.tokenizer_path
+        else:  # no .nemo config, no tokenizer path specified, grab from HF, reload
             tokenizer_lib = "huggingface"
             HFAutoTokenizer.from_pretrained(args.model_id).save_pretrained(tokenizer_tmp_dir)
 
-    if tokenizer_lib=="huggingface":
+    if tokenizer_lib == "huggingface":
         return AutoTokenizer(tokenizer_tmp_dir)
-    else: #not directly use huggingface tokenizer in get_nmt_tokenizer since it will pull from HF and no reload
+    else:  # not directly use huggingface tokenizer in get_nmt_tokenizer since it will pull from HF and no reload
         return get_nmt_tokenizer(library=tokenizer_lib, tokenizer_model=tokenizer_model)
 
 
 def main() -> None:
     tokenizer_tmp_dir = Path("/tmp/nemo_tokenizer")
-    tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)    
+    tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)
     tokenizer = get_tokenizer(Path(args.input_path), tokenizer_tmp_dir)
     model = get_nemo2_model(args.model_id, tokenizer=tokenizer)
     model.optim = None
 
     trainer = Trainer(
         devices=1,
-        accelerator="cpu", 
-        strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed())
+        accelerator="cpu",
+        strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
     )
 
     trainer.strategy.connect(model)
@@ -154,12 +175,15 @@ def main() -> None:
     for key in list(sharded_state_dict['state_dict'].keys()):
         new_key = key.replace('module', 'model', 1)
         sharded_state_dict['state_dict'][new_key] = sharded_state_dict['state_dict'].pop(key)
-        sharded_state_dict['state_dict'][new_key].key = sharded_state_dict['state_dict'][new_key].key.replace('module', 'model', 1)
-    
+        sharded_state_dict['state_dict'][new_key].key = sharded_state_dict['state_dict'][new_key].key.replace(
+            'module', 'model', 1
+        )
+
     def skip_fp8_load(x):
         if isinstance(x, ShardedObject) and 'core_attention' in x.key and '_extra_state' in x.key:
             x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
         return x
+
     dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
     if not Path(args.input_path).is_dir():
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -176,17 +200,18 @@ def main() -> None:
     if getattr(trainer.strategy, "async_save", False):
         trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
 
-    #Corresponding to Connector: on_import_ckpt
+    # Corresponding to Connector: on_import_ckpt
     if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
         trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
     TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(args.output_path), yaml_attrs=["model"])
-    
-    #remove tmp dir
+
+    # remove tmp dir
     if os.path.isdir(tokenizer_tmp_dir):
         shutil.rmtree(tokenizer_tmp_dir)
-    
+
     logging.info(f"NeMo 2.0 checkpoint saved at {args.output_path}")
+
 
 if __name__ == '__main__':
     args = get_args()
-    main() 
+    main()
