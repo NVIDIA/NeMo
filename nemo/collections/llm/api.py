@@ -132,7 +132,7 @@ def pretrain(
         >>> llm.pretrain(model, data, trainer)
         PosixPath('/path/to/log_dir')
     """
-    _validate_config(model, data, trainer, log, resume, optim, None)
+    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim)
     return train(
         model=model,
         data=data,
@@ -183,6 +183,7 @@ def finetune(
         PosixPath('/path/to/log_dir')
     """
 
+    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
     return train(
         model=model,
         data=data,
