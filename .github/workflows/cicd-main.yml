@@ -4277,7 +4277,7 @@ jobs:
 
         python tests/collections/llm/lora_mistralai.py \
         --devices 2 \
-        --max_steps 3 \
+        --max-steps 3 \
         --tp 1 \
         --mbs 1 \
         --model mixtral
@@ -4292,7 +4292,7 @@ jobs:
 
         python tests/collections/llm/lora_mistralai.py \
         --devices 2 \
-        --max_steps 3 \
+        --max-steps 3 \
         --tp 1 \
         --mbs 1 \
         --model mistral
@@ -4307,7 +4307,7 @@ jobs:
 
         python tests/collections/llm/lora_mistralai.py \
         --devices 2 \
-        --max_steps 3 \
+        --max-steps 3 \
         --tp 2 \
         --mbs 1 \
         --model mistral
