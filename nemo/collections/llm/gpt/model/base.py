@@ -259,6 +259,7 @@ class GPTConfig126M(GPTConfig):
     bias_dropout_add_fusion: bool = True
     use_transformer_engine_full_layer_spec: bool = True
 
+
 @dataclass
 class GPTConfig5B(GPTConfig):
     seq_length: int = 2048
@@ -306,6 +307,7 @@ class GPTConfig40B(GPTConfig):
     bias_dropout_add_fusion: bool = True
     use_transformer_engine_full_layer_spec: bool = True
 
+
 @dataclass
 class GPTConfig175B(GPTConfig):
     seq_length: int = 2048
@@ -319,7 +321,7 @@ class GPTConfig175B(GPTConfig):
     bias_activation_fusion: bool = True
     bias_dropout_add_fusion: bool = True
     use_transformer_engine_full_layer_spec: bool = True
-    layernorm_zero_centered_gamma: bool =True
+    layernorm_zero_centered_gamma: bool = True
 
 
 class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
