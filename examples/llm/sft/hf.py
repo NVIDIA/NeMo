@@ -71,7 +71,7 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
-    model = llm.HFAutoModelForCausalLM(args.model)
+    model = llm.HfAutoModelForCausalLM(args.model)
     tokenizer = model.tokenizer
 
     llm.api.finetune(

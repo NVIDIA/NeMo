@@ -53,7 +53,7 @@ class vLLMHFExporter(ITritonDeployable):
         """
         Exports the HF checkpoint to vLLM and initializes the engine.
         Args:
-            model (str): model path
+            model (str): model name or the path
         """
         self.model = LLM(model=model)
 
