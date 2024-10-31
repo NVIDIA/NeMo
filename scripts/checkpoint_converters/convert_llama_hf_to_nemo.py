@@ -19,7 +19,7 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
      --input_name_or_path <path_to_hf_checkpoints_folder> \
      --output_path <path_to_output_nemo_file>
      --precision bf16 \
-     --llama31 True 
+     --llama31
 """
 
 import os
@@ -62,13 +62,18 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument(
-        "--llama31",
-        type=bool,
-        default=True,
-        required=False,
-        help="Whether the model is from LLaMa 3.1 family. LLaMa 3.1 enables scaling for RoPE frequencies.",
+    ver = parser.add_mutually_exclusive_group()
+    ver.add_argument(
+        '--llama31',
+        action='store_true',
+        help="Whether the model is from LLaMa 3.1 family. LLaMa 3.1 enables scaling for RoPE frequencies."
     )
+    ver.add_argument(
+        '--llama32',
+        action='store_true',
+        help="Whether the model is from LLaMa 3.2 family. LLaMa 3.2 enables scaling for RoPE frequencies and applies share_embeddings_and_output_weights=True."
+    )
+
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
@@ -119,7 +124,7 @@ def load_config(args, llama_config):
     while llama_config['vocab_size'] % base != 0:
         base //= 2
     nemo_config.make_vocab_size_divisible_by = base
-    nemo_config.scale_positional_embedding = args.llama31
+    nemo_config.scale_positional_embedding = args.llama31 or args.llama32
 
     return nemo_config
 
@@ -316,6 +321,14 @@ def convert(args):
                 model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-70B')
             elif hf_config['num_hidden_layers'] == 126:
                 model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-8B')  # 405B tokenizer is the same as 8B
+            else:
+                logging.warning("Unexpected model config for Llama3. Tokenizer config has not been modified.")
+        elif args.llama32:
+            model.cfg.share_embeddings_and_output_weights = True
+            if hf_config['num_hidden_layers'] == 16:
+                model.cfg.tokenizer.update(type='meta-llama/Llama-3.2-1B')
+            elif hf_config['num_hidden_layers'] == 28:
+                model.cfg.tokenizer.update(type='meta-llama/Llama-3.2-3B')
             else:
                 logging.warning("Unexpected model config for Llama3. Tokenizer config has not been modified.")
         else:
