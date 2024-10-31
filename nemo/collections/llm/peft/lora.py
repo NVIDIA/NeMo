@@ -116,6 +116,7 @@ class LinearAdapter(nn.Module):
 def is_expert_linear(fqn):
     return re.match('.*mlp\.experts\.local_experts.[0-9]+\.linear_fc[1-2]$', fqn) is not None
 
+
 @dataclass
 class LoRA(PEFT):
     """

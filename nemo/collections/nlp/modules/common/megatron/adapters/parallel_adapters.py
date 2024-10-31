@@ -135,8 +135,10 @@ class InfusedAdapterConfig(AdapterConfig):
 class MLPInfusedAdapterConfig(InfusedAdapterConfig):
     _target_: str = "{0}.{1}".format(MLPInfusedAdapter.__module__, MLPInfusedAdapter.__name__)
 
+
 def pad_seq_to_mult(x, mult):
     import torch.nn.functional as F
+
     if x.shape[0] % mult == 0:
         return x, 0
     pad_len = mult - (x.shape[0] % mult)
@@ -145,12 +147,14 @@ def pad_seq_to_mult(x, mult):
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_len))
     return x, pad_len
 
+
 def unpad_seq_to_mult(x, pad_len):
     if pad_len <= 0:
         return x
     with torch.no_grad():
         # prune tail padding
         return x[:-pad_len, :]
+
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
