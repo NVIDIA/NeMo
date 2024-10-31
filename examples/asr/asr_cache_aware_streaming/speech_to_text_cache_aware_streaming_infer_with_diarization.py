@@ -112,12 +112,47 @@ from hydra.core.config_store import ConfigStore
 from pyannote.core import Segment, Timeline
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get_audio_rttm_map
 from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing, timestamps_to_pyannote_object
+
+from nemo.collections.asr.parts.utils.diarization_utils import (
+get_session_trans_dict,
+init_session_trans_dict,
+init_session_gecko_dict,
+print_sentences,
+)
 from nemo.collections.asr.parts.utils.speaker_utils import (
 labels_to_pyannote_object,
 generate_diarization_output_lines,
 rttm_to_labels,
 get_uem_object,
 )
+
+
+import hydra
+from typing import List, Optional
+from dataclasses import dataclass, field
+import kenlm
+from beam_search_utils import (
+    SpeakerTaggingBeamSearchDecoder,
+    load_input_jsons,
+    load_reference_jsons,
+    run_mp_beam_search_decoding,
+    convert_nemo_json_to_seglst,
+)
+from hydra.core.config_store import ConfigStore
+# from hyper_optim import (
+#     optuna_hyper_optim, 
+#     evaluate,
+#     evaluate_diff,
+# )
+
+from collections import OrderedDict
+import itertools
+
+
+
+
+# cs = ConfigStore.instance()
+# cs.store(name="config", node=RealigningLanguageModelParameters)
 
 ############### DIARIZATION CONFIGS ################
 @dataclass
@@ -199,6 +234,22 @@ class DiarizationConfig:
     pad_and_drop_preencoded: bool = False
     set_decoder: Optional[str] = None # ["ctc", "rnnt"]
     att_context_size: Optional[str] = None
+    
+    
+    # Beam search parameters
+    # batch_size: int = 32
+    # use_mp: bool = True
+    arpa_language_model: Optional[str] = None
+    word_window: int = 32
+    port: List[int] = field(default_factory=list)
+    parallel_chunk_word_len: int = 250
+    use_ngram: bool = True
+    peak_prob: float = 0.95
+    limit_max_spks: int = 2
+    alpha: float = 0.5
+    beta: float = 0.05
+    beam_width: int = 16
+    out_dir: Optional[str] = None
 
 def load_postprocessing_from_yaml(postprocessing_yaml):
     """ 
@@ -299,9 +350,71 @@ def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
     else:
         return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
 
+def fix_frame_time_step(new_tokens, new_words, frame_inds_seq):
+    if len(new_tokens) != len(frame_inds_seq):
+        # Sometimes there is a mismatch in the number of tokens between the new tokens and the frame indices sequence.
+        if len(frame_inds_seq) > len(new_words):
+            # Get unique frame indices sequence
+            frame_inds_seq = list(OrderedDict.fromkeys(frame_inds_seq))
+            if len(frame_inds_seq) < len(new_tokens):
+                deficit = len(new_tokens) - len(frame_inds_seq)
+                frame_inds_seq = [frame_inds_seq[0]] * deficit + frame_inds_seq
+            elif len(frame_inds_seq) > len(new_tokens):
+                deficit = len(frame_inds_seq) - len(new_tokens)
+                frame_inds_seq = frame_inds_seq[deficit:]
+                
+        elif len(frame_inds_seq) < len(new_tokens):
+            deficit = len(new_tokens) - len(frame_inds_seq)
+            frame_inds_seq = [frame_inds_seq[0]] * deficit + frame_inds_seq
+        logging.warning(
+            f"Length of word sequence ({len(word_seq)}) does not match length of frame indices sequence ({len(frame_inds_seq)}). Skipping this chunk."
+        )
+    return frame_inds_seq
+
+def get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len: float = 0.08):
+    _stt, _end = time_step_local_offset, time_step_local_offset + len(token_group)-1
+    if len(token_group) == 1:
+        frame_stt, frame_end = frame_inds_seq[_stt], frame_inds_seq[_stt] + 1
+    else:
+        frame_stt, frame_end = frame_inds_seq[_stt], frame_inds_seq[_end]
+    do = 0
+    speaker_sigmoid = diar_pred_out_stream[0, (frame_stt+do):(frame_end+do), :].mean(dim=0)
+    speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
+    speaker_softmax = speaker_softmax.cpu()
+    stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
+    spk_id = speaker_softmax.argmax().item()
+    word_dict = {"word": word,
+                'frame_stt': frame_stt,
+                'frame_end': frame_end,
+                'start_time': round(stt_sec, 3), 
+                'end_time': round(end_sec, 3), 
+                'speaker': spk_id,
+                'speaker_softmax': speaker_softmax} 
+    return word_dict                 
+        
+def get_frame_and_words(tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08):
+    current_frame_range = [step_num * previous_hypotheses[0].length.item(), (step_num + 1) * previous_hypotheses[0].length.item()]
+    offset = current_frame_range[0]
+    word_seq = previous_hypotheses[0].text.split()
+    new_words = word_seq[word_and_ts_seq["offset_count"]:]
+    frame_inds_seq = (torch.tensor(previous_hypotheses[0].timestep) + offset).tolist()
+    new_token_group = tokenizer.text_to_tokens(new_words)
+    new_tokens = list(itertools.chain(*new_token_group))
+    frame_inds_seq = fix_frame_time_step(new_tokens, new_words, frame_inds_seq)
+    min_len = min(len(new_words), len(frame_inds_seq))
+    for idx in range(min_len):
+        word_and_ts_seq["token_frame_index"].append((new_tokens[idx], frame_inds_seq[idx]))
+        word_and_ts_seq["offset_count"] += 1
+    
+    time_step_local_offset = 0 
+    for token_group, word in zip(new_token_group, new_words):
+        word_dict = get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len)
+        word_and_ts_seq["words"].append(word_dict)
+        time_step_local_offset += len(token_group)                                        
+    return word_and_ts_seq 
 
 def perform_streaming(
-    asr_model, diar_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
+    asr_model, diar_model, speaker_beam_search_decoder, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
 ):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
@@ -336,6 +449,13 @@ def perform_streaming(
     streaming_buffer_iter = iter(streaming_buffer)
     asr_pred_out_stream, diar_pred_out_stream  = None, None
     mem_last_time, fifo_last_time = None, None
+    word_and_ts_seq = {"words": [], "token_frame_index": [], "offset_count": 0,
+                        "status": "success", 
+                        "sentences": None, 
+                        "speaker_count": None,
+                        "transcription": None,
+                        "speaker_count": 2,
+                        }
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         with torch.inference_mode():
             with autocast:
@@ -376,7 +496,13 @@ def perform_streaming(
                         fifo_last_time=fifo_last_time,
                         previous_pred_out=diar_pred_out_stream
                     )
-                    
+                    word_and_ts_seq = get_frame_and_words(asr_model.tokenizer, 
+                                                          step_num, 
+                                                          diar_pred_out_stream,
+                                                          previous_hypotheses, 
+                                                          word_and_ts_seq) 
+                    word_and_ts_seq = speaker_beam_search_decoder.beam_search_diarization_single(trans_info_dict=word_and_ts_seq)
+                    import ipdb; ipdb.set_trace()
                     logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
@@ -541,6 +667,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         online_normalization=online_normalization,
         pad_and_drop_preencoded=args.pad_and_drop_preencoded,
     )
+    arpa_model = kenlm.Model(cfg.arpa_language_model)
+    speaker_beam_search_decoder = SpeakerTaggingBeamSearchDecoder(loaded_kenlm_model=arpa_model, cfg=cfg)
     if args.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
@@ -549,6 +677,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         perform_streaming(
             asr_model=asr_model,
             diar_model=diar_model,
+            speaker_beam_search_decoder=speaker_beam_search_decoder,
             streaming_buffer=streaming_buffer,
             compare_vs_offline=args.compare_vs_offline,
             pad_and_drop_preencoded=args.pad_and_drop_preencoded,
@@ -581,6 +710,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     diar_model=diar_model,
+                    speaker_beam_search_decoder=speaker_beam_search_decoder,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,

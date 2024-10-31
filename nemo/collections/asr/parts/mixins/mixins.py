@@ -641,7 +641,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             keep_all_outputs=keep_all_outputs,
             drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
-
         if isinstance(self, asr_models.EncDecCTCModel) or (
             isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"
         ):

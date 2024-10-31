@@ -71,6 +71,33 @@ def write_txt(w_path: str, val: str):
     with open(w_path, "w") as output:
         output.write(val + '\n')
 
+def init_session_trans_dict(uniq_id: str, n_spk: int):
+    """
+    Initialize json (in dictionary variable) formats for session level result and Gecko style json.
+
+    Returns:
+        (dict): Session level result dictionary variable
+    """
+    return od(
+        {
+            'status': 'initialized',
+            'session_id': uniq_id,
+            'transcription': '',
+            'speaker_count': n_spk,
+            'words': [],
+            'sentences': [],
+        }
+    )
+
+def init_session_gecko_dict():
+    """
+    Initialize a dictionary format for Gecko style json.
+
+    Returns:
+        (dict):
+            Gecko style json dictionary.
+    """
+    return od({'schemaVersion': 2.0, 'monologues': []})
 
 def convert_ctm_to_text(ctm_file_path: str) -> Tuple[List[str], str]:
     """
@@ -259,6 +286,112 @@ def get_num_of_spk_from_labels(labels: List[str]) -> int:
     return len(set(spk_set))
 
 
+def get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels):
+    n_spk = get_num_of_spk_from_labels(diar_labels)
+    session_trans_dict = init_session_trans_dict(uniq_id=uniq_id, n_spk=n_spk)
+    gecko_dict = init_session_gecko_dict()
+    word_seq_list, audacity_label_words = [], []
+    start_point, end_point, speaker = diar_labels[0].split()
+    prev_speaker = speaker
+
+    sentences, terms_list = [], []
+    sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''} 
+    
+    for k, word_dict in enumerate(word_dict_seq_list):
+        word, speaker = word_dict['word'], word_dict['speaker']
+        word_seq_list.append(word)
+        start_point, end_point = word_dict['start_time'], word_dict['end_time']
+        if speaker != prev_speaker:
+            if len(terms_list) != 0:
+                gecko_dict['monologues'].append(
+                    {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
+                )
+                terms_list = []
+
+            # remove trailing space in text
+            sentence['text'] = sentence['text'].strip()
+
+            # store last sentence
+            sentences.append(sentence)
+
+            # start construction of a new sentence
+            sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
+        else:
+            # correct the ending time
+            sentence['end_time'] = end_point
+
+        stt_sec, end_sec = start_point, end_point
+        terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
+
+        # add current word to sentence
+        sentence['text'] += word.strip() + ' '
+
+        audacity_label_words.append(get_audacity_label(word, stt_sec, end_sec, speaker))
+        prev_speaker = speaker
+
+    session_trans_dict['words'] = word_dict_seq_list
+
+    # note that we need to add the very last sentence.
+    sentence['text'] = sentence['text'].strip()
+    sentences.append(sentence)
+    gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
+
+    # Speaker independent transcription
+    session_trans_dict['transcription'] = ' '.join(word_seq_list)
+    # add sentences to transcription information dict
+    session_trans_dict['sentences'] = sentences
+    return session_trans_dict
+    
+
+def print_sentences(sentences: List[Dict[str, float]], 
+                    color_palette: Dict[str, str], 
+                    params: Dict[str, bool]) -> None:
+    """
+    Print a transcript with speaker labels and timestamps.
+
+    Args:
+        sentences (list):
+            List containing sentence-level dictionaries.
+
+    Returns:
+        string_out (str):
+            String variable containing transcript and the corresponding speaker label.
+    """
+    # init output
+    string_out = ''
+
+    for sentence in sentences:
+        # extract info
+        speaker = sentence['speaker']
+        start_point = sentence['start_time']
+        end_point = sentence['end_time']
+        text = sentence['text']
+
+        if params['colored_text']:
+            color = color_palette.get(speaker, '\033[0;37m')
+        else:
+            color = ''
+
+        # cast timestamp to the correct format
+        datetime_offset = 16 * 3600
+        if float(start_point) > 3600:
+            time_str = '%H:%M:%S.%f'
+        else:
+            time_str = '%M:%S.%f'
+        start_point, end_point = max(float(start_point), 0), max(float(end_point), 0)
+        start_point_str = datetime.fromtimestamp(start_point - datetime_offset).strftime(time_str)[:-4]
+        end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
+
+        if params['print_time']:
+            time_str = f'[{start_point_str} - {end_point_str}] '
+        else:
+            time_str = ''
+
+        # string out concatenation
+        string_out += f'{color}{time_str}{speaker}: {text}\n'
+
+    return string_out
+
 class OfflineDiarWithASR:
     """
     A class designed for performing ASR and diarization together.
@@ -386,34 +519,6 @@ class OfflineDiarWithASR:
         self.stt_end_tokens = ['</s>', '<s>']
         logging.info(f"Loading LM for realigning: {self.realigning_lm_params['arpa_language_model']}")
         return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
-
-    def _init_session_trans_dict(self, uniq_id: str, n_spk: int):
-        """
-        Initialize json (in dictionary variable) formats for session level result and Gecko style json.
-
-        Returns:
-            (dict): Session level result dictionary variable
-        """
-        return od(
-            {
-                'status': 'initialized',
-                'session_id': uniq_id,
-                'transcription': '',
-                'speaker_count': n_spk,
-                'words': [],
-                'sentences': [],
-            }
-        )
-
-    def _init_session_gecko_dict(self):
-        """
-        Initialize a dictionary format for Gecko style json.
-
-        Returns:
-            (dict):
-                Gecko style json dictionary.
-        """
-        return od({'schemaVersion': 2.0, 'monologues': []})
 
     def _save_VAD_labels_list(self, word_ts_dict: Dict[str, Dict[str, List[float]]]):
         """
@@ -865,61 +970,8 @@ class OfflineDiarWithASR:
                                       ]
                     }
         """
-        word_seq_list, audacity_label_words = [], []
-        start_point, end_point, speaker = diar_labels[0].split()
-        prev_speaker = speaker
-
-        sentences, terms_list = [], []
-        sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
-
-        n_spk = get_num_of_spk_from_labels(diar_labels)
         logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
-        session_trans_dict = self._init_session_trans_dict(uniq_id=uniq_id, n_spk=n_spk)
-        gecko_dict = self._init_session_gecko_dict()
-
-        for k, word_dict in enumerate(word_dict_seq_list):
-            word, speaker = word_dict['word'], word_dict['speaker']
-            word_seq_list.append(word)
-            start_point, end_point = word_dict['start_time'], word_dict['end_time']
-            if speaker != prev_speaker:
-                if len(terms_list) != 0:
-                    gecko_dict['monologues'].append(
-                        {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
-                    )
-                    terms_list = []
-
-                # remove trailing space in text
-                sentence['text'] = sentence['text'].strip()
-
-                # store last sentence
-                sentences.append(sentence)
-
-                # start construction of a new sentence
-                sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
-            else:
-                # correct the ending time
-                sentence['end_time'] = end_point
-
-            stt_sec, end_sec = start_point, end_point
-            terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
-
-            # add current word to sentence
-            sentence['text'] += word.strip() + ' '
-
-            audacity_label_words.append(get_audacity_label(word, stt_sec, end_sec, speaker))
-            prev_speaker = speaker
-
-        session_trans_dict['words'] = word_dict_seq_list
-
-        # note that we need to add the very last sentence.
-        sentence['text'] = sentence['text'].strip()
-        sentences.append(sentence)
-        gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
-
-        # Speaker independent transcription
-        session_trans_dict['transcription'] = ' '.join(word_seq_list)
-        # add sentences to transcription information dict
-        session_trans_dict['sentences'] = sentences
+        session_trans_dict = get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels)
         self._write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
 
@@ -1218,7 +1270,7 @@ class OfflineDiarWithASR:
                 List containing sentence dictionary
         """
         # print the sentences in the .txt output
-        string_out = self.print_sentences(sentences)
+        string_out = print_sentences(sentences, color_palette=self.color_palette)
         if self.params['break_lines']:
             string_out = self._break_lines(string_out)
 
@@ -1257,50 +1309,3 @@ class OfflineDiarWithASR:
             )
         else:
             logging.info(DER_info)
-
-    def print_sentences(self, sentences: List[Dict[str, float]]):
-        """
-        Print a transcript with speaker labels and timestamps.
-
-        Args:
-            sentences (list):
-                List containing sentence-level dictionaries.
-
-        Returns:
-            string_out (str):
-                String variable containing transcript and the corresponding speaker label.
-        """
-        # init output
-        string_out = ''
-
-        for sentence in sentences:
-            # extract info
-            speaker = sentence['speaker']
-            start_point = sentence['start_time']
-            end_point = sentence['end_time']
-            text = sentence['text']
-
-            if self.params['colored_text']:
-                color = self.color_palette.get(speaker, '\033[0;37m')
-            else:
-                color = ''
-
-            # cast timestamp to the correct format
-            datetime_offset = 16 * 3600
-            if float(start_point) > 3600:
-                time_str = '%H:%M:%S.%f'
-            else:
-                time_str = '%M:%S.%f'
-            start_point, end_point = max(float(start_point), 0), max(float(end_point), 0)
-            start_point_str = datetime.fromtimestamp(start_point - datetime_offset).strftime(time_str)[:-4]
-            end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
-
-            if self.params['print_time']:
-                time_str = f'[{start_point_str} - {end_point_str}] '
-            else:
-                time_str = ''
-
-            # string out concatenation
-            string_out += f'{color}{time_str}{speaker}: {text}\n'
-
-        return string_out
