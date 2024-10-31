@@ -278,6 +278,7 @@ class MegatronBaseModel(NLPModel):
                         parallel_state.get_context_parallel_group(),
                         parallel_state.get_context_parallel_global_ranks(),
                         cp_stream,
+                        cp_comm_type=self.cfg.get('cp_comm_type', 'p2p'),
                     )
 
     def _wrap_model_for_O2(self):
