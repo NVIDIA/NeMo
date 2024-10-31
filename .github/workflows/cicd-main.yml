@@ -4276,7 +4276,6 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
-        --devices 2 \
         --max-steps 3 \
         --tp 1 \
         --mbs 1 \
@@ -4291,7 +4290,6 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
-        --devices 2 \
         --max-steps 3 \
         --tp 1 \
         --mbs 1 \
@@ -4306,7 +4304,6 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
-        --devices 2 \
         --max-steps 3 \
         --tp 2 \
         --mbs 1 \
