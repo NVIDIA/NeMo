@@ -22,32 +22,32 @@ from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+from nemo.collections.llm.recipes.gemma2 import gemma2_model, gemma2_trainer
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.qwen2 import qwen2_model, qwen2_trainer
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "qwen2_72b"
+NAME = "gemma2_27b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Qwen2 72b model configuration.
+    Factory function to create a Gemma2 27B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Qwen2 72b model.
+        run.Config[pl.LightningModule]: Configuration for the Gemma2 27B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=qwen2_72b ...
+            $ nemo llm pretrain model=gemma2 ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
 
-    return qwen2_model(version=NAME)
+    return gemma2_model(version=NAME)
 
 
 @run.cli.factory(target=pretrain, name=NAME)
@@ -57,14 +57,14 @@ def pretrain_recipe(
     name: str = "default",
     # Trainer
     tensor_parallelism: int = 8,
-    pipeline_parallelism: int = 4,
+    pipeline_parallelism: int = 2,
     pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
-    num_nodes: int = 4,
+    num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    max_steps: int = 300000,
+    max_steps: int = 1168251,
     precision: str = "bf16-mixed",
     accumulate_grad_batches: int = 1,
     gradient_clip_val: float = 1.0,
@@ -79,13 +79,13 @@ def pretrain_recipe(
     # Optimizer
     warmup_steps=500,
     constant_steps=0,
-    min_lr=3e-5,
+    min_lr=3.0e-5,
     max_lr=3e-4,
     # Training function
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Qwen2 72b model.
+    Create a pre-training recipe for gemma2 27B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -123,20 +123,17 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory qwen2_72b
-            $ nemo llm pretrain --factory "qwen2_72b(num_nodes=1, name='my_qwen2_pretrain')"
+            $ nemo llm pretrain --factory gemma2_27b
+            $ nemo llm pretrain --factory "gemma2_27b(num_nodes=1, name='my_gemma2_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="qwen2_pretrain", num_nodes=1)
+            >>> recipe = pretrain_recipe(name="gemma2_pretrain", num_nodes=1)
             >>> print(recipe)
-
-    Note:
-        This recipe uses a mock dataset, look for the finetune examples to see how to change the dataset.
     """
     return run.Partial(
         fn,
         model=model(),
-        trainer=qwen2_trainer(
+        trainer=gemma2_trainer(
             tensor_parallelism=tensor_parallelism,
             pipeline_parallelism=pipeline_parallelism,
             pipeline_parallelism_type=pipeline_parallelism_type,
@@ -183,7 +180,7 @@ def finetune_recipe(
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Qwen2 72b model.
+    Create a fine-tuning recipe for Gemma2 27B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -202,10 +199,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory qwen2_72b
+            $ nemo llm finetune --factory gemma2_27b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="qwen2_72b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="gemma2_27b_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -214,16 +211,15 @@ def finetune_recipe(
         `examples/llm/finetune/` directory.
     """
     recipe = default_finetune_recipe(
-        model(), "Qwen/Qwen2-72B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), "google/gemma-2-27b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        assert num_nodes >= 4
-        recipe.trainer.strategy.tensor_model_parallel_size = 8
-        recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.optim.config.lr = 5e-6
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
+        recipe.trainer.strategy.pipeline_model_parallel_size = 2
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
-        recipe.trainer.strategy.tensor_model_parallel_size = 8
+        recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
