@@ -22,8 +22,8 @@ import torch
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes import mixtral_8x7b
-from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x7b_64k"
 
