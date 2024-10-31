@@ -66,12 +66,12 @@ def get_args():
     ver.add_argument(
         '--llama31',
         action='store_true',
-        help="Whether the model is from LLaMa 3.1 family. LLaMa 3.1 enables scaling for RoPE frequencies."
+        help="Whether the model is from LLaMa 3.1 family. LLaMa 3.1 enables scaling for RoPE frequencies.",
     )
     ver.add_argument(
         '--llama32',
         action='store_true',
-        help="Whether the model is from LLaMa 3.2 family. LLaMa 3.2 enables scaling for RoPE frequencies and applies share_embeddings_and_output_weights=True."
+        help="Whether the model is from LLaMa 3.2 family. LLaMa 3.2 enables scaling for RoPE frequencies and applies share_embeddings_and_output_weights=True.",
     )
 
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
