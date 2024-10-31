@@ -15,25 +15,21 @@
 
 from nemo.deploy import DeployPyTriton
 from nemo.deploy.nlp import NemoQueryLLM
-from nemo.export.vllm_hf_exporter import vLLMHFExporter
+
+try:
+    from nemo.export.vllm_hf_exporter import vLLMHFExporter
+except Exception:
+    raise Exception("vLLM should be installed in the environment or import "
+                    "the vLLM environment in the NeMo FW container using "
+                    "source /opt/venv/bin/activate command")
 
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', required=True, type=str)
-    parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
-    parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
-    parser.add_argument(
-        "-trp", "--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
-    )
-    parser.add_argument(
-        "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
-    )
-    parser.add_argument(
-        "-trt", "--triton_request_timeout", default=60, type=int, help="Timeout in seconds for Triton server"
-    )
+    parser.add_argument('--model', required=True, type=str, help="Local path or model name on Hugging Face")
+    parser.add_argument('--triton-model-name', required=True, type=str, help="Name for the service")
     args = parser.parse_args()
 
     exporter = vLLMHFExporter()
@@ -42,27 +38,23 @@ if __name__ == '__main__':
     nm = DeployPyTriton(
         model=exporter,
         triton_model_name=args.triton_model_name,
-        triton_model_version=args.triton_model_version,
-        #max_batch_size=args.max_batch_size,
-        port=args.triton_port,
-        address=args.triton_http_address,
+        triton_model_version=1,
+        max_batch_size=64,
+        port=8000,
+        address="0.0.0.0",
     )
 
     nm.deploy()
     nm.run()
 
     nq = NemoQueryLLM(url="localhost:8000", model_name=args.triton_model_name)
-
     output_deployed = nq.query_llm(
         prompts=["How are you doing?"],
-        # max_output_len=max_output_len,
+        max_output_len=128,
         top_k=1,
         top_p=0.2,
         temperature=1.0,
     )
 
     print("------------- Output: ", output_deployed)
-
     nm.stop()
-
-    # subprocess.run(["deactivate"])
