@@ -181,7 +181,7 @@ def finetune_recipe(
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Nemotron 4B model.
+    Create a fine-tuning recipe for Nemotron3 4B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -193,6 +193,7 @@ def finetune_recipe(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        packed_sequence (Optional[bool]): Packing multiple training sequences into one long sequence for training efficiency. Default sequence length is 2048.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.

@@ -28,20 +28,20 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "nemotron4_22b"
+NAME = "nemotron3_22b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Nemotron4 22b model configuration.
+    Factory function to create a Nemotron3 22B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Nemotron4 22b model.
+        run.Config[pl.LightningModule]: Configuration for the Nemotron3 22b model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=nemotron4_22b ...
+            $ nemo llm pretrain model=nemotron3_22b ...
 
         Python API usage:
             >>> model_config = model()
@@ -87,7 +87,7 @@ def pretrain_recipe(
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Nemotron4 22b model.
+    Create a pre-training recipe for Nemotron3 22B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -126,8 +126,8 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory nemotron4_22b
-            $ nemo llm pretrain --factory "nemotron4_22b(num_nodes=1, name='my_nemotron_pretrain')"
+            $ nemo llm pretrain --factory nemotron3_22b
+            $ nemo llm pretrain --factory "nemotron3_22b(num_nodes=1, name='my_nemotron_pretrain')"
 
         Python API usage:
             >>> recipe = pretrain_recipe(name="nemotron_pretrain", num_nodes=1)
@@ -183,7 +183,7 @@ def pretrain_recipe(
 
 def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Nemotron4 22B model.
+    Create a performance-optimized pre-training recipe for Nemotron3 22B model.
 
     This method enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
@@ -228,7 +228,7 @@ def finetune_recipe(
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Nemotron4 15B model.
+    Create a fine-tuning recipe for Nemotron3 22B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -240,16 +240,17 @@ def finetune_recipe(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        packed_sequence (Optional[bool]): Packing multiple training sequences into one long sequence for training efficiency. Default sequence length is 2048.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory nemotron5_15b
+            $ nemo llm finetune --factory nemotron3_22b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="nemotron5_15b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="nemotron3_22b_finetune", num_nodes=8)
             >>> print(recipe)
 
     Note:
@@ -259,14 +260,14 @@ def finetune_recipe(
     """
 
     recipe = default_finetune_recipe(
-        model(), None, dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), "thhaus/nemotron3-22b-hf", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
-        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

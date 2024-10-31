@@ -87,6 +87,18 @@ class Nemotron3Config8B(NemotronConfig):
 
 
 @dataclass
+class Nemotron3Config22B(NemotronConfig):
+    num_layers: int = 40
+    seq_length: int = 4096
+    hidden_size: int = 6144
+    ffn_hidden_size: int = 24576
+    num_attention_heads: int = 48
+    num_query_groups: Optional[int] = None
+    kv_channels: Optional[int] = None
+    init_method_std: float = 0.008
+
+
+@dataclass
 class Nemotron4Config15B(NemotronConfig):
     num_layers: int = 32
     seq_length: int = 4096
@@ -96,18 +108,6 @@ class Nemotron4Config15B(NemotronConfig):
     num_query_groups: Optional[int] = 8
     kv_channels: Optional[int] = None
     init_method_std: float = 0.0134
-
-
-@dataclass
-class Nemotron4Config22B(NemotronConfig):
-    num_layers: int = 40
-    seq_length: int = 4096
-    hidden_size: int = 6144
-    ffn_hidden_size: int = 24576
-    num_attention_heads: int = 48
-    num_query_groups: Optional[int] = None
-    kv_channels: Optional[int] = None
-    init_method_std: float = 0.008
 
 
 @dataclass
@@ -358,8 +358,8 @@ __all__ = [
     "NemotronConfig",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
+    "Nemotron3Config22B",
     "Nemotron4Config15B",
-    "Nemotron4Config22B",
     "Nemotron4Config340B",
     "NemotronModel",
 ]
