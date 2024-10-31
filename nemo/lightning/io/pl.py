@@ -145,7 +145,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     @override
     def load_checkpoint(
-        self, path: _PATH, sharded_state_dict=None, map_location: Optional[Callable] = None, strict: Optional['StrictHandling'] | bool = None,
+        self,
+        path: _PATH,
+        sharded_state_dict=None,
+        map_location: Optional[Callable] = None,
+        strict: Optional['StrictHandling'] | bool = None,
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 

@@ -674,7 +674,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
         strict = self.lightning_module.strict_loading
-        checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict)
+        checkpoint = self.checkpoint_io.load_checkpoint(
+            checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
+        )
 
         return checkpoint
 

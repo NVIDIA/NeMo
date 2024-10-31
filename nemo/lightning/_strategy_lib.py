@@ -498,7 +498,7 @@ def optimizer_sharded_state_dict(
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     from megatron.core import parallel_state
-    from megatron.core.dist_checkpointing.validation import parse_strict_flag, StrictHandling
+    from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
