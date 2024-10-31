@@ -232,8 +232,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         if self.num_train_samples is not None:
             assert (
-                self.num_train_samples > num_train_samples
-            ), f"num_train_samples must be greater than {num_train_samples}."
+                self.num_train_samples >= num_train_samples
+            ), f"num_train_samples must be greater than or equal to {num_train_samples}."
             num_train_samples = self.num_train_samples
             train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
 
@@ -457,10 +457,11 @@ def build_pretraining_datamodule(
     Returns:
         None
     """
-    import torch
+    import torch.distributed as dist
 
+    assert not dist.is_initialized(), "This function cannot be called inside an existing torch.distributed job."
     # The indices in Megatron are built on rank 0, so we set the world size to 1 here.
-    torch.distributed.init_process_group(world_size=1, rank=0)
+    dist.init_process_group(world_size=1, rank=0)
 
     from nemo.utils import logging
 
