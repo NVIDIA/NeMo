@@ -15,7 +15,7 @@
 import math
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Union, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
