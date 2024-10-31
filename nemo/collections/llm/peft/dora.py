@@ -5,8 +5,11 @@ from typing import List, Literal, Optional
 import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear, \
-    gather_from_tensor_model_parallel_region
+from megatron.core.tensor_parallel import (
+    ColumnParallelLinear,
+    RowParallelLinear,
+    gather_from_tensor_model_parallel_region,
+)
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
 from torch import nn
 
