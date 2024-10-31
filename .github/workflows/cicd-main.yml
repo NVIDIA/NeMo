@@ -55,6 +55,9 @@ jobs:
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
+      image-label: nemo-core
+      build-args: |
+        IMAGE_LABEL=nemo-core
       
   cicd-test-container-setup:
     needs: [cicd-test-container-build, pre-flight]
