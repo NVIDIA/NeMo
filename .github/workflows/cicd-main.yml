@@ -4279,7 +4279,8 @@ jobs:
         --max-steps 3 \
         --tp 1 \
         --mbs 1 \
-        --model mixtral
+        --model mixtral \
+        --dist-opt
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
     needs: [cicd-test-container-setup]
@@ -4293,7 +4294,8 @@ jobs:
         --max-steps 3 \
         --tp 1 \
         --mbs 1 \
-        --model mistral
+        --model mistral \
+        --dist-opt
 
   L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1:
     needs: [cicd-test-container-setup]
@@ -4307,7 +4309,8 @@ jobs:
         --max-steps 3 \
         --tp 2 \
         --mbs 1 \
-        --model mistral
+        --model mistral \
+        --dist-opt
 
 
   L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:

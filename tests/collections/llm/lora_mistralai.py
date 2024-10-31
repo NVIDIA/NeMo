@@ -30,6 +30,7 @@ def get_args():
     parser.add_argument('--mbs', type=int, default=2, help="micro batch size")
     parser.add_argument('--gbs', type=int, default=4, help="global batch size")
     parser.add_argument('--tp', type=int, default=1, help="tensor parallel size")
+    parser.add_argument('--dist-opt', action='store_true', help='use dist opt')
     return parser.parse_args()
 
 
@@ -128,7 +129,7 @@ if __name__ == '__main__':
                 optimizer="adam",
                 lr=0.0001,
                 adam_beta2=0.98,
-                use_distributed_optimizer=True,
+                use_distributed_optimizer=args.dist_opt,
                 clip_grad=1.0,
                 bf16=True,
             ),
