@@ -219,6 +219,8 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         key_value_states=None,
         inference_params=None,
         rotary_pos_emb=None,
+        rotary_pos_cos=None,
+        rotary_pos_sin=None,
         packed_seq_params=None,
     ):
         # hidden_states: [sq, b, h]
@@ -237,8 +239,8 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
-            inference_params, key, value, rotary_pos_emb
+        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+            inference_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
         )
 
         if packed_seq_params is not None:
