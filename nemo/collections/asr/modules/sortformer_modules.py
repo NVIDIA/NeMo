@@ -176,6 +176,29 @@ class SortformerModules(NeuralModule, Exportable):
         return torch.zeros(batch_size, 0, d_model).to(device)
 
     def update_memory_FIFO(self, mem, fifo, chunk, preds, chunk_left_offset=0, chunk_right_offset=0):
+        """
+        update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions
+        Args:
+            mem (torch.Tensor): memory buffer to save the embeddings from start
+                Dimension: (batch_size, mem_len, emb_dim)
+            fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks 
+                Dimension: (batch_size, fifo_len, emb_dim)
+            chunk (torch.Tensor): chunk of embeddings to be predicted
+                Dimension: (batch_size, chunk_len, emb_dim)
+            preds (torch.Tensor): speaker predictions of the [mem + fifo + chunk] embeddings
+                Dimension: (batch_size, mem_len + fifo_len + chunk_len, num_spks)
+            chunk_left_offset and chunk_right_offset (int): left & right offset of the chunk,
+                only the chunk[:, chunk_left_offset:chunk_len+chunk_left_offset] is used for FIFO queue
+
+        Returns:
+            mem (torch.Tensor): updated memory buffer
+                Dimension: (batch_size, mem_len, emb_dim)
+            fifo (torch.Tensor): updated FIFO queue
+                Dimension: (batch_size, fifo_len, emb_dim)
+            chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
+                Dimension: (batch_size, chunk_len, num_spks)
+        """
+
         B, T, D = mem.shape
 
         lc, rc = chunk_left_offset, chunk_right_offset

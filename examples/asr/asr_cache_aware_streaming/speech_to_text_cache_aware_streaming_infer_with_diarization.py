@@ -367,7 +367,7 @@ def fix_frame_time_step(new_tokens, new_words, frame_inds_seq):
             deficit = len(new_tokens) - len(frame_inds_seq)
             frame_inds_seq = [frame_inds_seq[0]] * deficit + frame_inds_seq
         logging.warning(
-            f"Length of word sequence ({len(word_seq)}) does not match length of frame indices sequence ({len(frame_inds_seq)}). Skipping this chunk."
+            f"Length of word sequence ({len(new_tokens)}) does not match length of frame indices sequence ({len(frame_inds_seq)}). Skipping this chunk."
         )
     return frame_inds_seq
 
@@ -449,6 +449,7 @@ def perform_streaming(
     streaming_buffer_iter = iter(streaming_buffer)
     asr_pred_out_stream, diar_pred_out_stream  = None, None
     mem_last_time, fifo_last_time = None, None
+    left_offset, right_offset = 0, 0
     word_and_ts_seq = {"words": [], "token_frame_index": [], "offset_count": 0,
                         "status": "success", 
                         "sentences": None, 
@@ -485,24 +486,33 @@ def perform_streaming(
                         return_transcription=True,
                     )
 
+                    if step_num > 0:
+                        left_offset = 8
+                        chunk_audio = chunk_audio[..., 1:]
+                        chunk_lengths -= 1
+                    
+
                     (
                         diar_pred_out_stream,
                         mem_last_time,
                         fifo_last_time,
                     ) = diar_model.forward_streaming_step(
-                        processed_signal=chunk_audio,
+                        processed_signal=chunk_audio.transpose(1, 2),
                         processed_signal_length=chunk_lengths,
                         mem_last_time=mem_last_time,
                         fifo_last_time=fifo_last_time,
-                        previous_pred_out=diar_pred_out_stream
+                        previous_pred_out=diar_pred_out_stream,
+                        left_offset=left_offset,
+                        right_offset=right_offset,
                     )
+
                     word_and_ts_seq = get_frame_and_words(asr_model.tokenizer, 
                                                           step_num, 
                                                           diar_pred_out_stream,
                                                           previous_hypotheses, 
                                                           word_and_ts_seq) 
-                    word_and_ts_seq = speaker_beam_search_decoder.beam_search_diarization_single(trans_info_dict=word_and_ts_seq)
-                    import ipdb; ipdb.set_trace()
+                    # word_and_ts_seq = speaker_beam_search_decoder.beam_search_diarization_single(trans_info_dict=word_and_ts_seq)
+
                     logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
