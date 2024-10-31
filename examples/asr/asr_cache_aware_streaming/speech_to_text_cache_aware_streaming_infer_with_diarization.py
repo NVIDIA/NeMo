@@ -349,6 +349,34 @@ def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
         return 0
     else:
         return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
+    
+def get_sentences_values(session_trans_dict):
+    word_dict_seq_list = session_trans_dict['words']
+    prev_speaker = word_dict_seq_list[0]['speaker']
+    sentences = []
+    sentence = {'speaker': prev_speaker,
+                'start_time': session_trans_dict['words'][0]['start_time'], 
+                'end_time': session_trans_dict['words'][0]['end_time'], 
+                'text': ''}
+    for k, word_dict in enumerate(word_dict_seq_list):
+        word, speaker = word_dict['word'], word_dict['speaker']
+        start_point, end_point = word_dict['start_time'], word_dict['end_time']
+        if speaker != prev_speaker:
+            sentence['text'] = sentence['text'].strip()
+            sentences.append(sentence)
+            sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
+        else:
+            sentence['end_time'] = end_point
+        stt_sec, end_sec = start_point, end_point
+        sentence['text'] += word.strip() + ' '
+        prev_speaker = speaker
+
+    session_trans_dict['words'] = word_dict_seq_list
+    sentence['text'] = sentence['text'].strip()
+    sentences.append(sentence)
+    session_trans_dict['sentences'] = sentences
+    return session_trans_dict 
+
 
 def fix_frame_time_step(new_tokens, new_words, frame_inds_seq):
     if len(new_tokens) != len(frame_inds_seq):
@@ -367,7 +395,7 @@ def fix_frame_time_step(new_tokens, new_words, frame_inds_seq):
             deficit = len(new_tokens) - len(frame_inds_seq)
             frame_inds_seq = [frame_inds_seq[0]] * deficit + frame_inds_seq
         logging.warning(
-            f"Length of word sequence ({len(word_seq)}) does not match length of frame indices sequence ({len(frame_inds_seq)}). Skipping this chunk."
+            f"Length of new token sequence ({len(new_tokens)}) does not match length of frame indices sequence ({len(frame_inds_seq)}). Skipping this chunk."
         )
     return frame_inds_seq
 
@@ -408,7 +436,13 @@ def get_frame_and_words(tokenizer, step_num, diar_pred_out_stream, previous_hypo
     
     time_step_local_offset = 0 
     for token_group, word in zip(new_token_group, new_words):
-        word_dict = get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len)
+        word_dict = get_word_dict_content(word=word,
+                                          diar_pred_out_stream=diar_pred_out_stream,
+                                          token_group=token_group,
+                                          frame_inds_seq=frame_inds_seq,
+                                          time_step_local_offset=time_step_local_offset,
+                                          frame_len=frame_len
+                                          )
         word_and_ts_seq["words"].append(word_dict)
         time_step_local_offset += len(token_group)                                        
     return word_and_ts_seq 
@@ -496,13 +530,16 @@ def perform_streaming(
                         fifo_last_time=fifo_last_time,
                         previous_pred_out=diar_pred_out_stream
                     )
-                    word_and_ts_seq = get_frame_and_words(asr_model.tokenizer, 
-                                                          step_num, 
-                                                          diar_pred_out_stream,
-                                                          previous_hypotheses, 
-                                                          word_and_ts_seq) 
+                    # Get the word-level dictionaries for each word in the chunk
+                    word_and_ts_seq = get_frame_and_words(tokenizer=asr_model.tokenizer, 
+                                                          step_num=step_num, 
+                                                          diar_pred_out_stream=diar_pred_out_stream,
+                                                          previous_hypotheses=previous_hypotheses, 
+                                                          word_and_ts_seq=word_and_ts_seq) 
+                    #  
                     word_and_ts_seq = speaker_beam_search_decoder.beam_search_diarization_single(trans_info_dict=word_and_ts_seq)
-                    import ipdb; ipdb.set_trace()
+                    word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
+                    # import ipdb; ipdb.set_trace()
                     logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")

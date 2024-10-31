@@ -334,13 +334,13 @@ def get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels):
     # note that we need to add the very last sentence.
     sentence['text'] = sentence['text'].strip()
     sentences.append(sentence)
-    gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
 
     # Speaker independent transcription
     session_trans_dict['transcription'] = ' '.join(word_seq_list)
     # add sentences to transcription information dict
     session_trans_dict['sentences'] = sentences
-    return session_trans_dict
+    gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
+    return session_trans_dict, gecko_dict, sentences, audacity_label_words
     
 
 def print_sentences(sentences: List[Dict[str, float]], 
@@ -971,7 +971,7 @@ class OfflineDiarWithASR:
                     }
         """
         logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
-        session_trans_dict = get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels)
+        session_trans_dict, gecko_dict, sentences = get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels)
         self._write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
 
