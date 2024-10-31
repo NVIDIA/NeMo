@@ -140,7 +140,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
     def apply(self, output_path: Path) -> Path:
         from transformers import NemotronForCausalLM
-        
+
         print('Start converting Nemotron model..')
         source = NemotronForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
