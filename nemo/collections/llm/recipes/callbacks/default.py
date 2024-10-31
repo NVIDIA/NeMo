@@ -18,13 +18,13 @@ from nemo_run import Config, cli
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo.utils.import_utils import safe_import
+
 res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
 
 
 @cli.factory(is_target_default=True)
 def straggler_det_callback(
-    straggler_report_time_interval: Optional[int] = 300,
-    stop_if_detected_straggler: Optional[bool] = True
+    straggler_report_time_interval: Optional[int] = 300, stop_if_detected_straggler: Optional[bool] = True
 ) -> Config[res_module.StragglerDetectionCallback]:
 
     return Config(

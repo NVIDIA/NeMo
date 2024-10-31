@@ -29,6 +29,7 @@ from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
 
 from nemo.utils.import_utils import safe_import
+
 res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
 
 
@@ -110,7 +111,6 @@ class FaultTolerencePlugin(run.Plugin):
     rank_heartbeat_timeout: int = 300
     use_simulated_fault: bool = False
 
-
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
 
         assert HAVE_RES, "nvidia-resiliency-ext.ptl_resiliency is required to use the FaultTolerencePlugin."
@@ -129,13 +129,15 @@ class FaultTolerencePlugin(run.Plugin):
             fault_type="rank_hung",
             base_delay=120.0,
         )
-        callbacks = [run.Config(
-            res_module.FaultToleranceCallback,
-            autoresume=True,
-            calculate_timeouts=True,
-            exp_dir=task.log.log_dir,
-            simulated_fault_params=simulated_fault if self.use_simulated_fault else None,
-        )]
+        callbacks = [
+            run.Config(
+                res_module.FaultToleranceCallback,
+                autoresume=True,
+                calculate_timeouts=True,
+                exp_dir=task.log.log_dir,
+                simulated_fault_params=simulated_fault if self.use_simulated_fault else None,
+            )
+        ]
 
         assert not executor.launcher.nsys_profile, "Nsys not supported with the FaultTolerencePlugin."
         if hasattr(task, "trainer") and hasattr(task.trainer, "callbacks"):
