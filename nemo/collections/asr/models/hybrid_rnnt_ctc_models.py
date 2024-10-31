@@ -136,10 +136,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
         if timestamps is not None:
             if self.cur_decoder not in ["ctc", "rnnt"]:
-                    raise ValueError(
-                        f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
-                    )
-            decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding            
+                raise ValueError(
+                    f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
+                )
+            decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
             if timestamps or (override_config is not None and override_config.timestamps):
                 logging.info(
                     "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
@@ -149,7 +149,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                     decoding_cfg.compute_timestamps = True
                     decoding_cfg.preserve_alignments = True
                 self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
-            else: 
+            else:
                 return_hypotheses = False
                 with open_dict(decoding_cfg):
                     decoding_cfg.compute_timestamps = False
