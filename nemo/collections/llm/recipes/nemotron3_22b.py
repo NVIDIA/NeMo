@@ -263,11 +263,10 @@ def finetune_recipe(
         model(), "thhaus/nemotron3-22b-hf", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 4
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
-        recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
