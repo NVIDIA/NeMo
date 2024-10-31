@@ -5,7 +5,8 @@ from typing import List, Literal, Optional
 import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear, \
+    gather_from_tensor_model_parallel_region
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
 from torch import nn
 
@@ -34,15 +35,7 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
         self.weight_magnitude = nn.Parameter(value, requires_grad=True)
 
     def get_weight_magnitude(self):
-        if self.input_is_parallel:
-            # W is RowParallelLinear, output is gathered
-            return self.weight_magnitude
-
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        return self.weight_magnitude[
-            len(self.weight_magnitude) * tp_rank // tp_size : len(self.weight_magnitude) * (tp_rank + 1) // tp_size
-        ]
+        return self.weight_magnitude
 
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
@@ -75,7 +68,14 @@ class DoRALinear(AdapterWrapper):
         self.adapter.init_weight_magnitude(self._get_weight_norm())
 
     def _get_weight_norm(self):
-        weight = self.to_wrap.weight + self.scaling * self.adapter.linear_out.weight @ self.adapter.linear_in.weight
+        if self.adapter.input_is_parallel:
+            linear_out_weight = gather_from_tensor_model_parallel_region(self.adapter.linear_out.weight.T).T
+            linear_in_weight = self.adapter.linear_in.weight
+        else:
+            linear_out_weight = self.adapter.linear_out.weight
+            linear_in_weight = gather_from_tensor_model_parallel_region(self.adapter.linear_in.weight.T).T
+
+        weight = self.to_wrap.weight + self.scaling * linear_out_weight @ linear_in_weight
         return torch.linalg.norm(weight, dim=1).to(weight.dtype).detach()
 
     def forward(self, x):
