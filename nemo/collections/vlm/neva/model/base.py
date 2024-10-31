@@ -370,6 +370,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
                 self.language_model.load_state_dict(loaded_state_dict)
                 logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
+        else:
+            if config.language_model_from_pretrained is not None:
+                dist_checkpointing.load(
+                    sharded_state_dict=dict(state_dict={}), checkpoint_dir=config.language_model_from_pretrained,
+                    validate_access_integrity=False,
+                )
 
         if self.add_encoder:
             self.vision_model = vision_transformer_config.configure_model()
