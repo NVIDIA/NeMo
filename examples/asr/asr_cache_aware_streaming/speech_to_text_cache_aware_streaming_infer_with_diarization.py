@@ -118,6 +118,8 @@ get_session_trans_dict,
 init_session_trans_dict,
 init_session_gecko_dict,
 print_sentences,
+get_color_palette,
+write_txt,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
 labels_to_pyannote_object,
@@ -154,20 +156,20 @@ import itertools
 # cs = ConfigStore.instance()
 # cs.store(name="config", node=RealigningLanguageModelParameters)
 
-############### DIARIZATION CONFIGS ################
-@dataclass
-class PostProcessingParams:
-    window_length_in_sec: float = 0.15
-    shift_length_in_sec: float = 0.01
-    smoothing: bool = False
-    overlap: float = 0.5
-    onset: float = 0.5
-    offset: float = 0.5
-    pad_onset: float = 0.0
-    pad_offset: float = 0.0
-    min_duration_on: float = 0.0
-    min_duration_off: float = 0.0
-    filter_speech_first: bool = True
+# ############### DIARIZATION CONFIGS ################
+# @dataclass
+# class PostProcessingParams:
+#     window_length_in_sec: float = 0.15
+#     shift_length_in_sec: float = 0.01
+#     smoothing: bool = False
+#     overlap: float = 0.5
+#     onset: float = 0.5
+#     offset: float = 0.5
+#     pad_onset: float = 0.0
+#     pad_offset: float = 0.0
+#     min_duration_on: float = 0.0
+#     min_duration_off: float = 0.0
+#     filter_speech_first: bool = True
 
 @dataclass
 class DiarizationConfig:
@@ -240,6 +242,7 @@ class DiarizationConfig:
     # batch_size: int = 32
     # use_mp: bool = True
     arpa_language_model: Optional[str] = None
+    beam_prune_logp: float = -100
     word_window: int = 32
     port: List[int] = field(default_factory=list)
     parallel_chunk_word_len: int = 250
@@ -250,33 +253,37 @@ class DiarizationConfig:
     beta: float = 0.05
     beam_width: int = 16
     out_dir: Optional[str] = None
+    print_time: bool = True
+    colored_text: bool = True
+    print_path: str = "./"
+    beam_search_enabled: bool = True
 
-def load_postprocessing_from_yaml(postprocessing_yaml):
-    """ 
-    Load postprocessing parameters from a YAML file.
+# def load_postprocessing_from_yaml(postprocessing_yaml):
+#     """ 
+#     Load postprocessing parameters from a YAML file.
 
-    Args:
-        postprocessing_yaml (str): 
-            Path to a YAML file for postprocessing configurations.
+#     Args:
+#         postprocessing_yaml (str): 
+#             Path to a YAML file for postprocessing configurations.
 
-    Returns:
-        postprocessing_params (dataclass): 
-            Postprocessing parameters loaded from the YAML file.
-    """
-    # Add PostProcessingParams as a field
-    postprocessing_params = OmegaConf.structured(PostProcessingParams())
-    if postprocessing_yaml is None:
-        logging.info(f"No postprocessing YAML file has been provided. Default postprocessing configurations will be applied.")
-    else:
-        # Load postprocessing params from the provided YAML file
-        with open(postprocessing_yaml, 'r') as file:
-            yaml_params = yaml.safe_load(file)['parameters']
-            # Update the postprocessing_params with the loaded values
-            logging.info(f"Postprocessing YAML file '{postprocessing_yaml}' has been loaded.")
-            for key, value in yaml_params.items():
-                if hasattr(postprocessing_params, key):
-                    setattr(postprocessing_params, key, value)
-    return postprocessing_params
+#     Returns:
+#         postprocessing_params (dataclass): 
+#             Postprocessing parameters loaded from the YAML file.
+#     """
+#     # Add PostProcessingParams as a field
+#     postprocessing_params = OmegaConf.structured(PostProcessingParams())
+#     if postprocessing_yaml is None:
+#         logging.info(f"No postprocessing YAML file has been provided. Default postprocessing configurations will be applied.")
+#     else:
+#         # Load postprocessing params from the provided YAML file
+#         with open(postprocessing_yaml, 'r') as file:
+#             yaml_params = yaml.safe_load(file)['parameters']
+#             # Update the postprocessing_params with the loaded values
+#             logging.info(f"Postprocessing YAML file '{postprocessing_yaml}' has been loaded.")
+#             for key, value in yaml_params.items():
+#                 if hasattr(postprocessing_params, key):
+#                     setattr(postprocessing_params, key, value)
+#     return postprocessing_params
 
 def convert_pred_mat_to_segments(
     audio_rttm_map_dict: Dict[str, Dict[str, str]], 
@@ -405,9 +412,17 @@ def get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_se
         frame_stt, frame_end = frame_inds_seq[_stt], frame_inds_seq[_stt] + 1
     else:
         frame_stt, frame_end = frame_inds_seq[_stt], frame_inds_seq[_end]
-    do = 0
-    speaker_sigmoid = diar_pred_out_stream[0, (frame_stt+do):(frame_end+do), :].mean(dim=0)
-    speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
+        
+    # Edge Cases: Sometimes, repeated token indexs can lead to incorrect frame and speaker assignment.
+    if frame_stt == frame_end:
+        if frame_stt >= diar_pred_out_stream.shape[1] - 1:
+            frame_stt, frame_end = (diar_pred_out_stream.shape[1] - 1, diar_pred_out_stream.shape[1])
+        else:
+            frame_end = frame_stt + 1
+        
+    speaker_sigmoid = diar_pred_out_stream[0, frame_stt:frame_end, :].mean(dim=0)
+    # speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
+    speaker_softmax = torch.softmax(speaker_sigmoid, dim=0)
     speaker_softmax = speaker_softmax.cpu()
     stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
     spk_id = speaker_softmax.argmax().item()
@@ -416,11 +431,11 @@ def get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_se
                 'frame_end': frame_end,
                 'start_time': round(stt_sec, 3), 
                 'end_time': round(end_sec, 3), 
-                'speaker': spk_id,
+                'speaker': f"speaker_{spk_id}",
                 'speaker_softmax': speaker_softmax} 
     return word_dict                 
         
-def get_frame_and_words(tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08):
+def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08):
     current_frame_range = [step_num * previous_hypotheses[0].length.item(), (step_num + 1) * previous_hypotheses[0].length.item()]
     offset = current_frame_range[0]
     word_seq = previous_hypotheses[0].text.split()
@@ -443,12 +458,18 @@ def get_frame_and_words(tokenizer, step_num, diar_pred_out_stream, previous_hypo
                                           time_step_local_offset=time_step_local_offset,
                                           frame_len=frame_len
                                           )
+        # Count the number of speakers in the word window
+        word_and_ts_seq["speaker_count_buffer"].append(word_dict["speaker"])
+        if len(word_and_ts_seq["speaker_count_buffer"]) > cfg.word_window:
+            word_and_ts_seq["speaker_count_buffer"].pop(0)
+        word_and_ts_seq["speaker_count"] = len(set(word_and_ts_seq["speaker_count_buffer"]))
+            
         word_and_ts_seq["words"].append(word_dict)
         time_step_local_offset += len(token_group)                                        
     return word_and_ts_seq 
 
 def perform_streaming(
-    asr_model, diar_model, speaker_beam_search_decoder, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
+    cfg, asr_model, diar_model, bsd_spk, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
 ):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
@@ -489,7 +510,7 @@ def perform_streaming(
                         "sentences": None, 
                         "speaker_count": None,
                         "transcription": None,
-                        "speaker_count": 2,
+                        "speaker_count_buffer": [],
                         }
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         with torch.inference_mode():
@@ -540,15 +561,23 @@ def perform_streaming(
                         right_offset=right_offset,
                     )
                     # Get the word-level dictionaries for each word in the chunk
-                    word_and_ts_seq = get_frame_and_words(tokenizer=asr_model.tokenizer, 
+                    word_and_ts_seq = get_frame_and_words(cfg=cfg,
+                                                          tokenizer=asr_model.tokenizer,
                                                           step_num=step_num, 
                                                           diar_pred_out_stream=diar_pred_out_stream,
                                                           previous_hypotheses=previous_hypotheses, 
                                                           word_and_ts_seq=word_and_ts_seq) 
-                    #  
-                    word_and_ts_seq = speaker_beam_search_decoder.beam_search_diarization_single(trans_info_dict=word_and_ts_seq)
+                    if cfg.beam_search_enabled: 
+                        if len(word_and_ts_seq["words"]) > cfg.word_window:
+                            extra_len = len(word_and_ts_seq["words"]) - cfg.word_window
+                            words = word_and_ts_seq["words"][extra_len:]
+                            bsd_words = bsd_spk.beam_search_diarization_single(word_dict_seq_list=words, speaker_count=word_and_ts_seq["speaker_count"])
+                            word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_words
+                        else:
+                            word_and_ts_seq["words"] = bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], speaker_count=word_and_ts_seq["speaker_count"])
                     word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
-                    # import ipdb; ipdb.set_trace()
+                    string_out = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=cfg) 
+                    write_txt(f'{cfg.print_path}', string_out.strip())
                     logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
@@ -713,16 +742,17 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         pad_and_drop_preencoded=args.pad_and_drop_preencoded,
     )
     arpa_model = kenlm.Model(cfg.arpa_language_model)
-    speaker_beam_search_decoder = SpeakerTaggingBeamSearchDecoder(loaded_kenlm_model=arpa_model, cfg=cfg)
+    bsd_spk = SpeakerTaggingBeamSearchDecoder(loaded_kenlm_model=arpa_model, cfg=cfg)
     if args.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
             args.audio_file, stream_id=-1
         )
         perform_streaming(
+            cfg=cfg,
             asr_model=asr_model,
             diar_model=diar_model,
-            speaker_beam_search_decoder=speaker_beam_search_decoder,
+            bsd_spk=bsd_spk,
             streaming_buffer=streaming_buffer,
             compare_vs_offline=args.compare_vs_offline,
             pad_and_drop_preencoded=args.pad_and_drop_preencoded,
@@ -753,9 +783,10 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 streaming_tran, offline_tran = perform_streaming(
+                    cfg=cfg,
                     asr_model=asr_model,
                     diar_model=diar_model,
-                    speaker_beam_search_decoder=speaker_beam_search_decoder,
+                    bsd_spk=bsd_spk,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
@@ -796,12 +827,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                         "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
                     }
                     out_f.write(json.dumps(record) + '\n')
-
-
-
-    
-    # diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
-    
 
 if __name__ == '__main__':
     main()

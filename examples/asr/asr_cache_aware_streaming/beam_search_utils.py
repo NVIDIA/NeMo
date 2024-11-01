@@ -41,6 +41,7 @@ class SpeakerTaggingBeamSearchDecoder:
 
         realigned_list = self.realigning_lm.decode_beams(beam_width=self.realigning_lm_params['beam_width'],
                                                          speaker_list=sorted(list(set(spk_list))), 
+                                                         beam_prune_logp=self.realigning_lm_params.beam_prune_logp,
                                                          word_dict_seq_list=word_dict_seq_list,
                                                          port_num=port_num)
         return realigned_list
@@ -71,7 +72,9 @@ class SpeakerTaggingBeamSearchDecoder:
 
     def beam_search_diarization_single(
         self,
-        trans_info_dict: Dict[str, Dict[str, list]],
+        # trans_info_dict: Dict[str, Dict[str, list]],
+        word_dict_seq_list: List[Dict[str, float]],
+        speaker_count: int,
         port_num: List[int] = None,
     ) -> Dict[str, Dict[str, float]]:
         """
@@ -86,11 +89,12 @@ class SpeakerTaggingBeamSearchDecoder:
                 Each session is indexed by a unique ID.
         """
         # print(f"{__INFO_TAG__} Processing session {uniq_id}")
-        word_dict_seq_list = trans_info_dict['words']
-        output_beams = self.realign_words_with_lm(word_dict_seq_list=word_dict_seq_list, speaker_count=trans_info_dict['speaker_count'], port_num=port_num)
+        # word_dict_seq_list = trans_info_dict['words']
+        output_beams = self.realign_words_with_lm(word_dict_seq_list=word_dict_seq_list, speaker_count=speaker_count, port_num=port_num)
         word_dict_seq_list = output_beams[0][2]
-        trans_info_dict['words'] = word_dict_seq_list
-        return trans_info_dict
+        return word_dict_seq_list
+        # trans_info_dict['words'] = word_dict_seq_list
+        # return trans_info_dict
 
     def merge_div_inputs(self, div_trans_info_dict, org_trans_info_dict, win_len=250, word_window=16, limit_max_spks=8):
         """

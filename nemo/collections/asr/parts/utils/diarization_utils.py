@@ -44,6 +44,21 @@ except ImportError:
 __all__ = ['OfflineDiarWithASR']
 
 
+def get_color_palette() -> Dict[str, str]:
+    return {
+        'speaker_0': '\033[1;32m',
+        'speaker_1': '\033[1;34m',
+        'speaker_2': '\033[1;30m',
+        'speaker_3': '\033[1;31m',
+        'speaker_4': '\033[1;35m',
+        'speaker_5': '\033[1;36m',
+        'speaker_6': '\033[1;37m',
+        'speaker_7': '\033[1;30m',
+        'speaker_8': '\033[1;33m',
+        'speaker_9': '\033[0;34m',
+        'white': '\033[0;37m',
+    }
+
 def dump_json_to_file(file_path: str, session_trans_dict: dict):
     """
     Write a json file from the session_trans_dict dictionary.
@@ -340,7 +355,7 @@ def get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels):
     # add sentences to transcription information dict
     session_trans_dict['sentences'] = sentences
     gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
-    return session_trans_dict, gecko_dict, sentences, audacity_label_words
+    return session_trans_dict, gecko_dict, audacity_label_words, sentences
     
 
 def print_sentences(sentences: List[Dict[str, float]], 
@@ -367,7 +382,7 @@ def print_sentences(sentences: List[Dict[str, float]],
         end_point = sentence['end_time']
         text = sentence['text']
 
-        if params['colored_text']:
+        if params.get('colored_text', False):
             color = color_palette.get(speaker, '\033[0;37m')
         else:
             color = ''
@@ -382,7 +397,7 @@ def print_sentences(sentences: List[Dict[str, float]],
         start_point_str = datetime.fromtimestamp(start_point - datetime_offset).strftime(time_str)[:-4]
         end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
 
-        if params['print_time']:
+        if params.get('print_time', False):
             time_str = f'[{start_point_str} - {end_point_str}] '
         else:
             time_str = ''
@@ -453,24 +468,8 @@ class OfflineDiarWithASR:
 
         self.make_file_lists()
 
-        self.color_palette = self.get_color_palette()
+        self.color_palette = get_color_palette()
         self.csv_columns = self.get_csv_columns()
-
-    @staticmethod
-    def get_color_palette() -> Dict[str, str]:
-        return {
-            'speaker_0': '\033[1;32m',
-            'speaker_1': '\033[1;34m',
-            'speaker_2': '\033[1;30m',
-            'speaker_3': '\033[1;31m',
-            'speaker_4': '\033[1;35m',
-            'speaker_5': '\033[1;36m',
-            'speaker_6': '\033[1;37m',
-            'speaker_7': '\033[1;30m',
-            'speaker_8': '\033[1;33m',
-            'speaker_9': '\033[0;34m',
-            'white': '\033[0;37m',
-        }
 
     @staticmethod
     def get_csv_columns() -> List[str]:
@@ -971,7 +970,7 @@ class OfflineDiarWithASR:
                     }
         """
         logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
-        session_trans_dict, gecko_dict, sentences = get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels)
+        session_trans_dict, gecko_dict, audacity_label_words, sentences = get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels)
         self._write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
 
@@ -1270,7 +1269,7 @@ class OfflineDiarWithASR:
                 List containing sentence dictionary
         """
         # print the sentences in the .txt output
-        string_out = print_sentences(sentences, color_palette=self.color_palette)
+        string_out = print_sentences(sentences, color_palette=self.color_palette, params=self.params)
         if self.params['break_lines']:
             string_out = self._break_lines(string_out)
 
