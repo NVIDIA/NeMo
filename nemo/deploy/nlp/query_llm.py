@@ -269,7 +269,10 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "model": self.model_name,
                         # TODO if compute_logprobs is True then add log_probs
                         ## Convert log_probs to a list to make it json serializable
-                        "choices": [{"text": str(sentences), "log_probs": result_dict["log_probs"].tolist()}],
+                        "choices": [{"text": str(sentences),
+                                     "log_probs":result_dict["log_probs"].tolist(),
+                                     "generation_logits": result_dict["generation_logits"].tolist()
+                                     }]
                     }
                     return openai_response
                 else:

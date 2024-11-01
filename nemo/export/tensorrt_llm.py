@@ -863,19 +863,19 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="task_id", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True),
+            Tensor(name="all_probs", shape=(-1,), dtype=np.bool_, optional=True)
         )
         return inputs
 
     @property
     def get_triton_output(self):
-        outputs = (
-            Tensor(name="outputs", shape=(-1,), dtype=bytes),
-            Tensor(name="log_probs", shape=(-1,), dtype=np.single),
-        )
+        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes), Tensor(name="log_probs", shape=(-1,), dtype=np.single),
+                   Tensor(name="generation_logits", shape=(-1,), dtype=np.single))
         return outputs
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
+        log_probs = None
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
@@ -904,10 +904,13 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["lora_uids"] = lora_uids[0].tolist()
             if "compute_logprob" in inputs:
                 infer_input["output_log_probs"] = inputs.pop("compute_logprob")[0][0]
+            if "all_probs" in inputs:
+                infer_input["all_probs"] = inputs.pop("all_probs")[0][0]
 
             if infer_input["output_log_probs"]:
-                output_texts, log_probs = self.forward(**infer_input)
+                output_texts, log_probs, generation_logits = self.forward(**infer_input)
                 log_probs = np.array(log_probs.cpu().numpy())
+                generation_logits = np.array(generation_logits.cpu().numpy())
             else:
                 output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
@@ -915,7 +918,7 @@ class TensorRTLLM(ITritonDeployable):
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
 
-        return {"outputs": output, "log_probs": log_probs}
+        return {"outputs": output, "log_probs": log_probs, "generation_logits": generation_logits}
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):

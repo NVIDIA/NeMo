@@ -453,6 +453,7 @@ def deploy(
 
 
 def evaluate(
+    nemo_checkpoint_path: Path,
     url: str = "http://0.0.0.0:1234/v1",
     model_name: str = "xxxx",
     eval_task: str = "gsm8k",
@@ -521,10 +522,10 @@ def evaluate(
         """
         Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
         """
-
-        def __init__(self, model_name, api_url, max_tokens_to_generate, temperature, top_p, top_k):
+        def __init__(self, model_name, api_url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k):
             self.model_name = model_name
             self.api_url = api_url
+            self.tokenizer = tokenizer
             self.max_tokens_to_generate = max_tokens_to_generate
             self.temperature = temperature
             self.top_p = top_p
@@ -543,33 +544,30 @@ def evaluate(
                 return response_data['choices'][0]['text']
 
             if return_logprobs:
-                return response_data['choices'][0]['log_probs']
+                # generation_logits is needed only for loglikelihood tasks
+                return response_data['choices'][0]['log_probs'], response_data['choices'][0]['generation_logits']
+
 
         def loglikelihood(self, requests: list[Instance]):
-            # log likelihood calculation logic here
+            import numpy as np
+            import torch
+            import torch.nn.functional as F
+
+            special_tokens_kwargs = {'add_special_tokens': False} ## Hardcode for now. TODO Infer add_bos from input.
             results = []
             for request in requests:
                 context = request.arguments[0]
                 continuation = request.arguments[1]
-                full_text = context + continuation
-                instance = Instance(
-                    request_type="loglikelihood",
-                    # doc={'text': full_text},
-                    doc=request.doc,
-                    arguments=(full_text,),
-                    idx=0,
-                )
-                # Access the 'arguments' attribute of the Instance
-                prompt = instance.arguments[0]  # This should be the prompt string
+                context_enc = self.tokenizer.tokenizer.encode(context) #, **special_tokens_kwargs) #errors for SentencePeicetokenizer
+                continuation_enc = self.tokenizer.tokenizer.encode(continuation) #, **special_tokens_kwargs)
+                continuation_enc = continuation_enc[1:] #for SentencePeice since first encoded token is space, comment this for HF tokenizer
+                num_cont_tokens = len(continuation_enc)
+                ## Update self.max_tokens_to_generate with number of continuation tokens in the request
+                self.max_tokens_to_generate = num_cont_tokens
 
-                # Extract default temperature from instance of the benchmark or use the user defined value
-                # Does not work for MMLU since the input instance does not contain temp key
-                # temperature = (
-                #     instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
-                # )
                 payload = {
                     "model": self.model_name,
-                    "prompt": prompt,
+                    "prompt": context,
                     "max_tokens": self.max_tokens_to_generate,
                     "temperature": self.temperature,
                     "top_p": self.top_p,
@@ -577,17 +575,24 @@ def evaluate(
                     # "compute_logprob": True ##TODO Do we want to have this as an
                     # user defined value or set it to True by default ?
                 }
+                log_probs, generation_logits = self._generate_tokens_logprobs(payload, return_logprobs=True)
+                # Convert generation_logits to torch tensor to easily get logprobs wo manual implementation
+                multi_logits = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
+                cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
+                greedy_tokens = multi_logits.argmax(dim=-1)
+                max_equal = (greedy_tokens == cont_toks).all()
+                logits = torch.gather(multi_logits, 2, cont_toks.unsqueeze(-1)).squeeze(
+                        -1
+                    )
+                result = (float(logits.sum()), bool(max_equal))
 
-                log_probs = self._generate_tokens_logprobs(payload, return_logprobs=True)
-
-                # Assuming log_probs is a list of log probabilities for each token
-                # TODO : why is log_prbs returned as list of list ? Change it to just a list maybe in query_llm ?
-                continuation_log_prob = sum(log_probs[0][0][-len(continuation) :])
-                results.append((continuation_log_prob, False))
+                results.append(result)
 
             return results
 
         def loglikelihood_rolling(self, requests: list[Instance]):
+            ## Note: loglikelihood_rolling does not have correct implementation yet,
+            # the tasks we have working so far: gsm8k, mmlu, lambada dont need loglikelihood_rolling
             # log likelihood rolling calculation logic here
             results = []
             for request in requests:
@@ -635,11 +640,6 @@ def evaluate(
                 # Access the 'arguments' attribute of the Instance
                 prompt = instance.arguments[0]  # This should be the prompt string
 
-                # Extract default temperature from instance of the benchmark or use the user defined value
-                # Does not work for MMLU since the input instance does not contain temp key
-                # temperature = (
-                #     instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
-                # )
                 payload = {
                     "model": self.model_name,
                     "prompt": prompt,
@@ -657,13 +657,17 @@ def evaluate(
 
             return results
 
+    ## Get tokenizer from nemo 2.0 model, in case of 1.0 please add appropriate code to get
+    ## tokenizer from 1.0 ckpt and pass it to CustomModel
+    model = io.load_context(nemo_checkpoint_path, subpath="model")
+
     wait_for_rest_service(rest_url=f"{url}/health")
-    model = CustomModel(model_name, url, max_tokens_to_generate, temperature, top_p, top_k)
+    model = CustomModel(model_name, url, model.tokenizer, max_tokens_to_generate, temperature, top_p, top_k)
     results = evaluator.simple_evaluate(
         model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
     )
 
-    print("--results---", results['results'][eval_task])
+    print("score", results['results'][eval_task])
 
 
 @run.cli.entrypoint(name="import", namespace="llm")

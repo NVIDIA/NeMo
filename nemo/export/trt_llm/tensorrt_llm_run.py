@@ -280,6 +280,7 @@ def _forward(
                 output_sequence_lengths=True,
                 return_dict=True,
                 output_log_probs=sampling_kwargs.get('output_log_probs', False),
+                all_probs=sampling_kwargs.get('all_probs', False),
             )
 
             torch.cuda.synchronize()
@@ -693,6 +694,7 @@ def generate(
         multiprocessed_env=multiprocessed_env,
         **sampling_kwargs,
     )
+
     assert outputs is not None
     if tensorrt_llm.mpi_rank() != 0:
         return None
@@ -701,6 +703,7 @@ def generate(
     sequence_lengths = outputs['sequence_lengths']
     input_lengths = [t.shape[0] for t in input_tensors]
     log_probs = outputs['log_probs']
+    generation_logits = outputs['generation_logits']
 
     output_lines_list = [
         tokenizer.batch_decode(output_ids[b, :, input_lengths[b] : sequence_lengths[b][0]])
@@ -708,7 +711,7 @@ def generate(
     ]
 
     if output_log_probs:
-        return output_lines_list, log_probs
+        return output_lines_list, log_probs, generation_logits
     return output_lines_list
 
 

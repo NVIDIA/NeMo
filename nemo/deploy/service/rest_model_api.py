@@ -107,12 +107,15 @@ def completions_v1(request: CompletionRequest):
         output = nq.query_llm(
             prompts=[request.prompt],
             max_output_len=request.max_tokens,
+            # when these below params are passed as None
             top_k=request.top_k,
             top_p=request.top_p,
             temperature=request.temperature,
             init_timeout=triton_settings.triton_request_timeout,
             openai_format_response=triton_settings.openai_format_response,
-            compute_logprob=True,
+            # TODO make these two user configurable ??
+            all_probs=True,
+            compute_logprob=True
         )
         if triton_settings.openai_format_response:
             return output
