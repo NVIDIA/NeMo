@@ -105,6 +105,7 @@ class _MockT2IDataset(Dataset):
         self.W = image_W
         self.image_key = image_key
         self.txt_key = txt_key
+        self.hint_key = hint_key
         self.precached_mode = precached_mode
         if precached_mode:
             #TODO implement this

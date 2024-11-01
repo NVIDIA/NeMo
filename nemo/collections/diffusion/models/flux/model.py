@@ -48,6 +48,7 @@ from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete 
 from nemo.lightning import megatron_parallel as mp
 from megatron.core.transformer.enums import ModelType
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+import numpy as np
 
 
 
@@ -200,7 +201,7 @@ class Flux(VisionModule):
             if controlnet_double_block_samples is not None:
                 interval_control = len(self.double_blocks) / len(controlnet_double_block_samples)
                 interval_control = int(np.ceil(interval_control))
-                hidden_states = hidden_states + controlnet_single_block_samples[id_block // interval_control]
+                hidden_states = hidden_states + controlnet_double_block_samples[id_block // interval_control]
 
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
 
@@ -214,8 +215,8 @@ class Flux(VisionModule):
             if controlnet_single_block_samples is not None:
                 interval_control = len(self.double_blocks) / len(controlnet_double_block_samples)
                 interval_control = int(np.ceil(interval_control))
-                hidden_states[encoder_hidden_states.shape[0] :, ...] = (
-                    hidden_states[encoder_hidden_states.shape[0] :, ...]
+                hidden_states[encoder_hidden_states.shape[0]: , ...] = (
+                    hidden_states[encoder_hidden_states.shape[0]: , ...]
                     + controlnet_single_block_samples[id_block // interval_control]
                 )
 

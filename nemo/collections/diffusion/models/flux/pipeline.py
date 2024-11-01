@@ -244,7 +244,7 @@ class FluxInferencePipeline(nn.Module):
         device: torch.device = 'cuda',
         dtype: torch.dtype = torch.float32,
         save_to_disk: bool = True,
-        offload: bool = True,
+        offload: bool = False,
     ):
         assert device == 'cuda', 'Transformer blocks in Mcore must run on cuda devices'
 
