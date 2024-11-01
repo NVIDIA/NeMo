@@ -4282,6 +4282,21 @@ jobs:
         --model mixtral \
         --dist-opt
 
+  L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/lora_mistralai.py \
+        --max-steps 3 \
+        --tp 2 \
+        --mbs 1 \
+        --model mixtral \
+        --dist-opt
+
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4470,6 +4485,7 @@ jobs:
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
+      - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
       - L2_NeMo_2_Mixtral_Pretraining
