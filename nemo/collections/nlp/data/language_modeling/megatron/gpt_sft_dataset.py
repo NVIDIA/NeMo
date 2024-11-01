@@ -569,16 +569,24 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             self.samples_mapping = None
 
     def _build_loss_mask(self, processed_example):
+        seq_boundaries = processed_example['seq_boundaries']
         if self.answer_only_loss:
-            seq_boundaries = processed_example['seq_boundaries']
             return np.concatenate(
                 [
                     processed_example['loss_mask'][seq_boundaries[i] + 1 : seq_boundaries[i + 1]]
                     for i in range(len(seq_boundaries) - 1)
                 ]
             )
-        return [1.0] * (len(processed_example['input_ids']) - len(processed_example['seq_boundaries']) + 1)
-
+        return np.concatenate(
+            [
+                [
+                    0 if x == self.tokenizer.eos_id else 1.0
+                    for x in processed_example['input_ids'][seq_boundaries[i] : seq_boundaries[i + 1] - 1]
+                ]
+                for i in range(len(seq_boundaries) - 1)
+            ]
+        )
+        
     def _maybe_cast_to_list(self, x):
         return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
 
