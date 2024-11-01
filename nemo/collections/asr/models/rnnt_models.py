@@ -899,8 +899,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         encoded, encoded_len = self.forward(input_signal=batch[0], input_signal_length=batch[1])
         output = dict(encoded=encoded, encoded_len=encoded_len)
         return output
-    
-    @deprecated(explanation='The return type of args will be updated in the upcoming release to ensure a consistent output format across all decoder types, such that a "Hypothesis" object is always returned.')
+
+    @deprecated(
+        explanation='The return type of args will be updated in the upcoming release to ensure a consistent output format across all decoder types, such that a "Hypothesis" object is always returned.'
+    )
     def _transcribe_output_processing(
         self, outputs, trcfg: TranscribeConfig
     ) -> Tuple[List['Hypothesis'], List['Hypothesis']]:

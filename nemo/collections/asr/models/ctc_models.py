@@ -668,8 +668,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         output = dict(logits=logits, logits_len=logits_len)
         del greedy_predictions
         return output
-    
-    @deprecated(explanation='The return type of args will be updated in the upcoming release to ensure a consistent output format across all decoder types, such that a Hypothesis object is always returned.')
+
+    @deprecated(
+        explanation='The return type of args will be updated in the upcoming release to ensure a consistent output format across all decoder types, such that a Hypothesis object is always returned.'
+    )
     def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
         logits = outputs.pop('logits')
         logits_len = outputs.pop('logits_len')

@@ -42,9 +42,9 @@ from nemo.utils.data_utils import (
     is_datastore_path,
     is_tarred_path,
 )
+from nemo.utils.decorators import deprecated
 from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.decorators import deprecated
 
 __all__ = [
     'AudioToCharDataset',
