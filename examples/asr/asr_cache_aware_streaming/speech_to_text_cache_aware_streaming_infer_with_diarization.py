@@ -89,6 +89,7 @@ import yaml
 from tqdm import tqdm
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Union, List, Tuple, Dict
+from copy import deepcopy
 
 import torch
 import pytorch_lightning as pl
@@ -141,36 +142,131 @@ from beam_search_utils import (
     convert_nemo_json_to_seglst,
 )
 from hydra.core.config_store import ConfigStore
-# from hyper_optim import (
-#     optuna_hyper_optim, 
-#     evaluate,
-#     evaluate_diff,
-# )
-
 from collections import OrderedDict
 import itertools
 
 
 
 
-# cs = ConfigStore.instance()
-# cs.store(name="config", node=RealigningLanguageModelParameters)
+class MultiSpeakerASRstreamer:
+    def __init__(
+        self,
+        cfg,
+        asr_model,
+        diar_model,
+        bsd_spk
+    ):
+       self.cfg = cfg
+       self.asr_model = asr_model
+       self.diar_model = diar_model
+       self.bsd_spk = bsd_spk
+       self._word_and_ts_seq = {"words": [], "token_frame_index": [], "offset_count": 0,
+                        "status": "success", 
+                        "sentences": None, 
+                        "speaker_count": None,
+                        "transcription": None,
+                        "speaker_count_buffer": [],
+                        } 
+    
+    def _manage_beam_search_update(self, word_and_ts_seq):
+        if len(word_and_ts_seq["words"]) > self.cfg.word_window:
+            extra_len = len(word_and_ts_seq["words"]) - self.cfg.word_window
+            words = word_and_ts_seq["words"][extra_len:]
+            bsd_words = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=words, speaker_count=word_and_ts_seq["speaker_count"])
+            word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_words
+        else:
+            word_and_ts_seq["words"] = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], speaker_count=word_and_ts_seq["speaker_count"])
+        return word_and_ts_seq 
+    
+    def perform_streaming_stt_spk(
+        self,
+        step_num,
+        chunk_audio,
+        chunk_lengths,
+        cache_last_channel,
+        cache_last_time,
+        cache_last_channel_len,
+        previous_hypotheses,
+        asr_pred_out_stream,
+        diar_pred_out_stream,
+        mem_last_time,
+        fifo_last_time,
+        left_offset,
+        right_offset,
+        is_buffer_empty,
+        pad_and_drop_preencoded,
+    ):
 
-# ############### DIARIZATION CONFIGS ################
-# @dataclass
-# class PostProcessingParams:
-#     window_length_in_sec: float = 0.15
-#     shift_length_in_sec: float = 0.01
-#     smoothing: bool = False
-#     overlap: float = 0.5
-#     onset: float = 0.5
-#     offset: float = 0.5
-#     pad_onset: float = 0.0
-#     pad_offset: float = 0.0
-#     min_duration_on: float = 0.0
-#     min_duration_off: float = 0.0
-#     filter_speech_first: bool = True
+        (
+            asr_pred_out_stream,
+            transcribed_texts,
+            cache_last_channel,
+            cache_last_time,
+            cache_last_channel_len,
+            previous_hypotheses,
+        ) = self.asr_model.conformer_stream_step(
+            processed_signal=chunk_audio,
+            processed_signal_length=chunk_lengths,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+            cache_last_channel_len=cache_last_channel_len,
+            keep_all_outputs=is_buffer_empty,
+            previous_hypotheses=previous_hypotheses,
+            previous_pred_out=asr_pred_out_stream,
+            drop_extra_pre_encoded=calc_drop_extra_pre_encoded(
+                self.asr_model, step_num, pad_and_drop_preencoded
+            ),
+            return_transcription=True,
+        )
 
+        if step_num > 0:
+            left_offset = 8
+            chunk_audio = chunk_audio[..., 1:]
+            chunk_lengths -= 1
+        
+
+        (
+            mem_last_time,
+            fifo_last_time,
+            mem_preds,
+            fifo_preds,
+            diar_pred_out_stream
+        ) = self.diar_model.forward_streaming_step(
+            processed_signal=chunk_audio.transpose(1, 2),
+            processed_signal_length=chunk_lengths,
+            mem_last_time=mem_last_time,
+            fifo_last_time=fifo_last_time,
+            previous_pred_out=diar_pred_out_stream,
+            left_offset=left_offset,
+            right_offset=right_offset,
+        )
+        word_and_ts_seq = deepcopy(self._word_and_ts_seq)
+        # Get the word-level dictionaries for each word in the chunk
+        word_and_ts_seq = get_frame_and_words(cfg=self.cfg,
+                                              tokenizer=self.asr_model.tokenizer,
+                                              step_num=step_num, 
+                                              diar_pred_out_stream=diar_pred_out_stream,
+                                              previous_hypotheses=previous_hypotheses, 
+                                              word_and_ts_seq=word_and_ts_seq) 
+        if self.cfg.beam_search_enabled: 
+            word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq)
+        word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
+        self._word_and_ts_seq = deepcopy(word_and_ts_seq)
+        transcribed_speaker_texts = print_sentences(sentences=self._word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg) 
+        write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
+        logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
+        return (transcribed_speaker_texts,
+                transcribed_texts,
+                asr_pred_out_stream,
+                transcribed_texts,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+                previous_hypotheses,
+                mem_last_time,
+                fifo_last_time,
+                diar_pred_out_stream)
+    
 @dataclass
 class DiarizationConfig:
     # Required configs
@@ -257,33 +353,6 @@ class DiarizationConfig:
     colored_text: bool = True
     print_path: str = "./"
     beam_search_enabled: bool = True
-
-# def load_postprocessing_from_yaml(postprocessing_yaml):
-#     """ 
-#     Load postprocessing parameters from a YAML file.
-
-#     Args:
-#         postprocessing_yaml (str): 
-#             Path to a YAML file for postprocessing configurations.
-
-#     Returns:
-#         postprocessing_params (dataclass): 
-#             Postprocessing parameters loaded from the YAML file.
-#     """
-#     # Add PostProcessingParams as a field
-#     postprocessing_params = OmegaConf.structured(PostProcessingParams())
-#     if postprocessing_yaml is None:
-#         logging.info(f"No postprocessing YAML file has been provided. Default postprocessing configurations will be applied.")
-#     else:
-#         # Load postprocessing params from the provided YAML file
-#         with open(postprocessing_yaml, 'r') as file:
-#             yaml_params = yaml.safe_load(file)['parameters']
-#             # Update the postprocessing_params with the loaded values
-#             logging.info(f"Postprocessing YAML file '{postprocessing_yaml}' has been loaded.")
-#             for key, value in yaml_params.items():
-#                 if hasattr(postprocessing_params, key):
-#                     setattr(postprocessing_params, key, value)
-#     return postprocessing_params
 
 def convert_pred_mat_to_segments(
     audio_rttm_map_dict: Dict[str, Dict[str, str]], 
@@ -468,33 +537,65 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
         time_step_local_offset += len(token_group)                                        
     return word_and_ts_seq 
 
-def perform_streaming(
+def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, debug_mode=False):
+    batch_size = len(streaming_buffer.streams_length)
+    final_offline_tran = None
+
+    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
+        batch_size=batch_size
+    )
+
+    previous_hypotheses = None
+    streaming_buffer_iter = iter(streaming_buffer)
+    asr_pred_out_stream, diar_pred_out_stream  = None, None
+    mem_last_time, fifo_last_time = None, None
+    left_offset, right_offset = 0, 0
+
+    multispk_asr_streamer = MultiSpeakerASRstreamer(cfg, asr_model, diar_model, bsd_spk)
+    for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
+        with torch.inference_mode():
+            with autocast:
+                with torch.no_grad(): 
+                    (transcribed_speaker_texts,
+                    transcribed_texts,
+                    asr_pred_out_stream,
+                    transcribed_texts,
+                    cache_last_channel,
+                    cache_last_time,
+                    cache_last_channel_len,
+                    previous_hypotheses,
+                    mem_last_time,
+                    fifo_last_time,
+                    diar_pred_out_stream) = multispk_asr_streamer.perform_streaming_stt_spk(
+                        step_num=step_num,
+                        chunk_audio=chunk_audio,
+                        chunk_lengths=chunk_lengths,
+                        cache_last_channel=cache_last_channel,
+                        cache_last_time=cache_last_time,
+                        cache_last_channel_len=cache_last_channel_len,
+                        is_buffer_empty=streaming_buffer.is_buffer_empty(),
+                        previous_hypotheses=previous_hypotheses,
+                        asr_pred_out_stream=asr_pred_out_stream,
+                        diar_pred_out_stream=diar_pred_out_stream,
+                        mem_last_time=mem_last_time,
+                        fifo_last_time=fifo_last_time,
+                        left_offset=left_offset,
+                        right_offset=right_offset,
+                        pad_and_drop_preencoded=False,
+                    )
+        if debug_mode:
+            logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
+
+    final_streaming_tran = extract_transcriptions(transcribed_texts)
+    logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
+    return final_streaming_tran, final_offline_tran
+
+
+def __perform_streaming(
     cfg, asr_model, diar_model, bsd_spk, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
 ):
     batch_size = len(streaming_buffer.streams_length)
-    if compare_vs_offline:
-        # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
-        # the output of the model in the offline and streaming mode should be exactly the same
-        with torch.inference_mode():
-            with autocast:
-                processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
-                with torch.no_grad():
-                    (
-                        pred_out_offline,
-                        transcribed_texts,
-                        cache_last_channel_next,
-                        cache_last_time_next,
-                        cache_last_channel_len,
-                        best_hyp,
-                    ) = asr_model.conformer_stream_step(
-                        processed_signal=processed_signal,
-                        processed_signal_length=processed_signal_length,
-                        return_transcription=True,
-                    )
-        final_offline_tran = extract_transcriptions(transcribed_texts)
-        logging.info(f" Final offline transcriptions:   {final_offline_tran}")
-    else:
-        final_offline_tran = None
+    final_offline_tran = None
 
     cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
         batch_size=batch_size
@@ -517,7 +618,7 @@ def perform_streaming(
             with autocast:
                 # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
                 # otherwise the last outputs would get dropped
-
+                print(f"is buffer empty : {streaming_buffer.is_buffer_empty()}")
                 with torch.no_grad():
                     (
                         asr_pred_out_stream,
@@ -548,9 +649,11 @@ def perform_streaming(
                     
 
                     (
-                        diar_pred_out_stream,
                         mem_last_time,
                         fifo_last_time,
+                        mem_preds,
+                        fifo_preds,
+                        diar_pred_out_stream
                     ) = diar_model.forward_streaming_step(
                         processed_signal=chunk_audio.transpose(1, 2),
                         processed_signal_length=chunk_lengths,
@@ -576,30 +679,14 @@ def perform_streaming(
                         else:
                             word_and_ts_seq["words"] = bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], speaker_count=word_and_ts_seq["speaker_count"])
                     word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
-                    string_out = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=cfg) 
-                    write_txt(f'{cfg.print_path}', string_out.strip())
+                    transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=cfg) 
+                    write_txt(f'{cfg.print_path}', transcribed_speaker_texts.strip())
                     logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
 
     final_streaming_tran = extract_transcriptions(transcribed_texts)
     logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
-
-    if compare_vs_offline:
-        # calculates and report the differences between the predictions of the model in offline mode vs streaming mode
-        # Normally they should be exactly the same predictions for streaming models
-        pred_out_stream_cat = torch.cat(asr_pred_out_stream)
-        pred_out_offline_cat = torch.cat(pred_out_offline)
-        if pred_out_stream_cat.size() == pred_out_offline_cat.size():
-            diff_num = torch.sum(pred_out_stream_cat != pred_out_offline_cat).cpu().numpy()
-            logging.info(
-                f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode."
-            )
-        else:
-            logging.info(
-                f"The shape of the outputs of the model in streaming mode ({pred_out_stream_cat.size()}) is different from offline mode ({pred_out_offline_cat.size()})."
-            )
-
     return final_streaming_tran, final_offline_tran
 
 
@@ -754,8 +841,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             diar_model=diar_model,
             bsd_spk=bsd_spk,
             streaming_buffer=streaming_buffer,
-            compare_vs_offline=args.compare_vs_offline,
-            pad_and_drop_preencoded=args.pad_and_drop_preencoded,
         )
     else:
         # stream audio files in a manifest file in batched mode
