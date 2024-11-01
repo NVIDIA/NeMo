@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import json
+import torch
 from abc import ABC, abstractmethod
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 import pytorch_lightning as pl
-import torch
 import torch.nn as nn
 from lightning_fabric.utilities.types import _PATH
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
@@ -139,7 +139,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         ckpt_io_kwargs = {}
 
         # using __name__ to avoid import
-        if type(trainer.strategy).__name__ == 'MegatronStrategy':
+        if type(trainer.strategy).__name__ != 'MegatronStrategy':
             ckpt_io_kwargs = {
                 "save_ckpt_format": trainer.strategy.save_ckpt_format,
                 "async_save": trainer.strategy.async_save,
