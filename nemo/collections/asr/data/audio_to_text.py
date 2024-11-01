@@ -44,6 +44,7 @@ from nemo.utils.data_utils import (
 )
 from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.decorators import deprecated
 
 __all__ = [
     'AudioToCharDataset',
@@ -730,6 +731,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         )
 
 
+@deprecated(explanation='It will be removed in future versions, please use LhotseSpeechToTextBpeDataset class ')
 class _TarredAudioToTextDataset(IterableDataset):
     """
     A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.

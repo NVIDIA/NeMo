@@ -61,6 +61,8 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators import deprecated
+
 
 __all__ = ['EncDecMultiTaskModel']
 
@@ -885,7 +887,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             encoder_mask=enc_mask,
             decoder_input_ids=decoder_input_ids,
         )
-
+    
+    @deprecated(explanation='The return type of args will be updated in the upcoming release to ensure a consistent output format across all decoder types, such that a Hypothesis object is always returned.')
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
