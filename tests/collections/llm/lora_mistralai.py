@@ -30,7 +30,7 @@ def get_args():
     parser.add_argument('--mbs', type=int, default=2, help="micro batch size")
     parser.add_argument('--gbs', type=int, default=4, help="global batch size")
     parser.add_argument('--tp', type=int, default=1, help="tensor parallel size")
-    parser.add_arguemnt('--ep', type=int, default=1, help="expert parallel size")
+    parser.add_argument('--ep', type=int, default=1, help="expert parallel size")
     parser.add_argument('--dist-opt', action='store_true', help='use dist opt')
     return parser.parse_args()
 
