@@ -59,10 +59,10 @@ def pretrain_recipe(
     name: str = "default",
     # Trainer
     tensor_parallelism: int = 8,
-    pipeline_parallelism: int = 18,
+    pipeline_parallelism: int = 12,
     pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = 8,
-    context_parallelism: int = 2,
+    context_parallelism: int = 1,
     sequence_parallelism: bool = False,
     num_nodes: int = 768,
     num_gpus_per_node: int = 8,
