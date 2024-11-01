@@ -322,7 +322,9 @@ class NLPAdapterModelMixin:
                         module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                         opt_params += [p for p in module.parameters() if p.requires_grad]
 
-                for name, param in [elem for m in self._unwrap_model_list() for elem in m.named_parameters(prefix="model")]:
+                for name, param in [
+                    elem for m in self._unwrap_model_list() for elem in m.named_parameters(prefix="model")
+                ]:
                     if name in self.tunable_base_param_keys:
                         param.requires_grad = True
                         opt_params += [param]
@@ -461,7 +463,11 @@ class NLPAdapterModelMixin:
             return super().sharded_state_dict(prefix=prefix)
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        if len(state_dict) == 0 or (parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None and "model_0" in state_dict and len(state_dict["model_0"]) == 0):
+        if len(state_dict) == 0 or (
+            parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
+            and "model_0" in state_dict
+            and len(state_dict["model_0"]) == 0
+        ):
             return  # checkpoint is loaded in on_load_checkpoint()
         if self.use_peft and self.setup_complete:
             # at this stage only adapter params will appear in the state_dict arg
