@@ -223,7 +223,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 4,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
     packed_sequence: bool = False,
@@ -269,7 +269,6 @@ def finetune_recipe(
         recipe.trainer.strategy.pipeline_model_parallel_size = 12
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
-        assert num_nodes >= 4
         recipe.peft = run.Config(LoRA)
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
