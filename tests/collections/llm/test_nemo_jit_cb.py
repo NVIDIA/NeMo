@@ -74,18 +74,12 @@ class OrdTokenizer:
 class JitTestModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
         self,
-        config: 'GPTConfig' = None,
-        optim: Optional['OptimizerModule'] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Optional['Callable[[nn.Module], nn.Module]'] = None,
+        tokenizer = None,
         has_jit = False,
     ):
         super().__init__()
-        self.config = config
-        self.tokenizer = tokenizer
-        self.optim = optim
-        self.model_transform = model_transform
         self.has_jit = has_jit
+        self.tokenizer = tokenizer
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
@@ -126,7 +120,7 @@ if __name__ == '__main__':
 
     for has_jit in [True, False]:
         tokenizer = OrdTokenizer()
-        model = JitTestModel(config={}, tokenizer=tokenizer, has_jit=has_jit)
+        model = JitTestModel(tokenizer=tokenizer, has_jit=has_jit)
         optim = fdl.build(llm.adam.pytorch_adam_with_flat_lr(max_lr=1e-5))
 
         llm.api.finetune(
