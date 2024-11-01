@@ -18,7 +18,7 @@ from typing import List
 import numpy as np
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
-from vllm import LLM, RequestOutput, SamplingParams
+from vllm import LLM, SamplingParams
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
