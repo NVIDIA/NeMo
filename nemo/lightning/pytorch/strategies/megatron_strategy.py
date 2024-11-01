@@ -67,7 +67,6 @@ from nemo.lightning.megatron_parallel import (
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
-    _MegatronBatchProgress,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -98,6 +97,8 @@ class ParallelismConfig:
     expert_model_parallel_size: int
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
+    encoder_tensor_model_parallel_size: int = 0
+    encoder_pipeline_model_parallel_size: int = 0
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -160,8 +161,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             that prints the metrics to stdout. Suitable for non-interactive settings.
         progress_interval (int): How frequently to print progress to stdout. Only used when
             replace_progress_bar is True.
-        overwrite_batch_progress (bool): Whether to overwrite _BatchProgress class used in PTL by default with
-            _MegatronBatchProgress. This should be True whenever you're using a Megatron-based dataset.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -180,6 +179,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
+        encoder_tensor_model_parallel_size: Optional[int] = 0,
+        encoder_pipeline_model_parallel_size: Optional[int] = 0,
         data_sampler: Optional["DataSampler"] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
@@ -204,7 +205,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
         restore_config: Optional[RestoreConfig] = None,
-        overwrite_batch_progress: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -224,6 +224,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
+        self.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
+        self.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
@@ -245,7 +247,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
-        self.overwrite_batch_progress = overwrite_batch_progress
 
         self.restore_config = restore_config
 
@@ -280,7 +281,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             model.config = update_config_with_dtype_overrides(dtype_config, model.config)
 
         has_optim = getattr(model, "optim", None)
-        if has_optim:
+        if has_optim and self._setup_optimizers:
             opt_config = getattr(model.optim, "config", None)
             if isinstance(opt_config, OptimizerConfig):
                 mcore_opt_config: OptimizerConfig = cast(OptimizerConfig, opt_config)
@@ -301,6 +302,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
+
+        try:
+            self.model.optim.lr_scheduler.max_steps = trainer.max_steps
+            logging.info(f"Copying Trainer's 'max_steps' ({trainer.max_steps}) to LR scheduler's 'max_steps'.")
+        except AttributeError:
+            logging.warning(
+                "Could not copy Trainer's 'max_steps' to LR scheduler's 'max_steps'. If you are not using an LR scheduler, this warning can safely be ignored."
+            )
 
         # move the model to the correct device
         # self.model_to_device()
@@ -345,8 +354,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.configure_ddp()
 
             trainer.fit_loop.epoch_loop.automatic_optimization = _MegatronAutomaticOptimization(trainer)
-            if self.overwrite_batch_progress:
-                trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
 
             import torch.distributed.algorithms.ddp_comm_hooks.post_localSGD_hook as post_localSGD
 
@@ -820,6 +827,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             sequence_parallel=self.sequence_parallel,
             expert_model_parallel_size=self.expert_model_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
+            encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
+            encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
             pipeline_dtype=self.pipeline_dtype,
         )
 

@@ -26,7 +26,7 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
-from nemo.collections.llm.gpt.data.api import dolly, mock, squad
+from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (
     Baichuan2Config,
     Baichuan2Config7B,
@@ -46,6 +46,11 @@ from nemo.collections.llm.gpt.model import (
     CodeLlamaConfig13B,
     CodeLlamaConfig34B,
     CodeLlamaConfig70B,
+    Gemma2Config,
+    Gemma2Config2B,
+    Gemma2Config9B,
+    Gemma2Config27B,
+    Gemma2Model,
     GemmaConfig,
     GemmaConfig2B,
     GemmaConfig7B,
@@ -73,6 +78,7 @@ from nemo.collections.llm.gpt.model import (
     MistralConfig7B,
     MistralModel,
     MistralNeMoConfig12B,
+    MixtralConfig,
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
@@ -104,6 +110,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
+from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
 from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 
 __all__ = [
@@ -120,6 +127,7 @@ __all__ = [
     "MistralConfig7B",
     "MistralNeMoConfig12B",
     "MistralModel",
+    "MixtralConfig",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
@@ -162,6 +170,11 @@ __all__ = [
     "CodeGemmaConfig2B",
     "CodeGemmaConfig7B",
     "GemmaModel",
+    "Gemma2Model",
+    "Gemma2Config9B",
+    "Gemma2Config",
+    "Gemma2Config27B",
+    "Gemma2Config2B",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
@@ -184,6 +197,7 @@ __all__ = [
     "squad",
     "dolly",
     "peft",
+    "hf_dataset",
     "HfAutoModelForCausalLM",
 ]
 

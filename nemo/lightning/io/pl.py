@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -128,21 +142,13 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
-        try:
-            return dist_checkpointing.save(
-                sharded_state_dict=checkpoint,
-                checkpoint_dir=checkpoint_dir,
-                sharded_strategy=self.save_sharded_strategy,
-                validate_access_integrity=validate_sharding_integrity,
-                async_sharded_save=self.async_save,
-            )
-        except:
-            logging.error(f"Failed to save checkpoint to {checkpoint_dir}")
-            # Do cleanup.
-            import shutil
-
-            shutil.rmtree(checkpoint_dir)
-            raise
+        return dist_checkpointing.save(
+            sharded_state_dict=checkpoint,
+            checkpoint_dir=checkpoint_dir,
+            sharded_strategy=self.save_sharded_strategy,
+            validate_access_integrity=validate_sharding_integrity,
+            async_sharded_save=self.async_save,
+        )
 
     @override
     def load_checkpoint(
