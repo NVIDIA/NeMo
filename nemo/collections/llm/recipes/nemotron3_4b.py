@@ -18,7 +18,6 @@ import nemo_run as run
 import pytorch_lightning as pl
 import torch
 
-from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.peft.lora import LoRA
