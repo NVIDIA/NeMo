@@ -511,9 +511,8 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
         )
     decoder = ModelRunner.from_engine(
         engine=engine,
-        # rank=world_config.rank,
         # We want the engine to have the mp_rank, but the python runtime to not resassign the device of the current process
-        # So we will set it to the current
+        # So we will set it to the current device
         rank=torch.cuda.current_device(),
     )
 
