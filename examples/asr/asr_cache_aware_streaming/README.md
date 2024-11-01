@@ -13,13 +13,18 @@ simplejson
 pydiardecode @ git+https://github.com/tango4j/pydiardecode@main
 ```
 
-Simply install all the requirments. 
+## Prepare three models
+### 1. Streaming Sortformer Diarizer Model
 
-```
-pip install -r requirements.txt
-```
+- Streaming Sortformer: Download no feature normalization sortformer diarizer model for streaming 
+https://drive.google.com/file/d/1UxnppMNn8ZmtrSOPPkGTLsTwGhZAPxcr/view?usp=sharing
 
-### Download ARPA language model
+### 2. Cache-aware Streaming ASR Model
+
+- Download from the following link 
+https://huggingface.co/nvidia/stt_en_fastconformer_hybrid_large_streaming_multi
+
+### 3. ARPA language model (n-gram)
 
 ```
 mkdir -p arpa_model
@@ -27,9 +32,8 @@ cd arpa_model
 wget https://kaldi-asr.org/models/5/4gram_small.arpa.gz
 gunzip 4gram_small.arpa.gz
 ```
-
-
 ## Launcher Script
+
 
 ```
 branch_name="sortformer_pr01_fifo_memory"

@@ -1,0 +1,6 @@
+kenlm
+arpa
+meeteval
+requests
+simplejson
+pydiardecode @ git+https://github.com/tango4j/pydiardecode@main
