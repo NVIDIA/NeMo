@@ -9,17 +9,17 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.api import _setup
 from nemo.collections.llm.gpt.model.base import GPTModel
-from nemo.collections.slm.data.audio_to_text_data import AudioToTextDataModule
-from nemo.collections.slm.models.speech_to_text_llm_model import SpeechToTextLLM, SpeechToTextLLMConfig
-from nemo.collections.slm.modules.asr_module import ASRModuleConfig
-from nemo.collections.slm.modules.modality_adapter import ModalityAdapterConfig
-from nemo.collections.slm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
+from nemo.collections.speechlm.data.audio_to_text_data import AudioToTextDataModule
+from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM, SpeechToTextLLMConfig
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
+from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
+from nemo.collections.speechlm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
 
-def speetch_to_text_llm_train(cfg: DictConfig):
+def speech_to_text_llm_train(cfg: DictConfig):
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
@@ -83,7 +83,7 @@ def speetch_to_text_llm_train(cfg: DictConfig):
     return logger.log_dir
 
 
-def speetch_to_text_llm_validate(cfg: DictConfig):
+def speech_to_text_llm_validate(cfg: DictConfig):
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
@@ -143,7 +143,7 @@ def speetch_to_text_llm_validate(cfg: DictConfig):
     return app_state.log_dir
 
 
-def speetch_to_text_llm_generate(cfg: DictConfig):
+def speech_to_text_llm_generate(cfg: DictConfig):
 
     raise NotImplementedError("This function is not implemented yet.")
 

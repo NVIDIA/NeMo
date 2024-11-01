@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.slm.models.speech_to_text_llm_model import SpeechToTextLLM
+from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM

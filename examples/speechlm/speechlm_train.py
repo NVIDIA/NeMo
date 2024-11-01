@@ -12,4 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.slm.data.audio_to_text_data import AudioToTextDataModule
+from nemo.collections.speechlm.api import speech_to_text_llm_train
+from nemo.core.config import hydra_runner
+
+
+@hydra_runner(config_path="../conf", config_name="salm_fc_linear")
+def main(cfg):
+    return speech_to_text_llm_train(cfg)
+
+
+if __name__ == "__main__":
+    main()

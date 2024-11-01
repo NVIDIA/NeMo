@@ -12,14 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.slm.api import speetch_to_text_llm_train
-from nemo.core.config import hydra_runner
-
-
-@hydra_runner(config_path="../conf", config_name="salm_fc_linear")
-def main(cfg):
-    return speetch_to_text_llm_train(cfg)
-
-
-if __name__ == "__main__":
-    main()
+from nemo.collections.speechlm.api import speetch_to_text_llm_train, speetch_to_text_llm_validate

@@ -12,4 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.slm.api import speetch_to_text_llm_train, speetch_to_text_llm_validate
+
+from nemo.collections.speechlm.utils.hydra_utils import (
+    get_logger_from_config,
+    get_object_list_from_config,
+    get_resume_from_config,
+)
+from nemo.collections.speechlm.utils.model_transform import SpeechToTextLLMPEFT

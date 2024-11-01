@@ -12,5 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.slm.modules.asr_module import ASRModuleConfig
-from nemo.collections.slm.modules.modality_adapter import ModalityAdapterConfig
+from nemo.collections.speechlm.data.audio_to_text_data import AudioToTextDataModule

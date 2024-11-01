@@ -12,10 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo.collections.slm.utils.hydra_utils import (
-    get_logger_from_config,
-    get_object_list_from_config,
-    get_resume_from_config,
-)
-from nemo.collections.slm.utils.model_transform import SpeechToTextLLMPEFT
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
+from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig

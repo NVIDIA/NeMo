@@ -410,7 +410,7 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.slm.models.speech_to_text_llm_model import SpeechToTextLLM
+    from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM
 
     if isinstance(model, SpeechToTextLLM):
         return SpeechToTextGenerationStrategy(model, **args)

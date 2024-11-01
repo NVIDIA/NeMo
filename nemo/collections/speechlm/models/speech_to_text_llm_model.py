@@ -54,11 +54,13 @@ from nemo.collections.llm.gpt.model.base import (
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.slm.models.base import SpeechLanguageModel
-from nemo.collections.slm.modules.asr_module import ASRModuleConfig
-from nemo.collections.slm.modules.modality_adapter import ModalityAdapterConfig
-from nemo.collections.slm.utils.text_generation.audio_text_generation_strategy import SpeechToTextGenerationStrategy
-from nemo.collections.slm.utils.text_generation.audio_text_generation_utils import (
+from nemo.collections.speechlm.models.base import SpeechLanguageModel
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
+from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
+from nemo.collections.speechlm.utils.text_generation.audio_text_generation_strategy import (
+    SpeechToTextGenerationStrategy,
+)
+from nemo.collections.speechlm.utils.text_generation.audio_text_generation_utils import (
     clean_end_string,
     default_inference_config,
     generate,
