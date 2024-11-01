@@ -42,23 +42,25 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMas
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.transformer.enums import ModelType
+
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+
 # from nemo.collections.multimodal.mimo.model.gpt import MimoGPTModel
 
 
 class MimoLossReduction(MaskedTokenLossReduction):
     def __init__(self, validation_step: bool = False, val_drop_last: bool = True, l2_weight: float = 1.0) -> None:
         super().__init__(validation_step, val_drop_last)
-        self.l2_weight = l2_weight 
+        self.l2_weight = l2_weight
 
     def forward(
-        self, 
-        batch: Dict[str, torch.Tensor], 
-        forward_out: Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        self,
+        batch: Dict[str, torch.Tensor],
+        forward_out: Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """
         Calculate masked token loss using superclass logic and add L2 loss.
@@ -66,16 +68,13 @@ class MimoLossReduction(MaskedTokenLossReduction):
         # output_triple,new_loss_mask = forward_out
         # output, output_projection_embeddings, image_caption_embeddings = output_triple
         output_dict = forward_out
-        
+
         output = output_dict['output']
         new_loss_mask = output_dict['new_loss_mask']
         output_projection_embeddings = output_dict['output_projection_embeddings']
         image_caption_embeddings = output_dict['image_caption_embeddings']
         # Use the superclass's forward method to calculate token loss
-        token_loss, token_loss_info = super().forward(
-            batch={"loss_mask": new_loss_mask}, 
-            forward_out=output
-        )
+        token_loss, token_loss_info = super().forward(batch={"loss_mask": new_loss_mask}, forward_out=output)
 
         l2_loss = self._calculate_l2_loss(output_projection_embeddings, image_caption_embeddings)
 
@@ -88,6 +87,8 @@ class MimoLossReduction(MaskedTokenLossReduction):
     def _calculate_l2_loss(self, embeddings1: torch.Tensor, embeddings2: torch.Tensor) -> torch.Tensor:
         """Calculate L2 loss (mean squared error) between two sets of embeddings."""
         return torch.nn.functional.mse_loss(embeddings1, embeddings2)
+
+
 def mimo_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
         "images": batch["images"],
@@ -122,10 +123,12 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask", "input_text"))
 
-    
     _batch = {
-        key: (val.cuda(non_blocking=True) if hasattr(val, "cuda") else val)
-        if key in required_keys and val is not None else None
+        key: (
+            (val.cuda(non_blocking=True) if hasattr(val, "cuda") else val)
+            if key in required_keys and val is not None
+            else None
+        )
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
@@ -133,14 +136,22 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     return output
 
+
 class TransformersProjector(nn.Module):
     def __init__(self, in_features, out_features, num_query_token, **kwargs):
         super().__init__()
         hidden_dim = 512
         self.in_fc = nn.Linear(in_features, hidden_dim)
-        self.tfm = nn.Transformer(batch_first=True, norm_first=True,
-                                      d_model=hidden_dim, num_encoder_layers=4, num_decoder_layers=4,
-                                      dim_feedforward=hidden_dim * 4, dropout=0.0, nhead=4)
+        self.tfm = nn.Transformer(
+            batch_first=True,
+            norm_first=True,
+            d_model=hidden_dim,
+            num_encoder_layers=4,
+            num_decoder_layers=4,
+            dim_feedforward=hidden_dim * 4,
+            dropout=0.0,
+            nhead=4,
+        )
         self.out_fc = nn.Linear(hidden_dim, out_features)
 
         self.query_embs = nn.Parameter(torch.randn(1, num_query_token, hidden_dim))
@@ -152,10 +163,14 @@ class TransformersProjector(nn.Module):
         x = self.tfm(x, self.query_embs.repeat(x.shape[0], 1, 1))
         outputs = self.out_fc(x)
         return outputs
-    
+
+
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+
+
 class MimoGPTModel(MCoreGPTModel):
     from megatron.core.packed_seq_params import PackedSeqParams
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -171,8 +186,8 @@ class MimoGPTModel(MCoreGPTModel):
         extra_block_kwargs: dict = None,
         runtime_gather_output: Optional[bool] = None,
     ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
-        
-        original_post_process = self.post_process 
+
+        original_post_process = self.post_process
         self.post_process = False
 
         try:
@@ -188,22 +203,18 @@ class MimoGPTModel(MCoreGPTModel):
             )
         finally:
             self.post_process = original_post_process
-            
-        
+
         output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
 
-        logits, _ = self.output_layer(
-            hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
-        )
-        
+        logits, _ = self.output_layer(hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output)
+
         if labels is None:
             return logits.transpose(0, 1).contiguous(), hidden_states
 
         loss = self.compute_language_model_loss(labels, logits)
         return loss, hidden_states
-
 
 
 @dataclass
@@ -230,7 +241,7 @@ class BaseInputProjectorConfig(TransformerConfig, io.IOMixin):
 @dataclass
 class BaseOutputProjectorConfig(TransformerConfig, io.IOMixin):
     # projector_type: str = "mlp2x_gelu" # not needed
-    input_size: Optional[int] = 4096 #verify to hidden dimension of language model
+    input_size: Optional[int] = 4096  # verify to hidden dimension of language model
     hidden_size: int = 1024
     ffn_hidden_size: int = 1024
     activation_func: Callable = F.gelu
@@ -246,10 +257,12 @@ class BaseOutputProjectorConfig(TransformerConfig, io.IOMixin):
     ).submodules
     num_layers: int = 1  # placeholder, NOT used!
     num_attention_heads: int = 8  # placeholder, NOT used!
+
+
 @dataclass
 class BaseVisionTransformerConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 24
-    num_attention_heads: int = 16 # was 32?
+    num_attention_heads: int = 16  # was 32?
     add_bias_linear: bool = True
     add_qkv_bias: bool = True
     hidden_size: int = 1024
@@ -301,13 +314,11 @@ class BaseMimoConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 1  # placeholder, NOT used!
     num_attention_heads: int = 8  # placeholder, NOT used!
     image_special_tokens: Optional[List[str]] = None
-    image_special_token_indices: Optional[List[int]] =  None
+    image_special_token_indices: Optional[List[int]] = None
     make_vocab_size_divisible_by: int = 128
 
     def configure_model(self, tokenizer) -> "MCoreLLaVAModel":
-        
-        
-    
+
         self.vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
         logging.info(f"padded vocab size to {self.vocab_size}")
 
@@ -335,7 +346,6 @@ class BaseMimoConfig(TransformerConfig, io.IOMixin):
         return model
 
 
-
 @dataclass
 class CustomMimoConfig(TransformerConfig, io.IOMixin):
     language_transformer_config: Optional[TransformerConfig] = field(default_factory=lambda: Llama2Config7B())
@@ -343,8 +353,10 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
         default_factory=lambda: BaseVisionTransformerConfig()
     )
     vision_projection_config: Optional[TransformerConfig] = field(default_factory=lambda: BaseInputProjectorConfig())
-    
-    vision_output_projection_config: Optional[TransformerConfig] = field(default_factory=lambda: BaseOutputProjectorConfig())
+
+    vision_output_projection_config: Optional[TransformerConfig] = field(
+        default_factory=lambda: BaseOutputProjectorConfig()
+    )
     freeze_language_model: bool = True
     freeze_vision_model: bool = True
     freeze_vision_projection: bool = False
@@ -356,13 +368,11 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 1  # placeholder, NOT used!
     num_attention_heads: int = 8  # placeholder, NOT used!
     image_special_tokens: Optional[List[str]] = None
-    image_special_token_indices: Optional[List[int]] =  None
+    image_special_token_indices: Optional[List[int]] = None
     make_vocab_size_divisible_by: int = 128
 
     def configure_model(self, tokenizer) -> "CustomMimoModel":
-        
-        
-    
+
         self.vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
         logging.info(f"padded vocab size to {self.vocab_size}")
 
@@ -392,10 +402,11 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
         )
         return model
 
+
 class CustomMimoModel(MCoreLLaVAModel):
     def __init__(
         self,
-        model_config:TransformerConfig,
+        model_config: TransformerConfig,
         language_transformer_config: TransformerConfig,
         language_transformer_layer_spec: ModuleSpec,
         language_vocab_size: int,
@@ -421,7 +432,6 @@ class CustomMimoModel(MCoreLLaVAModel):
         patch_dim: int = 14,
         language_rotary_base: int = 10000,
         language_rope_scaling: bool = False,
-        
     ) -> None:
         # Temporarily disable add_decoder to prevent MCoreGPTModel initialization
         self.add_decoder = False
@@ -470,50 +480,44 @@ class CustomMimoModel(MCoreLLaVAModel):
             rope_scaling=language_rope_scaling,
         )
 
-        self.share_embeddings_and_output_weights = (
-                self.language_model.share_embeddings_and_output_weights
-            )
+        self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
         self._language_max_sequence_length = language_max_sequence_length
-        self._language_is_pipeline_parallel = (
-            language_transformer_config.pipeline_model_parallel_size > 1
-        )
+        self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
         from diffusers import EulerDiscreteScheduler, StableDiffusionPipeline
+
         self.image_decoder_name = "stabilityai/stable-diffusion-2"
         self.scheduler = EulerDiscreteScheduler.from_pretrained(self.image_decoder_name, subfolder="scheduler")
         self.image_decoder = StableDiffusionPipeline.from_pretrained(self.image_decoder_name, scheduler=self.scheduler)
         self.image_decoder.vae.requires_grad_(False)
         self.image_decoder.unet.requires_grad_(False)
         self.image_decoder.text_encoder.requires_grad_(False)
-        
+
         # output projection Megatron Module
-        
+
         # self.vision_output_projection_module = MCoreMultimodalProjector(
         #         vision_output_projection_config,
         #         vision_output_projection_spec,
         #         projector_type="mlp" ,
         #         input_size=vision_output_projection_config.input_size,
         #     )
-        self.vision_output_projection_module = TransformersProjector(in_features=self.config.hidden_size, out_features=1024, num_query_token=77) # Yash : TODO Fix hard coding
-    
-    def get_image_caption_embeddings(self,text_input):
+        self.vision_output_projection_module = TransformersProjector(
+            in_features=self.config.hidden_size, out_features=1024, num_query_token=77
+        )  # Yash : TODO Fix hard coding
+
+    def get_image_caption_embeddings(self, text_input):
         with torch.no_grad():
             text_inputs = self.image_decoder.tokenizer(
-                        text_input,
-                        padding="max_length",
-                        truncation=True,
-                        return_tensors="pt",
-                        add_special_tokens=True
-                    )
-            image_caption_embeddings = self.image_decoder.text_encoder(**text_inputs)[0] # b,77,1024
-            
+                text_input, padding="max_length", truncation=True, return_tensors="pt", add_special_tokens=True
+            )
+            image_caption_embeddings = self.image_decoder.text_encoder(**text_inputs)[0]  # b,77,1024
+
             return image_caption_embeddings
-        
-        
+
     def forward(
         self,
         images: torch.Tensor,
         input_ids: torch.Tensor,
-        input_text:str,
+        input_text: str,
         position_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         labels: Optional[torch.Tensor] = None,
@@ -547,8 +551,7 @@ class CustomMimoModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
-            inference_params is not None
-            and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images.shape[0] > 0
 
@@ -558,22 +561,16 @@ class CustomMimoModel(MCoreLLaVAModel):
             image_embeddings = None
         elif self.add_encoder and not has_images:
             # If no images provided, use an empty image embeddings tensor.
-            image_embeddings = torch.tensor([], dtype=images.dtype, device=images.device).reshape(
-                0, 0, 0
-            )
+            image_embeddings = torch.tensor([], dtype=images.dtype, device=images.device).reshape(0, 0, 0)
         elif self.add_encoder and has_images:
             image_embeddings = self.vision_model(images)  # [num_tiles, img_seq_len, h_vision]
             if self._drop_vision_class_token:
                 image_embeddings = image_embeddings[:, self.vision_model.class_token_len :, :]
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
-            image_embeddings = image_embeddings.permute(
-                1, 0, 2
-            ).contiguous()  # [img_seq_len, num_tiles, h_vision]
+            image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
             # map vision model output size to language model input size.
-            image_embeddings = self.vision_projection(
-                image_embeddings
-            )  # [img_seq_len, num_tiles, h_language]
+            image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
 
             # TODO: Support batched inference.
             # In inference, the language model KV cache will be updated for image token positions.
@@ -598,16 +595,14 @@ class CustomMimoModel(MCoreLLaVAModel):
             language_embeddings = self.language_model.embedding(
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
-            language_embeddings = language_embeddings.transpose(
-                1, 0
-            ).contiguous()  # [b, text_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_image_tiles is None:
             num_image_tiles = torch.ones(images.shape[0], dtype=torch.int, device=input_ids.device)
 
         # Preprocess input, labels and loss mask.
-        combined_embeddings, new_labels, new_loss_mask = self._preprocess_data(
+        combined_embeddings, new_labels, new_loss_mask, attention_mask = self._preprocess_data(
             image_embeddings,
             language_embeddings,
             input_ids,
@@ -616,6 +611,7 @@ class CustomMimoModel(MCoreLLaVAModel):
             use_inference_kv_cache,
             image_token_index,
             num_image_tiles,
+            attention_mask,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
         # TODO: Yash return this hidden state for computing loss
         output, hidden_states = self.language_model(
@@ -628,27 +624,36 @@ class CustomMimoModel(MCoreLLaVAModel):
             runtime_gather_output=runtime_gather_output,
         )
         # if labels is None output is logits (b,s,vocab_size) or its loss (b,s)
-        
-        # send hidden_state for special tokens to output_projection module. 
-        image_caption_embeddings = self.get_image_caption_embeddings(input_text ) # (bs, 77, 1024)
-        
+
+        # send hidden_state for special tokens to output_projection module.
+        image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
+
         special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
         for idx in self.model_config.image_special_token_indices:
-            special_token_mask |= (new_labels == idx)
+            special_token_mask |= new_labels == idx
         special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
-        special_token_mask = special_token_mask.expand_as(hidden_states) 
-        selected_hidden_states = hidden_states[special_token_mask].view(hidden_states.size(1), -1, hidden_states.size(-1))
+        special_token_mask = special_token_mask.expand_as(hidden_states)
+        selected_hidden_states = hidden_states[special_token_mask].view(
+            hidden_states.size(1), -1, hidden_states.size(-1)
+        )
 
-        output_projection_embeddings = self.vision_output_projection_module(selected_hidden_states) #(bs, no_special_tokens, 1024)
+        output_projection_embeddings = self.vision_output_projection_module(
+            selected_hidden_states
+        )  # (bs, no_special_tokens, 1024)
         # Image caption embeddings
-        image_caption_embeddings = image_caption_embeddings.to(output_projection_embeddings.device,dtype=output_projection_embeddings.dtype)
+        image_caption_embeddings = image_caption_embeddings.to(
+            output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
+        )
         if labels is None or loss_mask is None:
             return output
-        return {'output': output,
-                'new_loss_mask': new_loss_mask,
-                'output_projection_embeddings':output_projection_embeddings,
-                'image_caption_embeddings':image_caption_embeddings}
+        return {
+            'output': output,
+            'new_loss_mask': new_loss_mask,
+            'output_projection_embeddings': output_projection_embeddings,
+            'image_caption_embeddings': image_caption_embeddings,
+        }
         # return (output,output_projection_embeddings, image_caption_embeddings), new_loss_mask
+
 
 class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
@@ -692,7 +697,7 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
             attention_mask=attention_mask,
             labels=labels,
             inference_params=inference_params,
-            input_text = input_text
+            input_text=input_text,
         )
 
         return output_tensor
@@ -726,13 +731,14 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
             self._validation_loss_reduction = MimoLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
-    
-    
+
+
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel
 from transformers import LlavaForConditionalGeneration
 from pathlib import Path
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
 
 @io.model_importer(BaseMimoModel, "hf")
 class HFLlavaMimoImporter(io.ModelConnector["LlavaForConditionalGeneration", BaseMimoModel]):
@@ -740,22 +746,22 @@ class HFLlavaMimoImporter(io.ModelConnector["LlavaForConditionalGeneration", Bas
         return BaseMimoModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        
+
         source = LlavaForConditionalGeneration.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
-        
+
         print(f"Converted Llava model to Nemo, saving to {output_path}")
         self.nemo_save(output_path, trainer)
-        
+
         print(f"Converted Llava model saved to {output_path}")
-        
+
         teardown(trainer, target)
         del trainer, target
 
         return output_path
-    
+
     def convert_state(self, source, target):
         mapping = {}
         # vision module
@@ -828,11 +834,17 @@ class HFLlavaMimoImporter(io.ModelConnector["LlavaForConditionalGeneration", Bas
             source,
             target,
             mapping=mapping,
-            transforms=[_import_class_token, _import_linear_fc1, _import_language_qkv, _import_embed_tokens,_import_lm_head_weight, _import_vison_qkv, _transform_vision_qkv_bias],
-            
+            transforms=[
+                _import_class_token,
+                _import_linear_fc1,
+                _import_language_qkv,
+                _import_embed_tokens,
+                _import_lm_head_weight,
+                _import_vison_qkv,
+                _transform_vision_qkv_bias,
+            ],
         )
-        
-    
+
     @property
     def tokenizer(self) -> AutoTokenizer:
         """Returns the tokenizer with added special tokens, cached for reuse."""
@@ -848,18 +860,18 @@ class HFLlavaMimoImporter(io.ModelConnector["LlavaForConditionalGeneration", Bas
 
         return self._tokenizer
 
-    
     @property
     def config(self) -> BaseMimoConfig:
-        image_special_tokens =  [f"IMG_{i}" for i in range(8)]
-        image_special_token_indices = [
-            self.tokenizer.tokenizer.convert_tokens_to_ids(f"IMG_{i}") for i in range(8)
-        ]
+        image_special_tokens = [f"IMG_{i}" for i in range(8)]
+        image_special_token_indices = [self.tokenizer.tokenizer.convert_tokens_to_ids(f"IMG_{i}") for i in range(8)]
         # vocab_size = get_vocab_size(self, self.tokenizer.vocab_size, 128)
         # print(f"new vocab_size {vocab_size}")
-        return BaseMimoConfig(vocab_size=self.tokenizer.vocab_size, image_special_token_indices=image_special_token_indices, image_special_tokens=image_special_tokens)
-    
-    
+        return BaseMimoConfig(
+            vocab_size=self.tokenizer.vocab_size,
+            image_special_token_indices=image_special_token_indices,
+            image_special_tokens=image_special_tokens,
+        )
+
 
 @io.state_transform(
     source_key=(
@@ -968,6 +980,7 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
 
     return qkv_weights
 
+
 @io.state_transform(
     source_key="language_model.model.embed_tokens.weight",
     target_key="language_model.embedding.word_embeddings.weight",
@@ -978,13 +991,13 @@ def _import_embed_tokens(ctx: io.TransformCTX, source_embed):
 
     target_vocab_size = target_shape[0]
     embedding_dim = target_shape[1]
-    assert source_embed.shape[1] == embedding_dim, (
-        f"Embedding dimension mismatch: source={source_embed.shape[1]}, target={embedding_dim}"
-    )
+    assert (
+        source_embed.shape[1] == embedding_dim
+    ), f"Embedding dimension mismatch: source={source_embed.shape[1]}, target={embedding_dim}"
     target_embed = torch.empty(target_vocab_size, embedding_dim, dtype=source_embed.dtype, device=source_embed.device)
-    target_embed[:source_embed.shape[0], :] = source_embed
+    target_embed[: source_embed.shape[0], :] = source_embed
     average_embedding = source_embed.mean(dim=0)
-    target_embed[source_embed.shape[0]:, :] = average_embedding
+    target_embed[source_embed.shape[0] :, :] = average_embedding
 
     return target_embed
 
@@ -1000,8 +1013,7 @@ def _import_lm_head_weight(ctx: io.TransformCTX, source_weight):
 
     # Ensure the embedding dimensions match between source and target
     assert target_embedding_dim == source_embedding_dim, (
-        f"Embedding dimension mismatch: "
-        f"source={source_embedding_dim}, target={target_embedding_dim}"
+        f"Embedding dimension mismatch: " f"source={source_embedding_dim}, target={target_embedding_dim}"
     )
 
     target_weight = torch.empty(
@@ -1013,11 +1025,10 @@ def _import_lm_head_weight(ctx: io.TransformCTX, source_weight):
     average_weight = source_weight.mean(dim=0)
     target_weight[source_vocab_size:, :] = average_weight
 
-    assert target_weight.shape == target_shape, (
-        f"Expected shape {target_shape}, but got {target_weight.shape}"
-    )
+    assert target_weight.shape == target_shape, f"Expected shape {target_shape}, but got {target_weight.shape}"
 
     return target_weight
+
 
 @io.state_transform(
     source_key=(

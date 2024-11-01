@@ -14,6 +14,7 @@ import argparse
 import os
 import sys
 
+
 def main(args):
     # Global and micro batch sizes
     gbs = 1
@@ -23,14 +24,10 @@ def main(args):
     tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
     special_tokens = [f"IMG_{i}" for i in range(8)]
     tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
-    image_special_tokens =  [f"IMG_{i}" for i in range(8)]
-    image_special_token_indices = [
-            tokenizer.tokenizer.convert_tokens_to_ids(f"IMG_{i}") for i in range(8)
-        ]
+    image_special_tokens = [f"IMG_{i}" for i in range(8)]
+    image_special_token_indices = [tokenizer.tokenizer.convert_tokens_to_ids(f"IMG_{i}") for i in range(8)]
 
-   
-    data = MockDataModule(tokenizer=tokenizer,vocab_size = tokenizer.vocab_size )
-    
+    data = MockDataModule(tokenizer=tokenizer, vocab_size=tokenizer.vocab_size)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
@@ -61,7 +58,11 @@ def main(args):
         num_sanity_val_steps=0,
     )
 
-    custom_config = CustomMimoConfig(vocab_size=tokenizer.vocab_size, image_special_token_indices=image_special_token_indices, image_special_tokens=image_special_tokens)
+    custom_config = CustomMimoConfig(
+        vocab_size=tokenizer.vocab_size,
+        image_special_token_indices=image_special_token_indices,
+        image_special_tokens=image_special_tokens,
+    )
     # base_config = BaseMimoConfig(vocab_size = tokenizer.vocab_size)
     model = BaseMimoModel(config=custom_config, tokenizer=tokenizer)
 
@@ -83,7 +84,7 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config= None,
+        restore_config=None,
     )
     resume.setup(trainer, model)
 
@@ -109,10 +110,12 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NEVA Model Training Script")
+    parser = argparse.ArgumentParser(description="Mimo Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--log_dir", type=str, required=False,default="./", help="Directory for logging and checkpoints")
+    parser.add_argument(
+        "--log_dir", type=str, required=False, default="./", help="Directory for logging and checkpoints"
+    )
     parser.add_argument("--devices", type=int, required=False, default=2)
     parser.add_argument("--tp_size", type=int, required=False, default=2)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
@@ -121,7 +124,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main(args)
-    
+
 #  s s s s s s || x x x x s s
 #  0 0 0 0 0 0 || x x x x 0 0
 
