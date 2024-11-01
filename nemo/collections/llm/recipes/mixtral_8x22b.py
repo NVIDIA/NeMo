@@ -226,11 +226,15 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
                 MegatronTokenDropCallback,
             ),
             run.Config(
-                MegatronCommOverlapCallback, overlap_param_gather_with_optimizer_step=True, align_param_gather=True
+                MegatronCommOverlapCallback,
+                overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
+                align_param_gather=True,
             ),
         ]
     )
-
+    recipe.trainer.strategy.expert_model_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 8
+    recipe.trainer.strategy.sequence_parallel = True
     return recipe
 
 
@@ -241,6 +245,7 @@ def finetune_recipe(
     num_nodes: int = 8,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
+    packed_sequence: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Mixtral 8x22B model.
@@ -255,6 +260,7 @@ def finetune_recipe(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given maximum seq_length for better efficiency.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -272,7 +278,7 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning.
     """
     recipe = default_finetune_recipe(
-        model(), "mistralai/Mixtral-8x22B-v0.1mistralai/Mixtral-8x22B-v0.1", dir, name, num_nodes, num_gpus_per_node
+        model(), "mistralai/Mixtral-8x22B-v0.1", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     recipe.trainer.strategy.expert_model_parallel_size = 8
     recipe.trainer.strategy.tensor_model_parallel_size = 8

@@ -93,28 +93,31 @@ def get_args(argv):
         type=float,
         help="GPU memory utilization percentage for vLLM.",
     )
+    parser.add_argument(
+        "-q",
+        "--quantization",
+        choices=["fp8"],
+        help="Quantization method for vLLM.",
+    )
     args = parser.parse_args(argv)
     return args
 
 
 def get_vllm_deployable(args, model_dir):
-
-    try:
-        exporter = vLLMExporter()
-        exporter.export(
-            nemo_checkpoint=args.nemo_checkpoint,
-            model_dir=model_dir,
-            model_type=args.model_type,
-            tensor_parallel_size=args.tensor_parallelism_size,
-            max_model_len=args.max_model_len,
-            lora_checkpoints=args.lora_ckpt,
-            dtype=args.dtype,
-            weight_storage=args.weight_storage,
-            gpu_memory_utilization=args.gpu_memory_utilization,
-        )
-        return exporter
-    except Exception as error:
-        raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
+    exporter = vLLMExporter()
+    exporter.export(
+        nemo_checkpoint=args.nemo_checkpoint,
+        model_dir=model_dir,
+        model_type=args.model_type,
+        tensor_parallel_size=args.tensor_parallelism_size,
+        max_model_len=args.max_model_len,
+        lora_checkpoints=args.lora_ckpt,
+        dtype=args.dtype,
+        weight_storage=args.weight_storage,
+        gpu_memory_utilization=args.gpu_memory_utilization,
+        quantization=args.quantization,
+    )
+    return exporter
 
 
 def nemo_deploy(argv):
