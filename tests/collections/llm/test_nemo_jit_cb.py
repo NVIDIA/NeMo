@@ -12,20 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import fiddle as fdl
 import pytorch_lightning as pl
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
-import torch
-import torch.nn.functional as F
 from nemo.collections.llm import fn
 from nemo.lightning import io
-from nemo.lightning.pytorch.callbacks import JitTransform
 from nemo.lightning.io.mixin import track_io
-from typing import Optional
-import torch.nn as nn
+from nemo.lightning.pytorch.callbacks import JitTransform
+
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
@@ -58,6 +60,7 @@ class OrdTokenizer:
         self.num_reserved_tokens = num_reserved_tokens
         self.special_token_names = special_token_names
         assert len(self.special_token_names) < num_reserved_tokens
+
     def __getattr__(self, name):
         if name in self.__dict__.get('special_token_names', {}):
             return self.__dict__['special_token_names'].index(name)
@@ -65,6 +68,7 @@ class OrdTokenizer:
             return self.__dict__[name]
         else:
             raise AttributeError
+
     def text_to_ids(self, text):
         token_ids = list(map(lambda x: self.num_reserved_tokens + ord(x), list(text)))
         assert max(token_ids) < self.vocab_size
@@ -74,8 +78,8 @@ class OrdTokenizer:
 class JitTestModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
         self,
-        tokenizer = None,
-        has_jit = False,
+        tokenizer=None,
+        has_jit=False,
     ):
         super().__init__()
         self.has_jit = has_jit
@@ -86,15 +90,13 @@ class JitTestModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.module = nn.Sequential(
                 nn.Embedding(30_000, 512),
                 nn.TransformerEncoderLayer(512, 8, 4096, dropout=0.1),
-                nn.Linear(512, 30_000)
+                nn.Linear(512, 30_000),
             )
 
     def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
         output = self.module(input_ids)
         expected_cls = (
-            torch._dynamo.eval_frame.OptimizedModule
-            if self.has_jit else
-            torch.nn.modules.container.Sequential
+            torch._dynamo.eval_frame.OptimizedModule if self.has_jit else torch.nn.modules.container.Sequential
         )
         assert isinstance(self.module, expected_cls), type(self.module)
         return F.cross_entropy(output.view(-1, output.shape[-1]), labels.view(-1))

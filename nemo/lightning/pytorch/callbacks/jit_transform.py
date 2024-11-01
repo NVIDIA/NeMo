@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-
 from typing import Optional
+
+import torch
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.lightning.io.mixin import IOMixin
 
 
