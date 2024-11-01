@@ -48,4 +48,4 @@ class JitTransform(Callback, IOMixin):
             elif hasattr(pl_module, 'model'):
                 trainer.lightning_module.model = torch.compile(pl_module.model)
             else:
-                raise ValueError("Expecter lightning_module to have a .model or .module attr.")
+                raise ValueError("Expected lightning_module to have a .model or .module attr.")
