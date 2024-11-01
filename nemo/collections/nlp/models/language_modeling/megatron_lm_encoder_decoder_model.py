@@ -683,6 +683,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             if self.mcore_t5:
                 # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
+                encoder_attn_mask = encoder_attn_mask < 0.5
+                decoder_attn_mask = decoder_attn_mask < 0.5
                 encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
                 decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
                 enc_dec_attn_mask_3d = (
@@ -813,6 +815,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         encoder_attn_mask,
                     ) = batch
 
+                    encoder_attn_mask = encoder_attn_mask < 0.5
                     encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
 
                     output = model(
@@ -835,6 +838,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         decoder_attn_mask,
                     ) = batch
 
+                    encoder_attn_mask = encoder_attn_mask < 0.5
+                    decoder_attn_mask = decoder_attn_mask < 0.5
                     encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
                     decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
                     enc_dec_attn_mask_3d = (
