@@ -30,18 +30,20 @@ def get_args():
     parser.add_argument('--mbs', type=int, default=2, help="micro batch size")
     parser.add_argument('--gbs', type=int, default=4, help="global batch size")
     parser.add_argument('--tp', type=int, default=1, help="tensor parallel size")
+    parser.add_arguemnt('--ep', type=int, default=1, help="expert parallel size")
     parser.add_argument('--dist-opt', action='store_true', help='use dist opt')
     return parser.parse_args()
 
 
-def trainer(devices, tp, sp, max_steps) -> nl.Trainer:
+def trainer(devices, tp, ep, sp, max_steps) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=tp,
+        expert_model_parallel_size=ep,
         sequence_parallel=sp,
     )
 
     return nl.Trainer(
-        devices=tp,
+        devices=max(ep, tp),
         max_steps=max_steps,
         accelerator="gpu",
         strategy=strategy,
@@ -121,7 +123,7 @@ if __name__ == '__main__':
     llm.finetune(
         model=model,
         data=squad(args.mbs, args.gbs),
-        trainer=trainer(args.tp, args.tp, args.tp > 1, args.max_steps),
+        trainer=trainer(args.tp, args.tp, args.ep, args.tp > 1, args.max_steps),
         peft=lora,
         log=logger(),
         optim=nl.MegatronOptimizerModule(
