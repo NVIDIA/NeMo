@@ -97,7 +97,7 @@ def build_and_save_engine(
         'opt_num_tokens': opt_num_tokens,
         'max_prompt_embedding_table_size': max_prompt_embedding_table_size,
         'gather_context_logits': False,
-        'gather_generation_logits': False,
+        'gather_generation_logits': True,
         'strongly_typed': False,
         'builder_opt': None,
         'use_refit': use_refit,
