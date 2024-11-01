@@ -101,15 +101,18 @@ class NLPAdapterModelMixin:
         else:
             return self.model
 
+    def _unwrap_model_list(self):
+        m = getattr(self, "model", [])
+        return m if isinstance(m, list) else [m]
+
+    def _unwrap_layers_model_list(self):
+        l = torch.nn.ModuleList([])
+        for m in self._unwrap_model_list():
+            l.extend(self._get_layers_from_model(m))
+        return l
+
     def first_stage_of_pipeline(self):
-        if hasattr(self._unwrap_model(), "pre_process"):
-            return self._unwrap_model().pre_process
-        elif hasattr(self._unwrap_model(), "module") and hasattr(self._unwrap_model().module, "pre_process"):
-            # (guyueh1): this if condition is used to handle amp O2
-            # when amp_O2 is on, self.model will be wrapped by the Float16Module class
-            return self._unwrap_model().module.pre_process
-        logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
-        return False
+        return parallel_state.is_pipeline_first_stage()
 
     def _get_all_keys(
         self,
@@ -117,11 +120,12 @@ class NLPAdapterModelMixin:
         """
         Returns all the keys in the model
         """
-        k = [n for n, p in self._unwrap_model().named_parameters(prefix="model")]
+        k = [n for m in self._unwrap_model_list() for n, p in m.named_parameters(prefix="model")]
         b = [
             n
-            for n, p in self._unwrap_model().named_buffers(prefix="model")
-            if n.replace("model.module.", "model.", 1) in self._unwrap_model().state_dict(prefix="model.").keys()
+            for m in self._unwrap_model_list()
+            for n, p in m.named_buffers(prefix="model")
+            if n.replace("model.module.", "model.", 1) in m.state_dict(prefix="model.").keys()
         ]
         # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
         return set(k + b)
@@ -174,6 +178,9 @@ class NLPAdapterModelMixin:
 
     def _check_and_add_peft_cfg(self, peft_cfg):
 
+        if parallel_state.get_virtual_pipeline_model_parallel_world_size() and not isinstance(peft_cfg, LoraPEFTConfig):
+            raise ValueError('Virtual pipeline model parallel is only supported for LoRA')
+
         layer_selection = peft_cfg.layer_selection
         assert not self.use_mcore_gpt or hasattr(
             peft_cfg, 'name_key_to_mcore_mixins'
@@ -195,7 +202,7 @@ class NLPAdapterModelMixin:
                         f"{self.__class__.__name__} + {adapter_name})"
                     )
 
-                layers = self._get_layers_from_model(self._unwrap_model())
+                layers = self._unwrap_layers_model_list()
                 for layer in layers:
                     if layer.layer_number in (layer_selection or list(range(1, self.cfg.num_layers + 1))):
                         for name, module in layer.named_modules():
@@ -253,6 +260,7 @@ class NLPAdapterModelMixin:
 
         for cfg in peft_cfgs:
             if hasattr(cfg, "weight_tying") and cfg.weight_tying:
+                assert parallel_state.get_virtual_pipeline_model_parallel_world_size() is None, "Virtual pipeline parallel is not supported alongside weight_tying"
                 self.tie_weights(cfg)
 
             if hasattr(cfg, "tunable_base_param_names") and cfg.tunable_base_param_names:
@@ -312,13 +320,13 @@ class NLPAdapterModelMixin:
             self.freeze(training=True)  # Freeze the entire model
             if not self.ptuning_only_and_non_first_stage:
                 opt_params = []
-                for _, module in self._unwrap_model().named_modules(prefix="model"):
+                for _, module in [elem for m in self._unwrap_model_list() for elem in m.named_modules(prefix="model")]:
                     if isinstance(module, AdapterModuleMixin) and module.is_adapter_available():
                         module.set_enabled_adapters(enabled=True)
                         module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                         opt_params += [p for p in module.parameters() if p.requires_grad]
 
-                for name, param in self._unwrap_model().named_parameters(prefix="model"):
+                for name, param in [elem for m in self._unwrap_model_list() for elem in m.named_parameters(prefix="model")]:
                     if name in self.tunable_base_param_keys:
                         param.requires_grad = True
                         opt_params += [param]
@@ -380,7 +388,7 @@ class NLPAdapterModelMixin:
         super().load_state_dict(state_dict, strict=False)
 
     def set_tunable_base_params(self, peft_cfg):
-        for n, p in self.named_parameters():
+        for n, p in self._unwrap_model().named_parameters(prefix="model"):
             for tpn in peft_cfg.tunable_base_param_names:
                 # TODO: simplistic param name matching, should support regex-like syntax @adithyare
                 if f".{tpn}." in n:
@@ -390,7 +398,7 @@ class NLPAdapterModelMixin:
     def tie_weights(self, peft_cfg):
         pos_idx = 0
 
-        layers = self._get_layers_from_model(self._unwrap_model())
+        layers = self._unwrap_layers_model_list()
 
         if isinstance(peft_cfg, LoraPEFTConfig):
             layer0 = layers[0].self_attention
@@ -419,12 +427,22 @@ class NLPAdapterModelMixin:
         """
         Gets the keys associated with the adapters only.
         """
-        state_dict = self._unwrap_model().state_dict(prefix="model.")
-        peft_state_dict = {}
-        for k in self.adapter_keys.union(self.tunable_base_param_keys):
-            # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
-            new_k = k.replace("model.module.", "model.", 1)
-            peft_state_dict[new_k] = state_dict[new_k]
+
+        def filter_state_dict(state_dict):
+            peft_state_dict = {}
+            for k in self.adapter_keys.union(self.tunable_base_param_keys):
+                # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
+                new_k = k.replace("model.module.", "model.", 1)
+                peft_state_dict[new_k] = state_dict[new_k] if new_k in state_dict else state_dict[k]
+            return peft_state_dict
+
+        if hasattr(self, 'model') and isinstance(self.model, list):
+            peft_state_dict = {}
+            for i, m in enumerate(self.model):
+                peft_state_dict[f"model_{i}"] = filter_state_dict(m.state_dict(prefix="model."))
+        else:
+            peft_state_dict = filter_state_dict(self._unwrap_model().state_dict(prefix="model."))
+
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -447,7 +465,7 @@ class NLPAdapterModelMixin:
             return super().sharded_state_dict(prefix=prefix)
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        if len(state_dict) == 0:
+        if len(state_dict) == 0 or (parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None and "model_0" in state_dict and len(state_dict["model_0"]) == 0):
             return  # checkpoint is loaded in on_load_checkpoint()
         if self.use_peft and self.setup_complete:
             # at this stage only adapter params will appear in the state_dict arg
