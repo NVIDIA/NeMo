@@ -24,6 +24,7 @@ import torch
 
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
+from nemo.lightning.run.plugins import FaultTolerencePlugin
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,
     MiscAttributeValidator,
@@ -44,6 +45,12 @@ def get_args():
         type=int,
         default=None,
         help="Stop training early at this global step (for testing resume training)",
+    )
+    parser.add_argument(
+        '--simulated-fault',
+        action="store_true",
+        default=False,
+        help="Add a simulated fault to stop the training run (for testing nvidia-resiliency-ext's fault tolerance plugin)",
     )
     parser.add_argument(
         '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
@@ -138,7 +145,11 @@ def main():
     )
     pretrain_recipe.trainer.callbacks.append(misc_checker)
 
-    run.run(pretrain_recipe, direct=True)
+    run_plugins: list[run.Plugin] = []
+    if args.simulated_fault:
+        run_plugins.append(FaultTolerencePlugin(use_simulated_fault=args.simulated_fault))
+
+    run.run(pretrain_recipe, direct=True, plugins=run_plugins)
 
     verify_ckpt_dir(
         pretrain_recipe.log.ckpt,

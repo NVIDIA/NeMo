@@ -126,8 +126,8 @@ class FaultTolerencePlugin(run.Plugin):
 
         simulated_fault = run.Config(
             res_module.fault_tolerance_callback.SimulatedFaultParams,
-            fault_type="rank_hung",
-            base_delay=120.0,
+            fault_type="random",
+            base_delay=45.0,
         )
         callbacks = [
             run.Config(
