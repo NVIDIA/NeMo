@@ -1,7 +1,5 @@
-import json
-from itertools import islice
-
 import lhotse
+import numpy as np
 import pytest
 import torch
 from lhotse.testing.dummies import dummy_recording
@@ -12,7 +10,13 @@ from nemo.collections.common.data.lhotse.sampling import (
     MultimodalFixedBucketBatchSizeConstraint2D,
     MultimodalSamplingConstraint,
 )
-from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, NeMoMultimodalConversation, TextTurn
+from nemo.collections.common.data.lhotse.text_adapters import (
+    AudioTurn,
+    NeMoMultimodalConversation,
+    NeMoMultimodalConversationJsonlAdapter,
+    NeMoMultimodalConversationTarWriter,
+    TextTurn,
+)
 from nemo.collections.common.prompts import Llama2PromptFormatter
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
@@ -379,3 +383,46 @@ def test_multimodal_conversation_length_measurement(tokenizer, tmp_path_factory)
     )
     assert constr.measure_length(convo) == (137, 166)
     assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 7
+
+
+def test_multimodal_conversation_tarred_format(multimodal_conversations_path, tmp_path_factory):
+    (conversation,) = list(NeMoMultimodalConversationJsonlAdapter(multimodal_conversations_path, "[audio]"))
+    tar_dir = tmp_path_factory.mktemp("multi_convo_tarred")
+    with NeMoMultimodalConversationTarWriter(tar_dir) as writer:
+        writer.write(conversation)
+
+    (restored_conversation,) = list(
+        NeMoMultimodalConversationJsonlAdapter(
+            manifest_filepath=tar_dir / "manifest_0.jsonl",
+            audio_locator_tag="[audio]",
+            tarred_audio_filepaths=tar_dir / "audio_0.tar",
+        )
+    )
+    assert conversation.id == restored_conversation.id
+    assert len(conversation.turns) == len(restored_conversation.turns)
+    for lhs, rhs in zip(conversation.turns, restored_conversation.turns):
+        assert type(lhs) == type(rhs)
+        assert lhs.role == lhs.role
+        if isinstance(lhs, TextTurn):
+            assert lhs.value == rhs.value
+        else:
+            assert lhs.audio_locator_tag == rhs.audio_locator_tag
+            assert lhs.cut.id == rhs.cut.id
+            np.testing.assert_allclose(lhs.cut.load_audio(), rhs.cut.load_audio())
+
+
+def test_multimodal_conversation_tarred_format_sharding_works(multimodal_conversations_path, tmp_path_factory):
+    (conversation,) = list(NeMoMultimodalConversationJsonlAdapter(multimodal_conversations_path, "[audio]"))
+    tar_dir = tmp_path_factory.mktemp("multi_convo_tarred")
+    with NeMoMultimodalConversationTarWriter(tar_dir, shard_size=10) as writer:
+        for i in range(30):
+            writer.write(conversation)
+
+    loader = NeMoMultimodalConversationJsonlAdapter(
+        manifest_filepath=tar_dir / "manifest_{0..2}.jsonl",
+        audio_locator_tag="[audio]",
+        tarred_audio_filepaths=tar_dir / "audio_{0..2}.tar",
+    )
+    restored = list(loader)
+    assert len(restored) == 30
+    assert all(c == restored[0] for c in restored[1:])
