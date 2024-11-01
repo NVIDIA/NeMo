@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import json
-import torch
 from abc import ABC, abstractmethod
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 import pytorch_lightning as pl
+import torch
 import torch.nn as nn
 from lightning_fabric.utilities.types import _PATH
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
@@ -146,7 +146,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             "parallel_save",
             "parallel_save_within_dp",
             "parallel_load",
-            "load_directly_on_device"
+            "load_directly_on_device",
         ]
         ckpt_io_kwargs = {
             arg: getattr(trainer.strategy, arg)
