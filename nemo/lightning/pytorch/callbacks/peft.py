@@ -138,18 +138,20 @@ class PEFT(IOMixin, ABC, ModelTransform):
         wrapped_io = partial(WrappedAdapterIO, peft=self)
         ckpt_io_kwargs = {}
 
-        # using __name__ to avoid import
-        if type(trainer.strategy).__name__ != 'MegatronStrategy':
-            ckpt_io_kwargs = {
-                "save_ckpt_format": trainer.strategy.save_ckpt_format,
-                "async_save": trainer.strategy.async_save,
-                "torch_dist_multiproc": trainer.strategy.torch_dist_multiproc,
-                "assume_constant_structure": trainer.strategy.assume_constant_structure,
-                "parallel_save": trainer.strategy.parallel_save,
-                "parallel_save_within_dp": trainer.strategy.parallel_save_within_dp,
-                "parallel_load": trainer.strategy.parallel_load,
-                "load_directly_on_device": trainer.strategy.load_directly_on_device,
-            }
+        ckpt_io_kwarg_names = [
+            "save_ckpt_format",
+            "async_save",
+            "torch_dist_multiproc",
+            "assume_constant_structure",
+            "parallel_save",
+            "parallel_save_within_dp",
+            "parallel_load",
+            "load_directly_on_device"
+        ]
+        ckpt_io_kwargs = {
+            arg: getattr(trainer.strategy, arg)
+            for arg in filter(lambda x: hasattr(trainer.strategy, x) ckpt_io_kwarg_names)
+        }
         trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
         self.wrapped_io = (
             trainer.strategy._checkpoint_io._checkpoint_io
