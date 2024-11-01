@@ -260,7 +260,6 @@ class NLPAdapterModelMixin:
 
         for cfg in peft_cfgs:
             if hasattr(cfg, "weight_tying") and cfg.weight_tying:
-                assert parallel_state.get_virtual_pipeline_model_parallel_world_size() is None, "Virtual pipeline parallel is not supported alongside weight_tying"
                 self.tie_weights(cfg)
 
             if hasattr(cfg, "tunable_base_param_names") and cfg.tunable_base_param_names:
