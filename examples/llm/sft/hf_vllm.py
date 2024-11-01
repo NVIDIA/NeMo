@@ -19,9 +19,11 @@ from nemo.deploy.nlp import NemoQueryLLM
 try:
     from nemo.export.vllm_hf_exporter import vLLMHFExporter
 except Exception:
-    raise Exception("vLLM should be installed in the environment or import "
-                    "the vLLM environment in the NeMo FW container using "
-                    "source /opt/venv/bin/activate command")
+    raise Exception(
+        "vLLM should be installed in the environment or import "
+        "the vLLM environment in the NeMo FW container using "
+        "source /opt/venv/bin/activate command"
+    )
 
 
 if __name__ == '__main__':
