@@ -16,6 +16,10 @@
 from nemo.collections.llm.recipes import (
     baichuan2_7b,
     chatglm3_6b,
+    gemma2,
+    gemma2_2b,
+    gemma2_9b,
+    gemma2_27b,
     gemma_2b,
     gemma_7b,
     gpt3_175b,
@@ -60,6 +64,9 @@ from nemo.collections.llm.recipes import (
     starcoder2_3b,
     starcoder2_7b,
     starcoder2_15b,
+    t5_3b,
+    t5_11b,
+    t5_220m,
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam
@@ -100,6 +107,9 @@ __all__ = [
     "nemotron4_15b_16k",
     "nemotron4_15b_64k",
     "nemotron4_340b",
+    "t5_220m",
+    "t5_3b",
+    "t5_11b",
     "starcoder",
     "starcoder2",
     "starcoder2_3b",
@@ -111,6 +121,10 @@ __all__ = [
     "qwen2_7b",
     "qwen2_72b",
     "gpt3_175b",
+    "gemma2",
+    "gemma2_2b",
+    "gemma2_9b",
+    "gemma2_27b",
     "adam",
     "default_log",
     "default_resume",

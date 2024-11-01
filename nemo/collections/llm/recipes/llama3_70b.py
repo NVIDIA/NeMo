@@ -232,7 +232,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
             tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=22,
-            overlap_param_gather_with_optimizer_step=True,
+            overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing.
             align_param_gather=True,
         )
     )
@@ -306,6 +306,7 @@ def finetune_recipe(
         recipe.peft.dim = 16
         recipe.peft.alpha = 32
         recipe.peft.target_modules = ['linear_qkv']
+        recipe.optim.config.use_distributed_optimizer = False
 
         # some settings currently do not function correctly with LoRA
         recipe.model.config.cross_entropy_loss_fusion = False
@@ -377,6 +378,7 @@ def finetune_performance_optimizations(
     else:
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
 
     recipe.trainer.strategy.sequence_parallel = True
 
