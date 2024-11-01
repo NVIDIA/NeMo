@@ -7,7 +7,6 @@ from lhotse import CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
     build_loss_mask,
@@ -111,57 +110,45 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         metadata = []
         instructions, instruction_lengths = [], []
-        source_texts, source_text_lengths = [], []  # Not used in the current implementation
         target_texts, target_text_lengths = [], []
         remove_ids = []
         for id, cut in enumerate(cuts):
             metadata.append({'audio_filepath': cut.id + '.wav'})
             # TODO: the following use of _process_example is not ideal. Should update
-            instruction = self.text_processor._process_example(context=cut.supervisions[0].text, output="")
-            instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
-                len(instruction["input_ids"]) - 1
-            )
+            if cut.supervisions[0].speaker == "user":
+                instruction = self.text_processor._process_example(context=cut.supervisions[0].text, output="")
+                instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
+                    len(instruction["input_ids"]) - 1
+                )
+            else:
+                raise Exception("First speaker should be user")
 
-            source_text = self.text_processor._process_example(context=cut.supervisions[1].text, output="")
-            source_text, source_text_length = torch.as_tensor(source_text["input_ids"]), torch.as_tensor(
-                len(source_text["input_ids"])
-            )
-
-            target_text = self.text_processor._process_example(context="", output=cut.supervisions[2].text)
-            # -1 to remove the eos token added by the text processor
-            target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
-                len(target_text["answer_ids"]) - 1
-            )
-
-            if self.filter_by_source_target_text_ratio:
-                if (
-                    source_text_length / target_text_length > self.source_target_text_ratio_limit
-                    or target_text_length / source_text_length > self.source_target_text_ratio_limit
-                ):
-                    remove_ids.append(id)
-                    continue
+            if cut.supervisions[1].speaker == "agent":
+                target_text = self.text_processor._process_example(context="", output=cut.supervisions[1].text)
+                # -1 to remove the eos token added by the text processor
+                target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
+                    len(target_text["answer_ids"]) - 1
+                )
+            else:
+                raise Exception("Second speaker should be agent")
 
             instructions.append(instruction)
             instruction_lengths.append(instruction_length)
-            source_texts.append(source_text)
-            source_text_lengths.append(source_text_length)
             target_texts.append(target_text)
             target_text_lengths.append(target_text_length)
 
-        cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
+        # Load source audio
+        audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
+        audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
 
-        # audio, audio_lens, cuts = self.load_audio(cuts)
-        # TODO
-        # AudioSamples does not work if the audio files in the CutSet has different sampling rates
-        audio, audio_lens, cuts = zip(*[self.load_audio(CutSet([c])) for c in cuts])
+
         # Resample audio waveform here since cuts.resample causes core dump sometimes
         # cuts_sample_rates = [c.recording.sampling_rate for c in cuts]
         # import torchaudio
         # audio = [torchaudio.functional.resample(a, orig_sample_rate, self.sample_rate).squeeze(0) for a, orig_sample_rate in zip(audio, cuts_sample_rates)]
         # audio_lens = (torch.IntTensor(audio_lens) * (self.sample_rate / torch.IntTensor(cuts_sample_rates))).int()
         audio = collate_vectors([a.squeeze(0) for a in audio], max_length=max(audio_lens), padding_value=0.0)
-        audio_lens = torch.concat(audio_lens, axis=0)
-        cuts = CutSet([c[0] for c in cuts])
+        audio_lens = torch.tensor(audio_lens).long()
 
         audio_ratio = []
         for id, cut in enumerate(cuts):
@@ -232,26 +219,19 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             target_codec = target_codec.to(torch.int)
         else:
-            # assert not getattr(cut, "s2s", False), "s2s not supported when load_answer_audio is True"
             assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
             # TODO(subhankarg) load answer audio from cut.target_codes logic
             answer_audio_lens = []
             answer_audios = []
             features_lens = []
             for i, cut in enumerate(cuts):
-                codec_path = cut.target_codes.array.storage_key
-                answer_audio_features = AudioSegment.segment_from_file(
-                    codec_path,
-                    target_sr=self.sample_rate,
-                    n_segments=-1,
-                )
-                answer_audio_features = torch.tensor(answer_audio_features.samples).float()
-                answer_audio, answer_audio_len = answer_audio_features, torch.tensor(answer_audio_features.shape[0]).long()
+                answer_audio = torch.tensor(cut.target_audio.load_audio()).float()
+                answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
                 answer_audios.append(answer_audio)
                 answer_audio_lens.append(answer_audio_len)
                 features_lens.append(math.ceil(answer_audio_len / self.codec_model_downsampling_factor))
             answer_audios = collate_vectors([a.squeeze(0) for a in answer_audios], max_length=max(answer_audio_lens), padding_value=0.0).float()
-            answer_audio_lens = torch.stack(answer_audio_lens).long()
+            answer_audio_lens = torch.tensor(answer_audio_lens).long()
             # Prepare dummy target_codec with speech_pad_id and eos_tensor, the dummy values will be filled in training_step or validation_step
             # once the audio codecs are extracted from the audio.
             features_lens = torch.tensor(features_lens, dtype=torch.int)
@@ -267,8 +247,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 target_codec[i, feat_i.shape[0], :] = eos_tensor
             target_codec = target_codec.to(torch.int)
 
-
-        source_texts, source_text_lengths = collate_and_pad(source_texts)
 
         def _convert_text_to_3d_tensor(texts, include_eos=True, tokens_to_generate=0):
             texts, text_lengths = collate_and_pad(texts)
@@ -385,7 +363,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "labels": tokens[:, 1:, :],
             "loss_mask": loss_mask,
             # For validation mainly
-            "source_texts": source_texts,
             "target_texts": target_texts,
             "target_text_lengths": target_text_lengths,
             "answers": tokens[:, 1:, :],

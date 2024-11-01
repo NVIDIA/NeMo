@@ -1349,9 +1349,6 @@ class HiFiGANEncoder(NeuralModule):
         encoded_len = audio_len
         audio = rearrange(audio, "B T -> B 1 T")
         # [B, C, T_audio]
-        print(f"audio dtype: {audio.dtype}")
-        print(f"encoded_len dtype: {encoded_len.dtype}")
-        print(f"pre_conv dtype: {self.pre_conv.type}")
         out = self.pre_conv(inputs=audio, input_len=encoded_len)
         for act, res_layer, down_sample_conv, down_sample_rate in zip(
             self.activations, self.res_layers, self.down_sample_conv_layers, self.down_sample_rates
