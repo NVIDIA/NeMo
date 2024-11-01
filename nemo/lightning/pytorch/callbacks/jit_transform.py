@@ -47,4 +47,9 @@ class JitTransform(Callback, IOMixin):
         if self.backend is None:
             return
         if self.backend == 'torch':
-            pl_module.model = torch.compile(pl_model.model)
+            if hasattr(pl_module, 'module'):
+                trainer.lightning_module.module = torch.compile(pl_module.module)
+            elif hasattr(pl_module, 'model'):
+                trainer.lightning_module.model = torch.compile(pl_module.model)
+            else:
+                raise ValueError("Expecter lightning_module to have a .model or .module attr.")
