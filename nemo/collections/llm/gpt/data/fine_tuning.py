@@ -51,7 +51,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training. Defaults to True.
         persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
         packed_sequence_specs (PackedSequenceSpecs, optional): See PackedSequenceSpecs for details
-        dataset_kwargs (Dict[str, Any], optional): Keyword arguments to pass into the GPTSFTDataset class
+        dataset_kwargs (Optional[Dict[str, Any]], optional): Keyword arguments to pass into the GPTSFTDataset class
     """
 
     def __init__(
@@ -68,7 +68,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
-        dataset_kwargs: Dict[str, Any] = None,
+        dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -87,7 +87,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.packed_sequence_specs = packed_sequence_specs
         self.packed_sequence_size = -1 if not packed_sequence_specs else packed_sequence_specs.packed_sequence_size
         self.validate_batch_size_for_packed_sequence()
-        self.dataset_kwargs = dataset_kwargs
+        self.dataset_kwargs = dataset_kwargs or {}
 
     def validate_batch_size_for_packed_sequence(self):
         if self.packed_sequence_size > 0 and self.micro_batch_size > 1:

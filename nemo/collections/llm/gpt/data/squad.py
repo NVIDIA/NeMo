@@ -55,7 +55,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
-        dataset_kwargs: Dict[str, Any] = None,
+        dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
