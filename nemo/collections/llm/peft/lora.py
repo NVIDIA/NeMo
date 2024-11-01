@@ -96,6 +96,10 @@ class LinearAdapter(nn.Module):
         return res + lora_res
 
 
+def is_expert_linear(fqn):
+    return re.match('.*mlp\.experts\.local_experts.[0-9]+\.linear_fc[1-2]$', fqn) is not None
+
+
 @dataclass
 class LoRA(PEFT):
     """
@@ -219,6 +223,7 @@ class LoRA(PEFT):
                 dropout_position=self.dropout_position,
                 model_parallel_config=getattr(m, "config", None),
                 alpha=self.alpha,
+                is_expert=is_expert_linear(full_name),
             )
             return AdapterParallelAdd(m, adapter)
         return m
