@@ -178,9 +178,6 @@ class NLPAdapterModelMixin:
 
     def _check_and_add_peft_cfg(self, peft_cfg):
 
-        if parallel_state.get_virtual_pipeline_model_parallel_world_size() and not isinstance(peft_cfg, LoraPEFTConfig):
-            raise ValueError('Virtual pipeline model parallel is only supported for LoRA')
-
         layer_selection = peft_cfg.layer_selection
         assert not self.use_mcore_gpt or hasattr(
             peft_cfg, 'name_key_to_mcore_mixins'
