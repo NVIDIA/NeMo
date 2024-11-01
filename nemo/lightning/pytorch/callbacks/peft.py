@@ -150,7 +150,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         ]
         ckpt_io_kwargs = {
             arg: getattr(trainer.strategy, arg)
-            for arg in filter(lambda x: hasattr(trainer.strategy, x) ckpt_io_kwarg_names)
+            for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
         }
         trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
         self.wrapped_io = (
