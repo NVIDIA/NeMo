@@ -463,12 +463,15 @@ class NLPAdapterModelMixin:
             return super().sharded_state_dict(prefix=prefix)
 
     def load_state_dict(self, state_dict, strict: bool = True):
+        # If state_dict is empty, or if state_dict contains keys for virtual pipeline
+        # parallel chunks (starting from model_0) but those chunks are empty, skip this function.
+        # Checkpoint is loaded in on_load_checkpoint() instead.
         if len(state_dict) == 0 or (
             parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
             and "model_0" in state_dict
             and len(state_dict["model_0"]) == 0
         ):
-            return  # checkpoint is loaded in on_load_checkpoint()
+            return
         if self.use_peft and self.setup_complete:
             # at this stage only adapter params will appear in the state_dict arg
             # so we only update those while the rest of the model is frozen.
