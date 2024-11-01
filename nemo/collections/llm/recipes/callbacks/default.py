@@ -15,7 +15,6 @@
 from typing import Optional
 
 from nemo_run import Config, cli
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo.utils.import_utils import safe_import
 
