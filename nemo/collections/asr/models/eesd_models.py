@@ -346,7 +346,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         total_pred = None
 
         for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal):
-            total_pred, MEM, FIFO_QUEUE = self.forward_streaming_step(
+            MEM, FIFO_QUEUE, _, _, total_pred = self.forward_streaming_step(
                 processed_signal=chunk_feat_seq_t,
                 processed_signal_length=feat_lengths,
                 fifo_last_time=FIFO_QUEUE,
@@ -388,12 +388,17 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             right_offset (int): right offset for the current chunk
 
         Returns:
-            total_preds (torch.Tensor): tensor containing predicted speaker labels for the current chunk and all previous chunks
-                Dimension: (batch_size, pred_len, num_speakers)
-            mem (torch.Tensor): tensor containing memory for the embeddings from start
+            mem (torch.Tensor): tensor containing memory for the pre-encode embeddings from start
                 Dimension: (batch_size, mem_len, emb_dim)
-            fifo (torch.Tensor): tensor containing memory for the latest chunks
+            fifo (torch.Tensor): tensor containing memory for the pre-encode embeddings from latest chunks
                 Dimension: (batch_size, fifo_len, emb_dim)
+            mem_preds (torch.Tensor): tensor containing predicted speaker labels for mem
+                Dimension: (batch_size, mem_len, num_speakers)
+            fifo_preds (torch.Tensor): tensor containing predicted speaker labels for fifo
+                Dimension: (batch_size, fifo_len, num_speakers)
+            total_step_preds (torch.Tensor): tensor containing predicted speaker labels for the current chunk and all previous chunks
+                Dimension: (batch_size, total_pred_len, num_speakers)
+            
         """
 
         B = processed_signal.shape[0]
@@ -411,7 +416,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         
         mem_chunk_preds = self.forward_infer(mem_chunk_fc_encoder_embs)
 
-        mem, fifo, chunk_preds = self.sortformer_modules.update_memory_FIFO(
+        mem, fifo, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_FIFO(
             mem=mem_last_time,
             fifo=fifo_last_time,
             chunk=chunk_pre_encode_embs,
@@ -420,7 +425,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
         )
 
-        return torch.cat([previous_pred_out, chunk_preds], dim=1), mem, fifo
+        total_step_preds = torch.cat([previous_pred_out, chunk_preds], dim=1)
+
+        return mem, fifo, mem_preds, fifo_preds, total_step_preds
 
     def _get_aux_train_evaluations(self, preds, targets, target_lens):
         # Arrival-time sorted (ATS) targets

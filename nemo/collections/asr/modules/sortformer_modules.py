@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import math
-import logging
 from collections import OrderedDict
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from nemo.utils import logging
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import EncodedRepresentation, LengthsType, NeuralType, SpectrogramType
@@ -73,6 +73,7 @@ class SortformerModules(NeuralModule, Exportable):
         mem_len: int = 188,
         fifo_len: int = 0,  
         step_len: int = 376,
+        mem_refresh_rate: int = 1,
         use_memory_pe: bool = False,
         step_left_context: int = 0,
         step_right_context: int = 0,
@@ -87,6 +88,7 @@ class SortformerModules(NeuralModule, Exportable):
         self.mem_len = mem_len
         self.fifo_len = fifo_len
         self.step_len = step_len
+        self.mem_refresh_rate = mem_refresh_rate
         self.fc_d_model = fc_d_model
         self.tf_d_model = tf_d_model
         self.hidden_size = tf_d_model
@@ -213,24 +215,32 @@ class SortformerModules(NeuralModule, Exportable):
             pop_out_embs, pop_out_preds = chunk, chunk_preds
         else:
             fifo = torch.cat([fifo, chunk], dim=1)
-            fifo_preds = torch.cat([fifo_preds, chunk_preds], dim=1)
             if fifo.size(1) <= self.fifo_len:
                 pop_out_embs, pop_out_preds = self.init_memory(B, D, mem.device), self.init_memory(B, self.unit_n_spks, mem.device)
-                assert mem_len == 0
             else:
-                pop_out_embs, pop_out_preds = fifo[:, :-self.fifo_len], fifo_preds[:, :-self.fifo_len]
-                fifo = fifo[:, -self.fifo_len:]
-                assert pop_out_embs.shape[1] > 0
-        
-        mem = torch.cat([mem, pop_out_embs], dim=1)
-        mem_preds = torch.cat([mem_preds, pop_out_preds], dim=1)
-        if mem.shape[1] > self.mem_len:
-            mem = self._compress_memory(mem, mem_preds)
+                if self.mem_refresh_rate == 0: # clear fifo queue when it reaches the max_fifo_len and update memory buffer
+                    pop_out_embs  = fifo[:, :fifo_len]
+                    pop_out_preds = fifo_preds
+                    fifo = self.init_memory(B, D, mem.device)
+                elif self.mem_refresh_rate == 1: # pop out the oldest chunk from the fifo queue and update memory buffer
+                    pop_out_embs  = fifo[:, :-self.fifo_len]
+                    pop_out_preds = fifo_preds[:, :pop_out_embs.shape[1]]
+                    fifo = fifo[:, -self.fifo_len:]
+                    assert pop_out_embs.shape[1] > 0
+                else:
+                    # only support mem_refresh_rate=0 or 1 now, will implement updating with different rates later
+                    raise NotImplementedError("Only support mem_refresh_rate=0 or 1")
+                
+        if pop_out_embs.shape[1] > 0: # only update memory buffer when pop_out_embs is not empty
+            mem = torch.cat([mem, pop_out_embs], dim=1)
+            mem_preds = torch.cat([mem_preds, pop_out_preds], dim=1)
+            if mem.shape[1] > self.mem_len:
+                mem = self._compress_memory(mem, mem_preds)
             
         if self.log:
             logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
             
-        return mem, fifo, chunk_preds
+        return mem, fifo, mem_preds, fifo_preds, chunk_preds
     
     def _compress_memory(self, emb_seq, preds):
         """.

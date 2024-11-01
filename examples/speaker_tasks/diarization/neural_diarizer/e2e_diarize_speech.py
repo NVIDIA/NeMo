@@ -100,7 +100,7 @@ class DiarizationConfig:
     # Streaming diarization configs
     streaming_mode: bool = True # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
     mem_len: int = 100
-    # mem_refresh_rate: int = 0
+    mem_refresh_rate: int = 1
     fifo_len: int = 100
     step_len: int = 100
     step_left_context: int = 100
@@ -259,7 +259,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.step_right_context = cfg.step_right_context
     diar_model.sortformer_modules.fifo_len = cfg.fifo_len
     diar_model.sortformer_modules.log = cfg.log
-    # diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
+    diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
     
     # Save the list of tensors
     diar_model.test_batch()
