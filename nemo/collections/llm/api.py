@@ -310,6 +310,24 @@ def store_args_to_json(triton_http_address, triton_port, triton_request_timeout,
     with open("nemo/deploy/service/config.json", "w") as f:
         json.dump(args_dict, f)
 
+def unset_environment_variables():
+    import subprocess
+    print("Unsetting all SLURM_, PMI_, PMIX_ Variables")
+
+    # Function to unset variables with a specific prefix
+    def unset_vars_with_prefix(prefix):
+        cmd = f"env | grep ^{prefix} | cut -d= -f1"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        vars_to_unset = result.stdout.strip().split('\n')
+        for var in vars_to_unset:
+            if var:  # Check if the variable name is not empty
+                os.environ.pop(var, None)
+
+    # Unset variables for each prefix
+    for prefix in ['SLURM_', 'PMI_', 'PMIX_']:
+        unset_vars_with_prefix(prefix)
+
+    print("Variables unset successfully")
 
 @run.cli.entrypoint(namespace="llm")
 def deploy(
@@ -335,12 +353,17 @@ def deploy(
     ckpt_type: str = "nemo",
 ):
     from nemo.deploy import DeployPyTriton
+    unset_environment_variables()
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
             return
         # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
-        store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
+        #store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
+        os.environ['TRITON_HTTP_ADDRESS'] = triton_http_address
+        os.environ['TRITON_PORT'] = str(triton_port)
+        os.environ['TRITON_REQUEST_TIMEOUT'] = str(triton_request_timeout)
+        os.environ['OPENAI_FORMAT_RESPONSE'] = str(openai_format_response)
 
     # TODO: directly support deploy of trtllm engine wo exporting to TRTLLM
     if ckpt_type == "trtllm":
