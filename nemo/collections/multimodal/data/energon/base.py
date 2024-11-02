@@ -185,7 +185,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 worker_log_level=0,
             )
         train_dataset = self.datasets_provider(worker_config, split='train')
-        energon_dataloader = get_savable_loader(train_dataset, worker_config=worker_config)
+        energon_dataloader = get_savable_loader(train_dataset, worker_config=worker_config, n_checkpoints=4)
         self.train_dataloader_object = energon_dataloader
         return self.train_dataloader_object
 
@@ -222,7 +222,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 worker_log_level=0,
             )
         val_dataset = self.datasets_provider(worker_config, split='val')
-        energon_loader = get_savable_loader(val_dataset, worker_config=worker_config)
+        energon_loader = get_savable_loader(val_dataset, worker_config=worker_config, n_checkpoints=4)
         self.val_dataloader_object = energon_loader
         return self.val_dataloader_object
 
@@ -252,7 +252,17 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
         if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
+            # import torch
+
+            # if torch.distributed.get_rank() == 0:  # or other ranks
+            #     import pdb
+
+            #     pdb.set_trace()
+            # torch.distributed.barrier()
+            # try:
             state = dataloader_obj.save_state()
+            # except Exception as e:
+            # print(f"state saving failed due to {e}")
             consumed_samples = self.data_sampler.compute_consumed_samples(
                 self.trainer.global_step - self.init_global_step
             )

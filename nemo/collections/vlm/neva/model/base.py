@@ -257,6 +257,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
             language_model.load_state_dict(loaded_state_dict)
             logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
+            # breakpoint()
 
         model = MCoreNevaModel(
             transformer_config=self,
