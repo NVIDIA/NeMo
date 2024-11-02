@@ -31,8 +31,8 @@ from nemo.utils.exp_manager import TimingCallback
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 4
-    mbs = 1
+    gbs = 128
+    mbs = 4
     seq_length = 4096
 
     # Data configuration
@@ -130,8 +130,8 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=1000,
-        limit_val_batches=gbs,
+        val_check_interval=1000,  # 1000,
+        limit_val_batches=6,  # gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
@@ -153,16 +153,17 @@ def main(args):
     from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
     resume = nl.AutoResume(
-        resume_if_exists=False,
+        resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
+        # resume_from_directory=args.restore_path,
         resume_from_directory=args.log_dir,
-        restore_config=(
-            RestoreConfig(
-                path=args.restore_path,
-            )
-            if args.restore_path is not None
-            else None
-        ),
+        # restore_config=(
+        #     RestoreConfig(
+        #         path=args.restore_path,
+        #     )
+        #     if args.restore_path is not None
+        #     else None
+        # ),
     )
     resume.setup(trainer, model)
 
@@ -203,7 +204,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--devices", type=int, required=False, default=8)
     # parser.add_argument("--tp_size", type=int, required=False, default=4)
-    parser.add_argument("--tp_size", type=int, required=False, default=2)
+    parser.add_argument("--tp_size", type=int, required=False, default=4)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="neva_finetune")
