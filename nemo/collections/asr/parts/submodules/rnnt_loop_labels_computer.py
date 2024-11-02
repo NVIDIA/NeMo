@@ -372,7 +372,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 .squeeze(1)
                 .squeeze(1)
             )
-            scores, labels = logits.max(-1)
+            scores, labels = torch.log_softmax(logits, dim=-1).max(-1)
 
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
@@ -413,7 +413,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 )
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
-                more_scores, more_labels = logits.max(-1)
+                more_scores, more_labels = torch.log_softmax(logits, dim=-1).max(-1)
                 # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking

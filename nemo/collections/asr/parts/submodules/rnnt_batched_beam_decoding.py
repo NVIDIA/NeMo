@@ -143,7 +143,7 @@ class BeamTDTInferBatched(_GreedyRNNTInfer):
                 include_duration_confidence=include_duration_confidence,
                 confidence_method_cfg=confidence_method_cfg,
             )
-            self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
+            self._greedy_decode = self._beam_decode_blank_as_pad_loop_labels
         else:
             self._greedy_decode = self._greedy_decode_masked
 
@@ -198,7 +198,7 @@ class BeamTDTInferBatched(_GreedyRNNTInfer):
         raise NotImplementedError("masked greedy-batched decode is not supported for TDT models.")
 
     @torch.inference_mode()
-    def _greedy_decode_blank_as_pad_loop_labels(
+    def _beam_decode_blank_as_pad_loop_labels(
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
@@ -214,9 +214,10 @@ class BeamTDTInferBatched(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
-        hyps = rnnt_utils.batched_beam_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
-        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
-            hyp.dec_state = state
+        hyps = rnnt_utils.batched_beam_hyps_to_hypotheses(batched_hyps)
+        if last_decoder_state:
+            for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
+                hyp.dec_state = state
         return hyps
 
     def disable_cuda_graphs(self):
