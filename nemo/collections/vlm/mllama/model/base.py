@@ -145,7 +145,7 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
     # (e.g. running inference on pretrained weights from HF)
     # This flag can be set to True if you're finetuning the model, and you would like to use
     # Flash Attention to minimize memory consumption.
-    disable_vision_padding: bool = True
+    disable_vision_padding: bool = False
 
     @property
     def max_aspect_ratio_id(self) -> int:
