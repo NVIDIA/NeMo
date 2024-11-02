@@ -313,20 +313,17 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
             labels_list = [labels]
             label_logps_list = [label_logps]
             blank_logps_list = [batch_beam_zeros]
-            active_mask_list = [batch_beam_trues]
             inactive_mask_list = [batch_beam_false]
             became_inactive_mask_list = [batch_beam_beam_false]
 
-            iter_count = 0
-            
             time_indices += 1
             
-            is_active = torch.less(time_indices, batch_max_time_indices)
             labels_became_inactive = torch.eq(time_indices, batch_max_time_indices)
             blanks_became_inactive = torch.eq(time_indices, encoder_output_length)
             is_inactive = torch.greater(time_indices, batch_max_time_indices)
             active_mask = torch.less_equal(time_indices, batch_max_time_indices).unsqueeze(-1)
             
+            iter_count = 0
             active_blank_mask = torch.logical_and(blank_mask, active_mask)
             while active_blank_mask.any():
                 blank_logps = logps[batch_indices.unsqueeze(1), beam_indices.unsqueeze(0), -1].unsqueeze(-1)
@@ -347,12 +344,10 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
                 blanks_became_inactive = torch.logical_and(blanks_became_inactive, blank_mask)
                 became_inactive = torch.logical_or(labels_became_inactive, blanks_became_inactive)
                 
-                active_mask_list.append(is_active)
                 inactive_mask_list.append(is_inactive)
                 became_inactive_mask_list.append(became_inactive)
                 
                 time_indices += 1
-                is_active = torch.less(time_indices, batch_max_time_indices)
                 labels_became_inactive = torch.eq(time_indices, batch_max_time_indices)
                 blanks_became_inactive = torch.eq(time_indices, encoder_output_length)
                 is_inactive = torch.greater(time_indices, batch_max_time_indices)
@@ -365,13 +360,11 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
                 if blanks_became_inactive.any():
                     became_inactive[-1] = torch.logical_or(became_inactive[-1], blanks_became_inactive)
             
-            # print("Iter count: ", iter_count)
-            # save_timesteps = batched_hyps.last_timestep.clone()
+
             labels, beam_idx = self.update_beam(batched_hyps,
                                                 labels_list,
                                                 label_logps_list,
                                                 blank_logps_list,
-                                                active_mask_list, 
                                                 inactive_mask_list,
                                                 became_inactive_mask_list)
             
@@ -440,7 +433,6 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
                     labels_list,
                     label_logps_list,
                     blank_logps_list,
-                    is_active_mask_list,
                     inactive_mask_list,
                     became_inactive_mask_list):
         batch_size = batched_beam_hyps.batch_size
@@ -449,19 +441,18 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
         
         labels = torch.stack(labels_list, dim=1)
         label_logps = torch.stack(label_logps_list, dim=1)
-        is_active_mask = torch.stack(is_active_mask_list, dim=1).unsqueeze(-1)
         is_inactive_mask = torch.stack(inactive_mask_list, dim=1).unsqueeze(-1)
         became_inactive_mask = torch.stack(became_inactive_mask_list, dim=1)
         max_expanded = torch.eq(batched_beam_hyps.last_timestep_repetitions, self.max_steps)
         
         blank_logps = torch.stack(blank_logps_list, dim=1)
-        blank_logps = torch.cumsum(blank_logps, dim=-1)
-        blank_logps = blank_logps.repeat_interleave(self.beam_size, dim=-1)
+        accum_blank_logps = torch.cumsum(blank_logps, dim=-1)
+        accum_blank_logps = accum_blank_logps.repeat_interleave(self.beam_size, dim=-1)
         
         num_blank_lengths = torch.arange(len(blank_logps_list), device=device).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
         lengths = batched_beam_hyps._full_current_lengths.unsqueeze(1).unsqueeze(-1) + num_blank_lengths
         curr_scores = (batched_beam_hyps._label_scores + batched_beam_hyps._blank_scores).unsqueeze(1).unsqueeze(-1)
-        total_logps = (curr_scores + label_logps + blank_logps) / lengths
+        total_logps = (curr_scores + label_logps + accum_blank_logps) / lengths
                 
         # masking blank ending hypothesis and inactive hypotheses
         blank_mask = labels == self._blank_index
@@ -472,7 +463,7 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
         
         labels = labels.view(batched_beam_hyps.batch_size, -1)
         label_logps = label_logps.view(batched_beam_hyps.batch_size, -1)
-        blank_logps = blank_logps.view(batched_beam_hyps.batch_size, -1)
+        accum_blank_logps = accum_blank_logps.view(batched_beam_hyps.batch_size, -1)
         active_total_logps = active_total_logps.view(batched_beam_hyps.batch_size, -1)
         
         logps, idx = active_total_logps.topk(k = self.beam_size, dim=-1)
@@ -481,7 +472,7 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
         
         active_labels = labels[batch_indices, idx]
         active_label_logps = label_logps[batch_indices, idx]
-        active_blank_logps = blank_logps[batch_indices, idx]
+        active_blank_logps = accum_blank_logps[batch_indices, idx]
         
         # assert((logps != float("-inf")).all())
         assert((active_beam_index < self.beam_size).all())
@@ -499,13 +490,18 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
             
             became_inactive_labels = labels[batch_indices, idx]
             became_inactive_label_logps = label_logps[batch_indices, idx]
-            became_inactive_blank_logps = blank_logps[batch_indices, idx]
+            became_inactive_blank_logps = accum_blank_logps[batch_indices, idx]
             
             # assert((logps != float("-inf")).all())
             assert((became_inactive_beam_index < self.beam_size).all())
             assert((became_inactive_num_blanks < len(labels_list)).all())
             
-            batched_beam_hyps.add_completed(became_inactive_labels, became_inactive_label_logps, became_inactive_blank_logps, num_blanks, became_inactive_beam_index, became_inactive_logps)
+            batched_beam_hyps.add_completed(became_inactive_labels,
+                                            became_inactive_label_logps,
+                                            became_inactive_blank_logps,
+                                            num_blanks,
+                                            became_inactive_beam_index,
+                                            became_inactive_logps)
         
         batched_beam_hyps.update_beam(labels=active_labels,
                                    label_logps=active_label_logps,
@@ -514,7 +510,6 @@ class BeamBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethod
                                    beam_idx=active_beam_index)
         
         return active_labels, active_beam_index
-                
 
     def __call__(
         self,
