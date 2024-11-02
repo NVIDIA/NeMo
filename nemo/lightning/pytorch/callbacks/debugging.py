@@ -116,7 +116,7 @@ class ParameterDebugger(Callback):
         Iterate over model parameters, find gradient tensor, apply and collect outputs of
         param_fn and grad_fn, and log outputs in a table.
         """
-
+        from prettytable import PrettyTable
         def find_grad_tensor(param: torch.Tensor) -> Optional[torch.Tensor]:
             """If using MCore optimizer, search the grad buckets for param's grad tensor."""
             if not isinstance(pl_module.optim, MegatronOptimizerModule):

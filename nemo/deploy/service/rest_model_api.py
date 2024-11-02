@@ -29,12 +29,10 @@ class TritonSettings(BaseSettings):
     def __init__(self):
         super(TritonSettings, self).__init__()
         try:
-            with open(os.path.join(Path.cwd(), 'nemo/deploy/service/config.json')) as config:
-                config_json = json.load(config)
-                self._triton_service_port = config_json["triton_service_port"]
-                self._triton_service_ip = config_json["triton_service_ip"]
-                self._triton_request_timeout = config_json["triton_request_timeout"]
-                self._openai_format_response = config_json["openai_format_response"]
+            self._triton_service_port = int(os.environ.get('TRITON_PORT', 8080))
+            self._triton_service_ip = os.environ.get('TRITON_HTTP_ADDRESS', '0.0.0.0')
+            self._triton_request_timeout = int(os.environ.get('TRITON_REQUEST_TIMEOUT', 60))
+            self._openai_format_response = os.environ.get('OPENAI_FORMAT_RESPONSE', 'False').lower() == 'true'
         except Exception as error:
             print("An exception occurred:", error)
             return
