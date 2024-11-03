@@ -90,9 +90,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
     share_embeddings_and_output_weights: bool = False
-    params_dtype: torch.dtype = torch.bfloat16
+    params_dtype: torch.dtype = torch.float
     fp16: bool = False
-    bf16: bool = True
+    bf16: bool = False
     num_layers: int = 2
     num_attention_heads: int = 8
     hybrid_attention_ratio: float = 0.0
@@ -116,7 +116,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     layernorm_epsilon: float = 1e-6
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 4
     forward_step_fn: Callable = hyena_forward_step
     data_step_fn: Callable = gpt_data_step
     tokenizer_model_path: str = None
@@ -302,14 +304,17 @@ class HyenaTestConfig(HyenaConfig):
     use_cpu_initialization: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.bfloat16
+    params_dtype: torch.dtype = torch.float
     normalization: str = "RMSNorm"
     add_qkv_bias:bool = False
     add_bias_linear:bool = False
     layernorm_epsilon: float = 1e-6
-    fp8: str = 'hybrid'
-    fp8_amax_history_len: int = 16
-    fp8_amax_compute_algo: str = "max"
+    # fp8: str = 'hybrid'
+    # fp8_amax_history_len: int = 16
+    # fp8_amax_compute_algo: str = "max"
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 4
 
 @dataclass
 class Hyena7bConfig(HyenaConfig):
@@ -326,14 +331,17 @@ class Hyena7bConfig(HyenaConfig):
     use_cpu_initialization: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.bfloat16
+    params_dtype: torch.dtype = torch.float
     normalization: str = "RMSNorm"
     add_qkv_bias:bool = False
     add_bias_linear:bool = False
     layernorm_epsilon: float = 1e-6
-    fp8: str = 'hybrid'
-    fp8_amax_history_len: int = 16
-    fp8_amax_compute_algo: str = "max"
+    # fp8: str = 'hybrid'
+    # fp8_amax_history_len: int = 16
+    # fp8_amax_compute_algo: str = "max"
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 4
 
 __all__ = [
     "HyenaConfig",
