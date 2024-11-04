@@ -497,7 +497,7 @@ class HyenaTestConfig(HyenaConfig):
     # fp8_amax_compute_algo: str = "max"
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
-    recompute_num_layers: int = 4
+    recompute_num_layers: int = 2
 
 
 @dataclass
