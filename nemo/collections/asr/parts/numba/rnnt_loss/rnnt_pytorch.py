@@ -86,7 +86,7 @@ class _RNNTNumba(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        grads, = ctx.saved_tensors
+        (grads,) = ctx.saved_tensors
         if grad_output is not None and grads is not None:
             grad_output = grad_output.view(-1, 1, 1, 1).to(grads)
             return grads.mul_(grad_output), None, None, None, None, None, None, None
@@ -258,7 +258,7 @@ class _MultiblankRNNTNumba(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        grads, = ctx.saved_tensors
+        (grads,) = ctx.saved_tensors
         if grad_output is not None and grads is not None:
             grad_output = grad_output.view(-1, 1, 1, 1).to(grads)
             return grads.mul_(grad_output), None, None, None, None, None, None, None, None, None, None
