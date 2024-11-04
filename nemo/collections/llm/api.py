@@ -674,22 +674,20 @@ def _validate_config(
     assert model.config.ffn_hidden_size > 0
 
     if model.config.seq_length is not None:
-        if model.config.max_position_embeddings is not None:
+        if getattr(model.config, "max_position_embeddings", None) is not None:
             assert model.config.seq_length <= model.config.max_position_embeddings
 
     ## Data validation
-    assert data.config.micro_batch_size > 0
-    assert data.config.global_batch_size > 0
-    assert data.config.seq_length > 0
+    assert data.micro_batch_size > 0
+    assert data.global_batch_size > 0
+    assert data.seq_length > 0
 
     assert (
-        data.config.global_batch_size % data.config.micro_batch_size == 0
-    ), "Global batch size must be divisible by micro batch size."
+        data.global_batch_size % data.micro_batch_size == 0
+    ), "Global batch size must be divisible by micro batch size in data module."
 
-    ## Parallelism validation
-    assert isinstance(trainer.strategy, run.Config)
-
-    # DP size validation
+    ## Trainer validation
+    # DP validation
     assert (trainer.num_nodes * trainer.devices) % (
         trainer.strategy.tensor_model_parallel_size
         * trainer.strategy.pipeline_model_parallel_size
@@ -697,9 +695,9 @@ def _validate_config(
     ) == 0, "Number of GPUs must be divisible by the product of all parallelism sizes for data parallel."
 
     assert (
-        data.config.global_batch_size
+        data.global_batch_size
         % (
-            data.config.micro_batch_size
+            data.micro_batch_size
             * (
                 (trainer.num_nodes * trainer.devices)
                 / (
@@ -710,11 +708,11 @@ def _validate_config(
             )
         )
         == 0
-    )
+    ), "Global batch size must be divisible by the product of micro batch size and data parallel size"
 
     # TP/SP validation
     if trainer.strategy.tensor_model_parallel_size == 1:
-        if trainer.strategy.pipeline_model_parallel_size != 1:
+        if trainer.strategy.sequence_parallel == True:
             warnings.warn("Disabling sequence parallelism because tensor model parallelism is disabled")
             trainer.strategy.sequence_parallel = False
 
@@ -724,9 +722,9 @@ def _validate_config(
             trainer.strategy.pipeline_dtype is not None
         ), "pipeline_dtype must be set if pipeline model parallelism is enabled"
     else:
-        if trainer.strategy.virtual_pipeline_parallel_size is not None:
+        if trainer.strategy.virtual_pipeline_model_parallel_size is not None:
             warnings.warn("Disabling virtual pipeline parallelism because pipeline model parallelism is disabled")
-            trainer.strategy.virtual_pipeline_parallel_size = None
+            trainer.strategy.virtual_pipeline_model_parallel_size = None
         if trainer.strategy.pipeline_dtype is not None:
             warnings.warn("Setting pipeline dtype to None because pipeline model parallelism is disabled")
             trainer.strategy.pipeline_dtype = None
@@ -735,7 +733,7 @@ def _validate_config(
     if trainer.strategy.context_parallel_size > 1:
         if model.config.seq_length is not None:
             assert model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0, (
-                'seq-length should be a multiple of 2 * context-parallel-size ' 'if context-parallel-size > 1.'
+                'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
             )
 
     # EP validation
