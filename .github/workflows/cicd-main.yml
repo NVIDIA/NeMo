@@ -3799,7 +3799,7 @@ jobs:
         --seq-length 1024 \
         --devices=2 \
         --max-steps=20 \
-        --simulated-faults \
+        --simulated-fault \
         --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
         --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
         --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
