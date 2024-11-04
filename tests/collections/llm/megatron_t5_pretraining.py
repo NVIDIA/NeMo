@@ -50,25 +50,28 @@ if __name__ == '__main__':
 
     args = get_args()
 
+    special_tokens = {}
+    special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
         vocab_file=args.vocab_path,
+        special_tokens=special_tokens,
     )
     data = PreTrainingDataModule(
         paths=args.data_path,
         seq_length=512,
         seq_length_dec=128,
-        micro_batch_size=args.devices,
-        global_batch_size=2 * args.devices,
+        micro_batch_size=64,
+        global_batch_size=512,
         seed=1234,
         tokenizer=tokenizer,
         split="99982,9,9",
         index_mapping_dir=args.index_mapping_dir,
     )
     t5_config = llm.t5.model.t5.T5Config(
-        num_layers=args.devices,
-        encoder_num_layers=args.devices,
+        num_layers=12,
+        encoder_num_layers=12,
         hidden_size=768,
         ffn_hidden_size=3072,
         num_attention_heads=12,

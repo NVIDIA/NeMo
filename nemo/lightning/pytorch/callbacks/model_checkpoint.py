@@ -49,7 +49,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ``every_n_epochs`` or ``every_n_train_steps``.
         save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
         save_optim_on_train_end: Whether to include the optimizer states in the final checkpoint
-            at the end of training. Only applicable when save_weights_only is ``True``.
+            at the end of training. Only applicable when save_weights_only is ``False``.
         always_save_context: Whether to dump the artifacts needed to reinintialize the current
             model, trainer, and dataloader to allow for reproducibility of experiments.
         save_context_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
@@ -73,7 +73,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         save_optim_on_train_end: Optional[bool] = False,
-        always_save_context: bool = False,
+        always_save_context: bool = True,
         save_context_on_train_end: bool = True,
         **kwargs,
     ):
@@ -196,7 +196,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 match = re.search('[A-z]', checkpoint[index:])
                 if match:
                     value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hyphen
-                    self.best_k_models[checkpoint] = float(value)
+                else:
+                    value = checkpoint[index:]
+                self.best_k_models[checkpoint] = float(value)
         if len(self.best_k_models) < 1:
             return  # No saved checkpoints yet
 

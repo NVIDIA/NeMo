@@ -1,17 +1,31 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config22B, NemotronModel
-from nemo.collections.llm.recipes import nemotron4_22b_64k
+from nemo.collections.llm.gpt.model.nemotron import Nemotron3Config22B, NemotronModel
+from nemo.collections.llm.recipes import nemotron3_22b_64k
 from nemo.lightning import Trainer
 
 
-class TestNemotron4_22B_64K:
+class TestNemotron3_22B_64K:
     @pytest.fixture(scope="class")
     def recipe_module(self):
-        return nemotron4_22b_64k
+        return nemotron3_22b_64k
 
     def test_model(self, recipe_module):
         model = recipe_module.model()
@@ -22,7 +36,7 @@ class TestNemotron4_22B_64K:
         model = recipe_module.model()
         nemotron_config = model.config
         assert isinstance(nemotron_config, run.Config)
-        assert nemotron_config.__fn_or_cls__ == Nemotron4Config22B
+        assert nemotron_config.__fn_or_cls__ == Nemotron3Config22B
         assert nemotron_config.num_layers == 40
         assert nemotron_config.hidden_size == 6144
         assert nemotron_config.seq_length == 65536
