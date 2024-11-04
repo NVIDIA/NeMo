@@ -37,6 +37,7 @@ from nemo.collections.llm.gpt.model.gemma import (
     GemmaConfig7B,
     GemmaModel,
 )
+from nemo.collections.llm.gpt.model.hyena import Hyena7bConfig, HyenaConfig, HyenaTestConfig
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
@@ -86,11 +87,6 @@ from nemo.collections.llm.gpt.model.ssm import (
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
     SSMConfig,
-)
-from nemo.collections.llm.gpt.model.hyena import (
-    HyenaTestConfig,
-    Hyena7bConfig,
-    HyenaConfig,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (

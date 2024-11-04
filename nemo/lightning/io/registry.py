@@ -48,8 +48,10 @@ except ImportError:
 
 
 try:
+
     from nemo.collections.common.tokenizers import SentencePieceTokenizer
     from nemo.collections.common.tokenizers import ByteLevelTokenizer
+
 
     track_io(SentencePieceTokenizer, artifacts=[FileArtifact("model_path")])
     track_io(ByteLevelTokenizer, artifacts=[FileArtifact("model_path")])

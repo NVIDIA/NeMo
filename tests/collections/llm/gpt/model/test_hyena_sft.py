@@ -19,6 +19,10 @@ import argparse
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
+from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.llm.api import _setup
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.lightning.resume import AutoResume
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -27,7 +31,9 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+from nemo.lightning.resume import AutoResume
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+
 
 """
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
@@ -55,7 +61,19 @@ python /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
                                 --micro-batch-size=1 \
                                 --model-size=test \
                                 --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
+                                --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
 
+CUDA_VISIBLE_DEVICES=0 python /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
+                                --devices=1 \
+                                --max-steps=40 \
+                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
+                                --seq-length=8192 \
+                                --tensor-parallel-size=1 \
+                                --pipeline-model-parallel-size=1 \
+                                --global-batch-size=1 \
+                                --micro-batch-size=1 \
+                                --model-size=test \
+                                --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
 """
 
 def get_args():
@@ -68,7 +86,10 @@ def get_args():
     parser.add_argument('--micro-batch-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
-    parser.add_argument('--model-size', type=str, default="7b", help="Model size, choose between 7b or test (4 layers, less than 1b)")
+    parser.add_argument(
+        '--model-size', type=str, default="7b", help="Model size, choose between 7b or test (4 layers, less than 1b)"
+    )
+
     parser.add_argument(
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
     )
@@ -81,7 +102,6 @@ def get_args():
 if __name__ == "__main__":
 
     args = get_args()
-
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
@@ -103,12 +123,12 @@ if __name__ == "__main__":
             pipeline_dtype = torch.bfloat16,
         ),
         plugins=nl.MegatronMixedPrecision(
-            precision="bf16-mixed",
-            params_dtype=torch.bfloat16,
+            precision="32",
+            params_dtype=torch.float,
         ),
         callbacks=[checkpoint_callback],
         log_every_n_steps=1,
-        limit_val_batches=5,
+        limit_val_batches=1,
         val_check_interval=10,
         num_sanity_val_steps=0,
     )
@@ -117,9 +137,9 @@ if __name__ == "__main__":
         optimizer='adam',
         lr=1e-5,
         min_lr=1e-5,
-        use_distributed_optimizer=True,
+        use_distributed_optimizer=False,
         clip_grad=1.0,
-        bf16=True,
+        bf16=False,
     )
 
     optim = MegatronOptimizerModule(config=opt_config)

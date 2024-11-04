@@ -16,19 +16,23 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
+
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.api import train
+from nemo.collections.llm.api import _setup, train
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.api import _setup
+
 
 """
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
@@ -44,6 +48,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections
                                 --model-size=test
 """
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
@@ -54,7 +59,9 @@ def get_args():
     parser.add_argument('--micro-batch-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
-    parser.add_argument('--model-size', type=str, default="7b", help="Model size, choose between 7b or test (4 layers, less than 1b)")
+    parser.add_argument(
+        '--model-size', type=str, default="7b", help="Model size, choose between 7b or test (4 layers, less than 1b)"
+    )
     parser.add_argument(
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
     )
@@ -85,12 +92,12 @@ if __name__ == '__main__':
     )
 
     if args.model_size == "7b":
-        hyena_config = llm.Hyena7bConfig() 
+        hyena_config = llm.Hyena7bConfig()
     elif args.model_size == "test":
         hyena_config = llm.HyenaTestConfig()
     else:
         raise ValueError(f"Invalid model size: {args.model_size}")
-    
+
     hyena_config.seq_length = args.seq_length
     model = llm.GPTModel(hyena_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy(
