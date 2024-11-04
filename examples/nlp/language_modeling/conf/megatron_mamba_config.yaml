@@ -76,7 +76,8 @@ model:
   post_process: True # add pooler
   megatron_legacy: False
   persist_layer_norm: True
-
+  squared_relu_activation: True
+  params_dtype: bf16
   tokenizer:
     library: 'huggingface'
     type: 'EleutherAI/gpt-neox-20b' 
@@ -87,7 +88,7 @@ model:
     use_fast: True
 
   # Distributed checkpoint setup
-  dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
+  dist_ckpt_format: 'torch_dist' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
   dist_ckpt_load_on_device: True # whether to load checkpoint weights directly on GPU or to CPU
   dist_ckpt_parallel_save: False # if true, each worker will write its own part of the dist checkpoint
 
