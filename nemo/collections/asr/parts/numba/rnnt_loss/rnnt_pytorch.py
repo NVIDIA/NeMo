@@ -179,7 +179,7 @@ class _TDTNumba(Function):
     def backward(ctx, grad_output):
         label_grads, duration_grads = ctx.saved_tensors
         if grad_output is not None and label_grads is not None:
-            grad_output = grad_output.view(-1, 1, 1, 1).to(ctx.label_grads)
+            grad_output = grad_output.view(-1, 1, 1, 1).to(label_grads)
             return (
                 label_grads.mul_(grad_output),
                 duration_grads.mul_(grad_output),
