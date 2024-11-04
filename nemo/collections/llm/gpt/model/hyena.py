@@ -103,6 +103,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     bf16: bool = False
     num_layers: int = 2
     num_attention_heads: int = 8
+    num_groups_hyena: int = None
+    num_groups_hyena_medium: int = None
+    num_groups_hyena_short: int = None
     hybrid_attention_ratio: float = 0.0
     hybrid_mlp_ratio: float = 0.0
     hybrid_override_pattern: str = None
@@ -130,14 +133,18 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = hyena_forward_step
     data_step_fn: Callable = gpt_data_step
     tokenizer_model_path: str = None
+    hyena_init_method: str = None
+    hyena_output_layer_init_method: str = None
 
     def configure_model(self, tokenizer) -> "MCoreHyenaModel":
-        self.hyena = GLOBAL_CONFIG
         model = MCoreHyenaModel(
             self,
             hyena_stack_spec=hyena_stack_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
+            num_groups_hyena=self.num_groups_hyena,
+            num_groups_hyena_medium=self.num_groups_hyena_medium,
+            num_groups_hyena_short=self.num_groups_hyena_short,
             hybrid_override_pattern=self.hybrid_override_pattern,
             position_embedding_type=self.position_embedding_type,
             rotary_percent=self.rotary_percent,
@@ -146,6 +153,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
             # share_embeddings_and_output_weights=True,
+            hyena_init_method=self.hyena_init_method,
+            hyena_output_layer_init_method=self.hyena_output_layer_init_method,
         )
         return model
 
@@ -478,6 +487,9 @@ class HyenaTestConfig(HyenaConfig):
     num_layers: int = 4
     seq_length: int = 8192
     hidden_size: int = 4096
+    num_groups_hyena: int = 4096
+    num_groups_hyena_medium: int = 256
+    num_groups_hyena_short: int = 256
     make_vocab_size_divisible_by: int = 8
     tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
@@ -498,6 +510,8 @@ class HyenaTestConfig(HyenaConfig):
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
     recompute_num_layers: int = 2
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
 
 
 @dataclass
@@ -506,6 +520,9 @@ class Hyena7bConfig(HyenaConfig):
     num_layers: int = 32
     seq_length: int = 8192
     hidden_size: int = 4096
+    num_groups_hyena: int = 4096
+    num_groups_hyena_medium: int = 256
+    num_groups_hyena_short: int = 256
     make_vocab_size_divisible_by: int = 8
     tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
@@ -526,6 +543,8 @@ class Hyena7bConfig(HyenaConfig):
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
     recompute_num_layers: int = 4
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
 
 
 __all__ = [
