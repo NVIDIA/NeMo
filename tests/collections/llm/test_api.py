@@ -180,8 +180,8 @@ class TestValidateConfig:
         trainer.strategy.virtual_pipeline_model_parallel_size = 2
         trainer.strategy.pipeline_dtype = torch.bfloat16
         _validate_config(model, data, trainer)
-        assert trainer.strategy.virtual_pipeline_model_parallel_size == None
-        assert trainer.strategy.pipeline_dtype == None
+        assert trainer.strategy.virtual_pipeline_model_parallel_size is None
+        assert trainer.strategy.pipeline_dtype is None
 
         # CP validation
         with pytest.raises(AssertionError):
