@@ -18,7 +18,7 @@
 
   <blockquote>
 
-  <details open><summary>strategy <a href="https://github.com/NVIDIA/NeMo/tree/main/nemo/lightning/pytorch/strategies">(MegatronStrategy)</a></summary>
+  <details open><summary>strategy <a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/strategies/megatron_strategy.py">(MegatronStrategy)</a></summary>
   <blockquote>
 
   ```sh
