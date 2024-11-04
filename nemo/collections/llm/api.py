@@ -687,6 +687,12 @@ def _validate_config(
     ), "Global batch size must be divisible by micro batch size in data module."
 
     ## Trainer validation
+
+    # Basic validation
+    assert trainer.strategy.tensor_model_parallel_size > 0
+    assert trainer.strategy.pipeline_model_parallel_size > 0
+    assert trainer.strategy.context_parallel_size > 0
+
     # DP validation
     assert (trainer.num_nodes * trainer.devices) % (
         trainer.strategy.tensor_model_parallel_size
@@ -732,9 +738,9 @@ def _validate_config(
     # CP validation
     if trainer.strategy.context_parallel_size > 1:
         if model.config.seq_length is not None:
-            assert model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0, (
-                'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
-            )
+            assert (
+                model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
+            ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
 
     # EP validation
     if trainer.strategy.expert_model_parallel_size > 1:

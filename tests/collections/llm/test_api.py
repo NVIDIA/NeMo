@@ -110,6 +110,22 @@ class TestValidateConfig:
         model, data, trainer = self.reset_configs()
         _validate_config(model, data, trainer)
 
+        # Basic validation
+        with pytest.raises(AssertionError):
+            model, data, trainer = self.reset_configs()
+            trainer.strategy.tensor_model_parallel_size = 0
+            _validate_config(model, data, trainer)
+
+        with pytest.raises(AssertionError):
+            model, data, trainer = self.reset_configs()
+            trainer.strategy.pipeline_model_parallel_size = 0
+            _validate_config(model, data, trainer)
+
+        with pytest.raises(AssertionError):
+            model, data, trainer = self.reset_configs()
+            trainer.strategy.context_parallel_size = 0
+            _validate_config(model, data, trainer)
+
         # DP validation
         with pytest.raises(AssertionError):
             model, data, trainer = self.reset_configs()
