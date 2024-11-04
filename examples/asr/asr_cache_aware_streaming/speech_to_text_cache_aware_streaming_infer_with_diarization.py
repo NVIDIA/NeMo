@@ -274,9 +274,9 @@ class MultiSpeakerASRstreamer:
                                                 diar_pred_out_stream=diar_pred_out_stream,
                                                 previous_hypotheses=previous_hypotheses, 
                                                 word_and_ts_seq=word_and_ts_seq) 
-            if self.cfg.beam_search_enabled: 
-                word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq, word_idx_offset=word_idx_offset)
             if len(word_and_ts_seq["words"]) > 0:
+                if self.cfg.beam_search_enabled: 
+                    word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq, word_idx_offset=word_idx_offset)
                 word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
                 transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg) 
                 write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
