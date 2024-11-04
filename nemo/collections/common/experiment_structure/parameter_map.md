@@ -1,16 +1,25 @@
+# NeMo Experiment Parameter Map
+
+- This page shows the hierarchy of modules with their respective parameters as used in pre-training and fine-tuning experiments.
+  - Example recipe for llama3_8b- https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/llama3_8b.py
+- The list below is not a complete list of parameters. But, it shows the parameters commonly used across various models.
+- TransformerConfig and ModelParallelConfig defintions (used in recipe -> model -> config -> GPTConfig) can be found here-
+  -  https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_config.py 
+  -  https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/model_parallel_config.py  
+- Clik on the links below to see complete list of available paramaters.
+
 <details open>
-  <summary>recipe</summary>
+<summary>recipe</summary>
+<blockquote>
 
-  <blockquote>
-
-  <details open>
+<details open>
   <summary>trainer (pytorch_lightning.Trainer)</summary>
 
   <blockquote>
 
-  <details open><summary>strategy (MegatronStrategy)</summary>
+  <details open><summary>strategy <a href="https://github.com/NVIDIA/NeMo/tree/main/nemo/lightning/pytorch/strategies">(MegatronStrategy)</a></summary>
   <blockquote>
-  
+
   ```sh
   tensor_model_parallel_size: int = 1
   pipeline_model_parallel_size: int = 1
@@ -20,7 +29,7 @@
   expert_model_parallel_size: int = 1
   pipeline_dtype: Optional[torch.dtype] = None,
   ```    
-  <details><summary>ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron"</summary>
+  <details><summary>ddp: Union[DDPLiteral, <a href="https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/distributed/distributed_data_parallel_config.py">DistributedDataParallelConfig</a>] = "megatron"</summary>
   <blockquote>
 
   ```sh
@@ -39,11 +48,11 @@
   </blockquote>
   </details>
 
-  <details open>
+  <details>
   <summary>callbacks (Optional[List[Callback]]=None)</summary>
   <blockquote>
 
-  <details><summary>TimingCallback (Callback)</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/utils/exp_manager.py#L240">TimingCallback</a> (Callback)</summary>
   <blockquote>
 
   ```sh
@@ -54,7 +63,7 @@
   </blockquote>
   </details>
 
-  <details><summary>MegatronCommOverlapCallback (Callback)</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/callbacks/megatron_comm_overlap.py">MegatronCommOverlapCallback</a> (Callback)</summary>
   <blockquote>
 
   ```sh
@@ -73,9 +82,9 @@
   </blockquote>
   </details>
 
-  <details><summary>NsysCallback (Callback)</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/callbacks/nsys.py">NsysCallback</a> (Callback)</summary>
   <blockquote>
-  
+
   ```sh
   start_step: int
   end_step: int
@@ -85,7 +94,7 @@
   </blockquote>
   </details>
 
-  <details><summary>MemoryProfileCallback (Callback)</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/callbacks/memory_profiler.py">MemoryProfileCallback</a> (Callback)</summary>
   <blockquote>
 
   ```sh
@@ -96,7 +105,7 @@
   </blockquote>
   </details>
 
-  <details><summary>GarbageCollectionCallback (Callback)</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/callbacks/garbage_collection.py">GarbageCollectionCallback</a> (Callback)</summary>
   <blockquote>
 
   ```sh
@@ -112,7 +121,7 @@
   <summary>plugins (nemo_run.Plugin)</summary>
   <blockquote>
 
-  <details><summary>MegatronMixedPrecision</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/plugins/mixed_precision.py">MegatronMixedPrecision</a></summary>
   <blockquote>
 
   ```sh
@@ -130,7 +139,7 @@
   </blockquote>
   </details>
 
-  <details><summary>PerfEnvPlugin</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/run/plugins.py">PerfEnvPlugin</a></summary>
   <blockquote>
 
   ```sh
@@ -145,16 +154,17 @@
   </details>
 
   </blockquote>
-  </details>
 
-  <details>
+</details>
+
+<details>
   <summary>model (pytorch_lightning.LightningModule)</summary>
-  
+
   <blockquote>
     
-  <details><summary>config (GPTConfig)</summary>
+  <details><summary>config (<a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/gpt/model/base.py">GPTConfig</a>)</summary>
   <blockquote>
-  
+
   ```sh
   seq_length: int = 1024
   attention_softmax_in_fp32: bool = False
@@ -190,16 +200,17 @@
   ```
   </blockquote>
   </details>
-  
-  </blockquote>
-  </details>
 
-  <details>
+  </blockquote>
+
+</details>
+
+<details>
   <summary>data (pytorch_lightning.LightningDataModule)</summary>
 
   <blockquote>
 
-  <details><summary>MockDataModule</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/gpt/data/mock.py">MockDataModule</a></summary>
   <blockquote>
       
   ```sh
@@ -219,7 +230,7 @@
   </blockquote>
   </details>
 
-  <details><summary>SquadDataModule (For fine-tuning jobs)</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/gpt/data/squad.py">SquadDataModule</a> (For fine-tuning jobs)</summary>
   <blockquote>
 
   ```sh
@@ -228,7 +239,7 @@
   micro_batch_size: int = 4
   global_batch_size: int = 8
   ```
-  <details><summary>packed_sequence_specs (Optional["PackedSequenceSpecs"] = None)</summary>
+  <details><summary>packed_sequence_specs (Optional[<a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/gpt/data/packed_sequence.py">PackedSequenceSpecs</a>] = None)</summary>
   <blockquote>
 
   ```sh
@@ -242,10 +253,11 @@
   </details>
 
   </blockquote>
-  </details>
 
-  <details>
-  <summary>log (nemo.lightning.NeMoLogger)</summary>
+</details>
+
+<details>
+  <summary>log (<a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/nemo_logger.py">NeMoLogger</a>)</summary>
 
   <blockquote>
 
@@ -254,9 +266,9 @@
   log_local_rank_0_only: bool = False
   log_global_rank_0_only: bool = False
   ```
-  <details><summary>ckpt (Optional[ModelCheckpoint] = None)</summary>
+  <details><summary>ckpt (Optional[<a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/callbacks/model_checkpoint.py">ModelCheckpoint</a>] = None)</summary>
   <blockquote>      
-  
+
   ```sh
   save_last: Optional[bool] = True
   save_top_k: int = 3
@@ -267,10 +279,10 @@
   ```
   </blockquote>
   </details>
-  
+
   <details><summary>tensorboard (Optional[TensorBoardLogger] = None)</summary>
   <blockquote>
-  
+
   ```sh
   save_dir: Union[str, Path]
   name: Optional[str] = "lightning_logs"
@@ -288,19 +300,20 @@
   ```
   </blockquote>
   </details>
-  
+
   </blockquote>
-  </details>
 
-  <details open>
-  <summary>optim (OptimizerModule) # Use either MegatronOptimizerModule or PytorchOptimizerModule</summary>
-  
+</details>
+
+<details open>
+  <summary>optim (<a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/optim/base.py">OptimizerModule</a>) # Use either MegatronOptimizerModule or PytorchOptimizerModule</summary>
+
   <blockquote>
 
-  <details open><summary>MegatronOptimizerModule</summary>
+  <details open><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/optim/megatron.py">MegatronOptimizerModule</a></summary>
   <blockquote>
 
-  <details open><summary>config (OptimizerConfig)</summary>
+  <details open><summary>config (<a href="https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/optimizer/optimizer_config.py">OptimizerConfig</a>)</summary>
   <blockquote>
 
   ```sh
@@ -318,7 +331,7 @@
   </blockquote>
   </details>
       
-  <details><summary>lr_scheduler (Optional[LRSchedulerModule] = None)</summary>
+  <details><summary>lr_scheduler (Optional[<a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/optim/base.py">LRSchedulerModule</a>] = None)</summary>
   <blockquote>
 
   ```sh
@@ -328,11 +341,11 @@
   ```
   </blockquote>
   </details>
-  
+
   </blockquote>
   </details>
 
-  <details><summary>PytorchOptimizerModule</summary>
+  <details><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/optim/pytorch.py">PytorchOptimizerModule</a></summary>
   <blockquote>
 
   ```sh
@@ -344,10 +357,11 @@
   </details>
 
   </blockquote>
-  </details>
 
-  <details>
-  <summary>resume (nemo.lightning.AutoResume)</summary>
+</details>
+
+<details>
+  <summary>resume (<a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/resume.py">AutoResume</a>)</summary>
 
   <blockquote>
 
@@ -361,11 +375,12 @@
   resume_ignore_no_checkpoint: bool = False
   ```
   </blockquote>
-  </details>
 
-  <details>
-  <summary>LoRA (PEFT)</summary>
-  
+</details>
+
+<details>
+  <summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/peft/lora.py">LoRA</a> (PEFT)</summary>
+
   <blockquote>
 
   ```sh
@@ -380,7 +395,8 @@
   lora_B_init_method: str = "zero"
   ```
   </blockquote>
-  </details>
+
+</details>
 
 </blockquote>
 </details>
