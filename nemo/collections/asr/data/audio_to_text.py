@@ -731,7 +731,9 @@ class AudioToBPEDataset(_AudioTextDataset):
         )
 
 
-@deprecated(explanation='Webdataset support will be removed in r2.1.0 versions, please use LhotseSpeechToTextBpeDataset class instead')
+@deprecated(
+    explanation='Webdataset support will be removed in r2.1.0 versions, please use LhotseSpeechToTextBpeDataset class instead'
+)
 class _TarredAudioToTextDataset(IterableDataset):
     """
     A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
