@@ -145,7 +145,19 @@ from hydra.core.config_store import ConfigStore
 from collections import OrderedDict
 import itertools
 
+import time
+from functools import wraps
 
+def measure_eta(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()  # Record the start time
+        result = func(*args, **kwargs)  # Execute the function
+        end_time = time.time()  # Record the end time
+        eta = end_time - start_time  # Calculate the elapsed time
+        logging.info(f"ETA for '{func.__name__}': {eta:.4f} seconds")  # Print the ETA
+        return result  # Return the original function's result
+    return wrapper
 
 
 class MultiSpeakerASRstreamer:
@@ -160,22 +172,33 @@ class MultiSpeakerASRstreamer:
        self.asr_model = asr_model
        self.diar_model = diar_model
        self.bsd_spk = bsd_spk
-       self._word_and_ts_seq = {"words": [], "token_frame_index": [], "offset_count": 0,
-                        "status": "success", 
-                        "sentences": None, 
-                        "speaker_count": None,
-                        "transcription": None,
-                        "speaker_count_buffer": [],
-                        } 
-    
-    def _manage_beam_search_update(self, word_and_ts_seq):
+       self._word_and_ts_seq = {"words": [],
+                                "buffered_words": [],
+                                "token_frame_index": [], 
+                                "offset_count": 0,
+                                "status": "success", 
+                                "sentences": None, 
+                                "speaker_count": None,
+                                "transcription": None,
+                                "max_spk_probs": [],
+                                "word_window_seq": [],
+                                "speaker_count_buffer": [],
+                                } 
+       self._initial_steps = 3
+       
+    @measure_eta
+    def _manage_beam_search_update(self, word_and_ts_seq, word_idx_offset:int=0):
         if len(word_and_ts_seq["words"]) > self.cfg.word_window:
             extra_len = len(word_and_ts_seq["words"]) - self.cfg.word_window
             words = word_and_ts_seq["words"][extra_len:]
             bsd_words = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=words, speaker_count=word_and_ts_seq["speaker_count"])
             word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_words
+            word_and_ts_seq["words"] = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"],
+                                                                                   speaker_count=word_and_ts_seq["speaker_count"])
+            
         else:
-            word_and_ts_seq["words"] = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], speaker_count=word_and_ts_seq["speaker_count"])
+            word_and_ts_seq["words"] = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], 
+                                                                                   speaker_count=word_and_ts_seq["speaker_count"])
         return word_and_ts_seq 
     
     def perform_streaming_stt_spk(
@@ -240,21 +263,25 @@ class MultiSpeakerASRstreamer:
             left_offset=left_offset,
             right_offset=right_offset,
         )
-        word_and_ts_seq = deepcopy(self._word_and_ts_seq)
-        # Get the word-level dictionaries for each word in the chunk
-        word_and_ts_seq = get_frame_and_words(cfg=self.cfg,
-                                              tokenizer=self.asr_model.tokenizer,
-                                              step_num=step_num, 
-                                              diar_pred_out_stream=diar_pred_out_stream,
-                                              previous_hypotheses=previous_hypotheses, 
-                                              word_and_ts_seq=word_and_ts_seq) 
-        if self.cfg.beam_search_enabled: 
-            word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq)
-        word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
-        self._word_and_ts_seq = deepcopy(word_and_ts_seq)
-        transcribed_speaker_texts = print_sentences(sentences=self._word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg) 
-        write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
-        logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
+        if len( previous_hypotheses[0].text) == 0 and step_num <= self._initial_steps:
+            transcribed_speaker_texts = None
+        else:
+            word_and_ts_seq = deepcopy(self._word_and_ts_seq)
+            # Get the word-level dictionaries for each word in the chunk
+            word_and_ts_seq, word_idx_offset = get_frame_and_words(cfg=self.cfg,
+                                                tokenizer=self.asr_model.tokenizer,
+                                                step_num=step_num, 
+                                                diar_pred_out_stream=diar_pred_out_stream,
+                                                previous_hypotheses=previous_hypotheses, 
+                                                word_and_ts_seq=word_and_ts_seq) 
+            if self.cfg.beam_search_enabled: 
+                word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq, word_idx_offset=word_idx_offset)
+            if len(word_and_ts_seq["words"]) > 0:
+                word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
+                transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg) 
+                write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
+            self._word_and_ts_seq = deepcopy(word_and_ts_seq)
+            logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         return (transcribed_speaker_texts,
                 transcribed_texts,
                 asr_pred_out_stream,
@@ -340,6 +367,9 @@ class DiarizationConfig:
     arpa_language_model: Optional[str] = None
     beam_prune_logp: float = -100
     word_window: int = 32
+    use_spk_turn_bsd: bool = False
+    frame_shift: int = 0
+    min_sigmoid_val: float = 1e-4
     port: List[int] = field(default_factory=list)
     parallel_chunk_word_len: int = 250
     use_ngram: bool = True
@@ -475,7 +505,7 @@ def fix_frame_time_step(new_tokens, new_words, frame_inds_seq):
         )
     return frame_inds_seq
 
-def get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len: float = 0.08):
+def get_word_dict_content(cfg, word, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len: float = 0.08):
     _stt, _end = time_step_local_offset, time_step_local_offset + len(token_group)-1
     if len(token_group) == 1:
         frame_stt, frame_end = frame_inds_seq[_stt], frame_inds_seq[_stt] + 1
@@ -488,10 +518,9 @@ def get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_se
             frame_stt, frame_end = (diar_pred_out_stream.shape[1] - 1, diar_pred_out_stream.shape[1])
         else:
             frame_end = frame_stt + 1
-        
-    speaker_sigmoid = diar_pred_out_stream[0, frame_stt:frame_end, :].mean(dim=0)
-    # speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
-    speaker_softmax = torch.softmax(speaker_sigmoid, dim=0)
+    speaker_sigmoid = diar_pred_out_stream[0, (frame_stt + cfg.frame_shift):(frame_end + cfg.frame_shift), :].mean(dim=0)
+    speaker_sigmoid = torch.clamp(speaker_sigmoid, min=cfg.min_sigmoid_val, max=1) 
+    speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
     speaker_softmax = speaker_softmax.cpu()
     stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
     spk_id = speaker_softmax.argmax().item()
@@ -502,7 +531,38 @@ def get_word_dict_content(word, diar_pred_out_stream, token_group, frame_inds_se
                 'end_time': round(end_sec, 3), 
                 'speaker': f"speaker_{spk_id}",
                 'speaker_softmax': speaker_softmax} 
-    return word_dict                 
+    return word_dict
+
+def get_truncated_word_window(cfg, step_num, word_and_ts_seq, search_range_ratio=0.5):
+    search_window_len = int(cfg.word_window * search_range_ratio) 
+    speaker_count_buffer = word_and_ts_seq['speaker_count_buffer'][-cfg.word_window:-cfg.word_window + search_window_len]
+    word_and_ts_seq["buffered_words"] = word_and_ts_seq["words"][-cfg.word_window:]
+    word_idx_offset = len(word_and_ts_seq["words"]) - cfg.word_window 
+    change_points = []
+    for i in range(len(speaker_count_buffer) - 1):
+        if speaker_count_buffer[i] != speaker_count_buffer[i + 1]:
+            change_points.append((i+1, speaker_count_buffer[i + 1]))
+    if len(change_points) > 0:
+        word_and_ts_seq["buffered_words"] = word_and_ts_seq["words"][word_idx_offset + change_points[0][0]:]
+        speaker_count_buffer = word_and_ts_seq["speaker_count_buffer"][word_idx_offset + change_points[0][0]:]
+        word_window_seq = word_and_ts_seq["word_window_seq"][word_idx_offset + change_points[0][0]:]
+    else: 
+        word_and_ts_seq["buffered_words"] = word_and_ts_seq["words"][word_idx_offset:]
+        speaker_count_buffer = word_and_ts_seq["speaker_count_buffer"][word_idx_offset:]
+        word_window_seq = word_and_ts_seq["word_window_seq"][word_idx_offset:]
+    
+    # Print all the lengths
+    logging.info(f"word_idx_offset: {word_idx_offset}")
+    logging.info(f"words length: {len(word_and_ts_seq['words'])}")
+    logging.info(f"buffered_words length: {len(word_and_ts_seq['buffered_words'])}")
+    logging.info(f"word_window_seq length: {len(word_and_ts_seq['word_window_seq'])}")
+    logging.info(f"speaker_count_buffer length: {len(speaker_count_buffer)}")
+    logging.info(f"Maximum speaker probabilities in the word window: {len(word_and_ts_seq['buffered_words'])}")
+    
+    if len(word_and_ts_seq["buffered_words"]) != len(speaker_count_buffer):
+        print(f"Length missmatch in word window sequence.")
+    assert len(word_window_seq) == len(speaker_count_buffer)
+    return word_and_ts_seq, word_idx_offset
         
 def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08):
     current_frame_range = [step_num * previous_hypotheses[0].length.item(), (step_num + 1) * previous_hypotheses[0].length.item()]
@@ -518,9 +578,11 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
         word_and_ts_seq["token_frame_index"].append((new_tokens[idx], frame_inds_seq[idx]))
         word_and_ts_seq["offset_count"] += 1
     
-    time_step_local_offset = 0 
+    time_step_local_offset, word_idx_offset = 0, 0
+    
     for token_group, word in zip(new_token_group, new_words):
-        word_dict = get_word_dict_content(word=word,
+        word_dict = get_word_dict_content(cfg=cfg, 
+                                          word=word,
                                           diar_pred_out_stream=diar_pred_out_stream,
                                           token_group=token_group,
                                           frame_inds_seq=frame_inds_seq,
@@ -528,14 +590,21 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
                                           frame_len=frame_len
                                           )
         # Count the number of speakers in the word window
-        word_and_ts_seq["speaker_count_buffer"].append(word_dict["speaker"])
-        if len(word_and_ts_seq["speaker_count_buffer"]) > cfg.word_window:
-            word_and_ts_seq["speaker_count_buffer"].pop(0)
-        word_and_ts_seq["speaker_count"] = len(set(word_and_ts_seq["speaker_count_buffer"]))
-            
-        word_and_ts_seq["words"].append(word_dict)
         time_step_local_offset += len(token_group)                                        
-    return word_and_ts_seq 
+        word_and_ts_seq["words"].append(word_dict)
+        word_and_ts_seq["buffered_words"].append(word_dict)
+        word_and_ts_seq["speaker_count_buffer"].append(word_dict["speaker"])
+        word_and_ts_seq["word_window_seq"].append(word_dict['word'])
+        if len(word_and_ts_seq["words"]) >= cfg.word_window + 1: 
+            word_and_ts_seq["buffered_words"].pop(0)
+            word_and_ts_seq["speaker_count_buffer"].pop(0)
+            word_and_ts_seq["word_window_seq"].pop(0)
+            if cfg.use_spk_turn_bsd:
+                word_and_ts_seq, word_idx_offset = get_truncated_word_window(cfg, step_num, word_and_ts_seq)
+            else:
+                word_idx_offset = 0
+        word_and_ts_seq["speaker_count"] = len(set(word_and_ts_seq["speaker_count_buffer"]))
+    return word_and_ts_seq, word_idx_offset
 
 def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, debug_mode=False):
     batch_size = len(streaming_buffer.streams_length)
@@ -583,105 +652,6 @@ def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, deb
                         right_offset=right_offset,
                         pad_and_drop_preencoded=False,
                     )
-        if debug_mode:
-            logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
-
-    final_streaming_tran = extract_transcriptions(transcribed_texts)
-    logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
-    return final_streaming_tran, final_offline_tran
-
-
-def __perform_streaming(
-    cfg, asr_model, diar_model, bsd_spk, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
-):
-    batch_size = len(streaming_buffer.streams_length)
-    final_offline_tran = None
-
-    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size
-    )
-
-    previous_hypotheses = None
-    streaming_buffer_iter = iter(streaming_buffer)
-    asr_pred_out_stream, diar_pred_out_stream  = None, None
-    mem_last_time, fifo_last_time = None, None
-    left_offset, right_offset = 0, 0
-    word_and_ts_seq = {"words": [], "token_frame_index": [], "offset_count": 0,
-                        "status": "success", 
-                        "sentences": None, 
-                        "speaker_count": None,
-                        "transcription": None,
-                        "speaker_count_buffer": [],
-                        }
-    for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        with torch.inference_mode():
-            with autocast:
-                # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
-                # otherwise the last outputs would get dropped
-                print(f"is buffer empty : {streaming_buffer.is_buffer_empty()}")
-                with torch.no_grad():
-                    (
-                        asr_pred_out_stream,
-                        transcribed_texts,
-                        cache_last_channel,
-                        cache_last_time,
-                        cache_last_channel_len,
-                        previous_hypotheses,
-                    ) = asr_model.conformer_stream_step(
-                        processed_signal=chunk_audio,
-                        processed_signal_length=chunk_lengths,
-                        cache_last_channel=cache_last_channel,
-                        cache_last_time=cache_last_time,
-                        cache_last_channel_len=cache_last_channel_len,
-                        keep_all_outputs=streaming_buffer.is_buffer_empty(),
-                        previous_hypotheses=previous_hypotheses,
-                        previous_pred_out=asr_pred_out_stream,
-                        drop_extra_pre_encoded=calc_drop_extra_pre_encoded(
-                            asr_model, step_num, pad_and_drop_preencoded
-                        ),
-                        return_transcription=True,
-                    )
-
-                    if step_num > 0:
-                        left_offset = 8
-                        chunk_audio = chunk_audio[..., 1:]
-                        chunk_lengths -= 1
-                    
-
-                    (
-                        mem_last_time,
-                        fifo_last_time,
-                        mem_preds,
-                        fifo_preds,
-                        diar_pred_out_stream
-                    ) = diar_model.forward_streaming_step(
-                        processed_signal=chunk_audio.transpose(1, 2),
-                        processed_signal_length=chunk_lengths,
-                        mem_last_time=mem_last_time,
-                        fifo_last_time=fifo_last_time,
-                        previous_pred_out=diar_pred_out_stream,
-                        left_offset=left_offset,
-                        right_offset=right_offset,
-                    )
-                    # Get the word-level dictionaries for each word in the chunk
-                    word_and_ts_seq = get_frame_and_words(cfg=cfg,
-                                                          tokenizer=asr_model.tokenizer,
-                                                          step_num=step_num, 
-                                                          diar_pred_out_stream=diar_pred_out_stream,
-                                                          previous_hypotheses=previous_hypotheses, 
-                                                          word_and_ts_seq=word_and_ts_seq) 
-                    if cfg.beam_search_enabled: 
-                        if len(word_and_ts_seq["words"]) > cfg.word_window:
-                            extra_len = len(word_and_ts_seq["words"]) - cfg.word_window
-                            words = word_and_ts_seq["words"][extra_len:]
-                            bsd_words = bsd_spk.beam_search_diarization_single(word_dict_seq_list=words, speaker_count=word_and_ts_seq["speaker_count"])
-                            word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_words
-                        else:
-                            word_and_ts_seq["words"] = bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], speaker_count=word_and_ts_seq["speaker_count"])
-                    word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
-                    transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=cfg) 
-                    write_txt(f'{cfg.print_path}', transcribed_speaker_texts.strip())
-                    logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
 
@@ -873,45 +843,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                     diar_model=diar_model,
                     bsd_spk=bsd_spk,
                     streaming_buffer=streaming_buffer,
-                    compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
-                    pad_and_drop_preencoded=args.pad_and_drop_preencoded,
                 )
-                all_streaming_tran.extend(streaming_tran)
-                if args.compare_vs_offline:
-                    all_offline_tran.extend(offline_tran)
-                streaming_buffer.reset_buffer()
-
-        if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
-            offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
-            logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
-        if len(all_refs_text) == len(all_streaming_tran):
-            streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
-            logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
-
-        end_time = time.time()
-        logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
-
-        # stores the results including the transcriptions of the streaming inference in a json file
-        if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
-            fname = (
-                "streaming_out_"
-                + os.path.splitext(os.path.basename(args.asr_model))[0]
-                + "_"
-                + os.path.splitext(os.path.basename(args.manifest_file))[0]
-                + ".json"
-            )
-
-            hyp_json = os.path.join(args.output_path, fname)
-            os.makedirs(args.output_path, exist_ok=True)
-            with open(hyp_json, "w") as out_f:
-                for i, hyp in enumerate(all_streaming_tran):
-                    record = {
-                        "pred_text": hyp,
-                        "text": all_refs_text[i],
-                        "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
-                    }
-                    out_f.write(json.dumps(record) + '\n')
-
+                
 if __name__ == '__main__':
     main()
