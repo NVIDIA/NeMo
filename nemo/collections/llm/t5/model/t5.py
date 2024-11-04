@@ -39,7 +39,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 if TYPE_CHECKING:
-
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
