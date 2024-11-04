@@ -484,7 +484,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         return ClassificationInferConfig()
 
 
-@deprecated(explanation='It will be replaced with EncDecSpeakerLabelModel class.')
+@deprecated(explanation='EncDecClassificationModel will be merged with EncDecSpeakerLabelModel class.')
 class EncDecClassificationModel(_EncDecBaseModel):
     """Encoder decoder Classification models."""
 
