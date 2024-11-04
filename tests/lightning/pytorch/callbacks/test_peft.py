@@ -43,8 +43,9 @@ class TestPEFT:
 
         transformed_model = peft(model)
 
-        assert hasattr(peft, "is_called") and peft.is_called == True, \
-            "peft methods may subclass `freeze_model()`, so it must be called"
+        assert (
+            hasattr(peft, "is_called") and peft.is_called == True
+        ), "peft methods may subclass `freeze_model()`, so it must be called"
         assert transformed_model.linear.weight.requires_grad == False
         assert transformed_model.conv.weight.requires_grad == False
 
