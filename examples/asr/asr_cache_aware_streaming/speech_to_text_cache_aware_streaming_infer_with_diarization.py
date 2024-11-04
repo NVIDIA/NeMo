@@ -155,7 +155,7 @@ def measure_eta(func):
         result = func(*args, **kwargs)  # Execute the function
         end_time = time.time()  # Record the end time
         eta = end_time - start_time  # Calculate the elapsed time
-        logging.info(f"ETA for '{func.__name__}': {eta:.4f} seconds")  # Print the ETA
+        logging.info(f"[    ETA    ]    for '{func.__name__}': {eta:.4f} seconds")  # Print the ETA
         return result  # Return the original function's result
     return wrapper
 
@@ -189,18 +189,18 @@ class MultiSpeakerASRstreamer:
     @measure_eta
     def _manage_beam_search_update(self, word_and_ts_seq, word_idx_offset:int=0):
         if len(word_and_ts_seq["words"]) > self.cfg.word_window:
+            org_len = len(word_and_ts_seq["words"])
             extra_len = len(word_and_ts_seq["words"]) - self.cfg.word_window
-            words = word_and_ts_seq["words"][extra_len:]
-            bsd_words = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=words, speaker_count=word_and_ts_seq["speaker_count"])
-            word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_words
-            word_and_ts_seq["words"] = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"],
-                                                                                   speaker_count=word_and_ts_seq["speaker_count"])
-            
+            truncated_words = word_and_ts_seq["words"][extra_len:]
+            bsd_truncated_words = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=truncated_words, speaker_count=word_and_ts_seq["speaker_count"])
+            word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_truncated_words
+            assert len(word_and_ts_seq["words"]) == org_len, "Invalid word_and_ts_seq length after truncation"
         else:
             word_and_ts_seq["words"] = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], 
                                                                                    speaker_count=word_and_ts_seq["speaker_count"])
         return word_and_ts_seq 
-    
+   
+    @measure_eta 
     def perform_streaming_stt_spk(
         self,
         step_num,
