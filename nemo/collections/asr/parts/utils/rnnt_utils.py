@@ -700,6 +700,8 @@ class BeamBatchedHyps:
         
         self.max_timesteps = max_timesteps
         self.best_hyps = [[] for _ in range(batch_size)]
+        self._transcript_indices = torch.arange(0, self._max_length, dtype=torch.long, device=self.device)
+        self._transcript_indices = self._transcript_indices.unsqueeze(0).unsqueeze(0).repeat(self.batch_size, self.beam_size, 1)
 
     def clear_(self):
         self.current_lengths.fill_(0)
@@ -724,14 +726,17 @@ class BeamBatchedHyps:
         self._total_scores = torch.cat((self._total_scores, torch.zeros_like(self._total_scores)), dim=-1)
         self._token_scores = torch.cat((self._token_scores, torch.zeros_like(self._token_scores)), dim=-1)
         
+        self._transcript_indices = torch.arange(0, self._max_length, dtype=torch.long, device=self._transcript_indices).unsqueeze(0).unsqueeze(0).repeat(self.batch_size, self.beam_size, 1)
+        
         self._max_length *= 2
 
     def append_labels(self,
                      labels: torch.Tensor,
                      label_logps: torch.Tensor,
                      blank_logps: torch.Tensor,
+                     blank_logps_per_blank: torch.Tensor,
                      num_blanks: torch.Tensor):
-        blank_start_indices = self._full_current_lengths.clone()
+        blank_start_indices = self._full_current_lengths.clone().unsqueeze(-1)
         self.current_lengths = self.current_lengths + 1
         self._full_current_lengths = self._full_current_lengths + num_blanks + 1
         if (self._full_current_lengths).max() > self._max_length - 1:
@@ -757,8 +762,13 @@ class BeamBatchedHyps:
         
         self._full_transcripts[self._batch_indices, self._beam_indices, self._full_current_lengths - 1] = labels
         self._full_timesteps[self._batch_indices, self._beam_indices, self._full_current_lengths - 1] = self.timesteps_end[self._batch_indices, self._beam_indices, self.current_lengths -1]
-        self._token_scores[self._batch_indices, self._beam_indices, self._full_current_lengths - 1] = label_logps
         self._total_scores[self._batch_indices, self._beam_indices, self.current_lengths - 1]
+        
+        blank_logps_per_blank_mask = (self._transcript_indices < num_blanks.unsqueeze(-1))[self._batch_indices, self._beam_indices, :num_blanks.max()]
+        
+        token_scores_max_blank_mask = (self._transcript_indices >= blank_start_indices) & (self._transcript_indices < blank_start_indices + num_blanks.unsqueeze(-1))
+        self._token_scores[token_scores_max_blank_mask] = blank_logps_per_blank.repeat((1, self.beam_size, 1))[blank_logps_per_blank_mask]
+        self._token_scores[self._batch_indices, self._beam_indices, self._full_current_lengths - 1] = label_logps
         
         self.last_timestep += num_blanks
         self.last_timestep_repetitions = torch.where(num_blanks == 0, self.last_timestep_repetitions + 1, 1)
@@ -768,6 +778,7 @@ class BeamBatchedHyps:
                      labels: torch.Tensor,
                      label_logps: torch.Tensor,
                      blank_logps: torch.Tensor,
+                     blank_logps_per_blank: torch.Tensor,
                      num_blanks: torch.Tensor,
                      beam_idx: torch.Tensor):
         beam_idx_unsqueezed = beam_idx.unsqueeze(-1).expand(-1, -1, self._max_length)
@@ -792,7 +803,7 @@ class BeamBatchedHyps:
         self._full_current_lengths = self._full_current_lengths.gather(dim=1, index=beam_idx)
         self._full_transcripts = self._full_transcripts.gather(dim=1, index=beam_idx_unsqueezed)
         
-        self.append_labels(labels, label_logps, blank_logps, num_blanks)
+        self.append_labels(labels, label_logps, blank_logps, blank_logps_per_blank, num_blanks)
         
     def add_completed(self,
                      labels: torch.Tensor,
@@ -800,9 +811,10 @@ class BeamBatchedHyps:
                      blank_logps: torch.Tensor,
                      num_blanks: torch.Tensor,
                      beam_idx: torch.Tensor,
-                     became_active_logps: torch.Tensor):
+                     became_inactive_logps: torch.Tensor,
+                     became_inactive_logps_per_blank: torch.Tensor):
         for batch_idx in self._batch_indices:
-            active_mask = became_active_logps[batch_idx, beam_idx[batch_idx]] != float("-inf")
+            active_mask = became_inactive_logps[batch_idx, beam_idx[batch_idx]] != float("-inf")
             for idx in self._beam_indices.flatten():
                 if active_mask.flatten()[idx]:
                     label = labels[batch_idx, idx]
@@ -829,9 +841,9 @@ class BeamBatchedHyps:
         for batch_idx in self._batch_indices:
             sorted_hyps = sorted(self.best_hyps[batch_idx], key=lambda x: x.score, reverse=True)
             result.append(sorted_hyps[0])
-            print(sorted_hyps[0].y_sequence)
-            print(sorted_hyps[0].timestep)
-            print(sorted_hyps[0].score)
+            # print(sorted_hyps[0].y_sequence)
+            # print(sorted_hyps[0].timestep)
+            # print(sorted_hyps[0].score)
         return result
         
     def _calculate_score(self,
