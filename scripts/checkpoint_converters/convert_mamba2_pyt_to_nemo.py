@@ -22,16 +22,40 @@ from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import M
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
+from megatron.core.dist_checkpointing.serialization import load_plain_tensors
+import torch.distributed as dist
+from megatron.core.models.mamba import MambaModel
+from megatron.training.arguments import core_transformer_config_from_args
+from megatron.core.transformer.spec_utils import import_module
+from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 
 '''
 Example
 
-CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
                                 --input_name_or_path <path to the source pytorch model> \
-                                --output_path <path to target .nemo model> \
+                                --output_path <path to target nemo model> \
                                 --mamba_ssm_ngroups 8 \
                                 --precision bf16 \
-                                --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None>
+                                --source_dist_ckpt False \
+                                --tokenizer_type None \
+                                --tokenizer_library None \
+                                --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None> \
+                                --tokenizer_vocab_file <path to tokenizer vocab, defaults to None> \
+                                --cpu_only False \
+                                --check_fwd_pass True
+
+CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+                                --input_name_or_path /home/ataghibakhsh/checkpoints/nemotron5/iter_0015894 \
+                                --output_path /home/ataghibakhsh/checkpoints/nemotron5/nemo_ckpt_nemotron5.nemo\
+                                --mamba_ssm_ngroups 8 \
+                                --precision bf16 \
+                                --source_dist_ckpt \
+                                --tokenizer_type tiktoken \
+                                --tokenizer_library tiktoken \
+                                --tokenizer_model_dir None \
+                                --tokenizer_vocab_file /home/ataghibakhsh/checkpoints/nemotron5/multiMixV8.gpt4o_nc_sd.500000.128k.vocab.json \
+                                --check_fwd_pass
 '''
 
 
@@ -55,17 +79,242 @@ def get_args():
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
     parser.add_argument(
+        "--source_dist_ckpt", action="store_true", help="Set if the source checkpoint is a distributed checkpoint"
+    )
+    parser.add_argument(
+        "--tokenizer_type", type=str, default=None, help="tokenizer type (tiktoken, megatron, etc...)"
+    )
+    parser.add_argument(
+        "--tokenizer_library", type=str, default=None, help="tokenizer library (tiktoken, megatron, huggingface, etc...)"
+    )
+    parser.add_argument(
         "--tokenizer_model_dir", type=str, default=None, help="Path to the tokenizer.model, required for 8b models"
+    )
+    parser.add_argument(
+        "--tokenizer_vocab_file", type=str, default=None, help="Path to the tokenize vocab, required for tiktokenizer"
+    )
+    parser.add_argument(
+        "--cpu_only", action="store_true", help="If set, only CPU is used for conversion, to check fwd pass accuracy, don't set this flag"
+    )
+    parser.add_argument(
+        "--check_fwd_pass", action="store_true", help="Set if you want to check fwd pass accuracy"
     )
     args = parser.parse_args()
     return args
 
+import os
+from datetime import timedelta
+
+import torch
+from torch._C._distributed_c10d import PrefixStore
+from torch.distributed import rendezvous
+
+import megatron.core.parallel_state as ps
+
+
+class TestModel(torch.nn.Module):
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        num_layers: int,
+        bias: bool,
+        shared_embedding: bool = False,
+    ):
+        super().__init__()
+        self.layers = torch.nn.ModuleList(
+            [torch.nn.Linear(input_dim, output_dim, bias) for _ in range(num_layers)]
+        )
+        if shared_embedding:
+            self.layers[-1].weight.shared_embedding = True
+
+
+class Utils:
+
+    world_size = torch.cuda.device_count()
+    rank = int(os.environ['LOCAL_RANK'])
+    inited = False
+    store = None
+
+    @staticmethod
+    def initialize_distributed():
+        if not torch.distributed.is_initialized() and Utils.rank >= 0:
+            print(
+                f'Initializing torch.distributed with rank: {Utils.rank}, '
+                f'world_size: {Utils.world_size}'
+            )
+            torch.cuda.set_device(Utils.rank % torch.cuda.device_count())
+            init_method = 'tcp://'
+            master_ip = os.getenv('MASTER_ADDR', 'localhost')
+            master_port = os.getenv('MASTER_PORT', '6000')
+            init_method += master_ip + ':' + master_port
+            rendezvous_iterator = rendezvous(
+                init_method, Utils.rank, Utils.world_size, timeout=timedelta(minutes=1)
+            )
+            store, rank, world_size = next(rendezvous_iterator)
+            store.set_timeout(timedelta(minutes=1))
+
+            # Use a PrefixStore to avoid accidental overrides of keys used by
+            # different systems (e.g. RPC) in case the store is multi-tenant.
+            store = PrefixStore("default_pg", store)
+            Utils.store = store
+
+            torch.distributed.init_process_group(
+                backend='nccl', world_size=Utils.world_size, rank=Utils.rank, store=store
+            )
+
+            torch.distributed.barrier()
+        Utils.inited = True
+
+    @staticmethod
+    def set_world_size(world_size=None, rank=None):
+        Utils.world_size = torch.cuda.device_count() if world_size is None else world_size
+        if (
+            torch.distributed.is_initialized()
+            and Utils.world_size != torch.distributed.get_world_size()
+        ):
+            torch.distributed.destroy_process_group()
+
+        if rank is None:
+            Utils.rank = int(os.environ['LOCAL_RANK'])
+            if Utils.rank >= Utils.world_size:
+                Utils.rank = -1
+        else:
+            Utils.rank = rank
+
+    @staticmethod
+    def destroy_model_parallel():
+        if not Utils.inited:
+            return
+        torch.distributed.barrier()
+        ps.destroy_model_parallel()
+        Utils.inited = False
+
+    @staticmethod
+    def initialize_model_parallel(
+        tensor_model_parallel_size=1,
+        pipeline_model_parallel_size=1,
+        virtual_pipeline_model_parallel_size=None,
+        **kwargs,
+    ):
+        ps.destroy_model_parallel()
+        Utils.initialize_distributed()
+        ps.initialize_model_parallel(
+            tensor_model_parallel_size,
+            pipeline_model_parallel_size,
+            virtual_pipeline_model_parallel_size,
+            **kwargs,
+        )
+        Utils.inited = True
+
+def dist_ckpt_handler(checkpoint_dir, cpu_only):
+
+    if cpu_only:
+        os.environ['MASTER_ADDR'] = 'localhost'
+        os.environ['MASTER_PORT'] = '12355' # Ensure this port is available
+        world_size = 1
+        rank = 0
+        dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)  # ckpt conversion done on CPU
+    else:
+        Utils.initialize_model_parallel(1, 1)
+        model_parallel_cuda_manual_seed(123)
+
+    state_dict = load_plain_tensors(checkpoint_dir)
+
+    key_list = list(state_dict.keys())
+    for k in key_list:
+        if "optimizer" in k:
+            state_dict.pop(k)
+    dist_ckpt_args = state_dict['args']
+    state_dict.pop('args')
+    state_dict.pop('checkpoint_version')
+    state_dict.pop('iteration')
+    state_dict.pop('opt_param_scheduler')
+    state_dict.pop('num_floating_point_operations_so_far')
+
+    for i, symbol in enumerate(dist_ckpt_args.hybrid_override_pattern):
+        if symbol == 'M':
+            state_dict[f'decoder.layers.{i}.mixer.in_proj.weight'] = torch.cat([
+                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.z'],
+                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.x'],
+                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.B'],
+                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.C'],
+                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.dt']
+            ], dim=0)
+
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.z')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.x')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.B')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.C')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.dt')
+
+            state_dict[f'decoder.layers.{i}.mixer.conv1d.weight'] = torch.cat([
+                state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.x'],
+                state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.B'],
+                state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.C']
+            ], dim=0)
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.x')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.B')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.C')
+
+            state_dict[f'decoder.layers.{i}.mixer.conv1d.bias'] = torch.cat([
+                state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.x'],
+                state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.B'],
+                state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.C']
+            ], dim=0)
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.x')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.B')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.C')
+    if cpu_only:
+        dist.destroy_process_group()
+        model = None
+    else:
+        dist_ckpt_args.multi_latent_attention = False
+        config = core_transformer_config_from_args(dist_ckpt_args)
+        config.use_cpu_initialization=False # TE needs CUDA so there is no need to load the model on CPU
+        assert dist_ckpt_args.use_legacy_models == False, "Mamba only supported in Mcore!"
+
+        if dist_ckpt_args.spec is not None:
+            mamba_stack_spec = import_module(dist_ckpt_args.spec)
+        else:
+            raise("You must provide a valid Mamba layer spec!")
+
+        model = MambaModel(
+            config=config,
+            mamba_stack_spec=mamba_stack_spec,
+            vocab_size=dist_ckpt_args.padded_vocab_size,
+            max_sequence_length=dist_ckpt_args.max_position_embeddings,
+            pre_process=True,
+            hybrid_attention_ratio=dist_ckpt_args.hybrid_attention_ratio,
+            hybrid_mlp_ratio=dist_ckpt_args.hybrid_mlp_ratio,
+            hybrid_override_pattern=dist_ckpt_args.hybrid_override_pattern,
+            post_process=True,
+            fp16_lm_cross_entropy=dist_ckpt_args.fp16_lm_cross_entropy,
+            parallel_output=True,
+            share_embeddings_and_output_weights=not dist_ckpt_args.untie_embeddings_and_output_weights,
+            position_embedding_type=dist_ckpt_args.position_embedding_type,
+            rotary_percent=dist_ckpt_args.rotary_percent,
+            rotary_base=dist_ckpt_args.rotary_base,
+        )
+        ps.destroy_model_parallel()
+        dist.destroy_process_group()
+        for k, v in model.state_dict().items():
+            if "_extra" in k:
+                state_dict[k] = v
+        model.load_state_dict(state_dict, strict=True)
+    
+    return state_dict, dist_ckpt_args, model
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
+    if args.source_dist_ckpt:
+        checkpoint_weights, dist_ckpt_args, mcore_model = dist_ckpt_handler(args.input_name_or_path, cpu_only=args.cpu_only)
+    else:   
+        checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
+        if 'model' in checkpoint_weights:
+            checkpoint_weights = checkpoint_weights['model']
     new_state_dict = {}
-
+    
     if 'backbone' in list(checkpoint_weights.keys())[0]:
         if 'model' in list(checkpoint_weights.keys())[0]:
             checkpoint_weights = {key.replace('model.', '', 1): value for key, value in checkpoint_weights.items()}
@@ -129,9 +378,10 @@ def convert(args):
             new_state_dict["model." + key] = value
 
         # NVIDIA Mamba Model Tokenizer Settings
-        tokenizer_library = 'megatron'
-        tokenizer_type = 'GPTSentencePieceTokenizer'
+        tokenizer_library = args.tokenizer_library  
+        tokenizer_type = args.tokenizer_type  
         tokenizer_model = args.tokenizer_model_dir
+        tokenizer_vocab = args.tokenizer_vocab_file
 
     layers = defaultdict(list)
 
@@ -165,7 +415,9 @@ def convert(args):
     nemo_config.model.tokenizer.library = tokenizer_library
     nemo_config.model.tokenizer.type = tokenizer_type
     nemo_config.model.tokenizer.model = tokenizer_model
-
+    nemo_config.model.tokenizer.vocab_file = tokenizer_vocab
+    if args.source_dist_ckpt:
+        nemo_config.model.kv_channels = dist_ckpt_args.kv_channels
     if "-" in layer_pattern:
         nemo_config.model.ffn_hidden_size = new_state_dict[
             f'model.decoder.layers.{layer_pattern.index("-")}.mlp.linear_fc1.weight'
@@ -173,22 +425,37 @@ def convert(args):
     else:
         nemo_config.model.ffn_hidden_size = nemo_config.model.hidden_size
 
-    nemo_config.model.use_cpu_initialization = True
+    nemo_config.model.use_cpu_initialization = False
 
     logging.info(f"Loading Mamba2 Pytorch checkpoint : `{args.input_name_or_path}`")
 
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
-    nemo_model_from_pyt = MegatronMambaModel(nemo_config.model, trainer)
+    nemo_model = MegatronMambaModel(nemo_config.model, trainer)
 
-    for k, v in nemo_model_from_pyt.state_dict().items():
+    for k, v in nemo_model.state_dict().items():
         if "_extra" in k:
             new_state_dict[k] = v
 
-    # Setting strict=False for the _extra_state
-    nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
+    nemo_model.load_state_dict(new_state_dict, strict=True)
     dtype = torch_dtype_from_precision(args.precision)
-    nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
-    nemo_model_from_pyt.save_to(args.output_path)
+    nemo_model = nemo_model.to(dtype=dtype)
+    if args.check_fwd_pass:
+        assert mcore_model is not None
+        assert args.cpu_only is False
+        sequence_length = 128
+        micro_batch_size = 2
+        data = list(range(sequence_length))
+        input_ids = torch.tensor(data, dtype=torch.int64).repeat((micro_batch_size, 1)).cuda()
+        position_ids = torch.tensor(data, dtype=torch.int64).repeat((micro_batch_size, 1)).cuda()
+        attention_mask = None
+        nemo_out = nemo_model.forward(input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask)
+        mcore_out = mcore_model.forward(input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask)
+        if torch.allclose(nemo_out, mcore_out, rtol=1e-5, atol=1e-8):
+            logging.info("The outputs of nemo and mcore models are close!")
+        else:
+            logging.info("The outputs of nemo and mcore models differ significantly!")
+
+    nemo_model.save_to(args.output_path)
     logging.info(f'Mamba2 NeMo model saved to: {args.output_path}')
 
 
