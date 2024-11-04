@@ -12,41 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional
+from typing import Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
 
-from nemo.collections.llm.api import pretrain
+from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.collections.llm.recipes.starcoder2 import starcoder2_model, starcoder2_trainer
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "nemotron4_22b"
+NAME = "starcoder2_7b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Nemotron4 22b model configuration.
+    Factory function to create a Starcoder2 7b model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Nemotron4 22b model.
+        run.Config[pl.LightningModule]: Configuration for the Starcoder2 7b model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=nemotron4_22b ...
+            $ nemo llm pretrain model=starcoder2_7b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
 
-    return nemotron_model(version=NAME)
+    return starcoder2_model(version=NAME)
 
 
 @run.cli.factory(target=pretrain, name=NAME)
@@ -56,9 +57,9 @@ def pretrain_recipe(
     name: str = "default",
     # Trainer
     tensor_parallelism: int = 2,
-    pipeline_parallelism: int = 4,
-    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
-    virtual_pipeline_parallelism: Optional[int] = 10,
+    pipeline_parallelism: int = 1,
+    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
     num_nodes: int = 1,
@@ -70,22 +71,21 @@ def pretrain_recipe(
     limit_test_batches: int = 32,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
-    val_check_interval: int = 2000,
+    val_check_interval: int = 1000,
     # Data
     global_batch_size=32,
-    micro_batch_size=1,
+    micro_batch_size=2,
     seq_length=4096,
     # Optimizer
     warmup_steps=500,
     constant_steps=0,
-    min_lr=1e-5,
-    max_lr=1e-4,
-    performance_mode: bool = False,
+    min_lr=3e-5,
+    max_lr=3e-4,
     # Training function
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Nemotron4 22b model.
+    Create a pre-training recipe for Starcoder2 7B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -116,7 +116,6 @@ def pretrain_recipe(
         constant_steps (int): Number of constant steps.
         min_lr (float): Minimum learning rate.
         max_lr (float): Maximum learning rate.
-        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -124,20 +123,20 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory nemotron4_22b
-            $ nemo llm pretrain --factory "nemotron4_22b(num_nodes=1, name='my_nemotron_pretrain')"
+            $ nemo llm pretrain --factory starcoder2_7b
+            $ nemo llm pretrain --factory "starcoder2_7b(num_nodes=1, name='my_starcoder2_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="nemotron_pretrain", num_nodes=1)
+            >>> recipe = pretrain_recipe(name="starcoder2_pretrain", num_nodes=1)
             >>> print(recipe)
 
     Note:
         This recipe uses a mock dataset, look for the finetune examples to see how to change the dataset.
     """
-    recipe = run.Partial(
+    return run.Partial(
         fn,
         model=model(),
-        trainer=nemotron_trainer(
+        trainer=starcoder2_trainer(
             tensor_parallelism=tensor_parallelism,
             pipeline_parallelism=pipeline_parallelism,
             pipeline_parallelism_type=pipeline_parallelism_type,
@@ -173,44 +172,56 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
-    if performance_mode:
-        recipe = pretrain_performance_optimizations(recipe)
 
-    return recipe
-
-
-def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    peft_scheme: Optional[str] = 'lora',
+    packed_sequence: bool = False,
+) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Nemotron4 22B model.
+    Create a fine-tuning recipe for Starcoder2 7B model.
 
-    This method enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, data, logging, optimization, and resumption settings.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
     Args:
-        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the fine-tuning run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        packed_sequence (Optional[bool]): Packing multiple training sequences into one long sequence for training efficiency. Default sequence length is 2048.
 
     Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
+        run.Partial: Partial configuration for fine-tuning.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune --factory starcoder2_7b
+
+        Python API usage:
+            >>> recipe = finetune_recipe(name="starcoder2_7b_finetune", num_nodes=2)
+            >>> print(recipe)
 
     Note:
-        Use this method with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
+        This recipe uses the SQuAD dataset for fine-tuning. For more information
+        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
+        `examples/llm/finetune/` directory.
     """
-
-    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
-    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
-    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
-    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
-    # each PP stage launches independently as needed.
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=22,
-            overlap_param_gather_with_optimizer_step=True,
-            align_param_gather=True,
-        )
+    recipe = default_finetune_recipe(
+        model(), "bigcode/starcoder2-7b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.optim.config.lr = 5e-6
+    elif peft_scheme.lower() == 'lora':
+        recipe.peft = run.Config(LoRA)
+        recipe.optim.config.lr = 1e-4
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
