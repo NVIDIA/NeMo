@@ -46,7 +46,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
-from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
@@ -247,7 +247,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
-            path = ckpt_to_weights_subdir(self.language_model_from_pretrained, is_saving=False)
+            path = ckpt_to_weights_subdir(self.language_model_from_pretrained)
             print(f"**** Yash debug initial path {self.language_model_from_pretrained} new path {path} ***")
             # loaded_state_dict = dist_checkpointing.load(
             #     sharded_state_dict=sharded_state_dict, checkpoint_dir=self.language_model_from_pretrained

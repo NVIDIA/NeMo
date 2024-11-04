@@ -31,29 +31,10 @@ from nemo.utils.exp_manager import TimingCallback
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 128
+    gbs = 64
     mbs = 4
     seq_length = 4096
 
-    # Data configuration
-    # data_config = ImageDataConfig(
-    #     image_folder=args.image_folder,
-    #     conv_template="v1",
-    # )
-
-    # Data module setup
-    # data = vlm.NevaLazyDataModule(
-    #     paths=args.data_path,
-    #     data_config=data_config,
-    #     seq_length=seq_length,
-    #     global_batch_size=gbs,
-    #     micro_batch_size=mbs,
-    #     tokenizer=None,
-    #     image_processor=None,
-    #     num_workers=8,
-    # )
-
-    # energon data config
     processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
     data_path = args.data_path
     image_processor = processor.image_processor
@@ -101,12 +82,6 @@ def main(args):
 
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
-    # Training strategy setup
-    # strategy = nl.MegatronStrategy(
-    #     tensor_model_parallel_size=args.tp_size,
-    #     pipeline_model_parallel_size=1,
-    #     pipeline_dtype=torch.bfloat16,
-    # )
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
@@ -118,7 +93,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=10,
+        every_n_train_steps=500,
         dirpath=args.log_dir,
     )
 
@@ -130,8 +105,8 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=1000,  # 1000,
-        limit_val_batches=6,  # gbs,
+        val_check_interval=500,  # 1000,
+        limit_val_batches=gbs,  # gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
@@ -157,13 +132,13 @@ def main(args):
         resume_ignore_no_checkpoint=True,
         # resume_from_directory=args.restore_path,
         resume_from_directory=args.log_dir,
-        # restore_config=(
-        #     RestoreConfig(
-        #         path=args.restore_path,
-        #     )
-        #     if args.restore_path is not None
-        #     else None
-        # ),
+        restore_config=(
+            RestoreConfig(
+                path=args.restore_path,
+            )
+            if args.restore_path is not None
+            else None
+        ),
     )
     resume.setup(trainer, model)
 
@@ -186,6 +161,7 @@ def main(args):
     opt.connect(model)
 
     # Start training
+
     trainer.fit(model, data)
 
 
