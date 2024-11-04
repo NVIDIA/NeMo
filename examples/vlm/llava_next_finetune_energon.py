@@ -132,13 +132,13 @@ def main(args):
         resume_ignore_no_checkpoint=True,
         # resume_from_directory=args.restore_path,
         resume_from_directory=args.log_dir,
-        # restore_config=(
-        #     RestoreConfig(
-        #         path=args.restore_path,
-        #     )
-        #     if args.restore_path is not None
-        #     else None
-        # ),
+        restore_config=(
+            RestoreConfig(
+                path=args.restore_path,
+            )
+            if args.restore_path is not None
+            else None
+        ),
     )
     resume.setup(trainer, model)
 
