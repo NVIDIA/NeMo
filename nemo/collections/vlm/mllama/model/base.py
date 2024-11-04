@@ -118,6 +118,11 @@ def set_input_tensor(self, tensor):
 
 @dataclass
 class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
+    # core params
+
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
+
     # vision model params
     num_layers: int = 32
     hidden_size: int = 1280
@@ -127,6 +132,9 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
     num_global_layers: int = 8
     max_num_tiles: int = 4
     text_hidden_size: int = 4096
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    ffn_dropout: float = 0.0
     gated: bool = False
     supported_aspect_ratios: Tuple[Tuple[int, int], ...] = (
         (1, 1),
