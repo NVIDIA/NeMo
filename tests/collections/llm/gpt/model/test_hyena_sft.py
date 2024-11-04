@@ -41,35 +41,26 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections
                                 --max-steps=40 \
                                 --experiment-dir=/home/ataghibakhsh/temp_ckpt \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=2 \
-                                --pipeline-model-parallel-size=1 \
+                                --tensor-parallel-size=1 \
+                                --pipeline-model-parallel-size=2 \
+                                --context-parallel-size=1 \
                                 --global-batch-size=1 \
                                 --micro-batch-size=1 \
                                 --model-size=test \
                                 --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
 
-CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
+python /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
                                 --devices=1 \
                                 --max-steps=40 \
                                 --experiment-dir=/home/ataghibakhsh/temp_ckpt \
                                 --seq-length=8192 \
                                 --tensor-parallel-size=1 \
                                 --pipeline-model-parallel-size=1 \
+                                --context-parallel-size=1 \
                                 --global-batch-size=1 \
                                 --micro-batch-size=1 \
                                 --model-size=test \
                                 --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
-
-CUDA_VISIBLE_DEVICES=0,1 python /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
-                                --devices=2 \
-                                --max-steps=40 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
-                                --seq-length=8192 \
-                                --tensor-parallel-size=2 \
-                                --pipeline-model-parallel-size=1 \
-                                --global-batch-size=1 \
-                                --micro-batch-size=1 \
-                                --model-size=test \
                                 --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
 
 CUDA_VISIBLE_DEVICES=0 python /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
@@ -88,9 +79,10 @@ CUDA_VISIBLE_DEVICES=0 python /opt/NeMo/tests/collections/llm/gpt/model/test_hye
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
-    parser.add_argument('--seq-length', type=int, default=4096, help="Training sequence length")
+    parser.add_argument('--seq-length', type=int, default=8192, help="Training sequence length")
     parser.add_argument('--tensor-parallel-size', type=int, default=1, help="Tensor Parallel Size")
     parser.add_argument('--pipeline-model-parallel-size', type=int, default=1, help="Pipeline Parallel Size")
+    parser.add_argument('--context-parallel-size', type=int, default=1, help="Context Parallel Size")
     parser.add_argument('--micro-batch-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
@@ -127,7 +119,8 @@ if __name__ == "__main__":
             ckpt_async_save=False,
             tensor_model_parallel_size=args.tensor_parallel_size,
             pipeline_model_parallel_size=args.pipeline_model_parallel_size,
-            pipeline_dtype=torch.bfloat16,
+            context_parallel_size=args.context_parallel_size,
+            pipeline_dtype = torch.bfloat16,
         ),
         plugins=nl.MegatronMixedPrecision(
             precision="32",
