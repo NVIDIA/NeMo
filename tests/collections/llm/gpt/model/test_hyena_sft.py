@@ -19,15 +19,16 @@ import argparse
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from nemo.lightning.resume import AutoResume
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import _setup
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
-from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.lightning.resume import AutoResume
 
 """
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
@@ -58,6 +59,7 @@ python /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
 
 """
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
@@ -68,7 +70,9 @@ def get_args():
     parser.add_argument('--micro-batch-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
-    parser.add_argument('--model-size', type=str, default="7b", help="Model size, choose between 7b or test (4 layers, less than 1b)")
+    parser.add_argument(
+        '--model-size', type=str, default="7b", help="Model size, choose between 7b or test (4 layers, less than 1b)"
+    )
     parser.add_argument(
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
     )
@@ -81,7 +85,6 @@ def get_args():
 if __name__ == "__main__":
 
     args = get_args()
-
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
@@ -100,7 +103,7 @@ if __name__ == "__main__":
             tensor_model_parallel_size=args.tensor_parallel_size,
             pipeline_model_parallel_size=args.pipeline_model_parallel_size,
             context_parallel_size=args.context_parallel_size,
-            pipeline_dtype = torch.bfloat16,
+            pipeline_dtype=torch.bfloat16,
         ),
         plugins=nl.MegatronMixedPrecision(
             precision="bf16-mixed",
