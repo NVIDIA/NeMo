@@ -14,9 +14,11 @@
 
 from dataclasses import dataclass, field
 from typing import Dict, List
+
 import torch
 from megatron.energon import VQASample, batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
+
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
@@ -35,7 +37,8 @@ class LlavaNextTextRawBatch(ImageTextRawBatch):
 class LlavaNextSampleEncoder(VQASampleEncoder):
     def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
         """
-        Initialize the VQASampleEncoder.
+        Initialize the LlavaNextSampleEncoder, inherited from VQASampleEncoder for multimodal samples
+        focused on VQA-style data to support LLaVANeXT
 
         Parameters:
         tokenizer (Tokenizer): The HF tokenizer used for processing text.
@@ -46,10 +49,37 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
 
     def process_image(self, image):
+        """
+        Process and prepare an image sample for encoding.
+
+        This method preprocesses the image using the HF image_processor, converting it to
+        a tensor.
+
+        Parameters:
+        image: The input image to be processed.
+
+        Returns:
+        torch.Tensor: The processed image tensor.
+        """
         image_array = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
         return image_array
 
     def encode(self, input_sample: VQASample, output_sample: LlavaNextTextSample):
+        """
+        Encode a single sample into a format suitable for model input.
+
+        This method prepares the conversation prompt, tokenizes it, and processes
+        the associated image. It fills the output sample with tokens, labels, loss mask,
+        and other required fields for multimodal processing.
+
+        Parameters:
+        input_sample (VQASample): The input VQA sample containing an image and conversation text.
+        output_sample (LlavaNextTextSample): The output sample structure where encoded results are stored.
+
+        Returns:
+        LlavaNextTextSample: The encoded output sample, containing processed tokens, labels,
+            images, loss masks, and metadata.
+        """
         conversation_prompt = self.apply_prompt_template(input_sample)
         logging.debug(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
@@ -73,12 +103,36 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
 
 class LlavaNextTaskEncoder(MultiModalTaskEncoder):
     def __init__(self, tokenizer, image_processor, multimodal_sample_config):
+        """
+        Initialize the LlavaNextTaskEncoder.
+
+        This encoder extends MultiModalTaskEncoder to specifically handle LlavaNeXT,
+        overriding  encoders for VQA sample type.
+
+        Parameters:
+        tokenizer (Tokenizer): The tokenizer for processing text data across sample types.
+        image_processor (ImageProcessor): The image processor for preprocessing images.
+        multimodal_sample_config (MultiModalSampleConfig): Configuration settings for multimodal samples.
+        """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: LlavaNextSampleEncoder(tokenizer, image_processor, multimodal_sample_config)
         }
 
     def batch(self, samples: List[LlavaNextTextSample]) -> LlavaNextTextRawBatch:
+        """
+        Batch multiple encoded samples into a single batch structure for model input.
+
+        This method combines individual sample fields (keys, images, tokens, labels, etc.) and
+        pads or stacks them as needed to create a unified batch.
+
+        Parameters:
+        samples (List[LlavaNextTextSample]): A list of LlavaNextTextSample instances to be batched.
+
+        Returns:
+        LlavaNextTextRawBatch: A batch containing all input samples' images, tokens, labels,
+            loss masks, and other metadata prepared for model processing.
+        """
         keys, images, tokens, labels, loss_mask, num_media_tiles = [], [], [], [], [], []
         for sample in samples:
             keys.append(sample.__key__)

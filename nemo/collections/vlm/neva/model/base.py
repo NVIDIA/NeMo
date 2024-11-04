@@ -248,16 +248,11 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
             path = ckpt_to_weights_subdir(self.language_model_from_pretrained)
-            print(f"**** Yash debug initial path {self.language_model_from_pretrained} new path {path} ***")
-            # loaded_state_dict = dist_checkpointing.load(
-            #     sharded_state_dict=sharded_state_dict, checkpoint_dir=self.language_model_from_pretrained
-            # )
             loaded_state_dict = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=path)
 
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
             language_model.load_state_dict(loaded_state_dict)
             logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
-            # breakpoint()
 
         model = MCoreNevaModel(
             transformer_config=self,
