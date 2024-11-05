@@ -16,7 +16,7 @@ from typing import Optional
 
 import nemo_run as run
 
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, OptimizerModule, PytorchOptimizerModule
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, PytorchOptimizerModule
 
 
 @run.cli.factory
@@ -26,7 +26,7 @@ def pytorch_sgd_with_cosine_annealing(
     max_lr: float = 1e-5,
     min_lr: Optional[float] = None,
     wd: float = 1e-4,
-) -> run.Config[OptimizerModule]:
+) -> run.Config[PytorchOptimizerModule]:
     from torch.optim import SGD
 
     return run.Config(
@@ -49,7 +49,7 @@ def pytorch_sgd_with_cosine_annealing(
 def pytorch_sgd_with_flat_lr(
     lr: float = 1e-5,
     wd: float = 1e-4,
-) -> run.Config[OptimizerModule]:
+) -> run.Config[PytorchOptimizerModule]:
     from torch.optim import SGD
 
     return run.Config(
