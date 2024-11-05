@@ -22,16 +22,18 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
+from nemo.collections.llm import PreTrainingDataModule
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
-from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe, nemo_resume
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
@@ -68,6 +70,12 @@ def trainer(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
+    precision: str = "bf16-mixed",
+    accumulate_grad_batches: int = 1,
+    limit_test_batches: int = 50,
+    limit_val_batches: int = 32,
+    log_every_n_steps: int = 10,
+    val_check_interval: int = 2000,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
@@ -85,6 +93,12 @@ def trainer(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
+        precision (str): Precision configuration, one of fp32, 16-mixed or bf16-mixed.
+        accumulate_grad_batches (int): Number of steps per gradient accumulation.
+        limit_test_batches (int): Limit the number of test batches.
+        limit_val_batches (int): Limit the number of validation batches.
+        log_every_n_steps (int): Log every n steps.
+        val_check_interval (int): Run validation every N steps.
         callbacks (Optional[list[run.Config[Callback]]]): List of callback configurations.
 
     Returns:
@@ -123,25 +137,118 @@ def trainer(
         ),
     )
 
+    precision_plugin = None
+    if precision == "16-mixed":
+        precision_plugin = fp16_mixed()
+    elif precision == "bf16-mixed":
+        precision_plugin = bf16_mixed()
+
     trainer = run.Config(
         nl.Trainer,
         accelerator="gpu",
-        accumulate_grad_batches=1,
+        accumulate_grad_batches=accumulate_grad_batches,
         callbacks=callbacks,
         devices=num_gpus_per_node,
-        limit_test_batches=50,
-        limit_val_batches=32,
-        log_every_n_steps=10,
+        limit_test_batches=limit_test_batches,
+        limit_val_batches=limit_val_batches,
+        log_every_n_steps=log_every_n_steps,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_mixed(),
+        plugins=precision_plugin,
         strategy=strategy,
         use_distributed_sampler=False,
-        val_check_interval=2000,
+        val_check_interval=val_check_interval,
     )
 
     return trainer
 
+
+@run.cli.factory(target=pretrain, name=NAME)
+def dapt_recipe(
+        # General
+        dir: Optional[str] = None,
+        name: str = "default",
+        # Trainer
+        tensor_parallelism: int = 4,
+        pipeline_parallelism: int = 1,
+        pipeline_parallelism_type: Optional[torch.dtype] = None,
+        virtual_pipeline_parallelism: Optional[int] = None,
+        context_parallelism: int = 1,
+        sequence_parallelism: bool = False,
+        num_nodes: int = 1,
+        num_gpus_per_node: int = 8,
+        max_steps: int = 300000,
+        precision: str = "bf16-mixed",
+        accumulate_grad_batches: int = 1,
+        gradient_clip_val: float = 1.0,
+        limit_test_batches: int = 32,
+        limit_val_batches: int = 32,
+        log_every_n_steps: int = 10,
+        val_check_interval: int = 2000,
+        # Data
+        global_batch_size: int = 32,
+        micro_batch_size: int = 2,
+        seq_length: int = 4096,
+        # Optimizer
+        warmup_steps: int = 50,
+        constant_steps: int = 0,
+        min_lr: float = 5e-7,
+        max_lr: float = 5e-6,
+        performance_mode: bool = False,
+        # Training function
+        fn: Callable = pretrain,
+) -> run.Partial:
+    model_name = "meta-llama/Meta-Llama-3-8B"
+    tokenizer = get_nmt_tokenizer(library="huggingface", model_name=model_name)
+    data_path = [
+        '/lustre/fsw/coreai_dlalgo_genai/datasets/law_domain_datasets/curated/freelawv2/freelawv2_text_document',
+    ]
+    data = run.Config(
+        PreTrainingDataModule,
+        paths=data_path,
+        seq_length=seq_length,
+        global_batch_size=global_batch_size,
+        micro_batch_size=micro_batch_size,
+        tokenizer=tokenizer,
+    )
+    recipe = run.Partial(
+        fn,
+        model=model(),
+        trainer=trainer(
+            tensor_parallelism=tensor_parallelism,
+            pipeline_parallelism=pipeline_parallelism,
+            pipeline_parallelism_type=pipeline_parallelism_type,
+            virtual_pipeline_parallelism=virtual_pipeline_parallelism,
+            context_parallelism=context_parallelism,
+            sequence_parallelism=sequence_parallelism,
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            max_steps=max_steps,
+            precision=precision,
+            accumulate_grad_batches=accumulate_grad_batches,
+            limit_test_batches=limit_test_batches,
+            limit_val_batches=limit_val_batches,
+            log_every_n_steps=log_every_n_steps,
+            val_check_interval=val_check_interval,
+            callbacks=[run.Config(TimingCallback)],
+        ),
+        data=data,
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            precision=precision,
+            warmup_steps=warmup_steps,
+            constant_steps=constant_steps,
+            min_lr=min_lr,
+            max_lr=max_lr,
+            clip_grad=gradient_clip_val,
+        ),
+        resume=nemo_resume(model_name),
+    )
+
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
+
+    return recipe
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
