@@ -105,6 +105,8 @@ class DiarizationConfig:
     step_len: int = 100
     step_left_context: int = 100
     step_right_context: int = 100
+    streaming_eval: bool = False # If True, evaluation will be done in a streaming fashion
+    out_der_file: Optional[str] = None # Path to a file to save DER values
 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
@@ -194,6 +196,63 @@ def convert_pred_mat_to_segments(
         batch_pred_ts_segs.append(spk_ts) 
     return all_hypothesis, all_reference, all_uems
 
+def convert_pred_mat_to_segments_chunkwise(
+    audio_rttm_map_dict: Dict[str, Dict[str, str]], 
+    postprocessing_cfg, 
+    batch_preds_list: List[torch.Tensor], 
+    unit_10ms_frame_count:int = 8,
+    bypass_postprocessing: bool = False,
+    chunk_size: int = 125
+    ):
+    """
+    Convert prediction matrix to time-stamp segments.
+
+    Args:
+        audio_rttm_map_dict (dict): dictionary of audio file path, offset, duration and RTTM filepath.
+        batch_preds_list (List[torch.Tensor]): list of prediction matrices containing sigmoid values for each speaker.
+            Dimension: [(1, frames, num_speakers), ..., (1, frames, num_speakers)]
+        unit_10ms_frame_count (int, optional): number of 10ms segments in a frame. Defaults to 8.
+        bypass_postprocessing (bool, optional): if True, postprocessing will be bypassed. Defaults to False.
+        chunk_size (int, optional): chunk size for processing. Defaults to 125. The chunk duration is 125*8*10ms / 1000 = 10 seconds.
+
+    Returns:
+       all_hypothesis (list): list of pyannote objects for each audio file.
+       all_reference (list): list of pyannote objects for each audio file.
+       all_uems (list): list of pyannote objects for each audio file.
+    """
+    cfg_vad_params = OmegaConf.structured(postprocessing_cfg)
+    pred_len = batch_preds_list[0].shape[1]
+    batch_pred_ts_segs, all_hypothesis, all_reference, all_uems = [], [], [], []
+    for cur_chunk_idx in tqdm(range(0, pred_len, chunk_size), desc="Running post-processing"):
+        offset, duration = cur_chunk_idx*unit_10ms_frame_count*0.01, chunk_size*unit_10ms_frame_count*0.01
+        for sample_idx, (uniq_id, audio_rttm_values) in tqdm(enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc="Running post-processing"):
+            spk_ts = []
+            # offset, duration = audio_rttm_values['offset'], audio_rttm_values['duration']
+            
+            speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)[cur_chunk_idx:cur_chunk_idx+chunk_size]
+            speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
+            for spk_id in range(speaker_assign_mat.shape[-1]):
+                ts_mat = ts_vad_post_processing(speaker_assign_mat[:, spk_id], 
+                                                cfg_vad_params=cfg_vad_params, 
+                                                unit_10ms_frame_count=unit_10ms_frame_count, 
+                                                bypass_postprocessing=bypass_postprocessing)
+                ts_mat = ts_mat + offset
+                ts_mat = torch.clamp(ts_mat, min=offset, max=(offset + duration))
+                ts_seg_list = ts_mat.tolist()
+                speaker_timestamps[spk_id].extend(ts_seg_list)
+                spk_ts.append(ts_seg_list)
+            audio_rttm_values['offset'] = offset
+            audio_rttm_values['duration'] = duration
+            all_hypothesis, all_reference, all_uems = timestamps_to_pyannote_object(speaker_timestamps, 
+                                                                                    uniq_id, 
+                                                                                    audio_rttm_values, 
+                                                                                    all_hypothesis, 
+                                                                                    all_reference, 
+                                                                                    all_uems,
+                                                                                )
+            batch_pred_ts_segs.append(spk_ts) 
+        yield all_hypothesis, all_reference, all_uems
+
 @hydra_runner(config_name="DiarizationConfig", schema=DiarizationConfig)
 def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     for key in cfg:
@@ -261,6 +320,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.log = cfg.log
     diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
     
+    
     # Save the list of tensors
     diar_model.test_batch()
     diar_model_preds_total_list = diar_model.preds_total_list
@@ -271,6 +331,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
     # Evaluation
     if not cfg.no_der:
+        logging.info(f"Running offline diarization evaluation...")
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(infer_audio_rttm_dict,
                                                                     postprocessing_cfg=postprocessing_cfg, 
                                                                     batch_preds_list=diar_model_preds_total_list, 
@@ -287,6 +348,28 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                                                             ignore_overlap=cfg.ignore_overlap
                                                             )
         print("PostProcessingParams:", postprocessing_cfg)
-
+        if cfg.streaming_eval:
+            ders = []
+            for all_hyps, all_refs, all_uems in convert_pred_mat_to_segments_chunkwise(infer_audio_rttm_dict,
+                                                                            postprocessing_cfg=postprocessing_cfg, 
+                                                                            batch_preds_list=diar_model_preds_total_list, 
+                                                                            unit_10ms_frame_count=8,
+                                                                            bypass_postprocessing=cfg.bypass_postprocessing,
+                                                                            chunk_size=125 # chunk size: each frame is 80ms, 125 frames = 10 seconds
+                                                                            ):
+                metric, mapping_dict, itemized_errors = score_labels(AUDIO_RTTM_MAP=infer_audio_rttm_dict,
+                                                                    all_reference=all_refs, 
+                                                                    all_hypothesis=all_hyps, 
+                                                                    all_uem=all_uems, 
+                                                                    collar=cfg.collar, 
+                                                                    ignore_overlap=cfg.ignore_overlap,
+                                                                    verbose=False
+                                                                    )
+                ders.append(itemized_errors[0])
+            if cfg.out_der_file is not None:
+                with open(cfg.out_der_file, 'w') as f:
+                    for der in ders:
+                        f.write(f"{der}\n")
+                        
 if __name__ == '__main__':
     main()
