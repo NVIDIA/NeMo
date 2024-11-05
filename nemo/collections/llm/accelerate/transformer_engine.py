@@ -68,5 +68,5 @@ class TEAccelerator:
             else:
                 if TEAccelerator._accelerate(module):
                     return True
-                else:
-                    return False
+
+        return False
