@@ -17,13 +17,15 @@ from typing import Callable, List, Optional
 import pytorch_lightning as pl
 import pytorch_lightning as L
 from torch.optim import Optimizer
+from torch.optim.optimizer import ParamsT
 
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
-from torch.optim.optimizer import ParamsT
+
 
 def _param_does_not_have_wd(param_name, param):
     return 'bias' in param_name
+
 
 def _extract_model_params_for_optim(model, weight_decay=0, no_weight_decay_cond=None):
     params_with_wd, params_without_wd = [], []
@@ -40,10 +42,9 @@ def _extract_model_params_for_optim(model, weight_decay=0, no_weight_decay_cond=
 
     return [
         {'params': params, 'weight_decay': wd}
-        for params, wd in zip(
-            (params_with_wd, params_without_wd), (weight_decay, 0)
-        )
+        for params, wd in zip((params_with_wd, params_without_wd), (weight_decay, 0))
     ]
+
 
 class PytorchOptimizerModule(OptimizerModule):
     """A OptimizerModule for pytorch optimizers.
