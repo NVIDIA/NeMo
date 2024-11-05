@@ -101,11 +101,22 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.update(("tokens", "attention_mask", "media",))
+    required_keys.update(
+        (
+            "tokens",
+            "attention_mask",
+            "media",
+        )
+    )
     if parallel_state.is_pipeline_first_stage():
         required_keys.update(("position_ids",))
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask",))
+        required_keys.update(
+            (
+                "labels",
+                "loss_mask",
+            )
+        )
 
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
@@ -225,7 +236,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
     ln_pre_impl: Union[ModuleSpec, type] = TENorm
-    ln_post_impl: Union[ModuleSpec, type] = TENorm,
+    ln_post_impl: Union[ModuleSpec, type] = (TENorm,)
     add_class_token: bool = True
     class_token_len: int = 1
     patch_dim: int = 14
@@ -287,6 +298,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreNevaModel":
         from megatron.core import parallel_state as ps
+
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -296,7 +308,9 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
             self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
             self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.language_transformer_config.encoder_pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            self.language_transformer_config.encoder_pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
             if self.encoder_tensor_model_parallel_size > 0:
                 self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
                 self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
@@ -305,11 +319,11 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             config=self,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage()
-                        or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
-                        or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
 
@@ -318,14 +332,14 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
-            self,
-            config: NevaConfig,
-            tokenizer: Optional = None,
-            pre_process: bool = True,
-            post_process: bool = True,
-            add_encoder: bool = True,
-            add_decoder: bool = True,
-            drop_vision_class_token: bool = False,
+        self,
+        config: NevaConfig,
+        tokenizer: Optional = None,
+        pre_process: bool = True,
+        post_process: bool = True,
+        add_encoder: bool = True,
+        add_decoder: bool = True,
+        drop_vision_class_token: bool = False,
     ) -> None:
         super(MCoreLLaVAModel, self).__init__(config=config)
 
@@ -346,8 +360,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.sequence_parallel_lm = language_transformer_config.sequence_parallel
         if self.sequence_parallel_lm:
             assert (
-                    self.language_transformer_config.transformer_layer_spec.submodules.self_attention.submodules.core_attention
-                    == TEDotProductAttention
+                self.language_transformer_config.transformer_layer_spec.submodules.self_attention.submodules.core_attention
+                == TEDotProductAttention
             ), "Sequence Parallelism is supported only with Transformer Engine DotProductAttention."
         self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
 
@@ -358,13 +372,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
             self._language_max_sequence_length = self.language_model.max_sequence_length
-            self._language_is_pipeline_parallel = (
-                    language_transformer_config.pipeline_model_parallel_size > 1
-            )
+            self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
             if config.language_model_from_pretrained is not None:
                 sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))
                 loaded_state_dict = dist_checkpointing.load(
-                    sharded_state_dict=sharded_state_dict, checkpoint_dir=config.language_model_from_pretrained,
+                    sharded_state_dict=sharded_state_dict,
+                    checkpoint_dir=config.language_model_from_pretrained,
                     validate_access_integrity=False,
                 )
                 loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
@@ -373,7 +386,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         else:
             if config.language_model_from_pretrained is not None:
                 dist_checkpointing.load(
-                    sharded_state_dict=dict(state_dict={}), checkpoint_dir=config.language_model_from_pretrained,
+                    sharded_state_dict=dict(state_dict={}),
+                    checkpoint_dir=config.language_model_from_pretrained,
                     validate_access_integrity=False,
                 )
 
@@ -406,17 +420,17 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self._img_seq_len = 576  # TODO(yuya): Fix hardcode
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            media: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: Optional[InferenceParams] = None,
-            num_media_tiles: Optional[List[int]] = None,
-            media_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-            runtime_gather_output: Optional[bool] = None,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        media: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: Optional[InferenceParams] = None,
+        num_media_tiles: Optional[List[int]] = None,
+        media_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        runtime_gather_output: Optional[bool] = None,
     ) -> torch.Tensor:
         """Forward function of the LLaVA model.
 
@@ -436,7 +450,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
-                inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = media.shape[0] > 0
 
@@ -445,16 +459,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
             media_embeddings = None
         elif self.add_encoder and not has_images:
             # If no images provided, use an empty image embeddings tensor.
-            media_embeddings = torch.tensor([], dtype=media.dtype, device=media.device).reshape(
-                0, 0, 0
-            )
+            media_embeddings = torch.tensor([], dtype=media.dtype, device=media.device).reshape(0, 0, 0)
         elif self.add_encoder and has_images:
             # media is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
             if self.vision_model_from_hf:
-                media_embeddings = self.vision_model(
-                    media, output_hidden_states=True
-                )
+                media_embeddings = self.vision_model(media, output_hidden_states=True)
                 media_embeddings = media_embeddings[-1][
                     self.config.vision_feature_layer
                 ]  # [num_images, img_seq_len, h_vision]
@@ -467,9 +477,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 media_embeddings = media_embeddings[:, class_token_len:, :]
 
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
-            media_embeddings = media_embeddings.permute(
-                1, 0, 2
-            ).contiguous()  # [img_seq_len, num_tiles, h_vision]
+            media_embeddings = media_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
             # map vision model output size to language model input size.
             media_embeddings = self.vision_projection(media_embeddings)  # [img_seq_len, num_tiles, h_language]
@@ -479,7 +487,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["media_tokens_count"] = (
-                        media_embeddings.shape[0] * media_embeddings.shape[1]
+                    media_embeddings.shape[0] * media_embeddings.shape[1]
                 )
         else:
             media_embeddings = self.encoder_hidden_state
@@ -499,12 +507,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # Pad to nearest multiple of TP world size for embedding.
                 tp_world_size = get_tensor_model_parallel_world_size()
                 padded_seq_len = (
-                        int(
-                            (input_ids_text.shape[1] + tp_world_size - 1)
-                            // tp_world_size
-                            * tp_world_size
-                        )
-                        - input_ids_text.shape[1]
+                    int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
+                    - input_ids_text.shape[1]
                 )
                 if padded_seq_len != 0:
                     input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
@@ -524,9 +528,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # after image embeddings are inserted.
                 if padded_seq_len != 0:
                     language_embeddings = language_embeddings[:-padded_seq_len]
-            language_embeddings = language_embeddings.transpose(
-                1, 0
-            ).contiguous()  # [b, text_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_media_tiles is None:
@@ -561,7 +563,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         return output, final_loss_mask.contiguous()
 
     def set_input_tensor(self, input_tensor) -> None:
-
         """Set model chunk input tensor."""
         # This is usually handled in schedules.py but some inference code still
         # gives us non-lists or None
@@ -581,11 +582,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-            self,
-            config: NevaConfig,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: NevaConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -601,14 +602,14 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            media: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: InferenceParams = None,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        media: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
             media=media,

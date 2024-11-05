@@ -70,11 +70,11 @@ class Llava1_5Config13B(LlavaConfig):
 
 class LlavaModel(NevaModel):
     def __init__(
-            self,
-            config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or LlavaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
@@ -165,11 +165,16 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         else:
             raise KeyError("Unable to map vision encoder keys.")
         return io.apply_transforms(
-            source, target, mapping=mapping,
+            source,
+            target,
+            mapping=mapping,
             transforms=[
-                _import_language_qkv, _import_vision_qkv, _import_vision_qkv_bias,
-                _import_cls_token, _import_linear_fc1
-            ]
+                _import_language_qkv,
+                _import_vision_qkv,
+                _import_vision_qkv_bias,
+                _import_cls_token,
+                _import_linear_fc1,
+            ],
         )
 
     @property
@@ -209,7 +214,6 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         )
         vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
 
-
         # Use MCore instead of Pytorch
         # from nemo.collections import vlm
         # from nemo.collections.vlm.neva.model.vision import get_vision_model_config
@@ -231,10 +235,7 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         return output
 
 
-def import_qkv(
-        q, k, v,
-        head_num, num_query_groups, heads_per_group, hidden_size, head_size
-):
+def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
@@ -245,9 +246,9 @@ def import_qkv(
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i: i + 1, :, :])
-        qkv_weights_l.append(v[i: i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i : i + 1, :, :])
+        qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
@@ -261,68 +262,72 @@ def import_qkv(
 
 @io.state_transform(
     source_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
     megatron_config = ctx.target.config.language_transformer_config
     return import_qkv(
-        q, k, v,
+        q,
+        k,
+        v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
         heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
-        head_size=megatron_config.kv_channels
+        head_size=megatron_config.kv_channels,
     )
 
 
 @io.state_transform(
     source_key=(
-            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
     megatron_config = ctx.target.config.vision_transformer_config
     return import_qkv(
-        q, k, v,
+        q,
+        k,
+        v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
         heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
-        head_size=megatron_config.kv_channels
+        head_size=megatron_config.kv_channels,
     )
 
 
 @io.state_transform(
     source_key=(
-            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
 )
 def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
     megatron_config = ctx.target.config.vision_transformer_config
     return import_qkv(
-        q_bias.unsqueeze(-1), k_bias.unsqueeze(-1), v_bias.unsqueeze(-1),
+        q_bias.unsqueeze(-1),
+        k_bias.unsqueeze(-1),
+        v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
         heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
         hidden_size=1,
-        head_size=megatron_config.kv_channels
+        head_size=megatron_config.kv_channels,
     ).squeeze(-1)
 
 
 @io.state_transform(
-    source_key=(
-            "vision_tower.vision_model.embeddings.class_embedding",
-    ),
+    source_key=("vision_tower.vision_model.embeddings.class_embedding",),
     target_key="vision_model.class_token",
 )
 def _import_cls_token(ctx: io.TransformCTX, cls_token):
@@ -331,8 +336,8 @@ def _import_cls_token(ctx: io.TransformCTX, cls_token):
 
 @io.state_transform(
     source_key=(
-            "language_model.model.layers.*.mlp.gate_proj.weight",
-            "language_model.model.layers.*.mlp.up_proj.weight",
+        "language_model.model.layers.*.mlp.gate_proj.weight",
+        "language_model.model.layers.*.mlp.up_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
 )

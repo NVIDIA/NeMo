@@ -70,7 +70,8 @@ def main(args):
     #     vision_transformer_config, apply_query_key_layer_scaling=False
     # )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
-        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    )
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=1024,
