@@ -56,7 +56,9 @@ def get_vision_projection_config(config, hidden_size):
     config.gated_linear_unit = False
     config.bias_activation_fusion = False
     config.add_bias_linear = False
-    config.hidden_size = hidden_size  # Used as the vision projection output size, i.e., the input to the language model.
+    config.hidden_size = (
+        hidden_size  # Used as the vision projection output size, i.e., the input to the language model.
+    )
     if config.language_model_type == "2b":
         config.ffn_hidden_size = 5440
         config.activation_func = torch.nn.functional.gelu
@@ -77,8 +79,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
-            self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None,
-            num_unused_layers: int = 0
+        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
     ) -> torch.Tensor:
         if num_unused_layers > 0:
             unused_layers = self.decoder.layers[-num_unused_layers:]

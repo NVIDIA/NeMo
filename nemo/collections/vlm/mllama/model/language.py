@@ -168,7 +168,11 @@ class CrossAttentionTextModel(MCoreGPTModel):
         rotary_pos_emb = None
         if self.position_embedding_type == 'rope':
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
-                inference_params, self.decoder, decoder_input, self.config, packed_seq_params=None,
+                inference_params,
+                self.decoder,
+                decoder_input,
+                self.config,
+                packed_seq_params=None,
             )
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
 
