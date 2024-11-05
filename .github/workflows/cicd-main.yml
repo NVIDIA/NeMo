@@ -58,6 +58,7 @@ jobs:
       image-label: nemo-core
       build-args: |
         IMAGE_LABEL=nemo-core
+      prune-filter-timerange: 24h
       
   cicd-test-container-setup:
     needs: [cicd-test-container-build, pre-flight]
