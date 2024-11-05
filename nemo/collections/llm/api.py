@@ -29,6 +29,8 @@ from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
+from torch.distributed import all_gather_object
+from megatron.core import parallel_state
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -572,41 +574,67 @@ def generate(
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
-    results = inference.generate(
+
+    dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
+    dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
+    chunk_size = (len(prompts) + dp_size - 1) // dp_size
+    start_idx = dp_rank * chunk_size
+    end_idx = min(start_idx + chunk_size, len(prompts))
+    prompts_on_this_dp_rank = prompts[start_idx:end_idx]
+
+    results_on_this_dp_rank = inference.generate(
         model=inference_wrapped_model,
         tokenizer=mcore_tokenizer,
-        prompts=prompts,
+        prompts=prompts_on_this_dp_rank,
         encoder_prompts=encoder_prompts,
         add_BOS=add_BOS,
         max_batch_size=max_batch_size,
         random_seed=random_seed,
         inference_params=inference_params,
     )
+    gathered_results = [None] * dp_size
+    
+    all_gather_object(gathered_results,
+                      [
+                        r.generated_text if text_only else r for r in results_on_this_dp_rank
+                      ],
+                      group=parallel_state.get_data_parallel_group())
+    gathered_results = [result for sublist in gathered_results for result in sublist]
 
-    return [r.generated_text if text_only else r for r in results]
+    return gathered_results
 
-
-from megatron.core.inference.common_inference_params import CommonInferenceParams
 @run.cli.entrypoint(name="eval", namespace="llm")
 def eval(
     trainer: nl.Trainer,
     ckpt_path: Union[Path, str],
-    input_datamodule: pl.LightningDataModule,
+    input_dataset: pl.LightningDataModule,
     output_path: Union[Path, str],
-    inference_params: CommonInferenceParams = None,
+    encoder_prompts: Optional[list[str]] = None,
+    params_dtype: torch.dtype = torch.bfloat16,
+    add_BOS: bool = False,
+    max_batch_size: int = 4,
+    random_seed: Optional[int] = None,
+    inference_batch_times_seqlen_threshold: int = 1000,
+    inference_params: Optional["CommonInferenceParams"] = None,
 ) -> None:
     
     from nemo.utils.get_rank import is_global_rank_zero
-    input_path = input_datamodule.test_path
-    with open(input_path) as f:
-        dataset = [json.loads(sample) for sample in f.readlines()]
+    with open(input_dataset.test_path) as f:
+        dataset = [json.loads(sample) for sample in f.readlines()][:68]
         inputs = [sample["input"] for sample in dataset]
 
     results = generate(ckpt_path,
                 trainer=trainer,
                 prompts=inputs,
+                encoder_prompts=encoder_prompts,
+                params_dtype=params_dtype,
+                add_BOS=add_BOS,
+                max_batch_size=max_batch_size,
+                random_seed=random_seed,
+                inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
                 inference_params=inference_params,
                 text_only=True)
+    
     assert len(results) == len(dataset)
     if is_global_rank_zero():
         with open(output_path, "w") as f:
@@ -614,7 +642,7 @@ def eval(
                 line = json.dumps({"input":sample["input"], "label":sample["output"], "prediction":pred})
                 f.writelines(line+"\n")
     
-    logging.info(f"Evaluation results written to {output_path}")
+    logging.info(f"Predictions written to {output_path}")
 
 
 def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:
