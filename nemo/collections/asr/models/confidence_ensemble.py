@@ -152,7 +152,7 @@ def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig)
     return conf_value
 
 
-@deprecated(version='2.1.0 NeMo')
+@deprecated(version='v2.1.0')
 class ConfidenceEnsembleModel(ModelPT):
     """Implementation of the confidence ensemble model.
 
