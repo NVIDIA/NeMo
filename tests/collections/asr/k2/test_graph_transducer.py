@@ -288,12 +288,14 @@ class TestRnntLogProbs:
             (16, 129, 65, 2048),
         ],
     )
-    def test_rnnt_logprobs_random(self, batch_size: int, num_frames: int, num_text_units: int, vocab_size: int):
+    @pytest.mark.parametrize(
+        "float_dtype", [torch.float32] + ([torch.bfloat16] if torch.cuda.is_bf16_supported() else [])
+    )
+    def test_rnnt_logprobs_random(
+        self, batch_size: int, num_frames: int, num_text_units: int, vocab_size: int, float_dtype: torch.dtype
+    ):
         device = torch.device("cuda")
         torch.manual_seed(777)
-
-        # float_dtype = torch.bfloat16
-        float_dtype = torch.float32
 
         targets = torch.tensor(
             [[random.randrange(0, vocab_size - 1) for i in range(num_text_units)] for j in range(batch_size)],
@@ -308,7 +310,10 @@ class TestRnntLogProbs:
             requires_grad=True,
         )
 
-        target_scores_etalon, blank_scores_etalon = rnnt_logprobs_torch(x=logits, targets=targets, blank_id=vocab_size)
+        # Triton-based implementation works in float32 precision for accuracy purposes, should compare with float32
+        target_scores_etalon, blank_scores_etalon = rnnt_logprobs_torch(
+            x=logits.to(torch.float32), targets=targets, blank_id=vocab_size
+        )
         logits2 = logits.clone().detach()
         logits2.requires_grad_(True)
         target_scores, blank_scores = rnnt_logprobs_triton(x=logits2, targets=targets, blank_id=vocab_size)
