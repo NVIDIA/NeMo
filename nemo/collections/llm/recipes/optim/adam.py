@@ -102,7 +102,7 @@ def pytorch_adam_with_flat_lr(
         PytorchOptimizerModule,
         optimizer_fn=run.Partial(
             Adam,
-            lr=max_lr,
+            lr=lr,
             weight_decay=0.1,
             betas=(0.9, 0.95),
             eps=1e-8,
