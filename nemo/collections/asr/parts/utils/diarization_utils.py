@@ -48,16 +48,19 @@ def get_color_palette() -> Dict[str, str]:
     return {
         'speaker_0': '\033[1;32m',
         'speaker_1': '\033[1;34m',
-        'speaker_2': '\033[1;30m',
+        'speaker_2': '\033[1;36m',
         'speaker_3': '\033[1;31m',
         'speaker_4': '\033[1;35m',
-        'speaker_5': '\033[1;36m',
+        'speaker_5': '\033[1;30m',
         'speaker_6': '\033[1;37m',
         'speaker_7': '\033[1;30m',
         'speaker_8': '\033[1;33m',
         'speaker_9': '\033[0;34m',
         'white': '\033[0;37m',
+        'black': '\033[0;30m',
     }
+
+
 
 def dump_json_to_file(file_path: str, session_trans_dict: dict):
     """
@@ -374,7 +377,9 @@ def print_sentences(sentences: List[Dict[str, float]],
     """
     # init output
     string_out = ''
-
+    # time_color = color_palette.get('black', '\033[0;30m')
+    time_color = color_palette.get('white', '\033[0;30m')
+    
     for sentence in sentences:
         # extract info
         speaker = sentence['speaker']
@@ -403,7 +408,8 @@ def print_sentences(sentences: List[Dict[str, float]],
             time_str = ''
 
         # string out concatenation
-        string_out += f'{color}{time_str}{speaker}: {text}\n'
+        speaker = speaker.replace("speaker_", "[ Speaker-") + " ]"
+        string_out += f'{time_color}{time_str}{color}{speaker} {text}\n'
 
     return string_out
 

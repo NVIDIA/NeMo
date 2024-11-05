@@ -840,10 +840,11 @@ class DiarizationSpeechLabel(DiarizationLabel):
             # Training mode
             else:
                 rttm_labels = []
-                with open(item['rttm_file'], 'r') as f:
-                    for index, line in enumerate(f.readlines()):
-                        start, end, speaker = self.split_rttm_line(line, decimals=3)
-                        rttm_labels.append('{} {} {}'.format(start, end, speaker))
+                if item['rttm_file'] is not None and os.path.exists(item['rttm_file']):
+                    with open(item['rttm_file'], 'r') as f:
+                        for index, line in enumerate(f.readlines()):
+                            start, end, speaker = self.split_rttm_line(line, decimals=3)
+                            rttm_labels.append('{} {} {}'.format(start, end, speaker))
                 speaker_set = set()
                 for rttm_line in rttm_labels:
                     spk_str = rttm_line.split()[-1]

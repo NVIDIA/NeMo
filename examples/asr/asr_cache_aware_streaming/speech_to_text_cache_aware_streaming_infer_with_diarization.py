@@ -147,6 +147,12 @@ import itertools
 
 import time
 from functools import wraps
+import math
+
+def format_time(seconds):
+    minutes = math.floor(seconds / 60)
+    sec = seconds % 60
+    return f"{minutes}:{sec:05.2f}"
 
 def measure_eta(func):
     @wraps(func)
@@ -172,6 +178,7 @@ class MultiSpeakerASRstreamer:
        self.asr_model = asr_model
        self.diar_model = diar_model
        self.bsd_spk = bsd_spk
+       self._word_count = 0
        self._word_and_ts_seq = {"words": [],
                                 "buffered_words": [],
                                 "token_frame_index": [], 
@@ -184,20 +191,45 @@ class MultiSpeakerASRstreamer:
                                 "word_window_seq": [],
                                 "speaker_count_buffer": [],
                                 } 
-       self._initial_steps = 3
+       self._initial_steps = cfg.ignored_initial_frame_steps
+       
+    def _update_speaker_vote(self, original_words, bsd_words):
+        # import ipdb; ipdb.set_trace()
+        start = bsd_words[0]["word_index"]
+        updated_words = []
+        for list_idx, word_idx in enumerate(range(start, start+len(bsd_words))):
+            if word_idx < len(original_words):
+                word_dict_org = original_words[word_idx] 
+                spk_int = int(bsd_words[list_idx]["speaker"].replace("speaker_", ""))
+                word_dict_org["speaker_votes"][spk_int] += 1
+                max_vote_spk_id = torch.argmax(word_dict_org["speaker_votes"]).item()
+                word_dict_org["speaker"] = f"speaker_{max_vote_spk_id}"
+                assert word_idx == word_dict_org["word_index"], "Invalid word_index"
+                updated_words.append(word_dict_org)
+            else:
+                updated_words.append(bsd_words["words"][list_idx])
+        total_updated_words = original_words[:start] + updated_words
+        return total_updated_words 
        
     @measure_eta
-    def _manage_beam_search_update(self, word_and_ts_seq, word_idx_offset:int=0):
+    def _manage_beam_search_update(self, word_and_ts_seq): 
         if len(word_and_ts_seq["words"]) > self.cfg.word_window:
             org_len = len(word_and_ts_seq["words"])
             extra_len = len(word_and_ts_seq["words"]) - self.cfg.word_window
             truncated_words = word_and_ts_seq["words"][extra_len:]
             bsd_truncated_words = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=truncated_words, speaker_count=word_and_ts_seq["speaker_count"])
-            word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_truncated_words
+            if self.cfg.bsd_maj_voting:
+                word_and_ts_seq["words"] = self._update_speaker_vote(word_and_ts_seq['words'], bsd_truncated_words)
+            else:
+                word_and_ts_seq["words"] = word_and_ts_seq["words"][:extra_len] + bsd_truncated_words
             assert len(word_and_ts_seq["words"]) == org_len, "Invalid word_and_ts_seq length after truncation"
         else:
-            word_and_ts_seq["words"] = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], 
+            word_and_ts_seq_preds = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=word_and_ts_seq["words"], 
                                                                                    speaker_count=word_and_ts_seq["speaker_count"])
+            if self.cfg.bsd_maj_voting:
+                word_and_ts_seq["words"] = self._update_speaker_vote(word_and_ts_seq['words'], word_and_ts_seq_preds)
+            else:
+                word_and_ts_seq["words"] = word_and_ts_seq_preds
         return word_and_ts_seq 
    
     @measure_eta 
@@ -268,7 +300,7 @@ class MultiSpeakerASRstreamer:
         else:
             word_and_ts_seq = deepcopy(self._word_and_ts_seq)
             # Get the word-level dictionaries for each word in the chunk
-            word_and_ts_seq, word_idx_offset = get_frame_and_words(cfg=self.cfg,
+            word_and_ts_seq = get_frame_and_words(cfg=self.cfg,
                                                 tokenizer=self.asr_model.tokenizer,
                                                 step_num=step_num, 
                                                 diar_pred_out_stream=diar_pred_out_stream,
@@ -276,7 +308,7 @@ class MultiSpeakerASRstreamer:
                                                 word_and_ts_seq=word_and_ts_seq) 
             if len(word_and_ts_seq["words"]) > 0:
                 if self.cfg.beam_search_enabled: 
-                    word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq, word_idx_offset=word_idx_offset)
+                    word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq)
                 word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
                 transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg) 
                 write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
@@ -359,7 +391,7 @@ class DiarizationConfig:
     pad_and_drop_preencoded: bool = False
     set_decoder: Optional[str] = None # ["ctc", "rnnt"]
     att_context_size: Optional[str] = None
-    
+
     
     # Beam search parameters
     # batch_size: int = 32
@@ -367,22 +399,29 @@ class DiarizationConfig:
     arpa_language_model: Optional[str] = None
     beam_prune_logp: float = -100
     word_window: int = 32
+    bsd_maj_voting: bool = True
     use_spk_turn_bsd: bool = False
-    frame_shift: int = 0
+    left_frame_shift: int = -2
+    right_frame_shift: int = -1
     min_sigmoid_val: float = 1e-4
     port: List[int] = field(default_factory=list)
     parallel_chunk_word_len: int = 250
     use_ngram: bool = True
     peak_prob: float = 0.95
-    limit_max_spks: int = 2
-    alpha: float = 0.5
-    beta: float = 0.05
+    finetune_realtime_ratio: float = 1.03
+    discarded_frames: int = 8
+    feat_len_sec: float = 0.01
+    limit_max_spks: int = 4
+    alpha: float = 0.2
+    beta: float = 0.02
     beam_width: int = 16
     out_dir: Optional[str] = None
     print_time: bool = True
     colored_text: bool = True
+    real_time_mode: bool = False
     print_path: str = "./"
     beam_search_enabled: bool = True
+    ignored_initial_frame_steps: int = 5
 
 def convert_pred_mat_to_segments(
     audio_rttm_map_dict: Dict[str, Dict[str, str]], 
@@ -505,7 +544,7 @@ def fix_frame_time_step(new_tokens, new_words, frame_inds_seq):
         )
     return frame_inds_seq
 
-def get_word_dict_content(cfg, word, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len: float = 0.08):
+def get_word_dict_content(cfg, word, word_index, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len: float = 0.08):
     _stt, _end = time_step_local_offset, time_step_local_offset + len(token_group)-1
     if len(token_group) == 1:
         frame_stt, frame_end = frame_inds_seq[_stt], frame_inds_seq[_stt] + 1
@@ -518,18 +557,22 @@ def get_word_dict_content(cfg, word, diar_pred_out_stream, token_group, frame_in
             frame_stt, frame_end = (diar_pred_out_stream.shape[1] - 1, diar_pred_out_stream.shape[1])
         else:
             frame_end = frame_stt + 1
-    speaker_sigmoid = diar_pred_out_stream[0, (frame_stt + cfg.frame_shift):(frame_end + cfg.frame_shift), :].mean(dim=0)
+    speaker_sigmoid = diar_pred_out_stream[0, max((frame_stt + cfg.left_frame_shift), 0):(frame_end + cfg.right_frame_shift), :].mean(dim=0)
     speaker_sigmoid = torch.clamp(speaker_sigmoid, min=cfg.min_sigmoid_val, max=1) 
     speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
     speaker_softmax = speaker_softmax.cpu()
     stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
     spk_id = speaker_softmax.argmax().item()
+    speaker_votes = torch.zeros(cfg.limit_max_spks).to(torch.int)
+    speaker_votes[spk_id] += 1
     word_dict = {"word": word,
+                 "word_index": word_index,
                 'frame_stt': frame_stt,
                 'frame_end': frame_end,
                 'start_time': round(stt_sec, 3), 
                 'end_time': round(end_sec, 3), 
                 'speaker': f"speaker_{spk_id}",
+                'speaker_votes': speaker_votes,
                 'speaker_softmax': speaker_softmax} 
     return word_dict
 
@@ -579,10 +622,12 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
         word_and_ts_seq["offset_count"] += 1
     
     time_step_local_offset, word_idx_offset = 0, 0
+    word_count_offset = len(word_and_ts_seq["words"]) 
     
-    for token_group, word in zip(new_token_group, new_words):
+    for local_idx, (token_group, word) in enumerate(zip(new_token_group, new_words)):
         word_dict = get_word_dict_content(cfg=cfg, 
                                           word=word,
+                                          word_index= (word_count_offset + local_idx),
                                           diar_pred_out_stream=diar_pred_out_stream,
                                           token_group=token_group,
                                           frame_inds_seq=frame_inds_seq,
@@ -597,14 +642,13 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
         word_and_ts_seq["word_window_seq"].append(word_dict['word'])
         if len(word_and_ts_seq["words"]) >= cfg.word_window + 1: 
             word_and_ts_seq["buffered_words"].pop(0)
-            word_and_ts_seq["speaker_count_buffer"].pop(0)
             word_and_ts_seq["word_window_seq"].pop(0)
             if cfg.use_spk_turn_bsd:
                 word_and_ts_seq, word_idx_offset = get_truncated_word_window(cfg, step_num, word_and_ts_seq)
             else:
                 word_idx_offset = 0
         word_and_ts_seq["speaker_count"] = len(set(word_and_ts_seq["speaker_count_buffer"]))
-    return word_and_ts_seq, word_idx_offset
+    return word_and_ts_seq
 
 def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, debug_mode=False):
     batch_size = len(streaming_buffer.streams_length)
@@ -621,7 +665,10 @@ def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, deb
     left_offset, right_offset = 0, 0
 
     multispk_asr_streamer = MultiSpeakerASRstreamer(cfg, asr_model, diar_model, bsd_spk)
+    session_start_time = time.time()
+    feat_frame_count = 0
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
+        loop_start_time = time.time()
         with torch.inference_mode():
             with autocast:
                 with torch.no_grad(): 
@@ -652,9 +699,16 @@ def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, deb
                         right_offset=right_offset,
                         pad_and_drop_preencoded=False,
                     )
+                    
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
-
+        loop_end_time = time.time()
+        feat_frame_count += (chunk_audio.shape[-1] - cfg.discarded_frames)
+        if cfg.real_time_mode:
+            time_diff = (time.time() - session_start_time) - feat_frame_count * cfg.feat_len_sec
+            eta_min_sec = format_time(time.time() - session_start_time)
+            logging.info(f"[   REAL TIME MODE   ] min:sec - {eta_min_sec} Time difference for real-time mode: {time_diff:.4f} seconds")
+            time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))
     final_streaming_tran = extract_transcriptions(transcribed_texts)
     logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
     return final_streaming_tran, final_offline_tran
@@ -829,7 +883,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                sample['audio_filepath'], stream_id=-1
+                sample['audio_filepath'], offset=sample['offset'], stream_id=-1
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])
