@@ -495,9 +495,7 @@ class TestRNNTDecoding:
             all_hyps = all_hyps[0]
 
             print("Beam search algorithm :", beam_config['search_type'])
-            # Use the following commented print statements to check
-            # the alignment of other algorithms compared to the default
-            for idx, hyp_ in enumerate(all_hyps):  # type: (int, rnnt_utils.Hypothesis)
+            for idx, hyp_ in enumerate(all_hyps):  # idx: int, hyp_: rnnt_utils.Hypothesis
                 print("Hyp index", idx + 1, "text :", hyp_.text)
 
                 assert len(hyp_.timestep) > 0

@@ -66,7 +66,7 @@ class BeamTDTInfer(Typing):
         search_type: str representing the type of beam search to perform.
             Must be one of ['beam', 'maes'].
 
-            Algoritm used:
+            Algorithm used:
 
                 `default` - basic beam search strategy. Larger beams generally result in better decoding,
                     however the time required for the search also grows steadily.
@@ -494,11 +494,6 @@ class BeamTDTInfer(Typing):
         beam_decoder_output, beam_state = self.decoder.batch_score_hypothesis(init_tokens, cache)
         state = beam_state[0]
 
-        # Setup ngram LM:
-        if self.ngram_lm:
-            init_lm_state = kenlm.State()
-            self.ngram_lm.BeginSentenceWrite(init_lm_state)
-
         # Initialize first hypothesis for the beam (blank) for kept hypotheses
         start_hyp_kept = Hypothesis(
             y_sequence=[self.blank],
@@ -509,9 +504,14 @@ class BeamTDTInfer(Typing):
             length=0,
             last_frame=0,
         )
-        if self.ngram_lm:
-            start_hyp_kept.ngram_lm_state = init_lm_state
+        
         kept_hyps = [start_hyp_kept]
+        
+        # Setup ngram LM:
+        if self.ngram_lm:
+            init_lm_state = kenlm.State()
+            self.ngram_lm.BeginSentenceWrite(init_lm_state)
+            start_hyp_kept.ngram_lm_state = init_lm_state
 
         for time_idx in range(encoded_lengths):
             # Select current iteration hypotheses
@@ -523,12 +523,12 @@ class BeamTDTInfer(Typing):
 
             beam_encoder_output = encoder_outputs[:, time_idx : time_idx + 1]  # [1, 1, D]
             # Perform prefix search to update hypothesis scores.
-            if self.zero_duration_idx != None:
+            if self.zero_duration_idx is not None:
                 hyps = self.prefix_search(
                     sorted(hyps, key=lambda x: len(x.y_sequence), reverse=True),
                     beam_encoder_output,
                     prefix_alpha=self.maes_prefix_alpha,
-                )  # type: List[Hypothesis]
+                )
 
             list_b = []  # List that contains the blank token emissions
             list_nb = []  # List that contains the non-zero duration non-blank token emissions
