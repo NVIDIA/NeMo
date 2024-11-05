@@ -12,32 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Optional
-
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torch.utils import data
-from torch.utils.data import DataLoader
-
-from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-if TYPE_CHECKING:
-    pass
-
 import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from torch.utils.data import default_collate
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from torch.utils import data
+from torch.utils.data import DataLoader, default_collate
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
+from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.lazy import IGNORE_INDEX, LazySupervisedDataset
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
 class MLlamaDataset(LazySupervisedDataset):

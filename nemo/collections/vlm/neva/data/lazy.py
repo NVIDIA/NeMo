@@ -12,37 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Optional
-
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torch.utils import data
-from torch.utils.data import DataLoader
-
-from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
-from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-if TYPE_CHECKING:
-    pass
-
 import json
 import logging
 import os
 import re
 import tarfile
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import decord
 import numpy as np
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from torch.utils.data import Dataset, default_collate
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from torch.utils import data
+from torch.utils.data import DataLoader, Dataset, default_collate
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
+from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
 class TarOrFolderImageLoader:
