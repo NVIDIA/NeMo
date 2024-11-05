@@ -29,6 +29,7 @@ def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
     else:
         raise ValueError("Expected lightning_module to have a .model or .module attr.")
 
+
 class JitTransform(Callback, IOMixin):
     """
     Apply JIT-compling on PyTorch model
@@ -57,6 +58,7 @@ class JitTransform(Callback, IOMixin):
             jit_model = torch.compile(model)
         elif self.backend == 'thunder':
             import thunder
+
             jit_model = thunder.jit(model)
         else:
             raise ValueError("got unexpected backend")
