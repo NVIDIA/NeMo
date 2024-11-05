@@ -465,7 +465,7 @@ class TestRNNTDecoding:
                 "maes_num_steps": 2,
                 "maes_expansion_beta": 1,
                 "beam_size": 4,
-                "ngram_lm_model": os.path.join("/home/TestData/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"),
+                "ngram_lm_model": os.path.join("/home/TestData/asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"),
                 "ngram_lm_alpha": 0.3
             }
         ],
