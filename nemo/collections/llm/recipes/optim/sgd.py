@@ -31,8 +31,8 @@ def pytorch_sgd_with_cosine_annealing(
 
     return run.Config(
         PytorchOptimizerModule,
-        optim_cls=SGD,
-        config=dict(
+        optimizer_fn=run.Partial(
+            SGD,
             lr=max_lr,
             weight_decay=wd,
         ),
@@ -54,8 +54,8 @@ def pytorch_sgd_with_flat_lr(
 
     return run.Config(
         PytorchOptimizerModule,
-        optim_cls=SGD,
-        config=dict(
+        optimizer_fn=run.Partial(
+            SGD,
             lr=lr,
             weight_decay=wd,
         ),

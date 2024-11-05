@@ -30,7 +30,7 @@ class PytorchOptimizerModule(OptimizerModule):
     """A OptimizerModule for pytorch optimizers.
 
     Attributes:
-        config (OptimizerConfig): Configuration for the optimizer.
+        optimizer (Partial(optim_cls, lr=...)): Configuration for the optimizer.
         no_weight_decay_cond (Optional[Callable]): Condition for no weight decay.
         scale_lr_cond (Optional[Callable]): Condition for scaling learning rate.
         lr_mult (float): Learning rate multiplier.
@@ -48,8 +48,7 @@ class PytorchOptimizerModule(OptimizerModule):
 
     def __init__(
         self,
-        optim_cls,
-        config: dict = {'lr': 3e-4},
+        optimizer_fn,
         lr_scheduler: Optional[LRSchedulerModule] = None,
         no_weight_decay_cond: Optional[Callable] = _param_does_not_have_wd,
         scale_lr_cond: Optional[Callable] = None,
@@ -66,7 +65,7 @@ class PytorchOptimizerModule(OptimizerModule):
         """
 
         super().__init__(lr_scheduler=lr_scheduler)
-        self.optim_cls = optim_cls
+        self.optimizer_fn = optimizer_fn
         self.config = config
         self.no_weight_decay_cond = no_weight_decay_cond
         self.scale_lr_cond = scale_lr_cond
@@ -105,7 +104,7 @@ class PytorchOptimizerModule(OptimizerModule):
 
         assert max(map(len, (params_with_wd, params_without_wd))) > 0, "Expected at least one optimizer with params"
 
-        return self.optim_cls(
+        return self.optimizer_fn(
             [
                 {'params': params, 'weight_decay': weight_decay}
                 for params, weight_decay in zip(
