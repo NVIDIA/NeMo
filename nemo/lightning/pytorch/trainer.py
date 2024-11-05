@@ -37,6 +37,7 @@ class NoValOnRestartTrainingLoop(_TrainingEpochLoop):
             return False
         return super()._should_check_val_fx(data_fetcher)
 
+
 class Trainer(pl.Trainer, IOMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
