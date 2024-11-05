@@ -26,7 +26,6 @@ def pytorch_sgd_with_cosine_annealing(
     max_lr: float = 1e-5,
     min_lr: Optional[float] = None,
     wd: float = 1e-4,
-    clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:
     from torch.optim import SGD
 
@@ -50,7 +49,6 @@ def pytorch_sgd_with_cosine_annealing(
 def pytorch_sgd_with_flat_lr(
     lr: float = 1e-5,
     wd: float = 1e-4,
-    clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:
     from torch.optim import SGD
 

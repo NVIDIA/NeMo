@@ -72,7 +72,6 @@ def pytorch_adam_with_cosine_annealing(
     constant_steps: int = 0,
     max_lr: float = 1e-5,
     min_lr: Optional[float] = None,
-    clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:
     from torch.optim import Adam
 
@@ -98,7 +97,6 @@ def pytorch_adam_with_cosine_annealing(
 @run.cli.factory
 def pytorch_adam_with_flat_lr(
     lr: float = 1e-5,
-    clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:
     from torch.optim import Adam
 
