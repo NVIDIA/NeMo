@@ -24,7 +24,7 @@ import torch
 
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
-from nemo.lightning.run.plugins import FaultTolerencePlugin
+from nemo.lightning.run.plugins import FaultTolerancePlugin
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,
     MiscAttributeValidator,
@@ -147,7 +147,7 @@ def main():
 
     run_plugins: list[run.Plugin] = []
     if args.simulated_fault:
-        run_plugins.append(FaultTolerencePlugin(use_simulated_fault=args.simulated_fault))
+        run_plugins.append(FaultTolerancePlugin())
 
     run.run(pretrain_recipe, direct=True, plugins=run_plugins)
 

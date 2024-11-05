@@ -85,12 +85,12 @@ class PreemptionPlugin(run.Plugin):
 
 
 @dataclass(kw_only=True)
-class FaultTolerencePlugin(run.Plugin):
+class FaultTolerancePlugin(run.Plugin):
     """
     A plugin for setting up the fault tolerance callback from nvidia-resiliency-ext.
     This plugin enables workload hang detection, automatic calculation of timeouts used for hang detection, detection of rank(s) terminated due to an error and workload respawning in case of a failure.
 
-    Note: FaultTolerencePlugin does not work with the NsysPlugin.
+    Note: FaultTolerancePlugin does not work with the NsysPlugin.
 
     Args:
 
@@ -101,19 +101,16 @@ class FaultTolerencePlugin(run.Plugin):
         initial_rank_heartbeat_timeout (int): Timeouts are time intervals used by a rank monitor to detect that a rank is not alive. This is the max timeout for the initial heartbeat. Default is 1800.
 
         rank_heartbeat_timeout (int): This is the timeout for subsequent hearbeats after the initial heartbeat. Default is 300.
-
-        use_simulated_fault (bool): Simulate faults to test the FaultTolerencePlugin. Default is False.
     """
 
     num_in_process_restarts: int = 3
     num_job_retries_on_failure: int = 2
     initial_rank_heartbeat_timeout: int = 1800
     rank_heartbeat_timeout: int = 300
-    use_simulated_fault: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
 
-        assert HAVE_RES, "nvidia-resiliency-ext.ptl_resiliency is required to use the FaultTolerencePlugin."
+        assert HAVE_RES, "nvidia-resiliency-ext.ptl_resiliency is required to use the FaultTolerancePlugin."
 
         executor.launcher = run.FaultTolerance(
             max_restarts=self.num_in_process_restarts,
@@ -124,26 +121,21 @@ class FaultTolerencePlugin(run.Plugin):
 
         assert isinstance(task, run.Partial)
 
-        simulated_fault = run.Config(
-            res_module.fault_tolerance_callback.SimulatedFaultParams,
-            fault_type="random",
-            base_delay=45.0,
-        )
+
         callbacks = [
             run.Config(
                 res_module.FaultToleranceCallback,
                 autoresume=True,
                 calculate_timeouts=True,
-                exp_dir=task.log.log_dir,
-                simulated_fault_params=simulated_fault if self.use_simulated_fault else None,
+                exp_dir=task.log.log_dir
             )
         ]
 
-        assert not executor.launcher.nsys_profile, "Nsys not supported with the FaultTolerencePlugin."
+        assert not executor.launcher.nsys_profile, "Nsys not supported with the FaultTolerancePlugin."
         if hasattr(task, "trainer") and hasattr(task.trainer, "callbacks"):
             assert all(
                 map(lambda cb: not cb.__fn_or_cls__ == NsysCallback, task.trainer.callbacks)
-            ), "Nsys not supported with FaultTolerencePlugin."
+            ), "Nsys not supported with FaultTolerancePlugin."
 
         _merge_callbacks(task, callbacks=callbacks)
 
