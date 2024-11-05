@@ -49,6 +49,7 @@ class TEAccelerator:
                     if has_bias:
                         te_module.bias.copy_(module.bias)
 
+                setattr(model, name, te_module)
                 #print(te_module.weight)
             TEAccelerator._accelerate(module)
 
@@ -66,7 +67,7 @@ class TEAccelerator:
             if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
                 return True
             else:
-                if TEAccelerator._accelerate(module):
+                if TEAccelerator._te_accelerated(module):
                     return True
 
         return False
