@@ -28,7 +28,7 @@ from typing_extensions import override
 
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.io.pl import ckpt_to_dir
+from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -94,18 +94,15 @@ class PEFT(IOMixin, ABC, ModelTransform):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
+        self.freeze_model(model)
 
-        # If using megatron virtual pipeline parallelism, model is a list of
-        # model chunks so iterate over model
+        # apply walk to model(s)
         if isinstance(model, MegatronParallel) and len(model) > 1:
             for model_chunk in model:
-                model_chunk.freeze()
                 model_chunk.walk(self.transform)
         elif isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
-            model.module.freeze()
             model.module.walk(self.transform)
         else:
-            model.freeze()
             model.walk(self.transform)
 
         return model
@@ -122,12 +119,14 @@ class PEFT(IOMixin, ABC, ModelTransform):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
+        if isinstance(model, MegatronParallel) and len(model) > 1:
+            for model_chunk in model:
+                model_chunk.freeze()
         if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
             model.module.freeze()
-            model.module.walk(self.transform)
         else:
             model.freeze()
-            model.train(mode=True)
+        model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
@@ -136,7 +135,6 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
-        ckpt_io_kwargs = {}
 
         ckpt_io_kwarg_names = [
             "save_ckpt_format",
@@ -348,7 +346,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            base_dir = ckpt_to_dir(path)
+            base_dir = ckpt_to_weights_subdir(path, is_saving=True)
             base_dir.mkdir(parents=True, exist_ok=True)
             adapter_meta_path = base_dir / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
