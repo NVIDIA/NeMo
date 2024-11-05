@@ -29,7 +29,7 @@ def _extract_model_params_for_optim(model, weight_decay=0, no_weight_decay_cond=
     params_with_wd, params_without_wd = [], []
     if no_weight_decay_cond is not None:
         for name, param in model.named_parameters():
-            if self.no_weight_decay_cond(name, param):
+            if no_weight_decay_cond(name, param):
                 params_without_wd.append(param)
             else:
                 params_with_wd.append(param)
