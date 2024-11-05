@@ -465,21 +465,21 @@ class TestRNNTDecoding:
                 "maes_expansion_beta": 1,
                 "beam_size": 4,
                 "ngram_lm_model": os.path.join("parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"),
-                "ngram_lm_alpha": 0.3
-            }
+                "ngram_lm_alpha": 0.3,
+            },
         ],
     )
     def test_tdt_beam_decoding(self, test_data_dir, beam_config):
         beam_size = beam_config.pop("beam_size", 1)
-        model, encoded, encoded_len = get_model_encoder_output(
-            test_data_dir, 'nvidia/parakeet-tdt_ctc-110m'
-        )
-        
+        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
+
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
-        
+
         if "ngram_lm_model" in beam_config:
-            beam_config["ngram_lm_model"] = os.path.join(test_data_dir, "asr", "kenlm_ngram_lm", beam_config["ngram_lm_model"])
+            beam_config["ngram_lm_model"] = os.path.join(
+                test_data_dir, "asr", "kenlm_ngram_lm", beam_config["ngram_lm_model"]
+            )
 
         beam = tdt_beam_decoding.BeamTDTInfer(
             model.decoder,
