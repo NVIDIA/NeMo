@@ -127,7 +127,7 @@ class TestWorkloadInspectorCallback:
         """Test behavior when the current rank is not in the profile ranks."""
         mock_get_rank.return_value = 1
         callback = WorkloadInspectorCallback(start_step=10, end_step=20)
-        
+
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 10)
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 20)
 
