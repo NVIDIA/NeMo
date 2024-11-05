@@ -39,8 +39,10 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 def squared_relu(x):
     return torch.pow(F.relu(x), 2)
+
 
 class MegatronMambaModel(MegatronGPTModel):
     """
@@ -69,7 +71,7 @@ class MegatronMambaModel(MegatronGPTModel):
             self.transformer_config.params_dtype = torch.bfloat16
         else:
             self.transformer_config.params_dtype = torch.float32
-        self.transformer_config.params_dtype=torch.bfloat16
+        self.transformer_config.params_dtype = torch.bfloat16
         if self.cfg.get('kv_channels'):
             self.transformer_config.kv_channels = self.cfg.get('kv_channels')
         if self.cfg.get('squared_relu_activation'):
