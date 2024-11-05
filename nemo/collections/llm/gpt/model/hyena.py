@@ -103,6 +103,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     bf16: bool = False
     num_layers: int = 2
     num_attention_heads: int = 8
+    num_groups_hyena: int = None
+    num_groups_hyena_medium: int = None
+    num_groups_hyena_short: int = None
     hybrid_attention_ratio: float = 0.0
     hybrid_mlp_ratio: float = 0.0
     hybrid_override_pattern: str = None
@@ -130,14 +133,18 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = hyena_forward_step
     data_step_fn: Callable = gpt_data_step
     tokenizer_model_path: str = None
+    hyena_init_method: str = None
+    hyena_output_layer_init_method: str = None
 
     def configure_model(self, tokenizer) -> "MCoreHyenaModel":
-        self.hyena = GLOBAL_CONFIG
         model = MCoreHyenaModel(
             self,
             hyena_stack_spec=hyena_stack_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
+            num_groups_hyena=self.num_groups_hyena,
+            num_groups_hyena_medium=self.num_groups_hyena_medium,
+            num_groups_hyena_short=self.num_groups_hyena_short,
             hybrid_override_pattern=self.hybrid_override_pattern,
             position_embedding_type=self.position_embedding_type,
             rotary_percent=self.rotary_percent,
@@ -146,6 +153,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
             # share_embeddings_and_output_weights=True,
+            hyena_init_method=self.hyena_init_method,
+            hyena_output_layer_init_method=self.hyena_output_layer_init_method,
         )
         return model
 
@@ -358,10 +367,12 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
                         if v.dtype != dtype:
                             logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
                         self._state_dict[k] = v.to(dtype)
+
             def transform_source_dict(self, source):
                 import re
-                layer_map = {i+2:i for i in range(self.num_layers)}
-                layer_map[self.num_layers+3] = self.num_layers+1
+
+                layer_map = {i + 2: i for i in range(self.num_layers)}
+                layer_map[self.num_layers + 3] = self.num_layers + 1
                 updated_data = {}
 
                 for key in list(source.keys()):
@@ -382,7 +393,7 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
                             updated_data[key] = source[key]
 
                 return updated_data
-    
+
         source = ModelState(source, self.config.num_layers)
         target = self.init()
         trainer = self.nemo_setup(target, ckpt_async_save=False)
@@ -397,58 +408,82 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
         del trainer, target
 
         return output_path
-    
+
     def convert_state(self, source, target):
 
         mapping = {}
         te_enabled = True
         scale_or_weight = 'weight'
         mapping['sequential.0.word_embeddings.weight'] = 'embedding.word_embeddings.weight'
-        mapping[f'sequential.{len(self.config.hybrid_override_pattern)+1}.norm.{scale_or_weight}'] = 'decoder.final_norm.weight'
+        mapping[f'sequential.{len(self.config.hybrid_override_pattern)+1}.norm.{scale_or_weight}'] = (
+            'decoder.final_norm.weight'
+        )
         for i, symbol in enumerate(self.config.hybrid_override_pattern):
             if te_enabled:
-                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
+                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = (
+                    f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
+                )
             else:
-                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.pre_mlp_layernorm.weight'
+                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = (
+                    f'decoder.layers.{i}.pre_mlp_layernorm.weight'
+                )
             mapping[f'sequential.{i}.mlp.w3.weight'] = f'decoder.layers.{i}.mlp.linear_fc2.weight'
 
             if symbol != '*':
                 if te_enabled:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.mixer.dense_projection.layer_norm_weight'
+                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                        f'decoder.layers.{i}.mixer.dense_projection.layer_norm_weight'
+                    )
                 else:
                     mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.norm.weight'
 
-                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = f'decoder.layers.{i}.mixer.dense_projection.weight'
-                mapping[f'sequential.{i}.mixer.hyena_proj_conv.short_conv_weight'] = f'decoder.layers.{i}.mixer.hyena_proj_conv.short_conv_weight'
+                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = (
+                    f'decoder.layers.{i}.mixer.dense_projection.weight'
+                )
+                mapping[f'sequential.{i}.mixer.hyena_proj_conv.short_conv_weight'] = (
+                    f'decoder.layers.{i}.mixer.hyena_proj_conv.short_conv_weight'
+                )
                 mapping[f'sequential.{i}.mixer.dense.weight'] = f'decoder.layers.{i}.mixer.dense.weight'
                 mapping[f'sequential.{i}.mixer.dense.bias'] = f'decoder.layers.{i}.mixer.dense.bias'
-                
+
                 if symbol == 'S':
-                    mapping[f'sequential.{i}.mixer.mixer.short_conv.short_conv_weight'] = f'decoder.layers.{i}.mixer.mixer.short_conv.short_conv_weight'
-                    
+                    mapping[f'sequential.{i}.mixer.mixer.short_conv.short_conv_weight'] = (
+                        f'decoder.layers.{i}.mixer.mixer.short_conv.short_conv_weight'
+                    )
+
                 elif symbol == 'D':
                     mapping[f'sequential.{i}.mixer.mixer.conv_bias'] = f'decoder.layers.{i}.mixer.mixer.conv_bias'
                     mapping[f'sequential.{i}.mixer.mixer.filter.h'] = f'decoder.layers.{i}.mixer.mixer.filter.h'
-                    mapping[f'sequential.{i}.mixer.mixer.filter.decay'] = f'decoder.layers.{i}.mixer.mixer.filter.decay'
+                    mapping[f'sequential.{i}.mixer.mixer.filter.decay'] = (
+                        f'decoder.layers.{i}.mixer.mixer.filter.decay'
+                    )
 
                 elif symbol == 'H':
                     mapping[f'sequential.{i}.mixer.mixer.conv_bias'] = f'decoder.layers.{i}.mixer.mixer.conv_bias'
-                    mapping[f'sequential.{i}.mixer.mixer.filter.gamma'] = f'decoder.layers.{i}.mixer.mixer.filter.gamma'
+                    mapping[f'sequential.{i}.mixer.mixer.filter.gamma'] = (
+                        f'decoder.layers.{i}.mixer.mixer.filter.gamma'
+                    )
                     mapping[f'sequential.{i}.mixer.mixer.filter.R'] = f'decoder.layers.{i}.mixer.mixer.filter.R'
                     mapping[f'sequential.{i}.mixer.mixer.filter.p'] = f'decoder.layers.{i}.mixer.mixer.filter.p'
-                    
+
             elif symbol == '*':
                 if te_enabled:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                        f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+                    )
                 else:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.input_layernorm.weight'
+                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                        f'decoder.layers.{i}.input_layernorm.weight'
+                    )
 
-                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = f'decoder.layers.{i}.self_attention.linear_qkv.weight'
+                mapping[f'sequential.{i}.mixer.dense_projection.weight'] = (
+                    f'decoder.layers.{i}.self_attention.linear_qkv.weight'
+                )
                 mapping[f'sequential.{i}.mixer.dense.weight'] = f'decoder.layers.{i}.self_attention.linear_proj.weight'
                 mapping[f'sequential.{i}.mixer.dense.bias'] = f'decoder.layers.{i}.self_attention.linear_proj.bias'
             else:
                 raise ValueError(f'Unknown symbol: {symbol}')
-            
+
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_linear_fc1])
 
     @property
@@ -465,6 +500,7 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
     def config(self) -> HyenaConfig:
         return self.model_config
 
+
 @io.state_transform(
     source_key=("sequential.*.mlp.w1.weight", "sequential.*.mlp.w2.weight"),
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
@@ -472,12 +508,16 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
 def _import_linear_fc1(w1, w2):
     return torch.cat((w1, w2), axis=0)
 
+
 @dataclass
 class HyenaTestConfig(HyenaConfig):
     hybrid_override_pattern: str = "SDH*"
     num_layers: int = 4
     seq_length: int = 8192
     hidden_size: int = 4096
+    num_groups_hyena: int = 4096
+    num_groups_hyena_medium: int = 256
+    num_groups_hyena_short: int = 256
     make_vocab_size_divisible_by: int = 8
     tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
@@ -498,6 +538,8 @@ class HyenaTestConfig(HyenaConfig):
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
     recompute_num_layers: int = 2
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
 
 
 @dataclass
@@ -506,6 +548,9 @@ class Hyena7bConfig(HyenaConfig):
     num_layers: int = 32
     seq_length: int = 8192
     hidden_size: int = 4096
+    num_groups_hyena: int = 4096
+    num_groups_hyena_medium: int = 256
+    num_groups_hyena_short: int = 256
     make_vocab_size_divisible_by: int = 8
     tokenizer_library: str = 'byte-level'
     mapping_type: str = "base"
@@ -526,6 +571,8 @@ class Hyena7bConfig(HyenaConfig):
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
     recompute_num_layers: int = 4
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
 
 
 __all__ = [

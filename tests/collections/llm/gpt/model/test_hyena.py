@@ -30,9 +30,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.api import _setup
-
 
 """
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
@@ -116,7 +113,7 @@ if __name__ == '__main__':
         tensor_model_parallel_size=args.tensor_parallel_size,
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
         context_parallel_size=args.context_parallel_size,
-        pipeline_dtype = torch.bfloat16,
+        pipeline_dtype=torch.bfloat16,
         ckpt_load_optimizer=False,
         ckpt_save_optimizer=False,
         ckpt_async_save=False,

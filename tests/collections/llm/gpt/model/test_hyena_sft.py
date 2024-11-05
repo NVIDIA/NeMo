@@ -19,21 +19,16 @@ import argparse
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import _setup
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.lightning.resume import AutoResume
-from nemo import lightning as nl
-from nemo.collections import llm
-from nemo.collections.llm.api import _setup
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.lightning.resume import AutoResume
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-
 
 """
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena_sft.py \
@@ -75,6 +70,7 @@ CUDA_VISIBLE_DEVICES=0 python /opt/NeMo/tests/collections/llm/gpt/model/test_hye
                                 --model-size=test \
                                 --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
 """
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
@@ -120,7 +116,7 @@ if __name__ == "__main__":
             tensor_model_parallel_size=args.tensor_parallel_size,
             pipeline_model_parallel_size=args.pipeline_model_parallel_size,
             context_parallel_size=args.context_parallel_size,
-            pipeline_dtype = torch.bfloat16,
+            pipeline_dtype=torch.bfloat16,
         ),
         plugins=nl.MegatronMixedPrecision(
             precision="32",
