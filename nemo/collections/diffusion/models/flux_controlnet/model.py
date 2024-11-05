@@ -55,6 +55,8 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0
+    add_qkv_bias: bool = True
+
 
     load_from_flux_transformer:bool = True
     guidance_scale: float = 3.5
@@ -225,12 +227,9 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             if self.flux_controlnet_config.load_from_flux_transformer:
                 self.module.load_from_flux_transformer(self.flux)
 
-        if self.vae_params is not None:
-            self.configure_vae(self.vae_params)
-        if self.scheduler_params is not None:
-            self.configure_scheduler(self.scheduler_params)
-        if self.t5_params is not None and self.clip_params is not None:
-            self.configure_text_encoders(self.clip_params, self.t5_params)
+        self.configure_vae(self.vae_params)
+        self.configure_scheduler(self.scheduler_params)
+        self.configure_text_encoders(self.clip_params, self.t5_params)
 
 
     def data_step(self, dataloader_iter):
@@ -258,16 +257,21 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         self.flux.to(self.autocast_dtype)
 
     def forward_step(self, batch) -> torch.Tensor:
-        img, txt, hint =  batch['images'].permute(0,3,1,2).cuda(non_blocking=True), batch['txt'], batch['hint'].permute(0,3,1,2).cuda(non_blocking=True)
-
-
         with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16),
                 dtype=self.autocast_dtype,
         ):
-            latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(img)
-            prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device = latents.device, dtype=latents.dtype)
-            control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
+            if self.image_precached:
+                latents = batch['latents'].cuda(non_blocking=True)
+                control_latents = batch['control_latents'].cuda(non_blocking=True)
+            else:
+                img = batch['images'].permute(0, 3, 1, 2).cuda(non_blocking=True)
+                latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
+                hint = batch['hint'].permute(0, 3, 1, 2).cuda(non_blocking=True)
+                control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
+
+            latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(
+                latents)
             control_image = self._pack_latents(
                 control_latents,
                 batch_size=control_latents.shape[0],
@@ -275,6 +279,15 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 height=control_latents.shape[2],
                 width=control_latents.shape[3],
             ).transpose(0, 1)
+            if self.text_precached:
+                prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
+                pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
+                text_ids = batch['text_ids'].cuda(non_blocking=True)
+            else:
+                txt = batch['txt']
+                prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device=latents.device,
+                                                                                   dtype=latents.dtype)
+
 
             controlnet_double_block_samples, controlnet_single_block_samples = self.forward(
                 img=packed_noisy_model_input,

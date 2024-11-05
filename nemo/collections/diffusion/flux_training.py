@@ -39,7 +39,9 @@ def main(args):
         image_h=1024,
         image_w=1024,
         micro_batch_size=args.mbs,
-        global_batch_size=args.gbs
+        global_batch_size=args.gbs,
+        image_precached=args.image_precached,
+        text_precached=args.text_precached,
     )
 
     # Optimizer and scheduler setup
@@ -56,8 +58,14 @@ def main(args):
     model_params.t5_params['version'] = '/ckpts/text_encoder_2'
     model_params.clip_params['version'] = '/ckpts/text_encoder'
     model_params.vae_params.ckpt = '/ckpts/ae.safetensors'
-    model_params.flux_params.num_joint_layers=1
-    model_params.flux_params.num_single_layers=1
+    model_params.flux_params.num_joint_layers=args.num_joint_layers
+    model_params.flux_params.num_single_layers=args.num_single_layers
+    if args.image_precached:
+        model_params.vae_params = None
+    if args.text_precached:
+        model_params.t5_params = None
+        model_params.clip_params = None
+
     model = MegatronFluxModel(model_params)
 
     strategy = nl.MegatronStrategy(
@@ -168,6 +176,11 @@ if __name__ == "__main__":
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--mbs", type=int, required=False, default=1)
     parser.add_argument("--gbs", type=int, required=False, default=1)
+    parser.add_argument("--image_precached", action='store_true', default=False)
+    parser.add_argument("--text_precached", action='store_true', default=False)
+    parser.add_argument("--num_joint_layers", type=int, required=False, default=1)
+    parser.add_argument("--num_single_layers", type=int, required=False, default=1)
+
 
     args = parser.parse_args()
     main(args)

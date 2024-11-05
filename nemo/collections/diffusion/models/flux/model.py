@@ -251,7 +251,8 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=False))
         self.optim.connect(self)
         self.model_type = ModelType.encoder_or_decoder
-
+        self.text_precached = (self.t5_params is None or self.clip_params is None)
+        self.image_precached = (self.vae_params is None)
 
 
 
@@ -259,12 +260,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
     def configure_model(self):
         if not hasattr(self, "module"):
             self.module = self.config.configure_model()
-        if self.vae_params is not None:
-            self.configure_vae(self.vae_params)
-        if self.scheduler_params is not None:
-            self.configure_scheduler(self.scheduler_params)
-        if self.t5_params is not None and self.clip_params is not None:
-            self.configure_text_encoders(self.clip_params, self.t5_params)
+        self.configure_vae(self.vae_params)
+        self.configure_scheduler(self.scheduler_params)
+        self.configure_text_encoders(self.clip_params, self.t5_params)
 
 
     def configure_scheduler(self, scheduler):
@@ -285,6 +283,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         else:
             logging.info("Vae not provided, assuming the image input is precached...")
             self.vae = None
+            self.vae_scale_factor = 16
 
 
 
@@ -320,7 +319,6 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
         return self.forward_step(batch)
     def forward_step(self, batch) -> torch.Tensor:
-        img, txt = batch['images'].permute(0,3,1,2).cuda(non_blocking=True), batch['txt']
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
         elif self.optim.config.fp16:
@@ -331,8 +329,19 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
                 self.autocast_dtype in (torch.half, torch.bfloat16),
                 dtype=self.autocast_dtype,
         ):
-            latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(img)
-            prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device = latents.device, dtype=latents.dtype)
+            if self.image_precached:
+                latents = batch['latents'].cuda(non_blocking=True)
+            else:
+                img = batch['images'].permute(0, 3, 1, 2).cuda(non_blocking=True)
+                latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
+            latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(latents)
+            if self.text_precached:
+                prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
+                pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
+                text_ids = batch['text_ids'].cuda(non_blocking=True)
+            else:
+                txt = batch['txt']
+                prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device = latents.device, dtype=latents.dtype)
             noise_pred = self.forward(
                 img=packed_noisy_model_input,
                 txt=prompt_embeds,
@@ -385,8 +394,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         else:
             u = torch.rand(size=(batch_size,), device="cpu")
         return u
-    def prepare_image_latent(self, img):
-        latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
+    def prepare_image_latent(self, latents):
         latent_image_ids = self._prepare_latent_image_ids(
             latents.shape[0],
             latents.shape[2],
