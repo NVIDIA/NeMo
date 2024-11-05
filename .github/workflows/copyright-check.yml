@@ -18,4 +18,4 @@ on:
 
 jobs:
   copyright-check:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_copyright_check.yml@ko3n1g/feat/copyright-check
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_copyright_check.yml@v0.2.0
