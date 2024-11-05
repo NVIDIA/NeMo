@@ -25,6 +25,25 @@ from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 def _param_does_not_have_wd(param_name, param):
     return 'bias' in param_name
 
+def _extract_model_params_for_optim(model, no_weight_decay_cond=None):
+    params_with_wd, params_without_wd = [], []
+    if no_weight_decay_cond is not None:
+        for name, param in model.named_parameters():
+            if self.no_weight_decay_cond(name, param):
+                params_without_wd.append(param)
+            else:
+                params_with_wd.append(param)
+    else:
+        params_with_wd = model.parameters()
+
+    assert max(map(len, (params_with_wd, params_without_wd))) > 0, "Expected at least one optimizer with params"
+
+    return [
+        {'params': params, 'weight_decay': weight_decay}
+        for params, weight_decay in zip(
+            (params_with_wd, params_without_wd), (self.config.get('weight_decay', 0), 0)
+        )
+    ]
 
 class PytorchOptimizerModule(OptimizerModule):
     """A OptimizerModule for pytorch optimizers.
@@ -48,7 +67,7 @@ class PytorchOptimizerModule(OptimizerModule):
 
     def __init__(
         self,
-        optimizer_fn,
+        optimizer_fn: Callable[[ParamsT], Optimizer],
         lr_scheduler: Optional[LRSchedulerModule] = None,
         no_weight_decay_cond: Optional[Callable] = _param_does_not_have_wd,
         scale_lr_cond: Optional[Callable] = None,
@@ -92,26 +111,7 @@ class PytorchOptimizerModule(OptimizerModule):
         if isinstance(model, MegatronParallel):
             raise ValueError("Model cannot be an instance of MegatronParallel")
 
-        params_with_wd, params_without_wd = [], []
-        if self.no_weight_decay_cond is not None:
-            for name, param in model.named_parameters():
-                if self.no_weight_decay_cond(name, param):
-                    params_without_wd.append(param)
-                else:
-                    params_with_wd.append(param)
-        else:
-            params_with_wd = model.parameters()
-
-        assert max(map(len, (params_with_wd, params_without_wd))) > 0, "Expected at least one optimizer with params"
-
-        return self.optimizer_fn(
-            [
-                {'params': params, 'weight_decay': weight_decay}
-                for params, weight_decay in zip(
-                    (params_with_wd, params_without_wd), (self.config.get('weight_decay', 0), 0)
-                )
-            ]
-        )
+        return self.optimizer_fn(_extract_model_params_for_optim(model, self.no_weight_decay_cond))
 
     def finalize_model_grads(self, *args, **kwargs):
         # Noop
