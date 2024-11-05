@@ -638,7 +638,11 @@ class VisionEncoder(MegatronModule):
         x = self.post_tile_pos_embed(x, ar_ids)
         x = x.reshape(bsz * num_concurrent_media, num_chunks * (ntok + npad), dim)
         x = x.transpose(0, 1).contiguous()
-        x = self.global_transformer(hidden_states=x, attention_mask=None, attention_bias=attn_bias,)
+        x = self.global_transformer(
+            hidden_states=x,
+            attention_mask=None,
+            attention_bias=attn_bias,
+        )
         x = x.transpose(0, 1)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
 
