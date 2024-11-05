@@ -34,52 +34,10 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE_OR_TE = False
 
-########## Temporary experimental code ##########
-import yaml
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
-
-
-class DotDict(dict):
-    """A dictionary that supports dot notation for accessing keys."""
-
-    def __getattr__(self, attr):
-        return self.get(attr)
-
-    def __setattr__(self, key, value):
-        self[key] = value
-
-    def __delattr__(self, item):
-        del self[item]
-
-
-def load_yaml_as_dotdict(filepath):
-    with open(filepath, 'r') as file:
-        yaml_content = yaml.safe_load(file)
-
-    # Recursively convert dictionary to DotDict and replace "-" with "_"
-    return dict_to_dotdict(yaml_content)
-
-
-def dict_to_dotdict(d):
-    """Convert a dictionary into a DotDict recursively and replace '-' with '_' in keys."""
-    if not isinstance(d, dict):
-        return d
-
-    transformed_dict = {}
-    for k, v in d.items():
-        # Replace "-" with "_" in the key
-        new_key = k.replace('-', '_')
-        transformed_dict[new_key] = dict_to_dotdict(v)
-
-    return DotDict(transformed_dict)
-
-
-GLOBAL_CONFIG = load_yaml_as_dotdict('/opt/NeMo/nemo/collections/llm/gpt/model/7b.yml')
-#################################################
-
 
 def hyena_forward_step(model, batch) -> torch.Tensor:
 
@@ -98,9 +56,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
     share_embeddings_and_output_weights: bool = False
-    params_dtype: torch.dtype = torch.float
+    params_dtype: torch.dtype = torch.bfloat16
     fp16: bool = False
-    bf16: bool = False
+    bf16: bool = True
     num_layers: int = 2
     num_attention_heads: int = 8
     num_groups_hyena: int = None
@@ -527,7 +485,7 @@ class HyenaTestConfig(HyenaConfig):
     use_cpu_initialization: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.float
+    params_dtype: torch.dtype = torch.bfloat16
     normalization: str = "RMSNorm"
     add_qkv_bias: bool = False
     add_bias_linear: bool = False
@@ -560,7 +518,7 @@ class Hyena7bConfig(HyenaConfig):
     use_cpu_initialization: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.float
+    params_dtype: torch.dtype = torch.bfloat16
     normalization: str = "RMSNorm"
     add_qkv_bias: bool = False
     add_bias_linear: bool = False

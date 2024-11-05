@@ -32,29 +32,17 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 """
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --devices=2 \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
+                                --devices=8 \
                                 --max-steps=40 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
+                                --experiment-dir=<path-to-dir-t0-save-logs-and-ckpts> \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=1 \
-                                --pipeline-model-parallel-size=1 \
-                                --context-parallel-size=2 \
-                                --global-batch-size=1 \
-                                --micro-batch-size=1 \
-                                --model-size=test
-
-CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --devices=1 \
-                                --max-steps=40 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
-                                --seq-length=8192 \
-                                --tensor-parallel-size=1 \
+                                --tensor-parallel-size=8 \
                                 --pipeline-model-parallel-size=1 \
                                 --context-parallel-size=1 \
-                                --global-batch-size=1 \
-                                --micro-batch-size=1 \
-                                --model-size=test
+                                --global-batch-size=128 \
+                                --micro-batch-size=16 \
+                                --model-size=7b
 """
 
 
