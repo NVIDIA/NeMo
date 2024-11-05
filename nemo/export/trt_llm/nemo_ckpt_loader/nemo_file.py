@@ -405,7 +405,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             if nemo_model_config["activation"] == "silu":
                 nemo_model_config["activation"] = "fast-swiglu"
             elif nemo_model_config["activation"] == "openai_gelu":
-                nemo_model_config["activation"] = "geglu"
+                nemo_model_config["activation"] = "openai-gelu"
             elif nemo_model_config["activation"] == "squared_relu":
                 nemo_model_config["activation"] = "squared-relu"
 
