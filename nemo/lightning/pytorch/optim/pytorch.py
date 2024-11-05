@@ -25,7 +25,7 @@ from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 def _param_does_not_have_wd(param_name, param):
     return 'bias' in param_name
 
-def _extract_model_params_for_optim(model, no_weight_decay_cond=None):
+def _extract_model_params_for_optim(model, weight_decay=0, no_weight_decay_cond=None):
     params_with_wd, params_without_wd = [], []
     if no_weight_decay_cond is not None:
         for name, param in model.named_parameters():
@@ -39,9 +39,9 @@ def _extract_model_params_for_optim(model, no_weight_decay_cond=None):
     assert max(map(len, (params_with_wd, params_without_wd))) > 0, "Expected at least one optimizer with params"
 
     return [
-        {'params': params, 'weight_decay': weight_decay}
-        for params, weight_decay in zip(
-            (params_with_wd, params_without_wd), (self.config.get('weight_decay', 0), 0)
+        {'params': params, 'weight_decay': wd}
+        for params, wd in zip(
+            (params_with_wd, params_without_wd), (weight_decay, 0)
         )
     ]
 
@@ -49,16 +49,20 @@ class PytorchOptimizerModule(OptimizerModule):
     """A OptimizerModule for pytorch optimizers.
 
     Attributes:
-        optimizer (Partial(optim_cls, lr=...)): Configuration for the optimizer.
+        optimizer_fn (Callable[[ParamsT], Optimizer]): Configuration for the optimizer.
         no_weight_decay_cond (Optional[Callable]): Condition for no weight decay.
         scale_lr_cond (Optional[Callable]): Condition for scaling learning rate.
         lr_mult (float): Learning rate multiplier.
 
     Example::
 
-        config = OptimizerConfig(...)
+        optimizer_fn = run.Partial(
+            SGD,
+            lr=lr,
+            weight_decay=wd,
+        )
         lr_scheduler = MyLRSchedulerModule(...)
-        optimizer_module = PytorchOptimizerModule(config, lr_scheduler)
+        optimizer_module = PytorchOptimizerModule(optimizer_fn, lr_scheduler)
 
     Methods:
         setup(model): Sets up the optimizer.
@@ -76,7 +80,7 @@ class PytorchOptimizerModule(OptimizerModule):
         """Initializes the PytorchOptimizerModule.
 
         Args:
-            config (OptimizerConfig): Configuration for the optimizer.
+            optimizer_fn (Callable[[ParamsT], Optimizer]): Configuration for the optimizer.
             lr_scheduler (Optional[LRSchedulerModule]): The learning rate scheduler module.
             no_weight_decay_cond (Optional[Callable]): Condition for no weight decay.
             scale_lr_cond (Optional[Callable]): Condition for scaling learning rate.
@@ -85,11 +89,9 @@ class PytorchOptimizerModule(OptimizerModule):
 
         super().__init__(lr_scheduler=lr_scheduler)
         self.optimizer_fn = optimizer_fn
-        self.config = config
         self.no_weight_decay_cond = no_weight_decay_cond
         self.scale_lr_cond = scale_lr_cond
         self.lr_mult = lr_mult
-        self.optim_cls = optim_cls
 
     def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"):
         # Noop
@@ -111,7 +113,8 @@ class PytorchOptimizerModule(OptimizerModule):
         if isinstance(model, MegatronParallel):
             raise ValueError("Model cannot be an instance of MegatronParallel")
 
-        return self.optimizer_fn(_extract_model_params_for_optim(model, self.no_weight_decay_cond))
+        wd = self.optimizer_fn.keywords.get('weight_decay', 0)
+        return self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
 
     def finalize_model_grads(self, *args, **kwargs):
         # Noop
