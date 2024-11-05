@@ -113,6 +113,7 @@ def model_cfg(test_data_dir):
         'ub_tp_comm_overlap_cfg': None,
         'use_flash_attention': False,
         'nsys_profile': {'enabled': False, 'start_step': 10, 'end_step': 10, 'ranks': [0], 'gen_shape': False},
+        'wit_profile': {'enabled': False, 'start_step': 10, 'end_step': 10},
         'optim': {
             'name': 'distributed_fused_adam',
             'lr': '2e-4',

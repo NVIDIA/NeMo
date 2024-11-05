@@ -101,6 +101,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self, '_memory_profile_enabled'):
             self._memory_profile_start_step = self.cfg.memory_profile.get('start_step', 0)
             self._memory_profile_end_step = self.cfg.memory_profile.get('end_step', 0)
+        if hasattr(self, '_wit_profile_enabled'):
+            self._wit_profile_start_step = self.cfg.wit_profile.get('start_step', 0)
+            self._wit_profile_end_step = self.cfg.wit_profile.get('end_step', 0)
 
         self.virtual_tokens = 0
         self.init_global_step = 0

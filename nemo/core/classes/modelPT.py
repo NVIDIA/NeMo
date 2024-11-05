@@ -211,6 +211,13 @@ class ModelPT(LightningModule, Model):
         self._memory_profile_started = False
         self._memory_profile_complete = False
 
+        from workload_inspector.bkg_runner import BackgroundRunner
+        from workload_inspector.torch.nsys_downstream import NsysDownstream
+        self._wit_profile_started = False
+        self._wit_profile_complete = False
+        nsys_bg_thread = NsysDownstream(os.getenv('NSYS_LOG_DIR', None), os.getenv('GPU_KERN_STATS_OUTPUT_DIR', None), "stdev")
+        self.wit_bg_runner = BackgroundRunner(nsys_bg_thread)
+
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 
@@ -1816,6 +1823,30 @@ class ModelPT(LightningModule, Model):
                     raise ValueError(
                         f'Memory profile output path ({self._memory_profile_output_path}) is not set or does not exist.'
                     )
+        
+        if self.cfg.get('wit_profile', None) is not None:
+            if self.cfg.wit_profile.get('enabled', False):
+                # WIT profiling options
+                self._wit_profile_enabled = True 
+                self._wit_profile_start_step = self.cfg.wit_profile.get('start_step', 0)
+                self._wit_profile_end_step = self.cfg.wit_profile.get('end_step', 0)
+     
+                if type(self._wit_profile_start_step) == int: 
+                    logging.info(f'Nsys profiling setup with start_step: {self._wit_profile_start_step}')
+                else:
+                    raise ValueError(
+                        f'Nsys start_step must be of type int. Found: {type(self._wit_profile_start_step)}'
+                    )    
+
+                if type(self._wit_profile_end_step) == int: 
+                    logging.info(f'Nsys profiling setup with end_step: {self._wit_profile_end_step}')
+                else:
+                    raise ValueError(f'Nsys end_step must be of type int. Found: {type(self._wit_profile_end_step)}')
+
+                if self._wit_profile_end_step >= self._wit_profile_start_step:
+                    pass 
+                else:
+                    raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
 
     def on_train_start(self):
         """PyTorch Lightning hook:
@@ -1859,6 +1890,13 @@ class ModelPT(LightningModule, Model):
                         logging.info("====== Start CUDA memory profiling ======")
                         torch.cuda.memory._record_memory_history(max_entries=100000)
                         self._memory_profile_started = True
+            
+            if hasattr(self, '_wit_profile_enabled'):
+                if self._wit_profile_enabled and not self._wit_profile_started:
+                    if batch_idx >= self._wit_profile_start_step:
+                        logging.info("====== Start Workload Inspector profiling ======")
+                        torch.cuda.cudart().cudaProfilerStart()
+                        self._wit_profile_started = True
 
         # dynamic freezing
         if hasattr(self, '_freeze_cfg') and self._freeze_cfg is not None:
@@ -1905,6 +1943,15 @@ class ModelPT(LightningModule, Model):
                         )
                         torch.cuda.memory._record_memory_history(enabled=None)
                         self._memory_profile_complete = True
+            
+            if hasattr(self, '_wit_profile_enabled'):
+                if self._wit_profile_enabled and not self._wit_profile_complete:
+                    if batch_idx >= self._wit_profile_end_step:
+                        logging.info("====== End Workload Inspector profiling ======")
+                        torch.cuda.cudart().cudaProfilerStop()
+                        self._wit_profile_complete = True
+                        self.wit_bg_runner.start_background_task(args=None)
+                        self.wit_bg_runner.join_background_task()
 
     def _cleanup_on_execution_end(self):
         """

@@ -24,7 +24,7 @@ from nemo_run.core.serialization.yaml import YamlSerializer
 from pytorch_lightning import Callback
 from pytorch_lightning.loggers import WandbLogger
 
-from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
+from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback, WorkloadInspectorCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
 
@@ -117,6 +117,38 @@ class NsysPlugin(run.Plugin):
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
 
+@dataclass(kw_only=True)
+class WorkloadInspectorPlugin(run.Plugin):
+    """
+    A plugin for enabling Workload Inspector Tool (WIT).
+
+    The WorkloadInspectorPlugin allows you to profile your run using nsys for GPU-profile analysis of nsys traces and anomaly detection.
+    You can specify when to start and end the profiling, and what to trace during profiling.
+
+    Args:
+        start_step (int): The step at which to start the nsys profiling.
+        end_step (int): The step at which to end the nsys profiling.
+        wit_trace (Optional[list[str]]): The events to trace during profiling. If not specified,
+            'nvtx' and 'cuda' events will be traced.
+    """
+
+    start_step: int
+    end_step: int
+    wit_trace: Optional[list[str]] = None
+
+    def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+        if isinstance(task, run.Partial):
+            wit_callback = run.Config(
+                WorkloadInspectorCallback,
+                start_step=self.start_step,
+                end_step=self.end_step,
+            )
+            callbacks: list[run.Config[Callback]] = [wit_callback]  # type: ignore
+            _merge_callbacks(task, callbacks=callbacks)
+
+        launcher = executor.get_launcher()
+        launcher.wit_profile = True
+        launcher.wit_trace = self.wit_trace or ["nvtx", "cuda"]
 
 @dataclass(kw_only=True)
 class WandbPlugin(run.Plugin):
