@@ -51,7 +51,7 @@ jobs:
   
   cicd-test-container-build:
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@main
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.1.0
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
