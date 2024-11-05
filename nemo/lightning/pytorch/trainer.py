@@ -23,8 +23,19 @@ from typing_extensions import Self
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
-from nemo.utils.exp_manager import SkipResumeTrainingValidationLoop
 
+
+class NoValOnRestartTrainingLoop(_TrainingEpochLoop):
+    """
+    Extend the PTL Epoch loop to skip validation when restarting.
+    This happens when resuming a checkpoint that has already run validation, but loading restores
+    the training state before validation has run.
+    """
+
+    def _should_check_val_fx(self, data_fetcher) -> bool:
+        if self.restarting:
+            return False
+        return super()._should_check_val_fx(data_fetcher)
 
 class Trainer(pl.Trainer, IOMixin):
     def __init__(self, *args, **kwargs):
@@ -37,7 +48,7 @@ class Trainer(pl.Trainer, IOMixin):
             return
 
         ## Pass trainer object to avoid trainer getting overwritten as None
-        loop = SkipResumeTrainingValidationLoop(self, self.min_steps, self.max_steps)
+        loop = NoValOnRestartTrainingLoop(self, self.min_steps, self.max_steps)
         self.fit_loop.epoch_loop = loop
 
     def add_io(self, obj):
