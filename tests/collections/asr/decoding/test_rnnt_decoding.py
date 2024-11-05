@@ -472,10 +472,8 @@ class TestRNNTDecoding:
     )
     def test_tdt_beam_decoding(self, test_data_dir, beam_config):
         beam_size = beam_config.pop("beam_size", 1)
-        model, encoded, encoded_len = get_model_encoder_output(
-            test_data_dir, 'nvidia/parakeet-tdt_ctc-110m'
-        )
-        
+        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
+
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
 
