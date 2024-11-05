@@ -1,3 +1,18 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import re
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
@@ -62,8 +77,6 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
 
 
 class DoRALinear(AdapterWrapper):
-    """TODO"""
-
     def __init__(self, to_wrap: nn.Module, adapter: ParallelLinearDoRAAdapter):
         super().__init__(to_wrap, adapter)
         self.adapter: ParallelLinearDoRAAdapter
@@ -117,14 +130,36 @@ class DoRALinear(AdapterWrapper):
 @dataclass
 class DoRA(PEFT):
     """
-    TODO
-    """
+        Implements the DoRA (Weight-Decomposed LowRank Adaptation) module for parameter-efficient fine-tuning.
+
+        DoRA decomposes pre-trained weight into magnitude and direction, and uses a low-rank projection in the
+        directional component to adapt the weights of a pre-trained model to a new downstream task.
+        This class facilitates the application of DoRA to specific modules within the model architecture.
+
+        Args:
+            See LoRA class for a detailed explanation of the arguments.
+
+        Example:
+        --------
+            >>> from nemo.collections import llm
+            >>> lora = llm.peft.DoRA(target_modules=['linear_qkv', 'linear_proj'], dim=32, alpha=64)
+            >>> model = llm.Mistral7BModel(model_transform=lora)
+            >>> # (set up trainer and data)
+            >>> trainer.fit(model, data)
+
+        References:
+        -----------
+            Shih-Yang Liu, Chien-Yi Wang, Hongxu Yin, Pavlo Molchanov, Yu-Chiang Frank Wang, Kwang-Ting Cheng, Min-Hung Chen (2024).
+            DoRA: Weight-Decomposed Low-Rank Adaptation. arXiv preprint arXiv:2402.09353.
+            https://arxiv.org/abs/2402.09353
+        )
+        """
 
     target_modules: List[str] = field(
         default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
     )
     dim: int = 32
-    alpha: int = 32
+    alpha: int = 64
     dropout: float = 0.0
     dropout_position: Literal['pre', 'post'] = 'pre'
     lora_A_init_method: str = "xavier"
