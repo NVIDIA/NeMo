@@ -98,15 +98,18 @@ class DoRALinear(AdapterWrapper):
         if self.adapter.dropout is None:
             dropout_correction = 0
         else:
-            assert self.adapter.dropout_position == "pre", ("DoRA only supports pre-adapter dropout at this time."
-                                                            "Please set DoRA(..., dropout_position='pre')")
+            assert self.adapter.dropout_position == "pre", (
+                "DoRA only supports pre-adapter dropout at this time." "Please set DoRA(..., dropout_position='pre')"
+            )
             """
             When dropout is used, equation becomes
               W_0 x + (m /||W_0 + B A|| - 1) W_0 dropout(x) + m /||W_0 + B A|| B A dropout(x)
             = ...
             = m /||W_0 + B A|| (W_0 x + B A dropout(x)) + (m /||W_0 + B A|| - 1) W_0 (dropout(x) - x)
             """
-            dropout_correction = (mag_norm_scale - 1) * self.base_linear_forward(self.adapter.dropout(layernorm_output) - x)[0]
+            dropout_correction = (mag_norm_scale - 1) * self.base_linear_forward(
+                self.adapter.dropout(layernorm_output) - x
+            )[0]
 
         return mag_norm_scale * (linear_output + adapter_output) + dropout_correction, bias
 
