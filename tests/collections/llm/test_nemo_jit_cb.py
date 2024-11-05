@@ -123,7 +123,7 @@ if __name__ == '__main__':
     for has_jit in [True, False]:
         tokenizer = OrdTokenizer()
         model = JitTestModel(tokenizer=tokenizer, has_jit=has_jit)
-        optim = fdl.build(llm.sgd.pytorch_sgd_with_flat_lr(max_lr=1e-5))
+        optim = fdl.build(llm.sgd.pytorch_sgd_with_flat_lr(lr=1e-5))
 
         llm.api.finetune(
             model=model,
