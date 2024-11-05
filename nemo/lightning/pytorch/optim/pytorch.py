@@ -15,6 +15,7 @@
 from typing import Callable, List, Optional
 
 import pytorch_lightning as pl
+import pytorch_lightning as L
 from torch.optim import Optimizer
 
 from nemo.lightning.megatron_parallel import MegatronParallel
@@ -102,31 +103,25 @@ class PytorchOptimizerModule(OptimizerModule):
         else:
             params_with_wd = model.parameters()
 
-        optimizers = []
-        if len(params_with_wd) > 0:
-            optimizers.append(
-                self.optim_cls(
-                    params_with_wd,
-                    **self.config,
-                )
-            )
+        assert max(map(len, (params_with_wd, params_without_wd))) > 0, "Expected at least one optimizer with params"
 
-        if len(params_without_wd) > 0:
-            wd = self.config.get('weight_decay', None)
-            kwargs['weight_decay'] = 0
-            optimizers.append(
-                self.optim_cls(
-                    params_without_wd,
-                    **kwargs,
+        return self.optim_cls(
+            [
+                {'params': params, 'weight_decay': weight_decay}
+                for params, weight_decay in zip(
+                    (params_with_wd, params_without_wd), (self.config.get('weight_decay', 0), 0)
                 )
-            )
-            # restore value
-            if wd is not None:
-                kwargs['weight_decay'] = wd
-
-        assert len(optimizers) > 0, "Expected at least one optimizer with params"
-        return optimizers
+            ]
+        )
 
     def finalize_model_grads(self, *args, **kwargs):
         # Noop
         pass
+
+    def connect(self, model: L.LightningModule) -> None:
+        """Connects the optimizer module to the model and trainer.
+
+        Args:
+            model (L.LightningModule): The model to which the optimizer module is being connected.
+        """
+        model.configure_optimizers = lambda: self.optimizers(model)
