@@ -504,9 +504,9 @@ class BeamTDTInfer(Typing):
             length=0,
             last_frame=0,
         )
-        
+
         kept_hyps = [start_hyp_kept]
-        
+
         # Setup ngram LM:
         if self.ngram_lm:
             init_lm_state = kenlm.State()
