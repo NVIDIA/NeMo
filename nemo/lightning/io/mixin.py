@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import functools
 import inspect
 import json
@@ -64,6 +78,39 @@ def _config_representer_with_defaults(dumper, data, type_name="Config"):
 
 def _partial_representer_with_defaults(dumper, data):
     return _config_representer_with_defaults(dumper, data, type_name="Partial")
+
+
+def _safe_object_representer(dumper, data):
+    """
+    Represent a given object as YAML using the specified dumper.
+
+    This function is a fallback for objects that don't have specific representers.
+    If the object has __qualname__ attr, the __target__ is set to f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}".
+    If the object does not have a __qualname__ attr, the __target__ is set from its __class__ attr.
+    The __call__ key is used to indicate whether the target should be called to create an instance.
+
+    Args:
+        dumper (yaml.Dumper): The YAML dumper to use for serialization.
+        data (Any): The data to serialize. This can be any Python object,
+            but if it's a class or a class instance, special handling will be applied.
+
+    Returns:
+        str: The YAML representation of the data.
+    """
+    try:
+        obj = data
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
+        call = False
+    except AttributeError:
+        obj = data.__class__
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
+        call = True
+
+    value = {
+        "_target_": target,  # type: ignore
+        "_call_": call,
+    }
+    return dumper.represent_data(value)
 
 
 class IOMixin:
@@ -208,14 +255,14 @@ class IOMixin:
         original_representers = yaml.SafeDumper.yaml_representers.copy()
 
         from nemo_run.config import Config, Partial
-        from nemo_run.core.serialization.yaml import YamlSerializer, _function_representer
+        from nemo_run.core.serialization.yaml import YamlSerializer
 
         yaml.SafeDumper.add_representer(config_lib.Config, _config_representer_with_defaults)
         yaml.SafeDumper.add_representer(partial.Partial, _partial_representer_with_defaults)
         yaml.SafeDumper.add_representer(Config, _config_representer_with_defaults)
         yaml.SafeDumper.add_representer(Partial, _partial_representer_with_defaults)
 
-        yaml.SafeDumper.add_multi_representer(object, _function_representer)
+        yaml.SafeDumper.add_multi_representer(object, _safe_object_representer)
 
         serializer = YamlSerializer()
         result = {}
@@ -584,8 +631,12 @@ def _io_path_elements_fn(x):
 def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
         # Allow optional artifacts
-        if artifact.skip:
+        if artifact.skip or (not hasattr(cfg, artifact.attr) and not artifact.required):
             continue
+
+        if not hasattr(cfg, artifact.attr) and artifact.required:
+            raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
+
         current_val = getattr(cfg, artifact.attr)
         if current_val is None:
             if artifact.required:
@@ -605,6 +656,15 @@ def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: P
 
 def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+        # We expect an artifact.attr to be a string or a fdl.Config.
+        # Some parameteres can be a string or a filepath. When those parameters are just strings,
+        # we will represent it with a fdl.Config, and will skip the rest of the loop (base-dir adjustment).
+        current_val = getattr(cfg, artifact.attr)
+        if isinstance(current_val, fdl.Config):
+            # artifact.attr is a string not a path.
+            setattr(cfg, artifact.attr, fdl.build(current_val).attr)
+            continue
+
         if artifact.skip:
             continue
         current_val = getattr(cfg, artifact.attr)
@@ -623,7 +683,7 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
             pass
 
 
-def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None) -> CkptType:
+def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None, build: bool = True) -> CkptType:
     """
     Loads a configuration from a pickle file and constructs an object of the specified type.
 
@@ -686,5 +746,8 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
 
     config = serialization.Deserialization(json_config).result
     _artifact_transform_load(config, path)
+
+    if not build:
+        return config
 
     return fdl.build(config)

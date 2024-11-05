@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 ## NOTE: This script is present for github-actions testing only.
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
@@ -21,6 +35,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='Train a small T5 model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
+    parser.add_argument('--peft', type=str, default='none', help="none | lora")
     parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
     parser.add_argument('--experiment-name', type=str, help="name of experiment")
     parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
@@ -34,9 +49,12 @@ if __name__ == '__main__':
 
     args = get_args()
 
+    special_tokens = {}
+    special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
+        special_tokens=special_tokens,
     )
 
     data = SquadDataModule(
@@ -69,7 +87,6 @@ if __name__ == '__main__':
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.float32,
         ckpt_load_optimizer=False,
-        # ckpt_load_optimizer=True,
     )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
@@ -92,6 +109,11 @@ if __name__ == '__main__':
     opt = MegatronOptimizerModule(
         config=opt_config,
     )
+
+    if args.peft == 'lora':
+        peft = llm.peft.LoRA()
+    else:
+        peft = None
 
     trainer = nl.Trainer(
         devices=args.devices,
@@ -125,6 +147,7 @@ if __name__ == '__main__':
         resume=resume,
         data=data,
         trainer=trainer,
+        peft=peft,
         log=nemo_logger,
         optim=opt,
     )
