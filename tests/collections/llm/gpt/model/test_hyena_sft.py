@@ -71,6 +71,7 @@ CUDA_VISIBLE_DEVICES=0 python /opt/NeMo/tests/collections/llm/gpt/model/test_hye
                                 --model-path=/home/ataghibakhsh/checkpoints/test_init.pt
 """
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
@@ -115,7 +116,7 @@ if __name__ == "__main__":
             tensor_model_parallel_size=args.tensor_parallel_size,
             pipeline_model_parallel_size=args.pipeline_model_parallel_size,
             context_parallel_size=args.context_parallel_size,
-            pipeline_dtype = torch.bfloat16,
+            pipeline_dtype=torch.bfloat16,
         ),
         plugins=nl.MegatronMixedPrecision(
             precision="32",

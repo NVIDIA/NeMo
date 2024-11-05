@@ -113,7 +113,7 @@ if __name__ == '__main__':
         tensor_model_parallel_size=args.tensor_parallel_size,
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
         context_parallel_size=args.context_parallel_size,
-        pipeline_dtype = torch.bfloat16,
+        pipeline_dtype=torch.bfloat16,
         ckpt_load_optimizer=False,
         ckpt_save_optimizer=False,
         ckpt_async_save=False,
