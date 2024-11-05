@@ -19,9 +19,9 @@ import numpy as np
 import pytest
 import torch
 
+from nemo.collections.asr.parts.k2.rnnt_logprobs import rnnt_logprobs_torch
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
 from nemo.collections.common.optional_libs import K2_AVAILABLE, TRITON_AVAILABLE
-from nemo.collections.asr.parts.k2.rnnt_logprobs import rnnt_logprobs_torch
 
 if K2_AVAILABLE:
     import k2
@@ -308,9 +308,7 @@ class TestRnntLogProbs:
             requires_grad=True,
         )
 
-        target_scores_etalon, blank_scores_etalon = rnnt_logprobs_torch(
-            x=logits, targets=targets, blank_id=vocab_size
-        )
+        target_scores_etalon, blank_scores_etalon = rnnt_logprobs_torch(x=logits, targets=targets, blank_id=vocab_size)
         logits2 = logits.clone().detach()
         logits2.requires_grad_(True)
         target_scores, blank_scores = rnnt_logprobs_triton(x=logits2, targets=targets, blank_id=vocab_size)

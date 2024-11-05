@@ -3,7 +3,6 @@ import triton
 import triton.language as tl
 
 
-
 @triton.jit
 def _rnnt_logprobs_fwd_kernel(
     x_ptr,
@@ -125,7 +124,6 @@ class RnntLogProbs(torch.autograd.Function):
             BLOCK_SIZE=triton.next_power_of_2(x.shape[-1]),
         )
         return grad_x, None, None
-
 
 
 def rnnt_logprobs_triton(x: torch.Tensor, targets: torch.Tensor, blank_id: int):
