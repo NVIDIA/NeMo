@@ -34,9 +34,9 @@ from megatron.core.transformer.module import MegatronModule
 from pytorch_lightning.trainer.states import TrainerFn
 
 import nemo.lightning as nl
-from nemo.collections.llm.peft import LoRA
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
@@ -102,9 +102,9 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy.trainer = trainer
     trainer.strategy.selective_restore()
 
-    lora: Union[io.TrainerContext, LoRA] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
-    if isinstance(lora, LoRA):
-        model = lora(model)
+    peft: Union[io.TrainerContext, PEFT] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
+    if isinstance(peft, PEFT):
+        model = peft(model)
         adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}
         adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
             ckpt_to_weights_subdir(path), sharded_state_dict=adapter_sharded_state_dict

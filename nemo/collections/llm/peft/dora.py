@@ -94,7 +94,21 @@ class DoRALinear(AdapterWrapper):
         = m ((W_0 + B A) / ||W_0 + B A||) x
         = equation 5 in DoRA paper
         """
-        return mag_norm_scale * (linear_output + adapter_output), bias
+
+        if self.adapter.dropout is None:
+            dropout_correction = 0
+        else:
+            assert self.adapter.dropout_position == "pre", ("DoRA only supports pre-adapter dropout at this time."
+                                                            "Please set DoRA(..., dropout_position='pre')")
+            """
+            When dropout is used, equation becomes
+              W_0 x + (m /||W_0 + B A|| - 1) W_0 dropout(x) + m /||W_0 + B A|| B A dropout(x)
+            = ...
+            = m /||W_0 + B A|| (W_0 x + B A dropout(x)) + (m /||W_0 + B A|| - 1) W_0 (dropout(x) - x)
+            """
+            dropout_correction = (mag_norm_scale - 1) * self.base_linear_forward(self.adapter.dropout(layernorm_output) - x)[0]
+
+        return mag_norm_scale * (linear_output + adapter_output) + dropout_correction, bias
 
 
 @dataclass
@@ -109,7 +123,7 @@ class DoRA(PEFT):
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
-    dropout_position: Literal['pre', 'post'] = 'post'
+    dropout_position: Literal['pre', 'post'] = 'pre'
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
 
