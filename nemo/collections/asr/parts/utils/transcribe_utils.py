@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig
@@ -42,6 +42,7 @@ def get_buffered_pred_feat_rnnt(
     batch_size: int,
     manifest: str = None,
     filepaths: List[list] = None,
+    accelerator: Optional[str] = 'cpu',
 ) -> List[rnnt_utils.Hypothesis]:
     """
     Moved from examples/asr/asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py
@@ -67,7 +68,7 @@ def get_buffered_pred_feat_rnnt(
                     refs.append(row['text'])
 
     with torch.inference_mode():
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cpu' if accelerator == 'cpu' else 'cuda'):
             batch = []
             asr.sample_offset = 0
             for idx in tqdm(range(len(filepaths)), desc='Sample:', total=len(filepaths)):
@@ -313,7 +314,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
         with NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
                 audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
-                item[audio_key] = audio_file
+                item['audio_filepath'] = audio_file
                 filepaths.append(audio_file)
                 f.write(json.dumps(item) + "\n")
         sorted_manifest_path = f.name

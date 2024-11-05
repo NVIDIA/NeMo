@@ -58,8 +58,8 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
 
   (Optionally: You can limit the type of timestamp computations using below overrides)
-  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
-  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
+  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word, segment])
+  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word, segment])
 
   output_filename: Output filename where the transcriptions will be written
   batch_size: batch size during inference
@@ -358,16 +358,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     filepaths = sorted_manifest_path if sorted_manifest_path is not None else filepaths
 
-    # setup AMP (optional)
-    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-        logging.info("AMP enabled!\n")
-        autocast = torch.cuda.amp.autocast
-    else:
-
-        @contextlib.contextmanager
-        def autocast(dtype=None, enabled=True):
-            yield
-
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
 
@@ -393,7 +383,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     )
                 total_duration += item["duration"]
 
-    with autocast(dtype=amp_dtype, enabled=cfg.amp):
+    with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', dtype=amp_dtype, enabled=cfg.amp):
         with torch.no_grad():
             if cfg.calculate_rtfx:
                 start_time = time.time()

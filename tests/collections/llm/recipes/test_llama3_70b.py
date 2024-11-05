@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import nemo_run as run
 import pytest
 import torch
@@ -31,7 +45,7 @@ class TestLlama3_70B:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 1
+        assert trainer_config.num_nodes == 4
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
@@ -67,8 +81,8 @@ class TestLlama3_70B:
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == SquadDataModule
-        assert recipe.data.seq_length == 8192
-        assert recipe.data.global_batch_size == 512
+        assert recipe.data.seq_length == 2048
+        assert recipe.data.global_batch_size == 128
         assert recipe.data.micro_batch_size == 1
         assert isinstance(recipe.peft, run.Config)
         assert recipe.peft.__fn_or_cls__ == LoRA
@@ -79,21 +93,12 @@ class TestLlama3_70B:
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
-    def test_pretrain_recipe_performance(self, recipe_module):
-        recipe = recipe_module.pretrain_recipe_performance(
-            name="test_perf", dir="/tmp", num_nodes=1, num_gpus_per_node=8
-        )
+    def test_pretrain_performance_optimizations(self, recipe_module):
+        recipe = recipe_module.pretrain_recipe(performance_mode=True)
         assert any(
             isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
             for cb in recipe.trainer.callbacks
         )
-
-    def test_hf_resume(self, recipe_module):
-        resume_config = recipe_module.hf_resume()
-        assert isinstance(resume_config, run.Config)
-        assert resume_config.__fn_or_cls__ == AutoResume
-        assert isinstance(resume_config.restore_config, run.Config)
-        assert resume_config.restore_config.path == "hf://meta-llama/Meta-Llama-3-70B"
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
