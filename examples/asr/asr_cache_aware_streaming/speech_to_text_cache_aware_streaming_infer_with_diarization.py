@@ -401,7 +401,7 @@ class DiarizationConfig:
     word_window: int = 32
     bsd_maj_voting: bool = True
     use_spk_turn_bsd: bool = False
-    left_frame_shift: int = -2
+    left_frame_shift: int = -1
     right_frame_shift: int = -1
     min_sigmoid_val: float = 1e-4
     port: List[int] = field(default_factory=list)
@@ -422,6 +422,8 @@ class DiarizationConfig:
     print_path: str = "./"
     beam_search_enabled: bool = True
     ignored_initial_frame_steps: int = 5
+    verbose: bool = True
+    break_lines: bool = True
 
 def convert_pred_mat_to_segments(
     audio_rttm_map_dict: Dict[str, Dict[str, str]], 
@@ -607,7 +609,7 @@ def get_truncated_word_window(cfg, step_num, word_and_ts_seq, search_range_ratio
     assert len(word_window_seq) == len(speaker_count_buffer)
     return word_and_ts_seq, word_idx_offset
         
-def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08):
+def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
     current_frame_range = [step_num * previous_hypotheses[0].length.item(), (step_num + 1) * previous_hypotheses[0].length.item()]
     offset = current_frame_range[0]
     word_seq = previous_hypotheses[0].text.split()
@@ -617,6 +619,17 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
     new_tokens = list(itertools.chain(*new_token_group))
     frame_inds_seq = fix_frame_time_step(new_tokens, new_words, frame_inds_seq)
     min_len = min(len(new_words), len(frame_inds_seq))
+    
+    prev_start, prev_end = max(0, len(word_seq)-fix_prev_words_count-len(new_words)), max(0, len(word_seq)-len(new_words))
+    for ct, prev_word in enumerate(word_seq[prev_start: prev_end]):
+        if len(word_and_ts_seq["words"]) > fix_prev_words_count - ct:
+            saved_word = word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"]
+            print(f"prev_word: {prev_word}, saved_word: {saved_word}")
+            if len(prev_word) > len(saved_word):
+                if cfg.verbose:
+                    logging.info(f"[Replacing Multi-token Word]: {word_and_ts_seq['words'][-fix_prev_words_count + ct]['word']} with {prev_word}")
+                word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"] = prev_word
+    
     for idx in range(min_len):
         word_and_ts_seq["token_frame_index"].append((new_tokens[idx], frame_inds_seq[idx]))
         word_and_ts_seq["offset_count"] += 1
@@ -625,6 +638,8 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
     word_count_offset = len(word_and_ts_seq["words"]) 
     
     for local_idx, (token_group, word) in enumerate(zip(new_token_group, new_words)):
+        print(f"previous_hypotheses[0].text : {previous_hypotheses[0].text}")
+        print(f"local_idx: {local_idx}, token_group: {token_group}, word: {word}, new_words {new_words}")
         word_dict = get_word_dict_content(cfg=cfg, 
                                           word=word,
                                           word_index= (word_count_offset + local_idx),
@@ -705,7 +720,7 @@ def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, deb
         loop_end_time = time.time()
         feat_frame_count += (chunk_audio.shape[-1] - cfg.discarded_frames)
         if cfg.real_time_mode:
-            time_diff = (time.time() - session_start_time) - feat_frame_count * cfg.feat_len_sec
+            time_diff = max(0, (time.time() - session_start_time) - feat_frame_count * cfg.feat_len_sec)
             eta_min_sec = format_time(time.time() - session_start_time)
             logging.info(f"[   REAL TIME MODE   ] min:sec - {eta_min_sec} Time difference for real-time mode: {time_diff:.4f} seconds")
             time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))

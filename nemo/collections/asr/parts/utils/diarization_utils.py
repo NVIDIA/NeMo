@@ -232,6 +232,38 @@ def convert_word_dict_seq_to_ctm(
     return ctm_lines
 
 
+    def break_transcript_lines(self, string_out: str, params: Dict[str, str], max_chars_in_line: int = 90) -> str: 
+        """
+        Break the lines in the transcript.
+
+        Args:
+            string_out (str):
+                Input transcript with speaker labels
+            max_chars_in_line (int):
+                Maximum characters in each line
+
+        Returns:
+            return_string_out (str):
+                String variable containing line breaking
+        """
+        color_str_len = len('\033[1;00m') if self.params['colored_text'] else 0
+        split_string_out = string_out.split('\n')
+        return_string_out = []
+        for org_chunk in split_string_out:
+            buffer = []
+            if len(org_chunk) - color_str_len > max_chars_in_line:
+                color_str = org_chunk[:color_str_len] if color_str_len > 0 else ''
+                for i in range(color_str_len, len(org_chunk), max_chars_in_line):
+                    trans_str = org_chunk[i : i + max_chars_in_line]
+                    if len(trans_str.strip()) > 0:
+                        c_trans_str = color_str + trans_str
+                        buffer.append(c_trans_str)
+                return_string_out.extend(buffer)
+            else:
+                return_string_out.append(org_chunk)
+        return_string_out = '\n'.join(return_string_out)
+        return return_string_out
+
 def get_total_result_dict(
     der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]], csv_columns: List[str],
 ):
@@ -403,7 +435,7 @@ def print_sentences(sentences: List[Dict[str, float]],
         end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
 
         if params.get('print_time', False):
-            time_str = f'[{start_point_str} - {end_point_str}] '
+            time_str = f'[{start_point_str}-{end_point_str}] '
         else:
             time_str = ''
 
@@ -1219,37 +1251,7 @@ class OfflineDiarWithASR:
         except IOError:
             logging.info("I/O error has occurred while writing a csv file.")
 
-    def _break_lines(self, string_out: str, max_chars_in_line: int = 90) -> str:
-        """
-        Break the lines in the transcript.
 
-        Args:
-            string_out (str):
-                Input transcript with speaker labels
-            max_chars_in_line (int):
-                Maximum characters in each line
-
-        Returns:
-            return_string_out (str):
-                String variable containing line breaking
-        """
-        color_str_len = len('\033[1;00m') if self.params['colored_text'] else 0
-        split_string_out = string_out.split('\n')
-        return_string_out = []
-        for org_chunk in split_string_out:
-            buffer = []
-            if len(org_chunk) - color_str_len > max_chars_in_line:
-                color_str = org_chunk[:color_str_len] if color_str_len > 0 else ''
-                for i in range(color_str_len, len(org_chunk), max_chars_in_line):
-                    trans_str = org_chunk[i : i + max_chars_in_line]
-                    if len(trans_str.strip()) > 0:
-                        c_trans_str = color_str + trans_str
-                        buffer.append(c_trans_str)
-                return_string_out.extend(buffer)
-            else:
-                return_string_out.append(org_chunk)
-        return_string_out = '\n'.join(return_string_out)
-        return return_string_out
 
     def _write_and_log(
         self,
@@ -1277,7 +1279,7 @@ class OfflineDiarWithASR:
         # print the sentences in the .txt output
         string_out = print_sentences(sentences, color_palette=self.color_palette, params=self.params)
         if self.params['break_lines']:
-            string_out = self._break_lines(string_out)
+            string_out = break_transcript_lines(string_out, params=self.params)
 
         session_trans_dict["status"] = "success"
         ctm_lines_list = convert_word_dict_seq_to_ctm(session_trans_dict['words'])
