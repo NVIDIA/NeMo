@@ -16,7 +16,7 @@ import json
 import os
 import shutil
 import tempfile
-from typing import Callable, Dict, Optional, Set, Union, Any
+from typing import Any, Callable, Dict, Optional, Set, Union
 
 import pytest
 import torch
