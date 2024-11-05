@@ -188,6 +188,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="max_length", shape=(-1,), dtype=np.int_, optional=True),
         )
         return inputs
 
