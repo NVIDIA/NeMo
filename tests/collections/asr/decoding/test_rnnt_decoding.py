@@ -443,7 +443,7 @@ class TestRNNTDecoding:
         hyps, _ = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
         check_char_timestamps(hyps[0], decoding)
-
+    
     @pytest.mark.skipif(not os.path.exists('/home/TestData'), reason='Not a Jenkins machine')
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -465,11 +465,9 @@ class TestRNNTDecoding:
                 "maes_num_steps": 2,
                 "maes_expansion_beta": 1,
                 "beam_size": 4,
-                "ngram_lm_model": os.path.join(
-                    "/home/TestData/asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-                ),
-                "ngram_lm_alpha": 0.3,
-            },
+                "ngram_lm_model": os.path.join("/home/TestData/asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"),
+                "ngram_lm_alpha": 0.3
+            }
         ],
     )
     def test_tdt_beam_decoding(self, test_data_dir, beam_config):
