@@ -81,7 +81,7 @@ class TestWorkloadInspectorCallback:
     def test_on_train_batch_start_no_profiling(self, mock_cudart, mock_get_rank, mock_trainer, mock_pl_module):
         """Test on_train_batch_start when profiling should not start."""
         mock_get_rank.return_value = 0
-        callback = WorkloadInspectorCallback(start_step=10, end_step=20, ranks=[0])
+        callback = WorkloadInspectorCallback(start_step=10, end_step=20)
 
         mock_trainer.strategy.current_epoch_step = 9
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 9)
@@ -94,7 +94,7 @@ class TestWorkloadInspectorCallback:
     ):
         """Test on_train_batch_end when profiling should end."""
         mock_get_rank.return_value = 0
-        callback = WorkloadInspectorCallback(start_step=10, end_step=20, ranks=[0])
+        callback = WorkloadInspectorCallback(start_step=10, end_step=20)
 
         mock_trainer.strategy.current_epoch_step = 20
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 20)
@@ -107,7 +107,7 @@ class TestWorkloadInspectorCallback:
     ):
         """Test on_train_batch_end when profiling should not end."""
         mock_get_rank.return_value = 0
-        callback = WorkloadInspectorCallback(start_step=10, end_step=20, ranks=[0])
+        callback = WorkloadInspectorCallback(start_step=10, end_step=20)
 
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 19)
 
@@ -116,7 +116,7 @@ class TestWorkloadInspectorCallback:
     def test_non_cuda_device(self, mock_trainer, mock_pl_module):
         """Test behavior when the device is not CUDA."""
         mock_trainer.strategy.root_device.type = 'cpu'
-        callback = WorkloadInspectorCallback(start_step=10, end_step=20, ranks=[0])
+        callback = WorkloadInspectorCallback(start_step=10, end_step=20)
 
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 10)
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 20)
@@ -126,9 +126,8 @@ class TestWorkloadInspectorCallback:
     def test_rank_not_in_profile_ranks(self, mock_get_rank, mock_trainer, mock_pl_module):
         """Test behavior when the current rank is not in the profile ranks."""
         mock_get_rank.return_value = 1
-        callback = WorkloadInspectorCallback(start_step=10, end_step=20, ranks=[0])
-        callback = WorkloadInspectorCallback(start_step=10, end_step=20, ranks=[0])
-
+        callback = WorkloadInspectorCallback(start_step=10, end_step=20)
+        
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 10)
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 20)
 
@@ -159,7 +158,7 @@ class TestWorkloadInspectorCallback:
     ):
         """Test profiling behavior across different batch indices."""
         mock_get_rank.return_value = 0
-        callback = WorkloadInspectorCallback(start_step=start_step, end_step=end_step, ranks=[0])
+        callback = WorkloadInspectorCallback(start_step=start_step, end_step=end_step)
 
         mock_trainer.strategy.current_epoch_step = batch_idx
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, batch_idx)
@@ -173,7 +172,7 @@ class TestWorkloadInspectorCallback:
     def test_single_profile_range(self, mock_cudart, mock_get_rank, mock_trainer, mock_pl_module):
         """Test behavior with a single profile range."""
         mock_get_rank.return_value = 0
-        callback = WorkloadInspectorCallback(start_step=10, end_step=40, ranks=[0])
+        callback = WorkloadInspectorCallback(start_step=10, end_step=40)
 
         # Ensure the device type is 'cuda'
         mock_trainer.strategy.root_device.type = 'cuda'
