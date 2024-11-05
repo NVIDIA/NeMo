@@ -222,8 +222,8 @@ class BeamTDTInfer(Typing):
                     f"should be smaller or equal to vocabulary size ({self.vocab_size})."
                 )
 
-            if self.maes_num_steps < 2:
-                raise ValueError("`maes_num_steps` must be greater than 1.")
+            if self.maes_num_steps < 1:
+                raise ValueError("`maes_num_steps` must be greater than 0.")
 
         try:
             self.zero_duration_idx = self.durations.index(0)
