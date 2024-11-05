@@ -1,10 +1,10 @@
-from nemo.collections.vlm.llama.model.base import (
+from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
     CrossAttentionVisionConfig,
     MLlamaModel,
     MLlamaModelConfig,
 )
-from nemo.collections.vlm.llama.model.mllama import (
+from nemo.collections.vlm.mllama.model.mllama import (
     MLlamaConfig11B,
     MLlamaConfig11BInstruct,
     MLlamaConfig90B,

@@ -38,9 +38,9 @@ from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR
-from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
-from nemo.collections.vlm.llama.model.utils import _generate_cross_attention_mask, _pad_attention_masks
-from nemo.collections.vlm.llama.model.vision import VisionEncoder
+from nemo.collections.vlm.mllama.model.language import CrossAttentionTextModel
+from nemo.collections.vlm.mllama.model.utils import _generate_cross_attention_mask, _pad_attention_masks
+from nemo.collections.vlm.mllama.model.vision import VisionEncoder
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -119,6 +119,11 @@ def set_input_tensor(self, tensor):
 
 @dataclass
 class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
+    # core params
+
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
+
     # vision model params
     num_layers: int = 32
     hidden_size: int = 1280
@@ -128,6 +133,9 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
     num_global_layers: int = 8
     max_num_tiles: int = 4
     text_hidden_size: int = 4096
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    ffn_dropout: float = 0.0
     gated: bool = False
     supported_aspect_ratios: Tuple[Tuple[int, int], ...] = (
         (1, 1),
@@ -146,7 +154,7 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
     # (e.g. running inference on pretrained weights from HF)
     # This flag can be set to True if you're finetuning the model, and you would like to use
     # Flash Attention to minimize memory consumption.
-    disable_vision_padding: bool = True
+    disable_vision_padding: bool = False
 
     @property
     def max_aspect_ratio_id(self) -> int:

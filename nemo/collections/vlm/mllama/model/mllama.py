@@ -22,7 +22,7 @@ import torch.distributed
 from megatron.core.transformer import TransformerConfig
 from torch import Tensor
 
-from nemo.collections.vlm.llama.model.base import (
+from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
     CrossAttentionVisionConfig,
     MLlamaModel,
