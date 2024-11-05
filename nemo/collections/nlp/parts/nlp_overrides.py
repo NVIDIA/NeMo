@@ -109,6 +109,7 @@ try:
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 
     from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
+    from transformer_engine.pytorch import LayerNorm, RMSNorm
 
     HAVE_MEGATRON_CORE = True
 
@@ -546,6 +547,9 @@ class NLPDDPStrategy(DDPStrategy):
             if patch_pipeline_index is not None:
                 if 'optimizer' in loaded_state_dict['optimizer_states'][0]:
                     loaded_state_dict['optimizer_states'][0]['optimizer']['param_groups'].pop(patch_pipeline_index)
+                    if 'param_groups' in loaded_state_dict['optimizer_states'][0]:
+                        # Remove the temp empty param_group that is created at state_dict["param_groups"] for dist fused adam, during the merging
+                        loaded_state_dict['optimizer_states'][0]['param_groups'].pop(patch_pipeline_index)
                 else:
                     loaded_state_dict['optimizer_states'][0]['param_groups'].pop(patch_pipeline_index)
 
@@ -581,20 +585,44 @@ class NLPDDPStrategy(DDPStrategy):
             if load_optimizer_states:
                 checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
-            # Check if the model has a separate LM head stage
+            #Check if the model has a separate LM head stage
             def is_lm_head_separate_stage(module=None, state_dict=None):
-                if module is None or state_dict is None:
+                if module is None or state_dict is None or checkpoint_path is None:
                     return False
-                if len(state_dict) > 1:
-                    return False
-                return isinstance(getattr(module.model.module, 'output_layer', None), ColumnParallelLinear)
-
+                # Get common state dict configuration
+                common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+                config = common_state_dict.get("hyper_parameters", {}).get("cfg", {})
+                
+                # Check layernorm configuration
+                has_final_layernorm = config.get("post_process", True) and config.get("post_layer_norm", True)
+                
+                # Get model module and output layer
+                model_module = getattr(module.model, 'module', None) or module.model[0].module
+                output_layer = getattr(model_module, 'output_layer', None)
+                
+                # If no final layernorm, simpler check
+                if not has_final_layernorm:
+                    if len(state_dict) > 1: return False
+                    return isinstance(output_layer, ColumnParallelLinear)
+                
+                if len(state_dict) > 2: return False
+                # Determine layernorm type
+                norm_type = RMSNorm if config.get("normalization") == "RMSNorm" else LayerNorm
+                decoder = getattr(model_module, 'decoder', None)
+                final_layernorm = getattr(decoder, 'final_layernorm', None)
+            
+                return (isinstance(output_layer, ColumnParallelLinear) and isinstance(final_layernorm, norm_type))        
+              
             patch_separate_lm_head_stage = is_lm_head_separate_stage(self.lightning_module, sharded_state_dict)
 
+            # Check whether to load optim states
+            if load_optimizer_states:
+                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
-                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint, patch_separate_lm_head_stage)
+                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint,patch_separate_lm_head_stage)
             else:
                 checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
