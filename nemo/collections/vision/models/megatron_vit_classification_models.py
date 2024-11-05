@@ -175,7 +175,11 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         self.transformer_engine = cfg.get('transformer_engine', False)
 
         # Convert the global-batch-based profile index to micro-batch index
-        if hasattr(self, '_nsys_profile_enabled') or hasattr(self, '_memory_profile_enabled') or hasattr(self, '_wit_profile_enabled'):
+        if (
+            hasattr(self, '_nsys_profile_enabled')
+            or hasattr(self, '_memory_profile_enabled')
+            or hasattr(self, '_wit_profile_enabled')
+        ):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
             data_parallel_world_size = trainer.world_size // mp_size
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)

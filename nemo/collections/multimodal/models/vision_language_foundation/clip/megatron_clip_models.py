@@ -734,7 +734,11 @@ class MegatronCLIPModel(MegatronBaseModel):
         )
 
         # Convert the global-batch-based profile index to micro-batch index
-        if hasattr(self, '_nsys_profile_enabled') or hasattr(self, '_memory_profile_enabled') or hasattr(self, '_wit_profile_enabled'):
+        if (
+            hasattr(self, '_nsys_profile_enabled')
+            or hasattr(self, '_memory_profile_enabled')
+            or hasattr(self, '_wit_profile_enabled')
+        ):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
             cp_size = cfg.get('context_parallel_size', 1)
             data_parallel_world_size = trainer.world_size // (mp_size * cp_size)

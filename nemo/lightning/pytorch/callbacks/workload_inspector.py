@@ -19,10 +19,11 @@ from pytorch_lightning.callbacks.callback import Callback
 
 from nemo.utils import logging
 
+
 class WorkloadInspectorCallback(Callback):
     """
     A Workload Inspector Lightening callback that leverages NVIDIA Nsight Systems (Nsys) profiling.
-   
+
 
     This callback enables profiling of specific steps during training using NVIDIA Nsys.
     It allows for precise control over when profiling starts and ends, and provides GPU-wise kernel and exposed comm summaries.
@@ -32,7 +33,7 @@ class WorkloadInspectorCallback(Callback):
     Args:
         start_step (int): Global batch to start profiling
         end_step (int): Global batch to end profiling
-    
+
     Example:
         >>> callback = WorkloadInspectorCallback(start_step=100, end_step=200)
         >>> trainer = Trainer(callbacks=[callback])
@@ -60,7 +61,10 @@ class WorkloadInspectorCallback(Callback):
         import os
         from workload_inspector.bkg_runner import BackgroundRunner
         from workload_inspector.torch.nsys_downstream import NsysDownstream
-        nsys_bg_thread = NsysDownstream(os.getenv('NSYS_LOG_DIR', None), os.getenv('GPU_KERN_STATS_OUTPUT_DIR', None), "stdev")
+
+        nsys_bg_thread = NsysDownstream(
+            os.getenv('NSYS_LOG_DIR', None), os.getenv('GPU_KERN_STATS_OUTPUT_DIR', None), "stdev"
+        )
         self.bg_runner = BackgroundRunner(nsys_bg_thread)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx: int) -> Optional[int]:
@@ -75,7 +79,6 @@ class WorkloadInspectorCallback(Callback):
             if current_step == self._wit_profile_start_step:
                 logging.info("====== Start nsys profiling ======")
                 torch.cuda.cudart().cudaProfilerStart()
-                
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int) -> None:
         """PyTorch Lightning hook:
@@ -91,4 +94,3 @@ class WorkloadInspectorCallback(Callback):
                 torch.cuda.cudart().cudaProfilerStop()
                 self.bg_runner.start_background_task(args=None)
                 self.bg_runner.join_background_task()
-                

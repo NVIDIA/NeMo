@@ -117,6 +117,7 @@ class NsysPlugin(run.Plugin):
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
 
+
 @dataclass(kw_only=True)
 class WorkloadInspectorPlugin(run.Plugin):
     """
@@ -149,6 +150,7 @@ class WorkloadInspectorPlugin(run.Plugin):
         launcher = executor.get_launcher()
         launcher.wit_profile = True
         launcher.wit_trace = self.wit_trace or ["nvtx", "cuda"]
+
 
 @dataclass(kw_only=True)
 class WandbPlugin(run.Plugin):
