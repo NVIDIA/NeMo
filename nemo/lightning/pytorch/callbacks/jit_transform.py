@@ -21,6 +21,14 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.lightning.io.mixin import IOMixin
 
 
+def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
+    if hasattr(pl_module, 'module'):
+        return 'module'
+    elif hasattr(pl_module, 'model'):
+        return 'model'
+    else:
+        raise ValueError("Expected lightning_module to have a .model or .module attr.")
+
 class JitTransform(Callback, IOMixin):
     """
     Apply JIT-compling on PyTorch model
@@ -43,10 +51,13 @@ class JitTransform(Callback, IOMixin):
     def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if self.backend is None:
             return
+        attr_name = extract_module_attr_name(pl_module)
+        model = getattr(pl_module, attr_name)
         if self.backend == 'torch':
-            if hasattr(pl_module, 'module'):
-                trainer.lightning_module.module = torch.compile(pl_module.module)
-            elif hasattr(pl_module, 'model'):
-                trainer.lightning_module.model = torch.compile(pl_module.model)
-            else:
-                raise ValueError("Expected lightning_module to have a .model or .module attr.")
+            jit_model = torch.compile(model)
+        elif self.backend == 'thunder':
+            import thunder
+            jit_model = thunder.jit(model)
+        else:
+            raise ValueError("got unexpected backend")
+        setattr(trainer.lightning_module, attr_name, jit_model)
