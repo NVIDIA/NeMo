@@ -121,13 +121,9 @@ class FaultTolerancePlugin(run.Plugin):
 
         assert isinstance(task, run.Partial)
 
-
         callbacks = [
             run.Config(
-                res_module.FaultToleranceCallback,
-                autoresume=True,
-                calculate_timeouts=True,
-                exp_dir=task.log.log_dir
+                res_module.FaultToleranceCallback, autoresume=True, calculate_timeouts=True, exp_dir=task.log.log_dir
             )
         ]
 
