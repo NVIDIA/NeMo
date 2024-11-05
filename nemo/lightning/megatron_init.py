@@ -32,6 +32,8 @@ try:
     from megatron.core import tensor_parallel
     from megatron.core.parallel_state import (
         RankGenerator,
+        destroy_global_memory_buffer,
+        destroy_model_parallel,
         get_pipeline_model_parallel_rank,
         set_expert_model_parallel_rank,
         set_expert_model_parallel_world_size,
@@ -52,6 +54,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core.num_microbatches_calculator import (
         ConstantNumMicroBatchesCalculator,
+        destroy_num_microbatches_calculator,
         get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
@@ -216,6 +219,12 @@ def initialize_model_parallel_for_nemo(
 
     if HAVE_APEX:
         set_logging_level(apex_transformer_log_level)
+
+
+def destroy_global_state():
+    destroy_num_microbatches_calculator()
+    destroy_global_memory_buffer()
+    destroy_model_parallel()
 
 
 def _set_random_seed(seed_):
