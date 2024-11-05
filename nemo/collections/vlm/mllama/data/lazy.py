@@ -12,44 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Optional
-
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torch.utils import data
-from torch.utils.data import DataLoader
-
-from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-if TYPE_CHECKING:
-    pass
-
 import json
 import logging
 import os
 import re
 from typing import Any, Dict, List, Sequence
+from typing import Optional
 
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from torch.utils import data
+from torch.utils.data import DataLoader
 from torch.utils.data import default_collate
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
+from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.lazy import IGNORE_INDEX, LazySupervisedDataset
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
 class MLlamaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
     def __init__(
-        self,
-        data_path,
-        data_config,
-        tokenizer,
-        image_processor,
-        sequence_length,
+            self,
+            data_path,
+            data_config,
+            tokenizer,
+            image_processor,
+            sequence_length,
     ):
 
         if data_path.endswith(".json"):
@@ -180,24 +174,24 @@ class MLlamaDataset(LazySupervisedDataset):
 
 class MLlamaLazyDataModule(pl.LightningDataModule):
     def __init__(
-        self,
-        paths: str | List[str],
-        weights: Optional[List[float]] = None,
-        data_config: Optional[DataConfig] = ImageDataConfig,
-        seq_length: int = 2048,
-        decoder_seq_length: Optional[int] = None,
-        tokenizer: Optional = None,
-        image_processor: Optional = None,
-        micro_batch_size: int = 4,
-        global_batch_size: int = 8,
-        num_train_samples: int = 10_000,
-        num_val_samples: int = 10_000,
-        num_test_samples: int = 10_000,
-        num_workers: int = 8,
-        pin_memory: bool = True,
-        persistent_workers: bool = False,
-        use_packed_sequence: bool = False,
-        seed: int = 1234,
+            self,
+            paths: str|List[str],
+            weights: Optional[List[float]] = None,
+            data_config: Optional[DataConfig] = ImageDataConfig,
+            seq_length: int = 2048,
+            decoder_seq_length: Optional[int] = None,
+            tokenizer: Optional = None,
+            image_processor: Optional = None,
+            micro_batch_size: int = 4,
+            global_batch_size: int = 8,
+            num_train_samples: int = 10_000,
+            num_val_samples: int = 10_000,
+            num_test_samples: int = 10_000,
+            num_workers: int = 8,
+            pin_memory: bool = True,
+            persistent_workers: bool = False,
+            use_packed_sequence: bool = False,
+            seed: int = 1234,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple)):

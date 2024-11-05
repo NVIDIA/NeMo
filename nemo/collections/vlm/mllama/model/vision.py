@@ -52,15 +52,10 @@ try:
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
+    from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+
     HAVE_TE = False
-    try:
-        import apex
-
-        LayerNormImpl = FusedLayerNorm
-    except ModuleNotFoundError:
-        from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
-
-        LayerNormImpl = WrappedTorchLayerNorm
+    LayerNormImpl = WrappedTorchLayerNorm
 
 
 def to_2tuple(x):

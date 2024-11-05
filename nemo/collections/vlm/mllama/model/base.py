@@ -445,8 +445,7 @@ class MLlamaBaseModel(MegatronModule):
             skip_vision_encoder = False
             if max_num_images == 0:
                 num_chunks[num_chunks > 0] = self.max_num_chunks
-                if max_num_images == 0:
-                    skip_vision_encoder = True
+                skip_vision_encoder = True
 
             if self.encoder_hidden_state is not None:
                 vision_tokens = self.encoder_hidden_state
