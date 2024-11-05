@@ -55,6 +55,10 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self._tokenizer = HfAutoModelForCausalLM.configure_tokenizer(self.model_name)
         return self._tokenizer
 
+    @property
+    def hf_model(self):
+        return self.model
+
     @tokenizer.setter
     def tokenizer(self, value):
         assert self._tokenizer is None
@@ -64,7 +68,7 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def configure_tokenizer(model_name):
         return AutoTokenizer(model_name)
 
-    def configure_model(self):
+    def configure_model(self, train=True):
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype='auto')
@@ -73,7 +77,9 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             config = AutoConfig.from_pretrained(self.model_name)
             self.model = AutoModelForCausalLM.from_config(config)
-        self.model.train()
+
+        if train:
+            self.model.train()
 
     def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
         outputs = self.model(

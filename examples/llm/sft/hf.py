@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.accelerate import TEAccelerator
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
@@ -54,6 +55,7 @@ if __name__ == '__main__':
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=100)
+    parser.add_argument('--model-accelerator', default=None, choices=['te'])
     parser.add_argument('--wandb-project', type=str, default=None)
     args = parser.parse_args()
 
@@ -70,8 +72,14 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
+    model = llm.HfAutoModelForCausalLM(args.model)
+    if args.model_accelerator == "te":
+        model.configure_model(train=False)
+        #model = TEAccelerator.accelerate(model)
+        print("TE accelerated: ", TEAccelerator.te_accelerated(model))
+
     llm.api.finetune(
-        model=llm.HfAutoModelForCausalLM(args.model),
+        model=model,
         data=squad(llm.HfAutoModelForCausalLM.configure_tokenizer(args.model)),
         trainer=nl.Trainer(
             devices=args.devices,
