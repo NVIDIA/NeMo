@@ -32,33 +32,33 @@ def main(args):
     seq_length = 576
     decoder_seq_length = 1024
 
-    # Data configuration
-    data_config = ImageDataConfig(
-        image_folder=args.image_folder,
-        conv_template="plain",
-    )
-
-    # Data module setup
-    data = vlm.NevaLazyDataModule(
-        paths=args.data_path,
-        data_config=data_config,
-        seq_length=seq_length,
-        decoder_seq_length=decoder_seq_length,
-        global_batch_size=gbs,
-        micro_batch_size=mbs,
-        tokenizer=None,
-        image_processor=None,
-        num_workers=8,
-    )
-
-    # data = vlm.MockDataModule(
+    # # Data configuration
+    # data_config = ImageDataConfig(
+    #     image_folder=args.image_folder,
+    #     conv_template="plain",
+    # )
+    #
+    # # Data module setup
+    # data = vlm.NevaLazyDataModule(
+    #     paths=args.data_path,
+    #     data_config=data_config,
     #     seq_length=seq_length,
+    #     decoder_seq_length=decoder_seq_length,
     #     global_batch_size=gbs,
     #     micro_batch_size=mbs,
     #     tokenizer=None,
     #     image_processor=None,
-    #     num_workers=0,
+    #     num_workers=8,
     # )
+
+    data = vlm.NevaMockDataModule(
+        seq_length=decoder_seq_length,
+        global_batch_size=gbs,
+        micro_batch_size=mbs,
+        tokenizer=None,
+        image_processor=None,
+        num_workers=2,
+    )
 
     # Transformer configurations
     language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
@@ -86,6 +86,7 @@ def main(args):
         vision_projection_config=vision_projection_config,
         language_model_from_pretrained=args.language_model_path,
         freeze_language_model=False,
+        freeze_vision_model=True,
     )
 
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
@@ -103,7 +104,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=10,
+        every_n_train_steps=100,
         dirpath=args.log_dir,
     )
 
@@ -148,7 +149,7 @@ def main(args):
         lr=0.001,
         adam_beta1=0.9,
         adam_beta2=0.95,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
     )
     sched = CosineAnnealingScheduler(

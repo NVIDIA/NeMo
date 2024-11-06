@@ -43,7 +43,7 @@ from nemo.collections.vlm.neva.model.base import (
     NevaConfig,
     NevaModel,
 )
-from nemo.collections.vlm.neva.model.llava import Llava1_5Config7B, Llava1_5Config13B, LlavaConfig, LlavaModel
+from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
 from nemo.collections.vlm.peft import LoRA
 from nemo.collections.vlm.recipes import *
 
@@ -64,8 +64,8 @@ __all__ = [
     "NevaConfig",
     "NevaModel",
     "LlavaConfig",
-    "Llava1_5Config7B",
-    "Llava1_5Config13B",
+    "Llava15Config7B",
+    "Llava15Config13B",
     "LlavaModel",
     "LlavaNextTaskEncoder",
     "MLlamaModel",

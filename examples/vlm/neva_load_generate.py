@@ -20,7 +20,7 @@ from PIL import Image
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
-from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
+from nemo.collections.vlm import Llava15Config7B, LlavaModel
 from nemo.utils import logging
 
 
@@ -86,7 +86,7 @@ def main(args) -> None:
     if args.load_from_hf:
         model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
     else:
-        model = LlavaModel(Llava1_5Config7B(), tokenizer=hf_tokenizer)
+        model = LlavaModel(Llava15Config7B(), tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
     model = model.module.cuda()

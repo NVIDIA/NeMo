@@ -43,7 +43,7 @@ class LlavaConfig(NevaConfig):
 
 
 @dataclass
-class Llava1_5Config7B(LlavaConfig):
+class Llava15Config7B(LlavaConfig):
     from transformers import PretrainedConfig
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config7B())
@@ -56,7 +56,7 @@ class Llava1_5Config7B(LlavaConfig):
 
 
 @dataclass
-class Llava1_5Config13B(LlavaConfig):
+class Llava15Config13B(LlavaConfig):
     from transformers import PretrainedConfig
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config13B())

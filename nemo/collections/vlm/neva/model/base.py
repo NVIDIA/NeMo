@@ -285,8 +285,8 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     vision_model_from_pretrained: Optional[str] = None  # TODO
     vision_projection_from_pretrained: Optional[str] = None  # TODO
 
-    freeze_language_model: bool = True
-    freeze_vision_model: bool = True
+    freeze_language_model: bool = False
+    freeze_vision_model: bool = False
     freeze_vision_projection: bool = False
 
     forward_step_fn: Callable = neva_forward_step

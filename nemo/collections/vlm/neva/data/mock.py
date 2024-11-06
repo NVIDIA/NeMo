@@ -23,6 +23,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils import logging
 
 
 class MockDataModule(pl.LightningDataModule):
@@ -51,10 +52,12 @@ class MockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
 
         if tokenizer is None or image_processor is None:
+            logging.warning(f"Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or processor.tokenizer
+            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
             self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
