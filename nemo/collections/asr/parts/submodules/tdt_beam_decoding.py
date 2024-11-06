@@ -247,9 +247,6 @@ class BeamTDTInfer(Typing):
         else:
             self.ngram_lm = None
 
-
-
-
     @typecheck()
     def __call__(
         self,
