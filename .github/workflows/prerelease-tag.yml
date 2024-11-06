@@ -7,7 +7,8 @@ on:
         type: string
         description: "Commit SHA for prerelease tag (default: HEAD main)"
         required: false
-
+  pull_request:
+    
 jobs:
   prerelease:
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_prerelease_tag.yml@ko3n1g/feat/pre-release-tag
