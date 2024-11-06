@@ -72,7 +72,9 @@ def main(args) -> None:
         return  # Exit if the image can't be loaded
 
     inputs = processor(prompt, raw_image, return_tensors='pt').to(0, torch.float16)
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
     input_ids = inputs['input_ids'].cuda()
     input_ids[input_ids == 32000] = -200
     media = inputs['pixel_values'].cuda()

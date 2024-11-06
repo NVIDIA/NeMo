@@ -31,7 +31,9 @@ from nemo.collections.vlm import Llava15Config7B, LlavaModel
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-def generate(model, input_ids, media, position_ids, tokenizer, num_media_tiles=None, max_length=20, attention_mask=None):
+def generate(
+    model, input_ids, media, position_ids, tokenizer, num_media_tiles=None, max_length=20, attention_mask=None
+):
     """
     Performs greedy generation on the model using provided inputs.
 
@@ -204,9 +206,13 @@ def predict_answers(args, model, processor):
 
         # Generate the response using the model
         generated_ids, predicted_ids = generate(
-            model, input_ids,
-            media.bfloat16() if media is not None else torch.ones([0,3,336,336], dtype=torch.bfloat16).cuda(),
-            position_ids, tokenizer, attention_mask=attention_mask, max_length=args.max_length,
+            model,
+            input_ids,
+            media.bfloat16() if media is not None else torch.ones([0, 3, 336, 336], dtype=torch.bfloat16).cuda(),
+            position_ids,
+            tokenizer,
+            attention_mask=attention_mask,
+            max_length=args.max_length,
             num_media_tiles=[media.size(0)] if media is not None else None,
         )
 
