@@ -29,6 +29,7 @@ jobs:
       prune-filter-timerange: 24h
       dry-run: true
       python-package: nemo
+      container-workdir: /workspace
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
