@@ -111,7 +111,7 @@ class AlpacaDataModule(FineTuningDataModule, IOMixin):
             output_file = self.dataset_root / f"{split_name}.jsonl"
             with output_file.open("w", encoding="utf-8") as f:
                 for o in dataset:
-                    prompt = o['prompt'][:o['prompt'].find('### Output')]
+                    prompt = o['prompt'][: o['prompt'].find('### Output')]
                     completion = o['output']
                     f.write(json.dumps({"input": prompt, "output": completion}) + "\n")
 
