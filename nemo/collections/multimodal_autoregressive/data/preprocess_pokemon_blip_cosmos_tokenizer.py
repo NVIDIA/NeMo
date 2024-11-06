@@ -56,7 +56,7 @@ def to_imgstr(image_tokens_flattened):
 
 
 def main(args):
-    """ Main function """
+    """Main function"""
 
     dataset = load_dataset(args.dataset)
 

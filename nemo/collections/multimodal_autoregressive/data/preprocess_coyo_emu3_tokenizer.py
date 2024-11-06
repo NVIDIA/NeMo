@@ -100,7 +100,7 @@ def to_imgstr(image_tokens, tokenizer):
 
 
 def main(args):
-    """ Main Function """
+    """Main Function"""
 
     gpu_rank = torch.cuda.current_device()
     world_size = torch.cuda.device_count()
