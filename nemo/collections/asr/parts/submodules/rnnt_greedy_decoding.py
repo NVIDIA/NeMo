@@ -1364,8 +1364,8 @@ class ExportedModelGreedyBatchedRNNTInfer:
     def run_encoder(self, audio_signal, length):
         """
         Runs encoder network:
-        
-        Args: 
+
+        Args:
             audio_signal: audio signal
             length: audio length
         """
@@ -1374,7 +1374,7 @@ class ExportedModelGreedyBatchedRNNTInfer:
     def run_decoder_joint(self, enc_logits, targets, target_length, *states):
         """
         Runs decoder joint networks.
-        
+
         Args:
             enc_logits: encoder logits
             targets: targets
