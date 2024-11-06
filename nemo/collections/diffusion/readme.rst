@@ -99,6 +99,7 @@ DiT
 We implement an efficient version of the Diffusion Transformer (DiT) [1]_ with several variants to provide users with flexibility in exploring various model architectures.
 
 The current supported architectures include:
+
 - DiT adaLN-Zero (original DiT) [1]_
 - DiT adaLN-Zero with Cross attention
 - MovieGen [2]_
