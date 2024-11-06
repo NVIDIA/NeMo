@@ -9,7 +9,9 @@ from transformers import AutoProcessor
 from nemo import lightning as nl
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import import_ckpt
-from nemo.collections.multimodal.mimo.data.mock import MockDataModule
+from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.multimodal.mimo.data.captioning import MimoCaptioningTaskEncoder
 from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel, CustomMimoConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -18,18 +20,33 @@ from nemo.utils.exp_manager import TimingCallback
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 8
-    mbs = 2
+    gbs = 16
+    mbs = 8
     seq_length = 256
-
+    data_path = '/lustre/fsw/coreai_dlalgo_genai/ykarnati/datasets/cc3m-wds'
     tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
+    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
     special_tokens = [f"IMG_{i}" for i in range(8)]
     tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
     image_special_tokens = [f"IMG_{i}" for i in range(8)]
     image_special_token_indices = [tokenizer.tokenizer.convert_tokens_to_ids(f"IMG_{i}") for i in range(8)]
 
-    data = MockDataModule(
-        tokenizer=tokenizer, vocab_size=tokenizer.vocab_size, micro_batch_size=mbs, global_batch_size=gbs
+    multimodal_sample_config = MultiModalSampleConfig()
+
+    task_encoder = MimoCaptioningTaskEncoder(
+        tokenizer=tokenizer.tokenizer,
+        image_processor=processor.image_processor,
+        multimodal_sample_config=multimodal_sample_config,
+    )
+    data = SimpleMultiModalDataModule(
+        path=data_path,
+        tokenizer=tokenizer,
+        image_processor=processor.image_processor,
+        num_workers=8,
+        micro_batch_size=mbs,
+        global_batch_size=gbs,
+        multimodal_sample_config=multimodal_sample_config,
+        task_encoder=task_encoder,
     )
 
     # Training strategy setup
@@ -44,13 +61,13 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=500,
+        every_n_train_steps=300,
         dirpath=args.log_dir,
     )
 
     trainer = nl.Trainer(
         devices=args.devices,
-        max_steps=10000,
+        max_steps=3500,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="16-mixed"),
@@ -120,7 +137,7 @@ if __name__ == "__main__":
         "--log_dir", type=str, required=False, default="./", help="Directory for logging and checkpoints"
     )
     parser.add_argument("--devices", type=int, required=False, default=8)
-    parser.add_argument("--tp_size", type=int, required=False, default=2)
+    parser.add_argument("--tp_size", type=int, required=False, default=4)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--name", type=str, required=False, default="mimo_first_light")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)

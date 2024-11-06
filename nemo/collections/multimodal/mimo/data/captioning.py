@@ -36,7 +36,7 @@ class MimoCaptioningSample:
 @dataclass
 class MimoCaptioningRawBatch:
     __keys__: List[str] = field(default_factory=list)
-    input_images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
     output_images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
 
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
@@ -103,7 +103,7 @@ class MimoCaptionSampleEncoder(VQASampleEncoder):
 
         output_sample.__key__ = input_sample.__key__
         output_sample.__restore_key__ = input_sample.__restore_key__
-        output_sample.input_image = torch.zeros((3, 336, 336))
+        output_sample.input_image = torch.zeros((3, 336, 336), dtype=torch.float16)
         output_sample.tokens = tokens
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
@@ -138,10 +138,10 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
         return encoded_sample
 
     def batch(self, samples: List[MimoCaptioningSample]) -> MimoCaptioningRawBatch:
-        keys, input_images, tokens, labels, loss_mask, output_images, captions = [], [], [], [], [], [], []
+        keys, images, tokens, labels, loss_mask, output_images, captions = [], [], [], [], [], [], []
         for sample in samples:
             keys.append(sample.__key__)
-            input_images.append(sample.input_image)
+            images.append(sample.input_image)
             tokens.append(sample.tokens)
             labels.append(sample.labels)
             loss_mask.append(sample.loss_mask)
@@ -149,7 +149,7 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
             captions.append(sample.caption)
 
         batch_keys = batch_list(keys)
-        batch_input_images = batch_pad_stack(input_images)
+        batch_images = batch_pad_stack(images)
         batch_prompt_tokens = batch_pad_stack(tokens)
         batch_labels = batch_pad_stack(labels)
         batch_loss_mask = batch_pad_stack(loss_mask)
@@ -158,7 +158,7 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
 
         return MimoCaptioningRawBatch(
             __keys__=batch_keys,
-            input_images=batch_input_images,
+            images=batch_images,
             output_images=batch_output_images,
             tokens=batch_prompt_tokens,
             labels=batch_labels,
@@ -173,6 +173,9 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
         position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
         batch_dict['position_ids'] = position_ids
         batch_dict['attention_mask'] = None
+        if 'captions' in batch_dict:
+            batch_dict['input_text'] = batch_dict.pop('captions')
+
         return batch_dict
 
 

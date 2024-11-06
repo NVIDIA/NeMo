@@ -53,7 +53,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 
 
 class MimoLossReduction(MaskedTokenLossReduction):
-    def __init__(self, validation_step: bool = False, val_drop_last: bool = True, l2_weight: float = 1.0) -> None:
+    def __init__(self, validation_step: bool = False, val_drop_last: bool = True, l2_weight: float = 10.0) -> None:
         super().__init__(validation_step, val_drop_last)
         self.l2_weight = l2_weight
 
@@ -77,10 +77,18 @@ class MimoLossReduction(MaskedTokenLossReduction):
         token_loss, token_loss_info = super().forward(batch={"loss_mask": new_loss_mask}, forward_out=output)
 
         l2_loss = self._calculate_l2_loss(output_projection_embeddings, image_caption_embeddings)
+        l2_loss = self.l2_weight * l2_loss
+        logging.info(f"Yash loss debug single rank token loss {token_loss} l2 loss {l2_loss}")
+        from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+        reduced_l2_loss = average_losses_across_data_parallel_group([l2_loss])
 
-        total_loss = token_loss + self.l2_weight * l2_loss
-
-        token_loss_info.update({"l2_loss": l2_loss})
+        total_loss = token_loss + l2_loss
+        logging.info(f"Yash loss debug total_loss {total_loss}")
+        token_loss_info['avg'] = token_loss_info['avg']  + reduced_l2_loss
+        token_loss_info.update({"l2_loss": reduced_l2_loss})
+        
+        logging.info(f"Yash loss debug full loss {token_loss_info['avg'] } reduced l2 loss {reduced_l2_loss}")
+    
 
         return total_loss, token_loss_info
 
@@ -614,6 +622,8 @@ class CustomMimoModel(MCoreLLaVAModel):
             attention_mask,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
         # TODO: Yash return this hidden state for computing loss
+        
+    
         output, hidden_states = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -627,30 +637,37 @@ class CustomMimoModel(MCoreLLaVAModel):
 
         # send hidden_state for special tokens to output_projection module.
         image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
+        if(new_labels is not None):
+            special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
+            for idx in self.model_config.image_special_token_indices:
+                special_token_mask |= new_labels == idx
+            special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
+            special_token_mask = special_token_mask.expand_as(hidden_states)
+            selected_hidden_states = hidden_states[special_token_mask].view(
+                hidden_states.size(1), -1, hidden_states.size(-1)
+            )
 
-        special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
-        for idx in self.model_config.image_special_token_indices:
-            special_token_mask |= new_labels == idx
-        special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
-        special_token_mask = special_token_mask.expand_as(hidden_states)
-        selected_hidden_states = hidden_states[special_token_mask].view(
-            hidden_states.size(1), -1, hidden_states.size(-1)
-        )
-
-        output_projection_embeddings = self.vision_output_projection_module(
-            selected_hidden_states
-        )  # (bs, no_special_tokens, 1024)
-        # Image caption embeddings
-        image_caption_embeddings = image_caption_embeddings.to(
-            output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
-        )
+            output_projection_embeddings = self.vision_output_projection_module(
+                selected_hidden_states
+            )  # (bs, no_special_tokens, 1024)
+            # Image caption embeddings
+            image_caption_embeddings = image_caption_embeddings.to(
+                output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
+            )
         if labels is None or loss_mask is None:
-            return output
+            # return output
+            return {
+            'output': output,
+            # 'output_projection_embeddings': output_projection_embeddings,
+            # 'image_caption_embeddings': image_caption_embeddings,
+            'hidden_states':  hidden_states
+        }
         return {
             'output': output,
             'new_loss_mask': new_loss_mask,
             'output_projection_embeddings': output_projection_embeddings,
             'image_caption_embeddings': image_caption_embeddings,
+            'hidden_states':  hidden_states
         }
         # return (output,output_projection_embeddings, image_caption_embeddings), new_loss_mask
 
