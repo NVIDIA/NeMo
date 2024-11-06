@@ -591,7 +591,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
             to prediction network (with maximum possible batch size),
             which makes it especially useful for scaling the prediction network.
-        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding 
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding
                                 (currently recommended only for inference)
     """
 
@@ -2734,7 +2734,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
 
-        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding 
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding
                                 (currently recommended only for inference)
     """
 
