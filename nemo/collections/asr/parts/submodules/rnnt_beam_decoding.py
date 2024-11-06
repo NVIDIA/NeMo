@@ -132,7 +132,8 @@ class BeamRNNTInfer(Typing):
                     however the time required for the search also grows steadily.
 
                 `tsd` - time synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                    [Alignment-Length Synchronous Decoding for RNN Transducer]
+                    (https://ieeexplore.ieee.org/document/9053040)
                     for details on the algorithm implemented.
 
                     Time synchronous decoding (TSD) execution time grows by the factor T * max_symmetric_expansions.
@@ -140,7 +141,8 @@ class BeamRNNTInfer(Typing):
                     good results. This also requires greater memory to execute.
 
                 `alsd` - alignment-length synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                    [Alignment-Length Synchronous Decoding for RNN Transducer]
+                    (https://ieeexplore.ieee.org/document/9053040)
                     for details on the algorithm implemented.
 
                     Alignment-length synchronous decoding (ALSD) execution time is faster than TSD, with growth
@@ -153,7 +155,8 @@ class BeamRNNTInfer(Typing):
                     For a given decoding accuracy, it is possible to attain faster decoding via ALSD than TSD.
 
                 `maes` = modified adaptive expansion searcn. Please refer to the paper:
-                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search](https://ieeexplore.ieee.org/document/9250505)
+                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search]
+                    (https://ieeexplore.ieee.org/document/9250505)
 
                     Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t the
                     number of expansions (for tokens) required per timestep. The number of expansions can usually
@@ -195,10 +198,10 @@ class BeamRNNTInfer(Typing):
             and affects the speed of inference since large values will perform large beam search in the next step.
 
         maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-            The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-            where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-            predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-            expansion apart from the "most likely" candidate.
+            The default (2.3) is selected from the paper. It performs a comparison 
+            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob 
+            is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which
+            can be potential candidates for expansion apart from the "most likely" candidate.
             Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
             but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
             thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
@@ -208,7 +211,7 @@ class BeamRNNTInfer(Typing):
 
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             beam decoding (sample). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1)
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.

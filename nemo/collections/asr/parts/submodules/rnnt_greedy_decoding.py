@@ -578,7 +578,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
             to prediction network (with maximum possible batch size),
             which makes it especially useful for scaling the prediction network.
-        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding 
+                                (currently recommended only for inference)
     """
 
     def __init__(
@@ -1433,7 +1434,8 @@ class ONNXGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
 
         self._blank_index = log_probs.shape[-1] - 1  # last token of vocab size is blank token
         logging.info(
-            f"Enc-Dec-Joint step was evaluated, blank token id = {self._blank_index}; vocab size = {log_probs.shape[-1]}"
+            f"Enc-Dec-Joint step was evaluated, \
+                blank token id = {self._blank_index}; vocab size = {log_probs.shape[-1]}"
         )
 
     def run_encoder(self, audio_signal, length):
@@ -2708,7 +2710,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
 
-        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding 
+                                (currently recommended only for inference)
     """
 
     def __init__(

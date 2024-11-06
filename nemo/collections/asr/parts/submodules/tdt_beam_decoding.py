@@ -72,7 +72,8 @@ class BeamTDTInfer(Typing):
                     however the time required for the search also grows steadily.
 
                 `maes` = modified adaptive expansion search. Please refer to the paper:
-                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search](https://ieeexplore.ieee.org/document/9250505)
+                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search]
+                    (https://ieeexplore.ieee.org/document/9250505)
 
                     Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t the
                     number of expansions (for tokens) required per timestep. The number of expansions can usually
@@ -101,10 +102,10 @@ class BeamTDTInfer(Typing):
             and affects the speed of inference since large values will perform large beam search in the next step.
 
         maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-            The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-            where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-            predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-            expansion apart from the "most likely" candidate.
+            The default (2.3) is selected from the paper. It performs a comparison 
+            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob 
+            is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which 
+            can be potential candidates for expansion apart from the "most likely" candidate.
             Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
             but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
             thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
@@ -114,7 +115,7 @@ class BeamTDTInfer(Typing):
 
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             beam decoding (sample). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1)
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -448,7 +449,8 @@ class BeamTDTInfer(Typing):
                         kept_hyps = kept_most_prob
                         break
                 else:
-                    # If there are no hypotheses in a current frame, keep only `beam` best hypotheses for the next search generation.
+                    # If there are no hypotheses in a current frame, 
+                    # keep only `beam` best hypotheses for the next search generation.
                     kept_hyps = sorted(kept_hyps, key=lambda x: x.score, reverse=True)[:beam]
         return self.sort_nbest(kept_hyps)
 
@@ -546,7 +548,8 @@ class BeamTDTInfer(Typing):
                 beam_duration_logp = torch.log_softmax(beam_logits[:, 0, 0, -len(self.durations) :], dim=-1)
 
                 # Retrieve the top `max_candidades` most probable tokens.
-                # Then, select the top `max_candidates` pairs of (token, duration) based on the highest combined probabilities.
+                # Then, select the top `max_candidates` pairs of (token, duration) 
+                # based on the highest combined probabilities.
                 # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
                 beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(
@@ -730,7 +733,8 @@ class BeamTDTInfer(Typing):
                     is_prefix(curr_hyp.y_sequence, pref_hyp.y_sequence)
                     and (curr_hyp_length - pref_hyp_length) <= prefix_alpha
                 ):
-                    # Compute the score of the first token that follows the prefix hypothesis tokens in current hypothesis.
+                    # Compute the score of the first token 
+                    # that follows the prefix hypothesis tokens in current hypothesis.
                     # Use the decoder output, which is stored in the prefix hypothesis.
                     logits = self.joint.joint(encoder_output, pref_hyp.dec_out[-1]) / self.softmax_temperature
                     logp = torch.log_softmax(logits[0, 0, 0, : -len(self.durations)], dim=-1)
