@@ -141,7 +141,7 @@ jobs:
        TIMEOUT: 20
        # TODO: remove this hack
        SCRIPT: |
-         python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 pytest -s tests/collections/asr -m "not pleasefixme" --with_downloads
+         python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Audio:
      needs: [cicd-test-container-setup]
