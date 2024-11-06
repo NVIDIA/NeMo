@@ -16,12 +16,10 @@
 
 import os
 from glob import glob
-from typing import Any
 
 import mediapy as media
 import numpy as np
 import torch
-from PIL import Image
 
 _DTYPE, _DEVICE = torch.bfloat16, "cuda"
 _UINT8_MAX_F = float(torch.iinfo(torch.uint8).max)
