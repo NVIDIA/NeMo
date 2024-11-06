@@ -11,5 +11,4 @@ sphinxcontrib-bibtex
 wandb
 wget
 wrapt
-
-https://github.com/kpu/kenlm/archive/master.zip
+kenlm
