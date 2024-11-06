@@ -22,6 +22,7 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
+from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
@@ -115,6 +116,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             )
 
     def setup(self, stage: str):
+        # data_sampler is used in `setup_data_sampler` in MegatronStrategy.setup
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=self.micro_batch_size,
@@ -127,13 +129,47 @@ class FineTuningDataModule(pl.LightningDataModule):
         # base_dataset_utils.get_datasets_weights_and_num_samples
         self.max_train_samples = int(math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005))
 
+    def state_dict(self) -> Dict[str, Any]:
+        """Called when saving a checkpoint, implement to generate and save datamodule state.
+
+        Returns:
+            A dictionary containing datamodule state.
+
+        """
+        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.data_sampler.init_global_step)
+        return {"consumed_samples": consumed_samples}
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
+
+        Args:
+            state_dict: the datamodule state returned by ``state_dict``.
+
+        """
+        try:
+            from megatron.core.num_microbatches_calculator import update_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+        consumed_samples = state_dict["consumed_samples"]
+        self.data_sampler.init_consumed_samples = consumed_samples
+        self.data_sampler.prev_consumed_samples = consumed_samples
+
+        update_num_microbatches(
+            consumed_samples=consumed_samples,
+            consistency_check=False,
+        )
+        self.data_sampler.if_first_step = 1
+
     def train_dataloader(self) -> DataLoader:
         return self._create_dataloader(
             self._create_dataset(
                 self.train_path if self.packed_sequence_size <= 0 else self.train_path_packed,
                 max_num_samples=self.max_train_samples,
                 **self.dataset_kwargs,
-            )
+            ),
+            mode="train",
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -143,6 +179,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                 is_test=True,
                 **self.dataset_kwargs,
             ),
+            mode="validation",
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -152,7 +189,8 @@ class FineTuningDataModule(pl.LightningDataModule):
                 tokens_to_generate=32,
                 is_test=True,
                 **self.dataset_kwargs,
-            )
+            ),
+            mode="test",
         )
 
     @lru_cache
@@ -167,9 +205,10 @@ class FineTuningDataModule(pl.LightningDataModule):
             **kwargs,
         )
 
-    def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
-        return DataLoader(
-            dataset,
+    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
+        return WrappedDataLoader(
+            mode=mode,
+            dataset=dataset,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
