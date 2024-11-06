@@ -98,7 +98,7 @@ def neva_forward_step(model, batch) -> torch.Tensor:
         "attention_mask": batch.get("attention_mask", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
-        "num_media_tiles": batch.get("num_media_tiles", 1),
+        "num_media_tiles": batch.get("num_media_tiles", None),
     }
 
     if 'cu_seqlens' in batch:
