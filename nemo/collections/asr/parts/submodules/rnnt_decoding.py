@@ -756,14 +756,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         raise NotImplementedError()
 
     def update_joint_fused_batch_size(self):
-        """"
-            Updates the fused batch size for the joint module if applicable.
+        """ "
+        Updates the fused batch size for the joint module if applicable.
 
-            If `joint_fused_batch_size` is set, verifies that the joint module has 
-            the required `set_fused_batch_size` and `set_fuse_loss_wer` functions. 
-            If present, updates the batch size; otherwise, logs a warning.
+        If `joint_fused_batch_size` is set, verifies that the joint module has
+        the required `set_fused_batch_size` and `set_fuse_loss_wer` functions.
+        If present, updates the batch size; otherwise, logs a warning.
 
-            If `joint_fused_batch_size` is <= 0, disables fused batch processing.
+        If `joint_fused_batch_size` is <= 0, disables fused batch processing.
         """
         if self.joint_fused_batch_size is None:
             # do nothing and let the Joint itself handle setting up of the fused batch
@@ -792,19 +792,19 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     def compute_rnnt_timestamps(self, hypothesis: Hypothesis, timestamp_type: str = "all"):
         """
-            Computes character, word, and segment timestamps for an RNN-T hypothesis.
+        Computes character, word, and segment timestamps for an RNN-T hypothesis.
 
-            This function generates timestamps for characters, words, and segments within
-            a hypothesis sequence. The type of timestamps computed depends on `timestamp_type`,
-            which can be 'char', 'word', 'segment', or 'all'.
+        This function generates timestamps for characters, words, and segments within
+        a hypothesis sequence. The type of timestamps computed depends on `timestamp_type`,
+        which can be 'char', 'word', 'segment', or 'all'.
 
-            Args:
-                hypothesis (Hypothesis): Hypothesis.
-                timestamp_type (str): Type of timestamps to compute. Options are 'char', 'word', 'segment', or 'all'.
-                                    Defaults to 'all'.
+        Args:
+            hypothesis (Hypothesis): Hypothesis.
+            timestamp_type (str): Type of timestamps to compute. Options are 'char', 'word', 'segment', or 'all'.
+                                Defaults to 'all'.
 
-            Returns:
-                Hypothesis: The updated hypothesis with computed timestamps for characters, words, and/or segments.
+        Returns:
+            Hypothesis: The updated hypothesis with computed timestamps for characters, words, and/or segments.
         """
         assert timestamp_type in ['char', 'word', 'segment', 'all']
 

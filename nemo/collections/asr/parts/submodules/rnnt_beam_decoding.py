@@ -198,8 +198,8 @@ class BeamRNNTInfer(Typing):
             and affects the speed of inference since large values will perform large beam search in the next step.
 
         maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-            The default (2.3) is selected from the paper. It performs a comparison 
-            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob 
+            The default (2.3) is selected from the paper. It performs a comparison
+            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob
             is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which
             can be potential candidates for expansion apart from the "most likely" candidate.
             Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
@@ -1500,8 +1500,9 @@ class BeamRNNTInfer(Typing):
 @dataclass
 class BeamRNNTInferConfig:
     """
-        Beam RNNT Inference config.
+    Beam RNNT Inference config.
     """
+
     beam_size: int
     search_type: str = 'default'
     score_norm: bool = True

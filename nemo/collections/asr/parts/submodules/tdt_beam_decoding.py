@@ -102,9 +102,9 @@ class BeamTDTInfer(Typing):
             and affects the speed of inference since large values will perform large beam search in the next step.
 
         maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-            The default (2.3) is selected from the paper. It performs a comparison 
-            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob 
-            is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which 
+            The default (2.3) is selected from the paper. It performs a comparison
+            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob
+            is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which
             can be potential candidates for expansion apart from the "most likely" candidate.
             Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
             but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
@@ -446,7 +446,7 @@ class BeamTDTInfer(Typing):
                         kept_hyps = kept_most_prob
                         break
                 else:
-                    # If there are no hypotheses in a current frame, 
+                    # If there are no hypotheses in a current frame,
                     # keep only `beam` best hypotheses for the next search generation.
                     kept_hyps = sorted(kept_hyps, key=lambda x: x.score, reverse=True)[:beam]
         return self.sort_nbest(kept_hyps)
@@ -545,7 +545,7 @@ class BeamTDTInfer(Typing):
                 beam_duration_logp = torch.log_softmax(beam_logits[:, 0, 0, -len(self.durations) :], dim=-1)
 
                 # Retrieve the top `max_candidades` most probable tokens.
-                # Then, select the top `max_candidates` pairs of (token, duration) 
+                # Then, select the top `max_candidates` pairs of (token, duration)
                 # based on the highest combined probabilities.
                 # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
@@ -730,7 +730,7 @@ class BeamTDTInfer(Typing):
                     is_prefix(curr_hyp.y_sequence, pref_hyp.y_sequence)
                     and (curr_hyp_length - pref_hyp_length) <= prefix_alpha
                 ):
-                    # Compute the score of the first token 
+                    # Compute the score of the first token
                     # that follows the prefix hypothesis tokens in current hypothesis.
                     # Use the decoder output, which is stored in the prefix hypothesis.
                     logits = self.joint.joint(encoder_output, pref_hyp.dec_out[-1]) / self.softmax_temperature
