@@ -497,7 +497,6 @@ class TestRNNTDecoding:
     def test_tdt_beam_decoding(self, test_data_dir, beam_config):
         check_beam_decoding(test_data_dir, beam_config)
 
-
     @pytest.mark.skipif(not os.path.exists('/home/TestData'), reason='Not a Jenkins machine')
     @pytest.mark.with_downloads
     @pytest.mark.unit
