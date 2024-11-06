@@ -115,7 +115,7 @@ There are various challenges that emerge with specialized architectures. In the 
 
 .. image:: assets/st_dit_hybrid_parallel.png
    :alt: Hybrid Parallelism for ST-DiT
-   :width: 300px
+   :scale: 75%
    :align: center
 
 .. Data preparation
