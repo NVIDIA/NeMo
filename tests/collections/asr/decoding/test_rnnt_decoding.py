@@ -166,37 +166,39 @@ def check_subword_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTBPEDecodi
 
     assert len(hyp.timestep['segment']) == segments_count
 
+
 def check_beam_decoding(test_data_dir, beam_config):
-        beam_size = beam_config.pop("beam_size", 1)
-        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
+    beam_size = beam_config.pop("beam_size", 1)
+    model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
 
-        model_config = model.to_config_dict()
-        durations = list(model_config["model_defaults"]["tdt_durations"])
+    model_config = model.to_config_dict()
+    durations = list(model_config["model_defaults"]["tdt_durations"])
 
-        beam = tdt_beam_decoding.BeamTDTInfer(
-            model.decoder,
-            model.joint,
-            beam_size=beam_size,
-            return_best_hypothesis=False,
-            durations=durations,
-            **beam_config,
-        )
+    beam = tdt_beam_decoding.BeamTDTInfer(
+        model.decoder,
+        model.joint,
+        beam_size=beam_size,
+        return_best_hypothesis=False,
+        durations=durations,
+        **beam_config,
+    )
 
-        enc_out = encoded
-        enc_len = encoded_len
+    enc_out = encoded
+    enc_len = encoded_len
 
-        with torch.no_grad():
-            hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
-            _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
-            all_hyps = all_hyps[0]
+    with torch.no_grad():
+        hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
+        _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
+        all_hyps = all_hyps[0]
 
-            print("Beam search algorithm :", beam_config['search_type'])
-            for idx, hyp_ in enumerate(all_hyps):  # idx: int, hyp_: rnnt_utils.Hypothesis
-                print("Hyp index", idx + 1, "text :", hyp_.text)
+        print("Beam search algorithm :", beam_config['search_type'])
+        for idx, hyp_ in enumerate(all_hyps):  # idx: int, hyp_: rnnt_utils.Hypothesis
+            print("Hyp index", idx + 1, "text :", hyp_.text)
 
-                assert len(hyp_.timestep) > 0
-                print("Timesteps", hyp_.timestep)
-                print()
+            assert len(hyp_.timestep) > 0
+            print("Timesteps", hyp_.timestep)
+            print()
+
 
 class TestRNNTDecoding:
     @pytest.mark.unit
@@ -504,6 +506,7 @@ class TestRNNTDecoding:
     )
     def test_tdt_beam_decoding(self, test_data_dir, beam_config):
         check_beam_decoding(test_data_dir, beam_config)
+
 
 @pytest.mark.skipif(not os.path.exists('/home/TestData'), reason='Not a Jenkins machine')
 @pytest.mark.with_downloads
