@@ -204,7 +204,8 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
 
 def get_vad_stream_status(data: list) -> list:
     """
-    Generate a list of status for each snippet in manifest. A snippet should be in single, start, next or end status.
+    Generate a list of status for each snippet in manifest. 
+    A snippet should be in single, start, next or end status.
     Used for concatenating to full audio file.
     Args:
         data (list): list of filepath of audio snippet
