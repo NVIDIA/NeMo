@@ -18,3 +18,4 @@ jobs:
       python_package: nemo
     secrets:
       SLACK_RELEASE_ENDPOINT: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+
