@@ -106,4 +106,3 @@ if __name__ == '__main__':
 
     if args.model_save_path is not None and args.model_accelerator is None:
         model.save_pretrained(args.model_save_path)
-    
