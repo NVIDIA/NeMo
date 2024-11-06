@@ -459,7 +459,6 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         assert closure is None, f"closre should be None but was passed {closure}"
 
         # Step the optimizer.
-        assert kwargs.pop('closure', None) is None, f"Specifying closures is not supported"
         self.optimizer.step(closure=None, **kwargs)
 
         # Update params from main params.
