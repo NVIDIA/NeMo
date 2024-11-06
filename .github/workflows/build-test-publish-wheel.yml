@@ -30,6 +30,7 @@ jobs:
       dry-run: true
       python-package: nemo
       container-workdir: /workspace
+      environment: public
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
