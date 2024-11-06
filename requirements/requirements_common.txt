@@ -4,3 +4,4 @@ inflect
 pandas
 sacremoses>=0.0.43
 sentencepiece<1.0.0
+mediapy==1.1.6
