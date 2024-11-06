@@ -20,7 +20,7 @@ torchrun --nproc-per-node 8 preprocess_coyo.py \
     --input_image_dir /path/to/images \
     --input_captions_dir /path/to/captions \
     --output_dir /path/to/output/prefix \
-    
+
 NOTE : Make sure you install tiktoken==0.6.0
 NOTE : Make sure the images and captions have the same filename (Images should be .jpg and Captions .pkl)
 """
@@ -213,7 +213,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     rank = int(os.environ['LOCAL_RANK'])
-    world_size = torch.cuda.device_count()
     torch.cuda.set_device(rank)
 
     with torch.no_grad():

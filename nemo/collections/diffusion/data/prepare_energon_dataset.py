@@ -14,7 +14,7 @@
 
 import os
 import pickle
-from typing import Callable, List
+from typing import Callable
 
 import nemo_run as run
 import numpy as np
