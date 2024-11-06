@@ -37,7 +37,6 @@ post_layernorm_keys = [
     "post_attention_layernorm.bias",
     "post_self_attn_layernorm.weight",
 ]
-pre_feedforward_layernorm_keys = ["mlp.linear_fc1.layer_norm_weight"]
 post_feedforward_layernorm_keys = ["mlp.linear_fc2.post_layernorm.weight"]
 mlp_proj_bias_keys = ["mlp.linear_fc2.bias", "mlp.dense_4h_to_h.bias"]
 attention_dense_bias_keys = ["attention.linear_proj.bias", "attention.dense.bias"]
@@ -230,7 +229,6 @@ def sequential_key_map(key: str, mapping: List[Tuple[List[str], str]]) -> Option
 def get_trt_llm_infix(key: str) -> Optional[str]:
     mapping = [
         (post_layernorm_keys, '.post_layernorm'),
-        (pre_feedforward_layernorm_keys, '.pre_feedforward_layernorm'),
         (post_feedforward_layernorm_keys, '.post_feedforward_layernorm'),
         (mlp_proj_bias_keys, '.mlp.proj'),
         (attention_dense_bias_keys, '.attention.dense'),
@@ -369,7 +367,6 @@ def split_and_save_weight(
         + post_layernorm_keys
         + mlp_proj_bias_keys
         + final_layernorm_keys
-        + pre_feedforward_layernorm_keys
         + post_feedforward_layernorm_keys,
     ) and (tp_rank == 0 or convert_on_device):
         # shared weights, only need to convert the weights of rank 0
