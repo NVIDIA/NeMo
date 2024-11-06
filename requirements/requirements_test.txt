@@ -1,7 +1,6 @@
 black~=24.3
 click>=8.1
 isort>5.1.0,<6.0.0
-kenlm
 parameterized
 pytest
 pytest-mock
