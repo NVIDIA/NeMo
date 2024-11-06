@@ -17,21 +17,23 @@ Some of the features we currently support include:
 Features Status
 ---------------
 
-We support image diffusion training. Video training incoming.
-
+We support image/video diffusion training with all parallelism strategies. 
 
 +---------------------------+------------------+
 | Parallelism               | Status           |
 +===========================+==================+
 | FSDP                      | ✅ Supported     |
 +---------------------------+------------------+
+| CP+TP+SP+FSDP             | ✅ Supported     |
++---------------------------+------------------+
 | CP+TP+SP+distopt          | ✅ Supported     |
 +---------------------------+------------------+
 | CP+TP+SP+PP+distopt       | ✅ Supported     |
 +---------------------------+------------------+
-| CP+TP+SP+FSDP             | 🕒 Coming Soon   |
+| CP+TP+SP+PP+distopt+EP    | ✅ Supported     |
 +---------------------------+------------------+
-
+| CP+TP+SP+FSDP+EP          | ✅ Supported     |
++---------------------------+------------------+
 
 **Legend:**
 - **FSDP**: Fully Sharded Data Parallelism
@@ -39,17 +41,21 @@ We support image diffusion training. Video training incoming.
 - **TP**: Tensor Parallelism
 - **SP**: Sequence Parallelism
 - **PP**: Pipeline Parallelism
+- **EP**: Expert Parallelism
 - **distop**: mcore distributed optmizer
 
-+--------------+-------------------+-----------------+
-| Model Size   | Modality          | Status          |
-+==============+===================+=================+
-| DiT 30B+     | 256px image       | ✅ Supported    |
-+--------------+-------------------+-----------------+
-| DiT 30B+     | 256px image+video | 🕒 Coming Soon  |
-+--------------+-------------------+-----------------+
-| DiT 30B+     | 768px image+video | 🕒 Coming Soon  |
-+--------------+-------------------+-----------------+
+training stages:
+
++---------------+----------------------+-----------------+-----------------+
+| Model Size    | Modality             | sequence length | Status          |
++===============+======================+=================+=================+
+| DiT 5B, 30B+  | 256px image          | 256             | ✅ Supported    |
++---------------+----------------------+-----------------+-----------------+
+| DiT 5B, 30B+  | 256px image+video    | 8k              | ✅ Supported    |
++---------------+----------------------+-----------------+-----------------+
+| DiT 5B, 30B+  | 768px image+video    | 74k+            | ✅ Supported    |
++---------------+----------------------+-----------------+-----------------+
+
 
 
 Energon Dataloader for Webscale Dataloading
