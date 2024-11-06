@@ -51,6 +51,7 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
+from nemo.utils.timers import NeMoTimerException
 
 try:
     # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
@@ -260,7 +261,12 @@ class TimingCallback(Callback):
         self.timer.start(name)
 
     def _on_batch_end(self, name, pl_module):
-        self.timer.stop(name)
+        try:
+            self.timer.stop(name)
+        except NeMoTimerException as e:
+            # Skip the error
+            pass
+
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(
             name + ' in s',
@@ -864,12 +870,13 @@ def check_resume(
         trainer.ckpt_path = str(checkpoint)
         logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
+    trainer.strategy.barrier()
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
         files_to_move = []
         if Path(log_dir).exists():
             for child in Path(log_dir).iterdir():
-                if child.is_file():
+                if child.is_file() and not child.name.startswith("events.out.tfevents"):
                     files_to_move.append(child)
 
         if len(files_to_move) > 0:
@@ -990,7 +997,7 @@ def get_log_dir(
                 os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version
 
     log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
-    return log_dir, str(_exp_dir), name, version
+    return log_dir, str(_exp_dir), name, "" if version is None else str(version)
 
 
 def get_git_hash():
