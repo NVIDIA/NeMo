@@ -255,7 +255,7 @@ def generate_overlap_vad_seq(
     out_dir: str = None,
 ) -> str:
     """
-    Generate predictions with overlapping input windows/segments. 
+    Generate predictions with overlapping input windows/segments.
     Then a smoothing filter is applied to decide the label for a frame spanned by multiple windows.
     Two common smoothing filters are supported: majority vote (median) and average (mean).
     This function uses multiprocessing to speed up.
