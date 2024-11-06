@@ -25,7 +25,7 @@ import torch
 from nemo.collections import llm
 from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
-from nemo.lightning.run.plugins import FaultTolerancePlugin,ConfigValidationPlugin
+from nemo.lightning.run.plugins import ConfigValidationPlugin, FaultTolerancePlugin
 from nemo.utils.exp_manager import TimingCallback
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,

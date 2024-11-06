@@ -275,7 +275,14 @@ class ConfigValidationPlugin(run.Plugin):
         logging.info(f"Validating {task.__fn_or_cls__.__qualname__} and {executor.__class__.__qualname__}.")
         if self.validate_preemption:
             logging.info("Validating preemption callback")
-            assert any(map(lambda callback: callback.__fn_or_cls__ == PreemptionCallback if '__fn_or_cls__' in dir(callback) else False, task.trainer.callbacks))
+            assert any(
+                map(
+                    lambda callback: (
+                        callback.__fn_or_cls__ == PreemptionCallback if '__fn_or_cls__' in dir(callback) else False
+                    ),
+                    task.trainer.callbacks,
+                )
+            )
 
         if self.validate_checkpoint_dir:
             if isinstance(executor, run.SlurmExecutor):

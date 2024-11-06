@@ -14,10 +14,10 @@
 
 import os
 
+import nemo_run as run
 import pytorch_lightning as pl
 import torch
 
-import nemo_run as run
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
@@ -29,7 +29,8 @@ def train_data(
 ) -> llm.PreTrainingDataModule:
     """Single shard dataset tokenized by SentencePiece"""
     tokenizer = run.Config(SentencePieceTokenizer, model_path=tokenizer_path)
-    return run.Config(llm.PreTrainingDataModule,
+    return run.Config(
+        llm.PreTrainingDataModule,
         paths=data_path,
         tokenizer=tokenizer,
         seq_length=seq_length,
@@ -42,7 +43,8 @@ def train_data(
 
 def small_llama_cfg(seq_length: int) -> llm.GPTConfig:
     """Small 145m model"""
-    return run.Config(llm.Llama3Config8B,
+    return run.Config(
+        llm.Llama3Config8B,
         rotary_base=500_000,
         seq_length=seq_length,
         num_layers=12,
