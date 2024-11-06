@@ -11,7 +11,7 @@ Some of the features we currently support include:
 
 - Energon Dataloader for Webscale Dataloading
 - Model and Data Parallelism
-- Model Architectures: DiT 30B parameters or even more
+- Model Architectures: Original DiT, MovieGen 30B+ parameters, Spatio-Temporal DiT
 
 
 Features Status
@@ -58,7 +58,7 @@ Energon Dataloader for Webscale Dataloading
 Webscale Dataloading
 ^^^^^^^^^^^^^^^^^^^^
 
-Megatron-Energon is an optimized multi-modal dataloader for large-scale deep learning with Megatron. Energon allows for distributed loading of large training training data for multi-modal model training. Energon allows for blending many datasets together and distributing the dataloading workflow across multiple cluster nodes/processes while ensuring reproducibility and resumability. 
+Megatron-Energon is an optimized multi-modal dataloader for large-scale deep learning with Megatron. Energon allows for distributed loading of large training training data for multi-modal model training. Energon allows for blending many datasets together and distributing the dataloading workflow across multiple cluster nodes/processes while ensuring reproducibility and resumability. You can learn more about how to prepare your own image / video webdataset for diffusion training `here <data/readme.rst>`_.
 
 Dataloader Checkpointing
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -96,79 +96,90 @@ Model Architectures
 
 DiT
 ^^^
-We implement an efficient version of the diffusion transformer (DiT) [1]_. Our DiT is slightly modified from the original paper as we use cross attention and adaptive layernorm together in the same architecture. We also use a QK-layernorm for training stability. Our framework allows for customizing the DiT architecture while maintaining its scalability, enabling training large DiT models on long sequence lengths.
+We implement an efficient version of the Diffusion Transformer (DiT) [1]_ with several variants to provide users with flexibility in exploring various model architectures.
+
+The current supported architectures include:
+- DiT adaLN-Zero (original DiT) [1]_
+- DiT adaLN-Zero with Cross attention
+- MovieGen [2]_
+- Spatio-Temporal DiT (ST-DiT)
+
+In the architectures using DiT adaLN-Zero, we also use a QK-layernorm for training stability. We also support MovieGen training with a Llama-based model architecture that leverages FSDP for large model training (i.e. 30B+ parameters). 
 
 
+Our framework allows for customizing the DiT architecture while maintaining its scalability, enabling training large DiT models on long sequence lengths. We provide functionality for ST-DiT, which utilizes spatial self attention and temporal self attention blocks operating on the spatial and temporal sequence dimensions, respectively. 
+There are various challenges that emerge with specialized architectures. In the case of ST-DiT, one major challenge is that the spatial and temporal context lengths are much smaller than full input sequence length. This leads to a large communication cost when using CP for a small amount of computation. The P2P communication in context parallel is exposed and leads to longer training step times. For efficient training of ST-DiT, we propose a novel hybrid parallelism strategy, which leverages A2A communication and local attention computation for spatial and temporal self attention while using P2P communications with context parallelism in a ring topology. This approach reduces the bandwidth requirement by factor of hw/cp for temporal attention and t/cp for spatial attention while enjoying the benefits of context parallelism to split the workload of computing full self attention.
 
-Data preparation
---------------------------
 
-We expect data to be in this webdataset format. For more information about webdataset and energon dataset, please refer to https://github.com/NVIDIA/Megatron-Energon
+.. Data preparation
+.. --------------------------
 
-Here we demonstrate a step by step example of how to prepare a dummy image dataset.
+.. We expect data to be in this webdataset format. For more information about webdataset and energon dataset, please refer to https://github.com/NVIDIA/Megatron-Energon
 
-.. code-block:: bash
+.. Here we demonstrate a step by step example of how to prepare a dummy image dataset.
 
-    torchrun --nproc-per-node 2 nemo/collections/diffusion/data/prepare_energon_dataset.py --factory prepare_dummy_image_dataset
+.. .. code-block:: bash
 
-this will generate a folder a tar files. .pth contains image/video latent representations encode by image/video tokenizer, .json contains metadata including text caption, resolution, aspection ratio, and .pickle contains text embeddings encoded by language model like T5.
+..     torchrun --nproc-per-node 2 nemo/collections/diffusion/data/prepare_energon_dataset.py --factory prepare_dummy_image_dataset
 
-.. code-block:: bash
+.. this will generate a folder a tar files. .pth contains image/video latent representations encode by image/video tokenizer, .json contains metadata including text caption, resolution, aspection ratio, and .pickle contains text embeddings encoded by language model like T5.
 
-   shard_000.tar
-   ├── samples/sample_0000.pth
-   ├── samples/sample_0000.pickle
-   ├── samples/sample_0000.json
-   ├── samples/sample_0001.pth
-   ├── samples/sample_0001.pickle
-   ├── samples/sample_0001.json
-   └── ...
-   shard_001.tar   
+.. .. code-block:: bash
 
-The following is a sample command to prepare prepare webdataset into energon dataset:
+..    shard_000.tar
+..    ├── samples/sample_0000.pth
+..    ├── samples/sample_0000.pickle
+..    ├── samples/sample_0000.json
+..    ├── samples/sample_0001.pth
+..    ├── samples/sample_0001.pickle
+..    ├── samples/sample_0001.json
+..    └── ...
+..    shard_001.tar   
 
-.. code-block:: bash
+.. The following is a sample command to prepare prepare webdataset into energon dataset:
 
-   # energon prepare . --num-workers 192
-   Found 369057 tar files in total. The first and last ones are:
-   - 0.tar
-   - 99999.tar
-   If you want to exclude some of them, cancel with ctrl+c and specify an exclude filter in the command line.
-   Please enter a desired train/val/test split like "0.5, 0.2, 0.3" or "8,1,1": 1,0,0
-   Indexing shards  [####################################]  369057/369057
-   Sample 0, keys:
-   - .json
-   - .pickle
-   - .pth
-   Sample 1, keys:
-   - .json
-   - .pickle
-   - .pth
-   Found the following part types in the dataset: .json, .pth, .pickle
-   Do you want to create a dataset.yaml interactively? [Y/n]: Y
-   The following dataset classes are available:
-   0. CaptioningWebdataset
-   1. CrudeWebdataset
-   2. ImageClassificationWebdataset
-   3. ImageWebdataset
-   4. InterleavedWebdataset
-   5. MultiChoiceVQAWebdataset
-   6. OCRWebdataset
-   7. SimilarityInterleavedWebdataset
-   8. TextWebdataset
-   9. VQAOCRWebdataset
-   10. VQAWebdataset
-   11. VidQAWebdataset
-   Please enter a number to choose a class: 1
-   The dataset you selected uses the following sample type:
+.. .. code-block:: bash
 
-   class CrudeSample(dict):
-      """Generic sample type to be processed later."""
+..    # energon prepare . --num-workers 192
+..    Found 369057 tar files in total. The first and last ones are:
+..    - 0.tar
+..    - 99999.tar
+..    If you want to exclude some of them, cancel with ctrl+c and specify an exclude filter in the command line.
+..    Please enter a desired train/val/test split like "0.5, 0.2, 0.3" or "8,1,1": 1,0,0
+..    Indexing shards  [####################################]  369057/369057
+..    Sample 0, keys:
+..    - .json
+..    - .pickle
+..    - .pth
+..    Sample 1, keys:
+..    - .json
+..    - .pickle
+..    - .pth
+..    Found the following part types in the dataset: .json, .pth, .pickle
+..    Do you want to create a dataset.yaml interactively? [Y/n]: Y
+..    The following dataset classes are available:
+..    0. CaptioningWebdataset
+..    1. CrudeWebdataset
+..    2. ImageClassificationWebdataset
+..    3. ImageWebdataset
+..    4. InterleavedWebdataset
+..    5. MultiChoiceVQAWebdataset
+..    6. OCRWebdataset
+..    7. SimilarityInterleavedWebdataset
+..    8. TextWebdataset
+..    9. VQAOCRWebdataset
+..    10. VQAWebdataset
+..    11. VidQAWebdataset
+..    Please enter a number to choose a class: 1
+..    The dataset you selected uses the following sample type:
 
-   CrudeWebdataset does not need a field map. You will need to provide a `Cooker` for your dataset samples in your `TaskEncoder`.
-   Furthermore, you might want to add `subflavors` in your meta dataset specification.
+..    class CrudeSample(dict):
+..       """Generic sample type to be processed later."""
 
-training
+..    CrudeWebdataset does not need a field map. You will need to provide a `Cooker` for your dataset samples in your `TaskEncoder`.
+..    Furthermore, you might want to add `subflavors` in your meta dataset specification.
+
+Model Training
 --------------------------
 
 To launch training on one node
@@ -188,3 +199,4 @@ Citations
 ---------
 
 .. [1] William Peebles and Saining Xie, "Scalable Diffusion Models with Transformers," *arXiv preprint arXiv:2212.09748*, 2022.
+.. [2] The Movie Gen team @ Meta, "Movie Gen: A Cast of Media Foundation Models", *arXiv preprint arXiv:2410.13720*, 2024.
