@@ -20,6 +20,7 @@ import pytorch_lightning as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
+from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections.llm import PreTrainingDataModule
@@ -149,6 +150,7 @@ def trainer(
         accumulate_grad_batches=accumulate_grad_batches,
         callbacks=callbacks,
         devices=num_gpus_per_node,
+        num_sanity_val_steps=0,
         limit_test_batches=limit_test_batches,
         limit_val_batches=limit_val_batches,
         log_every_n_steps=log_every_n_steps,
@@ -163,31 +165,31 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=pretrain, name=NAME)
 def dapt_recipe(
         # General
         dir: Optional[str] = None,
         name: str = "default",
+        version: str = "3.1",
         # Trainer
-        tensor_parallelism: int = 4,
+        tensor_parallelism: int = 1,
         pipeline_parallelism: int = 1,
         pipeline_parallelism_type: Optional[torch.dtype] = None,
         virtual_pipeline_parallelism: Optional[int] = None,
-        context_parallelism: int = 1,
+        context_parallelism: int = 2,
         sequence_parallelism: bool = False,
         num_nodes: int = 1,
         num_gpus_per_node: int = 8,
-        max_steps: int = 300000,
+        max_steps: int = 100000,
         precision: str = "bf16-mixed",
         accumulate_grad_batches: int = 1,
         gradient_clip_val: float = 1.0,
         limit_test_batches: int = 32,
         limit_val_batches: int = 32,
         log_every_n_steps: int = 10,
-        val_check_interval: int = 2000,
+        val_check_interval: int = 1000,
         # Data
-        global_batch_size: int = 32,
-        micro_batch_size: int = 2,
+        global_batch_size: int = 128,
+        micro_batch_size: int = 1,
         seq_length: int = 4096,
         # Optimizer
         warmup_steps: int = 50,
@@ -198,7 +200,8 @@ def dapt_recipe(
         # Training function
         fn: Callable = pretrain,
 ) -> run.Partial:
-    model_name = "meta-llama/Meta-Llama-3-8B"
+    assert version is "3" or version is "3.1", 'Current recipe only supports Llama3 or Llama3.1'
+    model_name = f"meta-llama/Meta-Llama-{version}-8B"
     tokenizer = get_nmt_tokenizer(library="huggingface", model_name=model_name)
     data_path = [
         '/lustre/fsw/coreai_dlalgo_genai/datasets/law_domain_datasets/curated/freelawv2/freelawv2_text_document',
@@ -210,6 +213,10 @@ def dapt_recipe(
         global_batch_size=global_batch_size,
         micro_batch_size=micro_batch_size,
         tokenizer=tokenizer,
+    )
+    wandb_logger=WandbLogger(
+                project=f"nemo2-aot-DAPT",
+                name=name,
     )
     recipe = run.Partial(
         fn,
@@ -233,7 +240,7 @@ def dapt_recipe(
             callbacks=[run.Config(TimingCallback)],
         ),
         data=data,
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name), wandb_logger=wandb_logger),
         optim=distributed_fused_adam_with_cosine_annealing(
             precision=precision,
             warmup_steps=warmup_steps,
