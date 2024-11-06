@@ -1132,3 +1132,160 @@ Depending on the type of model, there may be extra steps that must be performed 
 
 * CTC Models - `Examples directory for CTC Models <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/asr_ctc/README.md>`_
 * RNN Transducer Models - `Examples directory for Transducer Models <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/asr_transducer/README.md>`_
+
+Multi-task AED Models
+------------------
+
+The config for multitask AED models (e.g., Canary models that can perform both ASR and translation tasks) is at ``<NeMo_git_root>/examples/asr/conf/speech_multitask/fast-conformer_aed.yaml``. Multi-task AED models are built with an encoder-decoder architecture utilizing FastConformer for the encoder and Transformer for the decoder.
+
+Various sections of the config of `Multi-task AED Models <./models.html#_AED_model>`__ are as follows:
+
+* Model initialization (``init_from_nemo_model``)
+* Dataset configs (``train_ds``, ``validation_ds``, and ``test_ds``)
+* Special tokenizer config (``spl_tokens``)
+* Tokenizer config (``tokenizer``)
+* Prompt format (``prompt_format``)
+* Model defaults (``model_defaults``)
+* Audio preprocessor (``preprocessor``)
+* Augmentation (``spec_augment``)
+* FastConformer encoder (``encoder``)
+* Optional intermediate transformer encoder (``transf_encoder``)
+* Transformer decoder (``transf_decoder``)
+* Label prediction head (``head``)
+* Decoding strategy (``decoding``)
+* Loss config (``loss``)
+* Optimizer (``optim``)
+* Training config (``trainer``)
+* Experiment manager (``exp_manager``)
+
+While most of the sections are similar to other ASR models, the multi-task AED model has a few unique sections:
+
+Model Initialization
+~~~~~~~~~~~~~~~~~~~~
+
+For larger models (1B+ params), initialization from a pretrained encoder is recommended for better stability and convergence:
+
+.. code-block:: yaml
+
+    init_from_nemo_model:
+      model0:
+        path: "<path to pretrained model>"
+        include: ["encoder"]
+        exclude: ["encoder.pre_encode.out"]
+
+The ``include`` parameter specifies which components to load from the pretrained model. In this case, only the encoder weights are loaded. The ``exclude`` parameter allows you to skip specific sub-components during loading - here, the pre-encoder output layer is excluded to allow for architectural modifications.
+
+
+Dataset Configurations
+~~~~~~~~~~~~~~~~~~~~
+
+The multi-task AED models support only Lhotse-based data loading. Datasets can be configured using either manifest files or Lhotse YAML configs:
+
+.. code-block:: yaml
+
+    train_ds:
+      use_lhotse: true
+      input_cfg: "<path to lhotse config>"
+      batch_duration: 600
+      max_duration: 40
+      use_bucketing: True
+      num_buckets: 30
+      bucket_duration_bins: [3.79, 4.82, 5.688, ..., 35.827]
+      text_field: "answer"
+      lang_field: "target_lang"
+
+For more details about Lhotse-based dataset specification, refer to `Lhotse Dataloading <./datasets.html#_hotse_dataloading>`__
+
+Special Tokens Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The model uses special tokens for task control and language specification. These can be configured during tokenizer creation or loaded from an existing tokenizer:
+
+.. code-block:: yaml
+
+    spl_tokens:
+      model_dir: "<path to tokenizer dir>"
+      tokens: ["translate", "transcribe", "en", "es", "de", "fr"]
+      force_rebuild: False
+
+.. _canary_tokenizer_config:
+
+Tokenizer Configuration
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The model uses an aggregate tokenizer system that combines special tokens with language-specific tokenizers:
+
+.. code-block:: yaml
+
+    tokenizer:
+      dir: null  # Null for aggregate tokenizers
+      type: agg
+      langs:
+        spl_tokens:  # Special tokens model
+          dir: "<path>"
+          type: bpe
+        en:  # Language-specific tokenizers
+          dir: "<path>/tokenizer_en_${model.model_defaults.vocab_size_per_lang}"
+          type: bpe
+        # Additional languages follow same pattern
+
+Prompt Format
+~~~~~~~~~~~~~
+
+Currently, AED models only support Canary format which uses special tokens for task and language control:
+
+.. code-block:: yaml
+
+    model:
+      prompt_format: "canary"   # Options supported: ["canary"]
+
+For Canary format, the input sequence to decoder starts with special tokens and consists of [start_of_transcript, source_lang, task, target_lang, pnc] tokens.
+
+Model Defaults
+~~~~~~~~~~~~~~
+
+The ``model_defaults`` section contains shared parameters that define the model's architecture and vocabulary settings:
+
+.. code-block:: yaml
+
+    model_defaults:
+      asr_enc_hidden: 1024    # Hidden size for ASR encoder
+      lm_dec_hidden: 1024     # Hidden size for transformer decoder
+      text_field: "answer"    # Field name for ground truth in manfiest
+      lang_field: "target_lang"    # Field name for output language in manifest
+
+These parameters are referenced throughout the config using OmegaConf interpolation (${...}) to maintain consistency across different components of the model.
+
+
+Transformer Decoder
+~~~~~~~~~~~~~~~~~
+
+The transformer decoder uses a pre-LN architecture with configurable size and attention parameters:
+
+.. code-block:: yaml
+
+    transf_decoder:
+      _target_: nemo.collections.asr.modules.transformer.get_nemo_transformer
+      model_name: null
+      pretrained: false
+      pre_ln_final_layer_norm: true
+      config_dict:
+        max_sequence_length: 2048
+        num_layers: 4
+        hidden_size: ${model.model_defaults.lm_dec_hidden}
+        inner_size: ${multiply:${model.model_defaults.lm_dec_hidden}, 4}
+        num_attention_heads: 8
+        ffn_dropout: 0.1
+        vocab_size: None  # Set at runtime
+
+Loss Configuration
+~~~~~~~~~~~~~~~~
+
+The model uses smoothed cross entropy loss with optional label smoothing:
+
+.. code-block:: yaml
+
+    loss:
+      _target_: nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss
+      label_smoothing: ${model.label_smoothing}
+      pad_id: null
