@@ -23,7 +23,6 @@ from math import ceil, floor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import IPython.display as ipd
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,6 +38,14 @@ from tqdm import tqdm
 from nemo.collections.asr.models import EncDecClassificationModel, EncDecFrameClassificationModel
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging
+
+HAVE_IPYTHON = False
+try:
+    import IPython.display as ipd
+    HAVE_IPYTHON = True
+except:
+    HAVE_IPYTHON = False
+
 
 """
 This file contains all the utility functions required for voice activity detection. 
@@ -989,6 +996,9 @@ def plot(
         label_repeat (int): repeat the label for this number of times to match different frame lengths in preds and labels.
         xticks_step (int): step size for xticks.
     """
+    if HAVE_IPYTHON is False:
+        raise ImportError("IPython is not installed. Please install IPython to use this function.")
+    
     plt.figure(figsize=[20, 2])
 
     audio, sample_rate = librosa.load(
@@ -1438,6 +1448,9 @@ def plot_sample_from_rttm(
     """
     Plot audio signal and frame-level labels from RTTM file
     """
+    if HAVE_IPYTHON is False:
+        raise ImportError("IPython is not installed. Please install IPython to use this function.")
+    
     plt.figure(figsize=[20, 2])
 
     audio, sample_rate = librosa.load(path=audio_file, sr=16000, mono=True, offset=offset, duration=max_duration)
