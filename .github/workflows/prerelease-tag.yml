@@ -7,7 +7,6 @@ on:
         type: string
         description: "Commit SHA for prerelease tag (default: HEAD main)"
         required: false
-  pull_request:
     
 jobs:
   prerelease:
