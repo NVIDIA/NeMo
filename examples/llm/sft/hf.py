@@ -79,8 +79,7 @@ if __name__ == '__main__':
     if args.model_accelerator == "te":
         model.configure_model(train=False)
         model = TEAccelerator.accelerate(model)
-
-    print("TE accelerated: ", TEAccelerator.te_accelerated(model))
+        print("TE accelerated: ", TEAccelerator.te_accelerated(model))
 
     llm.api.finetune(
         model=model,
@@ -102,8 +101,9 @@ if __name__ == '__main__':
         log=None,
     )
 
-    print("TE accelerated: ", TEAccelerator.te_accelerated(model))
+    if args.model_accelerator == "te":
+        print("TE accelerated: ", TEAccelerator.te_accelerated(model))
 
-    if args.model_save_path is not None:
+    if args.model_save_path is not None and args.model_accelerator is None:
         model.save_pretrained(args.model_save_path)
     

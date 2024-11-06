@@ -18,6 +18,7 @@ from nemo.utils.import_utils import safe_import
 safe_import("transformer_engine")
 
 from nemo.collections.llm import peft
+from nemo.collections.llm.accelerate.transformer_engine import TEAccelerator
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -112,7 +113,6 @@ from nemo.collections.llm.gpt.model import (
 )
 from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
 from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
-from nemo.collections.llm.accelerate.transformer_engine import TEAccelerator
 
 __all__ = [
     "MockDataModule",

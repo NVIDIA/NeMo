@@ -71,13 +71,14 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def configure_model(self, train=True):
         # create all your layers here
-        if self.load_pretrained_weights:
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype='auto')
-        else:
-            from transformers import AutoConfig
+        if self.model is None:
+            if self.load_pretrained_weights:
+                self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype='auto')
+            else:
+                from transformers import AutoConfig
 
-            config = AutoConfig.from_pretrained(self.model_name)
-            self.model = AutoModelForCausalLM.from_config(config)
+                config = AutoConfig.from_pretrained(self.model_name)
+                self.model = AutoModelForCausalLM.from_config(config)
 
         if train:
             self.model.train()

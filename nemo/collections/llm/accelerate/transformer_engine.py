@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
-import transformer_engine.pytorch as te
 import torch
+import transformer_engine.pytorch as te
+
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
 
 
 class TEAccelerator:
@@ -32,10 +33,10 @@ class TEAccelerator:
         for name, module in model.named_children():
             if isinstance(module, torch.nn.Linear):
 
-                #print(name, module)
-                #print(module.weight)
-                #print("")
-                #print("")
+                # print(name, module)
+                # print(module.weight)
+                # print("")
+                # print("")
 
                 has_bias = module.bias is not None
                 if any(p % 16 != 0 for p in module.weight.shape):
@@ -50,7 +51,7 @@ class TEAccelerator:
                         te_module.bias.copy_(module.bias)
 
                 setattr(model, name, te_module)
-                #print(te_module.weight)
+                # print(te_module.weight)
             TEAccelerator._accelerate(module)
 
         return model
