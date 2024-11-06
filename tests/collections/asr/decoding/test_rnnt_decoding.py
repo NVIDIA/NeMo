@@ -516,4 +516,4 @@ class TestRNNTDecoding:
     )
     def test_tdt_beam_decoding_with_kenlm(self, test_data_dir, beam_config):
         pytest.importorskip("kenlm", reason="Skipping test because 'kenlm' is not installed.")
-        check_beam_decoding(self, test_data_dir, beam_config)
+        check_beam_decoding(test_data_dir, beam_config)
