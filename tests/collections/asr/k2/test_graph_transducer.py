@@ -316,7 +316,7 @@ class TestRnntLogProbs:
         )
         logits2 = logits.clone().detach()
         logits2.requires_grad_(True)
-        target_scores, blank_scores = rnnt_logprobs_triton(x=logits2, targets=targets, blank_id=vocab_size)
+        target_scores, blank_scores = rnnt_logprobs_triton(logits=logits2, targets=targets, blank_id=vocab_size)
         target_scores[..., -1:] = 0.0
         target_scores_etalon[..., -1:] = 0.0
         assert torch.allclose(blank_scores, blank_scores_etalon, atol=1e-5)
