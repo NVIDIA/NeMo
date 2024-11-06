@@ -132,7 +132,7 @@ Our dataloader provides support for mixed image-video training by using the NeMo
 
 .. image:: assets/mixed_training.png
    :alt: Mixed image-video dataloading strategy
-   :width: 300px
+   :scale: 50%
    :align: center
 
 Model and Data Parallelism
@@ -141,7 +141,7 @@ NeMo provides support for training models using tensor parallelism, sequence par
 
 .. image:: assets/pipeline_conditioning.png
    :alt: Conditioning mechanism for pipeline parallelism
-   :width: 300px
+   :scale: 50%
    :align: center
 
 Model Architectures
@@ -168,7 +168,7 @@ There are various challenges that emerge with specialized architectures. In the 
 
 .. image:: assets/st_dit_hybrid_parallel.png
    :alt: Hybrid Parallelism for ST-DiT
-   :scale: 75%
+   :scale: 50%
    :align: center
 
 .. Data preparation
