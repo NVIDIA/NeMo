@@ -247,7 +247,8 @@ class BatchedHyps:
 
         Args:
             batch_size: batch size for hypotheses
-            init_length: initial estimate for the length of hypotheses (if the real length is higher, tensors will be reallocated)
+            init_length: initial estimate for the length of hypotheses (if the real length is higher,
+                tensors will be reallocated)
             device: device for storing hypotheses
             float_dtype: float type for scores
         """
