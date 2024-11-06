@@ -42,21 +42,9 @@ class CausalVideoTokenizer(ModelPT):
 
         self._device = "cuda"
 
-        self._full_model = (
-            load_jit_model(self._full_model_path, self._device)
-            if cfg.load_full_model
-            else None
-        )
-        self._enc_model = (
-            load_jit_model(self._enc_model_path, self._device)
-            if cfg.load_enc_model
-            else None
-        )
-        self._dec_model = (
-            load_jit_model(self._dec_model_path, self._device)
-            if cfg.load_dec_model
-            else None
-        )
+        self._full_model = load_jit_model(self._full_model_path, self._device) if cfg.load_full_model else None
+        self._enc_model = load_jit_model(self._enc_model_path, self._device) if cfg.load_enc_model else None
+        self._dec_model = load_jit_model(self._dec_model_path, self._device) if cfg.load_dec_model else None
 
     @classmethod
     def from_pretrained(
@@ -96,13 +84,15 @@ class CausalVideoTokenizer(ModelPT):
 
         # Assumes HF downloads all files to same local dir
         ckpt_dir = str(Path(full_model_path).parent)
-        cfg = DictConfig({
-            'checkpoint_dir': ckpt_dir,
-            'dtype': 'bfloat16',
-            'load_enc_model': load_encoder,
-            'load_dec_model': load_decoder,
-            'load_full_model': load_full_model,
-        })
+        cfg = DictConfig(
+            {
+                'checkpoint_dir': ckpt_dir,
+                'dtype': 'bfloat16',
+                'load_enc_model': load_encoder,
+                'load_dec_model': load_decoder,
+                'load_full_model': load_full_model,
+            }
+        )
 
         return cls(cfg)
 
@@ -117,11 +107,7 @@ class CausalVideoTokenizer(ModelPT):
         """
         if self._full_model is not None:
             output_tensor = self._full_model(input_tensor)
-            output_tensor = (
-                output_tensor[0]
-                if isinstance(output_tensor, tuple)
-                else output_tensor
-            )
+            output_tensor = output_tensor[0] if isinstance(output_tensor, tuple) else output_tensor
         else:
             output_latent = self.encode(input_tensor)[0]
             output_tensor = self.decode(output_latent)
@@ -188,9 +174,7 @@ class CausalVideoTokenizer(ModelPT):
 
             # Spatio-temporally pad input_video so it's evenly divisible.
             padded_input_video, crop_region = pad_video_batch(input_video)
-            input_tensor = numpy2tensor(
-                padded_input_video, dtype=self._dtype, device=self._device
-            )
+            input_tensor = numpy2tensor(padded_input_video, dtype=self._dtype, device=self._device)
             output_tensor = self.autoencode(input_tensor)
             padded_output_video = tensor2numpy(output_tensor)
             output_video = unpad_video_batch(padded_output_video, crop_region)
@@ -207,4 +191,3 @@ class CausalVideoTokenizer(ModelPT):
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         pass
-

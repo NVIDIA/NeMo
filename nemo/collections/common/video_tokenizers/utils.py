@@ -29,9 +29,7 @@ _SPATIAL_ALIGN = 16
 _TEMPORAL_ALIGN = 8
 
 
-def load_jit_model(
-    jit_filepath: str = None, device: str = "cuda"
-) -> torch.jit.ScriptModule:
+def load_jit_model(jit_filepath: str = None, device: str = "cuda") -> torch.jit.ScriptModule:
     """Loads a torch.jit.ScriptModule from a filepath.
 
     Args:
@@ -205,9 +203,7 @@ def tensor2numpy(input_tensor: torch.Tensor, range_min: int = -1) -> np.ndarray:
     return (output_image * _UINT8_MAX_F + 0.5).astype(np.uint8)
 
 
-def pad_image_batch(
-    batch: np.ndarray, spatial_align: int = _SPATIAL_ALIGN
-) -> tuple[np.ndarray, list[int]]:
+def pad_image_batch(batch: np.ndarray, spatial_align: int = _SPATIAL_ALIGN) -> tuple[np.ndarray, list[int]]:
     """Pads a batch of images to be divisible by `spatial_align`.
 
     Args:
@@ -260,9 +256,7 @@ def pad_video_batch(
     width_to_pad = (align - width % align) if width % align != 0 else 0
 
     align = temporal_align
-    frames_to_pad = (
-        (align - (num_frames - 1) % align) if (num_frames - 1) % align != 0 else 0
-    )
+    frames_to_pad = (align - (num_frames - 1) % align) if (num_frames - 1) % align != 0 else 0
 
     crop_region = [
         frames_to_pad >> 1,
