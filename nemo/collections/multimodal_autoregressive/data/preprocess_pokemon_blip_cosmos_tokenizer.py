@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from argparse import ArgumentParser
 
 import numpy as np
@@ -14,8 +28,8 @@ from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
 """
 You can run this script as follows
 
-python3 nemo/collections/multimodal_autoregressive/data/preprocess_pokemon_blip_using_edify_dv.py
-    
+python3 nemo/collections/multimodal_autoregressive/data/preprocess_pokemon_blip_cosmos_tokenizer.py
+
 NOTE : Make sure you install tiktoken==0.6.0
 """
 
