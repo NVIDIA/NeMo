@@ -1361,9 +1361,25 @@ class ExportedModelGreedyBatchedRNNTInfer:
         raise NotImplementedError()
 
     def run_encoder(self, audio_signal, length):
+        """
+        Runs encoder network:
+        
+        Args: 
+            audio_signal: audio signal
+            length: audio length
+        """
         raise NotImplementedError()
 
     def run_decoder_joint(self, enc_logits, targets, target_length, *states):
+        """
+        Runs decoder joint networks.
+        
+        Args:
+            enc_logits: encoder logits
+            targets: targets
+            target_length: target length
+            states: states
+        """
         raise NotImplementedError()
 
     def _get_initial_states(self, batchsize):

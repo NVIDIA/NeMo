@@ -1008,7 +1008,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
             # Check if token is a punctuation mark
             # If so, set its start and end offset as start and end of the previous token
-            # This is done because there was observed a behaviour, when punctuation marks are predicted long after preceding token (i.e. after silence)
+            # This is done because there was observed a behaviour, when punctuation marks are 
+            # predicted long after preceding token (i.e. after silence)
             if offset['char'][0] in supported_punctuation and i > 0:
                 encoded_char_offsets[i]['start_offset'] = offset['start_offset'] = char_offsets[i - 1]['end_offset']
                 encoded_char_offsets[i]['end_offset'] = offset['end_offset'] = offset['start_offset']
