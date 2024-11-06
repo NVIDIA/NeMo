@@ -9,24 +9,25 @@
 
 """A library for Causal Video Tokenizer inference."""
 
-import numpy as np
-import torch
-from tqdm import tqdm
-from omegaconf import DictConfig
 from pathlib import Path
 from typing import Optional
+
+import numpy as np
+import torch
 from huggingface_hub import get_token as get_hf_token
 from huggingface_hub import hf_hub_download
+from omegaconf import DictConfig
+from tqdm import tqdm
 
-from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.classes.modelPT import ModelPT
 from nemo.collections.common.video_tokenizers.utils import (
     load_jit_model,
     numpy2tensor,
     pad_video_batch,
     tensor2numpy,
-    unpad_video_batch
+    unpad_video_batch,
 )
+from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.modelPT import ModelPT
 
 
 class CausalVideoTokenizer(ModelPT):

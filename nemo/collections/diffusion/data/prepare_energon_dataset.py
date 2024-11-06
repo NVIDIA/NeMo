@@ -15,19 +15,19 @@
 import os
 import pickle
 from typing import Callable, List
-import pandas as pd
+
 import nemo_run as run
 import numpy as np
+import pandas as pd
 import torch
 import torch.distributed as dist
 import webdataset as wds
 from einops import rearrange
 from transformers import T5EncoderModel, T5TokenizerFast
+
 from nemo.collections.common.video_tokenizers.cosmos_tokenizer import CausalVideoTokenizer
-from nemo.collections.common.video_tokenizers.utils import (
-    read_image,
-    resize_video,
-)
+from nemo.collections.common.video_tokenizers.utils import read_image, resize_video
+
 
 def initialize_text_encoder(t5_cache_dir):
     # Load tokenizer and text encoder, save in cache directory
@@ -38,22 +38,18 @@ def initialize_text_encoder(t5_cache_dir):
 
     return tokenizer, text_encoder
 
+
 # Load dataset from HuggingFace
 df = pd.read_parquet("hf://datasets/huggan/smithsonian_butterflies_subset/data/train-00000-of-00001.parquet")
 # Load Cosmos tokenizer from HuggingFace
 autoencoder = CausalVideoTokenizer.from_pretrained("CosmosCausalCV_f4x8x8")
 # Load T5-XXL text encoder
-t5_cache_dir = '' # Use your own custom cache path
+t5_cache_dir = ''  # Use your own custom cache path
 tokenizer, text_encoder = initialize_text_encoder(t5_cache_dir)
 
+
 class EncodedSample:
-    def __init__(
-        self,
-        encoded_text: np.ndarray, 
-        length: int, 
-        attn_mask: np.ndarray, 
-        offset_mappings: np.ndarray
-    ):
+    def __init__(self, encoded_text: np.ndarray, length: int, attn_mask: np.ndarray, offset_mappings: np.ndarray):
         self.encoded_text = encoded_text
         self.length = length
         self.attn_mask = attn_mask
@@ -64,6 +60,7 @@ class EncodedSample:
         self.attn_mask = self.attn_mask[0 : self.length].astype(np.int32)
         if self.offset_mappings is not None:
             self.offset_mappings = self.offset_mappings[0 : self.length].astype(np.int32)
+
 
 @torch.no_grad()
 def encode_for_batch(
@@ -122,6 +119,7 @@ def encode_for_batch(
             x.truncate()
     return out
 
+
 def generate_t5_embed(tokenizer, text_encoder, prompt, t5_embeding_max_length=512):
     # encode text to t5 embedding
     out = encode_for_batch(tokenizer, text_encoder, [prompt])[0]
@@ -133,6 +131,7 @@ def generate_t5_embed(tokenizer, text_encoder, prompt, t5_embeding_max_length=51
     t5_embed[0, :L] = encoded_text
 
     return t5_embed
+
 
 def get_start_end_idx_for_this_rank(dataset_size, rank, world_size):
     """
@@ -152,6 +151,7 @@ def get_start_end_idx_for_this_rank(dataset_size, rank, world_size):
     end_idx = start_idx + split_size if rank != world_size - 1 else dataset_size
     return start_idx, end_idx
 
+
 def butterfly_process_func(index):
     """
     Generates a sample dictionary with image latent tensor, image caption, and metadata.
@@ -166,7 +166,7 @@ def butterfly_process_func(index):
     video = rearrange(video, 'h w (t c) -> t h w c', t=1)
     video = resize_video(video, short_size=512)
     batch_video = video[np.newaxis, ...]
-    
+
     # Run autoencoder to get latents
     _, image_latent = autoencoder(batch_video, temporal_window=1)
 
@@ -198,7 +198,7 @@ def prepare(process_func: Callable, output_dir: str = 'output'):
     start_idx, end_idx = get_start_end_idx_for_this_rank(len(df), rank, world_size)
     os.makedirs(output_dir, exist_ok=True)
     output_tar = os.path.join(output_dir, f"rank{rank}-%06d.tar")
-    
+
     with wds.ShardWriter(output_tar, maxcount=10000) as sink:
         for i in range(start_idx, end_idx):
             sample = process_func(i)
@@ -208,12 +208,9 @@ def prepare(process_func: Callable, output_dir: str = 'output'):
 
 @run.cli.factory(target=prepare)
 def prepare_butterfly_dataset() -> run.Partial:
-    recipe = run.Partial(
-        prepare,
-        process_func=butterfly_process_func,
-        output_dir='butterfly_webdataset'
-    )
+    recipe = run.Partial(prepare, process_func=butterfly_process_func, output_dir='butterfly_webdataset')
     return recipe
+
 
 if __name__ == '__main__':
     dist.init_process_group("nccl")

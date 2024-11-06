@@ -21,7 +21,7 @@ import unicodedata
 from typing import Collection, Dict, List, Optional, Set, Tuple, Union
 
 import tiktoken
-from transformers import PreTrainedTokenizer, AddedToken
+from transformers import AddedToken, PreTrainedTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +47,7 @@ def _load_tiktoken_bpe(tiktoken_bpe_file: str) -> Dict[bytes, int]:
     with open(tiktoken_bpe_file, "rb") as f:
         contents = f.read()
     return {
-        base64.b64decode(token): int(rank)
-        for token, rank in (line.split() for line in contents.splitlines() if line)
+        base64.b64decode(token): int(rank) for token, rank in (line.split() for line in contents.splitlines() if line)
     }
 
 
@@ -62,21 +61,21 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
         vocab_file,
         special_tokens_file,
         errors="replace",
-        bos_token = "<|extra_203|>",
-        eos_token = "<|extra_204|>",
-        pad_token = "<|endoftext|>",
-        img_token = "<|image token|>",
-        boi_token = "<|image start|>",
-        eoi_token = "<|image end|>",
-        eol_token = "<|extra_200|>",
-        eof_token = "<|extra_201|>",
+        bos_token="<|extra_203|>",
+        eos_token="<|extra_204|>",
+        pad_token="<|endoftext|>",
+        img_token="<|image token|>",
+        boi_token="<|image start|>",
+        eoi_token="<|image end|>",
+        eol_token="<|extra_200|>",
+        eof_token="<|extra_201|>",
         **kwargs,
     ):
         super().__init__(**kwargs)
 
         # how to handle errors in decoding UTF-8 byte sequences
         # use ignore if you are in streaming inference
-        self.errors = errors  
+        self.errors = errors
 
         self.mergeable_ranks = _load_tiktoken_bpe(vocab_file)
 
@@ -109,9 +108,7 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
             len(self.mergeable_ranks) + len(self.special_tokens) == enc.n_vocab
         ), f"{len(self.mergeable_ranks) + len(self.special_tokens)} != {enc.n_vocab} in encoding"
 
-        self.decoder = {
-            v: k for k, v in self.mergeable_ranks.items()
-        }
+        self.decoder = {v: k for k, v in self.mergeable_ranks.items()}
         self.decoder.update({v: k for k, v in self.special_tokens.items()})
 
         self.tokenizer = enc
@@ -149,9 +146,7 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
     def get_vocab(self) -> Dict[bytes, int]:
         return self.mergeable_ranks
 
-    def convert_tokens_to_ids(
-        self, tokens: Union[bytes, str, List[Union[bytes, str]]]
-    ) -> List[int]:
+    def convert_tokens_to_ids(self, tokens: Union[bytes, str, List[Union[bytes, str]]]) -> List[int]:
         if isinstance(tokens, (str, bytes)):
             if tokens in self.special_tokens:
                 return self.special_tokens[tokens]
@@ -189,12 +184,19 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
             `Tuple(str)`: Paths to the files saved.
         """
         regular_file_path = os.path.join(save_directory, self.vocab_files_names["vocab_file"])
-        with open(regular_file_path,'w', encoding="utf8") as w:
+        with open(regular_file_path, 'w', encoding="utf8") as w:
             for k, v in self.mergeable_ranks.items():
                 line = base64.b64encode(k).decode("utf8") + " " + str(v) + "\n"
                 w.write(line)
 
-        excluded_special_tokens = set((ENDOFTEXT, IMSTART, IMEND,) + EXTRAS)
+        excluded_special_tokens = set(
+            (
+                ENDOFTEXT,
+                IMSTART,
+                IMEND,
+            )
+            + EXTRAS
+        )
         special_file_path = os.path.join(save_directory, self.vocab_files_names["special_tokens_file"])
         with open(special_file_path, 'w', encoding="utf8") as w:
             for k in self.special_tokens:
@@ -233,9 +235,7 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
         text = unicodedata.normalize("NFC", text)
 
         # this implementation takes a detour: text -> token id -> token surface forms
-        for t in self.tokenizer.encode(
-            text, allowed_special=allowed_special, disallowed_special=disallowed_special
-        ):
+        for t in self.tokenizer.encode(text, allowed_special=allowed_special, disallowed_special=disallowed_special):
             tokens.append(self.decoder[t])
 
         return tokens
@@ -292,4 +292,3 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
             token_ids = [i for i in token_ids if i < self.eod_id]
 
         return self.tokenizer.decode(token_ids, errors=errors or self.errors)
-

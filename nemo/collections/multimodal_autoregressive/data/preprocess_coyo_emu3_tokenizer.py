@@ -1,18 +1,17 @@
+import math
+import os
+import pickle
 from argparse import ArgumentParser
 from glob import glob
-import math
-import pickle
 from pathlib import Path
 
-from tqdm import tqdm
 import torch
 import torchvision
 from PIL import Image
+from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
-import os
-
 
 """
 You can run this script as follows
@@ -29,9 +28,8 @@ NOTE : Make sure the images and captions have the same filename (Images should b
 EMU_HUB = "BAAI/Emu3-Gen"
 VQ_HUB = "BAAI/Emu3-VisionTokenizer"
 
-def smart_resize(
-    image, factor: int = 8, min_pixels: int = 512 * 512, max_pixels: int = 1024 * 1024
-):
+
+def smart_resize(image, factor: int = 8, min_pixels: int = 512 * 512, max_pixels: int = 1024 * 1024):
     """Rescales the image so that the following conditions are met:
 
     1. Both dimensions (height and width) are divisible by 'factor'.
@@ -63,6 +61,7 @@ def smart_resize(
     image = image.resize((h_bar, w_bar))
     return image
 
+
 def to_imgstr(image_tokens, tokenizer):
     """Convert the image tokens to string
 
@@ -77,15 +76,13 @@ def to_imgstr(image_tokens, tokenizer):
     """
     image_tokens = image_tokens.cpu().numpy().tolist()
     image_token_str = [
-        [
-            '<|visual token {token_id:0>6d}|>'.format(token_id=token_id)
-            for token_id in token_row
-        ]
+        ['<|visual token {token_id:0>6d}|>'.format(token_id=token_id) for token_id in token_row]
         for token_row in image_tokens
     ]
     image_row_str = ["".join(token_row) for token_row in image_token_str]
     imgstr = tokenizer.eol_token.join(image_row_str)
     return imgstr
+
 
 def main(args):
 
@@ -116,8 +113,12 @@ def main(args):
     total_images_to_process = len(filepaths_final)
     total_images_to_process_per_gpu = total_images_to_process // torch.cuda.device_count()
     if total_images_to_process_per_gpu > 30000:
-        print('WARNING : Found more than 30k images to process per GPU. This job might take more than 3 hours to process as tested on H100 gpus')
-    print(f'Total images to process : {total_images_to_process_per_gpu}. Each GPU will get {total_images_to_process_per_gpu} files')
+        print(
+            'WARNING : Found more than 30k images to process per GPU. This job might take more than 3 hours to process as tested on H100 gpus'
+        )
+    print(
+        f'Total images to process : {total_images_to_process_per_gpu}. Each GPU will get {total_images_to_process_per_gpu} files'
+    )
 
     for idx, filepath in enumerate(pbar):
         pbar.update(1)
@@ -125,7 +126,7 @@ def main(args):
             continue
         try:
             image = Image.open(filepath)
-            caption_filename = filepath.split('/')[-1].replace('.jpg','.pkl')
+            caption_filename = filepath.split('/')[-1].replace('.jpg', '.pkl')
             caption_path = Path(args.input_captions_dir).joinpath(caption_filename)
             if not os.path.isfile(caption_path):
                 print(f'WARNING : Caption file does not exist {caption_path}. So skipping')
@@ -140,13 +141,13 @@ def main(args):
 
             imgstr = to_imgstr(image_tokens[0], tokenizer=tokenizer)
             image_prompt = (
-                tokenizer.boi_token +
-                f'{h}*{w}' +
-                tokenizer.img_token +
-                imgstr +
-                tokenizer.eol_token +
-                tokenizer.eof_token +
-                tokenizer.eoi_token
+                tokenizer.boi_token
+                + f'{h}*{w}'
+                + tokenizer.img_token
+                + imgstr
+                + tokenizer.eol_token
+                + tokenizer.eof_token
+                + tokenizer.eoi_token
             )
 
             caption = ""
@@ -158,26 +159,57 @@ def main(args):
             int_tokens = tokenizer(prompt).input_ids
             builders[key].add_item(torch.IntTensor(int_tokens))
             builders[key].end_document()
-        except Exception as e :
+        except Exception as e:
             print(f'Error in handling {filepath}. Exception {e} raised. Continuing to next file')
             continue
 
-    builders[key].finalize(f'{args.output_prefix}.idx',)
+    builders[key].finalize(
+        f'{args.output_prefix}.idx',
+    )
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--input_image_dir", required=True, type=str, help="The directory which contains images.")
-    parser.add_argument("--input_captions_dir", required=True, type=str, help="The directory which contains captions (as .pkl file with same names as the image names).")
-    parser.add_argument("--output_prefix", required=True, type=str, help="The directory along with the output file name to write the .idx and .bin files (e.g /path/to/output/sample)")
+    parser.add_argument(
+        "--input_captions_dir",
+        required=True,
+        type=str,
+        help="The directory which contains captions (as .pkl file with same names as the image names).",
+    )
+    parser.add_argument(
+        "--output_prefix",
+        required=True,
+        type=str,
+        help="The directory along with the output file name to write the .idx and .bin files (e.g /path/to/output/sample)",
+    )
     parser.add_argument('--dataset_impl', type=str, default='mmap', choices=['lazy', 'cached', 'mmap', 'retmmap'])
     parser.add_argument('--chunk_size', type=int, default=64, help='chunk size used for retrieval')
-    parser.add_argument('--resize_image', type=bool, default=True, help='Resizes the image to be between mix_pixels and max_pixels')
-    parser.add_argument('--spatial_factor', type=int, default=8, help='The spatial downsample factor the image will be downsampled/upsampled to fit between min_pixels and max_pixels if resize_image is set to True')
-    parser.add_argument('--min_pixels', type=int, default=512*512, help='The minimum number of pixels in the image. Picture will be upsampled if smaller and resize_image is set to True')
-    parser.add_argument('--max_pixels', type=int, default=1024*1024, help='The maximum number of pixels in the image. Picture will be downsampled if smaller and resize_image is set to False')
-    parser.add_argument('--chunk_stride_size', type=int, default=64, help='the stride size for neighbor chunks used for retrieval')
-    
+    parser.add_argument(
+        '--resize_image', type=bool, default=True, help='Resizes the image to be between mix_pixels and max_pixels'
+    )
+    parser.add_argument(
+        '--spatial_factor',
+        type=int,
+        default=8,
+        help='The spatial downsample factor the image will be downsampled/upsampled to fit between min_pixels and max_pixels if resize_image is set to True',
+    )
+    parser.add_argument(
+        '--min_pixels',
+        type=int,
+        default=512 * 512,
+        help='The minimum number of pixels in the image. Picture will be upsampled if smaller and resize_image is set to True',
+    )
+    parser.add_argument(
+        '--max_pixels',
+        type=int,
+        default=1024 * 1024,
+        help='The maximum number of pixels in the image. Picture will be downsampled if smaller and resize_image is set to False',
+    )
+    parser.add_argument(
+        '--chunk_stride_size', type=int, default=64, help='the stride size for neighbor chunks used for retrieval'
+    )
+
     args = parser.parse_args()
 
     rank = int(os.environ['LOCAL_RANK'])
