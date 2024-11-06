@@ -455,6 +455,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             torch.cuda.synchronize()
 
         # Step the optimizer.
+        assert kwargs.pop('closure', None) is None, f"Specifying closures is not supported"
         self.optimizer.step(closure=None, **kwargs)
 
         # Update params from main params.
