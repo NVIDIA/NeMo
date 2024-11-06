@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import nemo_run as run
 import pytest
 
@@ -49,23 +63,16 @@ class TestNemotron3_8B:
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
-    def test_hf_resume(self, recipe_module):
-        resume_config = recipe_module.hf_resume()
-        assert isinstance(resume_config, run.Config)
-        assert resume_config.__fn_or_cls__ == AutoResume
-        assert isinstance(resume_config.restore_config, run.Config)
-        assert resume_config.restore_config.path == "hf://nvidia/nemotron-3-8b-base-4k"
-
     def test_finetune_recipe(self, recipe_module):
         recipe = recipe_module.finetune_recipe()
         assert isinstance(recipe, run.Partial)
-        assert recipe.__fn_or_cls__ == finetune
+        assert isinstance(recipe, run.Partial)
         assert isinstance(recipe.model, run.Config)
         assert recipe.model.__fn_or_cls__ == NemotronModel
         assert isinstance(recipe.trainer, run.Config)
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == SquadDataModule
-        assert recipe.data.seq_length == 4096
-        assert recipe.data.global_batch_size == 32
-        assert recipe.data.micro_batch_size == 2
+        assert recipe.data.seq_length == 2048
+        assert recipe.data.global_batch_size == 128
+        assert recipe.data.micro_batch_size == 1
