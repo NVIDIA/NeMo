@@ -31,6 +31,7 @@ from nemo.core.classes.modelPT import ModelPT
 
 
 class CausalVideoTokenizer(ModelPT):
+    """ Causal Video tokenization with the NVIDIA Cosmos Tokenizer """
     def __init__(self, cfg: DictConfig) -> None:
         super().__init__(cfg)
 
@@ -98,7 +99,7 @@ class CausalVideoTokenizer(ModelPT):
 
     @torch.no_grad()
     def autoencode(self, input_tensor: torch.Tensor) -> torch.Tensor:
-        """Reconstrcuts a batch of video tensors after embedding into a latent.
+        """Reconstructs a batch of video tensors after embedding into a latent.
 
         Args:
             video: The input video Bx3xTxHxW layout, range [-1..1].

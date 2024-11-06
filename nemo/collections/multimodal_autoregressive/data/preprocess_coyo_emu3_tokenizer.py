@@ -79,7 +79,8 @@ def smart_resize(image, factor: int = 8, min_pixels: int = 512 * 512, max_pixels
 def to_imgstr(image_tokens, tokenizer):
     """Convert the image tokens to string
 
-    Given image tokens e.g [1,5,32] as input, this produces the appropriate string tokens e.g "<|visual token 000001|><|visual token 000005|><|visual token 000032|>"
+    Given image tokens e.g [1,5,32] as input, this produces the appropriate string tokens
+    e.g., "<|visual token 000001|><|visual token 000005|><|visual token 000032|>"
 
     Args:
         image_tokens : The image tokens as an integer list
@@ -128,10 +129,12 @@ def main(args):
     total_images_to_process_per_gpu = total_images_to_process // torch.cuda.device_count()
     if total_images_to_process_per_gpu > 30000:
         print(
-            'WARNING : Found more than 30k images to process per GPU. This job might take more than 3 hours to process as tested on H100 gpus'
+            'WARNING : Found more than 30k images to process per GPU. '
+            'This job might take more than 3 hours to process as tested on H100 gpus'
         )
     print(
-        f'Total images to process : {total_images_to_process_per_gpu}. Each GPU will get {total_images_to_process_per_gpu} files'
+        f'Total images to process : {total_images_to_process_per_gpu}. '
+        'Each GPU will get {total_images_to_process_per_gpu} files'
     )
 
     for idx, filepath in enumerate(pbar):
@@ -169,7 +172,10 @@ def main(args):
                 caption_data = pickle.load(f)
                 caption = caption_data['captions']['llava']
 
-            prompt = f'{tokenizer.bos_token}You are a helpful assistant. USER: {image_prompt}{text}. ASSISTANT: {caption}{tokenizer.eos_token}'
+            prompt = (
+                f'{tokenizer.bos_token}You are a helpful assistant. '
+                f'USER: {image_prompt}{text}. ASSISTANT: {caption}{tokenizer.eos_token}'
+            )
             int_tokens = tokenizer(prompt).input_ids
             builders[key].add_item(torch.IntTensor(int_tokens))
             builders[key].end_document()
@@ -195,7 +201,8 @@ if __name__ == '__main__':
         "--output_prefix",
         required=True,
         type=str,
-        help="The directory along with the output file name to write the .idx and .bin files (e.g /path/to/output/sample)",
+        help="The directory along with the output file name to "
+        "write the .idx and .bin files (e.g /path/to/output/sample)",
     )
     parser.add_argument('--dataset_impl', type=str, default='mmap', choices=['lazy', 'cached', 'mmap', 'retmmap'])
     parser.add_argument('--chunk_size', type=int, default=64, help='chunk size used for retrieval')
@@ -206,19 +213,22 @@ if __name__ == '__main__':
         '--spatial_factor',
         type=int,
         default=8,
-        help='The spatial downsample factor the image will be downsampled/upsampled to fit between min_pixels and max_pixels if resize_image is set to True',
+        help='The spatial downsample factor the image will be downsampled/upsampled'
+        'to fit between min_pixels and max_pixels if resize_image is set to True',
     )
     parser.add_argument(
         '--min_pixels',
         type=int,
         default=512 * 512,
-        help='The minimum number of pixels in the image. Picture will be upsampled if smaller and resize_image is set to True',
+        help='The minimum number of pixels in the image. '
+        'Picture will be upsampled if smaller and resize_image is set to True',
     )
     parser.add_argument(
         '--max_pixels',
         type=int,
         default=1024 * 1024,
-        help='The maximum number of pixels in the image. Picture will be downsampled if smaller and resize_image is set to False',
+        help='The maximum number of pixels in the image. '
+        'Picture will be downsampled if smaller and resize_image is set to False',
     )
     parser.add_argument(
         '--chunk_stride_size', type=int, default=64, help='the stride size for neighbor chunks used for retrieval'

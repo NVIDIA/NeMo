@@ -30,6 +30,16 @@ from nemo.collections.common.video_tokenizers.utils import read_image, resize_vi
 
 
 def initialize_text_encoder(t5_cache_dir):
+    """
+    Initializes the T5 tokenizer and encoder model, loading them from a specified cache directory.
+
+    Args:
+        t5_cache_dir (str): Path to the cache directory for storing the pretrained model files.
+
+    Returns:
+        tuple: A tuple containing the tokenizer and encoder model instances.
+    """
+
     # Load tokenizer and text encoder, save in cache directory
     tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-11b", cache_dir=t5_cache_dir)
     text_encoder = T5EncoderModel.from_pretrained("google-t5/t5-11b", cache_dir=t5_cache_dir)
@@ -49,6 +59,17 @@ tokenizer, text_encoder = initialize_text_encoder(t5_cache_dir)
 
 
 class EncodedSample:
+    """
+    A class representing an encoded sample, containing the text encoding, length,
+    attention mask, and offset mappings.
+
+    Attributes:
+        encoded_text (np.ndarray): Encoded text array.
+        length (int): Length of the encoding.
+        attn_mask (np.ndarray): Attention mask for the encoding.
+        offset_mappings (np.ndarray): Mappings for offset positions.
+    """
+
     def __init__(self, encoded_text: np.ndarray, length: int, attn_mask: np.ndarray, offset_mappings: np.ndarray):
         self.encoded_text = encoded_text
         self.length = length
@@ -56,6 +77,9 @@ class EncodedSample:
         self.offset_mappings = offset_mappings
 
     def truncate(self) -> None:
+        """
+        Truncates the encoded text, attention mask, and offset mappings to the specified length.
+        """
         self.encoded_text = self.encoded_text[0 : self.length].astype(np.float16)
         self.attn_mask = self.attn_mask[0 : self.length].astype(np.int32)
         if self.offset_mappings is not None:
@@ -67,12 +91,18 @@ def encode_for_batch(
     tokenizer, encoder, prompts: list[str], truncate: bool = True, max_length=512, output_mapping=True
 ):
     """
-    encode a batch of text prompts to a batch of T5 embedding
-    Parameters:
-        tokenizer: t5 embedding tokenizer.
-        text_encoder: t5 embedding text_encoder.
-        prompts: a batch of text prompts
-        truncate: whether to truncate the T5 embedding
+    Encodes a batch of text prompts into T5 embeddings.
+
+    Args:
+        tokenizer: Tokenizer instance for encoding.
+        encoder: T5 encoder model instance.
+        prompts (list[str]): List of text prompts to encode.
+        truncate (bool): If True, truncates the output embeddings.
+        max_length (int): Maximum length for each encoded prompt.
+        output_mapping (bool): If True, returns offset mappings for each prompt.
+
+    Returns:
+        list[EncodedSample]: A list of encoded samples containing text encodings and masks.
     """
     batch_encoding = tokenizer.batch_encode_plus(
         prompts,
@@ -121,6 +151,18 @@ def encode_for_batch(
 
 
 def generate_t5_embed(tokenizer, text_encoder, prompt, t5_embeding_max_length=512):
+    """
+    Generates a T5 embedding for a single text prompt.
+
+    Args:
+        tokenizer: T5 tokenizer instance.
+        text_encoder: T5 encoder model instance.
+        prompt (str): The text prompt to encode.
+        t5_embeding_max_length (int): Maximum length for the embedding.
+
+    Returns:
+        torch.Tensor: Padded T5 embedding tensor.
+    """
     # encode text to t5 embedding
     out = encode_for_batch(tokenizer, text_encoder, [prompt])[0]
     encoded_text = torch.tensor(out.encoded_text, dtype=torch.bfloat16)
@@ -135,15 +177,15 @@ def generate_t5_embed(tokenizer, text_encoder, prompt, t5_embeding_max_length=51
 
 def get_start_end_idx_for_this_rank(dataset_size, rank, world_size):
     """
-    Calculate the start and end indices for a given rank in a distributed setting.
+    Calculates the start and end indices for distributed processing based on rank.
 
     Args:
-        dataset_size (int): The total size of the dataset.
-        rank (int): The rank of the current process.
-        world_size (int): The total number of processes.
+        dataset_size (int): Total dataset size.
+        rank (int): Current process rank.
+        world_size (int): Total number of processes.
 
     Returns:
-        tuple: A tuple containing the start index (int) and end index (int) for the given rank.
+        tuple: (start index, end index) for the rank.
     """
     split_size = dataset_size // world_size
     start_idx = rank * split_size
@@ -154,7 +196,13 @@ def get_start_end_idx_for_this_rank(dataset_size, rank, world_size):
 
 def butterfly_process_func(index):
     """
-    Generates a sample dictionary with image latent tensor, image caption, and metadata.
+    Generates a sample dictionary with image latent tensor, caption, and metadata.
+
+    Args:
+        index (int): Index of the dataset row.
+
+    Returns:
+        dict: Dictionary containing processed image latents, embeddings, and metadata.
     """
     # Access the data from the dataframe
     row = df.iloc[index]
@@ -190,7 +238,12 @@ def butterfly_process_func(index):
 @run.cli.entrypoint
 def prepare(process_func: Callable, output_dir: str = 'output'):
     """
-    Distributed preparation of the WebDataset using the provided processing function.
+    Prepares a WebDataset using the specified processing function, for distributed settings.
+
+    Args:
+        process_func (Callable): Function to process each dataset entry.
+        output_dir (str): Output directory to save processed dataset.
+
     """
     rank = dist.get_rank()
     world_size = torch.distributed.get_world_size()
@@ -208,6 +261,12 @@ def prepare(process_func: Callable, output_dir: str = 'output'):
 
 @run.cli.factory(target=prepare)
 def prepare_butterfly_dataset() -> run.Partial:
+    """
+    Prepares the butterfly dataset for distributed training.
+
+    Returns:
+        run.Partial: Partially configured run for WebDataset preparation.
+    """
     recipe = run.Partial(prepare, process_func=butterfly_process_func, output_dir='butterfly_webdataset')
     return recipe
 

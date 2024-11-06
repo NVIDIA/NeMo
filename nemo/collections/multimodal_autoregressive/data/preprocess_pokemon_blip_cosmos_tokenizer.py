@@ -37,7 +37,8 @@ NOTE : Make sure you install tiktoken==0.6.0
 def to_imgstr(image_tokens_flattened):
     """Convert the image tokens to string
 
-    Given image tokens e.g [1,5,32] as input, this produces the appropriate string tokens e.g "<|visual token 000001|><|visual token 000005|><|visual token 000032|>"
+    Given image tokens e.g [1,5,32] as input, this produces the appropriate string tokens
+    e.g., "<|visual token 000001|><|visual token 000005|><|visual token 000032|>"
 
     Args:
         image_tokens : The image tokens as an integer list
@@ -93,7 +94,11 @@ def main(args):
         imgstr = to_imgstr(output_indices_flattened)
         image_prompt = text_tokenizer.boi_token + text_tokenizer.img_token + imgstr + text_tokenizer.eoi_token
 
-        prompt = f'{text_tokenizer.bos_token}You are a helpful assistant. Draw a picture for the caption given by the user. USER: {caption}. ASSISTANT: {image_prompt}{text_tokenizer.eos_token}'
+        prompt = (
+            f'{text_tokenizer.bos_token}You are a helpful assistant. '
+            'Draw a picture for the caption given by the user. '
+            f'USER: {caption}. ASSISTANT: {image_prompt}{text_tokenizer.eos_token}'
+        )
 
         int_tokens = text_tokenizer(prompt).input_ids
         builders[key].add_item(torch.IntTensor(int_tokens))
@@ -112,7 +117,8 @@ if __name__ == '__main__':
         "--output_prefix",
         required=True,
         type=str,
-        help="The directory along with the output file name to write the .idx and .bin files (e.g /path/to/output/sample)",
+        help="The directory along with the output file name to write "
+        "the .idx and .bin files (e.g /path/to/output/sample)",
     )
     parser.add_argument(
         "--image_encoder",
