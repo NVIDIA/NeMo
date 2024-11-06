@@ -55,6 +55,20 @@ except (ImportError, ModuleNotFoundError):
 
 
 def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
+    """
+    Packs a list of hypotheses into a tensor and prepares decoder states.
+
+    This function takes a list of token sequences (hypotheses) and converts 
+    it into a tensor format. If any decoder states are on the GPU, they 
+    are moved to the CPU. Additionally, the function removes any timesteps 
+    with a value of -1 from the sequences.
+
+    Args:
+        hypotheses (list): A list of token sequences representing hypotheses.
+
+    Returns:
+        list: A list of packed hypotheses in tensor format.
+    """
     for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
         hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
 
@@ -69,6 +83,18 @@ def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
 
 
 def _states_to_device(dec_state, device='cpu'):
+    """
+    Transfers decoder states to the specified device.
+
+    This function moves the provided decoder states to the specified device (e.g., 'cpu' or 'cuda').
+
+    Args:
+        dec_state (Tensor): The decoder states to be transferred.
+        device (str): The target device to which the decoder states should be moved. Defaults to 'cpu'.
+
+    Returns:
+        Tensor: The decoder states on the specified device.
+    """
     if torch.is_tensor(dec_state):
         dec_state = dec_state.to(device)
 

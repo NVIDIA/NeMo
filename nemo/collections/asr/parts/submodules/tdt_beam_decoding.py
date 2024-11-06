@@ -247,6 +247,9 @@ class BeamTDTInfer(Typing):
         else:
             self.ngram_lm = None
 
+
+
+
     @typecheck()
     def __call__(
         self,
@@ -689,7 +692,11 @@ class BeamTDTInfer(Typing):
         return list(kept_hyps.values())
 
     def set_decoding_type(self, decoding_type: str):
-        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        """
+        Sets decoding type. Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        Args:
+            decoding_type: decoding type
+        """
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET

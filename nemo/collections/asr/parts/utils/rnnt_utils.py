@@ -277,6 +277,9 @@ class BatchedHyps:
         self._ones_batch = torch.ones_like(self._batch_indices)
 
     def clear_(self):
+        """
+        Clears batched hypotheses state.
+        """
         self.current_lengths.fill_(0)
         self.transcript.fill_(0)
         self.timesteps.fill_(0)
@@ -500,6 +503,9 @@ class BatchedAlignments:
         self._batch_indices = torch.arange(batch_size, device=device)
 
     def clear_(self):
+        """
+        Clears batched hypotheses state.
+        """
         self.current_lengths.fill_(0)
         self.timesteps.fill_(0)
         self.logits.fill_(0.0)
