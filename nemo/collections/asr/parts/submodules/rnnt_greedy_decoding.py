@@ -1184,8 +1184,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
 class ExportedModelGreedyBatchedRNNTInfer:
     """
-        Exported Model Greedy Batched RNNT Infer class
+    Exported Model Greedy Batched RNNT Infer class
     """
+
     def __init__(self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = None):
         self.encoder_model_path = encoder_model
         self.decoder_joint_model_path = decoder_joint_model
@@ -1229,7 +1230,7 @@ class ExportedModelGreedyBatchedRNNTInfer:
 
         return packed_result
 
-    def _greedy_decode(self, x, out_len):  
+    def _greedy_decode(self, x, out_len):
         # x: [B, T, D]
         # out_len: [B]
 
@@ -1374,6 +1375,7 @@ class ONNXGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
     """
     ONNX Greedy Batched RNNT Infer class
     """
+
     def __init__(self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = 10):
         super().__init__(
             encoder_model=encoder_model,
@@ -1536,6 +1538,7 @@ class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
     """
     Torchscript Greedy Batched RNNT Infer
     """
+
     def __init__(
         self,
         encoder_model: str,
@@ -2361,6 +2364,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
 @dataclass
 class GreedyRNNTInferConfig:
     """Greedy RNNT Infer Config"""
+
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
@@ -2380,6 +2384,7 @@ class GreedyRNNTInferConfig:
 @dataclass
 class GreedyBatchedRNNTInferConfig:
     """Greedy Batched RNNT Infer Config"""
+
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
