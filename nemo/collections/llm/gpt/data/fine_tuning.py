@@ -136,7 +136,9 @@ class FineTuningDataModule(pl.LightningDataModule):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.data_sampler.init_global_step)
+        consumed_samples = self.data_sampler.compute_consumed_samples(
+            self.trainer.global_step - self.data_sampler.init_global_step
+        )
         return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
