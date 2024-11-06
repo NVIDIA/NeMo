@@ -31,7 +31,8 @@ from nemo.core.classes.modelPT import ModelPT
 
 
 class CausalVideoTokenizer(ModelPT):
-    """ Causal Video tokenization with the NVIDIA Cosmos Tokenizer """
+    """Causal Video tokenization with the NVIDIA Cosmos Tokenizer"""
+
     def __init__(self, cfg: DictConfig) -> None:
         super().__init__(cfg)
 
