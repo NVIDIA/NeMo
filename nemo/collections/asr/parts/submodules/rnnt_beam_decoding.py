@@ -58,9 +58,9 @@ def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
     """
     Packs a list of hypotheses into a tensor and prepares decoder states.
 
-    This function takes a list of token sequences (hypotheses) and converts 
-    it into a tensor format. If any decoder states are on the GPU, they 
-    are moved to the CPU. Additionally, the function removes any timesteps 
+    This function takes a list of token sequences (hypotheses) and converts
+    it into a tensor format. If any decoder states are on the GPU, they
+    are moved to the CPU. Additionally, the function removes any timesteps
     with a value of -1 from the sequences.
 
     Args:
