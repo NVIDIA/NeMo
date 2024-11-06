@@ -31,7 +31,7 @@ VOCAB_FILES_NAMES = {
     "special_tokens_file": "cosmos_vision_tokens.txt",
 }
 
-PAT_STR = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+""" # pylint: disable=line-too-long
+PAT_STR = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""  # pylint: disable=line-too-long
 ENDOFTEXT = "<|endoftext|>"
 IMSTART = "<|im_start|>"
 IMEND = "<|im_end|>"
