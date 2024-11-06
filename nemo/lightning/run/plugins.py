@@ -130,7 +130,7 @@ class FaultTolerancePlugin(run.Plugin):
         assert not executor.launcher.nsys_profile, "Nsys not supported with the FaultTolerancePlugin."
         if hasattr(task, "trainer") and hasattr(task.trainer, "callbacks"):
             assert all(
-                map(lambda cb: not cb.__fn_or_cls__ == NsysCallback, task.trainer.callbacks)
+                map(lambda cb: not cb.__fn_or_cls__ == NsysCallback if "__fn_or_cls__" in dir(cb) else True, task.trainer.callbacks)
             ), "Nsys not supported with FaultTolerancePlugin."
 
         _merge_callbacks(task, callbacks=callbacks)

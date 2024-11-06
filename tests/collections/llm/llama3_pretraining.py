@@ -23,6 +23,7 @@ import nemo_run as run
 import torch
 
 from nemo.collections import llm
+from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 from nemo.lightning.run.plugins import FaultTolerancePlugin
 from tests.collections.llm.common import (
@@ -34,6 +35,7 @@ from tests.collections.llm.common import (
     train_data,
     verify_ckpt_dir,
 )
+from nemo.utils.exp_manager import TimingCallback
 
 
 def get_args():
@@ -145,11 +147,14 @@ def main():
     )
     pretrain_recipe.trainer.callbacks.append(misc_checker)
 
-    run_plugins: list[run.Plugin] = []
     if args.simulated_fault:
-        run_plugins.append(FaultTolerancePlugin())
+        executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
+        run_plugins: list[run.Plugin] = [FaultTolerancePlugin()]
+        pretrain_recipe.trainer.callbacks = [run.Config(TimingCallback), straggler_det_callback()]
 
-    run.run(pretrain_recipe, direct=True, plugins=run_plugins)
+        run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
+    else:
+        run.run(pretrain_recipe, direct=True)
 
     verify_ckpt_dir(
         pretrain_recipe.log.ckpt,
