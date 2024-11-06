@@ -3,6 +3,7 @@ click>=8.1
 
 https://github.com/kpu/kenlm/archive/master.zip
 isort>5.1.0,<6.0.0
+kenlm
 parameterized
 pytest
 pytest-mock
@@ -13,4 +14,3 @@ sphinxcontrib-bibtex
 wandb
 wget
 wrapt
-kenlm
