@@ -105,7 +105,9 @@ The current supported architectures include:
 - MovieGen [2]_
 - Spatio-Temporal DiT (ST-DiT)
 
-In the architectures using DiT adaLN-Zero, we also use a QK-layernorm for training stability. We also support MovieGen training with a Llama-based model architecture that leverages FSDP for large model training (i.e. 30B+ parameters). 
+In the architectures using DiT adaLN-Zero, we also use a QK-layernorm for training stability for video diffusion training. We also provide an option to use cross-attention with additional conditioning information (i.e. text embeddings) for text-to-video training with the original DiT formulation. 
+
+We also support MovieGen [2]_ training with a Llama-based model architecture that leverages FSDP for large model training (i.e. 30B+ parameters). 
 
 
 Our framework allows for customizing the DiT architecture while maintaining its scalability, enabling training large DiT models on long sequence lengths. We provide functionality for ST-DiT, which utilizes spatial self attention and temporal self attention blocks operating on the spatial and temporal sequence dimensions, respectively. 
