@@ -22,7 +22,7 @@ from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import Attention
