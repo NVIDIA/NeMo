@@ -46,7 +46,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.collections.vlm.neva.model.vision import CLIPViTModel
 from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ckpt_to_weights_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
@@ -136,7 +136,7 @@ def neva_forward_step(model, batch) -> torch.Tensor:
         "attention_mask": batch.get("attention_mask", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
-        "num_media_tiles": batch.get("num_media_tiles", 1),
+        "num_media_tiles": batch.get("num_media_tiles", None),
     }
 
     if 'cu_seqlens' in batch:
@@ -535,8 +535,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_media_tiles is None:
             num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
-            elif isinstance(num_media_tiles, list):
-                num_media_tiles = torch.tensor(num_media_tiles, dtype=torch.int, device=input_ids.device)
+        elif isinstance(num_media_tiles, list):
+            num_media_tiles = torch.tensor(num_media_tiles, dtype=torch.int, device=input_ids.device)
+
         # Preprocess input, labels and loss mask.
         combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
             media_embeddings,

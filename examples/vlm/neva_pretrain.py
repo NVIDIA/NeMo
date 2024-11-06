@@ -57,11 +57,12 @@ def main(args):
         micro_batch_size=mbs,
         tokenizer=None,
         image_processor=None,
-        num_workers=2,
+        num_workers=0,
     )
 
     # Transformer configurations
     language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
+    language_transformer_config.num_layers=1
     if args.encoder_pp_size > 0:
         language_transformer_config.first_pipeline_num_layers = 0
     # vision_transformer_config = vlm.CLIPViTConfig(vision_model_type="clip")
