@@ -67,8 +67,7 @@ def get_audio_filepaths(manifest_entry: Dict[str, Any], audio_dir: Path) -> Tupl
 
 
 def normalize_volume(audio: np.array, volume_level: float = 0.95) -> np.array:
-    """Apply peak normalization to the input audio.
-    """
+    """Apply peak normalization to the input audio."""
     if not (0.0 <= volume_level <= 1.0):
         raise ValueError(f"Volume must be in range [0.0, 1.0], received {volume_level}")
 
@@ -316,7 +315,11 @@ def load_audio(
 
 
 def sample_audio(
-    manifest_entry: Dict[str, Any], audio_dir: Path, sample_rate: int, n_samples: int, volume_norm: bool = False,
+    manifest_entry: Dict[str, Any],
+    audio_dir: Path,
+    sample_rate: int,
+    n_samples: int,
+    volume_norm: bool = False,
 ) -> Tuple[np.ndarray, Path, Path]:
     """
     Randomly sample an audio segment from a manifest entry.

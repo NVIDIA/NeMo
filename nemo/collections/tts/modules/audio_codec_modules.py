@@ -204,7 +204,7 @@ class Conv1dNorm(NeuralModule):
         stride: int = 1,
         dilation: int = 1,
         padding: Optional[int] = None,
-        activation: Optional[str] = None
+        activation: Optional[str] = None,
     ):
         super().__init__()
         if not padding:
@@ -441,6 +441,7 @@ class MultiPeriodDiscriminator(NeuralModule):
 
         return scores_real, scores_gen, fmaps_real, fmaps_gen
 
+
 class SSLModel(NeuralModule):
     def __init__(self, slm_model_name):
         super().__init__()
@@ -454,15 +455,17 @@ class SLMDiscriminator(NeuralModule):
     """SLM Discriminator as in StyleTTS2 paper.
     Adapted from https://github.com/yl4579/StyleTTS2/blob/5cedc71c333f8d8b8551ca59378bdcc7af4c9529/losses.py#L193"""
 
-    def __init__(self,
-                slm_model_name="microsoft/wavlm-base-plus",
-                slm_sr=16000,
-                input_sr=22050,
-                slm_hidden=768,
-                slm_layers=13,
-                initial_channel=64,
-                use_spectral_norm=False,
-                lrelu_slope=0.1):
+    def __init__(
+        self,
+        slm_model_name="microsoft/wavlm-base-plus",
+        slm_sr=16000,
+        input_sr=22050,
+        slm_hidden=768,
+        slm_layers=13,
+        initial_channel=64,
+        use_spectral_norm=False,
+        lrelu_slope=0.1,
+    ):
         super().__init__()
 
         self.lrelu_slope = lrelu_slope
@@ -479,11 +482,13 @@ class SLMDiscriminator(NeuralModule):
         norm_f = nn.utils.weight_norm if use_spectral_norm == False else nn.utils.spectral_norm
         self.pre = norm_f(nn.Conv1d(slm_hidden * slm_layers, initial_channel, 1, 1, padding=0))
 
-        self.convs = nn.ModuleList([
-            norm_f(nn.Conv1d(initial_channel, initial_channel * 2, kernel_size=5, padding=2)),
-            norm_f(nn.Conv1d(initial_channel * 2, initial_channel * 4, kernel_size=5, padding=2)),
-            norm_f(nn.Conv1d(initial_channel * 4, initial_channel * 4, 5, 1, padding=2)),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                norm_f(nn.Conv1d(initial_channel, initial_channel * 2, kernel_size=5, padding=2)),
+                norm_f(nn.Conv1d(initial_channel * 2, initial_channel * 4, kernel_size=5, padding=2)),
+                norm_f(nn.Conv1d(initial_channel * 4, initial_channel * 4, 5, 1, padding=2)),
+            ]
+        )
 
         self.conv_post = norm_f(nn.Conv1d(initial_channel * 4, 1, 3, 1, padding=1))
 
@@ -1403,9 +1408,7 @@ class ResidualBlockV3(NeuralModule):
             self.down_sample_conv = None
             self.down_sample_activation = None
 
-        self.input_conv = Conv1dNorm(
-            in_channels=channels, out_channels=filters, kernel_size=kernel_size
-        )
+        self.input_conv = Conv1dNorm(in_channels=channels, out_channels=filters, kernel_size=kernel_size)
         self.skip_activation = CodecActivation(activation=activation, channels=filters)
         self.skip_conv = Conv1dNorm(in_channels=filters, out_channels=channels, kernel_size=kernel_size)
         self.output_activation = CodecActivation(activation=activation, channels=channels)
@@ -1416,16 +1419,13 @@ class ResidualBlockV3(NeuralModule):
 
     @property
     def input_types(self):
-        return {
-            "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
-            "input_len": NeuralType(tuple('B'), LengthsType())
-        }
+        return {"inputs": NeuralType(('B', 'C', 'T'), VoidType()), "input_len": NeuralType(tuple('B'), LengthsType())}
 
     @property
     def output_types(self):
         return {
             "out": NeuralType(('B', 'C', 'T'), EncodedRepresentation()),
-            "out_len": NeuralType(tuple('B'), LengthsType())
+            "out_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @typecheck()
@@ -1858,7 +1858,7 @@ class STFTProcessor(NeuralModule):
             win_length=self.win_length,
             window=self.window,
             return_complex=True,
-            center=False
+            center=False,
         )
         fft_mag = torch.abs(fft)
         fft_mag_log = torch.log(fft_mag + self.log_guard)
@@ -1940,37 +1940,21 @@ class ResNetEncoder(NeuralModule):
 
 class ResNetEncoderV2(NeuralModule):
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        num_layers,
-        hidden_channels,
-        filters,
-        kernel_size=3,
-        activation="lrelu"
+        self, in_channels, out_channels, num_layers, hidden_channels, filters, kernel_size=3, activation="lrelu"
     ):
         super(ResNetEncoderV2, self).__init__()
 
-        self.pre_conv = Conv1dNorm(
-            in_channels=in_channels,
-            out_channels=hidden_channels,
-            kernel_size=kernel_size
-        )
+        self.pre_conv = Conv1dNorm(in_channels=in_channels, out_channels=hidden_channels, kernel_size=kernel_size)
         self.pre_act = CodecActivation(activation, channels=hidden_channels)
-        self.res_blocks = nn.ModuleList([
-            ResidualBlockV2(
-                channels=hidden_channels,
-                filters=filters,
-                kernel_size=kernel_size,
-                activation=activation
-            )
-            for _ in range(num_layers)
-        ])
-        self.post_conv = Conv1dNorm(
-            in_channels=hidden_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size
+        self.res_blocks = nn.ModuleList(
+            [
+                ResidualBlockV2(
+                    channels=hidden_channels, filters=filters, kernel_size=kernel_size, activation=activation
+                )
+                for _ in range(num_layers)
+            ]
         )
+        self.post_conv = Conv1dNorm(in_channels=hidden_channels, out_channels=out_channels, kernel_size=kernel_size)
 
     def remove_weight_norm(self):
         self.pre_conv.remove_weight_norm()
@@ -2003,41 +1987,25 @@ class ResNetEncoderV2(NeuralModule):
 
 
 class ResNetEncoderV3(NeuralModule):
-    def __init__(
-        self,
-        in_channels,
-        out_channels,
-        filter_list,
-        stride_list,
-        kernel_size=3,
-        activation="lrelu"
-    ):
+    def __init__(self, in_channels, out_channels, filter_list, stride_list, kernel_size=3, activation="lrelu"):
         super(ResNetEncoderV3, self).__init__()
 
         input_dim = filter_list[0]
-        self.pre_conv = Conv1dNorm(
-            in_channels=in_channels,
-            out_channels=input_dim,
-            kernel_size=kernel_size
-        )
+        self.pre_conv = Conv1dNorm(in_channels=in_channels, out_channels=input_dim, kernel_size=kernel_size)
         self.pre_act = CodecActivation(activation, channels=input_dim)
         self.res_blocks = nn.ModuleList([])
-        for (filters, stride) in zip(filter_list, stride_list):
+        for filters, stride in zip(filter_list, stride_list):
             res_block = ResidualBlockV3(
                 channels=input_dim,
                 filters=filters,
                 down_sample_rate=stride,
                 kernel_size=kernel_size,
-                activation=activation
+                activation=activation,
             )
             self.res_blocks.append(res_block)
             input_dim = filters
 
-        self.post_conv = Conv1dNorm(
-            in_channels=input_dim,
-            out_channels=out_channels,
-            kernel_size=kernel_size
-        )
+        self.post_conv = Conv1dNorm(in_channels=input_dim, out_channels=out_channels, kernel_size=kernel_size)
 
     def remove_weight_norm(self):
         self.pre_conv.remove_weight_norm()
@@ -2235,7 +2203,7 @@ class DownSampleResidualBlock(NeuralModule):
             out_channels=filters,
             kernel_size=down_sample_kernel_size,
             stride=self.down_sample_rate,
-            activation=activation
+            activation=activation,
         )
         self.res_block = ResidualBlockV2(
             channels=filters, filters=filters, kernel_size=kernel_size, activation=activation
@@ -2247,16 +2215,13 @@ class DownSampleResidualBlock(NeuralModule):
 
     @property
     def input_types(self):
-        return {
-            "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
-            "input_len": NeuralType(tuple('B'), LengthsType())
-        }
+        return {"inputs": NeuralType(('B', 'C', 'T'), VoidType()), "input_len": NeuralType(tuple('B'), LengthsType())}
 
     @property
     def output_types(self):
         return {
             "out": NeuralType(('B', 'C', 'T'), EncodedRepresentation()),
-            "out_len": NeuralType(tuple('B'), LengthsType())
+            "out_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @typecheck()
@@ -2298,7 +2263,7 @@ class STFTResidualBlock(NeuralModule):
             out_channels=filters,
             kernel_size=down_sample_kernel_size,
             stride=self.down_sample_rate,
-            activation=activation
+            activation=activation,
         )
 
         n_fft, hop_length, win_length = resolution
@@ -2328,7 +2293,7 @@ class STFTResidualBlock(NeuralModule):
     def output_types(self):
         return {
             "out": NeuralType(('B', 'C', 'T'), EncodedRepresentation()),
-            "out_len": NeuralType(tuple('B'), LengthsType())
+            "out_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @typecheck()
@@ -2354,7 +2319,7 @@ class MultiResolutionSTFTEncoder(NeuralModule):
         out_dim,
         kernel_size=3,
         down_sample_kernel_size=5,
-        activation="lrelu"
+        activation="lrelu",
     ):
         super(MultiResolutionSTFTEncoder, self).__init__()
         assert len(resolutions) == len(filter_list)
@@ -2364,16 +2329,10 @@ class MultiResolutionSTFTEncoder(NeuralModule):
         input_dim = n_fft // 2 + 1
         self.pre_spec_processor = STFTProcessor(n_fft=n_fft, win_length=win_length, hop_length=hop_length)
         self.pre_conv = Conv1dNorm(
-            in_channels=input_dim,
-            out_channels=input_filters,
-            kernel_size=kernel_size,
-            activation=activation
+            in_channels=input_dim, out_channels=input_filters, kernel_size=kernel_size, activation=activation
         )
         self.pre_res_block = ResidualBlockV2(
-            channels=input_filters,
-            filters=input_filters,
-            kernel_size=kernel_size,
-            activation=activation
+            channels=input_filters, filters=input_filters, kernel_size=kernel_size, activation=activation
         )
         input_dim = input_filters
         self.stft_res_blocks = nn.ModuleList([])
@@ -2398,16 +2357,12 @@ class MultiResolutionSTFTEncoder(NeuralModule):
                 down_sample_rate=2,
                 kernel_size=kernel_size,
                 down_sample_kernel_size=down_sample_kernel_size,
-                activation=activation
+                activation=activation,
             )
             self.down_sample_res_blocks.append(down_sample_res_block)
             input_dim = filters
 
-        self.post_conv = Conv1dNorm(
-            in_channels=input_dim,
-            out_channels=out_dim,
-            kernel_size=kernel_size
-        )
+        self.post_conv = Conv1dNorm(in_channels=input_dim, out_channels=out_dim, kernel_size=kernel_size)
 
     def remove_weight_norm(self):
         self.encoder.remove_weight_norm()

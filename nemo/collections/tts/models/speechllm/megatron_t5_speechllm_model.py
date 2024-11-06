@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-import random
 import json
 import os
+import random
 import string
-from typing import Any, List
 from functools import partial
+from typing import Any, List
 
 import editdistance
+import imageio
 import numpy as np
 import soundfile as sf
 import torch
@@ -50,7 +51,6 @@ from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.models.speechllm.megatron_base_speechllm_prompt_model import MegatronBaseSpeechLM
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy_for_speechllm, plot_codec_to_numpy
 from nemo.utils import AppState, logging
-import imageio
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
@@ -74,23 +74,25 @@ except (ImportError, ModuleNotFoundError):
 
 
 import time
+
+import librosa
 import torchaudio
 from torchaudio.pipelines import SQUIM_OBJECTIVE, SQUIM_SUBJECTIVE
 from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
-import librosa
 
 __all__ = ['MegatronT5SpeechLMModel']
 
 
 class MegatronT5OverrideModel(MegatronT5Model):
     def _build_tokenizer(self):
-        if self._cfg.tokenizer.library  == "sentencepiece":
+        if self._cfg.tokenizer.library == "sentencepiece":
             if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
                 legacy = self._cfg.tokenizer.sentencepiece_legacy
             else:
                 legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
             self.tokenizer = SentencePieceSpeechLLMTTSTokenizer(
-                model_path=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)), legacy=legacy
+                model_path=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
+                legacy=legacy,
             )
 
             if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
@@ -194,16 +196,20 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.enc_output_to_layers = cfg.get('enc_output_to_layers', None)
         if self.enc_output_to_layers is not None:
             # Convert from listconfig to list
-            self.enc_output_to_layers = [ [l for l in encoder_layer] for encoder_layer in self.enc_output_to_layers ]
-        
+            self.enc_output_to_layers = [[l for l in encoder_layer] for encoder_layer in self.enc_output_to_layers]
+
         self.frozen_model.enc_dec_model.speech_offset = speech_offset
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
         self.frozen_model.enc_dec_model.num_speech_codebooks = num_speech_codebooks
         self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
         self.frozen_model.enc_dec_model.attn_prior_scaledown_start_step = attn_prior_scaledown_start_step
         self.frozen_model.enc_dec_model.attn_prior_end_step = attn_prior_end_step
-        self.frozen_model.enc_dec_model.alignment_decoder_layerids = cfg.get('alignment_decoder_layerids', list(range(0, 12)))
-        self.frozen_model.enc_dec_model.return_all_crossattention_probs = cfg.get('return_all_crossattention_probs', False)
+        self.frozen_model.enc_dec_model.alignment_decoder_layerids = cfg.get(
+            'alignment_decoder_layerids', list(range(0, 12))
+        )
+        self.frozen_model.enc_dec_model.return_all_crossattention_probs = cfg.get(
+            'return_all_crossattention_probs', False
+        )
         self.frozen_model.enc_dec_model.num_cross_attention_heads = num_cross_attention_heads
         self.frozen_model.enc_dec_model.context_conditioning = self.context_conditioning
         self.frozen_model.enc_dec_model.decoder_context_len = self.decoder_context_len
@@ -310,11 +316,15 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             # requires to specify a non-matching high-quality and clean reference audio file. It is used to estimate MOS.
             self.non_matching_ref_audio_filepath = cfg.get('non_matching_ref_audio_filepath', None)
             if self.non_matching_ref_audio_filepath is None:
-                raise ValueError(f"Please provide a high-quality reference audio to estimate the MOS. Alternatively, "
-                                 f"set `model.estimate_mos=False` to disable MOS estimation.")
+                raise ValueError(
+                    f"Please provide a high-quality reference audio to estimate the MOS. Alternatively, "
+                    f"set `model.estimate_mos=False` to disable MOS estimation."
+                )
             if not os.path.exists(self.non_matching_ref_audio_filepath):
-                raise FileNotFoundError(f"Please provide a valid file path for a high-quality reference audio to estimate"
-                                        f" the MOS. Alternatively, set `model.estimate_mos=False` to disable MOS estimation.")
+                raise FileNotFoundError(
+                    f"Please provide a valid file path for a high-quality reference audio to estimate"
+                    f" the MOS. Alternatively, set `model.estimate_mos=False` to disable MOS estimation."
+                )
 
     def decode_wav_from_codec_model(self, codes):
         codec_model = self.additional_models['codec']
@@ -372,9 +382,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             position_ids = [position_ids]
             cross_attention_prior = [cross_attention_prior]
 
-
         enc_output = None
-        logging.debug(f"self.first_stage_of_pipeline()={self.first_stage_of_pipeline()}\tinference_step={inference_step}")
+        logging.debug(
+            f"self.first_stage_of_pipeline()={self.first_stage_of_pipeline()}\tinference_step={inference_step}"
+        )
         if self.first_stage_of_pipeline() and inference_step == 0:
             # Get embeddings for text tokens and insert virtual token embeddings
             encoder_input_list = []
@@ -544,8 +555,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        Dataloader produces a global batch which is turned into a list of microbatches.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Get seq length of batch
         batch = next(dataloader_iter)
@@ -630,7 +641,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 _,  # TODO: text limit and lang not in tarred dataset
                 _,
             ) = batch
-            
+
             if self.trainer.global_step % self.train_check_interval == 0 and not validation_step and self.is_rank_zero:
                 self.frozen_model.enc_dec_model.logging_step = True
 
@@ -683,7 +694,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             logging.info(f"wer score : {score}")
                             self.logger.experiment.add_scalar('WER', score, self.global_step)
                         else:
-                            audio_len = self.decoder_context_len + (labels[0][0][self.decoder_context_len:] != 0).sum().item()
+                            audio_len = (
+                                self.decoder_context_len + (labels[0][0][self.decoder_context_len :] != 0).sum().item()
+                            )
                             labels_to_1024 = self.convert_tokens_to_range(labels[0, :, 0:audio_len])
                             label_wav = self.decode_wav_from_codec_model(labels_to_1024)
                             dec_input_to_1024 = self.convert_tokens_to_range(dec_input[0, :, 0:audio_len])
@@ -698,8 +711,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 context_tokens = context_and_question_tokens[0]
                                 question_tokens = context_and_question_tokens[1]
                                 input_token_list_all = [
-                                    question_tokens[0, 0, i].item()
-                                    for i in range(question_tokens.shape[2])
+                                    question_tokens[0, 0, i].item() for i in range(question_tokens.shape[2])
                                 ]
                                 input_token_list = [
                                     (ti, t)
@@ -722,7 +734,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 _context_tokens = context_and_question_tokens[0, :, :context_end_step]
 
                             if context_end_step > 1:
-                                is_speech_context = _context_tokens[1,:].sum().item() > 0
+                                is_speech_context = _context_tokens[1, :].sum().item() > 0
                                 if is_speech_context:
                                     _context_tokens = self.convert_tokens_to_range(
                                         _context_tokens, pattern=self.context_pattern
@@ -732,11 +744,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                         "train_context_wav", _context_wav, self.global_step, self.sample_rate
                                     )
                                 else:
-                                    _context_token_list = [ v.item() for v in _context_tokens[0, :] ]
+                                    _context_token_list = [v.item() for v in _context_tokens[0, :]]
                                     _context_text = self.frozen_model.tokenizer.ids_to_text(
                                         [v for v in _context_token_list if v < self.lm_vocab_size]
                                     )
-                                    self.logger.experiment.add_text("train_context_text", _context_text, self.global_step)
+                                    self.logger.experiment.add_text(
+                                        "train_context_text", _context_text, self.global_step
+                                    )
 
                             question_si = text_limits[0, 0].item() - virtual_tokens.shape[1]
                             question_ei = text_limits[0, 1].item() - virtual_tokens.shape[1]
@@ -780,10 +794,15 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                             phoneme_seq=None if self.plot_alignments_sliced else [text_si],
                                         )
                                         self.logger.experiment.add_image(
-                                            name, alignment_image, self.global_step, dataformats="HWC",
+                                            name,
+                                            alignment_image,
+                                            self.global_step,
+                                            dataformats="HWC",
                                         )
                                         attention_sliced_list.append(
-                                            attention_probs[0, _i, self.decoder_context_len:audio_len, text_si:text_ei]
+                                            attention_probs[
+                                                0, _i, self.decoder_context_len : audio_len, text_si:text_ei
+                                            ]
                                         )
                                 attention_sliced = torch.stack(attention_sliced_list)
                                 attention_sliced = torch.mean(attention_sliced, 0)
@@ -856,7 +875,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
-        """ Used in inference / predict """
+        """Used in inference / predict"""
 
         def fwd_output_only_func(dataloader_iter, model):
             batch = next(dataloader_iter)
@@ -882,7 +901,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 speech_mask,
             ) = batch
 
-            
             output_logits, _, token_and_speech_logits = model(
                 context_and_question_tokens,
                 context_and_question_tokens,
@@ -908,15 +926,15 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return fwd_output_only_func
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
@@ -963,25 +981,46 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 #   if under "Phoneme TTS" instruction, so existing no overlaps between instruction and question token IDs.
                 # question token IDs are bpe token IDs without any offset
                 #   if under "Text to speech this" instruction, so existing overlaps between instruction and question token IDs.
-                context_and_question_tokens = batch[1]  # (batch_size, self.num_speech_codebooks, max_context_question_tokens_len)
+                context_and_question_tokens = batch[
+                    1
+                ]  # (batch_size, self.num_speech_codebooks, max_context_question_tokens_len)
                 text_limits = batch[12]
                 virtual_tokens = batch[0]
-                question_limits = text_limits - virtual_tokens.size(1)  # (b, 2), reset question range to start from [pad] context, same start position as context_and_question_tokens.
+                question_limits = text_limits - virtual_tokens.size(
+                    1
+                )  # (b, 2), reset question range to start from [pad] context, same start position as context_and_question_tokens.
                 question_start = question_limits[:, 0].unsqueeze(1)  # (b, 1)
                 question_end = question_limits[:, 1].unsqueeze(1)  # (b, 1)
 
                 if isinstance(context_and_question_tokens, list):  # indicate self.encoder_type=multi_transformers.
                     context_tokens, question_tokens = context_and_question_tokens
                     question_tokens_unconditioned = question_tokens.clone()
-                    time_range = torch.arange(question_tokens_unconditioned.size(2), device=question_tokens_unconditioned.device).unsqueeze(0)
-                    question_mask = (time_range >= question_start) & (time_range < question_end)  # create a mask for question only tokens.
-                    question_tokens_unconditioned[:, 0][question_mask] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
+                    time_range = torch.arange(
+                        question_tokens_unconditioned.size(2), device=question_tokens_unconditioned.device
+                    ).unsqueeze(0)
+                    question_mask = (time_range >= question_start) & (
+                        time_range < question_end
+                    )  # create a mask for question only tokens.
+                    question_tokens_unconditioned[:, 0][
+                        question_mask
+                    ] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
                     batch[1] = [context_tokens, question_tokens_unconditioned]
                 else:
-                    context_and_question_tokens_unconditioned = context_and_question_tokens.clone()  # (batch_size, self.num_speech_codebooks, max_context_question_tokens_len)
-                    time_range = torch.arange(context_and_question_tokens_unconditioned.size(2), device=context_and_question_tokens_unconditioned.device).unsqueeze(0)  # (1, max_context_question_tokens_len)
-                    question_mask = (time_range >= question_start) & (time_range < question_end)  # create a mask for question only tokens.
-                    context_and_question_tokens_unconditioned[:, 0][question_mask] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
+                    context_and_question_tokens_unconditioned = (
+                        context_and_question_tokens.clone()
+                    )  # (batch_size, self.num_speech_codebooks, max_context_question_tokens_len)
+                    time_range = torch.arange(
+                        context_and_question_tokens_unconditioned.size(2),
+                        device=context_and_question_tokens_unconditioned.device,
+                    ).unsqueeze(
+                        0
+                    )  # (1, max_context_question_tokens_len)
+                    question_mask = (time_range >= question_start) & (
+                        time_range < question_end
+                    )  # create a mask for question only tokens.
+                    context_and_question_tokens_unconditioned[:, 0][
+                        question_mask
+                    ] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
                     batch[1] = context_and_question_tokens_unconditioned
 
                 del question_limits, question_start, question_end, time_range, question_mask
@@ -994,18 +1033,24 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             if self._rng.random() < self.train_audio_cfg_prob:
                 logging.info(f"Audio Classifier-Free Guidance is triggered for the {batch_idx}-th batch.")
 
-                context_and_question_tokens = batch[1]  # (batch_size, self.num_speech_codebooks, max_context_question_tokens_len)
+                context_and_question_tokens = batch[
+                    1
+                ]  # (batch_size, self.num_speech_codebooks, max_context_question_tokens_len)
 
                 if isinstance(context_and_question_tokens, list):  # indicate self.encoder_type=multi_transformers.
                     context_tokens, question_tokens = context_and_question_tokens
                     context_tokens_unconditioned = context_tokens.clone()
-                    context_tokens_unconditioned[:, :, :] = self.tokenizer.unk_id  # TODO @xueyang: verify if extra tokens other than audio codec tokens are appended.
+                    context_tokens_unconditioned[:, :, :] = (
+                        self.tokenizer.unk_id
+                    )  # TODO @xueyang: verify if extra tokens other than audio codec tokens are appended.
                     batch[1] = [context_tokens_unconditioned, question_tokens]
                 else:
                     # dec_input
                     dec_input = batch[3]
                     dec_input_unconditioned = dec_input.clone()
-                    dec_input_unconditioned[:, :, 1:self.decoder_context_len + 1] = self.tokenizer.unk_id  # TODO @xueyang: switch to other token id if this one is conflict with text unk.
+                    dec_input_unconditioned[:, :, 1 : self.decoder_context_len + 1] = (
+                        self.tokenizer.unk_id
+                    )  # TODO @xueyang: switch to other token id if this one is conflict with text unk.
                     batch[3] = dec_input_unconditioned
 
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
@@ -1033,9 +1078,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
-            bos_id=self.tokenizer.pad_id
-            if self.cfg.data.get('decoder_starts_with_pad', False)
-            else self.tokenizer.bos_id,
+            bos_id=(
+                self.tokenizer.pad_id if self.cfg.data.get('decoder_starts_with_pad', False) else self.tokenizer.bos_id
+            ),
         )
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
@@ -1091,7 +1136,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         ) = batch
         # loss_mask (b, t)
         # does not use dataloader_iter due to device placement issues arising from PTL
-        
+
         mode = self.training
         self.eval()
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
@@ -1115,11 +1160,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     )
 
         labels_original = labels.clone()  # (b, 8, t)
-        
+
         _cross_attention_prior = cross_attention_prior
         if isinstance(context_and_question_tokens, list):
             _cross_attention_prior = [None, cross_attention_prior]
-        
+
         output_loss, _, output_logits = self.forward(
             virtual_tokens,
             context_and_question_tokens,
@@ -1158,7 +1203,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     logging.info(f"wer score : {score}")
                     self.logger.experiment.add_scalar('WER', score, self.global_step)
                 else:
-                    audio_len = self.decoder_context_len + (labels[0][0][self.decoder_context_len:] != 0).sum().item()
+                    audio_len = self.decoder_context_len + (labels[0][0][self.decoder_context_len :] != 0).sum().item()
                     labels_to_1024 = self.convert_tokens_to_range(labels[0, :, 0:audio_len])
                     label_wav = self.decode_wav_from_codec_model(labels_to_1024)
                     dec_input_to_1024 = self.convert_tokens_to_range(dec_input[0, :, 0:audio_len])
@@ -1191,9 +1236,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         context_end_step = input_token_list[0][0]
                         _context_tokens = context_and_question_tokens[0, :, :context_end_step]
                     if context_end_step > 1:
-                        is_speech_context = _context_tokens[1,:].sum().item() > 0
+                        is_speech_context = _context_tokens[1, :].sum().item() > 0
                         if is_speech_context:
-                            _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
+                            _context_tokens = self.convert_tokens_to_range(
+                                _context_tokens, pattern=self.context_pattern
+                            )
                             _context_wav = self.decode_wav_from_codec_model(_context_tokens)
                             self.logger.experiment.add_audio(
                                 "val_context_wav", _context_wav, self.global_step, self.sample_rate
@@ -1235,7 +1282,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         for lidx in range(len(attention_probs_list)):
                             attention_probs = attention_probs_list[lidx]
                             for _i in range(attention_probs.shape[1]):
-                                attention_sliced_list.append(attention_probs[0, _i, self.decoder_context_len:audio_len, text_si:text_ei])
+                                attention_sliced_list.append(
+                                    attention_probs[0, _i, self.decoder_context_len : audio_len, text_si:text_ei]
+                                )
                         attention_sliced = torch.stack(attention_sliced_list)
                         attention_sliced = torch.mean(attention_sliced, 0)
                         text = None
@@ -1351,7 +1400,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 averaged_first_layer_accuracy = torch.stack([item['first_layer_accuracy'] for item in outputs]).mean()
 
                 self.log(
-                    'val_loss_total_check', averaged_loss_total_check, prog_bar=False, rank_zero_only=True, batch_size=1
+                    'val_loss_total_check',
+                    averaged_loss_total_check,
+                    prog_bar=False,
+                    rank_zero_only=True,
+                    batch_size=1,
                 )
                 self.log(
                     'val_first_layer_accuracy',
@@ -1394,7 +1447,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 logging.info(f'Validation loss: {averaged_loss}')
                 self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
                 self.log(
-                    'val_loss_total_check', averaged_loss_total_check, prog_bar=False, rank_zero_only=True, batch_size=1
+                    'val_loss_total_check',
+                    averaged_loss_total_check,
+                    prog_bar=False,
+                    rank_zero_only=True,
+                    batch_size=1,
                 )
 
                 averaged_first_layer_accuracy = torch.stack([item['first_layer_accuracy'] for item in outputs]).mean()
@@ -1446,7 +1503,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
                 val_metric_dict = self.validation_metric.get_score(
-                    [i[2] for i in gather_results_dedup], [i[1] for i in gather_results_dedup],
+                    [i[2] for i in gather_results_dedup],
+                    [i[1] for i in gather_results_dedup],
                 )
 
                 for metric, val in val_metric_dict.items():
@@ -1566,9 +1624,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            persistent_workers=True
-            if num_workers > 0
-            else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
+            persistent_workers=(
+                True if num_workers > 0 else False
+            ),  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         logging.info(f'build success: {len(dataloader)} {dataset_paths}')
         if self.phoneme_tokenizer is None:
@@ -1623,9 +1681,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            persistent_workers=True
-            if num_workers > 0
-            else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
+            persistent_workers=(
+                True if num_workers > 0 else False
+            ),  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         logging.info(f'build success: {len(dataloader)} {dataset_paths}')
 
@@ -1652,7 +1710,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         return single_space_text
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0, log_scalars=True, global_step=None) -> Any:
+    def predict_step(
+        self, batch: Any, batch_idx: int, dataloader_idx: int = 0, log_scalars=True, global_step=None
+    ) -> Any:
 
         with torch.no_grad():
             (
@@ -1674,7 +1734,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             ) = batch
 
             batch_size = virtual_tokens.size(0)
-            dec_input = dec_input_raw * 1  # (B, 8, T)  # TODO @xueyang: apply clone() method bypasses this unnecessary computation.
+            dec_input = (
+                dec_input_raw * 1
+            )  # (B, 8, T)  # TODO @xueyang: apply clone() method bypasses this unnecessary computation.
             dec_input_mask = dec_input_mask_raw * 1  # (B, T)
             dec_input_mask[:, :] = 1  # Does not really matter
             output_token_list = []
@@ -1684,14 +1746,16 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             max_inference_timesteps = self.cfg.get('max_inference_timesteps', 2000)
             # TODO @xueyang: potential bug when max_inference_timesteps < dec_input.shape[2], then dec_input is clipped.
             dec_input = torch.nn.functional.pad(dec_input, (0, max_inference_timesteps - dec_input.shape[2]), value=0)
-            dec_input[:, :, self.decoder_context_len + 1:].zero_()
+            dec_input[:, :, self.decoder_context_len + 1 :].zero_()
             # TODO @xueyang: why not just declare torch.ones(dec_input_raw.size(0), max_inference_timesteps)?
             dec_input_mask = torch.nn.functional.pad(
                 dec_input_mask, (0, max_inference_timesteps - dec_input_mask.shape[1]), value=1
             )
 
             if self.inference_apply_text_cfg and self.inference_apply_audio_cfg:
-                question_limits = text_limits - virtual_tokens.size(1)  # (b, 2), reset question range to start from [pad] context, same start position as context_and_question_tokens.
+                question_limits = text_limits - virtual_tokens.size(
+                    1
+                )  # (b, 2), reset question range to start from [pad] context, same start position as context_and_question_tokens.
                 question_start = question_limits[:, 0].unsqueeze(1)  # (b, 1)
                 question_end = question_limits[:, 1].unsqueeze(1)  # (b, 1)
 
@@ -1706,34 +1770,58 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                     # text
                     question_tokens_unconditioned = question_tokens.clone()
-                    time_range = torch.arange(question_tokens_unconditioned.size(2), device=question_tokens_unconditioned.device).unsqueeze(0)
-                    question_mask = (time_range >= question_start) & (time_range < question_end)  # create a mask for question only tokens.
-                    question_tokens_unconditioned[:, 0][question_mask] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
+                    time_range = torch.arange(
+                        question_tokens_unconditioned.size(2), device=question_tokens_unconditioned.device
+                    ).unsqueeze(0)
+                    question_mask = (time_range >= question_start) & (
+                        time_range < question_end
+                    )  # create a mask for question only tokens.
+                    question_tokens_unconditioned[:, 0][
+                        question_mask
+                    ] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
 
                     # audio
                     context_tokens_unconditioned = context_tokens.clone()
                     context_tokens_unconditioned[:, :, :] = self.tokenizer.unk_id
 
                     # concatenate both conditioned and unconditioned batches as a single one.
-                    context_and_question_tokens = [torch.cat((context_tokens, context_tokens_unconditioned), dim=0), torch.cat((question_tokens, question_tokens_unconditioned), dim=0)]
+                    context_and_question_tokens = [
+                        torch.cat((context_tokens, context_tokens_unconditioned), dim=0),
+                        torch.cat((question_tokens, question_tokens_unconditioned), dim=0),
+                    ]
                     enc_mask = [torch.cat((mask, mask), dim=0) for mask in enc_mask]
                     dec_input = torch.cat((dec_input, dec_input), dim=0)
                     position_ids = [torch.cat((pos_ids, pos_ids), dim=0) for pos_ids in position_ids]
                 else:
-                    assert self.context_conditioning == "decoder", f"The encoder_type is single_transformer. We expect context_condition is decoder: context_condition={self.context_conditioning}"
+                    assert (
+                        self.context_conditioning == "decoder"
+                    ), f"The encoder_type is single_transformer. We expect context_condition is decoder: context_condition={self.context_conditioning}"
 
                     # text
                     context_and_question_tokens_unconditioned = context_and_question_tokens.clone()
-                    time_range = torch.arange(context_and_question_tokens_unconditioned.size(2), device=context_and_question_tokens_unconditioned.device).unsqueeze(0) # (1, max_context_question_tokens_len)
-                    question_mask = (time_range >= question_start) & (time_range < question_end)  # create a mask for question only tokens.
-                    context_and_question_tokens_unconditioned[:, 0][question_mask] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
+                    time_range = torch.arange(
+                        context_and_question_tokens_unconditioned.size(2),
+                        device=context_and_question_tokens_unconditioned.device,
+                    ).unsqueeze(
+                        0
+                    )  # (1, max_context_question_tokens_len)
+                    question_mask = (time_range >= question_start) & (
+                        time_range < question_end
+                    )  # create a mask for question only tokens.
+                    context_and_question_tokens_unconditioned[:, 0][
+                        question_mask
+                    ] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
 
                     # audio
                     dec_input_unconditioned = dec_input.clone()
-                    dec_input_unconditioned[:, :, 1:self.decoder_context_len + 1] = self.tokenizer.unk_id  # TODO @xueyang: switch to other token id if this one is conflict with text unk.
+                    dec_input_unconditioned[:, :, 1 : self.decoder_context_len + 1] = (
+                        self.tokenizer.unk_id
+                    )  # TODO @xueyang: switch to other token id if this one is conflict with text unk.
 
                     # concatenate both conditioned and unconditioned batches as a single one.
-                    context_and_question_tokens = torch.cat((context_and_question_tokens, context_and_question_tokens_unconditioned), dim=0)
+                    context_and_question_tokens = torch.cat(
+                        (context_and_question_tokens, context_and_question_tokens_unconditioned), dim=0
+                    )
                     enc_mask = torch.cat((enc_mask, enc_mask), dim=0)
                     dec_input = torch.cat((dec_input, dec_input_unconditioned), dim=0)
                     position_ids = torch.cat((position_ids, position_ids), dim=0)
@@ -1747,7 +1835,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 #   if under "Phoneme TTS" instruction, so exising no overlaps between instruction and question token IDs.
                 # question token IDs are bpe token IDs without any offset
                 #   if under "Text to speech this" instruction, so existing overlaps between instruction and question token IDs.
-                question_limits = text_limits - virtual_tokens.size(1)  # (b, 2), reset question range to start from [pad] context, same start position as context_and_question_tokens.
+                question_limits = text_limits - virtual_tokens.size(
+                    1
+                )  # (b, 2), reset question range to start from [pad] context, same start position as context_and_question_tokens.
                 question_start = question_limits[:, 0].unsqueeze(1)  # (b, 1)
                 question_end = question_limits[:, 1].unsqueeze(1)  # (b, 1)
 
@@ -1761,24 +1851,46 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     context_tokens, question_tokens = context_and_question_tokens
                     question_tokens_unconditioned = question_tokens.clone()
 
-                    time_range = torch.arange(question_tokens_unconditioned.size(2), device=question_tokens_unconditioned.device).unsqueeze(0)
-                    question_mask = (time_range >= question_start) & (time_range < question_end)  # create a mask for question only tokens.
-                    question_tokens_unconditioned[:, 0][question_mask] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
+                    time_range = torch.arange(
+                        question_tokens_unconditioned.size(2), device=question_tokens_unconditioned.device
+                    ).unsqueeze(0)
+                    question_mask = (time_range >= question_start) & (
+                        time_range < question_end
+                    )  # create a mask for question only tokens.
+                    question_tokens_unconditioned[:, 0][
+                        question_mask
+                    ] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
 
                     # concatenate both conditioned and unconditioned batches as a single one.
-                    context_and_question_tokens = [torch.cat((context_tokens, context_tokens), dim=0), torch.cat((question_tokens, question_tokens_unconditioned), dim=0)]
+                    context_and_question_tokens = [
+                        torch.cat((context_tokens, context_tokens), dim=0),
+                        torch.cat((question_tokens, question_tokens_unconditioned), dim=0),
+                    ]
                     enc_mask = [torch.cat((mask, mask), dim=0) for mask in enc_mask]
                     dec_input = torch.cat((dec_input, dec_input), dim=0)
                     position_ids = [torch.cat((pos_ids, pos_ids), dim=0) for pos_ids in position_ids]
                 else:
-                    assert self.context_conditioning == "decoder", f"The encoder_type is single_transformer. We expect context_condition is decoder: context_condition={self.context_conditioning}"
+                    assert (
+                        self.context_conditioning == "decoder"
+                    ), f"The encoder_type is single_transformer. We expect context_condition is decoder: context_condition={self.context_conditioning}"
                     context_and_question_tokens_unconditioned = context_and_question_tokens.clone()
-                    time_range = torch.arange(context_and_question_tokens_unconditioned.size(2), device=context_and_question_tokens_unconditioned.device).unsqueeze(0) # (1, max_context_question_tokens_len)
-                    question_mask = (time_range >= question_start) & (time_range < question_end)  # create a mask for question only tokens.
-                    context_and_question_tokens_unconditioned[:, 0][question_mask] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
+                    time_range = torch.arange(
+                        context_and_question_tokens_unconditioned.size(2),
+                        device=context_and_question_tokens_unconditioned.device,
+                    ).unsqueeze(
+                        0
+                    )  # (1, max_context_question_tokens_len)
+                    question_mask = (time_range >= question_start) & (
+                        time_range < question_end
+                    )  # create a mask for question only tokens.
+                    context_and_question_tokens_unconditioned[:, 0][
+                        question_mask
+                    ] = self.tokenizer.unk_id  # only the first layer has non-zero IDs.
 
                     # concatenate both conditioned and unconditioned batches as a single one.
-                    context_and_question_tokens = torch.cat((context_and_question_tokens, context_and_question_tokens_unconditioned), dim=0)
+                    context_and_question_tokens = torch.cat(
+                        (context_and_question_tokens, context_and_question_tokens_unconditioned), dim=0
+                    )
                     enc_mask = torch.cat((enc_mask, enc_mask), dim=0)
                     dec_input = torch.cat((dec_input, dec_input), dim=0)
                     position_ids = torch.cat((position_ids, position_ids), dim=0)
@@ -1792,23 +1904,36 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 speech_mask = torch.cat((speech_mask, speech_mask), dim=0)
                 dec_input_mask = torch.cat((dec_input_mask, dec_input_mask), dim=0)
 
-                if isinstance(context_and_question_tokens, list): # indicate that self.encoder_type = "multi_transformers"
+                if isinstance(
+                    context_and_question_tokens, list
+                ):  # indicate that self.encoder_type = "multi_transformers"
                     context_tokens, question_tokens = context_and_question_tokens
                     context_tokens_unconditioned = context_tokens.clone()
-                    context_tokens_unconditioned[:, :, :] = self.tokenizer.unk_id  # TODO @xueyang: verify if extra tokens other than audio codec tokens are appended.
+                    context_tokens_unconditioned[:, :, :] = (
+                        self.tokenizer.unk_id
+                    )  # TODO @xueyang: verify if extra tokens other than audio codec tokens are appended.
 
                     # concatenate both conditioned and unconditioned batches as a single one.
-                    context_and_question_tokens = [torch.cat((context_tokens, context_tokens_unconditioned), dim=0), torch.cat((question_tokens, question_tokens), dim=0)]
+                    context_and_question_tokens = [
+                        torch.cat((context_tokens, context_tokens_unconditioned), dim=0),
+                        torch.cat((question_tokens, question_tokens), dim=0),
+                    ]
                     enc_mask = [torch.cat((mask, mask), dim=0) for mask in enc_mask]
                     dec_input = torch.cat((dec_input, dec_input), dim=0)
                     position_ids = [torch.cat((pos_ids, pos_ids), dim=0) for pos_ids in position_ids]
                 else:
-                    assert self.context_conditioning == "decoder", f"The encoder_type is single_transformer. We expect context_condition is decoder: context_condition={self.context_conditioning}"
+                    assert (
+                        self.context_conditioning == "decoder"
+                    ), f"The encoder_type is single_transformer. We expect context_condition is decoder: context_condition={self.context_conditioning}"
                     dec_input_unconditioned = dec_input.clone()
-                    dec_input_unconditioned[:, :, 1:self.decoder_context_len + 1] = self.tokenizer.unk_id  # TODO @xueyang: switch to other token id if this one is conflict with text unk.
+                    dec_input_unconditioned[:, :, 1 : self.decoder_context_len + 1] = (
+                        self.tokenizer.unk_id
+                    )  # TODO @xueyang: switch to other token id if this one is conflict with text unk.
 
                     # concatenate both conditioned and unconditioned batches as a single one.
-                    context_and_question_tokens = torch.cat((context_and_question_tokens, context_and_question_tokens), dim=0)
+                    context_and_question_tokens = torch.cat(
+                        (context_and_question_tokens, context_and_question_tokens), dim=0
+                    )
                     enc_mask = torch.cat((enc_mask, enc_mask), dim=0)
                     dec_input = torch.cat((dec_input, dec_input_unconditioned), dim=0)
                     position_ids = torch.cat((position_ids, position_ids), dim=0)
@@ -1831,7 +1956,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 if t == end_inference_loop_at:
                     print("All ends detected")
                     break
-                
+
                 if isinstance(enc_mask, list):
                     encoder_max_sequence_len = [e.size(1) for e in enc_mask]
                 else:
@@ -1845,7 +1970,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         virtual_tokens,
                         context_and_question_tokens,
                         enc_mask,
-                        dec_input[:, :, : t + 1],  # tensors representing [CLS] + context audio tokens + [PAD] if context_condition is decoder, otherwise, tensors representing [CLS].
+                        dec_input[
+                            :, :, : t + 1
+                        ],  # tensors representing [CLS] + context audio tokens + [PAD] if context_condition is decoder, otherwise, tensors representing [CLS].
                         dec_input_mask[:, : t + 1],  # doesn't matter because of all ones.
                         position_ids,
                         taskname_ids,
@@ -1854,15 +1981,15 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         inference=True,
                         inference_step=0,
                         decoder_max_sequence_len=max_inference_timesteps,
-                        encoder_max_sequence_len=encoder_max_sequence_len
+                        encoder_max_sequence_len=encoder_max_sequence_len,
                     )
                     encoder_output = token_and_speech_logits[-1]
-                    
+
                     if isinstance(encoder_output, list):
                         encoder_output = [e.transpose(0, 1) for e in encoder_output]
                     else:
                         encoder_output = encoder_output.transpose(0, 1)
-                    
+
                 else:
                     # Prepare batch
                     batch = [
@@ -1876,10 +2003,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         taskname_ids,
                         speech_mask,
                     ]
-                    
+
                     output_tensor = fwd_bwd_function(
                         forward_step_func=self.get_forward_output_only_func(),
-                        data_iterator=iter([batch,]),
+                        data_iterator=iter(
+                            [
+                                batch,
+                            ]
+                        ),
                         model=[self],
                         num_microbatches=get_num_microbatches(),
                         forward_only=True,
@@ -1892,13 +2023,19 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     # when return_all_crossattention is False, attention_probs is None.
                     if self.frozen_model.enc_dec_model.return_all_crossattention_probs:
                         attention_probs = token_and_speech_logits[2]
-                        attention_probs_mean = torch.stack(attention_probs).mean(dim=0) # B, 12, 1, enc_timesteps
+                        attention_probs_mean = torch.stack(attention_probs).mean(dim=0)  # B, 12, 1, enc_timesteps
                         attention_probs_all.append(attention_probs_mean)
 
                 if self.inference_apply_text_cfg or self.inference_apply_audio_cfg:
                     # interpolate conditioned and unconditioned logits
-                    token_logits = self.inference_cfg_interpolation_scale * token_and_speech_logits[0][:batch_size] + (1 - self.inference_cfg_interpolation_scale) * token_and_speech_logits[0][batch_size:]
-                    output_speech_logits = self.inference_cfg_interpolation_scale * output_logits[:batch_size] + (1 - self.inference_cfg_interpolation_scale) * output_logits[batch_size:]
+                    token_logits = (
+                        self.inference_cfg_interpolation_scale * token_and_speech_logits[0][:batch_size]
+                        + (1 - self.inference_cfg_interpolation_scale) * token_and_speech_logits[0][batch_size:]
+                    )
+                    output_speech_logits = (
+                        self.inference_cfg_interpolation_scale * output_logits[:batch_size]
+                        + (1 - self.inference_cfg_interpolation_scale) * output_logits[batch_size:]
+                    )
                 else:
                     token_logits = token_and_speech_logits[0]  # (B, T, V)
                     output_speech_logits = output_logits
@@ -1908,13 +2045,22 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                 if torch.count_nonzero(speech_mask) > 0:
                     output_logits_currtimestep = (
-                        output_speech_logits[:, -1, :, :].permute(0, 2, 1).contiguous().view(-1, self.speech_codebook_size)
+                        output_speech_logits[:, -1, :, :]
+                        .permute(0, 2, 1)
+                        .contiguous()
+                        .view(-1, self.speech_codebook_size)
                     )  # (B*8, V)
                     output_logits_currtimestep_conditioned = (
-                        output_logits[:batch_size][:, -1, :, :].permute(0, 2, 1).contiguous().view(-1, self.speech_codebook_size)
+                        output_logits[:batch_size][:, -1, :, :]
+                        .permute(0, 2, 1)
+                        .contiguous()
+                        .view(-1, self.speech_codebook_size)
                     )
                     output_logits_currtimestep_unconditioned = (
-                        output_logits[batch_size:][:, -1, :, :].permute(0, 2, 1).contiguous().view(-1, self.speech_codebook_size)
+                        output_logits[batch_size:][:, -1, :, :]
+                        .permute(0, 2, 1)
+                        .contiguous()
+                        .view(-1, self.speech_codebook_size)
                     )
                 else:
                     output_logits_currtimestep = token_logits_currtimestep  # (B, V)
@@ -1938,8 +2084,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 output_logits_currtimestep_rescored[indices_to_remove] = -float('Inf')
 
                 # logits interpolation between conditioned and unconditioned logits.
-                if (self.inference_apply_text_cfg or self.inference_apply_audio_cfg) and self.inference_apply_cfg_filter:
-                    output_logits_currtimestep_rescored = self.inference_cfg_filter_interpolation_scale * output_logits_currtimestep_rescored + (1 - self.inference_cfg_filter_interpolation_scale) * output_logits_currtimestep_unconditioned
+                if (
+                    self.inference_apply_text_cfg or self.inference_apply_audio_cfg
+                ) and self.inference_apply_cfg_filter:
+                    output_logits_currtimestep_rescored = (
+                        self.inference_cfg_filter_interpolation_scale * output_logits_currtimestep_rescored
+                        + (1 - self.inference_cfg_filter_interpolation_scale)
+                        * output_logits_currtimestep_unconditioned
+                    )
 
                 temperature = self.cfg.get('temperature', 0.85)  # Set temp 0.01 for greedy decoding
                 output_logits_currtimestep_rescored = output_logits_currtimestep_rescored / temperature
@@ -1969,7 +2121,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                 # duplicate to 2b dim as input for the next iteration if enabling cfg.
                 if self.inference_apply_text_cfg or self.inference_apply_audio_cfg:
-                    output_tokens_curr_timestep = torch.cat((output_tokens_curr_timestep, output_tokens_curr_timestep), dim=0)
+                    output_tokens_curr_timestep = torch.cat(
+                        (output_tokens_curr_timestep, output_tokens_curr_timestep), dim=0
+                    )
 
                 if torch.count_nonzero(speech_mask) > 0:
                     dec_input_next_timestep = output_tokens_curr_timestep * 1  # (B,8)
@@ -2004,7 +2158,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             if 'nemo_sv_model' not in self.additional_models:
                 nemo_sv_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
                 nemo_sv_model = nemo_sv_model.to(device)
-                nemo_sv_model.encoder.disable_torch_distributed = True # For multi-gpu training validation
+                nemo_sv_model.encoder.disable_torch_distributed = True  # For multi-gpu training validation
                 nemo_sv_model.eval()
                 self.additional_models['nemo_sv_model'] = nemo_sv_model
                 logging.info(f"Loaded SV Model: {nemo_sv_model}")
@@ -2020,7 +2174,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     model = nemo_asr.models.EncDecRNNTBPEModel
                 asr_model = model.from_pretrained(model_name=asr_model)
                 asr_model = asr_model.to(device)
-                asr_model.encoder.disable_torch_distributed = True # For multi-gpu training validation
+                asr_model.encoder.disable_torch_distributed = True  # For multi-gpu training validation
                 asr_model.eval()
                 self.additional_models['asr_model'] = asr_model
                 logging.info(f"Loaded ASR Model: {asr_model}")
@@ -2038,7 +2192,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     self.additional_models['asr_model_zh'] = asr_model_zh
                 else:
                     asr_model_zh = self.additional_models['asr_model_zh']
-            
+
             if 'wavlm_sv_model' not in self.additional_models:
                 wavlm_sv_extractor = Wav2Vec2FeatureExtractor.from_pretrained('microsoft/wavlm-base-plus-sv')
                 wavlm_sv_model = WavLMForXVector.from_pretrained('microsoft/wavlm-base-plus-sv')
@@ -2065,8 +2219,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                 # prepare MOS estimator by taking a single audio example as an input.
                 squim_mos_model = partial(
-                    squim_mos_model_full,
-                    reference=torch.from_numpy(ref_16khz_wav).to(device).unsqueeze(0)
+                    squim_mos_model_full, reference=torch.from_numpy(ref_16khz_wav).to(device).unsqueeze(0)
                 )
 
             _exp_dir_path = self.logger.log_dir
@@ -2095,16 +2248,17 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             # logging attention maps.
             # empty attention_probs_all indicates self.frozen_model.enc_dec_model.return_all_crossattention_probs is False.
             if len(attention_probs_all) != 0:
-                attention_probs_all = torch.cat(attention_probs_all, dim=2) # B, 12, dec_timesteps, enc_timesteps
-                attention_probs_all = attention_probs_all.mean(dim=1) # B, dec_timesteps, enc_timesteps
+                attention_probs_all = torch.cat(attention_probs_all, dim=2)  # B, 12, dec_timesteps, enc_timesteps
+                attention_probs_all = attention_probs_all.mean(dim=1)  # B, dec_timesteps, enc_timesteps
 
                 for i in range(batch_size):
                     text_end_step = text_limits[i, 1].item()
                     text_start_step = text_limits[i, 0].item()
                     end_index = end_indices.get(i, output_tokens_combined.shape[2])
                     if len(attention_probs_all) != 0:
-                        attention_probs_example = attention_probs_all[i][:end_index - (1 + self.decoder_context_len),
-                                                  text_start_step:text_end_step]  # T, enc_timesteps
+                        attention_probs_example = attention_probs_all[i][
+                            : end_index - (1 + self.decoder_context_len), text_start_step:text_end_step
+                        ]  # T, enc_timesteps
                         attention_map = attention_probs_example.float().cpu().numpy().T
                         alignment_image = plot_alignment_to_numpy_for_speechllm(
                             attention_map,
@@ -2126,7 +2280,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                         # print("Ctc Loss: ", step, ctc_loss.item())
                         self.logger.experiment.add_image(
-                            "Inf Attention Map", alignment_image, step, dataformats="HWC",
+                            "Inf Attention Map",
+                            alignment_image,
+                            step,
+                            dataformats="HWC",
                         )
                         # Save attention image to file
                         alignment_fp = os.path.join(_exp_dir_path, f'attention_map_{step}.png')
@@ -2144,11 +2301,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     # During inference, step is the index of the sample
                     step = batch_idx * test_dataloader_batch_size + i
 
-                audio_len = self.decoder_context_len + (labels[i][0][self.decoder_context_len:] != 0).sum().item()
+                audio_len = self.decoder_context_len + (labels[i][0][self.decoder_context_len :] != 0).sum().item()
 
                 if torch.count_nonzero(speech_mask) > 0:
                     dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i, :, 0:audio_len])
-                    dec_input_to_1024_answer = dec_input_to_1024[:,self.decoder_context_len+1:]
+                    dec_input_to_1024_answer = dec_input_to_1024[:, self.decoder_context_len + 1 :]
                     dec_input_wav = self.decode_wav_from_codec_model(dec_input_to_1024_answer)
                     self.logger.experiment.add_audio("Inf Dec Input Wav", dec_input_wav, step, self.sample_rate)
 
@@ -2156,9 +2313,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     if i in end_indices:
                         logging.info(f"Clipping until end index for audio {i}")
                         if self.cfg.get('seq_pattern', 'parallel') == 'delay_parallel':
-                            predicted_tokens = predicted_tokens[:, 0 : end_indices[i] - (1 + self.decoder_context_len) + self.num_speech_codebooks]  # trim to audio length
+                            predicted_tokens = predicted_tokens[
+                                :, 0 : end_indices[i] - (1 + self.decoder_context_len) + self.num_speech_codebooks
+                            ]  # trim to audio length
                         else:
-                            predicted_tokens = predicted_tokens[:, 0 : end_indices[i] - (1 + self.decoder_context_len)]  # trim to audio length
+                            predicted_tokens = predicted_tokens[
+                                :, 0 : end_indices[i] - (1 + self.decoder_context_len)
+                            ]  # trim to audio length
 
                     pred_img = predicted_tokens.data.cpu().float().numpy()
                     dec_inp_img = dec_input_to_1024.data.cpu().float().numpy()
@@ -2171,10 +2332,16 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                     self.logger.experiment.add_audio("Inf Pred Wav", predicted_wav, step, self.sample_rate)
                     self.logger.experiment.add_image(
-                        "Inf Pred Tokens", plot_codec_to_numpy(pred_img), step, dataformats="HWC",
+                        "Inf Pred Tokens",
+                        plot_codec_to_numpy(pred_img),
+                        step,
+                        dataformats="HWC",
                     )
                     self.logger.experiment.add_image(
-                        "Inf Dec Input Tokens", plot_codec_to_numpy(dec_inp_img), step, dataformats="HWC",
+                        "Inf Dec Input Tokens",
+                        plot_codec_to_numpy(dec_inp_img),
+                        step,
+                        dataformats="HWC",
                     )
 
                     # save predicted_wav and gt_wav to a wav files in dir_path
@@ -2205,7 +2372,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     # speaker verification evaluation using wavlm model
                     gt_16khz_wav, _ = librosa.load(audio_fp_gt, sr=16000)
                     pred_16khz_wav, _ = librosa.load(audio_fp_pred, sr=16000)
-                    inputs_wavlm = wavlm_sv_extractor([pred_16khz_wav, gt_16khz_wav], padding=True, return_tensors="pt", sampling_rate=16000)
+                    inputs_wavlm = wavlm_sv_extractor(
+                        [pred_16khz_wav, gt_16khz_wav], padding=True, return_tensors="pt", sampling_rate=16000
+                    )
                     for key in inputs_wavlm.keys():
                         inputs_wavlm[key] = inputs_wavlm[key].to(device)
 
@@ -2252,21 +2421,21 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     spk_embedding_context = spk_embedding_gt
                     spk_embedding_context_wavlm = spk_embedding_gt_wavlm
                     if self.decoder_context_len > 0:
-                        context_tokens = dec_input_to_1024[:, :self.decoder_context_len+1]
+                        context_tokens = dec_input_to_1024[:, : self.decoder_context_len + 1]
                         context_wav = self.decode_wav_from_codec_model(context_tokens)
                     elif context_end_step > 1:
-                        is_speech_context = context_tokens[1,:].sum().item() > 0
+                        is_speech_context = context_tokens[1, :].sum().item() > 0
                         if is_speech_context:
                             context_tokens = self.convert_tokens_to_range(context_tokens, pattern=self.context_pattern)
                             context_wav = self.decode_wav_from_codec_model(context_tokens)
                         else:
                             context_wav = None
-                            _context_token_list = [ v.item() for v in context_tokens[0, :] ]
+                            _context_token_list = [v.item() for v in context_tokens[0, :]]
                             _context_text = self.frozen_model.tokenizer.ids_to_text(
                                 [v for v in _context_token_list if v < self.lm_vocab_size]
                             )
                             self.logger.experiment.add_text("Context Text", _context_text, self.global_step)
-                            
+
                     else:
                         context_wav = None
                         # raise NotImplementedError("During prediction, there was no context found.")
@@ -2279,10 +2448,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         spk_embedding_context = spk_embedding_context.cpu().detach().numpy().flatten()
                         # wavlm
                         context_wavlm_wav, _ = librosa.load(context_wav_fp, sr=16000)
-                        inputs_wavlm = wavlm_sv_extractor([context_wavlm_wav], padding=True, return_tensors="pt", sampling_rate=16000)
+                        inputs_wavlm = wavlm_sv_extractor(
+                            [context_wavlm_wav], padding=True, return_tensors="pt", sampling_rate=16000
+                        )
                         for key in inputs_wavlm.keys():
                             inputs_wavlm[key] = inputs_wavlm[key].to(device)
-            
+
                         with torch.no_grad():
                             wavlm_embeddings = wavlm_sv_model(**inputs_wavlm).embeddings
                             wavlm_embeddings = torch.nn.functional.normalize(wavlm_embeddings, dim=-1).cpu()
@@ -2336,8 +2507,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                     # estimate MOS scores.
                     if self.estimate_mos:
-                        squim_mos_score_pred = squim_mos_model(torch.from_numpy(pred_16khz_wav).to(device).unsqueeze(0)).item()
-                        squim_mos_score_gt = squim_mos_model(torch.from_numpy(gt_16khz_wav).to(device).unsqueeze(0)).item()
+                        squim_mos_score_pred = squim_mos_model(
+                            torch.from_numpy(pred_16khz_wav).to(device).unsqueeze(0)
+                        ).item()
+                        squim_mos_score_gt = squim_mos_model(
+                            torch.from_numpy(gt_16khz_wav).to(device).unsqueeze(0)
+                        ).item()
                         if context_wav is not None:
                             squim_mos_score_context = squim_mos_model(context_wav.to(device).unsqueeze(0)).item()
                             squim_mos_list_context.append(squim_mos_score_context)
@@ -2396,15 +2571,19 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 assert all_audio_to_pred[i]["step"] == all_audio_to_pred[i + 1]["step"]
                 # step = batch_idx * self.test_dataloader().batch_size + all_audio_to_pred[i]["step"]
                 step = batch_idx * test_dataloader_batch_size + all_audio_to_pred[i]["step"]
-                question_text = question_texts[i//2]
+                question_text = question_texts[i // 2]
 
                 # No need to process text since both are ASR outputs
                 cer_sample = word_error_rate([greedy_transcripts[i]], [greedy_transcripts[i + 1]], use_cer=True)
                 wer_sample = word_error_rate([greedy_transcripts[i]], [greedy_transcripts[i + 1]], use_cer=False)
 
                 # Processing text since one is ASR output and the other is the GT text
-                cer_gt = word_error_rate([self.process_text(greedy_transcripts[i])], [self.process_text(question_text)], use_cer=True)
-                wer_gt = word_error_rate([self.process_text(greedy_transcripts[i])], [self.process_text(question_text)], use_cer=False)
+                cer_gt = word_error_rate(
+                    [self.process_text(greedy_transcripts[i])], [self.process_text(question_text)], use_cer=True
+                )
+                wer_gt = word_error_rate(
+                    [self.process_text(greedy_transcripts[i])], [self.process_text(question_text)], use_cer=False
+                )
 
                 self.logger.experiment.add_text("Inf Predicted Text", greedy_transcripts[i], step)
                 self.logger.experiment.add_text("Inf GT Text", greedy_transcripts[i + 1], step)
@@ -2473,7 +2652,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 }
             )
 
-    #TODO @xueyang: PTL 2.0+ patch. Signature of method `on_predict_epoch_end` does not match signature of the base method in PTL class 'ModelHooks'.
+    # TODO @xueyang: PTL 2.0+ patch. Signature of method `on_predict_epoch_end` does not match signature of the base method in PTL class 'ModelHooks'.
     # Remove the `outputs` param and choose `self.predict_step_output` instead.
     def on_predict_epoch_end(self, outputs: List[Any]) -> None:
 
@@ -2498,7 +2677,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             input_prediction_pair = []
             correct = 0
-            for (input, pred, label) in gather_results_dedup:
+            for input, pred, label in gather_results_dedup:
                 input_prediction_pair.append((input, pred))
                 if label:
                     if pred == label:

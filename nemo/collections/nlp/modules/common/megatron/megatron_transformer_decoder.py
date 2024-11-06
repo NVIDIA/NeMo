@@ -52,8 +52,7 @@ __all__ = ["MegatronTransformerDecoderModule"]
 
 
 class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecoderModule):
-    """Transformer decoder model.
-    """
+    """Transformer decoder model."""
 
     def __init__(
         self,
@@ -166,7 +165,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def forward(
@@ -187,7 +186,9 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
     ):
         # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
+            source_mask=dec_attn_mask,
+            target_mask=dec_attn_mask,
+            attn_mask_type=self.model_attn_mask_type,
         )
 
         if isinstance(enc_output, list):
@@ -195,14 +196,22 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             enc_dec_attn_mask_3d = []
             for i in range(len(enc_output)):
                 enc_dec_attn_mask_3d.append(
-                    attn_mask_postprocess(build_attention_mask_3d(
-                        source_mask=dec_attn_mask, target_mask=enc_attn_mask[i], attn_mask_type=AttnMaskType.padding,
-                    ))
+                    attn_mask_postprocess(
+                        build_attention_mask_3d(
+                            source_mask=dec_attn_mask,
+                            target_mask=enc_attn_mask[i],
+                            attn_mask_type=AttnMaskType.padding,
+                        )
+                    )
                 )
         else:
-            enc_dec_attn_mask_3d = attn_mask_postprocess(build_attention_mask_3d(
-                source_mask=dec_attn_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
-            ))
+            enc_dec_attn_mask_3d = attn_mask_postprocess(
+                build_attention_mask_3d(
+                    source_mask=dec_attn_mask,
+                    target_mask=enc_attn_mask,
+                    attn_mask_type=AttnMaskType.padding,
+                )
+            )
 
         # transformer decoder
         dec_output = self.model(
