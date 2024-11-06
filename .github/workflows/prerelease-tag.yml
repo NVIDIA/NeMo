@@ -13,7 +13,7 @@ jobs:
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_prerelease_tag.yml@ko3n1g/feat/pre-release-tag
     with:
       name_of_library: NeMo-Toolkit
-      prerelease_sha: ${{ inputs.prerelease_sha || github.sha }}
+      prerelease_sha: ${{ inputs.prerelease_sha || main }}
       python_package: nemo
     secrets:
       SLACK_RELEASE_ENDPOINT: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
