@@ -1482,8 +1482,11 @@ class BeamRNNTInfer(Typing):
         return lm_score, next_state
 
     def set_decoding_type(self, decoding_type: str):
-
-        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        """
+        Sets decoding type. Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        Args:
+            decoding_type: decoding type
+        """
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
@@ -1493,6 +1496,9 @@ class BeamRNNTInfer(Typing):
 
 @dataclass
 class BeamRNNTInferConfig:
+    """
+        Beam RNNT Inference config.
+    """
     beam_size: int
     search_type: str = 'default'
     score_norm: bool = True
