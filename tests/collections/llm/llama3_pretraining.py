@@ -25,7 +25,7 @@ import torch
 from nemo.collections import llm
 from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
-from nemo.lightning.run.plugins import FaultTolerancePlugin
+from nemo.lightning.run.plugins import FaultTolerancePlugin,ConfigValidationPlugin
 from nemo.utils.exp_manager import TimingCallback
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,
@@ -89,7 +89,7 @@ def main():
         dir=args.experiment_dir, name=exp_name, num_gpus_per_node=args.devices
     )
 
-    pretrain_recipe.model = llm.LlamaModel(small_llama_cfg(args.seq_length))
+    pretrain_recipe.model = run.Config(llm.LlamaModel, small_llama_cfg(args.seq_length))
 
     if args.data_path and args.tokenizer_path:
         pretrain_recipe.data = train_data(
@@ -149,7 +149,7 @@ def main():
 
     if args.simulated_fault:
         executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
-        run_plugins: list[run.Plugin] = [FaultTolerancePlugin()]
+        run_plugins: list[run.Plugin] = [FaultTolerancePlugin(), ConfigValidationPlugin(validate_preemption=False)]
         pretrain_recipe.trainer.callbacks = [run.Config(TimingCallback), straggler_det_callback()]
 
         run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
