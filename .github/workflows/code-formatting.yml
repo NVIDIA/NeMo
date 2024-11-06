@@ -84,6 +84,4 @@ jobs:
           echo ${{ github.event.pull_request.labels.*.name }}
 
           pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES || \
-            { echo "Pylint failed. In case of long strings, format docstrings manually. "; \
-              echo "To ignore docstring formatting errors, add \"skip-docs\" label"; \
-              exit 1; }
+            { echo "Pylint failed. In case of long strings, format docstrings and other strings manually. "; exit 1; }
