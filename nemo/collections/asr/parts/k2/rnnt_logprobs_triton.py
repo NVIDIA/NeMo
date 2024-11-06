@@ -19,7 +19,7 @@ import triton.language as tl
 
 @triton.jit
 def _rnnt_logprobs_fwd_kernel(
-    x_ptr,
+    logits_ptr,
     targets_ptr,
     source_lengths_ptr,
     target_lengths_ptr,
@@ -41,26 +41,26 @@ def _rnnt_logprobs_fwd_kernel(
         return
 
     flat_index = ((batch_i * max_source_len + source_i) * max_target_len_plus_1 + target_i) * num_labels
-    x_ptr += flat_index
+    logits_ptr += flat_index
     col_offsets = tl.arange(0, BLOCK_SIZE)
     mask = col_offsets < num_labels
-    logits = tl.load(x_ptr + col_offsets, mask=mask, other=-float("inf")).to(tl.float32)
+    logits = tl.load(logits_ptr + col_offsets, mask=mask, other=-float("inf")).to(tl.float32)
     logits_max = tl.max(logits, axis=0)
     logits_minus_max = logits - logits_max
     denominator = tl.log(tl.sum(tl.exp(logits_minus_max), axis=0))
-    blank_logit = tl.load(x_ptr + blank_id).to(tl.float32)
+    blank_logit = tl.load(logits_ptr + blank_id).to(tl.float32)
     flat_index_output = (batch_i * max_source_len + source_i) * max_target_len_plus_1 + target_i
     tl.store(blank_scores_ptr + flat_index_output, blank_logit - logits_max - denominator)
     if target_i < target_len:
         target_id = tl.load(targets_ptr + batch_i * (max_target_len_plus_1 - 1) + target_i)
-        target_logit = tl.load(x_ptr + target_id).to(tl.float32)
+        target_logit = tl.load(logits_ptr + target_id).to(tl.float32)
         tl.store(target_scores_ptr + flat_index_output, target_logit - logits_max - denominator)
 
 
 @triton.jit
 def _rnnt_logprobs_bwd_kernel(
-    x_ptr,
-    grad_x_ptr,
+    logits_ptr,
+    grad_logits_ptr,
     targets_ptr,
     source_lengths_ptr,
     target_lengths_ptr,
@@ -82,12 +82,12 @@ def _rnnt_logprobs_bwd_kernel(
         return
 
     flat_index = ((batch_i * max_source_len + source_i) * max_target_len_plus_1 + target_i) * num_labels
-    x_ptr += flat_index
-    grad_x_ptr += flat_index
+    logits_ptr += flat_index
+    grad_logits_ptr += flat_index
 
     col_offsets = tl.arange(0, BLOCK_SIZE)
     mask = col_offsets < num_labels
-    logits = tl.load(x_ptr + col_offsets, mask=mask, other=-float("inf")).to(tl.float32)
+    logits = tl.load(logits_ptr + col_offsets, mask=mask, other=-float("inf")).to(tl.float32)
     logits_max = tl.max(logits, axis=0)
     logits_minus_max = logits - logits_max
     denominator = tl.log(tl.sum(tl.exp(logits_minus_max), axis=0))
@@ -103,80 +103,82 @@ def _rnnt_logprobs_bwd_kernel(
     grad_not_in_targets = (-softmax) * (blank_grad + target_grad)
     grad = tl.where(col_offsets == blank_id, blank_grad + grad_not_in_targets, grad_not_in_targets)
     grad = tl.where(col_offsets == target_id, target_grad + grad_not_in_targets, grad)
-    tl.store(grad_x_ptr + col_offsets, grad, mask=mask)
+    tl.store(grad_logits_ptr + col_offsets, grad, mask=mask)
 
 
 class RnntLogProbs(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
-        x: torch.Tensor,
+        logits: torch.Tensor,
         targets: torch.Tensor,
         blank_id: int,
         source_lengths: torch.Tensor | None,
         target_lengths: torch.Tensor | None,
     ):
-        assert x.is_contiguous()
+        assert logits.is_contiguous()
         targets = targets.contiguous()
-        device = x.device
+        device = logits.device
         float_dtype = torch.float32
 
-        target_scores = torch.zeros(x.shape[:-1], dtype=float_dtype, device=device)
+        target_scores = torch.zeros(logits.shape[:-1], dtype=float_dtype, device=device)
         blank_scores = torch.zeros_like(target_scores)
         if source_lengths is None:
-            source_lengths = torch.full([x.shape[0]], fill_value=x.shape[1], dtype=torch.int, device=device)
+            source_lengths = torch.full([logits.shape[0]], fill_value=logits.shape[1], dtype=torch.int, device=device)
         else:
             source_lengths = source_lengths.contiguous()
         if target_lengths is None:
-            target_lengths = torch.full([x.shape[0]], fill_value=x.shape[2] - 1, dtype=torch.int, device=device)
+            target_lengths = torch.full(
+                [logits.shape[0]], fill_value=logits.shape[2] - 1, dtype=torch.int, device=device
+            )
         else:
             target_lengths = target_lengths.contiguous()
-        _rnnt_logprobs_fwd_kernel[(x.shape[0], x.shape[1], x.shape[2])](
-            x_ptr=x,
+        _rnnt_logprobs_fwd_kernel[(logits.shape[0], logits.shape[1], logits.shape[2])](
+            logits_ptr=logits,
             targets_ptr=targets,
             source_lengths_ptr=source_lengths,
             target_lengths_ptr=target_lengths,
-            max_source_len=x.shape[1],
-            max_target_len_plus_1=x.shape[2],
-            num_labels=x.shape[3],
+            max_source_len=logits.shape[1],
+            max_target_len_plus_1=logits.shape[2],
+            num_labels=logits.shape[3],
             blank_id=blank_id,
             target_scores_ptr=target_scores,
             blank_scores_ptr=blank_scores,
-            BLOCK_SIZE=triton.next_power_of_2(x.shape[-1]),
+            BLOCK_SIZE=triton.next_power_of_2(logits.shape[-1]),
         )
 
         # saving for backward
-        ctx.save_for_backward(x, targets, source_lengths, target_lengths)
+        ctx.save_for_backward(logits, targets, source_lengths, target_lengths)
         ctx.blank_id = blank_id
         return target_scores, blank_scores
 
     @staticmethod
     def backward(ctx, grad_target_scores, grad_blank_scores):
-        (x, targets, source_lengths, target_lengths) = ctx.saved_tensors
+        (logits, targets, source_lengths, target_lengths) = ctx.saved_tensors
         blank_id = ctx.blank_id
-        grad_x = torch.zeros_like(x)
-        _rnnt_logprobs_bwd_kernel[(x.shape[0], x.shape[1], x.shape[2])](
-            x_ptr=x,
-            grad_x_ptr=grad_x,
+        grad_logits = torch.zeros_like(logits)
+        _rnnt_logprobs_bwd_kernel[(logits.shape[0], logits.shape[1], logits.shape[2])](
+            logits_ptr=logits,
+            grad_logits_ptr=grad_logits,
             source_lengths_ptr=source_lengths,
             target_lengths_ptr=target_lengths,
             targets_ptr=targets,
-            max_source_len=x.shape[1],
-            max_target_len_plus_1=x.shape[2],
-            num_labels=x.shape[3],
+            max_source_len=logits.shape[1],
+            max_target_len_plus_1=logits.shape[2],
+            num_labels=logits.shape[3],
             blank_id=blank_id,
             grad_target_scores_ptr=grad_target_scores,
             grad_blank_scores_ptr=grad_blank_scores,
-            BLOCK_SIZE=triton.next_power_of_2(x.shape[-1]),
+            BLOCK_SIZE=triton.next_power_of_2(logits.shape[-1]),
         )
-        return grad_x, None, None, None, None
+        return grad_logits, None, None, None, None
 
 
 def rnnt_logprobs_triton(
-    x: torch.Tensor,
+    logits: torch.Tensor,
     targets: torch.Tensor,
     blank_id: int,
     source_lengths: torch.Tensor | None = None,
     target_lengths: torch.Tensor | None = None,
 ):
-    return RnntLogProbs.apply(x, targets, blank_id, source_lengths, target_lengths)
+    return RnntLogProbs.apply(logits, targets, blank_id, source_lengths, target_lengths)
