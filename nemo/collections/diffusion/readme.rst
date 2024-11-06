@@ -14,8 +14,61 @@ Some of the features we currently support include:
 - Model Architectures: Original DiT, MovieGen 30B+ parameters, Spatio-Temporal DiT
 
 
-Features Status
+Performance
 ---------------
+
+We benchmarked 7B and 28B DiT cross attention models with context length 8k and 64k on 32 H100 DGX nodes.
+
+- 8k context length corresponds to latent of 256 frames of 256px video.
+- 64k context length corresponds to latent of 256 frames 1024px video.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 15 25 15 15
+
+   * - Model size
+     - Context length
+     - Training config
+     - GPU util. (TFLOPS/s)
+     - Throughput (token/s/GPU)
+   * - DiT 7B
+     - 8k
+     - baseline, no optimization
+     - OOM
+     - 
+   * - DiT 7B
+     - 8k
+     - TP=2 SP
+     - 519
+     - 10052
+   * - DiT 7B
+     - 74k
+     - TP=2 SP CP=4
+     - 439
+     - 3409
+   * - DiT 28B
+     - 8k
+     - TP4 PP4
+     - 468
+     - 2510
+   * - DiT 28B
+     - 64k
+     - FSDP act ckpt
+     - 445
+     - 1386
+
+**Legend:**
+- **FSDP**: Fully Sharded Data Parallelism
+- **CP**: Context Parallelism
+- **TP**: Tensor Parallelism
+- **SP**: Sequence Parallelism
+- **PP**: Pipeline Parallelism
+- **EP**: Expert Parallelism
+- **distop**: mcore distributed optmizer
+- **act ckpt**: activation checkpointing
+
+Features Status:
+^^^^^^^^^^^^^^^
 
 We support image/video diffusion training with all parallelism strategies. 
 
@@ -35,16 +88,10 @@ We support image/video diffusion training with all parallelism strategies.
 | CP+TP+SP+FSDP+EP          | ✅ Supported     |
 +---------------------------+------------------+
 
-**Legend:**
-- **FSDP**: Fully Sharded Data Parallelism
-- **CP**: Context Parallelism
-- **TP**: Tensor Parallelism
-- **SP**: Sequence Parallelism
-- **PP**: Pipeline Parallelism
-- **EP**: Expert Parallelism
-- **distop**: mcore distributed optmizer
 
-training stages:
+
+Training Stages:
+^^^^^^^^^^^^^^^^
 
 +---------------+----------------------+-----------------+-----------------+
 | Model Size    | Modality             | sequence length | Status          |
