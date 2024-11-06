@@ -501,7 +501,11 @@ class GraphRnntLoss(GraphTransducerLossBase):
             # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
             if self.use_triton and logits.device.type == "cuda":
                 unit_scores, blank_scores = rnnt_logprobs_triton(
-                    logits, targets, blank_id=self.blank, source_lengths=logits_lengths, target_lengths=target_lengths
+                    logits=logits,
+                    targets=targets,
+                    blank_id=self.blank,
+                    source_lengths=logits_lengths,
+                    target_lengths=target_lengths,
                 )
                 text_units_blank_mask = text_units == self.blank
                 scores = torch.where(
