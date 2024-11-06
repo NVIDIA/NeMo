@@ -144,11 +144,11 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
         return self.tokenizer.n_vocab
 
     def get_vocab(self) -> Dict[bytes, int]:
-        """ Returns the tokenizer vocab """
+        """Returns the tokenizer vocab"""
         return self.mergeable_ranks
 
     def convert_tokens_to_ids(self, tokens: Union[bytes, str, List[Union[bytes, str]]]) -> List[int]:
-        """ Converts the computed tokens to their corresponding ids """
+        """Converts the computed tokens to their corresponding ids"""
         if isinstance(tokens, (str, bytes)):
             if tokens in self.special_tokens:
                 return self.special_tokens[tokens]
@@ -264,7 +264,7 @@ class CosmosMultiModalTokenizer(PreTrainedTokenizer):
 
     @property
     def vocab_size(self):
-        """ Returns the vocab size """
+        """Returns the vocab size"""
         return self.tokenizer.n_vocab
 
     def _convert_id_to_token(self, index: int) -> Union[bytes, str]:
