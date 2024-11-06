@@ -16,7 +16,6 @@ import json
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import numpy as np
 from datasets import load_dataset
 
 from nemo.collections.llm.gpt.data.core import get_dataset_root
@@ -32,13 +31,15 @@ if TYPE_CHECKING:
 class AlpacaDataModule(FineTuningDataModule, IOMixin):
     """A data module for fine-tuning on the Alpaca Python dataset.
 
-    This class inherits from the `FineTuningDataModule` class and is specifically designed for fine-tuning models on the
-    "iamtarun/python_code_instructions_18k_alpaca" dataset. It handles data download, preprocessing, splitting, and preparing the data
-    in a format suitable for training, validation, and testing.
+    This class inherits from the `FineTuningDataModule` class and is specifically designed for fine-tuning models
+    on the "iamtarun/python_code_instructions_18k_alpaca" dataset. It handles data download, preprocessing, splitting,
+    and preparing the data in a format suitable for training, validation, and testing.
 
     Args:
-        force_redownload (bool, optional): Whether to force re-download the dataset even if it exists locally. Defaults to False.
-        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing. Defaults to True.
+        force_redownload (bool, optional): Whether to force re-download the dataset even if it exists locally.
+                                           Defaults to False.
+        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing.
+                                     Defaults to True.
         See FineTuningDataModule for the other args
     """
 
