@@ -67,13 +67,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
             rnnt_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
                 Can take the following values - "char" for character/subword time stamps, "word" for word level
-                time stamps, "segment" for segment level time stamps and "all" (default), for character, word and segment level time stamps.
+                time stamps, "segment" for segment level time stamps and "all" (default), for character, word and 
+                segment level time stamps.
 
             word_seperator: Str token representing the seperator between words.
 
             segment_seperators: List containing tokens representing the seperator(s) between segments.
 
-            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming the segments.
+            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming 
+            the segments.
 
             preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
                 generated during decoding (sample / batched). When set to true, the Hypothesis will contain
@@ -102,8 +104,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
-                    Valid options are `mean`, `min`, `max`, `prod`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word 
+                    confidence. Valid options are `mean`, `min`, `max`, `prod`.
                 tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
                     attached to the regular frame confidence,
                     making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
@@ -177,22 +179,23 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                     and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                    in order to reduce expensive beam search cost later. int >= 0.
+                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep 
+                    this as 1 in order to reduce expensive beam search cost later. int >= 0.
 
                 maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
                     Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                    and affects the speed of inference since large values will perform large beam search in the next step.
+                    and affects the speed of inference since large values will perform large beam search in the next 
+                    step.
 
-                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                    expansion apart from the "most likely" candidate.
-                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                    tuned on a validation set.
+                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the 
+                    expansions. The default (2.3) is selected from the paper. It performs a comparison 
+                    (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and 
+                    max_log_prob is the "most" likely token to be predicted. Gamma therefore provides a margin of 
+                    additional tokens which can be potential candidates for expansion apart from the "most likely" 
+                    candidate. Lower values will reduce the number of expansions (by increasing pruning-by-value, 
+                    thereby improving speed but hurting accuracy). Higher values will increase the number of expansions
+                    (by reducing pruning-by-value, thereby reducing speed but potentially improving accuracy). This is 
+                    a hyper parameter to be experimentally tuned on a validation set.
 
                 softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
@@ -1165,7 +1168,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             offsets: A list of dictionaries, each containing "word", "start_offset" and "end_offset".
             segments_delimiter_tokens: List containing tokens representing the seperator(s) between segments.
             supported_punctuation: Set containing punctuation marks in the vocabulary.
-            segment_gap_threshold: Number of frames between 2 consecutive words necessary to form segments out of plain text.
+            segment_gap_threshold: Number of frames between 2 consecutive words necessary to form segments out of plain
+            text.
         Returns:
             A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
             "end_offset".
@@ -1292,7 +1296,8 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word 
+                    confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
                 tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
                     attached to the regular frame confidence,
@@ -1368,8 +1373,8 @@ class RNNTDecoding(AbstractRNNTDecoding):
                         per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
                         at increased cost to execution time.
 
-                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                        If an integer is provided, it can decode sequences of that particular maximum length.
+                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence
+                        length. If an integer is provided, it can decode sequences of that particular maximum length.
                         If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
                         where seq_len is the length of the acoustic model output (T).
 
@@ -1381,22 +1386,23 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                         and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                        in order to reduce expensive beam search cost later. int >= 0.
+                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to 
+                    keep this as 1 in order to reduce expensive beam search cost later. int >= 0.
 
                     maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
                         Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                        and affects the speed of inference since large values will perform large beam search in the next step.
+                        and affects the speed of inference since large values will perform large beam search in the 
+                        next step.
 
-                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                        The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                        where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                        predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                        expansion apart from the "most likely" candidate.
-                        Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                        but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                        thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                        tuned on a validation set.
+                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the 
+                        expansions. The default (2.3) is selected from the paper. It performs a comparison 
+                        (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and 
+                        max_log_prob is the "most" likely token to be predicted. Gamma therefore provides a margin of 
+                        additional tokens which can be potential candidates for expansion apart from the "most likely" 
+                        candidate. Lower values will reduce the number of expansions (by increasing pruning-by-value, 
+                        thereby improving speed but hurting accuracy). Higher values will increase the number of 
+                        expansions (by reducing pruning-by-value, thereby reducing speed but potentially improving 
+                        accuracy). This is a hyper parameter to be experimentally tuned on a validation set.
 
                     softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
@@ -1549,7 +1555,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
             segment_seperators: List containing tokens representing the seperator(s) between segments.
 
-            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming the segments.
+            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming 
+                the segments.
 
             preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
                 generated during decoding (sample / batched). When set to true, the Hypothesis will contain
@@ -1578,8 +1585,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
-                    Valid options are `mean`, `min`, `max`, `prod`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word 
+                    confidence. Valid options are `mean`, `min`, `max`, `prod`.
                 tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
                     attached to the regular frame confidence,
                     making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
@@ -1651,8 +1658,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                         per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
                         at increased cost to execution time.
 
-                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                        If an integer is provided, it can decode sequences of that particular maximum length.
+                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence 
+                        length.If an integer is provided, it can decode sequences of that particular maximum length.
                         If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
                         where seq_len is the length of the acoustic model output (T).
 
@@ -1664,22 +1671,23 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                     maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                         and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                        in order to reduce expensive beam search cost later. int >= 0.
+                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to 
+                        keep this as 1 in order to reduce expensive beam search cost later. int >= 0.
 
                     maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
                         Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                        and affects the speed of inference since large values will perform large beam search in the next step.
+                        and affects the speed of inference since large values will perform large beam search in the 
+                        next step.
 
-                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                        The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                        where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                        predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                        expansion apart from the "most likely" candidate.
-                        Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                        but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                        thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                        tuned on a validation set.
+                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the 
+                        expansions. The default (2.3) is selected from the paper. It performs a comparison 
+                        (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and
+                        max_log_prob is the "most" likely token to be predicted. Gamma therefore provides a margin of 
+                        additional tokens which can be potential candidates for expansion apart from the "most likely" 
+                        candidate. Lower values will reduce the number of expansions (by increasing pruning-by-value, 
+                        thereby improving speed but hurting accuracy). Higher values will increase the number of 
+                        expansions (by reducing pruning-by-value, thereby reducing speed but potentially improving 
+                        accuracy). This is a hyper parameter to be experimentally tuned on a validation set.
 
                     softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
@@ -1809,7 +1817,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                     hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
             else:
                 logging.warning(
-                    "Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer"
+                    "Ignoring request for lang output in hypotheses since the model does not use an aggregate \
+                        tokenizer"
                 )
 
         return hypotheses
@@ -1817,6 +1826,9 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
 @dataclass
 class RNNTDecodingConfig:
+    """
+        RNNT Decoding config
+    """
     model_type: str = "rnnt"  # one of "rnnt", "multiblank" or "tdt"
     strategy: str = "greedy_batch"
 
@@ -1874,4 +1886,7 @@ class RNNTDecodingConfig:
 
 @dataclass
 class RNNTBPEDecodingConfig(RNNTDecodingConfig):
+    """
+    RNNT BPE Decoding Config
+    """
     pass
