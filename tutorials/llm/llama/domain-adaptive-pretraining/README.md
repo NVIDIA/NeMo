@@ -11,7 +11,7 @@ Here, we share a tutorial with best practices on custom tokenization and DAPT (D
 * This playbook has been tested on: nvcr.io/nvidia/nemo:24.07. It is expected to work similarly on other environments.
 
 ### Hardware Requirements
-* This playbook can run on CPUs or GPUs. For GPUs, this playbook has been tested on minimum 1xA100 80G
+* This playbook can run on CPUs or GPUs. For GPUs, this playbook has been tested on minimum 2xA100 80G
 
 ### Data Curation
 
@@ -27,3 +27,9 @@ Here, we share a tutorial with best practices on custom tokenization and DAPT (D
 After placing the curated data in the directories mentioned above, we can proceed with custom tokenization and DAPT. 
 
 * `./code/custom_tokenization.ipynb` walks through the custom tokenization workflow required for DAPT 
+
+## Pretraining for DAPT
+
+Once we have the domain adapted custom tokenizer from above, we can proceed with pretraining using the customer tokenizer.
+
+* `./code/domain_adaptive_pretraining.ipynb` walks through the pretraining workflow required for DAPT 
