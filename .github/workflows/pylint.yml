@@ -56,14 +56,17 @@ jobs:
           echo ${{ github.event.pull_request.labels.*.name }}
 
           set +e
-          NEW_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $NEW_FILES)
-          NEW_FILES_CODE=$?
+          NEW_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $NEW_FILES); NEW_FILES_CODE=$?
           echo $NEW_FILES_LOG
-          echo "new_files=$NEW_FILES_LOG" >> $GITHUB_OUTPUT
+          echo 'new_files<<EOF' >> $GITHUB_OUTPUT
+          echo $NEW_FILES_LOG >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
 
           CHANGED_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES)
           echo $CHANGED_FILES_LOG
-          echo "changed_files=$CHANGED_FILES_LOG" >> $GITHUB_OUTPUT
+          echo 'changed_files<<EOF' >> $GITHUB_OUTPUT
+          echo $CHANGED_FILES_LOG >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
           
           if [ ${NEW_FILES_CODE} -ne 0 ]; then
             echo "Pylint failed for new files. In case of long strings, format docstrings and other strings manually."
