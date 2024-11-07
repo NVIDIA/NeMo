@@ -21,7 +21,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
+from megatron.core import parallel_state
 from rich.console import Console
+from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
@@ -29,8 +31,6 @@ from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
-from torch.distributed import all_gather_object
-from megatron.core import parallel_state
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -593,15 +593,16 @@ def generate(
         inference_params=inference_params,
     )
     gathered_results = [None] * dp_size
-    
-    all_gather_object(gathered_results,
-                      [
-                        r.generated_text if text_only else r for r in results_on_this_dp_rank
-                      ],
-                      group=parallel_state.get_data_parallel_group())
+
+    all_gather_object(
+        gathered_results,
+        [r.generated_text if text_only else r for r in results_on_this_dp_rank],
+        group=parallel_state.get_data_parallel_group(),
+    )
     gathered_results = [result for sublist in gathered_results for result in sublist]
 
     return gathered_results
+
 
 @run.cli.entrypoint(name="eval", namespace="llm")
 def batch_inference(
@@ -617,31 +618,34 @@ def batch_inference(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
 ) -> None:
-    
+
     from nemo.utils.get_rank import is_global_rank_zero
+
     with open(input_dataset.test_path) as f:
         dataset = [json.loads(sample) for sample in f.readlines()]
         inputs = [sample["input"] for sample in dataset]
 
-    results = generate(ckpt_path,
-                trainer=trainer,
-                prompts=inputs,
-                encoder_prompts=encoder_prompts,
-                params_dtype=params_dtype,
-                add_BOS=add_BOS,
-                max_batch_size=max_batch_size,
-                random_seed=random_seed,
-                inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-                inference_params=inference_params,
-                text_only=True)
-    
+    results = generate(
+        ckpt_path,
+        trainer=trainer,
+        prompts=inputs,
+        encoder_prompts=encoder_prompts,
+        params_dtype=params_dtype,
+        add_BOS=add_BOS,
+        max_batch_size=max_batch_size,
+        random_seed=random_seed,
+        inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        inference_params=inference_params,
+        text_only=True,
+    )
+
     assert len(results) == len(dataset)
     if is_global_rank_zero():
         with open(output_path, "w") as f:
             for sample, pred in zip(dataset, results):
-                line = json.dumps({"input":sample["input"], "label":sample["output"], "prediction":pred})
-                f.writelines(line+"\n")
-    
+                line = json.dumps({"input": sample["input"], "label": sample["output"], "prediction": pred})
+                f.writelines(line + "\n")
+
     logging.info(f"Predictions written to {output_path}")
 
 
