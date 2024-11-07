@@ -23,10 +23,8 @@ import nemo_run as run
 import torch
 
 from nemo.collections import llm
-from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
-from nemo.lightning.run.plugins import ConfigValidationPlugin, FaultTolerancePlugin
-from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.run.plugins import ConfigValidationPlugin
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,
     MiscAttributeValidator,
@@ -47,12 +45,6 @@ def get_args():
         type=int,
         default=None,
         help="Stop training early at this global step (for testing resume training)",
-    )
-    parser.add_argument(
-        '--simulated-fault',
-        action="store_true",
-        default=False,
-        help="Add a simulated fault to stop the training run (for testing nvidia-resiliency-ext's fault tolerance plugin)",
     )
     parser.add_argument(
         '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
@@ -147,14 +139,7 @@ def main():
     )
     pretrain_recipe.trainer.callbacks.append(misc_checker)
 
-    if args.simulated_fault:
-        executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
-        run_plugins: list[run.Plugin] = [FaultTolerancePlugin(), ConfigValidationPlugin(validate_preemption=False)]
-        pretrain_recipe.trainer.callbacks = [run.Config(TimingCallback), straggler_det_callback()]
-
-        run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
-    else:
-        run.run(pretrain_recipe, direct=True)
+    run.run(pretrain_recipe, direct=True)
 
     verify_ckpt_dir(
         pretrain_recipe.log.ckpt,
