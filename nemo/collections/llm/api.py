@@ -604,7 +604,7 @@ def generate(
     return gathered_results
 
 @run.cli.entrypoint(name="eval", namespace="llm")
-def eval(
+def batch_inference(
     trainer: nl.Trainer,
     ckpt_path: Union[Path, str],
     input_dataset: pl.LightningDataModule,
@@ -620,7 +620,7 @@ def eval(
     
     from nemo.utils.get_rank import is_global_rank_zero
     with open(input_dataset.test_path) as f:
-        dataset = [json.loads(sample) for sample in f.readlines()][:68]
+        dataset = [json.loads(sample) for sample in f.readlines()]
         inputs = [sample["input"] for sample in dataset]
 
     results = generate(ckpt_path,
