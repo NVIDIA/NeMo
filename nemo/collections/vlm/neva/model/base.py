@@ -239,7 +239,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
     ln_pre_impl: Union[ModuleSpec, type] = TENorm
-    ln_post_impl: Union[ModuleSpec, type] = (TENorm,)
+    ln_post_impl: Union[ModuleSpec, type] = TENorm
     add_class_token: bool = True
     class_token_len: int = 1
     patch_dim: int = 14
@@ -251,10 +251,18 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
 
+    def __post_init__(self):
+        if self.vision_model_type == "siglip":
+            self.add_class_token = False
+            self.class_token_len = 0
+
     def configure_model(self) -> "CLIPViTModel":
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = transformer_layer_spec(self)
+            from nemo.collections.vlm.layer_specs import get_layer_spec_te
+            transformer_layer_spec = get_layer_spec_te(
+                is_vit=True
+            )
         return CLIPViTModel(
             self,
             transformer_layer_spec,
@@ -422,7 +430,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 img_h=vision_transformer_config.img_h,
                 img_w=vision_transformer_config.img_w,
                 patch_dim=vision_transformer_config.patch_dim,
-                add_class_token=vision_transformer_config.add_class_token,
+                add_class_token=not drop_vision_class_token,
                 class_token_len=vision_transformer_config.class_token_len,
             )
 

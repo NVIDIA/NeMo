@@ -52,29 +52,6 @@ def get_vision_model_config(config, apply_query_key_layer_scaling):
     return config
 
 
-def get_vision_projection_config(config, hidden_size):
-    config.gated_linear_unit = False
-    config.bias_activation_fusion = False
-    config.add_bias_linear = False
-    config.hidden_size = (
-        hidden_size  # Used as the vision projection output size, i.e., the input to the language model.
-    )
-    if config.language_model_type == "2b":
-        config.ffn_hidden_size = 5440
-        config.activation_func = torch.nn.functional.gelu
-    if config.language_model_type == "8b":
-        config.ffn_hidden_size = 16384
-        config.activation_func = squared_relu
-    elif config.language_model_type == "llama3_8b":
-        config.ffn_hidden_size = 14336
-        config.activation_func = torch.nn.functional.gelu
-    elif config.language_model_type == "mistral_7b":
-        config.ffn_hidden_size = 14336
-        config.activation_func = torch.nn.functional.gelu
-
-    return config
-
-
 class CLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
