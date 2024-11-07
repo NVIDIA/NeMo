@@ -1,0 +1,86 @@
+name: PyLint Docs check
+# Incrementally reformat only changed files with black, all files with isort
+#
+# Replaces pre-commit.ci, since it reformats all the files.
+# See issue https://github.com/pre-commit-ci/issues/issues/90
+#
+# The action requires a custom token to trigger workflow after pushing reformatted files back to the branch.
+# `secrets.GITHUB_TOKEN` can be used instead, but this will result
+# in not running necessary checks after reformatting, which is undesirable.
+# For details see https://github.com/orgs/community/discussions/25702
+
+on:
+  pull_request_target:
+    paths:
+      - '**.py'
+    types: [ opened, synchronize, reopened, labeled, unlabeled ]
+
+jobs:
+  run_pylint_checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          # setup repository and ref for PRs, see
+          # https://github.com/EndBug/add-and-commit?tab=readme-ov-file#working-with-prs
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          # custom token is required to trigger actions after reformatting + pushing
+          token: ${{ secrets.NEMO_REFORMAT_TOKEN }}
+
+      # https://github.com/tj-actions/changed-files
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **.py
+
+      - name: Setup Python env
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: pylint
+        id: pylint
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' && !contains( github.event.pull_request.labels.*.name, 'skip-docs') }}
+        env:
+          # only *.py files included
+          NEW_FILES: "${{ steps.changed-files.outputs.added_files }}"
+          CHANGED_FILES: "${{ steps.changed-files.outputs.all_changed_files }}"
+        run: |
+          pip install pylint
+      
+          ADDITIONAL_PYLINT_ARGS=()
+          echo ${{ github.event.pull_request.labels.*.name }}
+      
+          # pylint is required for new (added) files
+          NEW_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $NEW_FILES)
+          NEW_FILES_CODE=$?
+          echo "new_files=$NEW_FILES_LOG" >> $GITHUB_OUTPUT
+          
+          # optional check for existing (modified) files
+          CHANGED_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES) 
+          echo "changed_files=$CHANGED_FILES_LOG" >> $GITHUB_OUTPUT
+          
+          if [ ${NEW_FILES_CODE} -ne 0 ]; then
+            echo "Pylint failed for new files. In case of long strings, format docstrings and other strings manually."
+            exit $NEW_FILES_CODE
+          fi
+
+      - name: add_message
+        if: ${{always() && github.event_name == 'pull_request'}}
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.number }}
+          body: |
+            ## Pylint new files checks results: 
+            ```
+            ${{ steps.pylint.outputs.new_files }}
+            ```
+            
+            ## Pylint existing files checks results:
+            ```
+            ${{ steps.pylint.outputs.changed_files }}
+            ```

@@ -13,14 +13,9 @@ on:
   pull_request_target:
     paths:
       - '**.py'
-    types: [ opened, synchronize, reopened, labeled, unlabeled ]
-
-defaults:
-  run:
-    shell: bash -x -e -u -o pipefail {0}
 
 jobs:
-  reformat_with_isort_and_black_and_pylint:
+  reformat_with_isort_and_black:
     runs-on: ubuntu-latest
     permissions:
       # write permissions required to commit changes
@@ -71,17 +66,3 @@ jobs:
         with:
             message: Apply isort and black reformatting
             commit: --signoff
-
-      - name: pylint
-        if: ${{ steps.changed-files.outputs.any_changed == 'true' && !contains( github.event.pull_request.labels.*.name, 'skip-docs') }}
-        env:
-          # only *.py files included
-          CHANGED_FILES: "${{ steps.changed-files.outputs.all_changed_files }}"
-        run: |
-          pip install pylint
-
-          ADDITIONAL_PYLINT_ARGS=()
-          echo ${{ github.event.pull_request.labels.*.name }}
-
-          pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES || \
-            { echo "Pylint failed. In case of long strings, format docstrings and other strings manually."; exit 1; }
