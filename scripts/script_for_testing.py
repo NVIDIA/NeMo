@@ -16,8 +16,3 @@
 def my_function():
     """Fix docstring"""
     pass
-
-
-
-
-
