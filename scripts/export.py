@@ -180,7 +180,7 @@ def nemo_export(argv):
 
     except Exception as e:
         logging.error(
-            "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
+            "Export failed. Adding more chars for testing. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
                 model.__class__
             )
         )
