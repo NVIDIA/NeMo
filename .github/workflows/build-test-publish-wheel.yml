@@ -56,11 +56,11 @@ jobs:
       - name: Send Slack alert
         env: 
           MESSAGE: >
-            beep boop 🤖: <${{ env.RUN_URL }}|Build, test, and push PyPi wheel (test)> has failed for <${{ env.COMMIT_URL }}|${{ env.COMMIT_SHA }}>.
+            <${{ env.RUN_URL }}|Build, test, and push PyPi wheel (test)> has failed for <${{ env.COMMIT_URL }}|${{ env.COMMIT_SHA }}>.
 
             cc: ${{ env.SLACK_WEBHOOK_ADMIN }}
         run: |
-          MESSAGE=$(jq -cn --arg message "$MESSAGE" '{
+          MESSAGE=$(jq -cn --arg message "beep boop 🤖: $MESSAGE" '{
             "blocks": [
               {
                 "type": "section",
