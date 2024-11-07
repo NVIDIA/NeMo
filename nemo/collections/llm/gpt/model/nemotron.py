@@ -20,9 +20,11 @@ import torch
 from torch import nn
 
 from nemo.collections.llm.fn.activation import squared_relu
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.llama import _export_embedding, _export_head
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from transformers import NemotronConfig as HFNemotronConfig
@@ -48,6 +50,7 @@ class NemotronConfig(GPTConfig):
     persist_layer_norm: bool = True
     bias_dropout_add_fusion: bool = False
     layernorm_zero_centered_gamma: bool = True
+    cross_entropy_loss_fusion: bool = True
 
     # Nemotron3Config4B as default configs
     num_layers: int = 32
@@ -85,6 +88,18 @@ class Nemotron3Config8B(NemotronConfig):
 
 
 @dataclass
+class Nemotron3Config22B(NemotronConfig):
+    num_layers: int = 40
+    seq_length: int = 4096
+    hidden_size: int = 6144
+    ffn_hidden_size: int = 24576
+    num_attention_heads: int = 48
+    num_query_groups: Optional[int] = None
+    kv_channels: Optional[int] = None
+    init_method_std: float = 0.008
+
+
+@dataclass
 class Nemotron4Config15B(NemotronConfig):
     num_layers: int = 32
     seq_length: int = 4096
@@ -94,18 +109,6 @@ class Nemotron4Config15B(NemotronConfig):
     num_query_groups: Optional[int] = 8
     kv_channels: Optional[int] = None
     init_method_std: float = 0.0134
-
-
-@dataclass
-class Nemotron4Config22B(NemotronConfig):
-    num_layers: int = 40
-    seq_length: int = 4096
-    hidden_size: int = 6144
-    ffn_hidden_size: int = 24576
-    num_attention_heads: int = 48
-    num_query_groups: Optional[int] = None
-    kv_channels: Optional[int] = None
-    init_method_std: float = 0.008
 
 
 @dataclass
@@ -139,7 +142,8 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
     def apply(self, output_path: Path) -> Path:
         from transformers import NemotronForCausalLM
 
-        source = NemotronForCausalLM.from_pretrained(str(self))
+        print('Start converting Nemotron model..')
+        source = NemotronForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -200,6 +204,9 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             rotary_percent=source.partial_rotary_factor,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             share_embeddings_and_output_weights=False,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
         return output
@@ -207,12 +214,15 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
 @io.model_exporter(NemotronModel, "hf")
 class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
-    def init(self) -> "NemotronForCausalLM":
-        return NemotronForCausalLM.from_config(self.config)
+    def init(self, dtype=torch.bfloat16) -> "NemotronForCausalLM":
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights(True):
+            return NemotronForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
-        target = self.init()
         source, _ = self.nemo_load(str(self))
+        target = self.init(torch_dtype_from_mcore_config(source.config))
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -223,7 +233,6 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
 
     def convert_state(self, source, target):
         mapping = {
-            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc1.weight": "model.layers.*.mlp.up_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
@@ -233,10 +242,11 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
             "decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "model.layers.*.post_attention_layernorm.bias",
             "decoder.final_layernorm.weight": "model.norm.weight",
             "decoder.final_layernorm.bias": "model.norm.bias",
-            "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_export_qkv, _export_embedding, _export_head]
+        )
 
     @property
     def tokenizer(self):
@@ -284,8 +294,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -326,8 +335,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
@@ -351,8 +359,8 @@ __all__ = [
     "NemotronConfig",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
+    "Nemotron3Config22B",
     "Nemotron4Config15B",
-    "Nemotron4Config22B",
     "Nemotron4Config340B",
     "NemotronModel",
 ]

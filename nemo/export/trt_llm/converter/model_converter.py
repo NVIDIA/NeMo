@@ -231,15 +231,12 @@ def model_to_trtllm_ckpt(
         "transformer.ln_f.bias",
     }
 
-    gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
-
     for i in range(world_size):
         mapping = tensorrt_llm.Mapping(
             world_size=world_size,
             rank=i,
             tp_size=tensor_parallel_size,
             pp_size=pipeline_parallel_size,
-            gpus_per_node=gpus_per_node,
         )
         layers_range = mapping.pp_layers(num_layers)
 
@@ -257,15 +254,15 @@ def model_to_trtllm_ckpt(
                 layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
                     new_key = new_key.replace(f"layers.{layer_num}", f"layers.{layer_num-layers_range[0]}")
+                else:
+                    continue
             if config.get("new_decoder_architecture", False) and "post_layernorm" in new_key:
                 new_key = new_key.replace("post_layernorm", "mlp_layernorm")
             weights_dict_local[new_key] = v
 
         if mapping.is_first_pp_rank():
             embedding_weight = (
-                np.ascontiguousarray(
-                    split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
-                )
+                split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
                 if use_parallel_embedding
                 else weights_dict["transformer.vocab_embedding.weight"]
             )
@@ -275,9 +272,7 @@ def model_to_trtllm_ckpt(
             pos_embedding_weight = weights_dict.get("transformer.position_embedding.weight")
             if pos_embedding_weight is not None:
                 if use_parallel_embedding:
-                    pos_embedding_weight = np.ascontiguousarray(
-                        split(pos_embedding_weight, mapping.tp_size, mapping.tp_rank)
-                    )
+                    pos_embedding_weight = split(pos_embedding_weight, mapping.tp_size, mapping.tp_rank)
                 weights_dict_local["transformer.position_embedding.weight"] = pos_embedding_weight
 
         if mapping.is_last_pp_rank():
