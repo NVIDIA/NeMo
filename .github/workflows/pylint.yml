@@ -57,12 +57,18 @@ jobs:
 
           set +e
           NEW_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $NEW_FILES); NEW_FILES_CODE=$?
+          NEW_FILES_LOG="${NEW_FILES_LOG//'%'/'%25'}"
+          NEW_FILES_LOG="${NEW_FILES_LOG//$'\n'/'%0A'}"
+          NEW_FILES_LOG="${NEW_FILES_LOG//$'\r'/'%0D'}"
           echo $NEW_FILES_LOG
           echo 'new_files<<EOF' >> $GITHUB_OUTPUT
           echo $NEW_FILES_LOG >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
 
           CHANGED_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES)
+          CHANGED_FILES_LOG="${CHANGED_FILES_LOG//'%'/'%25'}"
+          CHANGED_FILES_LOG="${CHANGED_FILES_LOG//$'\n'/'%0A'}"
+          CHANGED_FILES_LOG="${CHANGED_FILES_LOG//$'\r'/'%0D'}"
           echo $CHANGED_FILES_LOG
           echo 'changed_files<<EOF' >> $GITHUB_OUTPUT
           echo $CHANGED_FILES_LOG >> $GITHUB_OUTPUT
