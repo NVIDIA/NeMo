@@ -39,10 +39,13 @@ class CrashCallback(Callback):
         print(f"Setup to simulate a crash if step time > {self.crash_step} before {self.crash_time}")
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        #if self.crash_step and trainer.global_step == self.crash_step:
+        # if self.crash_step and trainer.global_step == self.crash_step:
         #    raise Exception(f"Simulating a crash at step {self.crash_step}!")
 
-        if datetime.now() <= datetime.strptime(self.crash_time, "%Y-%m-%d %H:%M:%S") and trainer.global_step >= self.crash_step:
+        if (
+            datetime.now() <= datetime.strptime(self.crash_time, "%Y-%m-%d %H:%M:%S")
+            and trainer.global_step >= self.crash_step
+        ):
             raise Exception("Simulating a crash!")
 
 
@@ -50,7 +53,12 @@ def get_args():
     parser = argparse.ArgumentParser(prog="", description="")
     parser.add_argument('--devices', type=int, required=True, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, required=True, help="Number of steps to train for")
-    parser.add_argument('--crash-time', type=str, required=True, help="Datetime string which indicates when to simulate a crash. Set this to a few minutes after the training starts to ensure a successful crash.")
+    parser.add_argument(
+        '--crash-time',
+        type=str,
+        required=True,
+        help="Datetime string which indicates when to simulate a crash. Set this to a few minutes after the training starts to ensure a successful crash.",
+    )
     parser.add_argument(
         '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
     )
@@ -96,7 +104,11 @@ def main():
 
     executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
     run_plugins: list[run.Plugin] = [FaultTolerancePlugin(num_in_process_restarts=1, num_job_retries_on_failure=0)]
-    pretrain_recipe.trainer.callbacks = [run.Config(TimingCallback), straggler_det_callback(), run.Config(CrashCallback, crash_step=6, crash_time=args.crash_time)]
+    pretrain_recipe.trainer.callbacks = [
+        run.Config(TimingCallback),
+        straggler_det_callback(),
+        run.Config(CrashCallback, crash_step=6, crash_time=args.crash_time),
+    ]
 
     run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
 
