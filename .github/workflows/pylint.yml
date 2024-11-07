@@ -58,10 +58,12 @@ jobs:
           # pylint is required for new (added) files
           NEW_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $NEW_FILES)
           NEW_FILES_CODE=$?
+          echo $NEW_FILES_LOG
           echo "new_files=$NEW_FILES_LOG" >> $GITHUB_OUTPUT
           
           # optional check for existing (modified) files
-          CHANGED_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES) 
+          CHANGED_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES)
+          echo $CHANGED_FILES_LOG
           echo "changed_files=$CHANGED_FILES_LOG" >> $GITHUB_OUTPUT
           
           if [ ${NEW_FILES_CODE} -ne 0 ]; then
