@@ -40,6 +40,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
 
+
 def hyena_forward_step(model, batch) -> torch.Tensor:
 
     forward_args = {
