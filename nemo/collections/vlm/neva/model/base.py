@@ -22,12 +22,14 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core import dist_checkpointing
+from megatron.core import parallel_state as ps
 from megatron.core.enums import ModelType
 from megatron.core.extensions.transformer_engine import TEDotProductAttention
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TENorm,
@@ -36,8 +38,6 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core import parallel_state as ps
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from torch import nn
 from transformers import CLIPVisionConfig, CLIPVisionModel
 
