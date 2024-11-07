@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 import safetensors
@@ -78,6 +78,40 @@ try:
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False
+
+
+def _get_layer_index(split_key):
+    for index, key in enumerate(split_key):
+        if key == "layers":
+            return index + 1
+    raise ValueError(f"Unknown layer name format: {split_key}")
+
+
+def rename_layer_num(param_name, layer_num):
+    split_key = param_name.split(".")
+    layer_index = int(_get_layer_index(split_key))
+    split_key[layer_index] = str(layer_num)
+    return ".".join(split_key)
+
+
+def get_layer_num(param_name):
+    split_key = param_name.split(".")
+    layer_index = int(_get_layer_index(split_key))
+    return int(split_key[layer_index])
+
+def torch_dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool] = None) -> torch.dtype:
+    """Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
+    if megatron_amp_O2 is not None and megatron_amp_O2 is False:
+        return torch.float32
+
+    if precision in ['bf16', 'bf16-mixed']:
+        return torch.bfloat16
+    elif precision in [16, '16', '16-mixed']:
+        return torch.float16
+    elif precision in [32, '32', '32-true']:
+        return torch.float32
+    else:
+        raise ValueError(f"Could not parse the precision of `{precision}` to a valid torch.dtype")
 
 
 class TensorRTLLM(ITritonDeployable):
@@ -336,39 +370,11 @@ class TensorRTLLM(ITritonDeployable):
                         DEFAULT_CONVERSION_DICT,
                     )
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
-                    from megatron.core.transformer.transformer_config import TransformerConfig
                     from tensorrt_llm.layers import MoeConfig
 
-                    def get_transformer_config(nemo_model_config):
-                        normalization = nemo_model_config.get('normalization', 'layernorm')
-                        transformer_config_normalization = 'LayerNorm'
-                        layernorm_zero_centered_gamma = False
-                        if normalization == 'layernorm1p':
-                            layernorm_zero_centered_gamma = True
-                        elif normalization == 'rmsnorm':
-                            transformer_config_normalization = 'RMSNorm'
-
-                        conf = TransformerConfig(
-                            num_layers=nemo_model_config.get('num_layers'),
-                            moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
-                            num_attention_heads=nemo_model_config.get('num_attention_heads'),
-                            num_query_groups=nemo_model_config.get(
-                                'num_query_groups', nemo_model_config['num_attention_heads']
-                            ),
-                            kv_channels=nemo_model_config.get("kv_channels", None),
-                            hidden_size=nemo_model_config.get('hidden_size'),
-                            ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
-                            layernorm_epsilon=nemo_model_config.get('layernorm_epsilon'),
-                            add_bias_linear=nemo_model_config.get('bias'),
-                            num_moe_experts=nemo_model_config.get('num_moe_experts', None),
-                            normalization=transformer_config_normalization,
-                            layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
-                        )
-
-                        return conf
 
                     # We build the transformer config using the nemo model config.
-                    transformer_config = get_transformer_config(model_configs)
+                    transformer_config = self.get_transformer_config(model_configs)
                     input_model_type = getattr(ModelType, model_type)
 
                     # MCore export supports some default conversion dictionaries
@@ -588,6 +594,37 @@ class TensorRTLLM(ITritonDeployable):
         if tensorrt_llm.mpi_world_size() > 1:
             tensorrt_llm.mpi_barrier()
 
+    def get_transformer_config(self, nemo_model_config):
+        from megatron.core.transformer.transformer_config import TransformerConfig
+
+        normalization = nemo_model_config.get('normalization', 'layernorm')
+        transformer_config_normalization = 'LayerNorm'
+        layernorm_zero_centered_gamma = False
+        if normalization == 'layernorm1p':
+            layernorm_zero_centered_gamma = True
+        elif normalization == 'rmsnorm':
+            transformer_config_normalization = 'RMSNorm'
+
+        conf = TransformerConfig(
+            num_layers=nemo_model_config.get('num_layers'),
+            moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
+            num_attention_heads=nemo_model_config.get('num_attention_heads'),
+            num_query_groups=nemo_model_config.get(
+                'num_query_groups', nemo_model_config['num_attention_heads']
+            ),
+            kv_channels=nemo_model_config.get("kv_channels", None),
+            hidden_size=nemo_model_config.get('hidden_size'),
+            ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
+            layernorm_epsilon=nemo_model_config.get('layernorm_epsilon'),
+            add_bias_linear=nemo_model_config.get('bias'),
+            num_moe_experts=nemo_model_config.get('num_moe_experts', None),
+            normalization=transformer_config_normalization,
+            layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
+        )
+        return conf
+
+
+
     def build(
         self,
         model,
@@ -600,7 +637,9 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 4,
         use_refit: bool = True,
         reshard_model: bool = False,
+        use_mcore_path: bool = False,
     ):
+        
         """
         Convert a model parallel nemo model to TensorRT-LLM.
         """
@@ -614,32 +653,210 @@ class TensorRTLLM(ITritonDeployable):
         if self.dp_size > 1:
             self.model_dir = os.path.join(self.model_dir, f"dp_rank{self.dp_rank}")
 
-        weights, model_config = model_to_trtllm_ckpt(
-            model=model,
-            nemo_model_config=model_config,
-            nemo_export_dir=self.model_dir,
-            decoder_type=model_type,
-            tensor_parallel_size=self.tp_size,
-            pipeline_parallel_size=self.pp_size,
-            gpus_per_node=gpus_per_node,
-            use_parallel_embedding=True,
-            use_distributed_convert=True,
-            model_parallel_rank=self.mp_rank,
-            vocab_size=self.tokenizer.vocab_size,
-        )
+        if use_mcore_path:
+            from megatron.core import parallel_state
+            from megatron.core.tensor_parallel.utils import VocabUtility
 
-        engine = build_and_save_engine(
-            max_input_len=max_input_len,
-            max_output_len=max_output_len,
-            max_seq_len=max_input_len + max_output_len,
-            max_batch_size=max_batch_size,
-            model_config=model_config[0],
-            model_weights=weights[0],
-            model_dir=self.model_dir,
-            model_type=model_type,
-            use_refit=use_refit,
-        )
-        torch.distributed.barrier()
+            tp_rank = parallel_state.get_tensor_model_parallel_rank()
+            tp_size = parallel_state.get_tensor_model_parallel_world_size()
+            tp_group = parallel_state.get_tensor_model_parallel_group()
+            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+            pp_first_rank = parallel_state.get_pipeline_model_parallel_first_rank()
+            pp_last_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+            pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+            pp_group = parallel_state.get_pipeline_model_parallel_group()
+            pp_is_last = parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+            pp_is_first = parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+            vp_size = parallel_state.get_virtual_pipeline_model_parallel_world_size()
+            if not vp_size:
+                vp_size = 1
+
+            inference_tp_size = self.tp_size
+            inference_pp_size = self.pp_size
+            reshard_model = False
+            if inference_tp_size != tp_size or inference_pp_size != pp_size:
+                LOGGER.info("Training/Generation model parallelism resharding enabled")
+                if inference_pp_size == 1 and pp_size > 1 and inference_tp_size == tp_size:
+                    reshard_model = True
+                else:
+                    raise NotImplementedError(
+                        f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
+                    )
+                
+            num_layers = model_config["num_layers"]   
+            layers_per_pp = num_layers // pp_size
+            layers_per_chunk = layers_per_pp // vp_size
+
+            tl_params = {}
+            model_level_params = {}
+            if vp_size > 1:  # consolidate params across model chunks
+                for idx, model_chunk in enumerate(model):
+                    for key, val in model_chunk.state_dict().items():
+                        if torch.is_tensor(val):
+                            if 'layers' in key:
+                                key2 = rename_layer_num(key, get_layer_num(key) + idx * pp_size * layers_per_chunk)
+                                tl_params[key2] = val
+                            else:
+                                model_level_params[key] = val
+            else:
+                for key, val in model.state_dict().items():
+                    if torch.is_tensor(val):
+                        if 'decoder.layers' in key:
+                            tl_params[key] = val
+                        else:
+                            model_level_params[key] = val
+
+            if vp_size > 1 or reshard_model:
+                # gather layers across pp ranks
+                gathered_params = {}
+                for key, val in tl_params.items():
+                    weight_list = [torch.zeros_like(val) for _ in range(pp_size)]
+                    torch.distributed.all_gather(weight_list, val, group=pp_group)
+                    for idx in range(pp_size):
+                        layer_num = get_layer_num(key) + idx * layers_per_chunk
+                        key2 = rename_layer_num(key, layer_num)
+                        if not reshard_model:  # Save only layers of 1 single PP stage
+                            layers_start = layers_per_pp * pp_rank
+                            layers_end = layers_per_pp * (pp_rank + 1) - 1
+                            if layer_num >= layers_start and layer_num <= layers_end:
+                                key2 = rename_layer_num(key, layer_num % layers_per_pp)
+                                gathered_params[key2] = weight_list[idx]
+                        else:
+                            gathered_params[key2] = weight_list[idx]
+                tl_params = gathered_params            
+
+            model_state_dict = model_level_params
+            model_state_dict.update(tl_params)
+
+            storage_dtype = torch_dtype_from_precision(model_config.precision)
+
+            def get_tensor_if_available(key, pp_src_idx, group):
+                if torch.distributed.get_rank() == pp_src_idx:
+                    tensor = model_state_dict.get(key)
+                    if tensor is None:
+                        return None
+                    tensor_shape = tensor.shape
+                else:
+                    tensor_shape = None
+                
+                torch.distributed.broadcast_object_list(tensor_shape, pp_src_idx, group=group)
+                if torch.distributed.get_rank() != pp_src_idx:
+                    tensor = torch.empty(tensor_shape, dtype=storage_dtype)
+                
+                torch.distributed.broadcast(tensor.contiguous(), pp_src_idx, group=pp_group)
+                return tensor
+                
+
+            if reshard_model:
+                key = 'model.decoder.final_layernorm.weight'
+                tensor = get_tensor_if_available(key, pp_last_rank, pp_group)
+                if tensor is not None:
+                    model_state_dict[key] = tensor
+
+                key = 'model.decoder.final_layernorm.bias'
+                tensor = get_tensor_if_available(key, pp_last_rank, pp_group)
+                if tensor is not None:
+                    model_state_dict[key] = tensor
+
+                key = 'model.embedding.word_embeddings.weight'
+                tensor = get_tensor_if_available(key, pp_first_rank, pp_group)
+                if tensor is not None:
+                    model_state_dict[key] = tensor
+
+                key = 'model.output_layer.weight'
+                tensor = get_tensor_if_available(key, pp_first_rank, pp_group)
+                if tensor is not None:
+                    model_state_dict[key] = tensor
+                
+
+            from megatron.core.export.data_type import DataType
+            from megatron.core.export.export_config import ExportConfig
+            from megatron.core.export.model_type import ModelType
+            from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
+                DEFAULT_CONVERSION_DICT,
+            )
+            from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
+            from tensorrt_llm.layers import MoeConfig
+
+            # We build the transformer config using the nemo model config.
+            transformer_config = self.get_transformer_config(model_config)
+            input_model_type = getattr(ModelType, model_type)
+
+            # MCore export supports some default conversion dictionaries
+            mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT[input_model_type]
+            # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
+            nemo_model_conversion_dict = {
+                f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
+            }
+
+            trtllm_helper = TRTLLMHelper(
+                transformer_config=transformer_config,
+                model_type=input_model_type,
+                trtllm_conversion_dict=nemo_model_conversion_dict,
+                position_embedding_type=model_config.get('position_embedding_type'),
+                max_position_embeddings=model_config.get('max_position_embeddings'),
+                rotary_percentage=model_config.get('rotary_percentage', 1.0),
+                rotary_base=model_config.get('rotary_base', 10000),
+                moe_tp_mode=model_config.get('moe_tp_mode', 2),
+                multi_query_mode=model_config.get("multi_query_mode", False),
+                activation=model_config.get('activation', "gelu"),
+                seq_len_interpolation_factor=model_config.get("seq_len_interpolation_factor"),
+                moe_renorm_mode=model_config.get(
+                    'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
+                ),
+                share_embeddings_and_output_weights=model_config.get(
+                    "share_embeddings_and_output_weights", False
+                ),
+            )
+            input_dtype = getattr(DataType, "bfloat16")
+
+            trtllm_model_weights_list, trtllm_model_config_list = trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
+                    model_state_dict=model_state_dict,
+                    dtype=input_dtype,
+                    state_dict_split_by_layer_numbers=True,
+                    on_device_distributed_conversion=True,
+                    vocab_size = self.tokenizer.vocab_size,
+
+            )
+
+            trtllm_helper.build_and_save_engine(
+                max_input_len=max_input_len,
+                max_output_len=max_output_len,
+                max_seq_len=max_input_len + max_output_len,
+                max_batch_size=max_batch_size,
+                trtllm_model_config=trtllm_model_config_list[0],
+                trtllm_model_weights=trtllm_model_weights_list[0],
+                engine_dir=self.model_dir,
+                use_refit=use_refit,
+            )            
+        else : 
+
+            weights, model_config = model_to_trtllm_ckpt(
+                model=model,
+                nemo_model_config=model_config,
+                nemo_export_dir=self.model_dir,
+                decoder_type=model_type,
+                tensor_parallel_size=self.tp_size,
+                pipeline_parallel_size=self.pp_size,
+                gpus_per_node=gpus_per_node,
+                use_parallel_embedding=True,
+                use_distributed_convert=True,
+                model_parallel_rank=self.mp_rank,
+                vocab_size=self.tokenizer.vocab_size,
+            )
+
+            engine = build_and_save_engine(
+                max_input_len=max_input_len,
+                max_output_len=max_output_len,
+                max_seq_len=max_input_len + max_output_len,
+                max_batch_size=max_batch_size,
+                model_config=model_config[0],
+                model_weights=weights[0],
+                model_dir=self.model_dir,
+                model_type=model_type,
+                use_refit=use_refit,
+            )
+            torch.distributed.barrier()
 
         cfg_path = Path(os.path.join(self.model_dir, f'config_{torch.distributed.get_rank()}.json'))
         with open(cfg_path, "w", encoding="utf-8") as f:
