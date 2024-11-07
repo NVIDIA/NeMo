@@ -14,6 +14,7 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Union
 
 import torch
@@ -75,11 +76,14 @@ class QuantizationConfig:
 class ExportConfig:
     """Inference configuration for the quantized TensorRT-LLM checkpoint."""
 
-    path: str
+    path: Union[Path, str]
     dtype: Union[str, int] = "bf16"
     decoder_type: Optional[str] = None
     inference_tensor_parallel: int = 1
     inference_pipeline_parallel: int = 1
+
+    def __post_init__(self):
+        self.path = Path(self.path)
 
 
 def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:

@@ -278,7 +278,7 @@ def default_quantization(
 @run.cli.factory
 @run.autoconvert
 def default_export(
-    path: str,
+    path: Union[Path, str] = "./qnemo",
     dtype: Union[str, int] = "bf16",
     decoder_type: Optional[str] = None,
     inference_tensor_parallel: int = 1,
@@ -300,8 +300,8 @@ def ptq(
     calib_tp: int = 1,
     calib_pp: int = 1,
     quantization_config: QuantizationConfig = default_quantization(),
-    export_config: ExportConfig = default_export(None),
-):
+    export_config: ExportConfig = default_export(),
+) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
