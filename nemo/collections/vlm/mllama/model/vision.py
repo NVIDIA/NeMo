@@ -612,18 +612,18 @@ class VisionEncoder(MegatronModule):
         x = self.apply_positional_embedding(x, ar_ids)
 
         x = self.ln_pre(x)
-        npad, attn_mask = 0, None
         x = x.view(bsz * num_concurrent_media, -1, dim)
-        # [b, 1, 1, sq]
-        attn_bias = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
 
+        npad, attn_mask = 0, None
+        attn_bias = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
         x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
             hidden_states=x,
-            attention_mask=None,
+            attention_mask=attn_mask,
             attention_bias=attn_bias,
             return_intermediate=self.return_intermediate,
         )
+
         # [ntok * num_concurrent_media * num_chunks, bsz, hidden_size] ->  [bsz, ntok * num_concurrent_media * num_chunks, hidden_size]
         x, int_x = x.transpose(0, 1).contiguous(), int_x.transpose(0, 1).contiguous()
         x = self.ln_post(x)
