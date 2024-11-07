@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: add_message
-        if: ${{always() && github.event_name == 'pull_request'}}
+        if: always()
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.number }}
