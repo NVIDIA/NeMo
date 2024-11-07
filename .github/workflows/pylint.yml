@@ -15,10 +15,6 @@ on:
       - '**.py'
     types: [ opened, synchronize, reopened, labeled, unlabeled ]
 
-defaults:
-  run:
-    shell: bash --noprofile --norc +e +o pipefail
-
 jobs:
   run_pylint_checks:
     runs-on: ubuntu-latest
@@ -55,11 +51,11 @@ jobs:
           CHANGED_FILES: "${{ steps.changed-files.outputs.all_changed_files }}"
         run: |
           pip install pylint
-          echo "pylint installed"
       
           ADDITIONAL_PYLINT_ARGS=()
           echo ${{ github.event.pull_request.labels.*.name }}
 
+          set +e
           NEW_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $NEW_FILES)
           NEW_FILES_CODE=$?
           echo $NEW_FILES_LOG
