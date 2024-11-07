@@ -54,7 +54,7 @@ jobs:
           MESSAGE: >
             beep boop 🤖: <${{ env.RUN_URL }}|Build, test, and push PyPi wheel (test)> has failed for <${{ env.PR_URL }}|#${{ env.PR_NUMBER }}>.
 
-            cc: $SLACK_WEBHOOK_ADMIN
+            cc: ${{ env.SLACK_WEBHOOK_ADMIN }}
         run: |
           MESSAGE=$(jq -cn --arg message "$MESSAGE" '{
             "blocks": [
