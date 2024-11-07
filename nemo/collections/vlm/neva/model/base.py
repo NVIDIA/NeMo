@@ -260,9 +260,8 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
-            transformer_layer_spec = get_layer_spec_te(
-                is_vit=True
-            )
+
+            transformer_layer_spec = get_layer_spec_te(is_vit=True)
         return CLIPViTModel(
             self,
             transformer_layer_spec,

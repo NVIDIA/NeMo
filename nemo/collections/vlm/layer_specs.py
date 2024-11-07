@@ -114,7 +114,5 @@ def get_mlp_module_spec(use_te: bool = True) -> ModuleSpec:
 def get_norm_mlp_module_spec_te() -> ModuleSpec:
     return ModuleSpec(
         module=MLP,
-        submodules=MLPSubmodules(
-            linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
-        ),
+        submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear),
     )
