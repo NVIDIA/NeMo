@@ -269,11 +269,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         assert not 'is_hf_model' in model.__dict__, "Cannot use HfAutoModelForCausalLM with MegatronParallel"
 
+        dtype_config = getattr(self._precision_plugin, "dtype_config", None)
+        if self.pipeline_dtype is None and dtype_config:
+            self.pipeline_dtype = dtype_config.pipeline_dtype
+
         _maybe_mcore_config = _strategy_lib.set_model_parallel_attributes(model, self.parallelism)
         if _maybe_mcore_config:
             self._mcore_config = _maybe_mcore_config
 
-        dtype_config = getattr(self._precision_plugin, "dtype_config", None)
         if dtype_config:
             from nemo.lightning.pytorch.plugins.mixed_precision import update_config_with_dtype_overrides
 
