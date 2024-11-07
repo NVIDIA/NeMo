@@ -583,6 +583,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     enc_dec_attn_mask,
                     encoder_output=encoder_output,
                     rotary_pos_emb=cross_attention_pos_emb,
+                    set_inference_key_value_memory=set_inference_key_value_memory,
+                    inference_max_sequence_len=inference_max_sequence_len,
                     checkpoint_core_attention=checkpoint_core_attention,
                 )
             else:

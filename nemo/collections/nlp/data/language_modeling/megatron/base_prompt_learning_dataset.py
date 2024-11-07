@@ -71,8 +71,8 @@ class BasePromptLearningDataset(Dataset):
         # Datasets are a list of file path strings to .json or .jsonl files
         elif isinstance(datasets[0], str):
             for path in datasets:
-                dataset = open(path, 'r', encoding='utf-8')
-                dataset_examples = self.load_data(dataset)
+                with open(path, 'r', encoding='utf-8') as dataset:
+                    dataset_examples = self.load_data(dataset)
                 self.examples.extend(dataset_examples)
         elif isinstance(datasets[0], omegaconf.ListConfig) or isinstance(datasets[0], list):
             # Dataset is a list of tuples with the first element being the probability of sampling from the dataset
@@ -84,8 +84,8 @@ class BasePromptLearningDataset(Dataset):
             for prob_and_path in datasets:
                 prob = prob_and_path[0]
                 path = prob_and_path[1]
-                dataset = open(path, 'r', encoding='utf-8')
-                dataset_examples = self.load_data(dataset)
+                with open(path, 'r', encoding='utf-8') as dataset:
+                    dataset_examples = self.load_data(dataset)
                 datasets_examples_list.append(dataset_examples)
                 dataset_lengths.append(len(dataset_examples))
                 total_examples += len(dataset_examples)

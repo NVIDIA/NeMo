@@ -777,9 +777,6 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             else:
                 field_tokens = self._get_text_tokens(_text)  # list of ids
         elif doc[f"{field}_type"] == 'SPEECH':
-            dur = -1
-            if f"{field}_duration" in doc:
-                dur = doc[f"{field}_duration"]
             field_tokens = self._get_speech_tokens(field)  # list of ids
             if not isinstance(field_tokens, list):
                 field_tokens = [field_tokens]

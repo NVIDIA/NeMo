@@ -866,7 +866,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         audio, audio_length = self._load_audio(audio_filepath, dur)
 
         # Convert to codes
-        codec_codes, codec_codes_length = None, None  # Codes
         codec_path = self.codec_folder / f"{rel_audio_path_as_text_id}.pt"
 
         if codec_path.exists():
@@ -879,8 +878,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         else:
             codec_codes = self.get_codec(audio).long()
             torch.save(codec_codes, codec_path)
-
-        codec_codes_length = torch.tensor(codec_codes.shape[1]).long()
 
         # Convert codes to codes corresponding to megatron embedding layer
         codec_codes[0] = (codec_codes[0] + self.speech_offset).long()
@@ -1400,11 +1397,10 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         # of the reference audio.
         # In case of Next token prediction, We want context[:T] to go in the encoder and context[T+1:] to be
         # predicted by the decoder.
-        start_token_index = 0
-        end_token_index = -1
         if ("Text to speech this" in question_in_manifest or "Phoneme TTS" in question_in_manifest) and (
             doc["context_type"] == "SPEECH"
         ):
+            start_token_index = 0
             total_context_len = context_tokens[0].size()[1]
 
             # Redo of this logic 11/29
@@ -1474,9 +1470,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         else:
             raise ValueError("Invalid virtual prompt source specified")
 
-        input_ids = answer_text_ids
-
-        input_ids, input_ids_len = self.list_to_tensor(input_ids, True)
+        input_ids, input_ids_len = self.list_to_tensor(answer_text_ids, True)
         is_speech = True if doc["answer_type"] != "TEXT" else False
         if is_speech:
             assert input_ids.dim() == 2

@@ -819,7 +819,6 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                 enc_seq_length = enc_input.size(0)
         # Only need to run encoder embedding and position ids if enc_input or enc_output is not provided.
         elif enc_input_ids is not None:
-            assert False, "This should not be reached for speech models"
             enc_seq_length = enc_input_ids.size(1)
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
@@ -844,19 +843,16 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
             else:
                 enc_input = None
         else:
-            assert False, "This should not be reached for speech models"
             # This should only happen with PP > 1 for enc-dec prompt learning models
             enc_seq_length = enc_attn_mask.size(1)
 
         if self.add_encoder and self.encoder_relative_position_embedding is not None:
-            assert False, "Not implemented for speech models yet."
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length,
                 key_seq_length=enc_seq_length,
             )
 
         if output_enc_hidden_only:
-            assert False, "Not implemented for speech models yet."
             # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
             # Speecht5 should not go here for inference
             if enc_output is None and self.enc_dec_model.encoder is not None:
@@ -896,7 +892,6 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                 dec_input = None
 
             if self.add_decoder and self.decoder_relative_position_embedding is not None:
-                assert False, "This should not be reached."
                 decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
                     query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
                 )
