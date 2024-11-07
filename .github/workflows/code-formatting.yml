@@ -1,4 +1,4 @@
-name: Isort and Black Formatting; PyLint Docs check
+name: Isort and Black Formatting
 # Incrementally reformat only changed files with black, all files with isort
 #
 # Replaces pre-commit.ci, since it reformats all the files.
