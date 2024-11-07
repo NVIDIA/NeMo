@@ -46,7 +46,7 @@ jobs:
       PR_NUMBER: ${{ github.event.number }}
       PR_URL: https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
       RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      SLACK_WEBHOOK_ADMIN: "!subteam^${{ secrets.SLACK_WEBHOOK_ADMIN }}>"
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_TEST }}
     steps:
       - name: Send Slack alert
@@ -54,7 +54,7 @@ jobs:
           MESSAGE: >
             beep boop 🤖: <${{ env.RUN_URL }}|Build, test, and push PyPi wheel (test)> has failed for <${{ env.PR_URL }}|#${{ env.PR_NUMBER }}>.
 
-            cc: <!subteam^$SLACK_WEBHOOK_ADMIN>
+            cc: $SLACK_WEBHOOK_ADMIN
         run: |
           MESSAGE=$(jq -cn --arg message "$MESSAGE" '{
             "blocks": [
