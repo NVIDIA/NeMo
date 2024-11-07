@@ -122,7 +122,7 @@ def some_first(seq: Iterable[Optional[T]]) -> T:
     raise ValueError("non-None value not found")
 
 
-def get_dtype_device(torch_object) -> Tuple[torch.dtype, torch.device]:  # noqa: D103
+def get_dtype_device(torch_object) -> Optional[Tuple[torch.dtype, torch.device]]:  # noqa: D103
     match torch_object:
         case []:
             raise ValueError("Looking up dtype on an empty list")
