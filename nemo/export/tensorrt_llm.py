@@ -99,6 +99,7 @@ def get_layer_num(param_name):
     layer_index = int(_get_layer_index(split_key))
     return int(split_key[layer_index])
 
+
 def torch_dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool] = None) -> torch.dtype:
     """Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
     if megatron_amp_O2 is not None and megatron_amp_O2 is False:
@@ -372,7 +373,6 @@ class TensorRTLLM(ITritonDeployable):
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
                     from tensorrt_llm.layers import MoeConfig
 
-
                     # We build the transformer config using the nemo model config.
                     transformer_config = self.get_transformer_config(model_configs)
                     input_model_type = getattr(ModelType, model_type)
@@ -609,9 +609,7 @@ class TensorRTLLM(ITritonDeployable):
             num_layers=nemo_model_config.get('num_layers'),
             moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
             num_attention_heads=nemo_model_config.get('num_attention_heads'),
-            num_query_groups=nemo_model_config.get(
-                'num_query_groups', nemo_model_config['num_attention_heads']
-            ),
+            num_query_groups=nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
             kv_channels=nemo_model_config.get("kv_channels", None),
             hidden_size=nemo_model_config.get('hidden_size'),
             ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
@@ -622,8 +620,6 @@ class TensorRTLLM(ITritonDeployable):
             layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
         )
         return conf
-
-
 
     def build(
         self,
@@ -639,7 +635,6 @@ class TensorRTLLM(ITritonDeployable):
         reshard_model: bool = False,
         use_mcore_path: bool = False,
     ):
-        
         """
         Convert a model parallel nemo model to TensorRT-LLM.
         """
@@ -682,8 +677,8 @@ class TensorRTLLM(ITritonDeployable):
                     raise NotImplementedError(
                         f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
                     )
-                
-            num_layers = model_config["num_layers"]   
+
+            num_layers = model_config["num_layers"]
             layers_per_pp = num_layers // pp_size
             layers_per_chunk = layers_per_pp // vp_size
 
@@ -723,7 +718,7 @@ class TensorRTLLM(ITritonDeployable):
                                 gathered_params[key2] = weight_list[idx]
                         else:
                             gathered_params[key2] = weight_list[idx]
-                tl_params = gathered_params            
+                tl_params = gathered_params
 
             model_state_dict = model_level_params
             model_state_dict.update(tl_params)
@@ -738,14 +733,13 @@ class TensorRTLLM(ITritonDeployable):
                     tensor_shape = tensor.shape
                 else:
                     tensor_shape = None
-                
+
                 torch.distributed.broadcast_object_list(tensor_shape, pp_src_idx, group=group)
                 if torch.distributed.get_rank() != pp_src_idx:
                     tensor = torch.empty(tensor_shape, dtype=storage_dtype)
-                
+
                 torch.distributed.broadcast(tensor.contiguous(), pp_src_idx, group=pp_group)
                 return tensor
-                
 
             if reshard_model:
                 key = 'model.decoder.final_layernorm.weight'
@@ -767,7 +761,6 @@ class TensorRTLLM(ITritonDeployable):
                 tensor = get_tensor_if_available(key, pp_first_rank, pp_group)
                 if tensor is not None:
                     model_state_dict[key] = tensor
-                
 
             from megatron.core.export.data_type import DataType
             from megatron.core.export.export_config import ExportConfig
@@ -785,9 +778,7 @@ class TensorRTLLM(ITritonDeployable):
             # MCore export supports some default conversion dictionaries
             mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT[input_model_type]
             # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
-            nemo_model_conversion_dict = {
-                f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
-            }
+            nemo_model_conversion_dict = {f'model.{key}': value for key, value in mcore_model_conversion_dict.items()}
 
             trtllm_helper = TRTLLMHelper(
                 transformer_config=transformer_config,
@@ -804,19 +795,18 @@ class TensorRTLLM(ITritonDeployable):
                 moe_renorm_mode=model_config.get(
                     'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
                 ),
-                share_embeddings_and_output_weights=model_config.get(
-                    "share_embeddings_and_output_weights", False
-                ),
+                share_embeddings_and_output_weights=model_config.get("share_embeddings_and_output_weights", False),
             )
             input_dtype = getattr(DataType, "bfloat16")
 
-            trtllm_model_weights_list, trtllm_model_config_list = trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
+            trtllm_model_weights_list, trtllm_model_config_list = (
+                trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
                     model_state_dict=model_state_dict,
                     dtype=input_dtype,
                     state_dict_split_by_layer_numbers=True,
                     on_device_distributed_conversion=True,
-                    vocab_size = self.tokenizer.vocab_size,
-
+                    vocab_size=self.tokenizer.vocab_size,
+                )
             )
 
             trtllm_helper.build_and_save_engine(
@@ -828,8 +818,8 @@ class TensorRTLLM(ITritonDeployable):
                 trtllm_model_weights=trtllm_model_weights_list[0],
                 engine_dir=self.model_dir,
                 use_refit=use_refit,
-            )            
-        else : 
+            )
+        else:
 
             weights, model_config = model_to_trtllm_ckpt(
                 model=model,
