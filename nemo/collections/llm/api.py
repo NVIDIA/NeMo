@@ -694,7 +694,9 @@ def _validate_config(
     assert trainer.strategy.context_parallel_size > 0
 
     # DP validation
-    assert (trainer.num_nodes * trainer.devices) % (
+    trainer_num_nodes = getattr(trainer.__io__.__arguments__, "num_nodes", 1)
+    trainer_devices = getattr(trainer.__io__.__arguments__, "devices", 8)
+    assert (trainer_num_nodes * trainer_devices) % (
         trainer.strategy.tensor_model_parallel_size
         * trainer.strategy.pipeline_model_parallel_size
         * trainer.strategy.context_parallel_size
@@ -705,7 +707,7 @@ def _validate_config(
         % (
             data.micro_batch_size
             * (
-                (trainer.num_nodes * trainer.devices)
+                (trainer_num_nodes * trainer_devices)
                 / (
                     trainer.strategy.tensor_model_parallel_size
                     * trainer.strategy.pipeline_model_parallel_size
