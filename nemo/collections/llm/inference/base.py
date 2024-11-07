@@ -47,6 +47,7 @@ class MCoreTokenizerWrappper:
     We need this wrapper since mcore generate uses methods/properties such as
     tokenizer.detokenize, tokenizer.tokenize, tokenizer.bos, tokenizer.pad, etc. to encode and decode prompts
     """
+
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
         self.eod = tokenizer.eod
