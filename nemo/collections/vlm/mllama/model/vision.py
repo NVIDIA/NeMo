@@ -100,16 +100,15 @@ def build_encoder_attention_mask(
     Build vision encoder attention mask that omits padding tiles and tokens.
     """
     masks = []
-    dtype = x.dtype
     for ar_id in ar_ids:
         arx = supported_aspect_ratios[ar_id - 1]
         mask_i = torch.ones((num_chunks, x.shape[1] // num_chunks), device=x.device)
         mask_i[: arx[0] * arx[1], :ntok] = 0
         mask_i = mask_i.view(num_chunks * x.shape[1] // num_chunks, -1)
-        mask_i = mask_i @ mask_i.T
+        mask_i = (mask_i @ mask_i.T).type(torch.bool)
         mask_i = mask_i.unsqueeze(0)
         masks.append(mask_i)
-    masks = torch.stack(masks).to(dtype) * torch.finfo(dtype).min
+    masks = torch.stack(masks)
     return masks
 
 
@@ -172,7 +171,6 @@ def forward_with_return_intermediate(
     context: Tensor = None,
     context_mask: Tensor = None,
     rotary_pos_emb: Tensor = None,
-    attention_bias: Tensor = None,
     inference_params: InferenceParams = None,
     packed_seq_params: PackedSeqParams = None,
     return_intermediate: List[int] = None,
@@ -225,7 +223,6 @@ def forward_with_return_intermediate(
                 context=context,
                 context_mask=context_mask,
                 rotary_pos_emb=rotary_pos_emb,
-                attention_bias=attention_bias,
                 packed_seq_params=packed_seq_params,
             )
         else:
@@ -242,7 +239,6 @@ def forward_with_return_intermediate(
                             context=context,
                             context_mask=context_mask,
                             rotary_pos_emb=rotary_pos_emb,
-                            attention_bias=attention_bias,
                             inference_params=inference_params,
                             packed_seq_params=packed_seq_params,
                         )
@@ -427,7 +423,6 @@ class ImageTransformerLayer(TransformerLayer):
         rotary_pos_emb=None,
         rotary_pos_cos=None,
         rotary_pos_sin=None,
-        attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
     ):
@@ -445,7 +440,6 @@ class ImageTransformerLayer(TransformerLayer):
             attention_mask=attention_mask,
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb,
-            attention_bias=attention_bias,
             packed_seq_params=packed_seq_params,
         )
 
@@ -615,12 +609,11 @@ class VisionEncoder(MegatronModule):
         x = x.view(bsz * num_concurrent_media, -1, dim)
 
         npad, attn_mask = 0, None
-        attn_bias = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
+        attn_mask = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
         x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
             hidden_states=x,
             attention_mask=attn_mask,
-            attention_bias=attn_bias,
             return_intermediate=self.return_intermediate,
         )
 
@@ -634,7 +627,6 @@ class VisionEncoder(MegatronModule):
         x = self.global_transformer(
             hidden_states=x,
             attention_mask=None,
-            attention_bias=attn_bias,
         )
         x = x.transpose(0, 1)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)

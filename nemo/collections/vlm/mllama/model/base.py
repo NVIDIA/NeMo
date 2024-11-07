@@ -443,8 +443,9 @@ class MLlamaBaseModel(MegatronModule):
                 self.config.hidden_size,
             )
             skip_vision_encoder = False
+            logging.warning("NeMo Mllama always pad images to max number of tiles. The fix is coming soon!")
+            num_chunks[num_chunks > 0] = self.max_num_chunks
             if max_num_images == 0:
-                num_chunks[num_chunks > 0] = self.max_num_chunks
                 skip_vision_encoder = True
 
             if self.encoder_hidden_state is not None:

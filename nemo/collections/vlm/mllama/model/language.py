@@ -171,9 +171,6 @@ class CrossAttentionTextModel(MCoreGPTModel):
             )
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
 
-        dtype = decoder_input.dtype
-        cross_attention_bias = cross_attention_masks.to(dtype) * torch.finfo(dtype).min
-
         # Run decoder.
         hidden_states = self.decoder(
             hidden_states=decoder_input,
@@ -181,10 +178,9 @@ class CrossAttentionTextModel(MCoreGPTModel):
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb,
             packed_seq_params=packed_seq_params,
-            cross_attention_masks=None,
+            cross_attention_masks=cross_attention_masks,
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
             xattn_caches=xattn_caches,
-            cross_attention_bias=cross_attention_bias,
             **(extra_block_kwargs or {}),
         )
 
@@ -224,7 +220,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                     submodules=TransformerLayerSubmodules(
                         cross_attention=ModuleSpec(
                             module=MLlamaCrossAttention,
-                            params={"attn_mask_type": AttnMaskType.no_mask},
+                            params={"attn_mask_type": AttnMaskType.arbitrary},
                             submodules=MLlamaCrossAttentionSubmodules(
                                 linear_q=TELayerNormColumnParallelLinear,  # This wraps attention_norm before attention
                                 linear_kv=TEColumnParallelLinear,
@@ -268,8 +264,6 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         cross_attention_masks: Tensor = None,
         full_text_row_masked_out_mask: Tensor = None,
         rotary_pos_emb: Tensor = None,
-        attention_bias: Tensor = None,
-        cross_attention_bias: Tensor = None,
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
     ):
@@ -330,7 +324,6 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                                 xattn_cache=xattn_caches[l_no],
                                 full_text_row_masked_out_mask=full_text_row_masked_out_mask,
                                 rotary_pos_emb=rotary_pos_emb,
-                                cross_attention_bias=cross_attention_bias,
                                 inference_params=inference_params,
                                 packed_seq_params=packed_seq_params,
                             )
@@ -338,7 +331,6 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                                 hidden_states=hidden_states,
                                 attention_mask=attention_mask,
                                 rotary_pos_emb=rotary_pos_emb,
-                                attention_bias=attention_bias,
                                 inference_params=inference_params,
                                 packed_seq_params=packed_seq_params,
                             )
@@ -434,7 +426,6 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         xattn_cache=None,
         full_text_row_masked_out_mask=None,
         rotary_pos_emb=None,
-        cross_attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
     ):
@@ -453,7 +444,6 @@ class CrossAttentionTransformerLayer(TransformerLayer):
             xattn_cache=xattn_cache,
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
             rotary_pos_emb=rotary_pos_emb,
-            cross_attention_bias=cross_attention_bias,
             inference_params=inference_params,
         )
 
@@ -629,16 +619,8 @@ class MLlamaCrossAttention(Attention):
         full_text_row_masked_out_mask=None,
         inference_params=None,
         rotary_pos_emb=None,
-        rotary_pos_cos=None,
-        rotary_pos_sin=None,
-        cross_attention_bias=None,
         packed_seq_params=None,
     ):
-        # hidden_states: [sq, b, h]
-        if self.config.flash_decode:
-            rotary_pos_emb = None
-        else:
-            assert rotary_pos_cos is None and rotary_pos_sin is None
 
         # For self attention we just duplicate the rotary_pos_emb if it isn't already
         if rotary_pos_emb is not None and not isinstance(rotary_pos_emb, tuple):
@@ -655,8 +637,8 @@ class MLlamaCrossAttention(Attention):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
-            inference_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
+        key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+            inference_params, key, value, rotary_pos_emb
         )
 
         if packed_seq_params is not None:
@@ -668,6 +650,9 @@ class MLlamaCrossAttention(Attention):
         # core attention computation
         # ==================================
 
+        # In TE "True" means masked out
+        cross_attention_masks = torch.where(cross_attention_masks == 0, False, True)
+
         if self.checkpoint_core_attention and self.training:
             core_attn_out = self._checkpointed_attention_forward(
                 query,
@@ -675,7 +660,6 @@ class MLlamaCrossAttention(Attention):
                 value,
                 cross_attention_masks,
                 attn_mask_type=attn_mask_type,
-                attention_bias=cross_attention_bias,
                 packed_seq_params=packed_seq_params,
             )
         else:
@@ -685,7 +669,6 @@ class MLlamaCrossAttention(Attention):
                 value,
                 cross_attention_masks,
                 attn_mask_type=attn_mask_type,
-                attention_bias=cross_attention_bias,
                 packed_seq_params=packed_seq_params,
             )
 
