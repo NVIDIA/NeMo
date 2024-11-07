@@ -26,12 +26,7 @@ from nemo.collections import llm
 from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.lightning.run.plugins import FaultTolerancePlugin
 from nemo.utils.exp_manager import TimingCallback
-from tests.collections.llm.common import (
-    create_verify_precision,
-    small_llama_cfg,
-    train_data,
-    verify_ckpt_dir,
-)
+from tests.collections.llm.common import create_verify_precision, small_llama_cfg, train_data, verify_ckpt_dir
 
 
 def get_args():
@@ -57,7 +52,7 @@ def get_args():
         help="Path to a sentencepiece tokenizer model file. If not specified, uses mock data.",
     )
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
-    
+
     return parser.parse_args()
 
 
@@ -87,7 +82,6 @@ def main():
     pretrain_recipe.trainer.val_check_interval = 2
     pretrain_recipe.trainer.limit_val_batches = 2
 
-    
     executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
     run_plugins: list[run.Plugin] = [FaultTolerancePlugin(), ConfigValidationPlugin(validate_preemption=False)]
     pretrain_recipe.trainer.callbacks = [run.Config(TimingCallback), straggler_det_callback()]
