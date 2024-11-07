@@ -3795,11 +3795,9 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
 
-        python tests/collections/llm/llama3_pretraining.py \
-        --seq-length 1024 \
+        python tests/collections/llm/test_fault_tolerance.py \
         --devices=2 \
         --max-steps=20 \
-        --simulated-fault \
         --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
         --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
         --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \

@@ -24,7 +24,6 @@ import torch
 
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
-from nemo.lightning.run.plugins import ConfigValidationPlugin
 from tests.collections.llm.common import (
     MCoreModelAttributeValidator,
     MiscAttributeValidator,

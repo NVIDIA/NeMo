@@ -83,7 +83,7 @@ def main():
     pretrain_recipe.trainer.limit_val_batches = 2
 
     executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
-    run_plugins: list[run.Plugin] = [FaultTolerancePlugin(), ConfigValidationPlugin(validate_preemption=False)]
+    run_plugins: list[run.Plugin] = [FaultTolerancePlugin()]
     pretrain_recipe.trainer.callbacks = [run.Config(TimingCallback), straggler_det_callback()]
 
     run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
