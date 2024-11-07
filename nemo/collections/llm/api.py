@@ -340,6 +340,9 @@ def ptq(
 
     quantizer.export(model)
 
+    console = Console()
+    console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
+
     return export_config.path
 
 
