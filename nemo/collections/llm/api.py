@@ -309,6 +309,16 @@ def ptq(
     This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
     or direcly using TensorRT-LLM library.
 
+    The function can be used through the NeMo CLI in the following way:
+
+    ```bash
+    # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-70B export_config.path=/models/Llama-3-70B-FP8 calib_tp=8 export_config.inference_tensor_parallel=2
+
+    # Choose different quantization method, for example, INT8 SmoothQuant
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B export_config.path=/models/Llama-3-8B-INT8_SQ quantization_config.algorithm=int8_sq
+    ```
+
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
         calib_tp (int): Calibration tensor parallelism.
@@ -317,15 +327,7 @@ def ptq(
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
 
     Returns:
-        Path: The directory path where quantized model is saved.
-
-    Example:
-        >>> from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
-        >>> nemo_checkpoint = "/opt/checkpoints/LLAMA3-8B-fp16"
-        >>> quantization_config = QuantizationConfig(algorithm="fp8")
-        >>> export_config = ExportConfig(path="/opt/checkpoints/LLAMA3-8B-fp8")
-        >>> llm.ptq(nemo_checkpoint, quantization_config=quantization_config, export_config=export_config)
-        '/opt/checkpoints/LLAMA3-8B-fp8'
+        Path: The path where the quantized checkpoint has been saved after calibration.
     """
     if export_config.path is None:
         raise ValueError("The export_config.path needs to be specified, got None.")
