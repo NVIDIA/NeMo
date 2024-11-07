@@ -36,6 +36,8 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core import parallel_state as ps
+from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from torch import nn
 from transformers import CLIPVisionConfig, CLIPVisionModel
 
@@ -281,6 +283,8 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
 
+    seq_length: int = 1024
+
     language_model_from_pretrained: Optional[str] = None
     vision_model_from_pretrained: Optional[str] = None  # TODO
     vision_projection_from_pretrained: Optional[str] = None  # TODO
@@ -301,6 +305,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         from megatron.core import parallel_state as ps
 
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_transformer_config.sequence_parallel = self.sequence_parallel
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
@@ -359,11 +364,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.language_model = None
 
         self.sequence_parallel_lm = language_transformer_config.sequence_parallel
-        if self.sequence_parallel_lm:
-            assert (
-                self.language_transformer_config.transformer_layer_spec.submodules.self_attention.submodules.core_attention
-                == TEDotProductAttention
-            ), "Sequence Parallelism is supported only with Transformer Engine DotProductAttention."
         self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
 
         self.share_embeddings_and_output_weights = False
@@ -378,7 +378,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))
                 loaded_state_dict = dist_checkpointing.load(
                     sharded_state_dict=sharded_state_dict,
-                    checkpoint_dir=ckpt_to_weights_subdir(config.language_model_from_pretrained),
+                    checkpoint_dir=ckpt_to_weights_subdir(config.language_model_from_pretrained, is_saving=False),
                     validate_access_integrity=False,
                 )
                 loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
@@ -418,7 +418,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 class_token_len=0 if "siglip" in vision_transformer_config.model_type else 1,
             )
         else:
-            self._img_seq_len = 576  # TODO(yuya): Fix hardcode
+            self._img_seq_len = get_image_sequence_length(
+                img_h=vision_transformer_config.img_h,
+                img_w=vision_transformer_config.img_w,
+                patch_dim=vision_transformer_config.patch_dim,
+                add_class_token=vision_transformer_config.add_class_token,
+                class_token_len=vision_transformer_config.class_token_len,
+            )
 
     def forward(
         self,
@@ -507,7 +513,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # RoPE is added in language_model forward. Each image embedding is one position.
             if self.sequence_parallel_lm:
                 # Pad to nearest multiple of TP world size for embedding.
-                tp_world_size = get_tensor_model_parallel_world_size()
+                tp_world_size = ps.get_tensor_model_parallel_world_size()
                 padded_seq_len = (
                     int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
                     - input_ids_text.shape[1]
@@ -523,7 +529,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # Gather the language embeddings back.
                 # We use the full embedding to insert image embeddings
                 # and then scatter to avoid load imbalance.
-                language_embeddings = tensor_parallel.gather_from_sequence_parallel_region(
+                language_embeddings = gather_from_sequence_parallel_region(
                     language_embeddings, tensor_parallel_output_grad=False
                 )
                 # Remove the padding done for SP as we'll need new padding calculation
