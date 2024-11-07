@@ -26,7 +26,7 @@ defaults:
 
 jobs:
   build-test-publish-wheel:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.5.0
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.7.0
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
@@ -41,30 +41,5 @@ jobs:
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-
-  notify:
-    runs-on: ubuntu-latest
-    if: failure()
-    needs: [build-test-publish-wheel]
-    env:
-      RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      SLACK_WEBHOOK_ADMIN: "<!subteam^${{ secrets.SLACK_WEBHOOK_ADMIN }}>"
-      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-      COMMIT_URL: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
-      COMMIT_SHA: ${{ github.sha }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: NVIDIA/NeMo-FW-CI-templates
-          ref: v0.5.0
-          path: send-slack-alert
-
-      - name: Send Slack alert
-        uses: ./send-slack-alert/.github/actions/send-slack-alert
-        with:
-          message: >
-            <${{ env.RUN_URL }}|Build, test, and push PyPi wheel (test)> has failed for <${{ env.COMMIT_URL }}|${{ env.COMMIT_SHA }}>.
-
-            cc: ${{ env.SLACK_WEBHOOK_ADMIN }}
-          webhook: ${{ env.SLACK_WEBHOOK }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_TEST }}
