@@ -15,10 +15,9 @@
 import base64
 import json
 import os
-import re
 from pathlib import Path
 from typing import Dict, List, Optional
-
+import re
 try:
     import tiktoken
 except ImportError:
@@ -103,7 +102,7 @@ class TiktokenTokenizer(TokenizerSpec):
         self._eos_id = special_tokens.index("</s>")
 
         self._vocab_size = vocab_size
-        print(f'{self._vocab_size = }')
+
         self.num_special_tokens = num_special_tokens
         special_filler = [SPECIAL_TOKEN_TEMPLATE.format(id=i) for i in range(len(special_tokens), num_special_tokens)]
         if special_filler:
@@ -129,13 +128,13 @@ class TiktokenTokenizer(TokenizerSpec):
         )
 
     def text_to_tokens(self, text: str):
-        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id='\\d+')
-        parts = re.split(f"({special_token_pattern}|<unk>|<s>|</s>)", text)
         tokens = []
+        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id='\\d+')
+        parts = re.split(f"({special_token_pattern})", text)
         for part in parts:
-            if part in self.special_tokens or re.match(special_token_pattern, part):
+            if re.match(special_token_pattern, part):
                 tokens.append(part.encode('utf-8'))
-            elif part:  # Skip empty parts
+            else:
                 token_ids = self.tokenizer.encode(part)
                 tokens.extend([self.tokenizer.decode_single_token_bytes(token) for token in token_ids])
         return tokens
@@ -184,14 +183,12 @@ class TiktokenTokenizer(TokenizerSpec):
     def text_to_ids(self, text: str):
         tokens = []
         special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id='\\d+')
-        parts = re.split(f"({special_token_pattern}|<unk>|<s>|</s>)", text)
+        parts = re.split(f"({special_token_pattern})", text)
         for part in parts:
-            if part in self.special_tokens:
-                tokens.append(self.special_tokens.index(part))
-            elif re.match(special_token_pattern, part):
+            if re.match(special_token_pattern, part):
                 token_id = int(re.findall(r"\d+", part)[0])
                 tokens.append(token_id)
-            elif part:  # Skip empty parts
+            else:
                 token_ids = self.tokenizer.encode(part)
                 tokens.extend([t + self.num_special_tokens for t in token_ids])
         return tokens
@@ -206,7 +203,6 @@ class TiktokenTokenizer(TokenizerSpec):
                 adjusted_token = token - self.num_special_tokens
                 result.append(self.tokenizer.decode([adjusted_token]))
         return ''.join(result)
-
 
     @property
     def bos_id(self):
