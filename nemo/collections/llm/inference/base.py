@@ -36,13 +36,18 @@ from pytorch_lightning.trainer.states import TrainerFn
 import nemo.lightning as nl
 from nemo.collections.llm.peft import LoRA
 from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
 
-# We need this wrapper since mcore generate uses methods/properties such as tokenizer.detokenize, tokenizer.tokenize, tokenizer.bos, tokenizer.pad, etc. to encode and decode prompts
 class MCoreTokenizerWrappper:
+    """
+    We need this wrapper since mcore generate uses methods/properties such as
+    tokenizer.detokenize, tokenizer.tokenize, tokenizer.bos, tokenizer.pad, etc. to encode and decode prompts
+    """
+
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
         self.eod = tokenizer.eod
@@ -75,7 +80,7 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
         restore_config = RestoreConfig(
-            path=metadata['model_ckpt_path'],
+            path=metadata["model_ckpt_path"],
             load_model_state=True,
             load_optim_state=False,
         )
@@ -118,6 +123,7 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
+    """Sets up model and tokenizer for inference."""
     model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
@@ -135,6 +141,7 @@ def generate(
     random_seed: Optional[int] = None,
     inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
+    """Runs generate on the model with the given prompts."""
     if encoder_prompts is not None:
         text_generation_controller = EncoderDecoderTextGenerationController(
             inference_wrapped_model=model, tokenizer=tokenizer
