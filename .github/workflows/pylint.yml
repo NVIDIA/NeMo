@@ -15,6 +15,10 @@ on:
       - '**.py'
     types: [ opened, synchronize, reopened, labeled, unlabeled ]
 
+defaults:
+  run:
+    shell: bash --noprofile --norc +e +o pipefail
+
 jobs:
   run_pylint_checks:
     runs-on: ubuntu-latest
