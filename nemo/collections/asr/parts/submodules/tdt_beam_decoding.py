@@ -253,7 +253,7 @@ class BeamTDTInfer(Typing):
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
-        partial_hypotheses: Optional[List[Hypothesis]] = None,
+        partial_hypotheses: tuple[list[Hypothesis | NBestHypotheses],] = None,
     ) -> Union[Hypothesis, NBestHypotheses]:
         """Perform general beam search.
 
@@ -309,9 +309,9 @@ class BeamTDTInfer(Typing):
 
                     # Pack the result
                     if self.return_best_hypothesis:
-                        best_hypothesis = nbest_hyps[0]  # type: Hypothesis
+                        best_hypothesis: Hypothesis  = nbest_hyps[0]
                     else:
-                        best_hypothesis = NBestHypotheses(nbest_hyps)  # type: NBestHypotheses
+                        best_hypothesis: NBestHypotheses = NBestHypotheses(nbest_hyps)  # best_hypothesis: Hypothesis = nbest_hyps[0]
                     hypotheses.append(best_hypothesis)
 
         self.decoder.train(decoder_training_state)
