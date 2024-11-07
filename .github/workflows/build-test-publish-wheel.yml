@@ -47,6 +47,7 @@ jobs:
       PR_URL: https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
       RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
       SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_TEST }}
     steps:
       - name: Send Slack alert
         env: 
@@ -67,4 +68,4 @@ jobs:
             ]
           }')
 
-          curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK_TEST
+          curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK
