@@ -51,6 +51,7 @@ jobs:
           CHANGED_FILES: "${{ steps.changed-files.outputs.all_changed_files }}"
         run: |
           pip install pylint
+          echo "pylint installed"
       
           ADDITIONAL_PYLINT_ARGS=()
           echo ${{ github.event.pull_request.labels.*.name }}
