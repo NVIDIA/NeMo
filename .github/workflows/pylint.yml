@@ -60,6 +60,7 @@ jobs:
           NEW_FILES_LOG="${NEW_FILES_LOG//'%'/'%25'}"
           NEW_FILES_LOG="${NEW_FILES_LOG//$'\n'/'%0A'}"
           NEW_FILES_LOG="${NEW_FILES_LOG//$'\r'/'%0D'}"
+
           echo $NEW_FILES_LOG
           echo 'new_files<<EOF' >> $GITHUB_OUTPUT
           echo $NEW_FILES_LOG >> $GITHUB_OUTPUT
@@ -70,9 +71,10 @@ jobs:
           CHANGED_FILES_LOG="${CHANGED_FILES_LOG//$'\n'/'%0A'}"
           CHANGED_FILES_LOG="${CHANGED_FILES_LOG//$'\r'/'%0D'}"
           echo $CHANGED_FILES_LOG
-          echo 'changed_files<<EOF' >> $GITHUB_OUTPUT
-          echo $CHANGED_FILES_LOG >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
+          echo "::set-output name=changed_files::$CHANGED_FILES_LOG"
+#          echo 'changed_files<<EOF' >> $GITHUB_OUTPUT
+#          echo $CHANGED_FILES_LOG >> $GITHUB_OUTPUT
+#          echo 'EOF' >> $GITHUB_OUTPUT
           
           if [ ${NEW_FILES_CODE} -ne 0 ]; then
             echo "Pylint failed for new files. In case of long strings, format docstrings and other strings manually."
