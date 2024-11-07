@@ -62,7 +62,7 @@ jobs:
           NEW_FILES_LOG="${NEW_FILES_LOG//$'\r'/'%0D'}"
 
           echo $NEW_FILES_LOG
-          echo "::set-output name=new_files::$NEW_FILES_LOG"
+          echo "new_files=${NEW_FILES_LOG}" >> $GITHUB_OUTPUT
 
           CHANGED_FILES_LOG=$(pylint ${ADDITIONAL_PYLINT_ARGS[@]} $CHANGED_FILES)
           CHANGED_FILES_LOG="${CHANGED_FILES_LOG//'%'/'%25'}"
