@@ -223,7 +223,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.data_sampler: Optional["DataSampler"] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
-        self.microbatch_group_size_per_vp_stage = microbatch_group_size_per_vp_stage if microbatch_group_size_per_vp_stage is not None else pipeline_model_parallel_size
+        self.microbatch_group_size_per_vp_stage = (
+            microbatch_group_size_per_vp_stage
+            if microbatch_group_size_per_vp_stage is not None
+            else pipeline_model_parallel_size
+        )
         self.context_parallel_size = context_parallel_size
         self.expert_model_parallel_size = expert_model_parallel_size
         self.moe_extended_tp = moe_extended_tp
