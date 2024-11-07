@@ -17,9 +17,13 @@ name: Build, test, and publish a PyPi wheel (to testpypi)
 on: 
   pull_request:
 
+defaults:
+  run:
+    shell: bash -x -e -u -o pipefail {0}
+
 jobs:
   build-test-publish-wheel:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@ko3n1g/feat/add-build-test-push-wheel
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.4.0
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
@@ -34,3 +38,33 @@ jobs:
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+
+  notify:
+    runs-on: ubuntu-latest
+    if: always()
+    env:
+      PR_NUMBER: ${{ github.event.number }}
+      PR_URL: https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
+      RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+    steps:
+      - name: Send Slack alert
+        env: 
+          MESSAGE: >
+            beep boop 🤖: <${{ env.RUN_URL }}|Build, test, and push PyPi wheel (test)> has failed for <${{ env.PR_URL }}|#${{ env.PR_NUMBER }}>.
+
+            cc: <!subteam^$SLACK_WEBHOOK_ADMIN>
+        run: |
+          MESSAGE=$(jq -cn --arg message "$MESSAGE" '{
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": $message
+                }
+              }
+            ]
+          }')
+
+          curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK_TEST
