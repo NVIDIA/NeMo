@@ -15,58 +15,18 @@
 import nemo_run as run
 import pytest
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import _validate_config
-from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 
 
 class TestValidateConfig:
 
     def reset_configs(self):
-        # model = run.Config(LlamaModel, config=run.Config(Llama3Config8B))
-        # data = run.Config(MockDataModule, seq_length=2048, global_batch_size=512, micro_batch_size=1)
-        # trainer = run.Config(
-        #     nl.Trainer,
-        #     accelerator="gpu",
-        #     accumulate_grad_batches=1,
-        #     callbacks=None,
-        #     devices=8,
-        #     limit_test_batches=50,
-        #     limit_val_batches=32,
-        #     log_every_n_steps=10,
-        #     max_steps=1168251,
-        #     num_nodes=1,
-        #     plugins=bf16_mixed(),
-        #     strategy=run.Config(
-        #         nl.MegatronStrategy,
-        #         tensor_model_parallel_size=1,
-        #         pipeline_model_parallel_size=1,
-        #         pipeline_dtype=None,
-        #         virtual_pipeline_model_parallel_size=None,
-        #         context_parallel_size=1,
-        #         sequence_parallel=1,
-        #         gradient_as_bucket_view=True,
-        #         ckpt_async_save=True,
-        #         ckpt_parallel_load=True,
-        #         ddp=run.Config(
-        #             DistributedDataParallelConfig,
-        #             check_for_nan_in_grad=True,
-        #             grad_reduce_in_fp32=True,
-        #             overlap_grad_reduce=True,
-        #             overlap_param_gather=True,
-        #             average_in_collective=True,
-        #         ),
-        #     ),
-        #     use_distributed_sampler=False,
-        #     val_check_interval=2000,
-        # )
-        model = llm.MistralModel()
-        data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        model = LlamaModel(config=run.Config(Llama3Config8B))
+        data = llm.MockDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         trainer = nl.Trainer(strategy=nl.MegatronStrategy())
         return model, data, trainer
 
