@@ -82,12 +82,12 @@ jobs:
         with:
           issue-number: ${{ github.event.number }}
           body: |
-            ## Pylint new files checks results: 
+            ## Pylint result for new files (required): 
             ```
             ${{ steps.pylint.outputs.new_files }}
             ```
             
-            ## Pylint existing files checks results:
+            ## Pylint result for changed files (suggestion):
             ```
             ${{ steps.pylint.outputs.changed_files }}
             ```
