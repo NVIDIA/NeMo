@@ -62,7 +62,8 @@ def train(
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
             from the model will be used.
-        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model' or an instance of TokenizerSpec.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
         export (Optional[str]): Filename to save the exported checkpoint after training.
         model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
 
@@ -218,7 +219,8 @@ def validate(
         resume (Optional[AutoResume]): Resume from a checkpoint for validation.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
             from the model will be used.
-        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model' or an instance of TokenizerSpec.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
         model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
 
     Returns:
@@ -313,10 +315,15 @@ def ptq(
 
     ```bash
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-70B export_config.path=/models/Llama-3-70B-FP8 calib_tp=8 export_config.inference_tensor_parallel=2
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-70B \
+        export_config.path=/models/Llama-3-70B-FP8 \
+        calib_tp=8 \
+        export_config.inference_tensor_parallel=2
 
     # Choose different quantization method, for example, INT8 SmoothQuant
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B export_config.path=/models/Llama-3-8B-INT8_SQ quantization_config.algorithm=int8_sq
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+        export_config.path=/models/Llama-3-8B-INT8_SQ \
+        quantization_config.algorithm=int8_sq
     ```
 
     Args:
@@ -447,7 +454,8 @@ def deploy(
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
             return
-        # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
+        # Store triton ip, port and other args relevant for REST API
+        # in config.json to be accessible by rest_model_api.py
         store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
 
     triton_deployable = get_trtllm_deployable(
