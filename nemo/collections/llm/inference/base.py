@@ -36,7 +36,8 @@ from pytorch_lightning.trainer.states import TrainerFn
 import nemo.lightning as nl
 from nemo.collections.llm.peft import LoRA
 from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
