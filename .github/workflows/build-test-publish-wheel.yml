@@ -11,31 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-name: "Release Neural Modules"
 
-on:    
-  workflow_dispatch:
-    inputs:
-      release-ref: 
-        description: Ref (SHA or branch name) to release
-        required: true
-        type: string
+name: Build, test, and publish a PyPi wheel (to testpypi)
 
-jobs: 
-  release:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_release_library.yml@v0.10.0
+on: 
+  push:
+    branches:
+      - main
+      - 'r**'
+
+defaults:
+  run:
+    shell: bash -x -e -u -o pipefail {0}
+
+jobs:
+  build-test-publish-wheel:
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.7.0
     with:
-      release-ref: ${{ inputs.release-ref }}
       image-name: nemo_container
       dockerfile: Dockerfile.ci
       image-label: nemo-core
       build-args: |
         IMAGE_LABEL=nemo-core
       prune-filter-timerange: 24h
+      dry-run: true
       python-package: nemo
       container-workdir: /workspace
-      library-name: Neural Modules
+      environment: public
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-      SLACK_RELEASE_ENDPOINT: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
