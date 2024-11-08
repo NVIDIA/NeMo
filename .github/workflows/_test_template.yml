@@ -51,7 +51,7 @@ jobs:
 
         - name: Docker pull image
           run: |
-            docker pull nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+            docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
         - name: Start container
           run: |
@@ -60,7 +60,7 @@ jobs:
               ARG=("--runtime=nvidia --gpus all")
             fi
 
-            docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
+            docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
 
         - id: main
           name: Run main script
@@ -79,7 +79,7 @@ jobs:
             
             echo "log=$(tail -c 2000 err.log |  base64 -w 0)" >> "$GITHUB_OUTPUT"
             
-            potential_infra_failure=$(cat err.log | grep -Eqi "gpu|cuda|device" && echo true || echo false)
+            potential_infra_failure=$(cat err.log | grep -Eqiw "device" && echo true || echo false)
             echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
 
             exit $EXIT_CODE
