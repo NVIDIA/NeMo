@@ -66,10 +66,9 @@ def main(args):
     if args.encoder_pp_size > 0:
         language_transformer_config.first_pipeline_num_layers = 0
     from nemo.collections.vlm.neva.model.vision import get_vision_model_config
+
     vision_transformer_config = vlm.CLIPViTConfig(vision_model_type="siglip")
-    vision_transformer_config = get_vision_model_config(
-        vision_transformer_config, apply_query_key_layer_scaling=False
-    )
+    vision_transformer_config = get_vision_model_config(vision_transformer_config, apply_query_key_layer_scaling=False)
     # vision_transformer_config = vlm.HFCLIPVisionConfig(
     #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     # )
