@@ -38,11 +38,17 @@ class NoValOnRestartTrainingLoop(_TrainingEpochLoop):
         return super()._should_check_val_fx(data_fetcher)
 
 
-class Trainer(pl.Trainer, IOMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._configure_no_restart_validation_training_loop()
+def configure_no_restart_validation_training_loop(trainer: pl.Trainer) -> None:
+    if not isinstance(trainer.fit_loop.epoch_loop, _TrainingEpochLoop):
+        warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
+        return
 
+    ## Pass trainer object to avoid trainer getting overwritten as None
+    loop = NoValOnRestartTrainingLoop(trainer, trainer.min_steps, trainer.max_steps)
+    trainer.fit_loop.epoch_loop = loop
+
+
+class Trainer(pl.Trainer, IOMixin):
     def _configure_no_restart_validation_training_loop(self) -> None:
         if not isinstance(self.fit_loop.epoch_loop, _TrainingEpochLoop):
             warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
