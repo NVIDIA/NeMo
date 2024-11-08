@@ -58,6 +58,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         packed_sequence_specs (PackedSequenceSpecs, optional): See PackedSequenceSpecs for details
         dataset_kwargs (Optional[Dict[str, Any]], optional): Keyword arguments to pass into the GPTSFTDataset class
     """
+
     def __init__(
         self,
         dataset_root: Union[str, Path],
@@ -129,7 +130,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             )
 
     def setup(self, stage: str):
-        """ Called by pytorch lightning in datamodule setup """
+        """Called by pytorch lightning in datamodule setup"""
 
         # data_sampler is used in `setup_data_sampler` in MegatronStrategy.setup
         self.data_sampler = MegatronDataSampler(
@@ -240,13 +241,13 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     @property
     def train_path(self) -> Path:
-        """ Path to training dataset file """
+        """Path to training dataset file"""
         return self.dataset_root / "training.jsonl"
 
     @property
     def train_path_packed(self) -> Path:
-        """ Path to training dataset file for packed sequence. The file path contains a reference to the
-        tokenizer/model name since packed sequence dataset consists of tokenized indices. """
+        """Path to training dataset file for packed sequence. The file path contains a reference to the
+        tokenizer/model name since packed sequence dataset consists of tokenized indices."""
         if self.packed_sequence_size > 0:
             if self.packed_sequence_specs.packed_data_path is not None:
                 return self.packed_sequence_specs.packed_data_path
@@ -259,16 +260,16 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     @property
     def validation_path(self) -> Path:
-        """ Path to validation dataset file """
+        """Path to validation dataset file"""
         return self.dataset_root / "validation.jsonl"
 
     @property
     def test_path(self) -> Path:
-        """ Path to test dataset file """
+        """Path to test dataset file"""
         return self.dataset_root / "test.jsonl"
 
     def _extract_tokenizer_model_name(self) -> str:
-        """ Automatically get the model name from model path. """
+        """Automatically get the model name from model path."""
         if self.packed_sequence_specs.tokenizer_model_name is not None:
             tokenizer_model_name = self.packed_sequence_specs.tokenizer_model_name
         elif isinstance(self.tokenizer, AutoTokenizer):
