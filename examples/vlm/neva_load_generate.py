@@ -51,7 +51,7 @@ def main(args) -> None:
     )
 
     # Tokenize the input texts
-    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
+    processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
 
     # Define a chat history and use `apply_chat_template` to get the correctly formatted prompt
     conversation = [
@@ -72,13 +72,10 @@ def main(args) -> None:
         return  # Exit if the image can't be loaded
 
     inputs = processor(prompt, raw_image, return_tensors='pt').to(0, torch.float16)
-    import pdb
-
-    pdb.set_trace()
     input_ids = inputs['input_ids'].cuda()
     input_ids[input_ids == 32000] = -200
     media = inputs['pixel_values'].cuda()
-    media = media.reshape(media.size(1), 3, 336, 336)
+    media = media.reshape(media.size(0), 3, 336, 336)
     position_ids = (
         torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
     )
@@ -103,7 +100,6 @@ def main(args) -> None:
                 media=media,
                 input_ids=input_ids,
                 position_ids=position_ids,
-                num_media_tiles=[media.size(0)],
                 attention_mask=None,
             )
 

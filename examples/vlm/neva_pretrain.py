@@ -62,16 +62,15 @@ def main(args):
 
     # Transformer configurations
     language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
-    language_transformer_config.num_layers = 2
     if args.encoder_pp_size > 0:
         language_transformer_config.first_pipeline_num_layers = 0
     from nemo.collections.vlm.neva.model.vision import get_vision_model_config
 
-    vision_transformer_config = vlm.CLIPViTConfig(vision_model_type="siglip")
-    vision_transformer_config = get_vision_model_config(vision_transformer_config, apply_query_key_layer_scaling=False)
-    # vision_transformer_config = vlm.HFCLIPVisionConfig(
-    #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    # )
+    # vision_transformer_config = vlm.CLIPViTConfig(vision_model_type="siglip")
+    # vision_transformer_config = get_vision_model_config(vision_transformer_config, apply_query_key_layer_scaling=False)
+    vision_transformer_config = vlm.HFCLIPVisionConfig(
+        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    )
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=vision_transformer_config.hidden_size,
