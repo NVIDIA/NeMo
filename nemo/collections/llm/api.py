@@ -694,13 +694,7 @@ def _validate_config(
     assert trainer.strategy.context_parallel_size > 0
 
     # DP validation
-
-    trainer_devices = getattr(trainer.__io__, "devices", 8)
-    if trainer_devices == 'auto':
-        # Set defualt devices per node to 8 for now
-        trainer_devices = 8
-
-    assert (trainer_devices * getattr(trainer.__io__, "num_nodes", 1)) % (
+    assert (trainer.num_devices * trainer.num_nodes) % (
         trainer.strategy.tensor_model_parallel_size
         * trainer.strategy.pipeline_model_parallel_size
         * trainer.strategy.context_parallel_size
@@ -711,7 +705,7 @@ def _validate_config(
         % (
             data.micro_batch_size
             * (
-                (trainer_devices * getattr(trainer.__io__, "num_nodes", 1))
+                (trainer.num_devices * trainer.num_nodes)
                 / (
                     trainer.strategy.tensor_model_parallel_size
                     * trainer.strategy.pipeline_model_parallel_size
