@@ -41,4 +41,3 @@ jobs:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
       SLACK_RELEASE_ENDPOINT: ${{ secrets.SLACK_WEBHOOK_TEST }} # ${{ secrets.SLACK_RELEASE_ENDPOINT }}
-
