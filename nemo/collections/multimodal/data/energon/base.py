@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 import fiddle as fdl
 import pytorch_lightning as pl
@@ -66,6 +67,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         pin_memory: bool = True,
         multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
+        decoder_seq_length: Optional[int] = None,
     ) -> None:
         """
         Initialize the SimpleMultiModalDataModule.
@@ -87,6 +89,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.seq_length = seq_length
+        self.decoder_seq_length = decoder_seq_length
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.num_workers = num_workers
@@ -99,13 +102,18 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         )
         self.init_global_step = 0
         self.data_sampler = SequentialMegatronSampler(
-            seq_len=self.seq_length, micro_batch_size=self.micro_batch_size, global_batch_size=self.global_batch_size
+            seq_len=self.seq_length,
+            decoder_seq_len=self.decoder_seq_length,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
         )
         self.train_dataloader_object = None
         self.val_dataloader_object = None
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
+        # (pleasefixme) image_processor and task_encoder are problematic with Fiddle so we skip serializing them for now
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder']}
+
         for val in cfg_kwargs.values():
             if not serialization.find_node_traverser(type(val)):
                 track_io(type(val))
@@ -323,6 +331,7 @@ class SequentialMegatronSampler(MegatronDataSampler):
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         init_consumed_samples: int = 0,
+        decoder_seq_len: Optional[int] = None,
         init_global_step=0,
     ):
         """
@@ -336,6 +345,7 @@ class SequentialMegatronSampler(MegatronDataSampler):
         """
         super().__init__(
             seq_len=seq_len,
+            decoder_seq_len=decoder_seq_len,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             init_consumed_samples=init_consumed_samples,
