@@ -318,6 +318,7 @@ def get_calib_data_iter(
 
 def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration_size):
     """Create a function that provides iterator over a given dataset."""
+
     def _iterator():
         CHARACTERS_PER_TOKEN = 4
 
