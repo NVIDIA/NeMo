@@ -49,15 +49,6 @@ def configure_no_restart_validation_training_loop(trainer: pl.Trainer) -> None:
 
 
 class Trainer(pl.Trainer, IOMixin):
-    def _configure_no_restart_validation_training_loop(self) -> None:
-        if not isinstance(self.fit_loop.epoch_loop, _TrainingEpochLoop):
-            warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
-            return
-
-        ## Pass trainer object to avoid trainer getting overwritten as None
-        loop = NoValOnRestartTrainingLoop(self, self.min_steps, self.max_steps)
-        self.fit_loop.epoch_loop = loop
-
     def add_io(self, obj):
         """Recurse to the leaves of a container and add io functionality to non-serializable leaves"""
         if isinstance(obj, (dict, list)):
