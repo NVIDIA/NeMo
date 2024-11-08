@@ -1754,16 +1754,16 @@ class ModelPT(LightningModule, Model):
             setattr(cls, '_save_restore_connector', save_restore_connector)
 
     def _setup_chakra_profiling(self):
-        """ Enables chakra profiling
-            To use, add the following options to the model config:
-            ## Chakra profiling options
-            chakra_profile:
-                enabled: False
-                start_step: 2  # Global batch to start profiling
-                end_step: 2 # Global batch to end profiling
-                warmup_steps: 0  # Global batch to start profiling
-                active_steps: 1  # Global batch to start profiling
-                trace_dir: None # Path to store the profile output file
+        """Enables chakra profiling
+        To use, add the following options to the model config:
+        ## Chakra profiling options
+        chakra_profile:
+            enabled: False
+            start_step: 2  # Global batch to start profiling
+            end_step: 2 # Global batch to end profiling
+            warmup_steps: 0  # Global batch to start profiling
+            active_steps: 1  # Global batch to start profiling
+            trace_dir: None # Path to store the profile output file
         """
         if self.cfg.get('chakra_profile', None) is not None:
             if self.cfg.chakra_profile.get('enabled', False):
@@ -1773,15 +1773,14 @@ class ModelPT(LightningModule, Model):
                 trace_dir = self.cfg.chakra_profile.get('trace_dir', None)
 
                 if trace_dir is None or not os.path.isdir(trace_dir):
-                    raise ValueError(
-                        f'chakra profile output path ({trace_dir}) is not set or does not exist.'
-                    )
+                    raise ValueError(f'chakra profile output path ({trace_dir}) is not set or does not exist.')
 
                 trace_dir = Path(trace_dir)
                 warmup_steps = self.cfg.chakra_profile.get('warmup_steps', 0)
                 active_steps = self.cfg.chakra_profile.get('active_steps', 1)
 
                 from nemo.utils.env_var_parsing import get_envint
+
                 job_id = get_envint("SLURM_JOB_ID", 0)
 
                 self._chakra_trace_dir = trace_dir / f'{job_id}_chakra'
@@ -1800,7 +1799,9 @@ class ModelPT(LightningModule, Model):
                 if type(self._chakra_profile_end_step) == int:
                     logging.info(f'chakra profiling setup with end_step: {self._chakra_profile_end_step}')
                 else:
-                    raise ValueError(f'chakra end_step must be of type int. Found: {type(self._chakra_profile_end_step)}')
+                    raise ValueError(
+                        f'chakra end_step must be of type int. Found: {type(self._chakra_profile_end_step)}'
+                    )
 
                 if self._chakra_profile_end_step >= self._chakra_profile_start_step:
                     pass
@@ -1808,17 +1809,18 @@ class ModelPT(LightningModule, Model):
                     raise ValueError(f'chakra end_step must be greater than or equal to chakra start_step')
 
                 if self.cfg.nsys_profile.get('enabled', False):
-                    raise Exception(f"Profiler conflict: Chakra profiling and Nsys profiling cannot be enabled at the same time.")
+                    raise Exception(
+                        f"Profiler conflict: Chakra profiling and Nsys profiling cannot be enabled at the same time."
+                    )
 
                 self._et = ExecutionTraceObserver()
                 self._prof = torch.profiler.profile(
-                    activities=[torch.profiler.ProfilerActivity.CPU,torch.profiler.ProfilerActivity.CUDA,],
-                    schedule=torch.profiler.schedule(
-                        wait=0,
-                        warmup=warmup_steps,
-                        active=active_steps
-                    ),
-                    execution_trace_observer=self._et
+                    activities=[
+                        torch.profiler.ProfilerActivity.CPU,
+                        torch.profiler.ProfilerActivity.CUDA,
+                    ],
+                    schedule=torch.profiler.schedule(wait=0, warmup=warmup_steps, active=active_steps),
+                    execution_trace_observer=self._et,
                 )
 
     def _setup_profiling(self):
@@ -1930,8 +1932,13 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_chakra_profile_enabled'):
                 if self._chakra_profile_enabled and not self._chakra_profile_in_progress:
-                    if self.trainer.global_step >= self._chakra_profile_start_step and self.trainer.global_step < self._chakra_profile_end_step:
-                        logging.info(f"====== Start chakra profiling from global_step {self.trainer.global_step} ======")
+                    if (
+                        self.trainer.global_step >= self._chakra_profile_start_step
+                        and self.trainer.global_step < self._chakra_profile_end_step
+                    ):
+                        logging.info(
+                            f"====== Start chakra profiling from global_step {self.trainer.global_step} ======"
+                        )
                         self._et.register_callback(str(self._chakra_trace_dir / f'rank-{get_rank()}.json'))
                         self._prof.start()
                         self._chakra_profile_in_progress = True
@@ -1990,9 +1997,9 @@ class ModelPT(LightningModule, Model):
                         self._prof.export_chrome_trace(str(self._kineto_trace_dir / f'rank-{get_rank()}.json'))
                         self._et.unregister_callback()
                         self._chakra_profile_in_progress = False
-                    elif self.trainer.global_step-1 >= self._chakra_profile_start_step:
+                    elif self.trainer.global_step - 1 >= self._chakra_profile_start_step:
                         self._prof.step()
-            
+
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled and not self._nsys_profile_complete:
                     if batch_idx >= self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
