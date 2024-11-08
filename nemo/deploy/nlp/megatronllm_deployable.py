@@ -200,7 +200,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         prompts = str_ndarray2list(inputs.pop("prompts"))
-        max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else None
+        max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
         random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
         temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
         top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
@@ -217,7 +217,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             model=self.inference_wrapped_model,
             tokenizer=self.mcore_tokenizer,
             prompts=prompts,
-            max_batch_size=16,
+            max_batch_size=max_batch_size,
             random_seed=random_seed,
             inference_params=inference_params,
         )

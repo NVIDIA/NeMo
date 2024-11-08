@@ -76,7 +76,11 @@ def query(argv):
         temperature=args.temperature,
         init_timeout=args.init_timeout,
     )
-    print(outputs["sentences"][0][0])
+
+    if "sentences" in outputs.keys():
+        print(outputs["sentences"][0][0])
+    else:
+        print(outputs["outputs"])
 
 
 if __name__ == '__main__':
