@@ -72,13 +72,6 @@ model:
   enc_output_to_layers: [[0,1,2],[3,4,5,6,7,8]]
 
   frozen_model:
-    # micro_batch_size: null
-    # global_batch_size: null
-    # megatron_amp_O2: true
-    # seq_length: 512
-    # max_position_embeddings: 512
-    # precision: bf16
-    # Above is overridden in code
     tensor_model_parallel_size: 1
     pipeline_model_parallel_size: 1
     pipeline_model_parallel_split_rank: 0
@@ -98,7 +91,6 @@ model:
       model: null
       vocab_file: null
       merge_file: null
-      # num_sentinel_tokens: 100
     optim:
       name: null
     data:

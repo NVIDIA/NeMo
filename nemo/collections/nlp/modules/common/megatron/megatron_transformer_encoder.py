@@ -365,14 +365,6 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
         for mi in range(len(self.model)):
             self.model[mi].set_input_tensor(input_tensor)
 
-    # def set_input_tensor(self, input_tensor):
-    #     """ See megatron.model.transformer.set_input_tensor()"""
-    #     import ipdb; ipdb.set_trace()
-    #     assert isinstance(input_tensor, list)
-    #     assert len(input_tensor) == len(self.model)
-    #     for _input_tensor in input_tensor:
-    #         self.model.set_input_tensor(_input_tensor)
-
     def forward(
         self,
         enc_input,

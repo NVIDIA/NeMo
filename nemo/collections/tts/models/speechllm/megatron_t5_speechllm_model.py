@@ -168,7 +168,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        # torch.autograd.set_detect_anomaly(True)
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
         speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
@@ -254,8 +253,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 gather_output=not self.frozen_model.enc_dec_model.parallel_output,
                 init_method=init_method_normal(init_method_std),
                 config=self.model_parallel_config,
-                # use_cpu_initialization=False,
-                # params_dtype=self.frozen_model.enc_dec_model.dtype,
             )
             list_of_speech_heads.append(_speech_head)
 
@@ -2133,9 +2130,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     dec_input[:, :, t + 1] = dec_input_next_timestep * 1
                 else:
                     dec_input[:, 0, t + 1] = output_tokens_curr_timestep.squeeze(1)
-                # # TF
-                # if t+1 < 10:
-                #     dec_input[:, :, t + 1] = dec_input_raw[:, :, t+1]
 
             # end of for loop
             output_tokens_combined = torch.stack(output_token_list)  # (T, B, 8) if speech else (T, B)
@@ -2265,11 +2259,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             phoneme_ver=1,
                             phoneme_seq=None,
                         )
-                        # ctc_loss = self.frozen_model.enc_dec_model.forward_sum_loss(
-                        #     attn_logprob=attention_probs_example[None,None,:,:],
-                        #     in_lens=torch.tensor([attention_probs_example.shape[1]]).to(device),
-                        #     out_lens=torch.tensor([attention_probs_example.shape[0]]).to(device)
-                        # )
 
                         if global_step is not None:
                             # During validation, step is simply global_step + i
@@ -2278,7 +2267,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             # During inference, step is the index of the sample
                             step = batch_idx * test_dataloader_batch_size + i
 
-                        # print("Ctc Loss: ", step, ctc_loss.item())
                         self.logger.experiment.add_image(
                             "Inf Attention Map",
                             alignment_image,
@@ -2438,7 +2426,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                     else:
                         context_wav = None
-                        # raise NotImplementedError("During prediction, there was no context found.")
+
                     if context_wav is not None:
                         self.logger.experiment.add_audio("Context Wav", context_wav, step, self.sample_rate)
                         context_wav_fp = os.path.join(_exp_dir_path, f'context_wav_{wav_num}.wav')
@@ -2569,7 +2557,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             for i in range(0, len(greedy_transcripts) - 1, 2):
                 assert all_audio_to_pred[i]["step"] == all_audio_to_pred[i + 1]["step"]
-                # step = batch_idx * self.test_dataloader().batch_size + all_audio_to_pred[i]["step"]
                 step = batch_idx * test_dataloader_batch_size + all_audio_to_pred[i]["step"]
                 question_text = question_texts[i // 2]
 
