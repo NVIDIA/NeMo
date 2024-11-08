@@ -130,7 +130,7 @@ def load_config(mistral_config, tokenizer, config_path):
     nemo_config.activation = 'fast-swiglu'
 
     # Tokenizer config
-    if hasattr(tokenizer, 'vocab_file'):
+    if getattr(tokenizer, 'vocab_file', None) is not None:
         nemo_config.tokenizer.model = tokenizer.vocab_file
     elif os.path.exists(os.path.join(config_path, 'tekken.json')):
         # Load tekken.json, extract the 'vocab' field & write it to file.
