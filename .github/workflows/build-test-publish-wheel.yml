@@ -15,7 +15,6 @@
 name: Build, test, and publish a PyPi wheel (to testpypi)
 
 on: 
-  pull_request:
   push:
     branches:
       - main
@@ -27,7 +26,7 @@ defaults:
 
 jobs:
   build-test-publish-wheel:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@ko3n1g/fix/make-secret-optional
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.9.1
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
