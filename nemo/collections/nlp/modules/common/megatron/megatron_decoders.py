@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Transformer based language model."""
-from ast import Mod
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (

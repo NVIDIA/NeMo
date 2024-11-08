@@ -18,7 +18,6 @@ import math
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import torch
-import torch.nn as nn
 from torch import Tensor
 
 from nemo.utils import logging, logging_mode

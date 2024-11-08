@@ -50,7 +50,6 @@ import matplotlib.pylab as plt
 import numpy as np
 import seaborn as sns
 import torch
-from einops import rearrange
 from numba import jit, prange
 
 from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens

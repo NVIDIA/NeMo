@@ -76,8 +76,7 @@ except (ImportError, ModuleNotFoundError):
 import time
 
 import librosa
-import torchaudio
-from torchaudio.pipelines import SQUIM_OBJECTIVE, SQUIM_SUBJECTIVE
+from torchaudio.pipelines import SQUIM_SUBJECTIVE
 from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
 
 __all__ = ['MegatronT5SpeechLMModel']

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Transformer based language model."""
-from ast import Mod
 
 import torch
 
