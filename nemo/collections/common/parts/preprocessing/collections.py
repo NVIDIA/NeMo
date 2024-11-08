@@ -421,15 +421,17 @@ class InstructionTuningAudioText(_Collection):
 
     def _get_len(self, field_type, data, duration_data):
         if field_type == "SPEECH":
-            return duration_data * 76
+            return duration_data * 76  # TODO: add explanation for the hardcoded value.
         elif field_type == "TEXT":
             if self.use_phoneme_tokenizer:
                 # Approx len is number of characters
                 return len(data)
             else:
-                return len(data.split(' ')) + 3
+                return len(data.split(' ')) + 3  # # TODO: add explanation for the hardcoded value.
         elif field_type == "TOKENS":
             return len(data) + 3
+        else:
+            raise ValueError(f"Unknown field type {field_type}.")
 
 
 class ASRAudioText(AudioText):
