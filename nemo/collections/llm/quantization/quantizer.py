@@ -87,7 +87,7 @@ class ExportConfig:
 
 
 def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
-    """Infers the modelopt decoder type from GPTConfig class"""
+    """Infers the modelopt decoder type from GPTConfig class."""
     mapping = [
         (llm.Baichuan2Config, "baichuan"),
         (llm.ChatGLMConfig, "chatglm"),
@@ -111,17 +111,17 @@ def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
 
 
 class Quantizer:
-    """Post-training quantization (PTQ) and TRT-LLM export of NeMo 2.0 checkpoints.
+    """Post-training quantization (PTQ) and TensorRT-LLM export of NeMo 2.0 checkpoints.
 
     PTQ converts selected model layers to low-precision format (e.g., INT4, FP8) for efficient serving.
     The process consist of several steps:
 
         1. Loading a Nemo model from disk using appropriate parallelism strategy
         2. Calibrating the model to obtain appropriate algorithm-specific scaling factors
-        3. Producing output directory
+        3. Producing an output directory with a quantized checkpoint and a tokenizer
 
     The output directory produced is intended to be consumed by TensorRT-LLM toolbox
-    for efficient inference. This can be achieved using NeMo inference containers.
+    for efficient inference. This can be achieved using nemo.export.tensorrt_llm module.
     """
 
     def __init__(self, quantization_config: QuantizationConfig, export_config: ExportConfig):
@@ -233,6 +233,7 @@ class Quantizer:
     def create_megatron_forward_loop(
         self, get_dataloader, num_batches, seq_length=None, micro_batch_size=None, decoder_seq_length=None
     ):
+        """Create a forward loop for over a given data iterator."""
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         forward_backward_func = get_forward_backward_func()
@@ -264,6 +265,7 @@ class Quantizer:
         return loop
 
     def export(self, model: llm.GPTModel) -> None:
+        """Export model to a TensorRT-LLM checkpoint."""
         assert self.export_config is not None, "Export config is not set"
         # TODO: Add sample generate
         # TODO: Support megatron_amp_O2
@@ -295,7 +297,7 @@ class Quantizer:
 def get_calib_data_iter(
     data: str = "cnn_dailymail", batch_size: int = 64, calib_size: int = 512, max_sequence_length: int = 512
 ):
-    """Creates a sample data iterator for calibration"""
+    """Creates a sample data iterator for calibration."""
     if data == "wikitext":
         dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
         text_column = "text"
@@ -315,6 +317,7 @@ def get_calib_data_iter(
 
 
 def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration_size):
+    """Create a function that provides iterator over a given dataset."""
     def _iterator():
         CHARACTERS_PER_TOKEN = 4
 
