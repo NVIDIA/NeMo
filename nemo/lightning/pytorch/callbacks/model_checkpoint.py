@@ -338,7 +338,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ## TODO: verify this
             if is_global_rank_zero():
                 checkpoint_path = Path(checkpoints[checkpoint_index])
-                checkpoint_path = checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+                checkpoint_path = (
+                    checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+                )
                 print(f'dropping optimizer states at {checkpoint_path}')
                 ## TODO: what do we do if drop_optimizer_states is not implemented?
                 trainer.strategy.checkpoint_io.drop_optimizer_states(checkpoint_path)

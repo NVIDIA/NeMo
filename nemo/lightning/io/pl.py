@@ -273,6 +273,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     def drop_optimizer_states(self, path):
         from megatron.core import dist_checkpointing
+
         dist_checkpointing.remove_sharded_tensors(path, key_prefix="optimizer")
 
 
