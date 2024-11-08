@@ -18,7 +18,7 @@ import os
 import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
