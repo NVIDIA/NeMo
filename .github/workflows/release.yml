@@ -13,9 +13,7 @@
 # limitations under the License.
 name: "Release Neural Modules"
 
-on:
-  pull_request:
-    
+on:    
   workflow_dispatch:
     inputs:
       release-ref: 
@@ -25,7 +23,7 @@ on:
 
 jobs: 
   release:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_release_library.yml@ko3n1g/feat/pre-release-tag # v0.9.0
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_release_library.yml@v0.10.0
     with:
       release-ref: ${{ inputs.release-ref }}
       image-name: nemo_container
@@ -40,4 +38,4 @@ jobs:
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-      SLACK_RELEASE_ENDPOINT: ${{ secrets.SLACK_WEBHOOK_TEST }} # ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+      SLACK_RELEASE_ENDPOINT: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
