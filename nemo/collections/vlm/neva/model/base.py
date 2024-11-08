@@ -216,6 +216,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     """
     https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/clip/configuration_clip.py#L261
     """
+
     hidden_size: int = 1024
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
 
