@@ -181,6 +181,7 @@ def load_config(mistral_config, tokenizer, config_path):
 
 class LazyStateDict:
     """Lazy"""
+
     def __init__(self, ckpt_index, root):
         self.map = ckpt_index
         self.root = root
@@ -416,7 +417,7 @@ def convert(args):
 
 
 def merge(a: dict, b: dict, path=[]):
-    """ merges two state dicts """
+    """merges two state dicts"""
     is_dict = lambda x: isinstance(x, OrderedDict) or isinstance(x, dict)
     for key in b:
         if key in a:
