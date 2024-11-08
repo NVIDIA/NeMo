@@ -1,13 +1,11 @@
-# NeMo Experiment Parameter Map
+# NeMo Recipe Configuration Map
 
-- This page shows the hierarchy of modules with their respective parameters as used in pre-training and fine-tuning experiments.
-  - Example recipe for llama3_8b- https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/llama3_8b.py
-- The list below is not a complete list of parameters. But, it shows the parameters commonly used across various models.
-  - The values are defaults as defined in the base class for the modules.
 - TransformerConfig and ModelParallelConfig defintions (used in recipe -> model -> config -> GPTConfig) can be found here-
   -  https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_config.py 
-  -  https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/model_parallel_config.py  
-- Clik on the links below to see complete list of available paramaters.
+  -  https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/model_parallel_config.py
+
+- The parameter values are defaults as defined in the base class for a module.
+- Clik on the links to see complete list of configuration options for a module.
 
 <details open>
 <summary>recipe</summary>
