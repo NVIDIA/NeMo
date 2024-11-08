@@ -244,7 +244,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
         ## TODO: make configurable
-        torch_dist_kwargs['separation_hint'] = "optim"
+        torch_dist_kwargs['separation_hint'] = "optimizer"
         if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
             save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
@@ -270,6 +270,10 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy
+
+    def drop_optimizer_states(self, path):
+        from megatron.core import dist_checkpointing
+        dist_checkpointing.remove_sharded_tensors(path, key_prefix="optimizer")
 
 
 def _fix_tensors_device(ckpt: Dict) -> Dict:

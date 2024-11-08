@@ -335,16 +335,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
             checkpoint_path = (
                 checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
             )
-            print(f'dropping {checkpoint_path}')
-
-            ## all odd files contain the optimizer states
-            distckpt_files = [f for f in os.listdir(checkpoint_path) if f.endswith("distcp")]
+            ## TODO: verify this
             if is_global_rank_zero():
-                for f in distckpt_files:
-                    idx = int(f.strip(".distcp").split('_')[-1])
-                    if idx % 2 == 1:
-                        os.remove(checkpoint_path / f)
-            torch.distributed.barrier()
+                checkpoint_path = Path(checkpoints[checkpoint_index])
+                checkpoint_path = checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+                print(f'dropping optimizer states at {checkpoint_path}')
+                ## TODO: what do we do if drop_optimizer_states is not implemented?
+                trainer.strategy.checkpoint_io.drop_optimizer_states(checkpoint_path)
+
+        torch.distributed.barrier()
 
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
