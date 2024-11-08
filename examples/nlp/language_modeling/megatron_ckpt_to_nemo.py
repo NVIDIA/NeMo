@@ -112,6 +112,11 @@ def get_args():
         choices=['32-true', '16-mixed', 'bf16-mixed'],
         help="Precision value for the trainer that matches with precision of the ckpt",
     )
+    parser.add_argument(
+        "--convert_mlm",
+        action="store_true",
+        help="Use this flag to convert megatron-lm checkpoints.",
+    )
 
     args = parser.parse_args()
     return args
@@ -193,9 +198,9 @@ def convert(local_rank, rank, world_size, args):
     logging.info(
         f'rank: {rank}, local_rank: {local_rank}, is loading checkpoint: {checkpoint_path} for tp_rank: {app_state.tensor_model_parallel_rank} and pp_rank: {app_state.pipeline_model_parallel_rank}'
     )
-
+    
     if args.model_type == 'gpt':
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, load_mlm=args.convert_mlm)
     elif args.model_type == 'sft':
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
