@@ -189,7 +189,7 @@ jobs:
           body: |
             <!-- pylint-output-strict-mode-${{ matrix.strict-mode }} -->
             
-            ${{ steps.pylint.outputs.header }}
+            beep boop 🤖: ${{ steps.pylint.outputs.header }}
 
             ---
 
