@@ -567,7 +567,8 @@ def generate(
     """
     Generates text using a NeMo LLM model.
 
-    This function takes a checkpoint path and a list of prompts and generates text based on the loaded model and parameters.
+    This function takes a checkpoint path and a list of prompts,
+    and generates text based on the loaded model and parameters.
     It returns a list of generated text, either as a string or as an InferenceRequest object.
 
     Python Usage:
@@ -619,14 +620,15 @@ def generate(
         add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
         random_seed (Optional[int], optional): The random seed. Defaults to None.
-        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than this threshold
-            then we will not use pipelining, otherwise we will. Defaults to 1000.
+        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than
+            this threshold then we will not use pipelining, otherwise we will. Defaults to 1000.
         inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
             Mcore's CommonInferenceParams. Defaults to None.
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
 
     Returns:
-        list[Union["InferenceRequest", str]]: A list of generated text, either as a string or as an InferenceRequest object.
+        list[Union["InferenceRequest", str]]: A list of generated text,
+            either as a string or as an InferenceRequest object.
     """
     from nemo.collections.llm import inference
 
