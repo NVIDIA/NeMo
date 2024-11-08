@@ -158,7 +158,6 @@ class NemoQueryLLM(NemoQueryLLMBase):
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
-        min_output_len=None,
         max_output_len=None,
         top_k=None,
         top_p=None,
@@ -166,12 +165,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
         random_seed=None,
         task_id=None,
         lora_uids=None,
-        use_greedy: bool = None,
-        repetition_penalty: float = None,
-        add_BOS: bool = None,
-        all_probs: bool = None,
-        compute_logprob: bool = None,
-        end_strings=None,
+        log_probs: bool = False,
         init_timeout=60.0,
         openai_format_response: bool = False,
     ):
@@ -188,15 +182,15 @@ class NemoQueryLLM(NemoQueryLLMBase):
             stop_words_list (List(str)): list of stop words.
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
-            task_id (str): downstream task id if virtual tokens are used.
+            task_id (List[str]): downstream task id if virtual tokens are used.
+            lora_uids (List[str]): downstream lora id.
+            log_probs (bool): get log-probabilities or not.
             init_timeout (flat): timeout for the connection.
+            openai_format_response (bool): return in open AI format or not.
         """
 
         prompts = str_list2numpy(prompts)
         inputs = {"prompts": prompts}
-
-        if min_output_len is not None:
-            inputs["min_output_len"] = np.full(prompts.shape, max_output_len, dtype=np.int_)
 
         if max_output_len is not None:
             inputs["max_output_len"] = np.full(prompts.shape, max_output_len, dtype=np.int_)
@@ -230,27 +224,16 @@ class NemoQueryLLM(NemoQueryLLMBase):
             lora_uids = np.char.encode(lora_uids, "utf-8")
             inputs["lora_uids"] = np.full((prompts.shape[0], len(lora_uids)), lora_uids)
 
-        if use_greedy is not None:
-            inputs["use_greedy"] = np.full(prompts.shape, use_greedy, dtype=np.bool_)
-
-        if repetition_penalty is not None:
-            inputs["repetition_penalty"] = np.full(prompts.shape, repetition_penalty, dtype=np.single)
-
-        if add_BOS is not None:
-            inputs["add_BOS"] = np.full(prompts.shape, add_BOS, dtype=np.bool_)
-
-        if all_probs is not None:
-            inputs["all_probs"] = np.full(prompts.shape, all_probs, dtype=np.bool_)
-
-        if compute_logprob is not None:
-            inputs["compute_logprob"] = np.full(prompts.shape, compute_logprob, dtype=np.bool_)
-
-        if end_strings is not None:
-            inputs["end_strings"] = str_list2numpy(end_strings)
+        if log_probs:
+            inputs["log_probs"] = np.full(prompts.shape, log_probs, dtype=np.bool_)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
+
+            log_probs_output = None
+            if "log_probs" in result_dict.keys():
+                log_probs_output = result_dict["log_probs"]
 
             if output_type == np.bytes_:
                 if "outputs" in result_dict.keys():
@@ -269,86 +252,92 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "model": self.model_name,
                         "choices": [{"text": str(sentences)}],
                     }
+                    if log_probs_output is not None:
+                        openai_response["log_probs"] = log_probs_output
                     return openai_response
                 else:
-                    return sentences
+                    if log_probs_output is not None:
+                        return sentences, log_probs_output
+                    else:
+                        return sentences
             else:
                 return result_dict["outputs"]
 
-    def query_llm_streaming(
-        self,
-        prompts,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        max_output_len=512,
-        top_k=1,
-        top_p=0.0,
-        temperature=1.0,
-        random_seed=None,
-        task_id=None,
-        lora_uids=None,
-        init_timeout=60.0,
-    ):
-        """
-        Query the Triton server using streaming.
 
-        Args:
-            prompts (List(str)): list of sentences.
-            max_output_len (int): max generated tokens.
-            top_k (int): limits us to a certain number (K) of the top tokens to consider.
-            top_p (float): limits us to the top tokens within a certain probability mass (p).
-            temperature (float): A parameter of the softmax function, which is the last layer in the network.
-            random_seed (int): Seed to condition sampling.
-            stop_words_list (List(str)): list of stop words.
-            bad_words_list (List(str)): list of bad words.
-            no_repeat_ngram_size (int): no repeat ngram size.
-            task_id (str): downstream task id if virtual tokens are used.
-            init_timeout (flat): timeout for the connection.
-        """
+def query_llm_streaming(
+    self,
+    prompts,
+    stop_words_list=None,
+    bad_words_list=None,
+    no_repeat_ngram_size=None,
+    max_output_len=512,
+    top_k=1,
+    top_p=0.0,
+    temperature=1.0,
+    random_seed=None,
+    task_id=None,
+    lora_uids=None,
+    init_timeout=60.0,
+):
+    """
+    Query the Triton server using streaming.
 
-        prompts = str_list2numpy(prompts)
-        inputs = {"prompts": prompts}
+    Args:
+        prompts (List(str)): list of sentences.
+        max_output_len (int): max generated tokens.
+        top_k (int): limits us to a certain number (K) of the top tokens to consider.
+        top_p (float): limits us to the top tokens within a certain probability mass (p).
+        temperature (float): A parameter of the softmax function, which is the last layer in the network.
+        random_seed (int): Seed to condition sampling.
+        stop_words_list (List(str)): list of stop words.
+        bad_words_list (List(str)): list of bad words.
+        no_repeat_ngram_size (int): no repeat ngram size.
+        task_id (str): downstream task id if virtual tokens are used.
+        init_timeout (flat): timeout for the connection.
+    """
 
-        if max_output_len is not None:
-            inputs["max_output_len"] = np.full(prompts.shape, max_output_len, dtype=np.int_)
+    prompts = str_list2numpy(prompts)
+    inputs = {"prompts": prompts}
 
-        if top_k is not None:
-            inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
+    if max_output_len is not None:
+        inputs["max_output_len"] = np.full(prompts.shape, max_output_len, dtype=np.int_)
 
-        if top_p is not None:
-            inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
+    if top_k is not None:
+        inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
 
-        if temperature is not None:
-            inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+    if top_p is not None:
+        inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
 
-        if random_seed is not None:
-            inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
+    if temperature is not None:
+        inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
 
-        if stop_words_list is not None:
-            stop_words_list = np.char.encode(stop_words_list, "utf-8")
-            inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
+    if random_seed is not None:
+        inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
 
-        if bad_words_list is not None:
-            bad_words_list = np.char.encode(bad_words_list, "utf-8")
-            inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
+    if stop_words_list is not None:
+        stop_words_list = np.char.encode(stop_words_list, "utf-8")
+        inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
 
-        if no_repeat_ngram_size is not None:
-            inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
+    if bad_words_list is not None:
+        bad_words_list = np.char.encode(bad_words_list, "utf-8")
+        inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
 
-        if task_id is not None:
-            task_id = np.char.encode(task_id, "utf-8")
-            inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
+    if no_repeat_ngram_size is not None:
+        inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
 
-        if lora_uids is not None:
-            lora_uids = np.char.encode(lora_uids, "utf-8")
-            inputs["lora_uids"] = np.full((prompts.shape[0], len(lora_uids)), lora_uids)
+    if task_id is not None:
+        task_id = np.char.encode(task_id, "utf-8")
+        inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
 
-        with DecoupledModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
-            for partial_result_dict in client.infer_batch(**inputs):
-                output_type = client.model_config.outputs[0].dtype
-                if output_type == np.bytes_:
-                    sentences = np.char.decode(partial_result_dict["outputs"].astype("bytes"), "utf-8")
-                    yield sentences
-                else:
-                    yield partial_result_dict["outputs"]
+    if lora_uids is not None:
+        lora_uids = np.char.encode(lora_uids, "utf-8")
+        inputs["lora_uids"] = np.full((prompts.shape[0], len(lora_uids)), lora_uids)
+
+    with DecoupledModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
+        for partial_result_dict in client.infer_batch(**inputs):
+            output_type = client.model_config.outputs[0].dtype
+            if output_type == np.bytes_:
+                sentences = np.char.decode(partial_result_dict["outputs"].astype("bytes"), "utf-8")
+                yield sentences
+            else:
+                yield partial_result_dict["outputs"]

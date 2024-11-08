@@ -680,7 +680,7 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_table=None,
         prompt_embeddings_checkpoint_path: str = None,
         streaming: bool = False,
-        output_log_probs: bool = False,
+        log_probs: bool = False,
         **sampling_kwargs,
     ):
         """
@@ -697,8 +697,11 @@ class TensorRTLLM(ITritonDeployable):
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
             task_ids (List(str)): list of the task ids for the prompt tables.
+            lora_uids (List(str)): list of the lora ids for the downstream tasks.
             prompt_embeddings_table (List(float)): prompt embeddings table.
             prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
+            streaming (bool): enable streaming or not
+            log_probs (bool): return log probabilities or not
             sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
 
@@ -775,7 +778,7 @@ class TensorRTLLM(ITritonDeployable):
                     stop_words_list=stop_words_list,
                     bad_words_list=bad_words_list,
                     no_repeat_ngram_size=no_repeat_ngram_size,
-                    output_log_probs=output_log_probs,
+                    output_log_probs=log_probs,
                     multiprocessed_env=multiprocessed_env,
                     **sampling_kwargs,
                 )
@@ -855,16 +858,20 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="task_id", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="log_probs", shape=(-1,), dtype=np.bool_, optional=True),
         )
         return inputs
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
-        return outputs
+        return (
+            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="log_probs", shape=(-1,), dtype=np.single),
+        )
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
+        output_infer = {}
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
@@ -891,14 +898,21 @@ class TensorRTLLM(ITritonDeployable):
             if "lora_uids" in inputs:
                 lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
                 infer_input["lora_uids"] = lora_uids[0].tolist()
+            if "log_probs" in inputs:
+                infer_input["log_probs"] = inputs.pop("log_probs")[0][0]
 
-            output_texts = self.forward(**infer_input)
-            output = cast_output(output_texts, np.bytes_)
+            if "log_probs" in infer_input:
+                output_texts, log_probs = self.forward(**infer_input)
+                output_infer["log_probs"] = np.array(log_probs)
+            else:
+                output_texts = self.forward(**infer_input)
+
+            output_infer["outputs"] = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output = cast_output([err_msg], np.bytes_)
+            output_infer["outputs"] = cast_output([err_msg], np.bytes_)
 
-        return {"outputs": output}
+        return output_infer
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
