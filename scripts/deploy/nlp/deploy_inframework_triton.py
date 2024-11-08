@@ -19,7 +19,6 @@ import sys
 from nemo.deploy import DeployPyTriton
 
 LOGGER = logging.getLogger("NeMo")
-
 megatron_llm_supported = True
 try:
     from nemo.deploy.nlp import MegatronLLMDeploy, MegatronLLMDeployable

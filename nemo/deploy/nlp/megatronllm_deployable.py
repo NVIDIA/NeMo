@@ -217,15 +217,14 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             model=self.inference_wrapped_model,
             tokenizer=self.mcore_tokenizer,
             prompts=prompts,
-            max_batch_size=max_batch_size,
+            max_batch_size=16,
             random_seed=random_seed,
             inference_params=inference_params,
         )
 
         output_texts = [r.generated_text if text_only else r for r in results]
-        print(output_texts)
         output = cast_output(output_texts, np.bytes_)
-        return output
+        return {"outputs": output}
 
 
 class MegatronLLMDeployable(ITritonDeployable):
