@@ -586,7 +586,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 for i in range(len(seq_boundaries) - 1)
             ]
         )
-        
+
     def _maybe_cast_to_list(self, x):
         return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
 
