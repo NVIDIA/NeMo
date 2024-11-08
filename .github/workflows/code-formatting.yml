@@ -10,7 +10,7 @@ name: Isort and Black Formatting; PyLint Docs check
 # For details see https://github.com/orgs/community/discussions/25702
 
 on:
-  pull_request: #pull_request_target:
+  pull_request_target:
     paths:
       - '**.py'
     types: [ opened, synchronize, reopened, labeled, unlabeled ]
