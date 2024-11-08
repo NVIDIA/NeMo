@@ -39,6 +39,7 @@ python examples/nlp/language_modeling/megatron_gpt_prune.py \
     model.restore_from_path=llama3.1-8b-instruct.nemo \
     model.tensor_model_parallel_size=1 \
     model.pipeline_model_parallel_size=8 \
+    +model.sequence_parallel=false \
     trainer.num_nodes=1 \
     trainer.precision=bf16 \
     trainer.devices=8 \
