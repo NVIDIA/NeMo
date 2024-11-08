@@ -42,7 +42,7 @@ from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     load_nemo_model,
 )
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
-from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer, TOKENIZER_CONFIG_FILE
+from nemo.export.trt_llm.qnemo.tokenizer_utils import TOKENIZER_CONFIG_FILE, get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import (
@@ -298,7 +298,7 @@ class TensorRTLLM(ITritonDeployable):
                 if os.path.exists(os.path.join(nemo_checkpoint_path, TOKENIZER_CONFIG_FILE)):
                     # Instantiate tokenizer for a legacy "Nemo 1" quantized checkpoint from a tokenizer config.
                     # Note that using the config is deprecated and it will be removed in future releases.
-                    LOGGER.warning("Detected tokenizer_config.yaml, using it to build tokenizer.")
+                    LOGGER.warning("Detected legacy tokenizer_config.yaml, using it to build tokenizer.")
                     self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
 
                 qnemo_to_tensorrt_llm(
