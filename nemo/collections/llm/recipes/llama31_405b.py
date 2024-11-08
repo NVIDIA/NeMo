@@ -279,22 +279,20 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning. Be aware that fine-tuning a 405B model
         requires substantial computational resources.
     """
-    recipe = default_finetune_recipe(
-        model(), "meta-llama/Llama-3.1-405B", dir, name, num_nodes, num_gpus_per_node
-    )
+    recipe = default_finetune_recipe(model(), "meta-llama/Llama-3.1-405B", dir, name, num_nodes, num_gpus_per_node)
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
         assert num_nodes >= 4
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
-        recipe.trainer.strategy.pipeline_dtype=torch.bfloat16
+        recipe.trainer.strategy.pipeline_dtype = torch.bfloat16
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 6
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 7
-        recipe.trainer.strategy.pipeline_dtype=torch.bfloat16
+        recipe.trainer.strategy.pipeline_dtype = torch.bfloat16
         recipe.data.global_batch_size = 128
         recipe.optim.config.lr = 1e-4
     else:
