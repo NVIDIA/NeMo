@@ -206,8 +206,10 @@ class ChineseG2p(BaseG2p):
                 #   synthesized speech. Even though this case is uncommon, it should be fixed in future.
                 if syllable not in self.phoneme_dict:
                     err = True
-                    logging.error(f"Syllable <{syllable}> does not exist in the dictionary. You should expect symbol "
-                                  f"deletion risks!!")
+                    logging.error(
+                        f"Syllable <{syllable}> does not exist in the dictionary. You should expect symbol "
+                        f"deletion risks!!"
+                    )
                     continue
                 phoneme_seq += self.phoneme_dict[syllable]
                 phoneme_seq.append(self.tone_dict[tone_hyp])
