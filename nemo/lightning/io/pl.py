@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
@@ -228,6 +229,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if sharded_strategy is not None:
             logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
 
+        if os.environ.get("MCORE_STRICT_HANDLING") is not None:
+            strict = os.environ["MCORE_STRICT_HANDLING"]
         if isinstance(strict, bool):
             # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
             # we must apply a simple strict check here.
