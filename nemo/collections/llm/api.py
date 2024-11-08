@@ -256,100 +256,11 @@ def validate(
     return app_state.exp_dir
 
 
-def get_trtllm_deployable(
-    nemo_checkpoint,
-    model_type,
-    triton_model_repository,
-    num_gpus,
-    tensor_parallelism_size,
-    pipeline_parallelism_size,
-    max_input_len,
-    max_output_len,
-    max_batch_size,
-    dtype,
-):
-    from nemo.export.tensorrt_llm import TensorRTLLM
-
-    if triton_model_repository is None:
-        trt_llm_path = "/tmp/trt_llm_model_dir/"
-        Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
-    else:
-        trt_llm_path = triton_model_repository
-
-    if nemo_checkpoint is None and triton_model_repository is None:
-        raise ValueError(
-            "The provided model repository is not a valid TensorRT-LLM model "
-            "directory. Please provide a --nemo_checkpoint or a TensorRT-LLM engine."
-        )
-
-    if nemo_checkpoint is None and not os.path.isdir(triton_model_repository):
-        raise ValueError(
-            "The provided model repository is not a valid TensorRT-LLM model "
-            "directory. Please provide a --nemo_checkpoint or a valid TensorRT-LLM engine."
-        )
-
-    if nemo_checkpoint is not None and model_type is None:
-        raise ValueError("Model type is required to be defined if a nemo checkpoint is provided.")
-
-    trt_llm_exporter = TensorRTLLM(
-        model_dir=trt_llm_path,
-        load_model=(nemo_checkpoint is None),
-    )
-
-    if nemo_checkpoint is not None:
-        try:
-            logging.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
-            trt_llm_exporter.export(
-                nemo_checkpoint_path=nemo_checkpoint,
-                model_type=model_type,
-                n_gpus=num_gpus,
-                tensor_parallelism_size=tensor_parallelism_size,
-                pipeline_parallelism_size=pipeline_parallelism_size,
-                max_input_len=max_input_len,
-                max_output_len=max_output_len,
-                max_batch_size=max_batch_size,
-                dtype=dtype,
-            )
-        except Exception as error:
-            raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
-
-    return trt_llm_exporter
-
-
-def store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response):
-    args_dict = {
-        "triton_service_ip": triton_http_address,
-        "triton_service_port": triton_port,
-        "triton_request_timeout": triton_request_timeout,
-        "openai_format_response": openai_format_response,
-    }
-    with open("nemo/deploy/service/config.json", "w") as f:
-        json.dump(args_dict, f)
-
-def unset_environment_variables():
-    import subprocess
-    print("Unsetting all SLURM_, PMI_, PMIX_ Variables")
-
-    # Function to unset variables with a specific prefix
-    def unset_vars_with_prefix(prefix):
-        cmd = f"env | grep ^{prefix} | cut -d= -f1"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        vars_to_unset = result.stdout.strip().split('\n')
-        for var in vars_to_unset:
-            if var:  # Check if the variable name is not empty
-                os.environ.pop(var, None)
-
-    # Unset variables for each prefix
-    for prefix in ['SLURM_', 'PMI_', 'PMIX_']:
-        unset_vars_with_prefix(prefix)
-
-    print("Variables unset successfully")
-
 @run.cli.entrypoint(namespace="llm")
 def deploy(
     nemo_checkpoint: Path = None,
     model_type: str = "llama",
-    triton_model_name: str = "xxx",
+    triton_model_name: str = 'triton_model',
     triton_model_version: Optional[int] = 1,
     triton_port: int = 8000,
     triton_http_address: str = "0.0.0.0",
@@ -362,49 +273,72 @@ def deploy(
     max_input_len: int = 256,
     max_output_len: int = 256,
     max_batch_size: int = 8,
-    start_rest_service: bool = False,
+    start_rest_service: bool = True,
     rest_service_http_address: str = "0.0.0.0",
-    rest_service_port: int = 8000,
-    openai_format_response: bool = False,
-    ckpt_type: str = "nemo",
+    rest_service_port: int = 8080,
+    openai_format_response: bool = True,
+    output_generation_logits: bool = True
 ):
+    """
+    Deploys nemo model on a PyTriton server by converting the nemo ckpt to trtllm.
+    Also starts rest service that is used to send OpenAI API compatible input request
+    to the PyTiton server.
+
+    Args:
+        nemo_checkpoint (Path): Path for nemo checkpoint.
+        model_type (str): Type of the model. Choices: gpt, llama, falcon, starcoder. Default: llama.
+        triton_model_name (str): Name for the model that gets deployed on PyTriton. Please ensure that the same model name
+        is passed to the evalute method for the model to be accessible while sending evalution requests.  Default: 'triton_model'.
+        triton_model_version (Optional[int]): Version for the triton model. Default: 1.
+        triton_port (int): Port for the PyTriton server. Default: 8000.
+        triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
+        triton_request_timeout (int): Timeout in seconds for Triton server. Default: 60,
+        triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engin gets saved in this path specified. Default: None.
+        num_gpus (int): Number of GPUs for export to trtllm and deploy. Default: 1.
+        tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
+        pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.
+        dtype (str): dtype of the TensorRT-LLM model. Default: "bfloat16".
+        max_input_len (int): Max input length of the model. Default: 256.
+        max_output_len (int): Max output length of the model. Default: 256.
+        max_batch_size (int): Max batch size of the model. Default: 8.
+        start_rest_service (bool): Start rest service that is used to send evaluation requests to the PyTriton server. Needs to be True
+        to be able to run evaluation . Default: True.
+        rest_service_http_address (str): HTTP address for the rest service. Default: "0.0.0.0".
+        rest_service_port (int): Port for the rest service. Ensure the rest service port is the port fowarded between host machine and docker
+        when running locally inside a docker container. Default: 8080.
+        openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to be True while running evaluation.
+        Default: True.
+        output_generation_logits (bool): If true builds trtllm engine with gather_generation_logits set to True. generation_logits are used to compute the
+        logProb of the output token. Default: True.
+    """
     from nemo.deploy import DeployPyTriton
-    unset_environment_variables()
+    from nemo.collections.llm import evaluation
+
+    evaluation.unset_environment_variables()
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
             return
-        # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
-        #store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
+        # Store triton ip, port and other args relevant for REST API as env vars to be accessible by rest_model_api.py
         os.environ['TRITON_HTTP_ADDRESS'] = triton_http_address
         os.environ['TRITON_PORT'] = str(triton_port)
         os.environ['TRITON_REQUEST_TIMEOUT'] = str(triton_request_timeout)
         os.environ['OPENAI_FORMAT_RESPONSE'] = str(openai_format_response)
+        os.environ['OUTPUT_GENERATION_LOGITS'] = str(output_generation_logits)
 
-    # TODO: directly support deploy of trtllm engine wo exporting to TRTLLM
-    if ckpt_type == "trtllm":
-        triton_deployable = get_trtllm_deployable(
-            nemo_checkpoint,
-            model_type,
-            triton_model_repository,
-            num_gpus,
-            tensor_parallelism_size,
-            pipeline_parallelism_size,
-            max_input_len,
-            max_output_len,
-            max_batch_size,
-            dtype,
-        )
-    elif ckpt_type == "nemo":
-        if nemo_checkpoint is None:
-            raise ValueError("In-Framework deployment requires a .nemo checkpoint")
-        try:
-            from nemo.deploy.nlp import MegatronLLMDeployable
-        except Exception as e:
-            raise ValueError(
-                "MegatronLLMDeployable is not supported in this environment as it was not imported.{type(e).__name__}: {e}"
-            )
-        triton_deployable = MegatronLLMDeployable(nemo_checkpoint, num_gpus)
+    triton_deployable = evaluation.get_trtllm_deployable(
+        nemo_checkpoint,
+        model_type,
+        triton_model_repository,
+        num_gpus,
+        tensor_parallelism_size,
+        pipeline_parallelism_size,
+        max_input_len,
+        max_output_len,
+        max_batch_size,
+        dtype,
+        output_generation_logits
+    )
 
     try:
         nm = DeployPyTriton(
@@ -455,214 +389,60 @@ def deploy(
 def evaluate(
     nemo_checkpoint_path: Path,
     url: str = "http://0.0.0.0:1234/v1",
-    model_name: str = "xxxx",
+    model_name: str = "triton_model",
     eval_task: str = "gsm8k",
     num_fewshot: Optional[int] = None,
     limit: Optional[Union[int, float]] = None,
     bootstrap_iters: int = 100000,
     # inference params
     max_tokens_to_generate: Optional[int] = 256,
-    temperature: Optional[float] = None,
+    temperature: Optional[float] = 0.000000001,
     top_p: Optional[float] = 0.0,
     top_k: Optional[int] = 1,
+    add_bos: Optional[bool] = False,
 ):
+    """
+    Evaluates nemo model deployed on PyTriton server (via trtllm) using lm-evaluation-harness (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
+    nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt which is
+    required to tokenize the evaluation input and output prompts.
+    url (str): rest serice url and port that were used in the deploy method above in the format: http://{rest_service_http}:{rest_service_port}.
+    Post requests with evaluation input prompts (from lm-eval-harness) are sent to this url which is then passed to the model deployed in PyTriton server.
+    The rest service url and port serve as the entry point to evaluate model deployed on PyTriton server.
+    model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as triton_model_name passed to the deploy method above to be able
+    to launch evaluation.
+    eval_task (str): task to be evaluated on. For ex: "gsm8k", "gsm8k_cot", "mmlu", "lambada". Default: "gsm8k".
+    These are the tasks that are supported currently. Any other task of type generate_until or loglikelihood from lm-evaluation-harness can be run,
+    but only the above mentioned ones are tested. Tasks of type loglikelihood_rolling are not supported yet.
+    num_fewshot (int): number of examples in few-shot context. Default: None.
+    limit (Union[int, float]): Limit the number of examples per task. If <1 (i.e float val between 0 and 1), limit is a percentage of the total number of examples.
+    If int say x, then run evaluation only on x number of samples/samples from the eval dataset. Default: None, which means eval is run the entire dataset.
+    bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. set to 0 for no stderr calculations to be performed. Default: 100000.
+    # inference params
+    max_tokens_to_generate (int): max tokens to generate. Default: 256.
+    temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token with highest prob is chosen. Default: 0.000000001.
+    Temp can't be set to 0.0, due to a bug with TRTLLM (# TODO to be investigated) hence using a very samll value.
+    top_p: Optional[float]: float value between 0 and 1. limits to the top tokens within a certain probability. top_p=0 means the model will only consider
+    the single most likely token for the next prediction. Default: 0.0.
+    top_k: Optional[int]: limits to a certain number (K) of the top tokens to consider. top_k=1 means the model will only consider the single most likely token
+    for the next prediction. Default: 1
+    add_bos: Optional[bool]: whether a special token representing the beginning of a sequence should be added when encoding a string. Default: False since typically for
+    CausalLM its set to False. If needed set add_bos to True.
 
-    import time
+    """
+    try:
+        # lm-evaluation-harness import
+        from lm_eval import evaluator
+    except ImportError:
+        raise ImportError("Please ensure that lm-evaluation-harness is installed in your env as it is required to run evaluations")
 
-    import requests
-    from lm_eval import evaluator
+    from nemo.collections.llm import evaluation
 
-    ## This may change, how to deal with it ? In the past Instance class was in lm_eval.base
-    from lm_eval.api.instance import Instance
-    from lm_eval.api.model import LM
-    from requests.exceptions import RequestException
-
-    def wait_for_rest_service(rest_url, max_retries=60, retry_interval=2):
-        """
-        Wait for REST service to be ready.
-
-        Args:
-        rest_url (str): URL of the REST service's health endpoint
-        max_retries (int): Maximum number of retry attempts
-        retry_interval (int): Time to wait between retries in seconds
-
-        Returns:
-        bool: True if rest service is ready, False otherwise
-        """
-        for _ in range(max_retries):
-            rest_ready = check_service(rest_url)
-
-            if rest_ready:
-                print("REST service is ready.")
-                return True
-
-            print(f"REST Service not ready yet. Retrying in {retry_interval} seconds...")
-            time.sleep(retry_interval)
-
-        print("Timeout: One or both services did not become ready.")
-        return False
-
-    def check_service(url):
-        """
-        Check if a service is ready by making a GET request to its health endpoint.
-
-        Args:
-        url (str): URL of the service's health endpoint
-
-        Returns:
-        bool: True if the service is ready, False otherwise
-        """
-        try:
-            response = requests.get(url, timeout=5)
-            return response.status_code == 200
-        except RequestException:
-            return False
-
-    class CustomModel(LM):
-        """
-        Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
-        """
-        def __init__(self, model_name, api_url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k):
-            self.model_name = model_name
-            self.api_url = api_url
-            self.tokenizer = tokenizer
-            self.max_tokens_to_generate = max_tokens_to_generate
-            self.temperature = temperature
-            self.top_p = top_p
-            self.top_k = top_k
-            super().__init__()
-
-        def _generate_tokens_logprobs(self, payload, return_text: bool = False, return_logprobs: bool = False):
-            response = requests.post(f"{self.api_url}/completions/", json=payload)
-            response_data = response.json()
-
-            if 'error' in response_data:
-                raise Exception(f"API Error: {response_data['error']}")
-
-            # Assuming the response is in OpenAI format
-            if return_text:
-                return response_data['choices'][0]['text']
-
-            if return_logprobs:
-                # generation_logits is needed only for loglikelihood tasks
-                return response_data['choices'][0]['log_probs'], response_data['choices'][0]['generation_logits']
-
-
-        def loglikelihood(self, requests: list[Instance]):
-            import numpy as np
-            import torch
-            import torch.nn.functional as F
-
-            special_tokens_kwargs = {'add_special_tokens': False} ## Hardcode for now. TODO Infer add_bos from input.
-            results = []
-            for request in requests:
-                context = request.arguments[0]
-                continuation = request.arguments[1]
-                context_enc = self.tokenizer.tokenizer.encode(context) #, **special_tokens_kwargs) #errors for SentencePeicetokenizer
-                continuation_enc = self.tokenizer.tokenizer.encode(continuation) #, **special_tokens_kwargs)
-                continuation_enc = continuation_enc[1:] #for SentencePeice since first encoded token is space, comment this for HF tokenizer
-                num_cont_tokens = len(continuation_enc)
-                ## Update self.max_tokens_to_generate with number of continuation tokens in the request
-                self.max_tokens_to_generate = num_cont_tokens
-
-                payload = {
-                    "model": self.model_name,
-                    "prompt": context,
-                    "max_tokens": self.max_tokens_to_generate,
-                    "temperature": self.temperature,
-                    "top_p": self.top_p,
-                    "top_k": self.top_k,
-                    # "compute_logprob": True ##TODO Do we want to have this as an
-                    # user defined value or set it to True by default ?
-                }
-                log_probs, generation_logits = self._generate_tokens_logprobs(payload, return_logprobs=True)
-                # Convert generation_logits to torch tensor to easily get logprobs wo manual implementation
-                multi_logits = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
-                cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
-                greedy_tokens = multi_logits.argmax(dim=-1)
-                max_equal = (greedy_tokens == cont_toks).all()
-                logits = torch.gather(multi_logits, 2, cont_toks.unsqueeze(-1)).squeeze(
-                        -1
-                    )
-                result = (float(logits.sum()), bool(max_equal))
-
-                results.append(result)
-
-            return results
-
-        def loglikelihood_rolling(self, requests: list[Instance]):
-            ## Note: loglikelihood_rolling does not have correct implementation yet,
-            # the tasks we have working so far: gsm8k, mmlu, lambada dont need loglikelihood_rolling
-            # log likelihood rolling calculation logic here
-            results = []
-            for request in requests:
-                context = request.arguments[0]
-                continuation = request.arguments[1]
-                full_text = context + continuation
-                instance = Instance(
-                    request_type="loglikelihood_rolling",
-                    # doc={'text': full_text},
-                    doc=request.doc,
-                    arguments=(full_text,),
-                    idx=0,
-                )
-                # Access the 'arguments' attribute of the Instance
-                prompt = instance.arguments[0]  # This should be the prompt string
-
-                # Extract default temperature from instance of the benchmark or use the user defined value
-                # Does not work for MMLU since the input instance does not contain temp key
-                # temperature = (
-                #     instance.arguments[1].get('temperature', 1.0) if not self.temperature else self.temperature
-                # )
-                payload = {
-                    "model": self.model_name,
-                    "prompt": prompt,
-                    "max_tokens": self.max_tokens_to_generate,
-                    "temperature": self.temperature,
-                    "top_p": self.top_p,
-                    "top_k": self.top_k,
-                    # "compute_logprob": True ##TODO Do we want to have this as an
-                    # user defined value or set it to True by default ?
-                }
-
-                log_probs = self._generate_tokens_logprobs(payload, return_logprobs=True)
-
-                # Assuming log_probs is a list of log probabilities for each token
-                continuation_log_probs = log_probs[0][0][-len(continuation) :]
-                results.append((continuation_log_probs, False))
-
-            return results
-
-        def generate_until(self, inputs: list[Instance]):
-            # `Instance` is a dataclass defined in [`lm_eval.api.instance`] https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/lm_eval/api/instance.py
-            results = []
-            for instance in inputs:
-                # Access the 'arguments' attribute of the Instance
-                prompt = instance.arguments[0]  # This should be the prompt string
-
-                payload = {
-                    "model": self.model_name,
-                    "prompt": prompt,
-                    "max_tokens": self.max_tokens_to_generate,
-                    "temperature": self.temperature,
-                    "top_p": self.top_p,
-                    "top_k": self.top_k,
-                    # "compute_logprob": True ##TODO Do we want to have this as an
-                    # user defined value or set it to True by default ?
-                }
-
-                generated_text = self._generate_tokens_logprobs(payload, return_text=True)
-
-                results.append(generated_text)
-
-            return results
-
-    ## Get tokenizer from nemo 2.0 model, in case of 1.0 please add appropriate code to get
-    ## tokenizer from 1.0 ckpt and pass it to CustomModel
-    model = io.load_context(nemo_checkpoint_path, subpath="model")
-
-    wait_for_rest_service(rest_url=f"{url}/health")
-    model = CustomModel(model_name, url, model.tokenizer, max_tokens_to_generate, temperature, top_p, top_k)
+    # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
+    tokenizer = io.load_context(nemo_checkpoint_path + '/context', subpath="model").tokenizer
+    # Wait for rest service to be ready before starting evaluation
+    evaluation.wait_for_rest_service(rest_url=f"{url}/v1/health")
+    # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
+    model = evaluation.NeMoFWLMEval(model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos)
     results = evaluator.simple_evaluate(
         model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
     )

@@ -174,6 +174,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
         end_strings=None,
         init_timeout=60.0,
         openai_format_response: bool = False,
+        output_generation_logits: bool = False
     ):
         """
         Query the Triton server synchronously and return a list of responses.
@@ -190,6 +191,8 @@ class NemoQueryLLM(NemoQueryLLMBase):
             no_repeat_ngram_size (int): no repeat ngram size.
             task_id (str): downstream task id if virtual tokens are used.
             init_timeout (flat): timeout for the connection.
+            openai_format_response: return response similar to OpenAI API format
+            output_generation_logits: return generation logits from model on PyTriton
         """
 
         prompts = str_list2numpy(prompts)
@@ -248,6 +251,9 @@ class NemoQueryLLM(NemoQueryLLMBase):
         if end_strings is not None:
             inputs["end_strings"] = str_list2numpy(end_strings)
 
+        if output_generation_logits is not None:
+            inputs["output_generation_logits"] = np.full(prompts.shape, output_generation_logits, dtype=np.bool_)
+
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
@@ -267,13 +273,12 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "object": "text_completion",
                         "created": int(time.time()),
                         "model": self.model_name,
-                        # TODO if compute_logprobs is True then add log_probs
-                        ## Convert log_probs to a list to make it json serializable
                         "choices": [{"text": str(sentences),
-                                     "log_probs":result_dict["log_probs"].tolist(),
-                                     "generation_logits": result_dict["generation_logits"].tolist()
-                                     }]
+                                     #"generation_logits": result_dict["generation_logits"].tolist()
+                                     }]   
                     }
+                    # Convert gneration logits to a list to make it json serializable and add it to openai_response dict
+                    if output_generation_logits: openai_response["choices"][0]["generation_logits"] = result_dict["generation_logits"].tolist()
                     return openai_response
                 else:
                     return sentences

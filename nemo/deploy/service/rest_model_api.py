@@ -8,8 +8,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import json
 import os
 from pathlib import Path
 import requests
@@ -33,6 +31,7 @@ class TritonSettings(BaseSettings):
             self._triton_service_ip = os.environ.get('TRITON_HTTP_ADDRESS', '0.0.0.0')
             self._triton_request_timeout = int(os.environ.get('TRITON_REQUEST_TIMEOUT', 60))
             self._openai_format_response = os.environ.get('OPENAI_FORMAT_RESPONSE', 'False').lower() == 'true'
+            self._output_generation_logits = os.environ.get('OUTPUT_GENERATION_LOGITS', 'False').lower() == 'true'
         except Exception as error:
             print("An exception occurred:", error)
             return
@@ -52,10 +51,16 @@ class TritonSettings(BaseSettings):
     @property
     def openai_format_response(self):
         """
-        Retuns the response from Triton server in OpenAI compatible formar if set to True,
-        default set in config.json is false.
+        Retuns the response from Triton server in OpenAI compatible formar if set to True.
         """
         return self._openai_format_response
+
+    @property
+    def output_generation_logits(self):
+        """
+        Retuns the generation logits along with text in Triton server output if set to True.
+        """
+        return self._output_generation_logits
 
 
 app = FastAPI()
@@ -113,9 +118,7 @@ def completions_v1(request: CompletionRequest):
             temperature=request.temperature,
             init_timeout=triton_settings.triton_request_timeout,
             openai_format_response=triton_settings.openai_format_response,
-            # TODO make these two user configurable ??
-            all_probs=True,
-            compute_logprob=True
+            output_generation_logits=triton_settings.output_generation_logits
         )
         if triton_settings.openai_format_response:
             return output

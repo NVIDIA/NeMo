@@ -649,6 +649,7 @@ def generate(
     streaming: bool = False,
     output_log_probs=False,
     multiprocessed_env=False,
+    output_generation_logits=False,
     **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
@@ -702,16 +703,14 @@ def generate(
     output_ids = outputs['output_ids']
     sequence_lengths = outputs['sequence_lengths']
     input_lengths = [t.shape[0] for t in input_tensors]
-    log_probs = outputs['log_probs']
-    generation_logits = outputs['generation_logits']
 
     output_lines_list = [
         tokenizer.batch_decode(output_ids[b, :, input_lengths[b] : sequence_lengths[b][0]])
         for b in range(output_ids.shape[0])
     ]
 
-    if output_log_probs:
-        return output_lines_list, log_probs, generation_logits
+    if output_generation_logits:
+        return output_lines_list, outputs['generation_logits']
     return output_lines_list
 
 
