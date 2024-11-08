@@ -1,7 +1,8 @@
 import argparse
+import logging
 import os
 import sys
-import logging
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from transformers import AutoProcessor
@@ -12,10 +13,12 @@ from nemo.collections.llm import import_ckpt
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.mimo.data.captioning import MimoCaptioningTaskEncoder
+from nemo.collections.multimodal.mimo.data.mock import MockDataModule
 from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel, CustomMimoConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+
 
 def main(args):
     # Global and micro batch sizes
@@ -31,7 +34,7 @@ def main(args):
         max_steps=1000,
         accelerator="gpu",
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="16-mixed"),
+        plugins=nl.MegatronMixedPrecision(precision="32"),
         val_check_interval=1000,
         limit_val_batches=50,
     )
@@ -61,9 +64,13 @@ def main(args):
         task_encoder=task_encoder,
     )
 
+    # data = MockDataModule(
+    #     tokenizer=tokenizer, vocab_size=tokenizer.vocab_size, micro_batch_size=mbs, global_batch_size=gbs
+    # )
+
     train_loader = data.train_dataloader()
     one_batch = next(iter(train_loader))
-    
+
     fabric = trainer.to_fabric()
 
     custom_config = CustomMimoConfig(
@@ -74,22 +81,20 @@ def main(args):
     # base_config = BaseMimoConfig(vocab_size = tokenizer.vocab_size)
     model = BaseMimoModel(config=custom_config, tokenizer=tokenizer)
     model = fabric.load_model(args.local_model_path, model)
-    
+
     model = model.module.cuda()
     model.eval()
-
 
     images = one_batch["images"].cuda()
     input_ids = one_batch["tokens"].cuda()
     position_ids = one_batch["position_ids"].cuda()
     input_text = one_batch['input_text']
-    
-    
+    output_images = one_batch['output_images'].cuda()
+
     all_hidden_states = []
-    
-   
-    input_ids = input_ids[:,:-7]
-    position_ids = position_ids[:,:-7]
+
+    input_ids = input_ids[:, :-7]
+    position_ids = position_ids[:, :-7]
     # if torch.distributed.get_rank() == 0: #or other ranks
     #     breakpoint()
     # torch.distributed.barrier()
@@ -98,11 +103,12 @@ def main(args):
         with torch.no_grad():
 
             output_dict = model(
-                input_ids = input_ids,
+                input_ids=input_ids,
                 images=images,
                 input_text=input_text,
                 position_ids=position_ids,
                 attention_mask=None,
+                output_images=output_images,
                 # labels = labels,
                 # loss_mask = loss_mask
                 # num_media_tiles=num_media_tiles,
@@ -123,40 +129,43 @@ def main(args):
                 .expand_as(input_ids)
             )
             # if torch.distributed.get_rank() == 0: #or other ranks
-            #     breakpoint()
+            breakpoint()
             # torch.distributed.barrier()
-            all_hidden_states.append(hiden_states[-1,:,:])
-           
+            all_hidden_states.append(hiden_states[-1, :, :])
+
             # If the generated token is the end of sequence token, stop generating
             # if next_token_ids.item() == tokenizer.eos_token_id:
             #     break
     # if torch.distributed.get_rank() == 0: #or other ranks
     #     breakpoint()
     # torch.distributed.barrier()
-    hidden_states_concat = torch.cat(all_hidden_states, dim = 0).unsqueeze(0)
-    vis_proj_out = model.module.module.module.vision_output_projection_module(hidden_states_concat)
-    actual_image_caption_embeddings =  model.module.module.module.get_image_caption_embeddings(one_batch['input_text'])
-    mse_loss = torch.nn.functional.mse_loss(actual_image_caption_embeddings.to(vis_proj_out.device, dtype = vis_proj_out.dtype), vis_proj_out)
-    
-   
+
+    hidden_states_concat = torch.cat(all_hidden_states, dim=0).unsqueeze(0)
+    # breakpoint()
+    vis_proj_out = model.module.module.vision_output_projection_module(hidden_states_concat)
+    actual_image_caption_embeddings = model.module.module.get_image_caption_embeddings(one_batch['input_text'])
+    mse_loss = torch.nn.functional.mse_loss(
+        actual_image_caption_embeddings.to(vis_proj_out.device, dtype=vis_proj_out.dtype), vis_proj_out
+    )
+
     device = vis_proj_out.device
-    image_decode_device = model.module.module.module.image_decoder.to(device)
-    gen_image =image_decode_device(prompt_embeds=actual_image_caption_embeddings.to(device)).images[0]
+
+    image_decode_device = model.module.module.image_decoder.to(device)
+    gen_image = image_decode_device(prompt_embeds=actual_image_caption_embeddings.to(device)).images[0]
     gen_image.save('debug_image_gt.png')
-    
+
     gen_image = image_decode_device(prompt_embeds=vis_proj_out).images[0]
     gen_image.save('debug_image_generated.png')
-    
+
     logging.info(f"MSE loss for embeddings {mse_loss}")
+    breakpoint()
     generated_ids[generated_ids == -200] = 0
     generated_texts = tokenizer.tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
     logging.info("======== GENERATED TEXT OUTPUT ========")
     logging.info(f"{generated_texts}")
     logging.info("=======================================")
-   
 
     # Optimizer and scheduler setup
-   
 
 
 if __name__ == "__main__":

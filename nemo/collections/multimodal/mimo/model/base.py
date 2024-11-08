@@ -11,49 +11,72 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.lightning import io
-from nemo.utils import logging
-from torch import Tensor
-from megatron.core.transformer.transformer_config import TransformerConfig
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union, List, Tuple
-import torch
 from dataclasses import dataclass, field
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from torch import nn
-from megatron.core.transformer.spec_utils import ModuleSpec
-from nemo.lightning import get_vocab_size, io
-from dataclasses import dataclass
-from nemo.collections.llm import fn
-from megatron.core.inference_params import InferenceParams
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
-from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
-from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
-import torch.nn.functional as F
+from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Optional, Tuple, Union
+
 import pytorch_lightning as L
+import torch
+import torch.nn.functional as F
+import wandb
+from megatron.core.inference_params import InferenceParams
+from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
+from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TENorm,
     TERowParallelLinear,
 )
-from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
-from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
-from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.transformer.enums import ModelType
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_config import TransformerConfig
+from torch import Tensor, nn
+
+from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig, fn
+from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
+from nemo.lightning import get_vocab_size, io
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MaskedTokenLossReductionWithLossMask
+from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 
 # from nemo.collections.multimodal.mimo.model.gpt import MimoGPTModel
 
 
+def compute_snr(timesteps, noise_scheduler):
+    """
+    Computes SNR as per https://github.com/TiankaiHang/Min-SNR-Diffusion-Training/blob/521b624bd70c67cee4bdf49225915f5945a872e3/guided_diffusion/gaussian_diffusion.py#L847-L849
+    """
+    alphas_cumprod = noise_scheduler.alphas_cumprod
+    sqrt_alphas_cumprod = alphas_cumprod**0.5
+    sqrt_one_minus_alphas_cumprod = (1.0 - alphas_cumprod) ** 0.5
+
+    # Expand the tensors.
+    # Adapted from https://github.com/TiankaiHang/Min-SNR-Diffusion-Training/blob/521b624bd70c67cee4bdf49225915f5945a872e3/guided_diffusion/gaussian_diffusion.py#L1026
+    sqrt_alphas_cumprod = sqrt_alphas_cumprod.to(device=timesteps.device)[timesteps].float()
+    while len(sqrt_alphas_cumprod.shape) < len(timesteps.shape):
+        sqrt_alphas_cumprod = sqrt_alphas_cumprod[..., None]
+    alpha = sqrt_alphas_cumprod.expand(timesteps.shape)
+
+    sqrt_one_minus_alphas_cumprod = sqrt_one_minus_alphas_cumprod.to(device=timesteps.device)[timesteps].float()
+    while len(sqrt_one_minus_alphas_cumprod.shape) < len(timesteps.shape):
+        sqrt_one_minus_alphas_cumprod = sqrt_one_minus_alphas_cumprod[..., None]
+    sigma = sqrt_one_minus_alphas_cumprod.expand(timesteps.shape)
+
+    # Compute SNR.
+    snr = (alpha / sigma) ** 2
+    return snr
+
+
 class MimoLossReduction(MaskedTokenLossReduction):
-    def __init__(self, validation_step: bool = False, val_drop_last: bool = True, l2_weight: float = 10.0) -> None:
+    def __init__(self, validation_step: bool = False, val_drop_last: bool = True, l2_weight: float = 1.0) -> None:
         super().__init__(validation_step, val_drop_last)
         self.l2_weight = l2_weight
 
@@ -78,18 +101,42 @@ class MimoLossReduction(MaskedTokenLossReduction):
 
         l2_loss = self._calculate_l2_loss(output_projection_embeddings, image_caption_embeddings)
         l2_loss = self.l2_weight * l2_loss
-        logging.info(f"Yash loss debug single rank token loss {token_loss} l2 loss {l2_loss}")
         from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+
         reduced_l2_loss = average_losses_across_data_parallel_group([l2_loss])
 
         total_loss = token_loss + l2_loss
         logging.info(f"Yash loss debug total_loss {total_loss}")
-        token_loss_info['avg'] = token_loss_info['avg']  + reduced_l2_loss
+        token_loss_info['avg'] = token_loss_info['avg'] + reduced_l2_loss
         token_loss_info.update({"l2_loss": reduced_l2_loss})
-        
-        logging.info(f"Yash loss debug full loss {token_loss_info['avg'] } reduced l2 loss {reduced_l2_loss}")
-    
 
+        # denoise l2 loss
+
+        # mse_loss_weights = output_dict['denoise_mse_loss_weights']
+        model_pred = output_dict['denoise_model_pred']
+        target = output_dict['denoise_target']
+
+        # gen_loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
+        # gen_loss = gen_loss.mean(dim=[]) * mse_loss_weights
+        # gen_loss = gen_loss.mean()
+        gen_loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+        reduced_gen_l2_loss = average_losses_across_data_parallel_group([gen_loss])
+
+        total_loss = total_loss + gen_loss
+        token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
+
+        logging.info(
+            f"Yash loss debug full loss {token_loss_info['avg'] } token_loss {token_loss} embedding l2 loss {reduced_l2_loss} denoise l2 loss {reduced_gen_l2_loss}"
+        )
+        # if torch.distributed.get_rank() == 0:
+        #     wandb.log(
+        #         {
+        #             "full_loss": token_loss_info['avg'],
+        #             "token_loss": token_loss,
+        #             "embedding_l2_loss": reduced_l2_loss,
+        #             "denoise_l2_loss": reduced_gen_l2_loss,
+        #         }
+        #     )
         return total_loss, token_loss_info
 
     def _calculate_l2_loss(self, embeddings1: torch.Tensor, embeddings2: torch.Tensor) -> torch.Tensor:
@@ -100,6 +147,7 @@ class MimoLossReduction(MaskedTokenLossReduction):
 def mimo_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
         "images": batch["images"],
+        "output_images": batch["output_images"],
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
         "attention_mask": batch.get("attention_mask", None),
@@ -127,7 +175,7 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     required_keys = set()
     required_keys.add("attention_mask")
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("images", "tokens", "position_ids", "input_text"))
+        required_keys.update(("images", "tokens", "position_ids", "input_text", "output_images"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask", "input_text"))
 
@@ -220,7 +268,9 @@ class MimoGPTModel(MCoreGPTModel):
 
         if labels is None:
             return logits.transpose(0, 1).contiguous(), hidden_states
-
+        # if torch.distributed.get_rank() == 0:  # or other ranks
+        #     breakpoint()
+        # torch.distributed.barrier()
         loss = self.compute_language_model_loss(labels, logits)
         return loss, hidden_states
 
@@ -378,6 +428,9 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
     image_special_tokens: Optional[List[str]] = None
     image_special_token_indices: Optional[List[int]] = None
     make_vocab_size_divisible_by: int = 128
+    freeze_language_model: bool = True
+    freeze_vision_model: bool = True
+    freeze_vision_projection: bool = True
 
     def configure_model(self, tokenizer) -> "CustomMimoModel":
 
@@ -407,6 +460,11 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
             img_h=self.vision_transformer_config.img_h,
             img_w=self.vision_transformer_config.img_w,
             patch_dim=self.vision_transformer_config.patch_dim,
+        )
+        model.freeze(
+            freeze_language_model=self.freeze_language_model,
+            freeze_vision_model=self.freeze_vision_model,
+            freeze_vision_projection=self.freeze_vision_model,
         )
         return model
 
@@ -496,6 +554,7 @@ class CustomMimoModel(MCoreLLaVAModel):
         self.image_decoder_name = "stabilityai/stable-diffusion-2"
         self.scheduler = EulerDiscreteScheduler.from_pretrained(self.image_decoder_name, subfolder="scheduler")
         self.image_decoder = StableDiffusionPipeline.from_pretrained(self.image_decoder_name, scheduler=self.scheduler)
+
         self.image_decoder.vae.requires_grad_(False)
         self.image_decoder.unet.requires_grad_(False)
         self.image_decoder.text_encoder.requires_grad_(False)
@@ -517,6 +576,10 @@ class CustomMimoModel(MCoreLLaVAModel):
             text_inputs = self.image_decoder.tokenizer(
                 text_input, padding="max_length", truncation=True, return_tensors="pt", add_special_tokens=True
             )
+            # if torch.distributed.get_rank() == 0:  # or other ranks
+            #     breakpoint()
+            # torch.distributed.barrier()
+            text_inputs = text_inputs.to(self.image_decoder.device)
             image_caption_embeddings = self.image_decoder.text_encoder(**text_inputs)[0]  # b,77,1024
 
             return image_caption_embeddings
@@ -524,6 +587,7 @@ class CustomMimoModel(MCoreLLaVAModel):
     def forward(
         self,
         images: torch.Tensor,
+        output_images: torch.Tensor,
         input_ids: torch.Tensor,
         input_text: str,
         position_ids: torch.Tensor,
@@ -609,6 +673,10 @@ class CustomMimoModel(MCoreLLaVAModel):
         if num_image_tiles is None:
             num_image_tiles = torch.ones(images.shape[0], dtype=torch.int, device=input_ids.device)
 
+        # if torch.distributed.get_rank() == 0:  # or other ranks
+        #     breakpoint()
+        # torch.distributed.barrier()
+
         # Preprocess input, labels and loss mask.
         combined_embeddings, new_labels, new_loss_mask, attention_mask = self._preprocess_data(
             image_embeddings,
@@ -622,8 +690,7 @@ class CustomMimoModel(MCoreLLaVAModel):
             attention_mask,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
         # TODO: Yash return this hidden state for computing loss
-        
-    
+
         output, hidden_states = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -636,38 +703,95 @@ class CustomMimoModel(MCoreLLaVAModel):
         # if labels is None output is logits (b,s,vocab_size) or its loss (b,s)
 
         # send hidden_state for special tokens to output_projection module.
+        device = output_images.device
+        image_decoder = self.image_decoder.to(device)
         image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
-        if(new_labels is not None):
+        if new_labels is not None:
             special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
             for idx in self.model_config.image_special_token_indices:
                 special_token_mask |= new_labels == idx
+
+            nonzero_indices = torch.nonzero(special_token_mask, as_tuple=False)
+            special_token_positions = nonzero_indices[:, 1]
+            special_token_indices = new_labels[special_token_mask]
+
+            special_token_positions = special_token_positions.view(
+                new_labels.size(0), -1
+            )  # batch_size, no_special_tokens
+            special_token_indices = special_token_indices.view(new_labels.size(0), -1)
+
+            # if torch.distributed.get_rank() == 0:  # or other ranks
+            #     breakpoint()
+            # torch.distributed.barrier()
             special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
             special_token_mask = special_token_mask.expand_as(hidden_states)
             selected_hidden_states = hidden_states[special_token_mask].view(
                 hidden_states.size(1), -1, hidden_states.size(-1)
             )
 
+            special_token_embeddings = self.language_model.embedding(
+                input_ids=special_token_indices, position_ids=special_token_positions
+            )
+            special_token_embeddings = special_token_embeddings.transpose(0, 1)  # change to b,s,h
+
             output_projection_embeddings = self.vision_output_projection_module(
-                selected_hidden_states
+                selected_hidden_states + special_token_embeddings
             )  # (bs, no_special_tokens, 1024)
             # Image caption embeddings
             image_caption_embeddings = image_caption_embeddings.to(
                 output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
             )
+
         if labels is None or loss_mask is None:
             # return output
             return {
-            'output': output,
-            # 'output_projection_embeddings': output_projection_embeddings,
-            # 'image_caption_embeddings': image_caption_embeddings,
-            'hidden_states':  hidden_states
-        }
+                'output': output,
+                # 'output_projection_embeddings': output_projection_embeddings,
+                # 'image_caption_embeddings': image_caption_embeddings,
+                'hidden_states': hidden_states,
+            }
+
+        # for calcualating denoising loss
+        # with torch.no_grad():
+
+        # if torch.distributed.get_rank() == 0:  # or other ranks
+        #     breakpoint()
+        # torch.distributed.barrier()
+
+        latents = image_decoder.to(device).vae.encode(output_images).latent_dist.sample()
+        latents = latents * image_decoder.vae.config.scaling_factor
+
+        noise = torch.randn_like(latents)
+        bsz = latents.shape[0]
+        # Sample a random timestep for each sample in the batch
+        timesteps = torch.randint(0, image_decoder.scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
+        timesteps = timesteps.long()
+
+        # add noise to latents using timesteps
+        noisy_latents = image_decoder.scheduler.add_noise(latents, noise, timesteps)
+        # make added noise target
+        target = noise
+        # predict the added noise
+        model_pred = image_decoder.unet(noisy_latents, timesteps, output_projection_embeddings).sample
+        # model_pred = image_decoder.unet(
+        #     noisy_latents, timesteps, image_caption_embeddings.to(dtype=noisy_latents.dtype)
+        # # ).sample
+        # snr = compute_snr(timesteps, image_decoder.scheduler)
+        # mse_loss_weights = torch.stack([snr, 5 * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
+
+        # if torch.distributed.get_rank() == 0:  # or other ranks
+        #     breakpoint()
+        # torch.distributed.barrier()
+
         return {
             'output': output,
             'new_loss_mask': new_loss_mask,
             'output_projection_embeddings': output_projection_embeddings,
             'image_caption_embeddings': image_caption_embeddings,
-            'hidden_states':  hidden_states
+            'hidden_states': hidden_states,
+            # 'denoise_mse_loss_weights': mse_loss_weights,
+            'denoise_model_pred': model_pred,
+            'denoise_target': target,
         }
         # return (output,output_projection_embeddings, image_caption_embeddings), new_loss_mask
 
@@ -702,12 +826,14 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
         loss_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
+        output_images: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         inference_params: InferenceParams = None,
     ) -> torch.Tensor:
 
         output_tensor = self.module(
             images=images,
+            output_images=output_images,
             input_ids=input_ids,
             position_ids=position_ids,
             loss_mask=loss_mask,
@@ -750,11 +876,13 @@ class BaseMimoModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
         return self._validation_loss_reduction
 
 
-from nemo.lightning import OptimizerModule, io, teardown
-from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel
-from transformers import LlavaForConditionalGeneration
 from pathlib import Path
+
+from transformers import LlavaForConditionalGeneration
+
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel
+from nemo.lightning import OptimizerModule, io, teardown
 
 
 @io.model_importer(BaseMimoModel, "hf")

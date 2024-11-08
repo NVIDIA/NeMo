@@ -13,14 +13,17 @@
 # limitations under the License.
 
 from typing import Dict, List, Optional, Tuple
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from PIL import Image
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
@@ -43,7 +46,7 @@ class MockDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
     ):
         super().__init__()
-        self.tokenizer=tokenizer
+        self.tokenizer = tokenizer
         self.seq_length = seq_length
         self.decoder_seq_length = decoder_seq_length
         self.num_train_samples = num_train_samples
@@ -71,7 +74,7 @@ class MockDataModule(pl.LightningDataModule):
             self.vocab_size, self.tokenizer, self.crop_size, "valid", self.num_val_samples, self.decoder_seq_length
         )
         self._test_ds = _MockMimoDataset(
-            self.vocab_size,self.tokenizer, self.crop_size, "test", self.num_test_samples, self.decoder_seq_length
+            self.vocab_size, self.tokenizer, self.crop_size, "test", self.num_test_samples, self.decoder_seq_length
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -92,13 +95,14 @@ class MockDataModule(pl.LightningDataModule):
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
-            batch_size  = self.micro_batch_size,
+            batch_size=self.micro_batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=dataset.collate_fn,
             **kwargs,
         )
+
 
 class _MockMimoDataset(Dataset):
     def __init__(
@@ -126,17 +130,32 @@ class _MockMimoDataset(Dataset):
         self.input_text = "Generate image of dog."
         self.label_text = "Here is the image of dog"
         self.special_tokens = [f"IMG_{i}" for i in range(8)]
+
+        resolution = 768
+        transform = transforms.Compose(
+            [
+                transforms.Resize((resolution, resolution)),  # Resize to target resolution
+                transforms.ToTensor(),  # Convert to tensor, scales to [0, 1]
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),  # Normalize to [-1, 1]
+            ]
+        )
+
+        import os
+
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        image_path = os.path.join(current_file_dir, "dog.png")
+        image = Image.open(image_path).convert("RGB")
+        self.image_tensor = transform(image)
+
     def __len__(self) -> int:
         return self.length
 
     def tokenize_text(self, text: str) -> torch.Tensor:
         """Tokenize the input text using the provided tokenizer."""
-        tokens = self.tokenizer.tokenizer(
-            text,return_tensors="pt"
-        )
+        tokens = self.tokenizer.tokenizer(text, return_tensors="pt")
         return tokens["input_ids"].squeeze(0)  # Return as 1D tensor
 
-    def find_pattern_indices(self,template, pattern, search_start_index=0, allow_first_token_mismatch=False):
+    def find_pattern_indices(self, template, pattern, search_start_index=0, allow_first_token_mismatch=False):
         template_len = len(template)
         pattern_len = len(pattern)
         for i in range(search_start_index, template_len - pattern_len + 1):
@@ -148,7 +167,8 @@ class _MockMimoDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate images with normal distribution
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        images = torch.zeros((3, self.image_height, self.image_width), dtype=torch.float16)
+        # images = torch.zeros((3, self.image_height, self.image_width), dtype=torch.float16)
+        images = torch.zeros((3, self.image_height, self.image_width))
 
         # Tokenize input text and label text
         input_tokens = self.tokenize_text(self.input_text)
@@ -156,7 +176,7 @@ class _MockMimoDataset(Dataset):
 
         special_token_ids = [self.tokenizer.tokenizer.convert_tokens_to_ids(token) for token in self.special_tokens]
         label_tokens = torch.cat([label_tokens, torch.tensor(special_token_ids, dtype=torch.long)])
-       
+
         combined_tokens = torch.cat([input_tokens, label_tokens])
         labels = torch.ones_like(combined_tokens) * self.ignore_placeholder
         answer_start = len(input_tokens)
@@ -172,9 +192,9 @@ class _MockMimoDataset(Dataset):
             "position_ids": torch.arange(len(tokens), dtype=torch.int64),
             "labels": labels,
             "loss_mask": loss_mask,
-            "input_text": self.input_text
+            "input_text": self.input_text,
+            "output_images": self.image_tensor,
         }
-
 
     def _collate_fn(self, batch):
         """Default collation function for the dataloader."""
@@ -186,12 +206,13 @@ class _MockMimoDataset(Dataset):
     def collate_fn(self, batch):
         """Method to use as the `collate_fn` in DataLoader."""
         return self._collate_fn(batch)
-    
+
+
 if __name__ == "__main__":
     tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
     special_tokens = [f"IMG_{i}" for i in range(8)]
     tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
-    data_module = MockDataModule(tokenizer = tokenizer,vocab_size = tokenizer.vocab_size, micro_batch_size=1 )
+    data_module = MockDataModule(tokenizer=tokenizer, vocab_size=tokenizer.vocab_size, micro_batch_size=1)
     data_module.setup()
     dataloader = data_module.test_dataloader()
     batch = next(iter(dataloader))

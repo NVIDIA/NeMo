@@ -1,4 +1,6 @@
 import argparse
+import faulthandler
+import logging
 import os
 import sys
 
@@ -17,11 +19,16 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
+logging.basicConfig(level=logging.DEBUG)
+faulthandler.enable()
+# Optionally, redirect output to a specific file
+# faulthandler.enable(file=open("faulthandler.log", "w"))
+
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 16
-    mbs = 8
+    gbs = 128
+    mbs = 32
     seq_length = 256
     data_path = '/lustre/fsw/coreai_dlalgo_genai/ykarnati/datasets/cc3m-wds'
     tokenizer = AutoTokenizer("llava-hf/llava-v1.6-vicuna-7b-hf")
@@ -70,9 +77,9 @@ def main(args):
         max_steps=3500,
         accelerator="gpu",
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="16-mixed"),
+        plugins=nl.MegatronMixedPrecision(precision="32"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=50,
+        val_check_interval=30,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -137,7 +144,7 @@ if __name__ == "__main__":
         "--log_dir", type=str, required=False, default="./", help="Directory for logging and checkpoints"
     )
     parser.add_argument("--devices", type=int, required=False, default=8)
-    parser.add_argument("--tp_size", type=int, required=False, default=4)
+    parser.add_argument("--tp_size", type=int, required=False, default=2)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--name", type=str, required=False, default="mimo_first_light")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)

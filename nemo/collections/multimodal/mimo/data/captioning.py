@@ -103,7 +103,7 @@ class MimoCaptionSampleEncoder(VQASampleEncoder):
 
         output_sample.__key__ = input_sample.__key__
         output_sample.__restore_key__ = input_sample.__restore_key__
-        output_sample.input_image = torch.zeros((3, 336, 336), dtype=torch.float16)
+        output_sample.input_image = torch.zeros((3, 336, 336))
         output_sample.tokens = tokens
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
