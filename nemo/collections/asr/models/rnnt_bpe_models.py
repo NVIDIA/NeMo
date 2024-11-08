@@ -344,13 +344,15 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         decoding_cfg: Optional[DictConfig] = None,
     ):
         """
-        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
-        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
-        use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
-        model to learn capitalization, punctuation and/or special characters.
+        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning 
+        on from pre-trained model. This method changes only decoder and leaves encoder and pre-processing 
+        modules unchanged. For example, you would use it if you want to use pretrained encoder when fine-tuning 
+        on data in another language, or when you'd need model to learn capitalization, punctuation 
+        and/or special characters.
 
         Args:
-            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer (if the tokenizer type is `agg`)
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer 
+                (if the tokenizer type is `agg`)
             new_tokenizer_type: Type of tokenizer. Can be either `agg`, `bpe` or `wpe`.
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
@@ -363,7 +365,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 new_tokenizer_cfg = new_tokenizer_dir
             else:
                 raise ValueError(
-                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer \
+                        type is: {new_tokenizer_type}'
                 )
         else:
             new_tokenizer_cfg = None

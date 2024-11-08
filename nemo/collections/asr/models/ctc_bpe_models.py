@@ -209,12 +209,14 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         """
         Changes vocabulary of the tokenizer used during CTC decoding process.
         Use this method when fine-tuning on from pre-trained model.
-        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
-        use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
-        model to learn capitalization, punctuation and/or special characters.
+        This method changes only decoder and leaves encoder and pre-processing modules unchanged. 
+        For example, you would use it if you want to use pretrained encoder when fine-tuning on a 
+        data in another language, or when you'd need model to learn capitalization, punctuation 
+        and/or special characters.
 
         Args:
-            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer (if the tokenizer type is `agg`)
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer 
+                (if the tokenizer type is `agg`)
             new_tokenizer_type: Either `agg`, `bpe` or `wpe`. `bpe` is used for SentencePiece tokenizers,
                 whereas `wpe` is used for `BertTokenizer`.
             new_tokenizer_cfg: A config for the new tokenizer. if provided, pre-empts the dir and type
@@ -227,7 +229,8 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 new_tokenizer_cfg = new_tokenizer_dir
             else:
                 raise ValueError(
-                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer \
+                        type is: {new_tokenizer_type}'
                 )
         else:
             new_tokenizer_cfg = None
@@ -380,7 +383,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         model = PretrainedModelInfo(
             pretrained_model_name="stt_en_citrinet_256_gamma_0_25",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_256_gamma_0_25",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:\nemo:stt_en_citrinet_256_gamma_0_25",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_citrinet_256_gamma_0_25/versions/1.0.0/files/stt_en_citrinet_256_gamma_0_25.nemo",
         )
         results.append(model)

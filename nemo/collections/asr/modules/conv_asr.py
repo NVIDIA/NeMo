@@ -203,7 +203,9 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         return s_input[-1], length
 
     def update_max_sequence_length(self, seq_length: int, device):
-        # Find global max audio length across all nodes
+        """
+        Find global max audio length across all nodes in distributed training and update the max_audio_length
+        """
         if torch.distributed.is_initialized():
             global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
@@ -434,7 +436,8 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         if vocabulary is not None:
             if num_classes != len(vocabulary):
                 raise ValueError(
-                    f"If vocabulary is specified, it's length should be equal to the num_classes. Instead got: num_classes={num_classes} and len(vocabulary)={len(vocabulary)}"
+                    f"If vocabulary is specified, it's length should be equal to the num_classes. \
+                        Instead got: num_classes={num_classes} and len(vocabulary)={len(vocabulary)}"
                 )
             self.__vocabulary = vocabulary
         self._feat_in = feat_in
@@ -773,8 +776,8 @@ class SpeakerDecoder(NeuralModule, Exportable):
     Args:
         feat_in (int): Number of channels being input to this module
         num_classes (int): Number of unique speakers in dataset
-        emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings from 1st of this layers)
-            Defaults to [1024,1024]
+        emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings 
+            from 1st of this layers). Defaults to [1024,1024]
         pool_mode (str) : Pooling strategy type. options are 'xvector','tap', 'attention'
             Defaults to 'xvector (mean and variance)'
             tap (temporal average pooling: just mean)

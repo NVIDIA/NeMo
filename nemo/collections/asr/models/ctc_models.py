@@ -134,7 +134,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
-            audio: (a single or list) of paths to audio files or a np.ndarray/tensor audio array or path to a manifest file.
+            audio: (a single or list) of paths to audio files or a np.ndarray/tensor audio array or 
+                path to a manifest file.
                 Can also be a dataloader object that provides values that can be consumed by the model.
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.
@@ -143,22 +144,29 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
-            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels 
+                from multi-channel audio. If set to `'average'`, it performs averaging across channels. 
+                Disabled if set to `None`. Defaults to `None`.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
-            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details. Default is None and would retain the previous state set by using self.change_decoding_strategy().
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis 
+                object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class 
+                for more details. Default is None and would retain the previous state set by 
+                using self.change_decoding_strategy().
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
 
         Returns:
-            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
+            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as 
+            paths2audio_files
         """
         if timestamps is not None:
             # else retain the decoder state (users can set it using change_decoding_strategy)
             if timestamps or (override_config is not None and override_config.timestamps):
                 logging.info(
-                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
+                        with output[idx].timestep['word'/'segment'/'char']"
                 )
                 return_hypotheses = True
                 with open_dict(self.cfg.decoding):
@@ -691,7 +699,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         return output
 
     @deprecated(
-        explanation='The return type of args will be updated in the upcoming release to ensure a consistent output format across all decoder types, such that a Hypothesis object is always returned.'
+        explanation='The return type of args will be updated in the upcoming release to ensure a consistent output \
+            format across all decoder types, such that a Hypothesis object is always returned.'
     )
     def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
         logits = outputs.pop('logits')
@@ -796,7 +805,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
-            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other. Please visit https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels for further details.",
+            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice \
+                (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. \
+                    It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of \
+                    3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other. Please visit \
+                        https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels for further details.",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo",
         )
         results.append(model)

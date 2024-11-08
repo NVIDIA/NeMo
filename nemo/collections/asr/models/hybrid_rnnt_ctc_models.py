@@ -122,9 +122,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
-            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of 
+                channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. 
+                Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
-            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details. Default is None and would retain the previous state set by using self.change_decoding_strategy().
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object 
+                (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details.
+                Default is None and would retain the previous state set by using self.change_decoding_strategy().
             verbose: (bool) whether to display tqdm progress bar
             logprobs: (bool) whether to return ctc logits insted of hypotheses
 
@@ -142,7 +146,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
             if timestamps or (override_config is not None and override_config.timestamps):
                 logging.info(
-                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, with output[idx].timestep['word'/'segment'/'char']"
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
+                        with output[idx].timestep['word'/'segment'/'char']"
                 )
                 return_hypotheses = True
                 with open_dict(decoding_cfg):
@@ -251,10 +256,11 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         ctc_decoding_cfg: Optional[DictConfig] = None,
     ):
         """
-        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning a pre-trained model.
-        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
-        use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
-        model to learn capitalization, punctuation and/or special characters.
+        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning a 
+        pre-trained model. This method changes only decoder and leaves encoder and pre-processing 
+        modules unchanged. For example, you would use it if you want to use pretrained encoder 
+        when fine-tuning on data in another language, or when you'd need model to learn capitalization,
+        punctuation and/or special characters.
 
         Args:
             new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \

@@ -61,7 +61,7 @@ import copy
 import glob
 import math
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass
 from typing import Optional
 
 import pytorch_lightning as pl
@@ -87,6 +87,9 @@ from nemo.utils import logging
 
 @dataclass
 class TranscriptionConfig:
+    """
+    Transcription Configuration for buffered inference.
+    """
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -143,6 +146,10 @@ class TranscriptionConfig:
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
+    """
+    Transcribes the input audio and can be used to infer long audio files by chunking 
+    them into smaller segments.
+    """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
 

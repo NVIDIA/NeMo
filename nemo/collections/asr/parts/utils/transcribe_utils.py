@@ -199,7 +199,8 @@ def get_buffered_pred_feat_multitaskAED(
 
     if filepaths:
         logging.info(
-            "Deteced audio files as input, default to English ASR with Punctuation and Capitalization output. Please use manifest input for other options."
+            "Deteced audio files as input, default to English ASR with Punctuation and Capitalization output. \
+                Please use manifest input for other options."
         )
         for audio_file in tqdm(filepaths, desc="Transcribing:", total=len(filepaths), ncols=80):
             meta = {
@@ -281,12 +282,16 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             - append_pred (bool): Flag indicating whether to append predictions to an existing dataset.
             - audio_type (str): Type of audio files to consider.
             - dataset_manifest (str): Path to the dataset manifest file.
-            - audio_key (str, optional): Key in the manifest file specifying the audio file path. Defaults to 'audio_filepath'.
-            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file. Defaults to True.
+            - audio_key (str, optional): Key in the manifest file specifying the audio file path. 
+                Defaults to 'audio_filepath'.
+            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file. 
+                Defaults to True.
     Returns:
         Tuple[List[str], bool]: A tuple containing the following:
-            - filepaths (List[str]): List of filepaths to the audio files if path to the directory containing audio files is provided.
-            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset manifest file is provided.
+            - filepaths (List[str]): List of filepaths to the audio files if path to the directory 
+                containing audio files is provided.
+            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset 
+                manifest file is provided.
     """
 
     filepaths = None
@@ -308,7 +313,8 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
                 item[audio_key] = get_full_path(item[audio_key], cfg.dataset_manifest)
                 if item.get("duration") is None and cfg.presort_manifest:
                     raise ValueError(
-                        f"Requested presort_manifest=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
+                        f"Requested presort_manifest=True, but line {line} in manifest {cfg.dataset_manifest} \
+                            lacks a 'duration' field."
                     )
 
         with NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -492,10 +498,14 @@ def compute_metrics_per_sample(
 
     Args:
         manifest_path: str, Required - path to dataset JSON manifest file (in NeMo format)
-        reference_field: str, Optional - name of field in .json manifest with the reference text ("text" by default).
-        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text ("pred_text" by default).
-        metrics: list[str], Optional - list of metrics to be computed (currently supported "wer", "cer", "punct_er")
-        punctuation_marks: list[str], Optional - list of punctuation marks for computing punctuation error rate ([".", ",", "?"] by default).
+        reference_field: str, Optional - name of field in .json manifest with the reference text 
+            ("text" by default).
+        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text 
+            ("pred_text" by default).
+        metrics: list[str], Optional - list of metrics to be computed 
+            (currently supported "wer", "cer", "punct_er")
+        punctuation_marks: list[str], Optional - list of punctuation marks for computing 
+            punctuation error rate ([".", ",", "?"] by default).
         output_manifest_path: str, Optional - path where .json manifest with calculated metrics will be saved.
 
     Returns:
@@ -608,7 +618,8 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
     for idx, hyp in enumerate(outputs):
         if not hasattr(hyp, 'timestep'):
             raise ValueError(
-                f"Expected Hypothesis object to have 'timestep' attribute, when compute_timestamps is enabled but got {hyp}"
+                f"Expected Hypothesis object to have 'timestep' attribute, when compute_timestamps is \
+                    enabled but got {hyp}"
             )
         timestep = hyp.timestep
         if 'word' in timestep:

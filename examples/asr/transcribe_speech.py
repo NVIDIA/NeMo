@@ -103,13 +103,17 @@ python transcribe_speech.py \
 
 @dataclass
 class ModelChangeConfig:
-
-    # Sub-config for changes specific to the Conformer Encoder
+    """
+    Sub-config for changes specific to the Conformer Encoder
+    """
     conformer: ConformerChangeConfig = field(default_factory=ConformerChangeConfig)
 
 
 @dataclass
 class TranscriptionConfig:
+    """
+    Transcription Configuration for audio to text transcription.
+    """
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -166,7 +170,8 @@ class TranscriptionConfig:
     # Implicit single-turn assuming default role='user' (works with Canary-1B)
     #  +prompt.source_lang=en +prompt.target_lang=es +prompt.task=asr +prompt.pnc=yes
     # Explicit single-turn prompt:
-    #  +prompt.role=user +prompt.slots.source_lang=en +prompt.slots.target_lang=es +prompt.slots.task=s2t_translation +prompt.slots.pnc=yes
+    #  +prompt.role=user +prompt.slots.source_lang=en +prompt.slots.target_lang=es 
+    # +prompt.slots.task=s2t_translation +prompt.slots.pnc=yes
     # Explicit multi-turn prompt:
     #  +prompt.turns='[{role:user,slots:{source_lang:en,target_lang:es,task:asr,pnc:yes}}]'
     prompt: dict = field(default_factory=dict)
@@ -200,6 +205,9 @@ class TranscriptionConfig:
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis]]:
+    """
+    Transcribes the input audio and can be used to infer with Encoder-Decoder models.
+    """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     for key in cfg:
@@ -360,7 +368,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 item = json.loads(line)
                 if "duration" not in item:
                     raise ValueError(
-                        f"Requested calculate_rtfx=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
+                        f"Requested calculate_rtfx=True, but line {line} in manifest {cfg.dataset_manifest} \
+                            lacks a 'duration' field."
                     )
                 total_duration += item["duration"]
 
