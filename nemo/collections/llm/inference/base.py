@@ -76,7 +76,7 @@ class MCoreTokenizerWrappper:
 def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule):
     assert isinstance(trainer.strategy, MegatronStrategy), "Only MegatronStrategy is supported for trainer.strategy."
     assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
-    if (adapter_meta_path := ckpt_to_weights_subdir(path) / ADAPTER_META_FILENAME).exists():
+    if (adapter_meta_path := ckpt_to_weights_subdir(path, is_saving=False) / ADAPTER_META_FILENAME).exists():
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
         restore_config = RestoreConfig(
@@ -112,7 +112,7 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
         model = lora(model)
         adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}
         adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
-            ckpt_to_weights_subdir(path), sharded_state_dict=adapter_sharded_state_dict
+            ckpt_to_weights_subdir(path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
         )
         trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 
