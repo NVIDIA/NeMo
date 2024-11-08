@@ -6,7 +6,7 @@ on:
     - cron: 0 0 * * *
 
 jobs:
-  bump-mcore:
+  mcore:
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_bump_dockerfile.yml@ko3n1g/feat/bump-dockerfile
     with:
       source-repository: NVIDIA/Megatron-LM
