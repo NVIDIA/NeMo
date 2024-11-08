@@ -638,6 +638,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def model_sharded_context(self) -> ContextManager:
+        """Model sharded context"""
         if self.lazy_init and hasattr(self, "_mcore_config"):
             stack = ExitStack()
             stack.enter_context(_strategy_lib.megatron_lazy_init_context(self._mcore_config))
