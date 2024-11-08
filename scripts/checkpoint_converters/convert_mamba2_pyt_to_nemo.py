@@ -16,18 +16,20 @@ import os
 import re
 from argparse import ArgumentParser
 from collections import defaultdict
+
 import torch
+import torch.distributed as dist
+from megatron.core.dist_checkpointing.serialization import load_plain_tensors
+from megatron.core.models.mamba import MambaModel
+from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+from megatron.core.transformer.spec_utils import import_module
+from megatron.training.arguments import core_transformer_config_from_args
 from omegaconf.omegaconf import OmegaConf
+
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
-from megatron.core.dist_checkpointing.serialization import load_plain_tensors
-import torch.distributed as dist
-from megatron.core.models.mamba import MambaModel
-from megatron.training.arguments import core_transformer_config_from_args
-from megatron.core.transformer.spec_utils import import_module
-from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 
 '''
 Example
@@ -68,11 +70,12 @@ def get_args():
     parser.add_argument(
         "--source_dist_ckpt", action="store_true", help="Set if the source checkpoint is a distributed checkpoint"
     )
+    parser.add_argument("--tokenizer_type", type=str, default=None, help="tokenizer type (tiktoken, megatron, etc...)")
     parser.add_argument(
-        "--tokenizer_type", type=str, default=None, help="tokenizer type (tiktoken, megatron, etc...)"
-    )
-    parser.add_argument(
-        "--tokenizer_library", type=str, default=None, help="tokenizer library (tiktoken, megatron, huggingface, etc...)"
+        "--tokenizer_library",
+        type=str,
+        default=None,
+        help="tokenizer library (tiktoken, megatron, huggingface, etc...)",
     )
     parser.add_argument(
         "--tokenizer_model_dir", type=str, default=None, help="Path to the tokenizer.model, required for 8b models"
@@ -81,22 +84,22 @@ def get_args():
         "--tokenizer_vocab_file", type=str, default=None, help="Path to the tokenize vocab, required for tiktokenizer"
     )
     parser.add_argument(
-        "--cpu_only", action="store_true", help="If set, only CPU is used for conversion, to check fwd pass accuracy, don't set this flag"
+        "--cpu_only",
+        action="store_true",
+        help="If set, only CPU is used for conversion, to check fwd pass accuracy, don't set this flag",
     )
-    parser.add_argument(
-        "--check_fwd_pass", action="store_true", help="Set if you want to check fwd pass accuracy"
-    )
+    parser.add_argument("--check_fwd_pass", action="store_true", help="Set if you want to check fwd pass accuracy")
     args = parser.parse_args()
     return args
+
 
 import os
 from datetime import timedelta
 
+import megatron.core.parallel_state as ps
 import torch
 from torch._C._distributed_c10d import PrefixStore
 from torch.distributed import rendezvous
-
-import megatron.core.parallel_state as ps
 
 
 class TestModel(torch.nn.Module):
@@ -109,13 +112,13 @@ class TestModel(torch.nn.Module):
         shared_embedding: bool = False,
     ):
         super().__init__()
-        self.layers = torch.nn.ModuleList(
-            [torch.nn.Linear(input_dim, output_dim, bias) for _ in range(num_layers)]
-        )
+        self.layers = torch.nn.ModuleList([torch.nn.Linear(input_dim, output_dim, bias) for _ in range(num_layers)])
         if shared_embedding:
             self.layers[-1].weight.shared_embedding = True
 
+
 try:
+
     class Utils:
 
         world_size = torch.cuda.device_count()
@@ -126,10 +129,7 @@ try:
         @staticmethod
         def initialize_distributed():
             if not torch.distributed.is_initialized() and Utils.rank >= 0:
-                print(
-                    f'Initializing torch.distributed with rank: {Utils.rank}, '
-                    f'world_size: {Utils.world_size}'
-                )
+                print(f'Initializing torch.distributed with rank: {Utils.rank}, ' f'world_size: {Utils.world_size}')
                 torch.cuda.set_device(Utils.rank % torch.cuda.device_count())
                 init_method = 'tcp://'
                 master_ip = os.getenv('MASTER_ADDR', 'localhost')
@@ -156,10 +156,7 @@ try:
         @staticmethod
         def set_world_size(world_size=None, rank=None):
             Utils.world_size = torch.cuda.device_count() if world_size is None else world_size
-            if (
-                torch.distributed.is_initialized()
-                and Utils.world_size != torch.distributed.get_world_size()
-            ):
+            if torch.distributed.is_initialized() and Utils.world_size != torch.distributed.get_world_size():
                 torch.distributed.destroy_process_group()
 
             if rank is None:
@@ -193,13 +190,16 @@ try:
                 **kwargs,
             )
             Utils.inited = True
+
 except:
     pass
+
+
 def dist_ckpt_handler(checkpoint_dir, cpu_only):
 
     if cpu_only:
         os.environ['MASTER_ADDR'] = 'localhost'
-        os.environ['MASTER_PORT'] = '12355' # Ensure this port is available
+        os.environ['MASTER_PORT'] = '12355'  # Ensure this port is available
         world_size = 1
         rank = 0
         dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)  # ckpt conversion done on CPU
@@ -222,13 +222,16 @@ def dist_ckpt_handler(checkpoint_dir, cpu_only):
 
     for i, symbol in enumerate(dist_ckpt_args.hybrid_override_pattern):
         if symbol == 'M':
-            state_dict[f'decoder.layers.{i}.mixer.in_proj.weight'] = torch.cat([
-                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.z'],
-                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.x'],
-                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.B'],
-                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.C'],
-                state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.dt']
-            ], dim=0)
+            state_dict[f'decoder.layers.{i}.mixer.in_proj.weight'] = torch.cat(
+                [
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.z'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.x'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.B'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.C'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.dt'],
+                ],
+                dim=0,
+            )
 
             state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.z')
             state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.x')
@@ -236,20 +239,26 @@ def dist_ckpt_handler(checkpoint_dir, cpu_only):
             state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.C')
             state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.dt')
 
-            state_dict[f'decoder.layers.{i}.mixer.conv1d.weight'] = torch.cat([
-                state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.x'],
-                state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.B'],
-                state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.C']
-            ], dim=0)
+            state_dict[f'decoder.layers.{i}.mixer.conv1d.weight'] = torch.cat(
+                [
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.x'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.B'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.C'],
+                ],
+                dim=0,
+            )
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.x')
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.B')
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.C')
 
-            state_dict[f'decoder.layers.{i}.mixer.conv1d.bias'] = torch.cat([
-                state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.x'],
-                state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.B'],
-                state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.C']
-            ], dim=0)
+            state_dict[f'decoder.layers.{i}.mixer.conv1d.bias'] = torch.cat(
+                [
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.x'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.B'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.C'],
+                ],
+                dim=0,
+            )
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.x')
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.B')
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.C')
@@ -259,13 +268,13 @@ def dist_ckpt_handler(checkpoint_dir, cpu_only):
     else:
         dist_ckpt_args.multi_latent_attention = False
         config = core_transformer_config_from_args(dist_ckpt_args)
-        config.use_cpu_initialization=False # TE needs CUDA so there is no need to load the model on CPU
+        config.use_cpu_initialization = False  # TE needs CUDA so there is no need to load the model on CPU
         assert dist_ckpt_args.use_legacy_models == False, "Mamba only supported in Mcore!"
 
         if dist_ckpt_args.spec is not None:
             mamba_stack_spec = import_module(dist_ckpt_args.spec)
         else:
-            raise("You must provide a valid Mamba layer spec!")
+            raise ("You must provide a valid Mamba layer spec!")
 
         model = MambaModel(
             config=config,
@@ -290,19 +299,22 @@ def dist_ckpt_handler(checkpoint_dir, cpu_only):
             if "_extra" in k:
                 state_dict[k] = v
         model.load_state_dict(state_dict, strict=True)
-    
+
     return state_dict, dist_ckpt_args, model
+
 
 def convert(args):
 
     if args.source_dist_ckpt:
-        checkpoint_weights, dist_ckpt_args, mcore_model = dist_ckpt_handler(args.input_name_or_path, cpu_only=args.cpu_only)
-    else:   
+        checkpoint_weights, dist_ckpt_args, mcore_model = dist_ckpt_handler(
+            args.input_name_or_path, cpu_only=args.cpu_only
+        )
+    else:
         checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
         if 'model' in checkpoint_weights:
             checkpoint_weights = checkpoint_weights['model']
     new_state_dict = {}
-    
+
     if 'backbone' in list(checkpoint_weights.keys())[0]:
         if 'model' in list(checkpoint_weights.keys())[0]:
             checkpoint_weights = {key.replace('model.', '', 1): value for key, value in checkpoint_weights.items()}
@@ -366,8 +378,8 @@ def convert(args):
             new_state_dict["model." + key] = value
 
         # NVIDIA Mamba Model Tokenizer Settings
-        tokenizer_library = args.tokenizer_library  
-        tokenizer_type = args.tokenizer_type  
+        tokenizer_library = args.tokenizer_library
+        tokenizer_type = args.tokenizer_type
         tokenizer_model = args.tokenizer_model_dir
         tokenizer_vocab = args.tokenizer_vocab_file
 
