@@ -188,7 +188,8 @@ def setup_model_and_tokenizer(
         trainer (nl.Trainer): The trainer object.
         params_dtype (torch.dtype, optional): The data type of the model parameters.
             Defaults to torch.bfloat16.
-        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than this threshold then we will not use pipelining, otherwise we will.
+        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than this threshold
+            then we will not use pipelining, otherwise we will.
 
     Returns:
         tuple[MegatronModule, MCoreTokenizerWrappper]:
@@ -225,8 +226,8 @@ def generate(
         add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
         random_seed (Optional[int], optional): The random seed. Defaults to None.
-        inference_params (Optional[CommonInferenceParams], optional): The inference parameters defined in Mcore's CommonInferenceParams.
-            Defaults to None.
+        inference_params (Optional[CommonInferenceParams], optional): The inference parameters defined in
+            Mcore's CommonInferenceParams. Defaults to None.
 
     Returns:
         dict: A dictionary containing the generated results.
