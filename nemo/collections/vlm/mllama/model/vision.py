@@ -23,7 +23,7 @@ import torch
 import torch.nn.functional as F
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -100,16 +100,15 @@ def build_encoder_attention_mask(
     Build vision encoder attention mask that omits padding tiles and tokens.
     """
     masks = []
-    dtype = x.dtype
     for ar_id in ar_ids:
         arx = supported_aspect_ratios[ar_id - 1]
         mask_i = torch.ones((num_chunks, x.shape[1] // num_chunks), device=x.device)
         mask_i[: arx[0] * arx[1], :ntok] = 0
         mask_i = mask_i.view(num_chunks * x.shape[1] // num_chunks, -1)
-        mask_i = mask_i @ mask_i.T
+        mask_i = (mask_i @ mask_i.T).type(torch.bool)
         mask_i = mask_i.unsqueeze(0)
         masks.append(mask_i)
-    masks = torch.stack(masks).to(dtype) * torch.finfo(dtype).min
+    masks = torch.stack(masks)
     return masks
 
 
@@ -172,7 +171,6 @@ def forward_with_return_intermediate(
     context: Tensor = None,
     context_mask: Tensor = None,
     rotary_pos_emb: Tensor = None,
-    attention_bias: Tensor = None,
     inference_params: InferenceParams = None,
     packed_seq_params: PackedSeqParams = None,
     return_intermediate: List[int] = None,
@@ -225,7 +223,6 @@ def forward_with_return_intermediate(
                 context=context,
                 context_mask=context_mask,
                 rotary_pos_emb=rotary_pos_emb,
-                attention_bias=attention_bias,
                 packed_seq_params=packed_seq_params,
             )
         else:
@@ -242,7 +239,6 @@ def forward_with_return_intermediate(
                             context=context,
                             context_mask=context_mask,
                             rotary_pos_emb=rotary_pos_emb,
-                            attention_bias=attention_bias,
                             inference_params=inference_params,
                             packed_seq_params=packed_seq_params,
                         )
@@ -427,7 +423,6 @@ class ImageTransformerLayer(TransformerLayer):
         rotary_pos_emb=None,
         rotary_pos_cos=None,
         rotary_pos_sin=None,
-        attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
     ):
@@ -445,7 +440,6 @@ class ImageTransformerLayer(TransformerLayer):
             attention_mask=attention_mask,
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb,
-            attention_bias=attention_bias,
             packed_seq_params=packed_seq_params,
         )
 
@@ -612,18 +606,17 @@ class VisionEncoder(MegatronModule):
         x = self.apply_positional_embedding(x, ar_ids)
 
         x = self.ln_pre(x)
-        npad, attn_mask = 0, None
         x = x.view(bsz * num_concurrent_media, -1, dim)
-        # [b, 1, 1, sq]
-        attn_bias = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
 
+        npad, attn_mask = 0, None
+        attn_mask = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
         x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
             hidden_states=x,
-            attention_mask=None,
-            attention_bias=attn_bias,
+            attention_mask=attn_mask,
             return_intermediate=self.return_intermediate,
         )
+
         # [ntok * num_concurrent_media * num_chunks, bsz, hidden_size] ->  [bsz, ntok * num_concurrent_media * num_chunks, hidden_size]
         x, int_x = x.transpose(0, 1).contiguous(), int_x.transpose(0, 1).contiguous()
         x = self.ln_post(x)
@@ -634,7 +627,6 @@ class VisionEncoder(MegatronModule):
         x = self.global_transformer(
             hidden_states=x,
             attention_mask=None,
-            attention_bias=attn_bias,
         )
         x = x.transpose(0, 1)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
