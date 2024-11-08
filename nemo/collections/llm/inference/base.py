@@ -74,6 +74,23 @@ class MCoreTokenizerWrappper:
 
 # TODO: Move to lightning Fabric API.
 def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule):
+    """
+    Sets up the trainer and restores the model from the given checkpoint path.
+
+    It does the following:
+    - Defines a RestoreConfig to restore only model weights
+    - Disables setting up optimizers in the Trainer
+    - Calls strategy.setup_environment(), model.configure_model() and strategy.setup_megatron_parallel(trainer=trainer)
+    - Finally loads the model weights
+
+    Args:
+        path (Path): The path to the checkpoint file.
+        trainer (nl.Trainer): The trainer object.
+        model (pl.LightningModule): The model object.
+
+    Returns:
+        None
+    """
     assert isinstance(trainer.strategy, MegatronStrategy), "Only MegatronStrategy is supported for trainer.strategy."
     assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
     if (adapter_meta_path := ckpt_to_weights_subdir(path, is_saving=False) / ADAPTER_META_FILENAME).exists():
@@ -123,7 +140,21 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
-    """Sets up model and tokenizer for inference."""
+    """
+    Sets up the model and tokenizer for inference.
+
+    This function loads the model and tokenizer from the given checkpoint path,
+    sets up the trainer, and returns the Megatron inference-wrapped model and tokenizer.
+
+    Args:
+        path (Path): The path to the checkpoint file.
+        trainer (nl.Trainer): The trainer object.
+        params_dtype (torch.dtype, optional): The data type of the model parameters. Defaults to torch.bfloat16.
+        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than this threshold then we will not use pipelining, otherwise we will.
+
+    Returns:
+        tuple[MegatronModule, MCoreTokenizerWrappper]: A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
+    """
     model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
@@ -141,7 +172,25 @@ def generate(
     random_seed: Optional[int] = None,
     inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
-    """Runs generate on the model with the given prompts."""
+    """
+    Runs generate on the model with the given prompts.
+
+    This function uses the loaded model, loaded tokenizer, and prompts to generate text.
+    It returns a dictionary containing the generated text.
+
+    Args:
+        model (AbstractModelInferenceWrapper): The inference-wrapped model.
+        tokenizer (MCoreTokenizerWrappper): The tokenizer.
+        prompts (list[str]): The list of prompts to generate text for.
+        encoder_prompts (Optional[list[str]], optional): The list of encoder prompts. Defaults to None.
+        add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
+        max_batch_size (int, optional): The maximum batch size. Defaults to 4.
+        random_seed (Optional[int], optional): The random seed. Defaults to None.
+        inference_params (Optional[CommonInferenceParams], optional): The inference parameters defined in Mcore's CommonInferenceParams. Defaults to None.
+
+    Returns:
+        dict: A dictionary containing the generated results.
+    """
     if encoder_prompts is not None:
         text_generation_controller = EncoderDecoderTextGenerationController(
             inference_wrapped_model=model, tokenizer=tokenizer
