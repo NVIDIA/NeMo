@@ -188,8 +188,8 @@ def setup_model_and_tokenizer(
         trainer (nl.Trainer): The trainer object.
         params_dtype (torch.dtype, optional): The data type of the model parameters.
             Defaults to torch.bfloat16.
-        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than this threshold
-            then we will not use pipelining, otherwise we will.
+        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller
+           than this threshold then we will not use pipelining, otherwise we will.
 
     Returns:
         tuple[MegatronModule, MCoreTokenizerWrappper]:
