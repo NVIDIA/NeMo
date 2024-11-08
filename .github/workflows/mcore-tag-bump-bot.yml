@@ -16,3 +16,5 @@ jobs:
       base-branch: main
       cicd-label: Run CICD
       pr-reviewers: 'pablo-garay'
+    secrets:
+      PAT: ${{ secrets.PAT }}
