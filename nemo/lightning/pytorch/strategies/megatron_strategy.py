@@ -60,7 +60,6 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.megatron_parallel import (
     CallbackConnector,
     MegatronParallel,
-    _ModuleStepFunction,
     aggregate_moe_loss_stats,
 )
 from nemo.lightning.pytorch.callbacks import ModelTransform
@@ -73,7 +72,6 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_data_sampler,
     setup_parallel_ranks,
 )
-from nemo.lightning.resume import AdapterPath
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizerCallback
 
@@ -88,6 +86,11 @@ DDPLiteral = Literal["megatron", "pytorch"]
 
 @dataclass
 class ParallelismConfig:
+    """
+    POD containing parallelism configuration.
+    Parallelism configuration is passed to MegatronStrategy via constructor arguments,
+    then copied to model's config during model setup.
+    """
     tensor_model_parallel_size: int
     pipeline_model_parallel_size: int
     virtual_pipeline_model_parallel_size: int
@@ -265,6 +268,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def connect(self, model: pl.LightningModule) -> None:
+        """Attaches a model to strategy."""
         super().connect(model)
 
         assert not 'is_hf_model' in model.__dict__, "Cannot use HfAutoModelForCausalLM with MegatronParallel"
@@ -310,7 +314,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             logging.info(f"Copying Trainer's 'max_steps' ({trainer.max_steps}) to LR scheduler's 'max_steps'.")
         except AttributeError:
             logging.warning(
-                "Could not copy Trainer's 'max_steps' to LR scheduler's 'max_steps'. If you are not using an LR scheduler, this warning can safely be ignored."
+                "Could not copy Trainer's 'max_steps' to LR scheduler's 'max_steps'. "
+                "If you are not using an LR scheduler, this warning can safely be ignored."
             )
 
         # move the model to the correct device
@@ -398,6 +403,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return dataloader
 
     def setup_megatron_parallel(self, trainer: pl.Trainer) -> None:
+        """Configures megatron parallel"""
         assert self.model is not None, "Model is not set"
 
         convert_module_fn = None
@@ -441,10 +447,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.model.callbacks.add(datamodule)
 
     def init_model_parallel(self):
+        """Initializes megatron parallel"""
         self.megatron_parallel.init_model_parallel()
 
     @override
     def configure_ddp(self) -> None:
+        """Configures ddp"""
         logging.debug(f"{self.__class__.__name__}: configuring MegatronParallel")
         self.model = self._setup_model(self.model)
         if self.ddp_config is None:
@@ -661,6 +669,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
+        """Saves checkpoint"""
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
         if "sharded_state_dict" not in checkpoint:
@@ -680,6 +689,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
+        """Determines whether to restore optimizer states or not"""
         if selective_restore:
             return self.restore_config.load_optim_state if self.restore_config else False
 
@@ -710,6 +720,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return checkpoint
 
     def selective_restore(self) -> None:
+        """Implements selective restoration of checkpoint"""
         if not self.restore_config:
             return
 
@@ -732,6 +743,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any], selective_restore: bool = False) -> None:
+        """Loads optimizer state-dict"""
         if not self.should_restore_optimizer_states(selective_restore=selective_restore):
             return
 
@@ -815,6 +827,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def parallelism(self) -> ParallelismConfig:
+        """Returns parallelism config from class attrs as a POD"""
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
