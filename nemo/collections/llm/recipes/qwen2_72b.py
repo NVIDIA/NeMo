@@ -220,6 +220,7 @@ def finetune_recipe(
         assert num_nodes >= 4
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.pipeline_dtype = torch.bfloat16
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
