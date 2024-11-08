@@ -305,6 +305,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
+        """Setups the strategy"""
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
@@ -387,6 +388,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def setup_distributed(self) -> None:
+        """Setups dist env"""
         setup_parallel_ranks(self)
         super().setup_distributed()
         init_model_parallel(self.model)
@@ -397,6 +399,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
+        """Setups dataloader"""
         if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
 
@@ -485,6 +488,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def setup_optimizers(self, trainer: "pl.Trainer") -> None:
+        """Setups optimizers"""
         super().setup_optimizers(trainer)
         if hasattr(self.precision_plugin, "convert_optimizer"):
             _optimizers = [*self.optimizers]
@@ -495,6 +499,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def training_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
+        """Runs one training step"""
         assert self.lightning_module is not None
         assert isinstance(self.model, MegatronParallel)
 
@@ -568,6 +573,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         model: Optional[Union["pl.LightningModule", nn.Module]] = None,
         **kwargs: Any,
     ) -> Any:
+        """Runs one optimizer step"""
         optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
 
         if isinstance(optimizer, McoreDistributedOptimizer):
@@ -581,6 +587,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def validation_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
+        """Runs one validation step"""
         assert self.lightning_module is not None
         assert isinstance(self.model, MegatronParallel)
 
@@ -608,6 +615,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def test_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
+        """Runs one test step"""
         assert self.lightning_module is not None
         assert isinstance(self.model, MegatronParallel)
 
@@ -616,6 +624,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def predict_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
+        """Runs one prediction step"""
         assert self.lightning_module is not None
         assert isinstance(self.model, MegatronParallel)
 
@@ -624,6 +633,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def teardown(self) -> None:
+        """Tearsdown the strategy"""
         super().teardown()
 
     @override
@@ -753,6 +763,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             _optimizer_to_device(optimizer, self.root_device)
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        """Deletes checkpoint"""
         ckpt = ckpt_to_dir(filepath)
         if self.is_global_zero:
             if os.path.islink(ckpt):
@@ -761,6 +772,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 shutil.rmtree(ckpt)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+        """loads model state dict"""
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
@@ -772,6 +784,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+        """Creates & returns checkpoint io"""
         if not self._checkpoint_io:
             self._checkpoint_io = create_checkpoint_io(
                 save_ckpt_format=self.save_ckpt_format,
@@ -788,6 +801,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
+        """CheckpointIO setter"""
         self._checkpoint_io = io
 
     @property
@@ -802,6 +816,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def distributed_sampler_kwargs(self) -> Dict[str, Any]:
+        """Returns dist-sampler's kwargs"""
         from nemo.utils import AppState
 
         app_state = AppState()
@@ -844,6 +859,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @contextmanager
     @override
     def tensor_init_context(self, empty_init: Optional[bool] = None):
+        """Context manager used for initialization"""
         # Materializaton happens in `setup()`
         # @akoumparouli: using Parent's tensor_init_context causes mcore
         # parameters to be initialized on GPU instead of (assumed) CPU.
