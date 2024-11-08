@@ -142,7 +142,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
             assert max_seq_length >= max_length_to_pad
             for key, val in data.items():
                 if key in {'input_ids', 'context_ids'}:
-                    if len(val) < max_length_to_pad:
+                    if len(val) <= max_length_to_pad:
                         # because input_ids are truncated by 1 for inputs and labels,
                         # we add 1 extra padding here to make sure padded inputs and labels
                         # are is a multiple of (cp_size * 2)
