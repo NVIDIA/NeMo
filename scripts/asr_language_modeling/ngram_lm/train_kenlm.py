@@ -37,14 +37,16 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from glob import glob
 from typing import List
 
 from omegaconf import MISSING
-from scripts.asr_language_modeling.ngram_lm import kenlm_utils
+from scripts.asr_language_modeling.ngram_lm import create_lexicon_from_arpa, kenlm_utils
 
 from nemo.core.config import hydra_runner
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging
 
 """
@@ -57,16 +59,21 @@ use a trick to encode the sub-word tokens of the training data as unicode charac
 class TrainKenlmConfig:
     """
     Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.
+    The BPE sub-words are encoded using the Unicode table.
+    This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space.
+    The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
     """
 
-    train_paths: List[
-        str
-    ] = MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
+    train_paths: List[str] = (
+        MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
+    )
 
     nemo_model_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
     kenlm_model_file: str = MISSING  # The path to store the KenLM binary model file
     ngram_length: int = MISSING  # The order of N-gram LM
-    kenlm_bin_path: str = MISSING  # The path to the bin folder of KenLM.
+    kenlm_bin_path: str = (
+        MISSING  # The path to the bin folder of KenLM. In NeMo docker it is /workspace/nemo/decoders/kenlm/build/bin/
+    )
 
     preserve_arpa: bool = False  # Whether to preserve the intermediate ARPA file.
     ngram_prune: List[int] = field(
@@ -83,13 +90,15 @@ def main(args: TrainKenlmConfig):
     if isinstance(args.ngram_prune, str):
         args.ngram_prune = [args.ngram_prune]
 
-    tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(args.nemo_model_file)
+    tokenizer, encoding_level, is_aggregate_tokenizer, config = kenlm_utils.setup_tokenizer(args.nemo_model_file)
 
+    tmpdir = tempfile.TemporaryDirectory()
     if encoding_level == "subword":
         discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
     else:
         discount_arg = ""
 
+    kenlm_file = os.path.join(tmpdir.name, "kenlm_model.bin")
     arpa_file = f"{args.kenlm_model_file}.tmp.arpa"
     """ LMPLZ ARGUMENT SETUP """
     kenlm_args = [
@@ -168,7 +177,7 @@ def main(args: TrainKenlmConfig):
         os.path.join(args.kenlm_bin_path, "build_binary"),
         "trie",
         arpa_file,
-        args.kenlm_model_file,
+        kenlm_file,
     ]
     logging.info(f"Running binary_build command \n\n{' '.join(kenlm_args)}\n\n")
     ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
@@ -179,6 +188,21 @@ def main(args: TrainKenlmConfig):
     if not args.preserve_arpa:
         os.remove(arpa_file)
         logging.info(f"Deleted the arpa file '{arpa_file}'.")
+
+    os.makedirs(tmpdir.name, exist_ok=True)
+    lexicon_file = os.path.join(tmpdir.name, "flashlight.lexicon")
+    if encoding_level == "subword":
+        kenlm_utils.save_flashlight_lexicon(tokenizer, lexicon_file)
+    else:
+        create_lexicon_from_arpa.save(
+            arpa=arpa_file, lexicon_file=lexicon_file, lower=False, tokenizer=tokenizer, langid=None
+        )
+
+    config_file = os.path.join(tmpdir.name, "config.yaml")
+    kenlm_utils.save_config_file(config, config_file, encoding_level)
+
+    SaveRestoreConnector._make_nemo_file_from_folder(filename=args.kenlm_model_file, source_dir=tmpdir.name)
+    tmpdir.cleanup()
 
 
 if __name__ == '__main__':
