@@ -202,9 +202,12 @@ class ChineseG2p(BaseG2p):
             tone_hyp = pinyin[-1]
             if tone_hyp in self.tone_dict:
                 syllable = pinyin[:-1]
+                # TODO: skipping the syllable that does not exist in the dictionary will lead to deletion errors in the
+                #   synthesized speech. Even though this case is uncommon, it should be fixed in future.
                 if syllable not in self.phoneme_dict:
                     err = True
-                    logging.error(f"Syllable <{syllable}> does not exist in the dictionary.")
+                    logging.error(f"Syllable <{syllable}> does not exist in the dictionary. You should expect symbol "
+                                  f"deletion risks!!")
                     continue
                 phoneme_seq += self.phoneme_dict[syllable]
                 phoneme_seq.append(self.tone_dict[tone_hyp])
