@@ -284,7 +284,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if hasattr(asr_model, 'change_decoding_strategy') and hasattr(asr_model, 'decoding'):
         if isinstance(asr_model.decoding, MultiTaskDecoding):
             cfg.multitask_decoding.compute_langs = cfg.compute_langs
-            cfg.multitask_decoding.preserve_alignments = cfg.preserve_alignment
             if cfg.extract_nbest:
                 cfg.multitask_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
