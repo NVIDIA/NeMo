@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import shutil
 from dataclasses import dataclass
 from typing import Optional, Union
 
@@ -149,6 +150,13 @@ class Quantizer:
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.decoder_type or get_modelopt_decoder_type(config)
 
+    def save_context(self, nemo_checkpoint: str, export_dir: str):
+        """Save the model context in order to restore its tokenizer later."""
+        shutil.copytree(
+            os.path.join(nemo_checkpoint, "context"),
+            os.path.join(export_dir, "nemo_context"),
+        )
+
     def quantize(self, model: llm.GPTModel, forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
         if forward_loop is None:
@@ -277,15 +285,7 @@ class Quantizer:
             use_nfs_workspace=use_nfs_workspace,
         )
 
-        dist.barrier()  # Wait until all ranks complete export_model_config step
-        logging.info(f"Export succeeded, model has been exported to {export_dir}. Saving tokenizer if possible...")
-
-        if dist.get_rank() == 0:
-            try:
-                tokenizer_dst = os.path.join(export_dir, 'tokenizer')
-                model.tokenizer.tokenizer.save_pretrained(tokenizer_dst)
-            except Exception as err:
-                logging.warning("Could not save the tokenizer: " + str(err))
+        logging.info(f"Export succeeded, model has been exported to {export_dir}.")
 
 
 def get_calib_data_iter(
