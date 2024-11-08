@@ -54,21 +54,58 @@ class MCoreTokenizerWrappper:
         self.vocab_size = tokenizer.vocab_size
 
     def detokenize(self, tokens, remove_special_tokens=False):
+        """
+        Detokenizes a list of tokens into a string.
+
+        Args:
+            tokens (list): The list of tokens to detokenize.
+            remove_special_tokens (bool, optional): Whether to remove special tokens. Defaults to False.
+
+        Returns:
+            str: The detokenized string.
+        """
         return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
 
     def tokenize(self, prompt):
+        """
+        Tokenizes a prompt into a list of tokens.
+
+        Args:
+            prompt (str): The prompt to tokenize.
+
+        Returns:
+            list: The list of tokens.
+        """
         return self.tokenizer.text_to_ids(prompt)
 
     @property
     def additional_special_tokens_ids(self):
+        """
+        Gets the IDs of additional special tokens.
+
+        Returns:
+            list: The IDs of additional special tokens.
+        """
         return self.tokenizer.additional_special_tokens_ids
 
     @property
     def bos(self):
+        """
+        Gets the ID of the beginning of sequence token.
+
+        Returns:
+            int: The ID of the beginning of sequence token.
+        """
         return self.tokenizer.bos_id
 
     @property
     def pad(self):
+        """
+        Gets the ID of the padding token.
+
+        Returns:
+            int: The ID of the padding token.
+        """
         return self.tokenizer.pad_id
 
 
@@ -149,11 +186,13 @@ def setup_model_and_tokenizer(
     Args:
         path (Path): The path to the checkpoint file.
         trainer (nl.Trainer): The trainer object.
-        params_dtype (torch.dtype, optional): The data type of the model parameters. Defaults to torch.bfloat16.
+        params_dtype (torch.dtype, optional): The data type of the model parameters.
+            Defaults to torch.bfloat16.
         inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than this threshold then we will not use pipelining, otherwise we will.
 
     Returns:
-        tuple[MegatronModule, MCoreTokenizerWrappper]: A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
+        tuple[MegatronModule, MCoreTokenizerWrappper]:
+            A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
     """
     model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
@@ -186,7 +225,8 @@ def generate(
         add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
         random_seed (Optional[int], optional): The random seed. Defaults to None.
-        inference_params (Optional[CommonInferenceParams], optional): The inference parameters defined in Mcore's CommonInferenceParams. Defaults to None.
+        inference_params (Optional[CommonInferenceParams], optional): The inference parameters defined in Mcore's CommonInferenceParams.
+            Defaults to None.
 
     Returns:
         dict: A dictionary containing the generated results.
