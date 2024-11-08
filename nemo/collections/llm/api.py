@@ -667,7 +667,8 @@ def _validate_config(
 ) -> None:
 
     ## Model validation
-    assert model.config.seq_length > 0
+    assert getattr(model.config, "seq_length", 1) > 0
+    assert getattr(model.config, "max_position_embeddings", 1) > 0
     assert model.config.num_layers > 0
     assert model.config.hidden_size > 0
     assert model.config.num_attention_heads > 0
