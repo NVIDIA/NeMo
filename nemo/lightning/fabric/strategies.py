@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from contextlib import ExitStack, contextmanager
+from dataclasses import fields
 from datetime import timedelta
 from typing import (
     TYPE_CHECKING,
@@ -405,20 +406,17 @@ class FabricMegatronStrategy(DDPStrategy):
         return self._checkpoint_io
 
     @property
-    def parallelism(self):
-        from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
+    def parallelism(self) -> ModelParallelConfig:
+        # Get fields from ModelParallelConfig dataclass
+        config_fields = {}
+        for field in fields(ModelParallelConfig):
+            # Only include field if it exists in self
+            if hasattr(self, field.name):
+                config_fields[field.name] = getattr(self, field.name)
 
-        return ParallelismConfig(
-            tensor_model_parallel_size=self.tensor_model_parallel_size,
-            pipeline_model_parallel_size=self.pipeline_model_parallel_size,
-            virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
-            microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
-            context_parallel_size=self.context_parallel_size,
-            sequence_parallel=self.sequence_parallel,
-            expert_model_parallel_size=self.expert_model_parallel_size,
-            moe_extended_tp=self.moe_extended_tp,
-            pipeline_dtype=self.pipeline_dtype,
-        )
+        # Initialize ModelParallelConfig with only available fields
+        model_parallel_config = ModelParallelConfig(**config_fields)
+        return model_parallel_config
 
 
 # TODO: Fix this

@@ -18,7 +18,7 @@ import os
 import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -41,6 +41,7 @@ import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.model_parallel_config import ModelParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
@@ -78,27 +79,6 @@ ConfigT = TypeVar("ConfigT")
 
 
 DDPLiteral = Literal["megatron", "pytorch"]
-
-
-@dataclass
-class ParallelismConfig:
-    """
-    POD containing parallelism configuration.
-    Parallelism configuration is passed to MegatronStrategy via constructor arguments,
-    then copied to model's config during model setup.
-    """
-
-    tensor_model_parallel_size: int
-    pipeline_model_parallel_size: int
-    virtual_pipeline_model_parallel_size: int
-    microbatch_group_size_per_vp_stage: int
-    context_parallel_size: int
-    sequence_parallel: bool
-    expert_model_parallel_size: int
-    moe_extended_tp: bool
-    pipeline_dtype: torch.dtype
-    encoder_tensor_model_parallel_size: int = 0
-    encoder_pipeline_model_parallel_size: int = 0
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -232,6 +212,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.expert_model_parallel_size = expert_model_parallel_size
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
+        self.microbatch_group_size_per_vp_stage = microbatch_group_size_per_vp_stage
         self.sequence_parallel = sequence_parallel
         self.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
         self.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
@@ -849,21 +830,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return True
 
     @property
-    def parallelism(self) -> ParallelismConfig:
-        """Returns parallelism config from class attrs as a POD"""
-        return ParallelismConfig(
-            tensor_model_parallel_size=self.tensor_model_parallel_size,
-            pipeline_model_parallel_size=self.pipeline_model_parallel_size,
-            virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
-            microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
-            context_parallel_size=self.context_parallel_size,
-            sequence_parallel=self.sequence_parallel,
-            expert_model_parallel_size=self.expert_model_parallel_size,
-            moe_extended_tp=self.moe_extended_tp,
-            encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
-            encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
-            pipeline_dtype=self.pipeline_dtype,
-        )
+    def parallelism(self) -> ModelParallelConfig:
+        # Get fields from ModelParallelConfig dataclass
+        config_fields = {}
+        for field in fields(ModelParallelConfig):
+            # Only include field if it exists in self
+            if hasattr(self, field.name):
+                config_fields[field.name] = getattr(self, field.name)
+
+        # Initialize ModelParallelConfig with only available fields
+        model_parallel_config = ModelParallelConfig(**config_fields)
+        return model_parallel_config
 
     @contextmanager
     @override

@@ -13,15 +13,15 @@
 # limitations under the License.
 
 from dataclasses import asdict, dataclass, fields
-import pytorch_lightning as pl
 
+import pytorch_lightning as pl
 from megatron.core import ModelParallelConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import TransformerLayerTPOverlapCfg
-from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
+from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
 
 try:
@@ -118,7 +118,7 @@ class MegatronCommOverlapCallback(Callback):
 
     def _get_model_comm_overlap_cfgs(
         self,
-        parallelism_cfg: ParallelismConfig,
+        parallelism_cfg: ModelParallelConfig,
     ) -> _CommOverlapConfig:
         comm_overlap_cfg = _CommOverlapConfig()
 
@@ -159,7 +159,7 @@ class MegatronCommOverlapCallback(Callback):
         comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)
         return comm_overlap_cfg
 
-    def _get_optimizer_overlap_cfgs(self, parallelism_cfg: ParallelismConfig) -> _CommOverlapConfig:
+    def _get_optimizer_overlap_cfgs(self, parallelism_cfg: ModelParallelConfig) -> _CommOverlapConfig:
         from nemo.utils import AppState
 
         app_state = AppState()
