@@ -155,7 +155,10 @@ class Quantizer:
         shutil.copytree(
             os.path.join(nemo_checkpoint, "context"),
             os.path.join(export_dir, "nemo_context"),
+            dirs_exist_ok=True,
         )
+
+        logging.info(f"Model context saved.")
 
     def quantize(self, model: llm.GPTModel, forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
