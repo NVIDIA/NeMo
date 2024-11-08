@@ -189,13 +189,16 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="max_length", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="log_probs", shape=(-1,), dtype=np.bool_, optional=True),
         )
         return inputs
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
-        return outputs
+        return (
+            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="log_probs", shape=(-1,), dtype=np.single),
+        )
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
@@ -207,10 +210,14 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         num_tokens_to_generate = (
             inputs.pop("num_tokens_to_generate")[0][0] if "num_tokens_to_generate" in inputs else 1
         )
+        log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
         text_only = True
 
         inference_params = CommonInferenceParams(
-            temperature=temperature, top_k=top_k, num_tokens_to_generate=num_tokens_to_generate
+            temperature=temperature,
+            top_k=top_k,
+            num_tokens_to_generate=num_tokens_to_generate,
+            return_log_probs=log_probs,
         )
 
         results = inference.generate(
@@ -223,8 +230,12 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         )
 
         output_texts = [r.generated_text if text_only else r for r in results]
-        output = cast_output(output_texts, np.bytes_)
-        return {"outputs": output}
+        output = {"outputs": cast_output(output_texts, np.bytes_)}
+        if log_probs:
+            output_log_probs = [r.generated_log_probs.cpu().detach().numpy() for r in results]
+            output["log_probs"] = np.array(output_log_probs)
+
+        return output
 
 
 class MegatronLLMDeployable(ITritonDeployable):
