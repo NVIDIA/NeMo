@@ -92,6 +92,8 @@ class LazyNeMoIterator:
         self.shuffle_shards = shuffle_shards
         self.shard_seed = shard_seed
         paths = expand_sharded_filepaths(path)
+        cache_datastore_manifests(paths)
+        
         if len(paths) == 1:
             self.source = LazyJsonlIterator(paths[0])
         else:
@@ -579,6 +581,16 @@ def expand_sharded_filepaths(paths: str | Path | list[str]) -> list[str]:
         paths = str(paths)
 
     return _expand_sharded_filepaths(paths, shard_strategy="replicate", world_size=1, global_rank=0)
+
+
+def cache_datastore_manifests(paths: str | Path | list[str]):
+    # local import to avoid circular imports
+    from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests as _cache_datastore_manifests
+
+    if isinstance(paths, Path):
+        paths = str(paths)
+
+    return _cache_datastore_manifests(paths, cache_audio=True)
 
 
 def _to_custom_attr_dict(d: dict, _excluded_fields: set[str] = {"duration", "audio_filepath"}) -> dict:

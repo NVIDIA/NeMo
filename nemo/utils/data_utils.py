@@ -46,7 +46,7 @@ def is_datastore_path(path) -> bool:
     """Check if a path is from a data object store.
     Currently, only AIStore is supported.
     """
-    return path.startswith('ais://')
+    return path.startswith('ais://') or path.startswith('s3://')
 
 
 def is_tarred_path(path) -> bool:
@@ -155,7 +155,7 @@ def datastore_path_to_local_path(store_path: str) -> str:
     Returns:
         Path to the same object in local cache.
     """
-    if store_path.startswith('ais://'):
+    if store_path.startswith('ais://') or store_path.startswith('s3://'):
         endpoint = ais_endpoint()
         if endpoint is None:
             raise RuntimeError(f'AIS endpoint not set, cannot resolve {store_path}')
@@ -182,7 +182,7 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
     Returns:
         Local path of the object.
     """
-    if path.startswith('ais://'):
+    if path.startswith('ais://') or path.startswith('s3://'):
         endpoint = ais_endpoint()
         if endpoint is None:
             raise RuntimeError(f'AIS endpoint not set, cannot resolve {path}')
@@ -298,7 +298,7 @@ def datastore_path_to_webdataset_url(store_path: str):
     Returns:
         URL which can be directly used with WebDataset.
     """
-    if store_path.startswith('ais://'):
+    if store_path.startswith('ais://') or store_path.startswith('s3://'):
         url = f'pipe:ais get {store_path} - || true'
     else:
         raise ValueError(f'Unknown store path format: {store_path}')
