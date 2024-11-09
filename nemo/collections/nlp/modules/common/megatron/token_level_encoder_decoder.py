@@ -1023,8 +1023,6 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                         # For flat seq_pattern we need all the logits
                         token_logits = token_logits[:, :, :first_layer_vocabsize]
                     speech_layers = self.num_speech_codebooks - 1
-                    last_layer_output = dec_output
-                    last_layer_logits = token_logits
 
                     # speech_logits_list will be used in loss calculation (parallel output)
                     speech_logits_list = []
