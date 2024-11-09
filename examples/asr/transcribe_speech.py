@@ -106,6 +106,7 @@ class ModelChangeConfig:
     """
     Sub-config for changes specific to the Conformer Encoder
     """
+
     conformer: ConformerChangeConfig = field(default_factory=ConformerChangeConfig)
 
 
@@ -114,6 +115,7 @@ class TranscriptionConfig:
     """
     Transcription Configuration for audio to text transcription.
     """
+
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -170,7 +172,7 @@ class TranscriptionConfig:
     # Implicit single-turn assuming default role='user' (works with Canary-1B)
     #  +prompt.source_lang=en +prompt.target_lang=es +prompt.task=asr +prompt.pnc=yes
     # Explicit single-turn prompt:
-    #  +prompt.role=user +prompt.slots.source_lang=en +prompt.slots.target_lang=es 
+    #  +prompt.role=user +prompt.slots.source_lang=en +prompt.slots.target_lang=es
     # +prompt.slots.task=s2t_translation +prompt.slots.pnc=yes
     # Explicit multi-turn prompt:
     #  +prompt.turns='[{role:user,slots:{source_lang:en,target_lang:es,task:asr,pnc:yes}}]'

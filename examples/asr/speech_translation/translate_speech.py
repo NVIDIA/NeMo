@@ -67,6 +67,7 @@ class ModelChangeConfig:
     """
     Sub-config for changes specific to the Conformer Encoder
     """
+
     conformer: ConformerChangeConfig = ConformerChangeConfig()
 
 
@@ -75,6 +76,7 @@ class TranslationConfig:
     """
     Translation Configuration for audio to text translation.
     """
+
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model

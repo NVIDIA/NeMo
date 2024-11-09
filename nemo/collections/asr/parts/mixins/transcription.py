@@ -202,8 +202,8 @@ class TranscriptionMixin(ABC):
                 to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
-            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object 
-                (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details. 
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object
+                (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details.
                 Default is None and would retain the previous state set by using self.change_decoding_strategy().
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.

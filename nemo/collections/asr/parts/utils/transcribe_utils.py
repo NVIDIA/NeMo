@@ -282,15 +282,15 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             - append_pred (bool): Flag indicating whether to append predictions to an existing dataset.
             - audio_type (str): Type of audio files to consider.
             - dataset_manifest (str): Path to the dataset manifest file.
-            - audio_key (str, optional): Key in the manifest file specifying the audio file path. 
+            - audio_key (str, optional): Key in the manifest file specifying the audio file path.
                 Defaults to 'audio_filepath'.
-            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file. 
+            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file.
                 Defaults to True.
     Returns:
         Tuple[List[str], bool]: A tuple containing the following:
-            - filepaths (List[str]): List of filepaths to the audio files if path to the directory 
+            - filepaths (List[str]): List of filepaths to the audio files if path to the directory
                 containing audio files is provided.
-            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset 
+            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset
                 manifest file is provided.
     """
 
@@ -498,13 +498,13 @@ def compute_metrics_per_sample(
 
     Args:
         manifest_path: str, Required - path to dataset JSON manifest file (in NeMo format)
-        reference_field: str, Optional - name of field in .json manifest with the reference text 
+        reference_field: str, Optional - name of field in .json manifest with the reference text
             ("text" by default).
-        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text 
+        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text
             ("pred_text" by default).
-        metrics: list[str], Optional - list of metrics to be computed 
+        metrics: list[str], Optional - list of metrics to be computed
             (currently supported "wer", "cer", "punct_er")
-        punctuation_marks: list[str], Optional - list of punctuation marks for computing 
+        punctuation_marks: list[str], Optional - list of punctuation marks for computing
             punctuation error rate ([".", ",", "?"] by default).
         output_manifest_path: str, Optional - path where .json manifest with calculated metrics will be saved.
 

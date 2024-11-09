@@ -67,6 +67,7 @@ class TranscriptionConfig:
     """
     Transcription Configuration for buffered inference.
     """
+
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -117,7 +118,7 @@ class TranscriptionConfig:
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     """
-    Transcribes the input audio and can be used to infer long audio files by chunking 
+    Transcribes the input audio and can be used to infer long audio files by chunking
     them into smaller segments.
     """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')

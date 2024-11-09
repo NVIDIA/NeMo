@@ -776,7 +776,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
     Args:
         feat_in (int): Number of channels being input to this module
         num_classes (int): Number of unique speakers in dataset
-        emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings 
+        emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings
             from 1st of this layers). Defaults to [1024,1024]
         pool_mode (str) : Pooling strategy type. options are 'xvector','tap', 'attention'
             Defaults to 'xvector (mean and variance)'

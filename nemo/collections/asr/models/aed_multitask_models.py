@@ -224,7 +224,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
-        # TODO: PytorchMetrics lets you join two metrics together to save compute. 
+        # TODO: PytorchMetrics lets you join two metrics together to save compute.
         # But need to make wer and bleu have same outputs first
         self.wer = WER(self.decoding, log_prediction=self.cfg.get("log_prediction"))
         self.bleu = BLEU(
@@ -273,14 +273,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         prompt_format: Optional[str] = None,
     ):
         """
-        Changes vocabulary used during AED decoding process. Use this method when fine-tuning on 
+        Changes vocabulary used during AED decoding process. Use this method when fine-tuning on
         from pre-trained model. This method changes only decoder and leaves encoder and pre-processing
-        modules unchanged. For example, you would use it if you want to use pretrained encoder when 
-        fine-tuning on data in another language, or when you'd need model to learn capitalization, 
+        modules unchanged. For example, you would use it if you want to use pretrained encoder when
+        fine-tuning on data in another language, or when you'd need model to learn capitalization,
         punctuation and/or special characters.
 
         Args:
-            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer 
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer
                 (if the tokenizer type is `agg`)
             new_tokenizer_type: Type of tokenizer. Can be either `agg`, `bpe` or `wpe`.
             decoding_cfg: A config for the decoding, which is optional. If the decoding type

@@ -253,10 +253,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         ctc_decoding_cfg: Optional[DictConfig] = None,
     ):
         """
-        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on 
-        from pre-trained model. This method changes only decoder and leaves encoder and pre-processing 
-        modules unchanged. For example, you would use it if you want to use pretrained encoder when 
-        fine-tuning on data in another language, or when you'd need model to learn capitalization, 
+        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on
+        from pre-trained model. This method changes only decoder and leaves encoder and pre-processing
+        modules unchanged. For example, you would use it if you want to use pretrained encoder when
+        fine-tuning on data in another language, or when you'd need model to learn capitalization,
         punctuation and/or special characters.
 
         Args:

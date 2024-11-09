@@ -209,13 +209,13 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         """
         Changes vocabulary of the tokenizer used during CTC decoding process.
         Use this method when fine-tuning on from pre-trained model.
-        This method changes only decoder and leaves encoder and pre-processing modules unchanged. 
-        For example, you would use it if you want to use pretrained encoder when fine-tuning on a 
-        data in another language, or when you'd need model to learn capitalization, punctuation 
+        This method changes only decoder and leaves encoder and pre-processing modules unchanged.
+        For example, you would use it if you want to use pretrained encoder when fine-tuning on a
+        data in another language, or when you'd need model to learn capitalization, punctuation
         and/or special characters.
 
         Args:
-            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer 
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer
                 (if the tokenizer type is `agg`)
             new_tokenizer_type: Either `agg`, `bpe` or `wpe`. `bpe` is used for SentencePiece tokenizers,
                 whereas `wpe` is used for `BertTokenizer`.
