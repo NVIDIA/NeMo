@@ -650,14 +650,14 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 cu_seqlens[-1].append(max_length)
 
             for i in range(len(item['seq_boundaries']) - 1):
-                # since the data is prepadded with tokenizer's eos_id, we can find out the index of all the eos_id
-                eos_idx = np.where(
-                    np.array(item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1])
-                    == self.tokenizer.eos_id
-                )
+                current_seq = item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
 
-                # The second eos_id index marks the length of the original unpadded sequence
-                seqlen_unpadded = eos_idx[0][0] + 1
+                # since the data could be prepadded with tokenizer's eos_id, we can find out the index of all the eos_id
+                eos_idx = np.where(np.array(current_seq) == self.tokenizer.eos_id)
+
+                # The second eos_id index marks the length of the original unpadded sequence if the sequence is
+                # prepadded for cp_size > 1. Otherwise, there is no extra padding.
+                seqlen_unpadded = eos_idx[0][0] + 1 if eos_idx[0].any() else len(current_seq)
                 cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
 
             # if extra paddings are added in the packed sequence, they can't be counted as
