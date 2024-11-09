@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import time
 import requests
 from requests.exceptions import RequestException
@@ -64,10 +78,11 @@ class NeMoFWLMEval(LM):
         Defines the loglikelihood request. Takes input requests of type list[Instance] where Instance is a dataclass defined in lm_eval.api.instance.
         Each Instance conists of the input prompt, output prompt, request type(here loglikelihood) and other relevant args like few shot samples.
         """
+        special_tokens_kwargs = {}
         if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
-            special_tokens_kwargs = {'add_bos': self.add_bos}
+            special_tokens_kwargs['add_bos'] = self.add_bos
         elif self.tokenizer_type(self.tokenizer) == "AutoTokenizer":
-            special_tokens_kwargs = {'add_special_tokens': self.add_bos} ## Hardcode for now. TODO Infer add_bos from input.
+            special_tokens_kwargs['add_special_tokens'] = self.add_bos
 
         results = []
         for request in requests:
