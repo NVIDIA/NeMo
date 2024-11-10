@@ -42,7 +42,7 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 )
 from nemo.utils import logging
 
-__all__ = ['T5SpeechLMDataset']
+__all__ = ['T5SpeechLMDataset', "Lang"]
 
 
 def get_full_list_puncts():
