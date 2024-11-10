@@ -68,7 +68,11 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-__all__ = ["MegatronTokenLevelHead", "MegatronTokenLevelEncoderDecoderModule", "MegatronTokenLevelEncoderDecoderSpeechLLMModule"]
+__all__ = [
+    "MegatronTokenLevelHead",
+    "MegatronTokenLevelEncoderDecoderModule",
+    "MegatronTokenLevelEncoderDecoderSpeechLLMModule",
+]
 
 
 class MegatronTokenLevelHead(MegatronModule):
