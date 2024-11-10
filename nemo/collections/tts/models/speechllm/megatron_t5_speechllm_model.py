@@ -363,7 +363,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-        multi_encoder = False
         if isinstance(context_and_question_tokens, list):
             multi_encoder = True
             assert isinstance(enc_mask, list)
@@ -414,9 +413,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         _encoder_input = encoder_input_list
         if not multi_encoder:
-            context_and_question_tokens = context_and_question_tokens[0]
             enc_mask = enc_mask[0]
-            position_ids = position_ids[0]
             cross_attention_prior = cross_attention_prior[0]
             _encoder_input = encoder_input_list[0] if encoder_input_list is not None else None
 
