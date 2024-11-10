@@ -494,6 +494,12 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             self_attention_pos_emb = None
             cross_attention_pos_emb = None
 
+        if return_crossattention_scores and return_selfattention_scores:
+            raise NotImplementedError(
+                "We can only return 1 of cross attention scores or self attention scores. Not both yet."
+            )
+        attention_probs = None
+
         if self.layer_type != LayerType.retrieval_decoder_after_self_attn:
             # hidden_states: [b, s, h]
 
@@ -535,7 +541,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 attention_bias = None
 
             # jit scripting for a nn.module (with dropout) is not
-            # trigerring the fusion kernel. For now, we use two
+            # triggering the fusion kernel. For now, we use two
             # different nn.functional routines to account for varying
             # dropout semantics during training and inference phases.
 
@@ -562,6 +568,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             elif self.transformer_block_type in ['pre_ln', 'normformer']:
                 # Layer norm post the self attention.
                 normalization_output = self.post_attention_layernorm(layernorm_input)
+            else:
+                normalization_output = None
+                logging.warning(f"This is a rare case since `normalization_output=None`")
         else:
             layernorm_input, normalization_output = hidden_states
 
@@ -646,7 +655,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if get_key_value:
             output = [output, presents]
 
-        if return_crossattention_scores or return_selfattention_scores:
+        if attention_probs is not None:
             output = [output, attention_probs]
 
         return output
