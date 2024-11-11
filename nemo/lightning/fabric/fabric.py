@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Optional, Protocol, Sequence, Type, TypeVar, U
 
 import fiddle as fdl
 import lightning_fabric as lb
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch import nn
 from typing_extensions import Self, override
 

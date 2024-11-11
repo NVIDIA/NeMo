@@ -17,8 +17,8 @@ from typing import Any, TypeVar
 
 from lightning_fabric import plugins as fl_plugins
 from lightning_fabric import strategies as fl_strategies
-from pytorch_lightning import plugins as pl_plugins
-from pytorch_lightning import strategies as pl_strategies
+from lightning.pytorch import plugins as pl_plugins
+from lightning.pytorch import strategies as pl_strategies
 
 T = TypeVar('T')
 FabricT = TypeVar('FabricT')
@@ -39,7 +39,7 @@ def to_fabric(obj: Any) -> Any:
         NotImplementedError: If no converter is registered for the object's type.
 
     Example:
-        >>> from pytorch_lightning.strategies import Strategy as PLStrategy
+        >>> from lightning.pytorch.strategies import Strategy as PLStrategy
         >>> from lightning_fabric.strategies import Strategy as FabricStrategy
         >>> from nemo.lightning.fabric.conversion import to_fabric
         >>>

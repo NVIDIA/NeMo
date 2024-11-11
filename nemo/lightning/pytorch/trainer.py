@@ -15,7 +15,7 @@
 from copy import deepcopy
 
 import fiddle as fdl
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from typing_extensions import Self
 
 from nemo.lightning.fabric.conversion import to_fabric
