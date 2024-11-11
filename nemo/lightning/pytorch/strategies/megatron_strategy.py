@@ -38,8 +38,8 @@ from typing import (
 import lightning.pytorch as pl
 import torch
 import torch.distributed
-from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
-from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from lightning.fabric.plugins import CheckpointIO, ClusterEnvironment
+from lightning.fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from lightning.pytorch.accelerators import CPUAccelerator

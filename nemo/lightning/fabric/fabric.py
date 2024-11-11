@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Protocol, Sequence, Type, TypeVar, Union, runtime_checkable
 
 import fiddle as fdl
-import lightning_fabric as lb
+import lightning.fabric as lb
 import lightning.pytorch as pl
 from torch import nn
 from typing_extensions import Self, override

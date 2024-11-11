@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 import lightning.pytorch as pl
 import torch
 import torch.nn as nn
-from lightning_fabric.utilities.types import _PATH
+from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.trainer.states import TrainerFn
 from typing_extensions import override

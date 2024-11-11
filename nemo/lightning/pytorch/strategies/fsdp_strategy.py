@@ -19,8 +19,8 @@ from typing import Any, Dict, Optional, Union
 
 import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from lightning.pytorch.trainer.states import TrainerFn
