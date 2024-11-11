@@ -54,7 +54,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
         tokens = [
             torch.cat(
                 [
-                    torch.as_tensor(s.tokens if hasattr(s, "tokens") else s.tokens if hasattr(s, "tokens") else self.tokenizer(s.text or "", s.language))
+                    torch.as_tensor(
+                        s.tokens
+                        if hasattr(s, "tokens")
+                        else s.tokens if hasattr(s, "tokens") else self.tokenizer(s.text or "", s.language)
+                    )
                     for s in c.supervisions
                 ],
                 dim=0,
