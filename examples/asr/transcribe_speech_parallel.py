@@ -178,7 +178,7 @@ def main(cfg: ParallelTranscriptionConfig):
         cfg.predict_ds.use_lhotse = True
         cfg.predict_ds.lang_field = "target_lang"
         OmegaConf.set_struct(cfg.predict_ds, True)
-        
+
     trainer = ptl.Trainer(**cfg.trainer)
 
     if cfg.predict_ds.use_lhotse:

@@ -41,9 +41,9 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     shard_manifests: bool = False
     shuffle_n: int = 0
 
-    #lhotse support
+    # lhotse support
     use_lhotse: bool = False
-    tarred_random_access: bool = True  
+    tarred_random_access: bool = True
     use_bucketing: bool = False
     batch_duration: Optional[int] = None
     quadratic_duration: Optional[int] = None

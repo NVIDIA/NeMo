@@ -869,7 +869,7 @@ class ASRPredictionWriter(BasePredictionWriter):
                     sample = sample.first_non_padding_cut
                 if sample.recording.sources[0].source != '':
                     item["audio_filepath"] = sample.recording.sources[0].source
-                else: 
+                else:
                     item["audio_filepath"] = sample.id
                 item["audio_filepath"] = sample.recording.sources[0].source
                 item["offset"] = sample.start
