@@ -874,7 +874,7 @@ class ASRPredictionWriter(BasePredictionWriter):
                 item["audio_filepath"] = sample.recording.sources[0].source
                 item["offset"] = sample.start
                 item["duration"] = sample.duration
-                item["text"] = sample.supervisions[0].text
+                item["text"] = sample.supervisions[0].text or ''
                 if hasattr(sample, 'shard_id'):
                     item["shard_id"] = sample.shard_id
                 item["pred_text"] = transcribed_text
