@@ -26,7 +26,7 @@ Usage
   from nemo import lightning as nl
   from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
   
-  trainer_args = {}
+  trainer_args = {TRAINER_ARGS}
 
   # Set up trainer with bf16 precision
   trainer_bf16 = run.Config(
@@ -74,8 +74,8 @@ Usage
   from nemo import lightning as nl
   from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed, fp16_with_fp8_mixed
   
-  trainer_args = {}
-  fp8_args = {}
+  trainer_args = {TRAINER_ARGS}
+  fp8_args = {FP8_ARGS}
 
   # Set up trainer with bf16 & fp8 precision
   trainer_bf16_fp8 = run.Config(
