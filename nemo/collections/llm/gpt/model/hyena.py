@@ -24,6 +24,7 @@ try:
     from megatron.core import parallel_state
     from megatron.core.models.hyena import HyenaModel as MCoreHyenaModel
     from megatron.core.models.hyena.hyena_layer_specs import hyena_stack_spec
+    from megatron.core.ssm.hyena_utils import hyena_no_weight_decay_cond
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -38,6 +39,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
+
 
 def hyena_forward_step(model, batch) -> torch.Tensor:
 
@@ -93,6 +95,11 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     tokenizer_model_path: str = None
     hyena_init_method: str = None
     hyena_output_layer_init_method: str = None
+    hyena_filter_no_wd: bool = True
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond if self.hyena_filter_no_wd else None
 
     def configure_model(self, tokenizer) -> "MCoreHyenaModel":
         model = MCoreHyenaModel(
@@ -498,6 +505,7 @@ class HyenaTestConfig(HyenaConfig):
     recompute_num_layers: int = 2
     hyena_init_method: str = 'small_init'
     hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
 
 
 @dataclass
@@ -531,6 +539,7 @@ class Hyena7bConfig(HyenaConfig):
     recompute_num_layers: int = 4
     hyena_init_method: str = 'small_init'
     hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
 
 
 __all__ = [

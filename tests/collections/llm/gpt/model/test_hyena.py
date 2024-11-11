@@ -126,7 +126,7 @@ if __name__ == '__main__':
         use_distributed_optimizer=True,
         bf16=True,
     )
-    opt = MegatronOptimizerModule(config=opt_config)
+    opt = MegatronOptimizerModule(config=opt_config, no_weight_decay_cond=hyena_config.hyena_no_weight_decay_cond_fn)
 
     trainer = nl.Trainer(
         devices=args.devices,
