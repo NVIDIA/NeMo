@@ -20,12 +20,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import ClusterEnvironment
+from lightning.pytorch.callbacks import TQDMProgressBar
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
-from lightning.pytorch.callbacks import TQDMProgressBar
-from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh

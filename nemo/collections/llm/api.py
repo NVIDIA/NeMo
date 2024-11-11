@@ -18,8 +18,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
-import nemo_run as run
 import lightning.pytorch as pl
+import nemo_run as run
 import torch
 from rich.console import Console
 from typing_extensions import Annotated

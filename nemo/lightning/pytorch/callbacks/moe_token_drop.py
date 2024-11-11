@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import lightning.pytorch as pl
-from megatron.core import ModelParallelConfig
 from lightning.pytorch.callbacks.callback import Callback
+from megatron.core import ModelParallelConfig
 
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 

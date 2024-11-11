@@ -38,12 +38,12 @@ from lightning.fabric.plugins.precision import Precision
 from lightning.fabric.strategies import DDPStrategy
 from lightning.fabric.strategies.strategy import _validate_keys_for_strict_loading
 from lightning.fabric.utilities.types import _PATH, _Stateful
-from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.optimizer import OptimizerConfig
 from lightning.pytorch import LightningDataModule
 from lightning.pytorch.loops.fetchers import _DataFetcher
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.utilities.combined_loader import CombinedLoader
+from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.optimizer import OptimizerConfig
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
