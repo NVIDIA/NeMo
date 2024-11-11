@@ -52,7 +52,8 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 
@@ -66,7 +67,7 @@ MODEL_CONFIG_MAPPING = {
     "mistralai/Mixtral-8x22B-v0.1": (llm.MixtralModel, llm.MixtralConfig8x22B),
     "mistralai/Mistral-7B-v0.1": (llm.MistralModel, llm.MistralConfig7B),
     "nvidia/nemotron-3-8b-base-4k": (llm.NemotronModel, llm.Nemotron3Config8B),
-    "nemotron4-22b": (llm.NemotronModel, llm.Nemotron4Config22B),
+    "nemotron4-22b": (llm.NemotronModel, llm.Nemotron3Config22B),
     "nemotron4-15b": (llm.NemotronModel, llm.Nemotron4Config15B),
     "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
 }
@@ -196,7 +197,7 @@ def main() -> None:
     logging.info(f"Saving checkpoint to {args.output_path}")
     model_ckpt['state_dict'] = {k.replace('model', 'module', 1): v for k, v in model_ckpt['state_dict'].items()}
     trainer.model.module.load_state_dict(model_ckpt['state_dict'])
-    trainer.save_checkpoint(ckpt_to_weights_subdir(args.output_path))
+    trainer.save_checkpoint(ckpt_to_weights_subdir(args.output_path, is_saving=False))
     if getattr(trainer.strategy, "async_save", False):
         trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
 
