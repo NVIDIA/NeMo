@@ -57,7 +57,7 @@ def query_llm(
         top_k=top_k,
         top_p=top_p,
         temperature=temperature,
-        compute_logprob=log_probs,
+        log_probs=log_probs,
         init_timeout=init_timeout,
     )
 
@@ -81,16 +81,7 @@ def query(argv):
         init_timeout=args.init_timeout,
     )
 
-    log_probs = None
-    if len(outputs) == 1:
-        sentences = outputs
-    else:
-        sentences = outputs[0]
-        log_probs = outputs[1]
-
-    print("Generated output:", sentences[0][0])
-    if log_probs is not None:
-        print("log-probs:", log_probs)
+    print(outputs)
 
 
 if __name__ == '__main__':

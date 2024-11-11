@@ -69,8 +69,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         top_p: float = None,
         repetition_penalty: float = None,
         add_BOS: bool = None,
-        all_probs: bool = None,
-        compute_logprob: bool = None,
+        log_probs: bool = None,
         end_strings=None,
         min_length: int = None,
         max_length: int = None,
@@ -87,8 +86,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             repetition_penalty (float): penalty applied to repeated sequences, 1.0 means no penalty.
             add_BOS (bool): whether or not to add a BOS (beginning of sentence) token.
-            all_probs (bool): when using compute_logprob, returns probabilities for all tokens in vocabulary.
-            compute_logprob (bool): get back probabilities of all tokens in the sequence.
+            log_probs (bool): get back probabilities of all tokens in the sequence.
             end_strings (List(str)): list of strings which will terminate generation when they appear in the output.
             min_length (int): min generated tokens.
             max_length (int): max generated tokens.
@@ -110,10 +108,8 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
             inputs["repetition_penalty"] = np.full(prompts.shape, repetition_penalty, dtype=np.single)
         if add_BOS is not None:
             inputs["add_BOS"] = np.full(prompts.shape, add_BOS, dtype=np.bool_)
-        if all_probs is not None:
-            inputs["all_probs"] = np.full(prompts.shape, all_probs, dtype=np.bool_)
-        if compute_logprob is not None:
-            inputs["log_probs"] = np.full(prompts.shape, compute_logprob, dtype=np.bool_)
+        if log_probs is not None:
+            inputs["log_probs"] = np.full(prompts.shape, log_probs, dtype=np.bool_)
         if end_strings is not None:
             inputs["end_strings"] = str_list2numpy(end_strings)
         if min_length is not None:
@@ -130,20 +126,24 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
                 log_probs_output = result_dict["log_probs"]
 
             if output_type == np.bytes_:
-                if "outputs" in result_dict.keys():
-                    output = result_dict["outputs"]
-                elif "sentences" in result_dict.keys():
+                if "sentences" in result_dict.keys():
                     output = result_dict["sentences"]
                 else:
                     return "Unknown output keyword."
 
                 sentences = np.char.decode(output.astype("bytes"), "utf-8")
+                openai_response = {
+                    "id": f"cmpl-{int(time.time())}",
+                    "object": "text_completion",
+                    "created": int(time.time()),
+                    "model": self.model_name,
+                    "choices": [{"text": str(sentences)}],
+                }
                 if log_probs_output is not None:
-                    return sentences, log_probs_output
-                else:
-                    return sentences
+                    openai_response["log_probs"] = log_probs_output
+                return openai_response
             else:
-                return result_dict["outputs"]
+                return result_dict["sentences"]
 
 
 class NemoQueryLLM(NemoQueryLLMBase):
@@ -254,9 +254,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
                 log_probs_output = result_dict["log_probs"]
 
             if output_type == np.bytes_:
-                if "outputs" in result_dict.keys():
-                    output = result_dict["outputs"]
-                elif "sentences" in result_dict.keys():
+                if "sentences" in result_dict.keys():
                     output = result_dict["sentences"]
                 else:
                     return "Unknown output keyword."
@@ -273,7 +271,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
                     openai_response["log_probs"] = log_probs_output
                 return openai_response
             else:
-                return result_dict["outputs"]
+                return result_dict["sentences"]
 
 
 def query_llm_streaming(

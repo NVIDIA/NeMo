@@ -196,52 +196,57 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
     @property
     def get_triton_output(self):
         return (
-            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="sentences", shape=(-1,), dtype=bytes),
             Tensor(name="log_probs", shape=(-1,), dtype=np.single),
         )
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        prompts = str_ndarray2list(inputs.pop("prompts"))
-        max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
-        random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
-        temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
-        top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
-        num_tokens_to_generate = (
-            inputs.pop("num_tokens_to_generate")[0][0] if "num_tokens_to_generate" in inputs else 1
-        )
-        log_probs = inputs.pop("log_probs")[0][0] if "log_probs" in inputs else False
-        text_only = True
+        output_infer = {}
+        try:
+            prompts = str_ndarray2list(inputs.pop("prompts"))
+            max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
+            random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
+            temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
+            top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
+            num_tokens_to_generate = (
+                inputs.pop("num_tokens_to_generate")[0][0] if "num_tokens_to_generate" in inputs else 1
+            )
+            log_probs = inputs.pop("log_probs")[0][0] if "log_probs" in inputs else False
+            text_only = True
 
-        inference_params = CommonInferenceParams(
-            temperature=temperature,
-            top_k=top_k,
-            num_tokens_to_generate=num_tokens_to_generate,
-            return_log_probs=log_probs,
-        )
+            inference_params = CommonInferenceParams(
+                temperature=temperature,
+                top_k=top_k,
+                num_tokens_to_generate=num_tokens_to_generate,
+                return_log_probs=log_probs,
+            )
 
-        results = inference.generate(
-            model=self.inference_wrapped_model,
-            tokenizer=self.mcore_tokenizer,
-            prompts=prompts,
-            max_batch_size=max_batch_size,
-            random_seed=random_seed,
-            inference_params=inference_params,
-        )
+            results = inference.generate(
+                model=self.inference_wrapped_model,
+                tokenizer=self.mcore_tokenizer,
+                prompts=prompts,
+                max_batch_size=max_batch_size,
+                random_seed=random_seed,
+                inference_params=inference_params,
+            )
 
-        output_texts = [r.generated_text if text_only else r for r in results]
-        output = {"outputs": cast_output(output_texts, np.bytes_)}
-        if log_probs:
-            output_log_probs = []
-            for r in results:
-                lp = r.generated_log_probs.cpu().detach().numpy()
-                if len(lp) == 0:
-                    output_log_probs.append([0])
-                else:
-                    output_log_probs.append(lp)
-            output["log_probs"] = np.array(output_log_probs)
+            output_texts = [r.generated_text if text_only else r for r in results]
+            output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
+            if log_probs:
+                output_log_probs = []
+                for r in results:
+                    lp = r.generated_log_probs.cpu().detach().numpy()
+                    if len(lp) == 0:
+                        output_log_probs.append([0])
+                    else:
+                        output_log_probs.append(lp)
+                output_infer["log_probs"] = np.array(output_log_probs)
+        except Exception as error:
+            err_msg = "An error occurred: {0}".format(str(error))
+            output_infer["sentences"] = cast_output([err_msg], np.bytes_)
 
-        return output
+        return output_infer
 
 
 class MegatronLLMDeployable(ITritonDeployable):
