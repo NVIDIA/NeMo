@@ -14,7 +14,7 @@
 
 from typing import Union
 
-from lightning_fabric.plugins.environments import slurm
+from lightning.fabric.plugins.environments import slurm
 from lightning.pytorch import plugins as _pl_plugins
 
 # This is here to import it once, which improves the speed of launch when in debug-mode

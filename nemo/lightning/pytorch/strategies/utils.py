@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
 import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import ClusterEnvironment
+from lightning.fabric.plugins import ClusterEnvironment
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor

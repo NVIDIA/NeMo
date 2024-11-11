@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Optional, Union
 
-import lightning_fabric as fl
+import lightning.fabric as fl
 import lightning.pytorch as pl
 
 from nemo.lightning import io
