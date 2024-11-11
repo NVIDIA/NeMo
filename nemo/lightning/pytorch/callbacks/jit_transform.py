@@ -49,17 +49,19 @@ class JitTransform(Callback, IOMixin):
             assert backend in ['torch', 'thunder']
         self.backend = backend
 
-    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if self.backend is None:
             return
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
         if self.backend == 'torch':
-            jit_model = torch.compile(model)
+            model.compile()
         elif self.backend == 'thunder':
             import thunder
-
-            jit_model = thunder.jit(model)
+            import thunder.dynamo
+            from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
+            xforms: list = [NvtxProfileTransform()]
+            be = thunder.dynamo.ThunderCompiler(transforms=xforms)
+            model.compile(backend=be)
         else:
             raise ValueError("got unexpected backend")
-        setattr(trainer.lightning_module, attr_name, jit_model)

@@ -94,9 +94,12 @@ class JitTestModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
         output = self.module(input_ids)
-        expected_cls = (
-            torch._dynamo.eval_frame.OptimizedModule if self.has_jit else torch.nn.modules.container.Sequential
-        )
+        if self.has_jit:
+            assert self.module._compiled_call_impl is not None
+            assert callable(self.module._compiled_call_impl)
+        else:
+            assert self.module._compiled_call_impl is None
+        expected_cls = torch.nn.modules.container.Sequential
         assert isinstance(self.module, expected_cls), type(self.module)
         return F.cross_entropy(output.view(-1, output.shape[-1]), labels.view(-1))
 
