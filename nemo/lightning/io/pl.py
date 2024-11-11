@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
