@@ -48,12 +48,10 @@ To enable the distributed adam optimizer, set up ``distributed_fused_adam_with_c
 
     from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 
-    optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4)
+    optim = distributed_fused_adam_with_cosine_annealing(max_lr=3e-4)
     optim.config.bf16 = True
 
 For more optimzier options, please visit `this page <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_.
-
-See the keyword arguments in `Apex DistributedFusedAdam <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_ and `NeMo MegatronDistributedFusedAdam <https://github.com/NVIDIA/NeMo/blob/main/nemo/core/optim/distributed_adam.py>`_ for a full list of distributed optimizer options.
 
 Implement Data Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
