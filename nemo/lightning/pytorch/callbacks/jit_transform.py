@@ -60,6 +60,7 @@ class JitTransform(Callback, IOMixin):
             import thunder
             import thunder.dynamo
             from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
+
             xforms: list = [NvtxProfileTransform()]
             be = thunder.dynamo.ThunderCompiler(transforms=xforms)
             model.compile(backend=be)
