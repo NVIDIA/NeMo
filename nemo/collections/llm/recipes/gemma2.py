@@ -15,10 +15,10 @@
 from typing import Optional
 
 import nemo_run as run
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
+from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.gpt.model.gemma2 import Gemma2Config2B, Gemma2Config9B, Gemma2Config27B, Gemma2Model

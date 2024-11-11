@@ -15,7 +15,7 @@
 from typing import Optional
 
 import nemo_run as run
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 
 import nemo.lightning as nl
 from nemo.collections import llm
