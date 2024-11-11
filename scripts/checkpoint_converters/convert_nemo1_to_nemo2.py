@@ -74,6 +74,9 @@ MODEL_CONFIG_MAPPING = {
 
 
 def get_args():
+    """
+    Parse the command line arguments.
+    """
     parser = ArgumentParser(
         description="""Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. 
                     This script may download from Hugging Face, make sure you have
@@ -114,6 +117,12 @@ def get_args():
 
 
 def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
+    """
+    Get NeMo 2.0 model class from model_id and tokenizer. Use bf16 for NeMo 1.0 ckpts.
+
+    Returns:
+        llm.GPTModel: NeMo 2.0 model instance
+    """
 
     if model_id not in MODEL_CONFIG_MAPPING:
         valid_ids = "\n- ".join([""] + list(MODEL_CONFIG_MAPPING.keys()))
@@ -124,6 +133,13 @@ def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
 
 
 def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
+    """
+    Get tokenizer from input .nemo file, or args.tokenizer_path, or Hugging Face.
+    Only SentencePiece and Hugging Face tokenizers are supported.
+
+    Returns:
+        AutoTokenizer: tokenizer instance
+    """
     if not input_path.is_dir():  # if .nemo tar
         with tempfile.TemporaryDirectory() as tmp_dir:  # we want to clean up this tmp dir
             NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
@@ -154,6 +170,9 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
 
 
 def main() -> None:
+    """
+    Main function to convert NeMo 1.0 checkpoint to NeMo 2.0 format.
+    """
     tokenizer_tmp_dir = Path("/tmp/nemo_tokenizer")
     tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)
     tokenizer = get_tokenizer(Path(args.input_path), tokenizer_tmp_dir)
