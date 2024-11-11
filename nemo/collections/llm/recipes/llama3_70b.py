@@ -360,8 +360,9 @@ def finetune_performance_optimizations(
         recipe.trainer.callbacks = []
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 4
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.pipeline_dtype = torch.bfloat16
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
