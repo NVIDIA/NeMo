@@ -113,7 +113,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         if all_probs is not None:
             inputs["all_probs"] = np.full(prompts.shape, all_probs, dtype=np.bool_)
         if compute_logprob is not None:
-            inputs["compute_logprob"] = np.full(prompts.shape, compute_logprob, dtype=np.bool_)
+            inputs["log_probs"] = np.full(prompts.shape, compute_logprob, dtype=np.bool_)
         if end_strings is not None:
             inputs["end_strings"] = str_list2numpy(end_strings)
         if min_length is not None:
@@ -123,7 +123,27 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
-            return result_dict
+            output_type = client.model_config.outputs[0].dtype
+
+            log_probs_output = None
+            if "log_probs" in result_dict.keys():
+                log_probs_output = result_dict["log_probs"]
+
+            if output_type == np.bytes_:
+                if "outputs" in result_dict.keys():
+                    output = result_dict["outputs"]
+                elif "sentences" in result_dict.keys():
+                    output = result_dict["sentences"]
+                else:
+                    return "Unknown output keyword."
+
+                sentences = np.char.decode(output.astype("bytes"), "utf-8")
+                if log_probs_output is not None:
+                    return sentences, log_probs_output
+                else:
+                    return sentences
+            else:
+                return result_dict["outputs"]
 
 
 class NemoQueryLLM(NemoQueryLLMBase):

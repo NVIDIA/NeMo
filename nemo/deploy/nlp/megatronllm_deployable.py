@@ -210,7 +210,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         num_tokens_to_generate = (
             inputs.pop("num_tokens_to_generate")[0][0] if "num_tokens_to_generate" in inputs else 1
         )
-        log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
+        log_probs = inputs.pop("log_probs")[0][0] if "log_probs" in inputs else False
         text_only = True
 
         inference_params = CommonInferenceParams(
@@ -232,7 +232,13 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         output_texts = [r.generated_text if text_only else r for r in results]
         output = {"outputs": cast_output(output_texts, np.bytes_)}
         if log_probs:
-            output_log_probs = [r.generated_log_probs.cpu().detach().numpy() for r in results]
+            output_log_probs = []
+            for r in results:
+                lp = r.generated_log_probs.cpu().detach().numpy()
+                if len(lp) == 0:
+                    output_log_probs.append([0])
+                else:
+                    output_log_probs.append(lp)
             output["log_probs"] = np.array(output_log_probs)
 
         return output
