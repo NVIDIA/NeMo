@@ -53,8 +53,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.lightning.io.pl import TrainerContext
+from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
 
 MODEL_CONFIG_MAPPING = {
