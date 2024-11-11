@@ -241,13 +241,18 @@ def run_inference(
     test_cpp_runtime=False,
     test_deployment=False,
     test_data_path=None,
-    save_trt_engine=False,
+    save_engine=False,
     fp8_quantized=False,
     fp8_kvcache=False,
     trt_llm_export_kwargs=None,
+    vllm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if trt_llm_export_kwargs is None:
         trt_llm_export_kwargs = {}
+
+    if vllm_export_kwargs is None:
+        vllm_export_kwargs = {}
+
     if Path(checkpoint_path).exists():
         if tp_size > torch.cuda.device_count():
             print(
@@ -312,6 +317,7 @@ def run_inference(
                 pipeline_parallel_size=pp_size,
                 max_model_len=max_input_len + max_output_len,
                 gpu_memory_utilization=args.gpu_memory_utilization,
+                **vllm_export_kwargs,
             )
         else:
             exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
@@ -436,7 +442,7 @@ def run_inference(
         if test_deployment:
             nm.stop()
 
-        if not save_trt_engine and model_dir:
+        if not save_engine and model_dir:
             shutil.rmtree(model_dir)
 
         return (functional_result, accuracy_result)
@@ -458,11 +464,12 @@ def run_existing_checkpoints(
     test_deployment=False,
     stop_words_list=None,
     test_data_path=None,
-    save_trt_engine=False,
+    save_engine=False,
     in_framework=False,
     fp8_quantized=False,
     fp8_kvcache=False,
     trt_llm_export_kwargs=None,
+    vllm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if tp_size > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -489,9 +496,6 @@ def run_existing_checkpoints(
         use_embedding_sharing = True
     else:
         use_embedding_sharing = False
-
-    if trt_llm_export_kwargs is None:
-        trt_llm_export_kwargs = {}
 
     if in_framework:
         return run_in_framework_inference(
@@ -535,10 +539,11 @@ def run_existing_checkpoints(
             test_cpp_runtime=test_cpp_runtime,
             test_deployment=test_deployment,
             test_data_path=test_data_path,
-            save_trt_engine=save_trt_engine,
+            save_engine=save_engine,
             fp8_quantized=fp8_quantized,
             fp8_kvcache=fp8_kvcache,
             trt_llm_export_kwargs=trt_llm_export_kwargs,
+            vllm_export_kwargs=vllm_export_kwargs,
         )
 
 
@@ -583,7 +588,7 @@ def run_in_framework_inference(
         output_deployed = output_deployed["sentences"]
         # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
         for i, output in enumerate(output_deployed):
-            output = output[len(prompts[i]) :]
+            output_deployed[i, :] = output[0][len(prompts[i]) :]
 
         # Unwrap the generator if needed
         output_deployed = list(output_deployed)
@@ -736,7 +741,7 @@ def get_args():
         default=None,
     )
     parser.add_argument(
-        "--save_trt_engine",
+        "--save_engine",
         type=str,
         default="False",
     )
@@ -777,6 +782,12 @@ def get_args():
         type=json.loads,
         help="Extra keyword arguments passed to TensorRTLLM.export",
     )
+    parser.add_argument(
+        "--vllm_export_kwargs",
+        default={},
+        type=json.loads,
+        help="Extra keyword arguments passed to vLLMExporter.export",
+    )
 
     args = parser.parse_args()
 
@@ -797,7 +808,7 @@ def get_args():
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.functional_test = str_to_bool("functional_test", args.functional_test)
-    args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
+    args.save_engine = str_to_bool("save_engine", args.save_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.lora = str_to_bool("lora", args.lora)
@@ -857,11 +868,12 @@ def run_inference_tests(args):
                 test_cpp_runtime=args.test_cpp_runtime,
                 run_accuracy=args.run_accuracy,
                 test_data_path=args.test_data_path,
-                save_trt_engine=args.save_trt_engine,
+                save_engine=args.save_engine,
                 in_framework=args.in_framework,
                 fp8_quantized=args.export_fp8_quantized,
                 fp8_kvcache=args.use_fp8_kv_cache,
                 trt_llm_export_kwargs=args.trt_llm_export_kwargs,
+                vllm_export_kwargs=args.vllm_export_kwargs,
             )
 
             tps = tps * 2
@@ -885,7 +897,7 @@ def run_inference_tests(args):
                     top_p=args.top_p,
                     temperature=args.temperature,
                     run_accuracy=args.run_accuracy,
-                    debug=True,
+                    debug=args.debug,
                     test_data_path=args.test_data_path,
                 )
             else:
@@ -917,10 +929,11 @@ def run_inference_tests(args):
                     test_deployment=args.test_deployment,
                     test_cpp_runtime=args.test_cpp_runtime,
                     test_data_path=args.test_data_path,
-                    save_trt_engine=args.save_trt_engine,
+                    save_engine=args.save_engine,
                     fp8_quantized=args.export_fp8_quantized,
                     fp8_kvcache=args.use_fp8_kv_cache,
                     trt_llm_export_kwargs=args.trt_llm_export_kwargs,
+                    vllm_export_kwargs=args.vllm_export_kwargs,
                 )
 
             tps = tps * 2

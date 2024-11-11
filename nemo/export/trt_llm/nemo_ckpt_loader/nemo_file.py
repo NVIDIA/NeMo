@@ -117,7 +117,7 @@ def load_scaling_factors(state_dict: dict, basename: str, size: int) -> Optional
 
 
 def filter_experts_extra_states(state_dict: dict):
-    pattern = r'module\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
+    pattern = r'model\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
     return {k: v for k, v in state_dict.items() if not re.fullmatch(pattern, k)}
 
 
@@ -394,7 +394,10 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                     if isinstance(v, (float, int, str, bool)):
                         nemo_model_config[k] = v
                     elif k == "activation_func":
-                        nemo_model_config["activation"] = v.__name__
+                        if isinstance(v, torch.jit.ScriptFunction):
+                            nemo_model_config["activation"] = v.name
+                        else:
+                            nemo_model_config["activation"] = v.__name__
 
             if nemo_model_config.get("num_moe_experts") is None:
                 nemo_model_config["num_moe_experts"] = 0
@@ -402,10 +405,13 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             if nemo_model_config["activation"] == "silu":
                 nemo_model_config["activation"] = "fast-swiglu"
             elif nemo_model_config["activation"] == "openai_gelu":
-                nemo_model_config["activation"] = "geglu"
+                nemo_model_config["activation"] = "openai-gelu"
+            elif nemo_model_config["activation"] == "squared_relu":
+                nemo_model_config["activation"] = "squared-relu"
 
             nemo_model_config["mcore_gpt"] = True
             nemo_model_config["max_position_embeddings"] = nemo_model_config.get("seq_length", 4096)
+            nemo_model_config["rotary_percentage"] = nemo_model_config.get("rotary_percent", 1.0)
 
             shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:
