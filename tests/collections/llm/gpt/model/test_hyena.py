@@ -71,7 +71,7 @@ def get_args():
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
     parser.add_argument(
-        '--model-size', type=str, default="7b", help="Model size, choose between 7b or test (4 layers, less than 1b)"
+        '--model-size', type=str, default="7b", help="Model size, choose between 7b, 40b, or test (4 layers, less than 1b)"
     )
     parser.add_argument(
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
