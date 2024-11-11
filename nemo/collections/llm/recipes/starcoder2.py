@@ -15,9 +15,9 @@
 from typing import Optional
 
 import nemo_run as run
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from pytorch_lightning.callbacks.callback import Callback
+from lightning.pytorch.callbacks.callback import Callback
 from nemo import lightning as nl
 from nemo.collections.llm.gpt.model.starcoder2 import (
     Starcoder2Config3B,

@@ -15,7 +15,7 @@
 from typing import Callable, Optional
 
 import nemo_run as run
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 
 from nemo.collections.llm.api import finetune, pretrain
