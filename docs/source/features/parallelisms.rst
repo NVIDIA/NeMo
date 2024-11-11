@@ -41,22 +41,17 @@ Enable Data Parallelism
 In NeMo Framework, DDP is the default parallel deployment method.
 This means that the total number of GPUs corresponds to the size of the DP group, and training an LLM with model parallelism decreases the size of the DP group.
 
-Currently, NeMo Framework supports optimizer distribution only for Adam optimizer.
-To enable the distributed adam optimizer, set
-``model.optim.name=distributed_fused_adam`` in the model
-configuration. It can be configured with the following options:
+Currently, NeMo Framework supports optimizer distribution only for Megatron-Core adam distributed optimizer.
+To enable the distributed adam optimizer, set up ``distributed_fused_adam_with_cosine_annealing`` optimizer recipe from ``nemo.collections.llm.recipes.optim.adam``.
 
-===========================  =========  ==================================================================================================================================
-Option                       Default    Description
-===========================  =========  ==================================================================================================================================
-``dtype``                    fp32       Optimizer state datatype
-``grad_sync_dtype``          ``dtype``  Gradient reduce-scatter datatype
-``overlap_grad_sync``        True       Overlap gradient reduce-scatter with compute
-``overlap_param_sync``       False      Overlap parameter all-gather with compute
-``bucket_cap_mb``            100        Buffer size (in MiB) for internal state and workspaces. Larger buckets have lower runtime overheads but may increase memory usage.
-``contiguous_param_buffer``  False      Allocate parameters as views into a large buffer. Helps avoid some data copies.
-``contiguous_grad_buffer``   True       Allocate parameter gradients as views into a large buffer. Helps avoid some data copies.
-===========================  =========  ==================================================================================================================================
+.. code-block:: python
+
+    from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+
+    optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4)
+    optim.config.bf16 = True
+
+For more optimzier options, please visit `this page <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_.
 
 See the keyword arguments in `Apex DistributedFusedAdam <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_ and `NeMo MegatronDistributedFusedAdam <https://github.com/NVIDIA/NeMo/blob/main/nemo/core/optim/distributed_adam.py>`_ for a full list of distributed optimizer options.
 
@@ -72,23 +67,25 @@ The distributed optimizer in NeMo Framework is built on top of
 `DistributedFusedAdam <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_
 from Apex.
 
-Fully-Shared Data Parallelism
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..
+    FSDP is not supported in NeMo 2.0 yet.
+    Fully-Shared Data Parallelism
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-NeMo Framework supports Fully-Sharded Data Parallelism (FSDP), which shards parameter gradients and low-precision parameters for computation. This is in addition to the model states that the distributed optimizer shards, including optimizer states and high-precision parameters.
-Since FSDP shards the entire model states, it ensures linear model state memory savings with increasing DP size.
-FSDP is preferred for LLM training with unbalanced workloads between pipeline stages (or Transformer layers) or with a large vocabulary size, where pipelining would cause significant computation bubbles due to workload imbalance.
-Additionally, FSDP eliminates the need to search for performance-optimal mappings with 3D parallelism (TP/PP/DP) because it operates within a single parallelization domain.
+    NeMo Framework supports Fully-Sharded Data Parallelism (FSDP), which shards parameter gradients and low-precision parameters for computation. This is in addition to the model states that the distributed optimizer shards, including optimizer states and high-precision parameters.
+    Since FSDP shards the entire model states, it ensures linear model state memory savings with increasing DP size.
+    FSDP is preferred for LLM training with unbalanced workloads between pipeline stages (or Transformer layers) or with a large vocabulary size, where pipelining would cause significant computation bubbles due to workload imbalance.
+    Additionally, FSDP eliminates the need to search for performance-optimal mappings with 3D parallelism (TP/PP/DP) because it operates within a single parallelization domain.
 
 
-NeMo Framework uses `PyTorch's FSDP interface <https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html>`_ to shard LLM model states, flattening the parameters of each transformer layer and partitioning them across data-parallel GPUs.
-FSDP introduces collective operations across data-parallel GPUs, including all-gather for parameter computation and reduce-scatter for parameter gradients.
-The all-gather operation occurs during both the network forward and back-propagation phases, while the gradient reduce-scatter operation happens only during back-propagation.
-These FSDP communications are overlapped with transformer layer computations.
+    NeMo Framework uses `PyTorch's FSDP interface <https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html>`_ to shard LLM model states, flattening the parameters of each transformer layer and partitioning them across data-parallel GPUs.
+    FSDP introduces collective operations across data-parallel GPUs, including all-gather for parameter computation and reduce-scatter for parameter gradients.
+    The all-gather operation occurs during both the network forward and back-propagation phases, while the gradient reduce-scatter operation happens only during back-propagation.
+    These FSDP communications are overlapped with transformer layer computations.
 
-Setting ``fsdp=true`` enables FSDP.
-The mixed precision recipe can be set by ``precision`` knob, which determines both the computation and communication precisions.
-Also, one can use ``grad_reduce_dtype`` to override the gradient reduction precision specifically.
+    Setting ``fsdp=true`` enables FSDP.
+    The mixed precision recipe can be set by ``precision`` knob, which determines both the computation and communication precisions.
+    Also, one can use ``grad_reduce_dtype`` to override the gradient reduction precision specifically.
 
 
 Model Parallelism
@@ -131,15 +128,18 @@ NeMo Framework integrates TP through the implementation from Megatron Core. To u
 
 For detailed API usage and additional configurations, consult the `Megatron Core Developer Guide <https://docs.nvidia.com/Megatron-Core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
 
-FSDP with Tensor Parallelism
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+..
+    FSDP is not supported in NeMo 2.0 yet.
 
-NeMo Framework supports FSDP along with TP. This is done by restricting the model state sharding to the data-parallel domain.
-Using FSDP with TP can be helpful when the model doesn't have sufficient parallelism to deploy on a large-scale training system with the data-parallel mapping. For example, running a model with the global batch size of 1024 on 2048 GPUs.
-Also, TP enables FSDP feasibility by reducing the model state size and the activation size per GPU, thus lower the FSDP communication overhead and the activation memory overhead.
+    FSDP with Tensor Parallelism
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using both FSDP and TP works by enabling FSDP (``fsdp=true``) and setting ``tensor_model_parllel_size > 1``.
-Unset the ``CUDA_DEVICE_MAX_CONNECTIONS`` environment variable to set the number of GPU kernel queues, allowing the overlap of FSDP communication with computation kernels.
+    NeMo Framework supports FSDP along with TP. This is done by restricting the model state sharding to the data-parallel domain.
+    Using FSDP with TP can be helpful when the model doesn't have sufficient parallelism to deploy on a large-scale training system with the data-parallel mapping. For example, running a model with the global batch size of 1024 on 2048 GPUs.
+    Also, TP enables FSDP feasibility by reducing the model state size and the activation size per GPU, thus lower the FSDP communication overhead and the activation memory overhead.
+
+    Using both FSDP and TP works by enabling FSDP (``fsdp=true``) and setting ``tensor_model_parllel_size > 1``.
+    Unset the ``CUDA_DEVICE_MAX_CONNECTIONS`` environment variable to set the number of GPU kernel queues, allowing the overlap of FSDP communication with computation kernels.
 
 Pipeline Parallelism
 ^^^^^^^^^^^^^^^^^^^^
