@@ -32,24 +32,38 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 """
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --devices=8 \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc-per-node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
+                                --devices=2 \
                                 --max-steps=40 \
-                                --experiment-dir=<path-to-dir-t0-save-logs-and-ckpts> \
+                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
+                                --data-path=/home/ataghibakhsh/datasets/hyena_toy_data/data_hg38_all_text_CharLevelTokenizer_document \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=8 \
+                                --tensor-parallel-size=2 \
                                 --pipeline-model-parallel-size=1 \
                                 --context-parallel-size=1 \
-                                --global-batch-size=128 \
-                                --micro-batch-size=16 \
-                                --model-size=7b
+                                --global-batch-size=1 \
+                                --micro-batch-size=1 \
+                                --model-size=test
+
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc-per-node=1 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
+                                --devices=1 \
+                                --max-steps=40 \
+                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
+                                --data-path=/home/ataghibakhsh/datasets/hyena_toy_data/data_hg38_all_text_CharLevelTokenizer_document \
+                                --seq-length=8192 \
+                                --tensor-parallel-size=1 \
+                                --pipeline-model-parallel-size=1 \
+                                --context-parallel-size=1 \
+                                --global-batch-size=1 \
+                                --micro-batch-size=1 \
+                                --model-size=test
 """
 
-
 def get_args():
-    parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
+    parser = argparse.ArgumentParser(description='Train a Hyena model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
     parser.add_argument('--seq-length', type=int, default=4096, help="Training sequence length")
+    parser.add_argument('--data-path', type=str, help="Data path")
     parser.add_argument('--tensor-parallel-size', type=int, default=1, help="Tensor Parallel Size")
     parser.add_argument('--pipeline-model-parallel-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--context-parallel-size', type=int, default=1, help="Context Parallel Size")
@@ -76,16 +90,24 @@ if __name__ == '__main__':
         "byte-level",
     )
 
-    data = MockDataModule(
+    # data = MockDataModule(
+    #     seq_length=args.seq_length,
+    #     tokenizer=tokenizer,
+    #     micro_batch_size=args.micro_batch_size,
+    #     global_batch_size=args.global_batch_size,
+    #     num_train_samples=10_000,
+    #     num_val_samples=10,
+    #     num_test_samples=10,
+    #     num_workers=0,
+    #     pin_memory=False,
+    # )
+    data = PreTrainingDataModule(
+        paths=args.data_path,
         seq_length=args.seq_length,
-        tokenizer=tokenizer,
         micro_batch_size=args.micro_batch_size,
         global_batch_size=args.global_batch_size,
-        num_train_samples=10_000,
-        num_val_samples=10,
-        num_test_samples=10,
-        num_workers=0,
-        pin_memory=False,
+        seed=1234,
+        tokenizer=tokenizer,
     )
 
     if args.model_size == "7b":

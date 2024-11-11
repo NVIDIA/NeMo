@@ -47,6 +47,7 @@ def hyena_forward_step(model, batch) -> torch.Tensor:
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
         "labels": batch["labels"],
+        "loss_mask": batch["loss_mask"],
     }
     forward_args["attention_mask"] = None
     return model(**forward_args)
@@ -57,7 +58,6 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.hyena.hyena_model.HyenaModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
-    share_embeddings_and_output_weights: bool = False
     params_dtype: torch.dtype = torch.bfloat16
     fp16: bool = False
     bf16: bool = True
@@ -117,7 +117,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
-            # share_embeddings_and_output_weights=True,
+            share_embeddings_and_output_weights=True,
             hyena_init_method=self.hyena_init_method,
             hyena_output_layer_init_method=self.hyena_output_layer_init_method,
         )
