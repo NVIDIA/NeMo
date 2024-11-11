@@ -20,9 +20,9 @@ from typing import Callable, Optional
 
 import nemo_run as run
 import yaml
-from nemo_run.core.serialization.yaml import YamlSerializer
 from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
+from nemo_run.core.serialization.yaml import YamlSerializer
 
 from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy

@@ -21,10 +21,10 @@ import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
-from megatron.core.transformer.transformer_layer import TransformerLayer
 from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from megatron.core.transformer.transformer_layer import TransformerLayer
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
     StateDictOptions,
     get_optimizer_state_dict,
