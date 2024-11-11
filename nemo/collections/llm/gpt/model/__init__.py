@@ -37,7 +37,12 @@ from nemo.collections.llm.gpt.model.gemma import (
     GemmaConfig7B,
     GemmaModel,
 )
-from nemo.collections.llm.gpt.model.hyena import Hyena7bConfig, HyenaConfig, HyenaTestConfig
+from nemo.collections.llm.gpt.model.hyena import (
+    Hyena7bConfig, 
+    Hyena40bConfig,
+    HyenaConfig, 
+    HyenaTestConfig, 
+)
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
@@ -102,6 +107,7 @@ __all__ = [
     "GPTModel",
     "HyenaTestConfig",
     "Hyena7bConfig",
+    "Hyena40bConfig",
     "HyenaConfig",
     "MistralConfig7B",
     "MistralModel",

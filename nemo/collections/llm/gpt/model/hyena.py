@@ -365,9 +365,42 @@ class Hyena7bConfig(HyenaConfig):
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
 
+@dataclass
+class Hyena40bConfig(HyenaConfig):
+    hybrid_override_pattern: str = "SDH*SHDSDH*SDHSDH*SDHSDH*SDHSDH*SDH*SDHSDH*SDHSDH*"
+    num_layers: int = 50
+    seq_length: int = 8192
+    hidden_size: int = 8192
+    num_groups_hyena: int = 8192
+    num_groups_hyena_medium: int = 512
+    num_groups_hyena_short: int = 512
+    make_vocab_size_divisible_by: int = 8
+    tokenizer_library: str = 'byte-level'
+    mapping_type: str = "base"
+    ffn_hidden_size: int = 21888
+    gated_linear_unit: bool = True
+    num_attention_heads: int = 64
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
+    layernorm_epsilon: float = 1e-6
+    # fp8: str = 'hybrid'
+    # fp8_amax_history_len: int = 16
+    # fp8_amax_compute_algo: str = "max"
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 4
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
 
 __all__ = [
     "HyenaConfig",
     "Hyena7bConfig",
+    "Hyena40bConfig",
     "HyenaTestConfig",
 ]
