@@ -875,6 +875,8 @@ class ASRPredictionWriter(BasePredictionWriter):
                 item["offset"] = sample.start
                 item["duration"] = sample.duration
                 item["text"] = sample.supervisions[0].text
+                if hasattr(sample, 'shard_id'):
+                    item["shard_id"] = sample.shard_id
                 item["pred_text"] = transcribed_text
                 self.outf.write(json.dumps(item) + "\n")
                 self.samples_num += 1
