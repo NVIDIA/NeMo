@@ -29,7 +29,6 @@ from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
 
 
-
 class BatchedBeamHyps:
     """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
 
@@ -48,13 +47,19 @@ class BatchedBeamHyps:
 
         self.current_lengths = torch.zeros([batch_size, self.hyps_beam], device=device, dtype=torch.long)
         self.transcript = torch.zeros((batch_size, self.hyps_beam, self._max_length), device=device, dtype=torch.long)
-        self.timesteps = torch.zeros((batch_size, self.hyps_beam, self.time_beam, self._max_length), device=device, dtype=torch.long)
+        self.timesteps = torch.zeros(
+            (batch_size, self.hyps_beam, self.time_beam, self._max_length), device=device, dtype=torch.long
+        )
         self.scores = torch.zeros([batch_size, self.hyps_beam, self.time_beam], device=device, dtype=float_dtype)
         self.blank_scores = torch.zeros([batch_size, self.hyps_beam, self.time_beam], device=device, dtype=float_dtype)
         self.label_scores = torch.zeros([batch_size, self.hyps_beam, self.time_beam], device=device, dtype=float_dtype)
 
-        self.last_timestep = torch.full((batch_size, self.hyps_beam, self.time_beam), -1, device=device, dtype=torch.long)
-        self.last_timestep_lasts = torch.zeros((batch_size, self.hyps_beam, self.time_beam), device=device, dtype=torch.long)
+        self.last_timestep = torch.full(
+            (batch_size, self.hyps_beam, self.time_beam), -1, device=device, dtype=torch.long
+        )
+        self.last_timestep_lasts = torch.zeros(
+            (batch_size, self.hyps_beam, self.time_beam), device=device, dtype=torch.long
+        )
         self._batch_indices = torch.arange(batch_size, device=device)
         self._ones_batch = torch.ones_like(self._batch_indices)
 
@@ -192,74 +197,57 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         )
         # sample state, will be replaced further when the decoding for hypothesis is done
         last_decoder_state = self.decoder.initialize_state(
-            encoder_output_projected.unsqueeze(1).expand(-1, self.hyps_beam, -1, -1).reshape(batch_size * self.hyps_beam, max_time, -1))
+            encoder_output_projected.unsqueeze(1)
+            .expand(-1, self.hyps_beam, -1, -1)
+            .reshape(batch_size * self.hyps_beam, max_time, -1)
+        )
 
         # initial state, needed for torch.jit to compile (cannot handle None)
         state = self.decoder.initialize_state(
-            encoder_output_projected.unsqueeze(1).expand(-1, self.hyps_beam, -1, -1).reshape(batch_size * self.hyps_beam, max_time, -1))
+            encoder_output_projected.unsqueeze(1)
+            .expand(-1, self.hyps_beam, -1, -1)
+            .reshape(batch_size * self.hyps_beam, max_time, -1)
+        )
         # indices of elements in batch (constant)
-        batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
+        batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)[:, None, None].expand(
+            batch_size, self.hyps_beam, self.time_beam
+        )
         # last found labels - initially <SOS> (<blank>) symbol
-        labels = torch.full_like([batch_indices, self.hyps_beam], fill_value=self._SOS)
+        labels = torch.full([batch_indices, self.hyps_beam], fill_value=self._SOS, device=device, dtype=torch.long)
 
         # time indices
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
         time_indices_current_labels = torch.zeros_like(time_indices)
-        last_timesteps = encoder_output_length - 1
+        last_timesteps = (encoder_output_length - 1)[:, None, None].expand_as(batch_indices)
 
         # masks for utterances in batch
-        active_mask: torch.Tensor = encoder_output_length > 0
-        advance_mask = torch.empty_like(active_mask)
-
-        # for storing the last state we need to know what elements became "inactive" on this step
-        active_mask_prev = torch.empty_like(active_mask)
-        became_inactive_mask = torch.empty_like(active_mask)
+        active_mask: torch.Tensor = (encoder_output_length > 0)[:, None, None].expand_as(batch_indices)
 
         if self.ngram_lm_batch is not None:
-            # batch_lm_states = [self.ngram_lm_batch.get_bos_state() for _ in range(batch_size)]
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.hyps_beam, bos=True)
 
         # loop while there are active utterances
         while active_mask.any():
-            active_mask_prev.copy_(active_mask, non_blocking=True)
+            # active_mask_prev.copy_(active_mask, non_blocking=True)
             # stage 1: get decoder (prediction network) output
             decoder_output, state, *_ = self.decoder.predict(
-                labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
+                labels.reshape(-1).unsqueeze(1), state, add_sos=False, batch_size=batch_size
             )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
-            # stage 2: get joint output, iteratively seeking for non-blank labels
-            # blank label in `labels` tensor means "end of hypothesis" (for this index)
-            logits = (
-                self.joint.joint_after_projection(
-                    encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1),
-                    decoder_output,
-                )
-                .squeeze(1)
-                .squeeze(1)
-            )
-            scores, labels = logits.max(-1)
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
                     states=batch_lm_states
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype)
-                scores_w_lm, labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * lm_scores).max(dim=-1)
-                # TODO: fix scores?
-                torch.where(labels == self._blank_index, labels, labels_w_lm, out=labels)
+                # scores_w_lm, labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * lm_scores).max(dim=-1)
 
-            # search for non-blank labels using joint, advancing time indices for blank labels
-            # checking max_symbols is not needed, since we already forced advancing time indices for such cases
-            blank_mask = labels == self._blank_index
-            time_indices_current_labels.copy_(time_indices, non_blocking=True)
-
-            # advance_mask is a mask for current batch for searching non-blank labels;
-            # each element is True if non-blank symbol is not yet found AND we can increase the time index
-            time_indices += blank_mask
-            torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
-            torch.less(time_indices, encoder_output_length, out=active_mask)
-            torch.logical_and(active_mask, blank_mask, out=advance_mask)
+            advance_mask = active_mask.clone()
+            labels.fill_(value=self._blank_index)
+            scores = torch.full(
+                [batch_size, self.hyps_beam, self.time_beam], fill_value=0.0, device=device, dtype=float_dtype
+            )
 
             # inner loop: find next non-blank labels (if exist)
             while advance_mask.any():
@@ -276,6 +264,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 )
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
+                logits = F.log_softmax(logits, dim=-1)
                 more_scores, more_labels = logits.max(dim=-1)
                 if self.ngram_lm_batch is not None:
                     more_scores_w_lm, more_labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * lm_scores).max(dim=-1)
@@ -294,7 +283,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             # stage 3: filter labels and state, store hypotheses
             # select states for hyps that became inactive (is it necessary?)
             # this seems to be redundant, but used in the `loop_frames` output
-            torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
+            # torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
             # TODO: support last decoder state
             # self.decoder.batch_replace_states_mask(
             #     src_states=state,
@@ -340,12 +329,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 # same as: active_mask = time_indices < encoder_output_length
                 torch.less(time_indices, encoder_output_length, out=active_mask)
             if self.ngram_lm_batch is not None:
-                # for i, label in enumerate(labels.tolist()):
-                #     if label != self._blank_index:
-                #         batch_lm_states[i] = batch_lm_states_candidates[i][label]
-                # batch_lm_states[active_mask] = batch_lm_states_candidates[
-                #     torch.arange(batch_size, device=device), labels * active_mask
-                # ]
                 torch.where(
                     active_mask,
                     batch_lm_states_candidates[batch_indices, labels * active_mask],
@@ -353,7 +336,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                     out=batch_lm_states,
                 )
         return batched_hyps, None, last_decoder_state
-
 
     def __call__(
         self,
