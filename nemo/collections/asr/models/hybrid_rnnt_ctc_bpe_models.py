@@ -140,10 +140,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
+                global_rank=self.global_rank if not config.do_transcribe else config.get("global_rank"),
+                world_size=self.world_size if not config.do_transcribe else config.get("world_size"),
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=self.tokenizer,
+                    do_transcribe=config.do_transcribe,
                 ),
                 tokenizer=self.tokenizer,
             )

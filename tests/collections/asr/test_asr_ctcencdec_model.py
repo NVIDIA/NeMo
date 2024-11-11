@@ -274,6 +274,16 @@ class TestEncDecCTCModel:
             'bucketing_strategy',
             'bucketing_weights',
             'channel_selector',
+            'max_utts',
+            'use_lhotse',
+            'tarred_random_access',
+            'use_bucketing',
+            'batch_duration',
+            'quadratic_duration',
+            'bucket_batch_size',
+            'bucket_duration_bins',
+            'num_buckets',
+            'pin_memory',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim'}
@@ -307,6 +317,16 @@ class TestEncDecCTCModel:
             'bucketing_strategy',
             'bucketing_weights',
             'max_utts',
+            'max_utts',
+            'use_lhotse',
+            'tarred_random_access',
+            'use_bucketing',
+            'batch_duration',
+            'quadratic_duration',
+            'bucket_batch_size',
+            'bucket_duration_bins',
+            'num_buckets',
+            'pin_memory',
         ]
 
         REMAP_ARGS = {

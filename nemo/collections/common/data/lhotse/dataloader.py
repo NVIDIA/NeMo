@@ -147,6 +147,8 @@ class LhotseDataLoadingConfig:
     # In most cases (such as regular multi-GPU training) it will result in a deadlock due to
     # a different number of steps on different DDP ranks.
     force_finite: bool = False
+    # Dataset will also return metadata from cut to add in transcription file.
+    do_transcribe: bool = False
 
 
 def get_lhotse_dataloader_from_config(
@@ -176,7 +178,6 @@ def get_lhotse_dataloader_from_config(
     Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
     logging.info("We will be using a Lhotse DataLoader.")
-
     config = make_structured_with_schema_warnings(config)
 
     maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
@@ -317,8 +318,8 @@ def get_lhotse_dataloader_from_config(
             duration_bins=determine_bucket_duration_bins(config),
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            rank=0 if is_tarred and not config.do_transcribe else global_rank,
+            world_size=1 if is_tarred and not config.do_transcribe else world_size,
         )
     else:
         # Non-bucketing sampler, similar to original NeMo dataloading without bucketing,
@@ -335,8 +336,8 @@ def get_lhotse_dataloader_from_config(
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
             seed=config.shard_seed,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            rank=0 if is_tarred and not config.do_transcribe else global_rank,
+            world_size=1 if is_tarred and not config.do_transcribe else world_size,
         )
 
     if config.concatenate_samples:

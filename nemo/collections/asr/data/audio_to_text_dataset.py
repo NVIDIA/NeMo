@@ -867,6 +867,10 @@ class ASRPredictionWriter(BasePredictionWriter):
                 sample = sample_id
                 if isinstance(sample, lhotse.cut.MixedCut):
                     sample = sample.first_non_padding_cut
+                if sample.recording.sources[0].source != '':
+                    item["audio_filepath"] = sample.recording.sources[0].source
+                else: 
+                    item["audio_filepath"] = sample.id
                 item["audio_filepath"] = sample.recording.sources[0].source
                 item["offset"] = sample.start
                 item["duration"] = sample.duration
