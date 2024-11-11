@@ -19,7 +19,7 @@ import argparse
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -135,10 +135,12 @@ if __name__ == '__main__':
     callbacks = [checkpoint_callback]
 
     loggers = []
-    tensorboard_logger = TensorBoardLogger(
-        save_dir='dummy',  ## NOTE: this gets overwritten by default
+    wandb_logger = WandbLogger(
+        name=f"hyena-size-{args.model_size}-TP{args.tensor_parallel_size}-PP{args.pipeline_model_parallel_size}-CP{args.context_parallel_size}",
+        project="hyena_ux",
+        save_dir=args.experiment_dir,
     )
-    loggers.append(tensorboard_logger)
+    loggers.append(wandb_logger)
 
     opt_config = OptimizerConfig(
         optimizer='adam',
