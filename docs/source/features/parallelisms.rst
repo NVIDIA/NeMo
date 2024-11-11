@@ -153,22 +153,16 @@ Pipeline Parallelism (PP) is a technique that assigns consecutive layers or segm
 Enable Pipeline Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To utilize Pipeline Parallelism (PP) in NeMo Framework, set the ``pipeline_model_parallel_size`` parameter in the model's configuration. This parameter specifies the number of GPUs among which the model's layers are distributed.
+To utilize Pipeline Parallelism (PP) in NeMo Framework, set the ``recipe.model.config.pipeline_model_parallel_size`` parameter in the model's configuration. This parameter specifies the number of GPUs among which the model's layers are distributed.
 
-Set ``pipeline_model_parallel_size`` to a value greater than ``1`` to enable inter-layer model parallelism.
-
-   .. code-block:: yaml
-
-       pipeline_model_parallel_size: 1  # Example to enable Pipeline Parallelism
-
-Adjust the configuration accordingly here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L66>`__.
+Set ``recipe.model.config.pipeline_model_parallel_size`` to a value greater than ``1`` to enable inter-layer model parallelism.
 
 Interleaved Pipeline Parallel Schedule
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To minimize the pipeline bubble, the computation on each GPU can be divided into multiple subsets of layers (referred to as model chunks), rather than a single contiguous block. For instance, instead of each GPU processing a continuous set of four layers, it might handle two model chunks with two layers each.
 
-   .. code-block:: yaml
+   .. code-block:: python
 
        virtual_pipeline_model_parallel_size: 2 # Set for interleaved pipeline
 
@@ -196,9 +190,9 @@ Enable Expert Parallelism
 
 To enable EP, set ``model.expert_model_parallel_size`` to the expert parallel size you want. For example, if the model has six experts (``model.num_moe_experts=6``), then setting ``model.expert_model_parallel_size=3`` results in each GPU processing two experts. The number of experts should be divisible by the expert parallel size.
 
-   .. code-block:: yaml
-
-       expert_model_parallel_size: 3  # Set EP to 3
+   .. code-block:: python
+        
+       expert_model_parallel_size: 3
 
 For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68>`__.
 
