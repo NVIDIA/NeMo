@@ -35,7 +35,8 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
                                 --devices=8 \
                                 --max-steps=1000 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
+                                --val-check-interval=100 \
+                                --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
                                 --data-path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/hyena_data/hg38/pretraining_data_hg38/data_hg38_all_text_CharLevelTokenizer_document \
                                 --seq-length=8192 \
                                 --tensor-parallel-size=4 \
@@ -70,6 +71,7 @@ def get_args():
     parser.add_argument('--micro-batch-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
+    parser.add_argument('--val-check-interval', type=int, help="Number of steps between val check")
     parser.add_argument(
         '--model-size', type=str, default="7b", help="Model size, choose between 7b, 40b, or test (4 layers, less than 1b)"
     )
@@ -129,7 +131,7 @@ if __name__ == '__main__':
         ckpt_async_save=False,
     )
     checkpoint_callback = ModelCheckpoint(
-        every_n_train_steps=10,
+        every_n_train_steps=args.val_check_interval,
         dirpath=args.experiment_dir,
     )
     callbacks = [checkpoint_callback]
