@@ -15,12 +15,12 @@
 
 from typing import Optional
 
-import nemo_run as run
 import lightning.pytorch as pl
+import nemo_run as run
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain

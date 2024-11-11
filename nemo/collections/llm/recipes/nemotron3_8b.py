@@ -14,8 +14,8 @@
 
 from typing import Callable, Optional
 
-import nemo_run as run
 import lightning.pytorch as pl
+import nemo_run as run
 import torch
 
 from nemo import lightning as nl

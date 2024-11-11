@@ -19,6 +19,7 @@ from typing import Optional, Union
 import lightning.pytorch as pl
 import torch
 import torch.distributed
+from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
@@ -31,7 +32,6 @@ from megatron.core.inference.text_generation_controllers.simple_text_generation_
     SimpleTextGenerationController,
 )
 from megatron.core.transformer.module import MegatronModule
-from lightning.pytorch.trainer.states import TrainerFn
 
 import nemo.lightning as nl
 from nemo.collections.llm.peft import LoRA
