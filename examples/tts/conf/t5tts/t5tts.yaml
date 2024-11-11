@@ -1,0 +1,155 @@
+name: T5TTS
+
+max_epochs: ???
+# Adjust batch size based on GPU memory
+batch_size: 16
+# When doing weighted sampling with multiple manifests, this defines how many training steps are in an epoch.
+# If null, then weighted sampling is disabled.
+weighted_sampling_steps_per_epoch: null
+
+# Dataset metadata for each manifest
+# https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/data/vocoder_dataset.py#L39-L41
+train_ds_meta: ???
+val_ds_meta: ???
+
+# Modify these values based on your sample rate
+sample_rate: 22050
+
+phoneme_dict_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+heteronyms_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/heteronyms-052722"
+model:
+  num_audio_codebooks: 8
+  num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
+  codec_model_downsample_factor: 1024
+  prior_scaling_factor: 1.0
+  prior_end_step: 500
+  prior_scaledown_start_step: 200
+  alignment_loss_scale: 0.0
+  embedding_dim: 768
+  codecmodel_path: null
+  max_epochs: ${max_epochs}
+  steps_per_epoch: ${weighted_sampling_steps_per_epoch}
+
+  sample_rate: ${sample_rate}
+  
+  text_tokenizer:
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
+    punct: true
+    apostrophe: true
+    pad_with_space: false
+    g2p:
+      _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
+      phoneme_dict: ${phoneme_dict_path}
+      heteronyms: ${heteronyms_path}
+      phoneme_probability: 0.8
+      ignore_ambiguous_words: false
+      use_chars: true
+      use_stresses: true
+
+  train_ds:
+    dataset:
+      _target_: nemo.collections.tts.data.text_to_speech_dataset.T5TTSDataset
+      dataset_meta: ${train_ds_meta}
+      weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
+      sample_rate: ${sample_rate}
+      # speaker_path: ${speaker_path}
+      min_duration: 0.1
+      max_duration: 20.0
+
+    dataloader_params:
+      batch_size: ${batch_size}
+      num_workers: 4
+      shuffle: true
+
+  validation_ds:
+    dataset:
+      _target_: nemo.collections.tts.data.text_to_speech_dataset.T5TTSDataset
+      dataset_meta: ${val_ds_meta}
+      sample_rate: ${sample_rate}
+      # speaker_path: ${speaker_path}
+
+    dataloader_params:
+      batch_size: ${batch_size}
+      num_workers: 2
+
+  t5_encoder:
+    is_causal: false
+    pos_emb:
+      name: "rope"
+      base: 512
+    use_flash_attention: false
+    deterministic: false
+    d_model: 768
+    n_layers: 12
+    p_dropout: 0.1
+    n_heads: 12
+    has_xattn: false
+    apply_norm_to_cond: true
+    kernel_size: 3
+    layer_scale_init: 0.1
+    layer_scale_decay: 0.95
+    context_xattn: null
+
+  t5_decoder:
+    is_causal: true
+    pos_emb:
+      name: "rope"
+      base: 512
+    use_flash_attention: false
+    deterministic: false
+    d_model: 768
+    n_layers: 12
+    p_dropout: 0.1
+    n_heads: 12
+    has_xattn: true
+    apply_norm_to_cond: true
+    kernel_size: 3
+    layer_scale_init: 0.1
+    layer_scale_decay: 0.95
+    context_xattn:
+        n_heads: 12
+        d_heads: 768
+        pos_emb:
+          name: ""
+
+  optim:
+    _target_: torch.optim.Adam
+    lr: 2e-4
+    betas: [0.8, 0.99]
+
+    sched:
+      name: ExponentialLR
+      gamma: 0.998
+
+trainer:
+  num_nodes: 1
+  devices: -1
+  accelerator: gpu
+  strategy: ddp_find_unused_parameters_true
+  precision: 32
+  max_epochs: ${max_epochs}
+  accumulate_grad_batches: 1
+  enable_checkpointing: False # Provided by exp_manager
+  logger: false # Provided by exp_manager
+  log_every_n_steps: 100
+  val_check_interval: 500
+  # check_val_every_n_epoch: 10
+  benchmark: false
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null
+  create_checkpoint_callback: true 
+  checkpoint_callback_params:
+    monitor: val_loss
+    mode: min
+    save_top_k: 5
+    save_best_model: true
+    always_save_nemo: true
+  resume_if_exists: true
+  resume_ignore_no_checkpoint: true

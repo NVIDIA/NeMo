@@ -306,3 +306,99 @@ class TextToSpeechDataset(Dataset):
             batch_dict.update(feature_dict)
 
         return batch_dict
+
+class T5TTSDataset(TextToSpeechDataset):
+    def __init__(
+        self,
+        dataset_meta: Dict,
+        sample_rate: int,
+        text_tokenizer: BaseTokenizer,
+        weighted_sampling_steps_per_epoch: Optional[int] = None,
+        speaker_path: Optional[Path] = None,
+        featurizers: Optional[Dict[str, Featurizer]] = None,
+        feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
+        align_prior_hop_length: Optional[int] = None,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        volume_norm: bool = True,
+        codec_model_downsample_factor: int = None,
+        bos_id: int = None,
+        eos_id: int = None,
+        prior_scaling_factor: float = None,
+    ):
+        super().__init__(
+            dataset_meta=dataset_meta,
+            sample_rate=sample_rate,
+            text_tokenizer=text_tokenizer,
+            weighted_sampling_steps_per_epoch=weighted_sampling_steps_per_epoch,
+            speaker_path=speaker_path,
+            featurizers=featurizers,
+            feature_processors=feature_processors,
+            align_prior_hop_length=align_prior_hop_length,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            volume_norm=volume_norm,
+        )
+        self.bos_id = bos_id
+        self.eos_id = eos_id
+        self.codec_model_downsample_factor = codec_model_downsample_factor
+        self.include_align_prior = prior_scaling_factor is not None
+        self.prior_scaling_factor = prior_scaling_factor
+    
+    def __getitem__(self, index):
+        data = self.data_samples[index]
+
+        audio_array, _, audio_filepath_rel = load_audio(
+            manifest_entry=data.manifest_entry,
+            audio_dir=data.audio_dir,
+            sample_rate=self.sample_rate,
+            volume_norm=self.volume_norm,
+        )
+        audio = torch.tensor(audio_array, dtype=torch.float32)
+        # Pad audio to be multiple of downsample factor
+        audio = torch.nn.functional.pad(
+            audio,
+            (0, self.codec_model_downsample_factor - (audio.shape[0] % self.codec_model_downsample_factor)),
+            value=0
+        )
+        audio_len = audio.shape[0]
+
+        tokens = self.text_tokenizer(data.text)
+        tokens = tokens + [self.eos_id] # Not adding BOS id
+        tokens = torch.tensor(tokens, dtype=torch.int32)
+        text_len = tokens.shape[0]
+
+        example = {
+            "dataset_name": data.dataset_name,
+            "audio_filepath": audio_filepath_rel,
+            "audio": audio,
+            "audio_len": audio_len,
+            "tokens": tokens,
+            "text_len": text_len,
+        }
+
+        if data.speaker is not None:
+            example["speaker"] = data.speaker
+            example["speaker_index"] = data.speaker_index
+
+        if self.include_align_prior:
+            spec_len = int(audio_len / self.codec_model_downsample_factor) + 1
+            align_prior = beta_binomial_prior_distribution(
+                phoneme_count=text_len,
+                mel_count=spec_len,
+                scaling_factor=self.prior_scaling_factor
+            )
+            align_prior = torch.tensor(align_prior, dtype=torch.float32)
+            example["align_prior"] = align_prior
+
+        for featurizer in self.featurizers:
+            feature_dict = featurizer.load(
+                manifest_entry=data.manifest_entry, audio_dir=data.audio_dir, feature_dir=data.feature_dir
+            )
+            example.update(feature_dict)
+
+        for processor in self.feature_processors:
+            processor.process(example)
+
+        return example
+    
