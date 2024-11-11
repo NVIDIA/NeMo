@@ -652,7 +652,7 @@ class TensorRTLLM(ITritonDeployable):
             from megatron.core import parallel_state
             from megatron.core.tensor_parallel.utils import VocabUtility
 
-            tp_rank = parallel_state.get_tensor_model_parallel_rank()
+            tp_rank = pmcore_gpu_exportodel_parallel_rank()
             tp_size = parallel_state.get_tensor_model_parallel_world_size()
             tp_group = parallel_state.get_tensor_model_parallel_group()
             pp_rank = parallel_state.get_pipeline_model_parallel_rank()
@@ -809,7 +809,7 @@ class TensorRTLLM(ITritonDeployable):
                 )
             )
 
-            trtllm_helper.build_and_save_engine(
+            engine = trtllm_helper.build_and_save_engine(
                 max_input_len=max_input_len,
                 max_output_len=max_output_len,
                 max_seq_len=max_input_len + max_output_len,
