@@ -23,7 +23,8 @@ a. Convert a .nemo checkpoint
         --output_path=your_output_dir \
         --model_id=meta-llama/Meta-Llama-3-8B
 
-b. Convert a model weight directory. The checkpoint should be similar to `model_weights` subdir after extracting the .nemo file.
+b. Convert a model weight directory. 
+   The checkpoint should be similar to `model_weights` subdir after extracting the .nemo file.
    Please also provide tokenizer_library and tokenizer_path when loading from weight directory.
     python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
         --input_path=nemotron3-8b-extracted/model_weights \
@@ -74,14 +75,18 @@ MODEL_CONFIG_MAPPING = {
 
 def get_args():
     parser = ArgumentParser(
-        description="Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. This script may download from Hugging Face, make sure you have access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)"
+        description="""Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. 
+                    This script may download from Hugging Face, make sure you have
+                    access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)"""
     )
     parser.add_argument(
         "--input_path",
         type=str,
         default=None,
         required=True,
-        help="Path to NeMo 1.0 checkpoints. Could be .nemo file, or `model_weights` directory after untar the .nemo. Please also provide tokenizer_library and tokenizer_path if you pass in `model_weights` directory.",
+        help="""Path to NeMo 1.0 checkpoints. Could be .nemo file, or `model_weights` directory a
+        fter untar the .nemo. Please also provide tokenizer_library and tokenizer_path if you pass 
+        in `model_weights` directory.""",
     )
     parser.add_argument(
         "--output_path", type=str, default=None, required=True, help="Path to output NeMo 2.0 directory."
@@ -94,7 +99,8 @@ def get_args():
         type=str,
         default=None,
         required=False,
-        help="Path to tokenizer. If not provided, will 1. try instantiate from nemo1 config 2. pull AutoTokenizer from Hugging Face according to model_id if 1 fails",
+        help="""Path to tokenizer. If not provided, will 1. try instantiate from nemo1 config
+        2. pull AutoTokenizer from Hugging Face according to model_id if 1 fails""",
     )
     parser.add_argument(
         "--tokenizer_library",
@@ -134,7 +140,7 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
             tokenizer_lib = args.tokenizer_library or "sentencepiece"
             if args.tokenizer_library is None:
                 logging.warning(
-                    "You specified tokenizer_path but did not provide tokenizer_library, will default to sentencepiece"
+                    "You specified tokenizer_path but did not provide tokenizer_library using default sentencepiece"
                 )
             tokenizer_model = args.tokenizer_path
         else:  # no .nemo config, no tokenizer path specified, grab from HF, reload
