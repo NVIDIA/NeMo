@@ -123,13 +123,9 @@ def query_llm(
         output_type = client.model_config.outputs[0].dtype
 
     if output_type == np.bytes_:
-        sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
-        log_probs = None
-        if "log_probs" in result_dict.keys():
-            log_probs = result_dict["log_probs"]
-        return sentences, log_probs
-    else:
-        return result_dict["outputs"], None
+        result_dict["sentences"] = np.char.decode(result_dict["sentences"].astype("bytes"), "utf-8")
+
+    return result_dict
 
 
 def query_llm_streaming(
@@ -233,7 +229,7 @@ def query(argv):
         print()
 
     else:
-        outputs, log_probs = query_llm(
+        outputs = query_llm(
             url=args.url,
             model_name=args.model_name,
             prompts=[args.prompt],
@@ -249,9 +245,7 @@ def query(argv):
             log_probs=args.log_probs,
             init_timeout=args.init_timeout,
         )
-        print("Generated output:", outputs[0][0])
-        if log_probs is not None:
-            print("log-probs:", log_probs)
+        print("Generated output:", outputs)
 
 
 if __name__ == '__main__':

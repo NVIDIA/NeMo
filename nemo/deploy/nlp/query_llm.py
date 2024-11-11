@@ -187,7 +187,6 @@ class NemoQueryLLM(NemoQueryLLMBase):
         lora_uids=None,
         log_probs: bool = False,
         init_timeout=60.0,
-        openai_format_response: bool = False,
     ):
         """
         Query the Triton server synchronously and return a list of responses.
@@ -206,7 +205,6 @@ class NemoQueryLLM(NemoQueryLLMBase):
             lora_uids (List[str]): downstream lora id.
             log_probs (bool): get log-probabilities or not.
             init_timeout (flat): timeout for the connection.
-            openai_format_response (bool): return in open AI format or not.
         """
 
         prompts = str_list2numpy(prompts)
@@ -264,22 +262,16 @@ class NemoQueryLLM(NemoQueryLLMBase):
                     return "Unknown output keyword."
 
                 sentences = np.char.decode(output.astype("bytes"), "utf-8")
-                if openai_format_response:
-                    openai_response = {
-                        "id": f"cmpl-{int(time.time())}",
-                        "object": "text_completion",
-                        "created": int(time.time()),
-                        "model": self.model_name,
-                        "choices": [{"text": str(sentences)}],
-                    }
-                    if log_probs_output is not None:
-                        openai_response["log_probs"] = log_probs_output
-                    return openai_response
-                else:
-                    if log_probs_output is not None:
-                        return sentences, log_probs_output
-                    else:
-                        return sentences
+                openai_response = {
+                    "id": f"cmpl-{int(time.time())}",
+                    "object": "text_completion",
+                    "created": int(time.time()),
+                    "model": self.model_name,
+                    "choices": [{"text": str(sentences)}],
+                }
+                if log_probs_output is not None:
+                    openai_response["log_probs"] = log_probs_output
+                return openai_response
             else:
                 return result_dict["outputs"]
 

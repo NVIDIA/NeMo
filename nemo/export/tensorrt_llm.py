@@ -865,7 +865,7 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_triton_output(self):
         return (
-            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="sentences", shape=(-1,), dtype=bytes),
             Tensor(name="log_probs", shape=(-1,), dtype=np.single),
         )
 
@@ -907,10 +907,10 @@ class TensorRTLLM(ITritonDeployable):
             else:
                 output_texts = self.forward(**infer_input)
 
-            output_infer["outputs"] = cast_output(output_texts, np.bytes_)
+            output_infer["sentences"] = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output_infer["outputs"] = cast_output([err_msg], np.bytes_)
+            output_infer["sentences"] = cast_output([err_msg], np.bytes_)
 
         return output_infer
 
