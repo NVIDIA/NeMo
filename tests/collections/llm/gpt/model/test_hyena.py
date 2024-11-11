@@ -32,18 +32,18 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 """
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc-per-node=2 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --devices=2 \
-                                --max-steps=40 \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
+                                --devices=8 \
+                                --max-steps=1000 \
                                 --experiment-dir=/home/ataghibakhsh/temp_ckpt \
-                                --data-path=/home/ataghibakhsh/datasets/hyena_toy_data/data_hg38_all_text_CharLevelTokenizer_document \
+                                --data-path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/hyena_data/hg38/pretraining_data_hg38/data_hg38_all_text_CharLevelTokenizer_document \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=2 \
+                                --tensor-parallel-size=4 \
                                 --pipeline-model-parallel-size=1 \
-                                --context-parallel-size=1 \
-                                --global-batch-size=1 \
-                                --micro-batch-size=1 \
-                                --model-size=test
+                                --context-parallel-size=2 \
+                                --global-batch-size=16 \
+                                --micro-batch-size=4 \
+                                --model-size=7b
 
 CUDA_VISIBLE_DEVICES=0 torchrun --nproc-per-node=1 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
                                 --devices=1 \
@@ -136,7 +136,9 @@ if __name__ == '__main__':
 
     loggers = []
     wandb_logger = WandbLogger(
-        name=f"hyena-size-{args.model_size}-TP{args.tensor_parallel_size}-PP{args.pipeline_model_parallel_size}-CP{args.context_parallel_size}",
+        name=(f"hyena-size-{args.model_size}-TP{args.tensor_parallel_size}-"
+        f"PP{args.pipeline_model_parallel_size}-CP{args.context_parallel_size}"
+        f"-GBS{args.global_batch_size}-MBS{args.micro_batch_size}"),
         project="hyena_ux",
         save_dir=args.experiment_dir,
     )
