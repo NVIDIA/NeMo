@@ -116,7 +116,10 @@ Set ``tensor_model_parallel_size`` to greater than ``1`` to enable intra-layer m
        from nemo.collections import llm
        from functools import partial
 
+       # Load train recipe
        recipe = partial(llm.llama3_8b.pretrain_recipe)()
+
+       # Set tensor model parallel size
        recipe.trainer.strategy.tensor_model_parallel_size = 2
 
 Implement Tensor Parallelism
@@ -161,8 +164,11 @@ Set ``pipeline_model_parallel_size`` to a value greater than ``1`` to enable int
 
        from nemo.collections import llm
        from functools import partial
-
+       
+       # Load train recipe
        recipe = partial(llm.llama3_8b.pretrain_recipe)()
+
+       # Set pipeline model parallel size
        recipe.trainer.strategy.pipeline_model_parallel_size = 2
 
 Interleaved Pipeline Parallel Schedule
@@ -174,10 +180,13 @@ To minimize the pipeline bubble, the computation on each GPU can be divided into
 
        from nemo.collections import llm
        from functools import partial
-
+    
+       # Load train recipe
        recipe = partial(llm.llama3_8b.pretrain_recipe)()
+
+       # Set pipeline model parallel size > 1 and enable interleaved pipeline
        recipe.trainer.strategy.pipeline_model_parallel_size = 2
-       recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 2 # Set for interleaved pipeline
+       recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 2
 
 For more insights into this approach, see our detailed blog: `Scaling Language Model Training <https://developer.nvidia.com/blog/scaling-language-model-training-to-a-trillion-parameters-using-megatron/#pipeline_parallelism>`_.
 
@@ -207,8 +216,11 @@ To enable EP, set ``model.expert_model_parallel_size`` to the expert parallel si
 
        from nemo.collections import llm
        from functools import partial
-
+       
+       # Load train recipe
        recipe = partial(llm.mixtral_8x7b.pretrain_recipe)()
+
+       # Set expert model parallel size
        recipe.trainer.strategy.expert_model_parallel_size = 4
 
 For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68>`__.
@@ -245,11 +257,13 @@ To utilize SP in NeMo Framework, set the ``sequence_parallel`` parameter to ``Tr
 
        from nemo.collections import llm
        from functools import partial
-
+       
+       # Load train recipe
        recipe = partial(llm.llama3_8b.pretrain_recipe)()
-
+       
+       # Set tensor model parallel size and enable sequence parallelism
        recipe.trainer.strategy.tensor_model_parallel_size = 2
-       recipe.trainer.strategy.sequence_parallelism = True # Enable Sequence Parallelism
+       recipe.trainer.strategy.sequence_parallelism = True
 
 Implement Sequence Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -274,7 +288,10 @@ Set ``context_parallel_size`` to a value greater than ``1`` to enable sequence-w
        from nemo.collections import llm
        from functools import partial
 
+       # Load train recipe
        recipe = partial(llm.llama3_8b.pretrain_recipe)()
+
+       # Set context parallel size
        recipe.trainer.strategy.context_parallel_size = 2
 
 The configuration can be found and modified here: `NeMo Megatron Core Context Config <https://docs.nvidia.com/Megatron-Core/developer-guide/latest/api-guide/context_parallel.html>`_.
