@@ -28,8 +28,8 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pyannote.core import Annotation
 from pyannote.metrics.diarization import DiarizationErrorRate
-from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch.utilities import rank_zero_only
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset

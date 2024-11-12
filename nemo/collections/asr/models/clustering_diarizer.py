@@ -23,7 +23,7 @@ from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.utilities import rank_zero_only
+from lightning.pytorch.utilities import rank_zero_only
 from tqdm import tqdm
 
 from nemo.collections.asr.metrics.der import score_labels

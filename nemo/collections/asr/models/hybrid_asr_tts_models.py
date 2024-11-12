@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs

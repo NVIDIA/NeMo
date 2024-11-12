@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset, ssl_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs

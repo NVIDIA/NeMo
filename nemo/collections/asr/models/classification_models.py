@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy
 from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
