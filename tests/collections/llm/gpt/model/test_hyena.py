@@ -33,19 +33,20 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 """
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --num-nodes=8 \
+                                --num-nodes=1 \
                                 --devices=8 \
                                 --max-steps=1000 \
                                 --val-check-interval=100 \
                                 --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
+                                --data-path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/hyena_data/hg38/pretraining_data_hg38/data_hg38_all_text_CharLevelTokenizer_document \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=8 \
+                                --tensor-parallel-size=4 \
                                 --pipeline-model-parallel-size=1 \
-                                --context-parallel-size=1 \
+                                --context-parallel-size=2 \
                                 --sequence-parallel \
-                                --global-batch-size=4 \
-                                --micro-batch-size=1 \
-                                --model-size=40b
+                                --global-batch-size=16 \
+                                --micro-batch-size=4 \
+                                --model-size=7b
 """
 
 def get_args():
@@ -53,7 +54,7 @@ def get_args():
     parser.add_argument('--num-nodes', type=int, default=1, help="Number of nodes to use for training, defaults to 1")
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
     parser.add_argument('--seq-length', type=int, default=8192, help="Training sequence length")
-    # parser.add_argument('--data-path', type=str, help="Data path")
+    parser.add_argument('--data-path', type=str, help="Data path")
     parser.add_argument('--tensor-parallel-size', type=int, default=1, help="Tensor Parallel Size")
     parser.add_argument('--pipeline-model-parallel-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--context-parallel-size', type=int, default=1, help="Context Parallel Size")
@@ -83,25 +84,25 @@ if __name__ == '__main__':
         "byte-level",
     )
 
-    data = MockDataModule(
-        seq_length=args.seq_length,
-        tokenizer=tokenizer,
-        micro_batch_size=args.micro_batch_size,
-        global_batch_size=args.global_batch_size,
-        num_train_samples=10_000,
-        num_val_samples=10,
-        num_test_samples=10,
-        num_workers=0,
-        pin_memory=False,
-    )
-    # data = PreTrainingDataModule(
-    #     paths=args.data_path,
+    # data = MockDataModule(
     #     seq_length=args.seq_length,
+    #     tokenizer=tokenizer,
     #     micro_batch_size=args.micro_batch_size,
     #     global_batch_size=args.global_batch_size,
-    #     seed=1234,
-    #     tokenizer=tokenizer,
+    #     num_train_samples=10_000,
+    #     num_val_samples=10,
+    #     num_test_samples=10,
+    #     num_workers=0,
+    #     pin_memory=False,
     # )
+    data = PreTrainingDataModule(
+        paths=args.data_path,
+        seq_length=args.seq_length,
+        micro_batch_size=args.micro_batch_size,
+        global_batch_size=args.global_batch_size,
+        seed=1234,
+        tokenizer=tokenizer,
+    )
 
     if args.model_size == "7b":
         hyena_config = llm.Hyena7bConfig()
