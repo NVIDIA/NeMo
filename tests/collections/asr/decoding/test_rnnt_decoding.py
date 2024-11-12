@@ -518,7 +518,9 @@ class TestRNNTDecoding:
     def test_tdt_beam_decoding_with_kenlm(self, test_data_dir, beam_config):
         # skipping if kenlm is not installed
         pytest.importorskip("kenlm", reason="Skipping test because 'kenlm' is not installed.")
-        
-        kenlm_model_path = os.path.join(test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa")
+
+        kenlm_model_path = os.path.join(
+            test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        )
         beam_config["ngram_lm_model"] = kenlm_model_path
         check_beam_decoding(test_data_dir, beam_config)
