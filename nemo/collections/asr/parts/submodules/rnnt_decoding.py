@@ -451,6 +451,17 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
             )
 
+        elif self.cfg.strategy == 'malsd_batch':
+            self.decoding = rnnt_beam_decoding.Best1BeamBatchedMALSDInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                beam_size=self.cfg.beam.beam_size,
+                max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+            )
         else:
 
             raise ValueError(
