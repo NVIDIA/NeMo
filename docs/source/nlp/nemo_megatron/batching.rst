@@ -23,6 +23,7 @@ Usage
        from nemo.collections import llm
        from functools import partial
 
+       # Load train recipe
        recipe = partial(llm.llama3_8b.pretrain_recipe)()
        
        # Set micro and global batch size
