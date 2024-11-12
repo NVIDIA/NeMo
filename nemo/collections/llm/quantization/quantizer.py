@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from dataclasses import dataclass
 from typing import Optional, Union
 
@@ -23,6 +22,9 @@ from tqdm import tqdm
 
 from nemo.collections import llm
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.collections.llm.inference.base import MCoreTokenizerWrappper, generate
 
 from .utils import get_unwrapped_mcore_model
 
@@ -80,6 +82,7 @@ class ExportConfig:
     decoder_type: Optional[str] = None
     inference_tensor_parallel: int = 1
     inference_pipeline_parallel: int = 1
+    # sample_generate: bool = True
 
 
 def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
@@ -140,7 +143,7 @@ class Quantizer:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
 
-    def _setup(self, model: llm.GPTModel) -> None:
+    def _setup(self, model) -> None:
         """Setup model for quantization."""
         # TODO: disable activation checkpointing
         model.config.vocab_size = model.tokenizer.vocab_size
@@ -149,8 +152,13 @@ class Quantizer:
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.decoder_type or get_modelopt_decoder_type(config)
 
-    def quantize(self, model: llm.GPTModel, forward_loop=None):
+    def quantize(self, model, forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
+        algorithm = self.quantization_config.algorithm
+        if algorithm is None:
+            logging.info("Quantization algorithm set to None, returning the non-quantized model")
+            return model
+
         if forward_loop is None:
             get_dataloader = create_data_iterator_getter(
                 model,
@@ -169,11 +177,6 @@ class Quantizer:
                 seq_length=self.quantization_config.calibration_seq_len,
                 micro_batch_size=self.quantization_config.calibration_batch_size,
             )
-
-        algorithm = self.quantization_config.algorithm
-        if algorithm is None:
-            logging.info("Quantization algorithm set to None, returning the non-quantized model")
-            return model
 
         logging.info(f"Quantizing model to {algorithm}...")
 
@@ -259,11 +262,24 @@ class Quantizer:
 
         return loop
 
+
+    def _sample_generate(self, model):
+        mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
+        mcore_inference = model.get_inference_wrapper(torch.bfloat16, 50)
+
+        prompts = ["Born in north-east France, Soyer trained as a", "Born in California, Soyer trained as a"]
+        generated = [ r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
+        outputs = [ prompt + generation for prompt, generation in zip(prompts, generated)]
+        logging.info(f'Example NeMo after PTQ: {outputs}"')
+
+
     def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
-        from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
-        # TODO: Add sample generate
+        # if self.export_config.sample_generate:
+        self._sample_generate(model)
+
+
         # TODO: Support megatron_amp_O2
         export_dir = self.export_config.path
 
@@ -280,10 +296,11 @@ class Quantizer:
 
         logging.info(f"Export succeeded, model has been exported to {export_dir}.")
         output_context = ckpt_to_context_subdir(self.export_config.path)
-        try:
-            model.io_dump(output_context, yaml_attrs=['tokenizer'])
-        except Exception as err:
-            logging.warning("Could not save the tokenizer: " + str(err))
+        if is_global_rank_zero():
+            try:
+                model.io_dump(output_context, yaml_attrs=['tokenizer'])
+            except Exception as err:
+                logging.warning("Could not save the tokenizer: " + str(err))
 
 
 def get_calib_data_iter(
