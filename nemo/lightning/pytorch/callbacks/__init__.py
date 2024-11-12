@@ -23,6 +23,7 @@ from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback
 from nemo.lightning.pytorch.callbacks.progress_bar import MegatronProgressBar
 from nemo.lightning.pytorch.callbacks.progress_printer import ProgressPrinter
+from nemo.lightning.pytorch.callbacks.te_transform import TETransform
 
 __all__ = [
     "MemoryProfileCallback",
@@ -36,4 +37,5 @@ __all__ = [
     "DdpParityChecker",
     "GarbageCollectionCallback",
     "ParameterDebugger",
+    "TETransform",
 ]
