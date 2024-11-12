@@ -16,7 +16,9 @@ import os
 import re
 from argparse import ArgumentParser
 from collections import defaultdict
+from datetime import timedelta
 
+import megatron.core.parallel_state as ps
 import torch
 import torch.distributed as dist
 from megatron.core.dist_checkpointing.serialization import load_plain_tensors
@@ -25,6 +27,8 @@ from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 from megatron.core.transformer.spec_utils import import_module
 from megatron.training.arguments import core_transformer_config_from_args
 from omegaconf.omegaconf import OmegaConf
+from torch._C._distributed_c10d import PrefixStore
+from torch.distributed import rendezvous
 
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
@@ -34,7 +38,7 @@ from nemo.utils import logging
 '''
 Example
 
-CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
                                 --input_name_or_path <path to the source pytorch model> \
                                 --output_path <path to target nemo model> \
                                 --mamba_ssm_ngroups 8 \
@@ -44,20 +48,7 @@ CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/scripts/checkpoin
                                 --tokenizer_library None \
                                 --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None> \
                                 --tokenizer_vocab_file <path to tokenizer vocab, defaults to None> \
-                                --cpu_only False \
-                                --check_fwd_pass True
-
-CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
-                                --input_name_or_path /home/ataghibakhsh/checkpoints/nemotron5/iter_0015894 \
-                                --output_path /home/ataghibakhsh/checkpoints/nemotron5/nemo_ckpt_nemotron5.nemo\
-                                --mamba_ssm_ngroups 8 \
-                                --precision bf16 \
-                                --source_dist_ckpt \
-                                --tokenizer_type tiktoken \
-                                --tokenizer_library tiktoken \
-                                --tokenizer_model_dir None \
-                                --tokenizer_vocab_file /home/ataghibakhsh/checkpoints/nemotron5/multiMixV8.gpt4o_nc_sd.500000.128k.vocab.json \
-                                --check_fwd_pass
+                                --cpu_only
 '''
 
 
@@ -105,100 +96,83 @@ def get_args():
     args = parser.parse_args()
     return args
 
+try:
 
-import os
-from datetime import timedelta
+    class Utils:
 
-import megatron.core.parallel_state as ps
-import torch
-from torch._C._distributed_c10d import PrefixStore
-from torch.distributed import rendezvous
+        world_size = torch.cuda.device_count()
+        rank = int(os.environ['LOCAL_RANK'])
+        inited = False
+        store = None
 
+        @staticmethod
+        def initialize_distributed():
+            if not torch.distributed.is_initialized() and Utils.rank >= 0:
+                print(f'Initializing torch.distributed with rank: {Utils.rank}, ' f'world_size: {Utils.world_size}')
+                torch.cuda.set_device(Utils.rank % torch.cuda.device_count())
+                init_method = 'tcp://'
+                master_ip = os.getenv('MASTER_ADDR', 'localhost')
+                master_port = os.getenv('MASTER_PORT', '6000')
+                init_method += master_ip + ':' + master_port
+                rendezvous_iterator = rendezvous(
+                    init_method, Utils.rank, Utils.world_size, timeout=timedelta(minutes=1)
+                )
+                store, rank, world_size = next(rendezvous_iterator)
+                store.set_timeout(timedelta(minutes=1))
 
-class TestModel(torch.nn.Module):
-    def __init__(
-        self,
-        input_dim: int,
-        output_dim: int,
-        num_layers: int,
-        bias: bool,
-        shared_embedding: bool = False,
-    ):
-        super().__init__()
-        self.layers = torch.nn.ModuleList([torch.nn.Linear(input_dim, output_dim, bias) for _ in range(num_layers)])
-        if shared_embedding:
-            self.layers[-1].weight.shared_embedding = True
+                # Use a PrefixStore to avoid accidental overrides of keys used by
+                # different systems (e.g. RPC) in case the store is multi-tenant.
+                store = PrefixStore("default_pg", store)
+                Utils.store = store
 
+                torch.distributed.init_process_group(
+                    backend='nccl', world_size=Utils.world_size, rank=Utils.rank, store=store
+                )
 
-class Utils:
+                torch.distributed.barrier()
+            Utils.inited = True
 
-    world_size = torch.cuda.device_count()
-    rank = int(os.environ['LOCAL_RANK'])
-    inited = False
-    store = None
+        @staticmethod
+        def set_world_size(world_size=None, rank=None):
+            Utils.world_size = torch.cuda.device_count() if world_size is None else world_size
+            if torch.distributed.is_initialized() and Utils.world_size != torch.distributed.get_world_size():
+                torch.distributed.destroy_process_group()
 
-    @staticmethod
-    def initialize_distributed():
-        if not torch.distributed.is_initialized() and Utils.rank >= 0:
-            print(f'Initializing torch.distributed with rank: {Utils.rank}, ' f'world_size: {Utils.world_size}')
-            torch.cuda.set_device(Utils.rank % torch.cuda.device_count())
-            init_method = 'tcp://'
-            master_ip = os.getenv('MASTER_ADDR', 'localhost')
-            master_port = os.getenv('MASTER_PORT', '6000')
-            init_method += master_ip + ':' + master_port
-            rendezvous_iterator = rendezvous(init_method, Utils.rank, Utils.world_size, timeout=timedelta(minutes=1))
-            store, rank, world_size = next(rendezvous_iterator)
-            store.set_timeout(timedelta(minutes=1))
+            if rank is None:
+                Utils.rank = int(os.environ['LOCAL_RANK'])
+                if Utils.rank >= Utils.world_size:
+                    Utils.rank = -1
+            else:
+                Utils.rank = rank
 
-            # Use a PrefixStore to avoid accidental overrides of keys used by
-            # different systems (e.g. RPC) in case the store is multi-tenant.
-            store = PrefixStore("default_pg", store)
-            Utils.store = store
-
-            torch.distributed.init_process_group(
-                backend='nccl', world_size=Utils.world_size, rank=Utils.rank, store=store
-            )
-
+        @staticmethod
+        def destroy_model_parallel():
+            if not Utils.inited:
+                return
             torch.distributed.barrier()
-        Utils.inited = True
+            ps.destroy_model_parallel()
+            Utils.inited = False
 
-    @staticmethod
-    def set_world_size(world_size=None, rank=None):
-        Utils.world_size = torch.cuda.device_count() if world_size is None else world_size
-        if torch.distributed.is_initialized() and Utils.world_size != torch.distributed.get_world_size():
-            torch.distributed.destroy_process_group()
-
-        if rank is None:
-            Utils.rank = int(os.environ['LOCAL_RANK'])
-            if Utils.rank >= Utils.world_size:
-                Utils.rank = -1
-        else:
-            Utils.rank = rank
-
-    @staticmethod
-    def destroy_model_parallel():
-        if not Utils.inited:
-            return
-        torch.distributed.barrier()
-        ps.destroy_model_parallel()
-        Utils.inited = False
-
-    @staticmethod
-    def initialize_model_parallel(
-        tensor_model_parallel_size=1,
-        pipeline_model_parallel_size=1,
-        virtual_pipeline_model_parallel_size=None,
-        **kwargs,
-    ):
-        ps.destroy_model_parallel()
-        Utils.initialize_distributed()
-        ps.initialize_model_parallel(
-            tensor_model_parallel_size,
-            pipeline_model_parallel_size,
-            virtual_pipeline_model_parallel_size,
+        @staticmethod
+        def initialize_model_parallel(
+            tensor_model_parallel_size=1,
+            pipeline_model_parallel_size=1,
+            virtual_pipeline_model_parallel_size=None,
             **kwargs,
-        )
-        Utils.inited = True
+        ):
+            ps.destroy_model_parallel()
+            Utils.initialize_distributed()
+            ps.initialize_model_parallel(
+                tensor_model_parallel_size,
+                pipeline_model_parallel_size,
+                virtual_pipeline_model_parallel_size,
+                **kwargs,
+            )
+            Utils.inited = True
+
+except:
+    pass
+
 
 
 def dist_ckpt_handler(checkpoint_dir, cpu_only):
@@ -431,7 +405,10 @@ def convert(args):
     else:
         nemo_config.model.ffn_hidden_size = nemo_config.model.hidden_size
 
-    nemo_config.model.use_cpu_initialization = False
+    if args.cpu_only:
+        nemo_config.model.use_cpu_initialization = True
+    else:
+        nemo_config.model.use_cpu_initialization = False
 
     logging.info(f"Loading Mamba2 Pytorch checkpoint : `{args.input_name_or_path}`")
 
