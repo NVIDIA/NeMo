@@ -15,9 +15,10 @@
 import base64
 import json
 import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
-import re
+
 try:
     import tiktoken
 except ImportError:
@@ -157,7 +158,7 @@ class TiktokenTokenizer(TokenizerSpec):
             if len(token_ids) != 1:
                 raise ValueError(f"Token '{token_str}' should correspond to exactly one ID, but got {token_ids}")
             return token_ids[0] + self.num_special_tokens
- 
+
     def tokens_to_ids(self, tokens):
         ids = []
         for token in tokens:
@@ -178,7 +179,6 @@ class TiktokenTokenizer(TokenizerSpec):
                 token_bytes = self.tokenizer.decode_single_token_bytes(adjusted_token)
                 tokens.append(token_bytes)
         return tokens
-
 
     def text_to_ids(self, text: str):
         tokens = []
