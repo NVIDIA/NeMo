@@ -39,14 +39,14 @@ class CrashCallback(Callback):
         print(f"Setup to simulate a crash if step time > {self.crash_step} before {self.crash_time}")
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        # if self.crash_step and trainer.global_step == self.crash_step:
-        #    raise Exception(f"Simulating a crash at step {self.crash_step}!")
+        if self.crash_step and trainer.global_step == self.crash_step:
+            raise Exception(f"Simulating a crash at step {self.crash_step}!")
 
-        if (
-            datetime.now() <= datetime.strptime(self.crash_time, "%Y-%m-%d %H:%M:%S")
-            and trainer.global_step >= self.crash_step
-        ):
-            raise Exception("Simulating a crash!")
+        #if (
+        #    datetime.now() <= datetime.strptime(self.crash_time, "%Y-%m-%d %H:%M:%S")
+        #    and trainer.global_step >= self.crash_step
+        #):
+        #    raise Exception("Simulating a crash!")
 
 
 def get_args():
@@ -56,8 +56,14 @@ def get_args():
     parser.add_argument(
         '--crash-time',
         type=str,
-        required=True,
+        # required=True,
         help="Datetime string which indicates when to simulate a crash. Set this to a few minutes after the training starts to ensure a successful crash.",
+    )
+    parser.add_argument(
+        '--crash-step',
+        type=int,
+        required=True,
+        help="Crash step",
     )
     parser.add_argument(
         '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
@@ -95,11 +101,11 @@ def main():
         )
 
     # Recipe Overrides
-    pretrain_recipe.trainer.max_steps = args.max_steps
+    pretrain_recipe.trainer.max_steps = 20
     pretrain_recipe.trainer.log_every_n_steps = 1
     pretrain_recipe.log.ckpt.every_n_train_steps = None
     pretrain_recipe.log.ckpt.train_time_interval = None
-    pretrain_recipe.trainer.val_check_interval = 4
+    pretrain_recipe.trainer.val_check_interval = 30
     pretrain_recipe.trainer.limit_val_batches = 2
 
     executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
