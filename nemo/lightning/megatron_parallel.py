@@ -44,6 +44,7 @@ import torch
 import torch.distributed
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
+from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -557,10 +558,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return
 
         from megatron.core import parallel_state
-
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
-
             # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
             # PEFT with num_sanity_val_steps > 0 this is necessary.
             init_ddp_context = nullcontext if all(x.requires_grad for x in module.parameters()) else torch.enable_grad
@@ -574,15 +573,23 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
-                ddp = DDP(
-                    module.config,
-                    self.ddp_config,
-                    module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                    disable_bucketing=disable_bucketing,
-                )
-
+                if self.ddp_config.use_custom_fsdp:
+                    DDP = FullyShardedDataParallel
+                    ddp = DDP(
+                        module.config,
+                        self.ddp_config,
+                        module,
+                        disable_bucketing=disable_bucketing,
+                    )
+                else:
+                    ddp = DDP(
+                        module.config,
+                        self.ddp_config,
+                        module,
+                        data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                        expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                        disable_bucketing=disable_bucketing,
+                    )
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore

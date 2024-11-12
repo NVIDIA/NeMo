@@ -79,7 +79,7 @@ def _import_qkv(transformer_config, q, k, v):
     return qkv_weights
 
 
-key_mapping = {
+flux_key_mapping = {
     'double_blocks': {
         'norm1.linear.weight': 'adaln.adaLN_modulation.1.weight',
         'norm1.linear.bias': 'adaln.adaLN_modulation.1.bias',
@@ -159,14 +159,18 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
             temp = key.split('.')
             idx, k = temp[1], '.'.join(temp[2:])
             num_double_blocks = max(int(idx), num_double_blocks)
-            new_key = '.'.join(['double_blocks', idx, key_mapping['double_blocks'][k]])
+            new_key = '.'.join(['double_blocks', idx, flux_key_mapping['double_blocks'][k]])
         elif key.startswith('single_transformer_blocks'):
             temp = key.split('.')
             idx, k = temp[1], '.'.join(temp[2:])
             num_single_blocks = max(int(idx), num_single_blocks)
-            new_key = '.'.join(['single_blocks', idx, key_mapping['single_blocks'][k]])
+            new_key = '.'.join(['single_blocks', idx, flux_key_mapping['single_blocks'][k]])
+        elif key.startswith('controlnet_blocks'):
+            new_key = 'controlnet_double_blocks' + key.split('.')[1:]
+        elif key.startswith('x_embedder'):
+            new_key = 'controlnet_x_embedder' + key.split('.')[1:]
         else:
-            new_key = key_mapping[key]
+            new_key = flux_key_mapping[key]
         new_state_dict[new_key] = value
 
     for i in range(num_double_blocks + 1):
@@ -204,3 +208,4 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
         )
 
     return new_state_dict
+

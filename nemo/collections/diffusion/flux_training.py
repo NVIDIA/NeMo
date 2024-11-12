@@ -30,6 +30,8 @@ from nemo.collections.diffusion.models.flux.model import MegatronFluxModel
 from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 
+from megatron.core.distributed import DistributedDataParallelConfig
+
 
 def main(args):
 
@@ -50,7 +52,7 @@ def main(args):
         lr=1.0e-04,
         adam_beta1=0.9,
         adam_beta2=0.999,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
     )
 
@@ -68,11 +70,20 @@ def main(args):
 
     model = MegatronFluxModel(model_params)
 
+    ddp = DistributedDataParallelConfig(
+        use_custom_fsdp=True,
+        data_parallel_sharding_strategy='MODEL_AND_OPTIMIZER_STATES',
+        overlap_param_gather=True,
+        overlap_grad_reduce=True,
+    )
+
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
+        ddp=ddp,
     )
+
 
     # def find_frozen_submodules(model):
     #     frozen_submodules = []

@@ -29,6 +29,7 @@ from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete 
 from nemo.collections.diffusion.utils.flux_ckpt_converter import flux_transformer_converter
 from nemo.collections.diffusion.utils.flux_pipeline_utils import FluxModelParams
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder
+from nemo.utils import logging
 
 
 class FluxInferencePipeline(nn.Module):
@@ -52,7 +53,7 @@ class FluxInferencePipeline(nn.Module):
             if save_converted_model:
                 save_path = os.path.join(ckpt_path, 'nemo_flux_transformer.safetensors')
                 save_safetensors(ckpt, save_path)
-                print(f'saving converted transformer checkpoint to {save_path}')
+                logging.info(f'saving converted transformer checkpoint to {save_path}')
         else:
             ckpt = load_safetensors(ckpt_path)
         missing, unexpected = self.transformer.load_state_dict(ckpt, strict=False)
@@ -60,10 +61,10 @@ class FluxInferencePipeline(nn.Module):
             k for k in missing if not k.endswith('_extra_state')
         ]  # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
-            print(
+            logging.info(
                 f"The folloing keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
-            print(f"Found unexepected keys: \n {unexpected}")
+            logging.info(f"Found unexepected keys: \n {unexpected}")
 
     def encoder_prompt(
         self,

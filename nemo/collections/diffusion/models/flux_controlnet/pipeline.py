@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from safetensors.torch import load_file as load_safetensors
+from safetensors.torch import save_file as save_safetensors
 from PIL.Image import Image
 
 from nemo.collections.diffusion.models.flux.model import Flux, FluxConfig
@@ -30,6 +32,24 @@ class FluxControlNetPipeline(nn.Module):
 
         self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
 
+    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model=None):
+        if do_convert_from_hf:
+            ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
+            if save_converted_model:
+                save_path = os.path.join(ckpt_path, 'nemo_flux_controlnet_transformer.safetensors')
+                save_safetensors(ckpt, save_path)
+                logging.info(f'saving converted transformer checkpoint to {save_path}')
+        else:
+            ckpt = load_safetensors(ckpt_path)
+        missing, unexpected = self.transformer.load_state_dict(ckpt, strict=False)
+        missing = [
+            k for k in missing if not k.endswith('_extra_state')
+        ]  # These keys are mcore specific and should not affect the model performance
+        if len(missing) > 0:
+            logging.info(
+                f"The folloing keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+            )
+            logging.info(f"Found unexepected keys: \n {unexpected}")
 
     def configure_modules(self):
         if isinstance(self.flux_transformer, FluxConfig):

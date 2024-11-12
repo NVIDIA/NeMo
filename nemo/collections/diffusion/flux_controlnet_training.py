@@ -29,6 +29,8 @@ from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.diffusion.models.flux_controlnet.model import MegatronFluxControlNetModel, FluxControlNetConfig
 from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
+from megatron.core.distributed import DistributedDataParallelConfig
+
 
 
 def main(args):
@@ -50,7 +52,7 @@ def main(args):
         lr=1.0e-04,
         adam_beta1=0.9,
         adam_beta2=0.999,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
     )
 
@@ -58,8 +60,8 @@ def main(args):
     model_params.t5_params['version'] = '/ckpts/text_encoder_2'
     model_params.clip_params['version'] = '/ckpts/text_encoder'
     model_params.vae_params.ckpt = '/ckpts/ae.safetensors'
-    model_params.flux_params.num_joint_layers=args.num_joint_layers
-    model_params.flux_params.num_single_layers=args.num_single_layers
+    # model_params.flux_params.num_joint_layers=args.num_joint_layers
+    # model_params.flux_params.num_single_layers=args.num_single_layers
 
     if args.image_precached:
         model_params.vae_params = None
@@ -67,14 +69,22 @@ def main(args):
         model_params.t5_params = None
         model_params.clip_params = None
 
-    flux_controlnet_config = FluxControlNetConfig(guidance_embed=True,num_joint_layers=1,num_single_layers=1)
+    flux_controlnet_config = FluxControlNetConfig(guidance_embed=True,num_joint_layers=args.num_joint_layers,num_single_layers=args.num_single_layers)
 
     model = MegatronFluxControlNetModel(model_params, flux_controlnet_config)
+
+    ddp = DistributedDataParallelConfig(
+        use_custom_fsdp=True,
+        data_parallel_sharding_strategy='MODEL_AND_OPTIMIZER_STATES',
+        overlap_param_gather=True,
+        overlap_grad_reduce=True,
+    )
 
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
+        ddp=ddp
     )
 
     # def find_frozen_submodules(model):
