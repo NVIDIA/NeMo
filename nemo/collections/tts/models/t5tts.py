@@ -111,12 +111,12 @@ class T5TTS_Model(ModelPT):
         for param in model.parameters():
             param.requires_grad = False
 
-    def on_save_checkpoint(self, checkpoint):
-        keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model']
-        for key in list(checkpoint['state_dict'].keys()):
-            if any([substring in key for substring in keys_substrings_to_exclude]):
-                del checkpoint['state_dict'][key]
-
+    # def on_save_checkpoint(self, checkpoint):
+    #     keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model']
+    #     for key in list(checkpoint['state_dict'].keys()):
+    #         if any([substring in key for substring in keys_substrings_to_exclude]):
+    #             del checkpoint['state_dict'][key]
+    
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
@@ -164,11 +164,11 @@ class T5TTS_Model(ModelPT):
     def audio_to_codes(self, audio, audio_len):
         # audio: (B, T)
         # audio_len: (B,)
+        self._codec_model.eval()
         with torch.no_grad():
             # Move codec model to same device as audio
             # self.additional_models['codec'] = self.additional_models['codec'].to(audio.device)
-            codec_model = self._codec_model
-            codes, codes_len = codec_model.encode(audio=audio, audio_len=audio_len)
+            codes, codes_len = self._codec_model.encode(audio=audio, audio_len=audio_len)
             # Add a timestep to begining and end of codes tensor
             bos_tensor = torch.full((codes.size(0), codes.size(1), 1), self.audio_bos_id, dtype=codes.dtype, device=codes.device)
             pad_tensor = torch.full((codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device) # 0 is the padding token in the audio codebook
@@ -184,13 +184,13 @@ class T5TTS_Model(ModelPT):
     def codes_to_audio(self, codes, codes_len):
         # codes: (B, C, T')
         # codes_len: (B,)
+        self._codec_model.eval()
         with torch.no_grad():
             # Replace eos and bos tokens with padding in codes tensor
             codes[codes == self.audio_bos_id] = 0 # zero is the padding token in the audio codebook
             codes[codes == self.audio_eos_id] = 0
             # self.additional_models['codec'] = self.additional_models['codec'].to(codes.device)
-            codec_model = self._codec_model
-            audio, audio_len = codec_model.decode(tokens=codes, tokens_len=codes_len)
+            audio, audio_len = self._codec_model.decode(tokens=codes, tokens_len=codes_len)
             # audio: (B, T)
             # audio_len: (B,)
             return audio, audio_len
@@ -211,9 +211,9 @@ class T5TTS_Model(ModelPT):
     def get_speaker_embeddings(self, audio_16khz, audio_len_16khz):
         # audio_16khz: (B, T)
         # audio_len_16khz: (B,)
+        self._speaker_verification_model.eval()
         with torch.no_grad():
-            speaker_verification_model = self._speaker_verification_model
-            _, speaker_embeddings = speaker_verification_model.forward(
+            _, speaker_embeddings = self._speaker_verification_model.forward(
                 input_signal=audio_16khz, input_signal_length=audio_len_16khz
             )
             return speaker_embeddings
