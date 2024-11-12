@@ -23,6 +23,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from nemo.collections import llm
+from nemo.lightning.ckpt_utils import CONTEXT_PATH
 from nemo.utils import logging
 
 from .utils import get_unwrapped_mcore_model
@@ -150,16 +151,6 @@ class Quantizer:
     def _get_decoder_type(self, config: llm.GPTConfig):
         return self.export_config.decoder_type or get_modelopt_decoder_type(config)
 
-    def save_context(self, nemo_checkpoint: str, export_dir: str):
-        """Save the model context in order to restore its tokenizer later."""
-        shutil.copytree(
-            os.path.join(nemo_checkpoint, "context"),
-            os.path.join(export_dir, "nemo_context"),
-            dirs_exist_ok=True,
-        )
-
-        logging.info(f"Model context saved.")
-
     def quantize(self, model: llm.GPTModel, forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
         if forward_loop is None:
@@ -270,7 +261,7 @@ class Quantizer:
 
         return loop
 
-    def export(self, model: llm.GPTModel) -> None:
+    def export(self, model: llm.GPTModel, model_dir: str) -> None:
         assert self.export_config is not None, "Export config is not set"
         # TODO: Add sample generate
         # TODO: Support megatron_amp_O2
@@ -287,6 +278,15 @@ class Quantizer:
             inference_pipeline_parallel=self.export_config.inference_pipeline_parallel,
             use_nfs_workspace=use_nfs_workspace,
         )
+
+        # Save the model context in order to restore its tokenizer later. The destination
+        # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
+        shutil.copytree(
+            os.path.join(model_dir, CONTEXT_PATH),
+            os.path.join(export_dir, "nemo_context"),
+            dirs_exist_ok=True,
+        )
+        logging.info(f"Model context saved.")
 
         logging.info(f"Export succeeded, model has been exported to {export_dir}.")
 
