@@ -262,13 +262,12 @@ class Quantizer:
     def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
         from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+
         # TODO: Add sample generate
         # TODO: Support megatron_amp_O2
         export_dir = self.export_config.path
 
-        use_nfs_workspace = (
-            model.config.pipeline_model_parallel_size > 1
-        )
+        use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
         export_tensorrt_llm_checkpoint(
             model=get_unwrapped_mcore_model(model),
             decoder_type=self._get_decoder_type(model.config),

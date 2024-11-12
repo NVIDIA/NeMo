@@ -18,8 +18,8 @@ from omegaconf import OmegaConf
 from transformers import AutoTokenizer
 
 from nemo import lightning as nl
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
 # TODO: use get_nmt_tokenizer helper below to instantiate tokenizer once environment / dependencies get stable
 # from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer

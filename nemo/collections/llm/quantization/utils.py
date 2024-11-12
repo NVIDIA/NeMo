@@ -18,9 +18,10 @@ import torch
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.inference import _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
-from nemo.collections.llm.inference import _setup_trainer_and_restore_model
+
 
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT Model Optimizer"""
@@ -41,12 +42,20 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     model_cfg.apply_rope_fusion = False
     return model_cfg
 
+
 def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
     trainer = nl.Trainer(
         devices=calib_tp,
         num_nodes=calib_pp,
         strategy=nl.MegatronStrategy(
-            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.bfloat16, ckpt_load_optimizer=False, ckpt_parallel_save_optim=False, setup_optimizers=False, lazy_init=True, ddp=None
+            tensor_model_parallel_size=calib_tp,
+            pipeline_model_parallel_size=calib_pp,
+            pipeline_dtype=torch.bfloat16,
+            ckpt_load_optimizer=False,
+            ckpt_parallel_save_optim=False,
+            setup_optimizers=False,
+            lazy_init=True,
+            ddp=None,
         ),
         plugins=nl.MegatronMixedPrecision(precision='bf16', pipeline_dtype=torch.bfloat16, autocast_enabled=True),
     )
@@ -60,7 +69,6 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
     _setup_trainer_and_restore_model(nemo_checkpoint_path, trainer, model)
     torch.cuda.empty_cache()
     return model
-
 
 
 def get_unwrapped_mcore_model(model: llm.GPTModel):
