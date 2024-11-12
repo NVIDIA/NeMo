@@ -247,7 +247,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 

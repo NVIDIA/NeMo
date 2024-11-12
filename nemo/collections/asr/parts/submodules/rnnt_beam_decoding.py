@@ -1530,7 +1530,7 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
             encoder_output: torch.Tensor,
             encoded_lengths: torch.Tensor,
             partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
-    ) -> list[rnnt_utils.Hypothesis]:
+    ) -> Tuple[list[rnnt_utils.Hypothesis]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-regressively.
         Args:
@@ -1553,9 +1553,8 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
             self.joint.eval()
 
             inseq = encoder_output  # [B, T, D]
-            batched_hyps, _, _ = self._decoding_computer(x=inseq, out_len=logitlen)
+            hyps = self._decoding_computer(x=inseq, out_len=logitlen)
             # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
-            hyps = ...
             # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             #     hyp.dec_state = state
 
@@ -1565,7 +1564,7 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
-        return hyps
+        return (hyps,)
 
 
 @dataclass
