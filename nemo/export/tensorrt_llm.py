@@ -300,6 +300,8 @@ class TensorRTLLM(ITritonDeployable):
                     # Note that using the config is deprecated and it will be removed in future releases.
                     LOGGER.warning("Detected legacy tokenizer_config.yaml, using it to build tokenizer.")
                     self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
+                else:
+                    self.tokenizer = get_tokenzier(nemo_checkpoint_path)
 
                 qnemo_to_tensorrt_llm(
                     nemo_checkpoint_path=nemo_checkpoint_path,
@@ -1097,7 +1099,7 @@ class TensorRTLLM(ITritonDeployable):
             if len(folders) > 0:
                 try:
                     self._load_config_file()
-                    self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
+                    self.tokenizer = get_tokenzier(self.model_dir)
                     self.model = load(
                         tokenizer=self.tokenizer,
                         engine_dir=self.model_dir,
