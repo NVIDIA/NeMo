@@ -21,10 +21,10 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from nemo.collections import llm
+from nemo.collections.llm.inference.base import MCoreTokenizerWrappper, generate
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.collections.llm.inference.base import MCoreTokenizerWrappper, generate
 
 from .utils import get_unwrapped_mcore_model
 
@@ -262,23 +262,20 @@ class Quantizer:
 
         return loop
 
-
     def _sample_generate(self, model):
         mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
         mcore_inference = model.get_inference_wrapper(torch.bfloat16, 50)
 
         prompts = ["Born in north-east France, Soyer trained as a", "Born in California, Soyer trained as a"]
-        generated = [ r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
-        outputs = [ prompt + generation for prompt, generation in zip(prompts, generated)]
+        generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
+        outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
         logging.info(f'Example NeMo after PTQ: {outputs}"')
-
 
     def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
 
         # if self.export_config.sample_generate:
         self._sample_generate(model)
-
 
         # TODO: Support megatron_amp_O2
         export_dir = self.export_config.path
