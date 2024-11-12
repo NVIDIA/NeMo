@@ -102,7 +102,7 @@ def finetune_recipe(
         accumulate_grad_batches=1,
         devices=num_gpus_per_node,
         limit_val_batches=10,
-        log_every_n_steps=11,
+        log_every_n_steps=1,
         max_steps=5190,
         num_nodes=num_nodes,
         plugins=bf16_mixed(),
