@@ -57,6 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--model-accelerator', default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
+    parser.add_argument("--fp8-autocast", default=False, action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--model-save-path', type=str, default=None)
     args = parser.parse_args()
@@ -80,7 +81,7 @@ if __name__ == '__main__':
     callbacks = []
     if args.model_accelerator:
         if args.model_accelerator == "te":
-            callbacks.append(TETransform())
+            callbacks.append(TETransform(fp8_autocast=args.fp8_autocast))
 
     llm.api.finetune(
         model=model,

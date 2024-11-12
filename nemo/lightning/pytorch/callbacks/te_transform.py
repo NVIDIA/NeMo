@@ -33,13 +33,18 @@ class TETransform(Callback, IOMixin):
     """
     Apply TEAccelerator on HF model
     Args:
-        model (HfAutoModelForCausalLM): The HF model
+        fp8_autocast (bool): Applies TE's fp8 autocast if true
     Example:
         >>> from nemo.lightning.pytorch.callbacks import TETransform
-        >>> trainer = Trainer(callbacks=[TETransform(model)])
+        >>> trainer = Trainer(callbacks=[TETransform()])
     """
+
+    def __init__(self, fp8_autocast=False):
+        self.fp8_autocast = fp8_autocast
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
         TEAccelerator.accelerate(model)
+        if self.fp8_autocast:
+            TEAccelerator.apply_fp8_autocast(model)

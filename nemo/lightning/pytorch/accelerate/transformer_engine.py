@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from types import MethodType
+
 import torch
 from transformer_engine import pytorch as te
 
@@ -64,3 +66,34 @@ class TEAccelerator:
                     return True
 
         return False
+
+    @staticmethod
+    def contextual_fp8_autocast(model_forward, fp8_recipe, use_during_eval=False):
+        from transformer_engine.pytorch import fp8_autocast
+
+        def forward(self, *args, **kwargs):
+            enabled = use_during_eval or self.training
+            with fp8_autocast(enabled=enabled, fp8_recipe=fp8_recipe):
+                return model_forward(*args, **kwargs)
+
+        forward.__wrapped__ = model_forward
+
+        return forward
+
+    @staticmethod
+    def apply_fp8_autocast(model, fp8_recipe_handler=None):
+        import transformer_engine.common.recipe as te_recipe
+
+        kwargs = fp8_recipe_handler.to_kwargs() if fp8_recipe_handler is not None else {}
+        if "fp8_format" in kwargs:
+            kwargs["fp8_format"] = getattr(te_recipe.Format, kwargs["fp8_format"])
+        use_during_eval = kwargs.pop("use_autocast_during_eval", False)
+        fp8_recipe = te_recipe.DelayedScaling(**kwargs)
+        new_forward = TEAccelerator.contextual_fp8_autocast(model.forward, fp8_recipe, use_during_eval)
+
+        if hasattr(model.forward, "__func__"):
+            model.forward = MethodType(new_forward, model)
+        else:
+            model.forward = new_forward
+
+        return model
