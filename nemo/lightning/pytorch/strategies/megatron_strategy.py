@@ -267,6 +267,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         elif ddp == "pytorch":
             self.ddp_config = None
             self.no_ddp_communication_hook = False
+        elif ddp is None:
+            self.ddp_config = None
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
 

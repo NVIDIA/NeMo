@@ -261,10 +261,12 @@ class Quantizer:
 
     def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
+        from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
         # TODO: Add sample generate
         # TODO: Support megatron_amp_O2
         export_dir = self.export_config.path
-        use_nfs_workspace = (model.trainer._fabric.__io__.num_nodes > 1) or (
+
+        use_nfs_workspace = (
             model.config.pipeline_model_parallel_size > 1
         )
         export_tensorrt_llm_checkpoint(
@@ -277,15 +279,12 @@ class Quantizer:
             use_nfs_workspace=use_nfs_workspace,
         )
 
-        dist.barrier()  # Wait until all ranks complete export_model_config step
-        logging.info(f"Export succeeded, model has been exported to {export_dir}. Saving tokenizer if possible...")
-
-        if dist.get_rank() == 0:
-            try:
-                tokenizer_dst = os.path.join(export_dir, 'tokenizer')
-                model.tokenizer.tokenizer.save_pretrained(tokenizer_dst)
-            except Exception as err:
-                logging.warning("Could not save the tokenizer: " + str(err))
+        logging.info(f"Export succeeded, model has been exported to {export_dir}.")
+        output_context = ckpt_to_context_subdir(self.export_config.path)
+        try:
+            model.io_dump(output_context, yaml_attrs=['tokenizer'])
+        except Exception as err:
+            logging.warning("Could not save the tokenizer: " + str(err))
 
 
 def get_calib_data_iter(
