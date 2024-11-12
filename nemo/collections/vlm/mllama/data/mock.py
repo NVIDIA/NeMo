@@ -142,8 +142,8 @@ class _MockMLlamaDataset(Dataset):
 
         return {
             "images": images,
-            "masks": [[5, 512]],
-            "num_chunks": [4],
+            "masks": torch.tensor([[5, 512]]),
+            "num_chunks": torch.tensor([4]),
             "tokens": tokens,
             "aspect_ratio_ids": aspect_ratio_ids,
             "loss_mask": self.loss_mask,
