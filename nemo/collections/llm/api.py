@@ -674,7 +674,7 @@ def _validate_config(
     assert model.config.num_attention_heads > 0
     assert model.config.ffn_hidden_size > 0
 
-    if model.config.seq_length is not None:
+    if hasattr(model.config, "seq_length"):
         if getattr(model.config, "max_position_embeddings", None) is not None:
             assert model.config.seq_length <= model.config.max_position_embeddings
 
