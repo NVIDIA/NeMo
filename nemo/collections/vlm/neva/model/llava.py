@@ -140,8 +140,6 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
                 }
             )
         elif "vision_model.class_token" in target.module.state_dict().keys():
-            # vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight
-            # ['embeddings.class_embedding', 'embeddings.patch_embedding.weight', 'embeddings.position_embedding.weight', 'pre_layrnorm.weight', 'pre_layrnorm.bias', 'encoder.layers.*.self_attn.k_proj.weight', 'encoder.layers.*.self_attn.k_proj.bias', 'encoder.layers.*.self_attn.v_proj.weight', 'encoder.layers.*.self_attn.v_proj.bias', 'encoder.layers.*.self_attn.q_proj.weight', 'encoder.layers.*.self_attn.q_proj.bias', 'encoder.layers.*.self_attn.out_proj.weight', 'encoder.layers.*.self_attn.out_proj.bias', 'encoder.layers.*.layer_norm1.weight', 'encoder.layers.*.layer_norm1.bias', 'encoder.layers.*.mlp.fc1.weight', 'encoder.layers.*.mlp.fc1.bias', 'encoder.layers.*.mlp.fc2.weight', 'encoder.layers.*.mlp.fc2.bias', 'encoder.layers.*.layer_norm2.weight', 'encoder.layers.*.layer_norm2.bias'],
             mapping.update(
                 {
                     "vision_tower.vision_model.embeddings.patch_embedding.weight": "vision_model.conv1.weight",
@@ -158,8 +156,6 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
                     "vision_tower.vision_model.encoder.layers.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
                     "vision_tower.vision_model.pre_layrnorm.weight": "vision_model.ln_pre.weight",
                     "vision_tower.vision_model.pre_layrnorm.bias": "vision_model.ln_pre.bias",
-                    # "vision_tower.vision_model.post_layernorm.weight": "vision_model.final_layernorm.weight",
-                    # "vision_tower.vision_model.post_layernorm.bias": "vision_model.final_layernorm.bias",
                 }
             )
         else:

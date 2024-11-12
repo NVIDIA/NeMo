@@ -30,7 +30,7 @@ def main(args):
     gbs = 256
     mbs = 8
     seq_length = 576
-    decoder_seq_length = 1024
+    decoder_seq_length = 4096
 
     # # Data configuration
     # data_config = ImageDataConfig(

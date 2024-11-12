@@ -22,58 +22,75 @@ from nemo.collections import llm, vlm
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.utils.exp_manager import TimingCallback
 
 
 def main(args):
     # Global and micro batch sizes
     gbs = 128
-    mbs = 4
+    mbs = 2
     seq_length = 576
-    decoder_seq_length = 1024
+    decoder_seq_length = 4096
 
-    # Data configuration
-    data_config = ImageDataConfig(
-        image_folder=args.image_folder,
-        conv_template="v1",
-    )
+    # # Data configuration
+    # data_config = ImageDataConfig(
+    #     image_folder=args.image_folder,
+    #     conv_template="v1",
+    # )
+    #
+    # # Data module setup
+    # data = vlm.NevaLazyDataModule(
+    #     paths=args.data_path,
+    #     data_config=data_config,
+    #     seq_length=seq_length,
+    #     decoder_seq_length=decoder_seq_length,
+    #     global_batch_size=gbs,
+    #     micro_batch_size=mbs,
+    #     tokenizer=None,
+    #     image_processor=None,
+    #     num_workers=8,
+    # )
 
-    # Data module setup
-    data = vlm.NevaLazyDataModule(
-        paths=args.data_path,
-        data_config=data_config,
-        seq_length=seq_length,
-        decoder_seq_length=decoder_seq_length,
+    data = vlm.NevaMockDataModule(
+        seq_length=decoder_seq_length,
         global_batch_size=gbs,
         micro_batch_size=mbs,
         tokenizer=None,
         image_processor=None,
-        num_workers=8,
+        num_workers=4,
     )
 
     # Transformer configurations
-    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
-    if args.encoder_pp_size > 0:
-        language_transformer_config.first_pipeline_num_layers = 0
-    vision_transformer_config = vlm.HFCLIPVisionConfig(
-        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    )
-    vision_projection_config = vlm.MultimodalProjectorConfig(
-        projector_type=args.projector_type,
-        input_size=1024,
-        hidden_size=4096,
-        ffn_hidden_size=4096,
-    )
+    # language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
+    # if args.encoder_pp_size > 0:
+    #     language_transformer_config.first_pipeline_num_layers = 0
+    # from nemo.collections.vlm.neva.model.vision import get_vision_model_config
+    #
+    # # vision_transformer_config = vlm.CLIPViTConfig(vision_model_type="clip")
+    # # vision_transformer_config = get_vision_model_config(vision_transformer_config, apply_query_key_layer_scaling=False)
+    # vision_transformer_config = vlm.HFCLIPVisionConfig(
+    #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    # )
+    # vision_projection_config = vlm.MultimodalProjectorConfig(
+    #     projector_type=args.projector_type,
+    #     input_size=vision_transformer_config.hidden_size,
+    #     hidden_size=language_transformer_config.hidden_size,
+    #     ffn_hidden_size=language_transformer_config.hidden_size,
+    # )
+    #
+    # # NEVA model configuration
+    # neva_config = vlm.NevaConfig(
+    #     language_transformer_config=language_transformer_config,
+    #     vision_transformer_config=vision_transformer_config,
+    #     vision_projection_config=vision_projection_config,
+    #     language_model_from_pretrained=args.language_model_path,
+    #     freeze_language_model=False,
+    #     freeze_vision_model=True,
+    # )
+    #
+    # model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
-    # NEVA model configuration
-    neva_config = vlm.NevaConfig(
-        language_transformer_config=language_transformer_config,
-        vision_transformer_config=vision_transformer_config,
-        vision_projection_config=vision_projection_config,
-        language_model_from_pretrained=args.language_model_path,
-        freeze_language_model=False,
-    )
-
-    model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
+    model = vlm.LlavaModel(vlm.Llava15Config7B(freeze_vision_model=True,), tokenizer=data.tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
@@ -99,7 +116,7 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, TimingCallback()],
         val_check_interval=1000,
         limit_val_batches=gbs,
         log_every_n_steps=1,
@@ -142,7 +159,7 @@ def main(args):
         lr=2.0e-05,
         adam_beta1=0.9,
         adam_beta2=0.95,
-        use_distributed_optimizer=False,
+        use_distributed_optimizer=True,
         bf16=True,
     )
     sched = CosineAnnealingScheduler(
