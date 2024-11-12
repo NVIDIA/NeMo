@@ -311,9 +311,7 @@ class BeamTDTInfer(Typing):
                     if self.return_best_hypothesis:
                         best_hypothesis: Hypothesis = nbest_hyps[0]
                     else:
-                        best_hypothesis: NBestHypotheses = NBestHypotheses(
-                            nbest_hyps
-                        )
+                        best_hypothesis: NBestHypotheses = NBestHypotheses(nbest_hyps)
                     hypotheses.append(best_hypothesis)
 
         self.decoder.train(decoder_training_state)
