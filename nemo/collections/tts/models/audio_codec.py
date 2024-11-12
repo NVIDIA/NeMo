@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.tts.losses.audio_codec_loss import (
     FeatureMatchingLoss,

@@ -17,8 +17,8 @@ from typing import Iterable
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch import Trainer
+from lightning.pytorch.loggers import TensorBoardLogger
 
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.modules.fastpitch import FastPitchSSLModule, average_features

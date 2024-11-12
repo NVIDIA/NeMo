@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 
 from nemo.collections.asr.metrics.wer import word_error_rate

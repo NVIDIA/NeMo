@@ -21,8 +21,8 @@ import transformers
 import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch import Trainer
+from lightning.pytorch.loggers import WandbLogger
 from torch import nn
 from torch.nn import functional as F
 from transformers import AlbertTokenizer

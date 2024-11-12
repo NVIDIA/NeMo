@@ -20,7 +20,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from omegaconf.errors import ConfigAttributeError
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from torch import nn
 
 from nemo.collections.common.parts.preprocessing import parsers

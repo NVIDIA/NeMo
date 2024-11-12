@@ -19,9 +19,9 @@ import librosa
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.utilities.combined_loader import CombinedLoader
+from lightning.pytorch import Trainer
+from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.utilities.combined_loader import CombinedLoader
 
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.tts.data.dataset import TTSDataset

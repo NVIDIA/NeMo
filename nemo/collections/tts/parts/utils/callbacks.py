@@ -23,10 +23,10 @@ import numpy as np
 import soundfile as sf
 import torch
 from einops import rearrange
-from pytorch_lightning import Callback, LightningModule, Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.loggers.logger import Logger
-from pytorch_lightning.loggers.wandb import WandbLogger
+from lightning.pytorch import Callback, LightningModule, Trainer
+from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.loggers.logger import Logger
+from lightning.pytorch.loggers.wandb import WandbLogger
 from torch import Tensor
 
 from nemo.collections.tts.parts.utils.helpers import create_plot

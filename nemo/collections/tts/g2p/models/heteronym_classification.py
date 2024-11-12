@@ -20,7 +20,7 @@ from typing import List, Optional
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport

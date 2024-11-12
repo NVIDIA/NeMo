@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 from nemo.collections.tts.g2p.data.ctc import CTCG2PBPEDataset
