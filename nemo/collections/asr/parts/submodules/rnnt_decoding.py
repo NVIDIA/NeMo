@@ -1827,6 +1827,10 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
 @dataclass
 class RNNTDecodingConfig:
+    """
+    RNNT Decoding config
+    """
+
     model_type: str = "rnnt"  # one of "rnnt", "multiblank" or "tdt"
     strategy: str = "greedy_batch"
 
@@ -1884,4 +1888,8 @@ class RNNTDecodingConfig:
 
 @dataclass
 class RNNTBPEDecodingConfig(RNNTDecodingConfig):
+    """
+    RNNT BPE Decoding Config
+    """
+
     pass
