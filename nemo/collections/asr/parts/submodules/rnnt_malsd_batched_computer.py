@@ -121,6 +121,22 @@ class BatchedBeamHyps:
         # increase lengths
         self.current_lengths += active_mask
 
+    def to_hyps_list(self) -> list[rnnt_utils.Hypothesis]:
+        num_hyps = self.current_lengths.shape[0]
+        best_hyps_ids = torch.argmax(self.scores, dim=1).tolist()
+        hypotheses = [
+            rnnt_utils.Hypothesis(
+                score=self.scores[i, best_hyps_ids[i]].item(),
+                # TODO: aggregate hyp
+                y_sequence=self.transcript[i, best_hyps_ids[i], : self.current_lengths[i, best_hyps_ids[i]]],
+                timestep=[],
+                alignments=None,
+                dec_state=None,
+            )
+            for i in range(num_hyps)
+        ]
+        return hypotheses
+
 
 class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
     """
@@ -163,7 +179,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
     def modified_alsd_beam_torch(self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-    ) -> Tuple[BatchedBeamHyps, None, Any]:
+    ) -> list[rnnt_utils.Hypothesis]:
         batch_size, max_time, vocab_size = encoder_output.shape
         device = encoder_output.device
         # TODO: better way?
@@ -183,6 +199,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             device=device,
             float_dtype=float_dtype,
         )
+        return batched_hyps.to_hyps_list()
 
 
     def _loop_labels_beam_torch(
@@ -363,5 +380,5 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-    ) -> Tuple[rnnt_utils.BatchedHyps, None, Any]:
+    ) -> list[rnnt_utils.Hypothesis]:
         return self.modified_alsd_beam_torch(encoder_output=x, encoder_output_length=out_len)
