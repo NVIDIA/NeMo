@@ -13,7 +13,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm import Llama2Config7B, LlamaConfig
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
-from nemo.collections.multimodal.mimo.model import CustomMimoModel
+from nemo.collections.multimodal.mimo.model.model import CustomMimoModel
 from nemo.lightning import get_vocab_size, io
 
 
@@ -204,9 +204,7 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
         from megatron.core.dist_checkpointing.validation import StrictHandling
 
         sharded_state_dict = dict(state_dict=model.language_model.sharded_state_dict(prefix="module."))
-        if torch.distributed.get_rank() == 0:  # or other ranks
-            breakpoint()
-        torch.distributed.barrier()
+
         strict = StrictHandling.LOG_UNEXPECTED
         loaded_state_dict = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
@@ -214,9 +212,8 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
             strict=strict,
         )
         loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-        if torch.distributed.get_rank() == 0:  # or other ranks
-            breakpoint()
-        torch.distributed.barrier()
+        output_csv = "loaded_state_dict_shapes.csv"
+
         model.language_model.load_state_dict(loaded_state_dict)
 
         model.freeze(

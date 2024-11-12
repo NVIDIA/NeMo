@@ -1,5 +1,6 @@
 from typing import Callable, Optional, Tuple, Union
 
+import torch
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from torch import Tensor

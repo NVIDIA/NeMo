@@ -14,7 +14,8 @@ from nemo.collections.llm import import_ckpt
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.mimo.data.captioning import MimoCaptioningTaskEncoder
-from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel, CustomMimoConfig
+from nemo.collections.multimodal.mimo.model.base import BaseMimoModel
+from nemo.collections.multimodal.mimo.model.config import CustomMimoConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback

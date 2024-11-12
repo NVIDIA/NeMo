@@ -158,7 +158,7 @@ def main(args):
     gen_image.save('debug_image_generated.png')
 
     logging.info(f"MSE loss for embeddings {mse_loss}")
-    breakpoint()
+    # breakpoint()
     generated_ids[generated_ids == -200] = 0
     generated_texts = tokenizer.tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
     logging.info("======== GENERATED TEXT OUTPUT ========")
