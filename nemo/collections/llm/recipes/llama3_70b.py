@@ -324,9 +324,9 @@ def finetune_recipe(
     # Sequence length settings in the model and dataset must agree
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
-    if packed_sequence:
-        recipe.data.pad_to_max_length = True
-        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+    # if packed_sequence:
+    #     recipe.data.pad_to_max_length = True
+    #     recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
     if performance_mode:
         recipe = finetune_performance_optimizations(recipe, peft_scheme)
