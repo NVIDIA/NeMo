@@ -849,9 +849,6 @@ def run_inference_tests(args):
             "Use the same value for --min_tps and --max_tps."
         )
 
-    if args.debug:
-        LOGGER.setLevel(logging.DEBUG)
-
     result_dic: Dict[int, Tuple[FunctionalResult, Optional[AccuracyResult]]] = {}
 
     if args.existing_test_models:
