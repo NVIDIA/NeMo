@@ -1,5 +1,5 @@
-import logging
 import random
+import re
 
 import torch.utils.data
 from lhotse import CutSet
@@ -12,6 +12,7 @@ from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     build_loss_mask,
     ceil_to_nearest,
 )
+from nemo.utils import logging
 
 
 def collate_vectors(items, max_length: int, padding_value):
@@ -108,25 +109,79 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         instructions, instruction_lengths = [], []
         source_texts, source_text_lengths = [], []  # Not used in the current implementation
         target_texts, target_text_lengths = [], []
+        start_time_tokens, word_lengths = [], []
         remove_ids = []
         for id, cut in enumerate(cuts):
-            metadata.append({'audio_filepath': cut.id + '.wav'})
+            if id == 0:
+                logging.debug(f'audio_filepath: {cut.id}.wav')
+                logging.debug(f'cut: {cut}')
+                metadata.append({'audio_filepath': cut.id + '.wav'})
             # TODO: the following use of _process_example is not ideal. Should update
             instruction = self.text_processor._process_example(context=cut.supervisions[0].text, output="")
             instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
                 len(instruction["input_ids"]) - 1
             )
+            if id == 0:
+                logging.debug(f'instruction: {cut.supervisions[0].text}')
 
             source_text = self.text_processor._process_example(context=cut.supervisions[1].text, output="")
             source_text, source_text_length = torch.as_tensor(source_text["input_ids"]), torch.as_tensor(
                 len(source_text["input_ids"])
             )
+            if id == 0:
+                logging.debug(f'source_text: {cut.supervisions[1].text}')
 
-            target_text = self.text_processor._process_example(context="", output=cut.supervisions[2].text)
-            # -1 to remove the eos token added by the text processor
-            target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
-                len(target_text["answer_ids"]) - 1
-            )
+            def extract_text_and_time_tokens(input_sequence):
+                # Regular expression to match time tokens (e.g., <|x|> where x is an integer)
+                time_token_pattern = r"<\|(\d+)\|>"
+                # Find all time tokens
+                time_tokens = re.findall(time_token_pattern, input_sequence)
+                # Only keep the first token of every pair (i.e., start time tokens)
+                start_time_token = [int(time_tokens[i]) for i in range(0, len(time_tokens), 2)]
+                # Remove all time tokens to isolate words
+                words = re.sub(time_token_pattern, '', input_sequence).split()
+                # Process each word, tokenize it, and calculate token lengths
+                tokenized_words = []
+                word_length = []
+                for idx, word in enumerate(words):
+                    # Tokenize the word using the provided text processor
+                    if id == 0:
+                        logging.debug(f'word: {word}')
+                    tokenized_word = self.text_processor._process_example(context="", output=word)
+                    # Remove the EOS token (assuming the EOS token is at the end of "answer_ids")
+                    token_ids = tokenized_word["answer_ids"][:-1]  # Remove EOS token
+                    if idx != 0:  # If not the first word, remove the first token
+                        token_ids = token_ids[1:]
+                    if id == 0:
+                        logging.debug(f'token_ids: {token_ids}')
+                    token_length = len(token_ids)  # Calculate the length
+                    tokenized_words.extend(token_ids)
+                    word_length.append(token_length)
+                return (
+                    torch.as_tensor(tokenized_words),
+                    torch.as_tensor(start_time_token),
+                    torch.as_tensor(word_length),
+                )
+
+            # import pdb; pdb.set_trace()
+            use_timestamp = getattr(cut, "s2s_align", False)
+            if not use_timestamp:
+                pattern = r"<\|\d+\|>"
+                output_text = re.sub(pattern, "", cut.supervisions[2].text)
+                output_text = re.sub(r'\s+', ' ', output_text).strip()
+                target_text = self.text_processor._process_example(context="", output=output_text)
+                # -1 to remove the eos token added by the text processor
+                target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
+                    len(target_text["answer_ids"]) - 1
+                )
+                if id == 0:
+                    logging.debug(f'target_text: {output_text}')
+            else:
+                target_text, start_time_token, word_length = extract_text_and_time_tokens(cut.supervisions[2].text)
+                target_text_length = len(target_text)
+                # import pdb; pdb.set_trace()
+                if id == 0:
+                    logging.debug(f'target_text: {cut.supervisions[2].text}')
 
             if self.filter_by_source_target_text_ratio:
                 if (
@@ -142,6 +197,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             source_text_lengths.append(source_text_length)
             target_texts.append(target_text)
             target_text_lengths.append(target_text_length)
+            if use_timestamp:
+                word_lengths.append(word_length)
+                start_time_tokens.append(start_time_token)
 
         cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
 
@@ -215,6 +273,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         # Loop through cuts and build target_codec
         for i, cut in enumerate(cuts):
             feat_i = cut.target_codes.load()
+            # logging.debug(f'frame_shift: {cut.target_codes.frame_shift}')
+            # logging.debug(f'feat_i.shape: {feat_i.shape}')
             target_codec[i, : feat_i.shape[0], 0] = text_unk_id
             feat_i = feat_i[: features_lens[i] * self.decoder_reduction_factor, : self.n_speech_codebooks]
             feat_i = feat_i.reshape((-1, self.n_speech_codebooks * self.decoder_reduction_factor))
@@ -222,6 +282,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             target_codec[i, feat_i.shape[0], :] = eos_tensor
 
         target_codec = target_codec.to(torch.int)
+        logging.debug(f'target_codec.shape: {target_codec.shape} ')
+        logging.debug(f'features_lens.shape: {features_lens.shape} ')
 
         source_texts, source_text_lengths = collate_and_pad(source_texts)
 
@@ -243,6 +305,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 texts_expanded = texts_expanded[:, :-1]
             return texts, text_lengths, texts_expanded
 
+        # import pdb; pdb.set_trace()
+
+        unpadded_target_texts = target_texts
         target_texts, target_text_lengths, target_texts_expanded = _convert_text_to_3d_tensor(target_texts)
         instructions, instruction_lengths, instructions_expanded_no_eos = _convert_text_to_3d_tensor(
             # tokens_to_generate is used in inference
@@ -253,12 +318,125 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         # answers = torch.concat([speaker_context, bos_tensor, target_codec], 1)
 
-        if getattr(cut, "s2s", False):
+        logging.debug(f'target_texts_expanded.shape: {target_texts_expanded.shape} ')
+        logging.debug(f'target_text_lengths.shape: {target_text_lengths.shape} ')
+        logging.debug(f'cut: {cut} ')
+
+        def discretize_time(start_token, speech_resolution=0.08, timestamp_resolution=0.08):
+            """Convert the start token into a time index based on the resolution."""
+            return int(start_token * timestamp_resolution / speech_resolution)
+
+        def _expand_text_with_timestamps_and_word_lengths(
+            word_tokens, word_lengths, start_time_tokens, features_lens, frame_rate=0.08, pad_id=None
+        ):
+            """
+            Expand word tokens according to start time tokens and word lengths for a batch of sequences.
+
+            Args:
+            - word_tokens: List of lists of token sequences (each inner list is a word's token IDs), shape [batch][time].
+            - word_lengths: List of lists of word lengths, shape [batch][time].
+            - start_time_tokens: List of lists of start times, shape [batch][time].
+            - max_length: Maximum length in the time dimension (number of frames).
+            - frame_rate: Frame rate resolution.
+            - pad_id: Padding ID to use for empty positions in the tensor.
+
+            Returns:
+            - 2D tensor [batch, max_length] where each row is the expanded token sequence for that batch.
+            """
+            if pad_id is None:
+                raise ValueError("pad_id must be provided.")
+
+            batch_size = len(word_tokens)
+            max_length = max(features_lens).item()
+
+            # Create the empty 2D tensor [batch, max_length] with pad_id as the default value
+            texts_expanded = torch.full((batch_size, max_length), fill_value=pad_id, dtype=torch.long)
+
+            # Iterate over each batch
+            for batch_idx in range(batch_size):
+                batch_max_length = features_lens[batch_idx]
+                word_start_idx = 0  # Start index to keep track of the position within the concatenated word tokens
+
+                # Iterate over the words in the current batch
+                for word_idx, word_length in enumerate(word_lengths[batch_idx]):
+                    start_token = start_time_tokens[batch_idx][word_idx]
+
+                    # Convert the start time token into a time index based on frame rate
+                    start_time_index = discretize_time(start_token, frame_rate)
+
+                    # Reduction of start time index due to stacking of frames
+                    start_time_index = int(start_time_index / self.decoder_reduction_factor)
+                    if batch_idx == 0:
+                        logging.debug(f'start_time_index[0]: {start_time_index}')
+
+                    # Calculate the end time index based on word length
+                    end_time_index = start_time_index + word_length
+                    end_time_index = min(end_time_index, max_length)  # Ensure it doesn't exceed max length
+
+                    # Get the word tokens for the current word
+                    word_token_ids = word_tokens[batch_idx][word_start_idx : word_start_idx + word_length]
+
+                    # Populate the tokens in the expanded tensor at the correct positions
+                    for t_idx in range(start_time_index, end_time_index):
+                        if t_idx - start_time_index < len(word_token_ids):  # Ensure tokens are within bounds
+                            token_id = word_token_ids[t_idx - start_time_index]  # Get token for this time step
+                            texts_expanded[batch_idx][t_idx] = token_id  # Directly assign the token ID
+
+                    # Move to the next word in the concatenated word tokens
+                    word_start_idx += word_length
+
+                # Overwrite padding tokens
+                texts_expanded[batch_idx][batch_max_length:] = text_pad_id
+
+            return texts_expanded
+
+        # import pdb; pdb.set_trace()
+
+        # TODO(huk): Consider smaller reduction factor
+        if getattr(cut, "s2s_align", False):
+            max_feat_len = max(features_lens).item() + 1
+            # [batch, max_feat_len]
+            target_text_expanded = _expand_text_with_timestamps_and_word_lengths(
+                unpadded_target_texts,
+                word_lengths,
+                start_time_tokens,
+                features_lens + 1,
+                cut.target_codes.frame_shift,
+                pad_id=text_unk_id,
+            )
+            # import pdb; pdb.set_trace()
+            logging.debug(f'start_time_token: {start_time_tokens[0]}')
+            logging.debug(f'word_length: {word_lengths[0]}')
+            logging.debug(f'target_tokens: {unpadded_target_texts[0]}')
+            logging.debug(f'target_text_expanded: {target_text_expanded[0,:]}')
+            # [batch, max_feat_len, 1+V], where V = #codebooks * reduction_factor
+            target_codec[:, :, 0] = target_text_expanded
+            token_list = target_codec
+
+            logging.debug(f'token_list[0].shape: {token_list[0].shape}')
+            if not self.t5_style:
+                token_list = [
+                    torch.concat([it[:itl], tt], 0)
+                    for tt, it, itl in zip(token_list, instructions_expanded_no_eos, instruction_lengths)
+                ]
+            tokens, _ = collate_and_pad(token_list)
+            speech_loss_mask = tokens[:, :, 1:] != self.speech_pad_id
+            # Make the text loss mask the same as speech since they are aligned
+            loss_mask = torch.cat([speech_loss_mask[..., :1], speech_loss_mask], dim=-1)
+            if not self.t5_style:
+                for itl in instruction_lengths:
+                    loss_mask[:, :itl, :] = False
+            # loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
+            # full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_length
+            full_lengths = features_lens + 1 + instruction_length
+        elif getattr(cut, "s2s", False):
             # Add 1 for eos token
             token_list = [
                 torch.concat([tt[: ttl + 1], tc[: tcl + 1]], 0)
                 for tt, ttl, tc, tcl in zip(target_texts_expanded, target_text_lengths, target_codec, features_lens)
             ]
+            # import pdb; pdb.set_trace()
+            logging.debug(f'token_list[0].shape: {token_list[0].shape}')
             if not self.t5_style:
                 token_list = [
                     torch.concat([it[:itl], tt], 0)

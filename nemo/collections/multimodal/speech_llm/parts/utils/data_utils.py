@@ -310,6 +310,8 @@ class TextProcessing:
         else:
             text = context + ' ' + output
 
+        # logging.debug(f'text: {text}')
+
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
@@ -320,6 +322,8 @@ class TextProcessing:
         answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
+
+        # logging.debug(f'answer_text: {answer_text}')
 
         if self.audio_locator is None:
             # signle audio case

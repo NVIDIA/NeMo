@@ -47,6 +47,10 @@ CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./co
 
 @hydra_runner(config_path="conf", config_name="modular_audio_gpt_config_peft")
 def main(cfg) -> None:
+    # Set up logging with the specified log level
+    logging_level = getattr(logging, cfg.log_level.upper(), logging.INFO)
+    logging.setLevel(logging_level)
+
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams

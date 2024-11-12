@@ -14,6 +14,8 @@
 
 name: megatron_audio_gpt_s2s_lhotse
 
+log_level: INFO
+
 trainer:
   devices: 1
   accelerator: gpu
@@ -236,11 +238,12 @@ model:
     train_ds:
       input_cfg:
       - type: lhotse_shar
-        shar_path: /workspace/data/s2s_shars/es/
+        # shar_path: /workspace/data/s2s_shars/es/
+        shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/es/src_timestamp
         weight: 1.0
         tags:
           lang: en
-          s2s: True
+          s2s_align: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -300,14 +303,15 @@ model:
           weight: 1.0
           tags:
             lang: en
-            s2s: True
+            s2s_align: True
           input_cfg:
             - type: lhotse_shar
-              shar_path: /workspace/data/s2s_shars/es_validation/
+              # shar_path: /workspace/data/s2s_shars/es_validation/
+              shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/es/src_timestamp
               weight: 1.0
               tags:
                 lang: en
-                s2s: True
+                s2s_align: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
@@ -338,7 +342,6 @@ model:
       source_target_text_ratio_limit: 4.0
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
-
       log_every_n_steps: 10
       metrics:
         - name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']

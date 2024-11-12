@@ -787,6 +787,8 @@ def s2s_sample_sequence_batch(
                         prev = torch.multinomial(probs, num_samples=1).view(-1)
                     return prev
 
+                # import pdb; pdb.set_trace()
+
                 prev = [get_prev(logits_i, started, temperature, extra) for logits_i in logits]
                 prev = torch.stack(prev, dim=1)
                 started_expand = started.unsqueeze(1).expand(-1, prev.size(1))
@@ -832,6 +834,8 @@ def s2s_sample_sequence_batch(
                     end_strings,
                     model.cfg.speech_eos_id,
                 )
+
+                # import pdb; pdb.set_trace()
 
                 done_token = done_token.byte() & started.byte()
 

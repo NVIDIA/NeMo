@@ -62,6 +62,7 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
         self.proj_head_dims = proj_head_dims
 
     def forward(self, input_):
+
         if input_.ndim == 3:
             assert input_.shape[2] == len(self.proj_head_dims)
             input_ = input_.clone()
@@ -311,6 +312,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         """
         Used for validation and test steps, added postprocessing after calling self.predict_step().
         """
+        # import pdb; pdb.set_trace()
+
         # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
@@ -403,15 +406,20 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         decoder_output = input_decoder_output[-1:].tile([max_len, 1])
         decoder_output[: max_len - context_length] = input_decoder_output[context_length:]
 
+        # Do not split because text and speech are now aligned
         # Split text and speech part based on the position of the first separator token
-        sep_pos = (decoder_output[:, 0] == text_separator).long()
-        if torch.any(sep_pos):
-            first_sep_pos = torch.argmax(sep_pos)
-            text_tokens = decoder_output[:first_sep_pos, 0]
-            speech_tokens = decoder_output[first_sep_pos + 1 :, 1:]
-        else:
-            text_tokens = decoder_output[:, 0]
-            speech_tokens = decoder_output[:, 1:]
+        # sep_pos = (decoder_output[:, 0] == text_separator).long()
+        # if torch.any(sep_pos):
+        #     first_sep_pos = torch.argmax(sep_pos)
+        #     text_tokens = decoder_output[:first_sep_pos, 0]
+        #     speech_tokens = decoder_output[first_sep_pos + 1 :, 1:]
+        # else:
+        #     text_tokens = decoder_output[:, 0]
+        #     speech_tokens = decoder_output[:, 1:]
+        text_tokens = decoder_output[:, 0]
+        speech_tokens = decoder_output[:, 1:]
+
+        # import pdb; pdb.set_trace()
 
         # Get speech token ids
         n_speech_codebooks = self.model.n_proj_heads - 1
@@ -816,6 +824,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     def de_concat_multiproj_logits(self, logits):
         logits_list = []
         prev = 0
+        # import pdb; pdb.set_trace()
         for i in self.model.proj_head_dims:
             logits_list.append(logits[:, prev : prev + i])
             prev += i

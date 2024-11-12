@@ -14,6 +14,7 @@
 
 import itertools
 import json
+import logging
 import os
 from functools import partial
 from typing import List, Optional, Union
@@ -289,6 +290,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         attention_mask = self._create_attention_mask(encoder_input)
         position_ids = build_position_ids(encoder_input[:, :, 0])
 
+        # import pdb; pdb.set_trace()
+
         # Add position embeddings
         if (
             getattr(lm_embedding, "position_embeddings", None) is not None
@@ -328,6 +331,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
         input_signal = audio_batch['audio_signal']
+        logging.debug(f'input_signal.shape: {input_signal.shape}')
         input_signal_length = audio_batch['audio_signal_length']
 
         input_ids, input_length, labels, loss_mask = (
@@ -348,6 +352,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             processed_signal_length=None,
         )
 
+        logging.debug(f'encoded.shape: {encoded.shape}')
+        logging.debug(f'encoded_len.shape: {encoded_len.shape}')
+        logging.debug(f'num_audios: {num_audios}')
         if num_audios is not None:
             # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
             encoded = encoded.split(num_audios.tolist())
@@ -603,6 +610,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 attention_mask=attention_mask,
                 **extra_arg,
             )
+
+            # import pdb; pdb.set_trace()
 
             # Advance inference sequence offset.
             if self.inference_params:

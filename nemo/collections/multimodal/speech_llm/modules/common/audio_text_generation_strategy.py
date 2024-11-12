@@ -140,6 +140,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         returns:
             a boolean tensor indicating whether the generation should stop
         """
+        # import pdb; pdb.set_trace()
         if len(end_strings) == 1 and end_strings[0] == END_OF_SEQ:
             return prev == eod_id
         else:
