@@ -283,7 +283,7 @@ def copy_tokenizer_files(config, out_dir):
                 outfile.write(infile.read())
 
 
-def get_tokenzier(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenizer:
+def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NeMo weights dir."""
     tokenizer_dir_or_path = Path(tokenizer_dir_or_path)
     if (tokenizer_dir_or_path / "nemo_context").exists():

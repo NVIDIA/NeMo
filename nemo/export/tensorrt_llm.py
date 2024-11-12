@@ -37,7 +37,7 @@ from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_tr
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
-    get_tokenzier,
+    get_tokenizer,
     is_nemo_file,
     load_nemo_model,
 )
@@ -301,7 +301,7 @@ class TensorRTLLM(ITritonDeployable):
                     LOGGER.warning("Detected legacy tokenizer_config.yaml, using it to build tokenizer.")
                     self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
                 else:
-                    self.tokenizer = get_tokenzier(nemo_checkpoint_path)
+                    self.tokenizer = get_tokenizer(nemo_checkpoint_path)
 
                 qnemo_to_tensorrt_llm(
                     nemo_checkpoint_path=nemo_checkpoint_path,
@@ -1099,7 +1099,7 @@ class TensorRTLLM(ITritonDeployable):
             if len(folders) > 0:
                 try:
                     self._load_config_file()
-                    self.tokenizer = get_tokenzier(self.model_dir)
+                    self.tokenizer = get_tokenizer(self.model_dir)
                     self.model = load(
                         tokenizer=self.tokenizer,
                         engine_dir=self.model_dir,
