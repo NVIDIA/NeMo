@@ -16,7 +16,6 @@ import os
 import re
 from argparse import ArgumentParser
 from collections import defaultdict
-
 import torch
 import torch.distributed as dist
 from megatron.core.dist_checkpointing.serialization import load_plain_tensors
@@ -25,7 +24,10 @@ from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 from megatron.core.transformer.spec_utils import import_module
 from megatron.training.arguments import core_transformer_config_from_args
 from omegaconf.omegaconf import OmegaConf
-
+from datetime import timedelta
+import megatron.core.parallel_state as ps
+from torch._C._distributed_c10d import PrefixStore
+from torch.distributed import rendezvous
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
@@ -91,31 +93,6 @@ def get_args():
     parser.add_argument("--check_fwd_pass", action="store_true", help="Set if you want to check fwd pass accuracy")
     args = parser.parse_args()
     return args
-
-
-import os
-from datetime import timedelta
-
-import megatron.core.parallel_state as ps
-import torch
-from torch._C._distributed_c10d import PrefixStore
-from torch.distributed import rendezvous
-
-
-class TestModel(torch.nn.Module):
-    def __init__(
-        self,
-        input_dim: int,
-        output_dim: int,
-        num_layers: int,
-        bias: bool,
-        shared_embedding: bool = False,
-    ):
-        super().__init__()
-        self.layers = torch.nn.ModuleList([torch.nn.Linear(input_dim, output_dim, bias) for _ in range(num_layers)])
-        if shared_embedding:
-            self.layers[-1].weight.shared_embedding = True
-
 
 try:
 
