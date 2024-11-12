@@ -304,7 +304,7 @@ def finetune_recipe(
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 8
-        recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.context_parallel_size = 2
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
