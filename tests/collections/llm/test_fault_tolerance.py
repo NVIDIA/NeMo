@@ -42,10 +42,10 @@ class CrashCallback(Callback):
         if self.crash_step and trainer.global_step == self.crash_step:
             raise Exception(f"Simulating a crash at step {self.crash_step}!")
 
-        #if (
+        # if (
         #    datetime.now() <= datetime.strptime(self.crash_time, "%Y-%m-%d %H:%M:%S")
         #    and trainer.global_step >= self.crash_step
-        #):
+        # ):
         #    raise Exception("Simulating a crash!")
 
 
