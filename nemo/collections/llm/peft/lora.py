@@ -22,7 +22,6 @@ from megatron.core import parallel_state
 from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 from torch import nn
 
-from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
