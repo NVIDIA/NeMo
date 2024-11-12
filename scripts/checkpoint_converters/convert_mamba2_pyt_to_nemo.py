@@ -96,6 +96,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
+
 try:
 
     class Utils:
@@ -172,7 +173,6 @@ try:
 
 except:
     pass
-
 
 
 def dist_ckpt_handler(checkpoint_dir, cpu_only):
