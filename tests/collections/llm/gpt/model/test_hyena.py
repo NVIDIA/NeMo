@@ -33,29 +33,33 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 """
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
+                                --num-nodes=8 \
                                 --devices=8 \
                                 --max-steps=1000 \
                                 --val-check-interval=100 \
-                                --experiment-dir=<path-to-exp-dir> \
+                                --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
                                 --seq-length=8192 \
                                 --tensor-parallel-size=8 \
                                 --pipeline-model-parallel-size=1 \
                                 --context-parallel-size=1 \
-                                --global-batch-size=16 \
-                                --micro-batch-size=4 \
+                                --sequence-parallel \
+                                --global-batch-size=4 \
+                                --micro-batch-size=1 \
                                 --model-size=40b
-
-
 """
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a Hyena model using NeMo 2.0')
+    parser.add_argument('--num-nodes', type=int, default=1, help="Number of nodes to use for training, defaults to 1")
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
-    parser.add_argument('--seq-length', type=int, default=4096, help="Training sequence length")
-    parser.add_argument('--data-path', type=str, help="Data path")
+    parser.add_argument('--seq-length', type=int, default=8192, help="Training sequence length")
+    # parser.add_argument('--data-path', type=str, help="Data path")
     parser.add_argument('--tensor-parallel-size', type=int, default=1, help="Tensor Parallel Size")
     parser.add_argument('--pipeline-model-parallel-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--context-parallel-size', type=int, default=1, help="Context Parallel Size")
+    parser.add_argument(
+        "--sequence-parallel", action="store_true", help="Set to enable sequence parallel"
+    )
     parser.add_argument('--micro-batch-size', type=int, default=1, help="Pipeline Parallel Size")
     parser.add_argument('--global-batch-size', type=int, default=8, help="Pipeline Parallel Size")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
@@ -67,7 +71,6 @@ def get_args():
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
     )
     parser.add_argument('--tokenizer-path', type=str, default=None, help="Path to tokenizer model")
-    # parser.add_argument('--data-path', type=str, default=None, help="Path to data file")
 
     return parser.parse_args()
 
@@ -116,6 +119,7 @@ if __name__ == '__main__':
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
         context_parallel_size=args.context_parallel_size,
         pipeline_dtype=torch.bfloat16,
+        sequence_parallel=args.sequence_parallel,
         ckpt_load_optimizer=False,
         ckpt_save_optimizer=False,
         ckpt_async_save=False,
@@ -151,6 +155,7 @@ if __name__ == '__main__':
 
     trainer = nl.Trainer(
         devices=args.devices,
+        num_nodes=args.num_nodes,
         max_steps=args.max_steps,
         accelerator="gpu",
         strategy=strategy,
