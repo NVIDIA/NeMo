@@ -93,6 +93,9 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             speech_eos_id=data_cfg.get('speech_eos_id', 1004),
             filter_by_source_target_text_ratio=data_cfg.get('filter_by_source_target_text_ratio', False),
             source_target_text_ratio_limit=data_cfg.get('source_target_text_ratio_limit', 1.0),
+            load_answer_audio=data_cfg.get('load_answer_audio', False),
+            codec_model_downsampling_factor=data_cfg.get('codec_model_downsampling_factor', 1024),
+            
         )
 
     # Notably, the data weights are controlled by either bucketing_weights
