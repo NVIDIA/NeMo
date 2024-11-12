@@ -36,28 +36,16 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 /opt/NeMo/tests
                                 --devices=8 \
                                 --max-steps=1000 \
                                 --val-check-interval=100 \
-                                --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
-                                --data-path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/hyena_data/hg38/pretraining_data_hg38/data_hg38_all_text_CharLevelTokenizer_document \
+                                --experiment-dir=<path-to-exp-dir> \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=4 \
-                                --pipeline-model-parallel-size=1 \
-                                --context-parallel-size=2 \
-                                --global-batch-size=16 \
-                                --micro-batch-size=4 \
-                                --model-size=7b
-
-CUDA_VISIBLE_DEVICES=0 torchrun --nproc-per-node=1 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
-                                --devices=1 \
-                                --max-steps=40 \
-                                --experiment-dir=/home/ataghibakhsh/temp_ckpt \
-                                --data-path=/home/ataghibakhsh/datasets/hyena_toy_data/data_hg38_all_text_CharLevelTokenizer_document \
-                                --seq-length=8192 \
-                                --tensor-parallel-size=1 \
+                                --tensor-parallel-size=8 \
                                 --pipeline-model-parallel-size=1 \
                                 --context-parallel-size=1 \
-                                --global-batch-size=1 \
-                                --micro-batch-size=1 \
-                                --model-size=test
+                                --global-batch-size=16 \
+                                --micro-batch-size=4 \
+                                --model-size=40b
+
+
 """
 
 def get_args():
@@ -92,28 +80,30 @@ if __name__ == '__main__':
         "byte-level",
     )
 
-    # data = MockDataModule(
-    #     seq_length=args.seq_length,
-    #     tokenizer=tokenizer,
-    #     micro_batch_size=args.micro_batch_size,
-    #     global_batch_size=args.global_batch_size,
-    #     num_train_samples=10_000,
-    #     num_val_samples=10,
-    #     num_test_samples=10,
-    #     num_workers=0,
-    #     pin_memory=False,
-    # )
-    data = PreTrainingDataModule(
-        paths=args.data_path,
+    data = MockDataModule(
         seq_length=args.seq_length,
+        tokenizer=tokenizer,
         micro_batch_size=args.micro_batch_size,
         global_batch_size=args.global_batch_size,
-        seed=1234,
-        tokenizer=tokenizer,
+        num_train_samples=10_000,
+        num_val_samples=10,
+        num_test_samples=10,
+        num_workers=0,
+        pin_memory=False,
     )
+    # data = PreTrainingDataModule(
+    #     paths=args.data_path,
+    #     seq_length=args.seq_length,
+    #     micro_batch_size=args.micro_batch_size,
+    #     global_batch_size=args.global_batch_size,
+    #     seed=1234,
+    #     tokenizer=tokenizer,
+    # )
 
     if args.model_size == "7b":
         hyena_config = llm.Hyena7bConfig()
+    elif args.model_size == "40b":
+        hyena_config = llm.Hyena40bConfig()
     elif args.model_size == "test":
         hyena_config = llm.HyenaTestConfig()
     else:
@@ -144,6 +134,9 @@ if __name__ == '__main__':
         project="hyena_ux",
         save_dir=args.experiment_dir,
     )
+    # wandb_logger = TensorBoardLogger(
+    #     save_dir='dummy',  ## NOTE: this gets overwritten by default
+    # )
     loggers.append(wandb_logger)
 
     opt_config = OptimizerConfig(
