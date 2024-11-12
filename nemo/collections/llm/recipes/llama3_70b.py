@@ -361,7 +361,7 @@ def finetune_performance_optimizations(
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 8
-        recipe.trainer.strategy.context_parallel_size = 2
+        recipe.trainer.strategy.context_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
