@@ -38,6 +38,7 @@ from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_wor
 from nemo.collections.tts.modules import t5_transformer
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
+import nemo.collections.asr as nemo_asr
 import soundfile as sf
 
 HAVE_WANDB = True
@@ -81,6 +82,8 @@ class T5TTS_Model(ModelPT):
             audio_embeddings.append(nn.Embedding(cfg.num_audio_tokens_per_codebook, cfg.embedding_dim))
         self.audio_embeddings = nn.ModuleList(audio_embeddings)
 
+        self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
+
         self.t5_encoder = t5_transformer.TransformerStack(dict(cfg.t5_encoder))
         
         decoder_config = dict(cfg.t5_decoder)
@@ -90,15 +93,29 @@ class T5TTS_Model(ModelPT):
         self.final_proj = nn.Linear(cfg.t5_decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook)
 
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
-        codec_model.to('cuda')
         codec_model.eval()
+        self.freeze_model(codec_model)
+        self._codec_model = codec_model
+
+        speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large') 
+        speaker_verification_model.eval()
+        self.freeze_model(speaker_verification_model)
+        self._speaker_verification_model = speaker_verification_model
 
         self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
         alignment_loss_scale = cfg.get('alignment_loss_scale', 0.0)
         if alignment_loss_scale > 0.0:
             self.alignment_loss = ForwardSumLoss(loss_scale=alignment_loss_scale)
 
-        self.additional_models = {'codec': codec_model}
+    def freeze_model(self, model):
+        for param in model.parameters():
+            param.requires_grad = False
+
+    def on_save_checkpoint(self, checkpoint):
+        keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model']
+        for key in list(checkpoint['state_dict'].keys()):
+            if any([substring in key for substring in keys_substrings_to_exclude]):
+                del checkpoint['state_dict'][key]
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
@@ -148,7 +165,10 @@ class T5TTS_Model(ModelPT):
         # audio: (B, T)
         # audio_len: (B,)
         with torch.no_grad():
-            codes, codes_len = self.additional_models['codec'].encode(audio=audio, audio_len=audio_len)
+            # Move codec model to same device as audio
+            # self.additional_models['codec'] = self.additional_models['codec'].to(audio.device)
+            codec_model = self._codec_model
+            codes, codes_len = codec_model.encode(audio=audio, audio_len=audio_len)
             # Add a timestep to begining and end of codes tensor
             bos_tensor = torch.full((codes.size(0), codes.size(1), 1), self.audio_bos_id, dtype=codes.dtype, device=codes.device)
             pad_tensor = torch.full((codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device) # 0 is the padding token in the audio codebook
@@ -168,7 +188,9 @@ class T5TTS_Model(ModelPT):
             # Replace eos and bos tokens with padding in codes tensor
             codes[codes == self.audio_bos_id] = 0 # zero is the padding token in the audio codebook
             codes[codes == self.audio_eos_id] = 0
-            audio, audio_len = self.additional_models['codec'].decode(tokens=codes, tokens_len=codes_len)
+            # self.additional_models['codec'] = self.additional_models['codec'].to(codes.device)
+            codec_model = self._codec_model
+            audio, audio_len = codec_model.decode(tokens=codes, tokens_len=codes_len)
             # audio: (B, T)
             # audio_len: (B,)
             return audio, audio_len
@@ -186,6 +208,16 @@ class T5TTS_Model(ModelPT):
         audio_embedding = audio_embedding / audio_tokens.size(1)
         return audio_embedding
     
+    def get_speaker_embeddings(self, audio_16khz, audio_len_16khz):
+        # audio_16khz: (B, T)
+        # audio_len_16khz: (B,)
+        with torch.no_grad():
+            speaker_verification_model = self._speaker_verification_model
+            _, speaker_embeddings = speaker_verification_model.forward(
+                input_signal=audio_16khz, input_signal_length=audio_len_16khz
+            )
+            return speaker_embeddings
+
     def compute_loss(self, logits, audio_codes, audio_codes_lens):
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # audio_codes: (B, C, T')
@@ -211,17 +243,21 @@ class T5TTS_Model(ModelPT):
         total_codebook_loss = total_codebook_loss / audio_codes.size(1)
         return total_codebook_loss
 
-    def forward(self, text, text_lens, audio_codes=None, audio_codes_lens=None, attn_prior=None):
+    def forward(self, text, text_lens, audio_codes=None, audio_codes_lens=None, attn_prior=None, conditioning_vector=None):
         # import ipdb; ipdb.set_trace()
         text_embedded = self.text_embedding(text) # (B, T, E)
         text_mask = ~get_mask_from_lengths(text_lens) # (B, T)
-        encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None) # (B, T, E)
+        encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output'] # (B, T, E)
+        if conditioning_vector is not None:
+            # conditioning_vector: (B, E)
+            encoder_out = encoder_out + conditioning_vector.unsqueeze(1)
+
         audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens)
         audio_codes_embedded = self.embed_audio_tokens(audio_codes)
         decoder_out = self.t5_decoder(
             audio_codes_embedded,
             audio_codes_mask,
-            cond=encoder_out['output'],
+            cond=encoder_out,
             cond_mask=text_mask,
             attn_prior=attn_prior
         ) # (B, T', E)
@@ -248,7 +284,7 @@ class T5TTS_Model(ModelPT):
 
         return all_preds
 
-    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80):
+    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.1, topk=80):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = []
         for idx in range(self.cfg.num_audio_codebooks):
@@ -337,6 +373,12 @@ class T5TTS_Model(ModelPT):
         target_audio_lens = batch['audio_lens']
         attn_prior = batch.get('align_prior_matrix', None)
         attn_prior = self.scale_prior(attn_prior, self.global_step)
+
+        target_audio_16khz = batch['audio_16khz']
+        target_audio_lens_16khz = batch['audio_lens_16khz']
+        speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
+        speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
+
         audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
         audio_codes_input = audio_codes[:, :, :-1]
         audio_codes_target = audio_codes[:, :, 1:]
@@ -347,7 +389,8 @@ class T5TTS_Model(ModelPT):
             text_lens=text_lens,
             audio_codes=audio_codes_input,
             audio_codes_lens=audio_codes_lens_input,
-            attn_prior=attn_prior
+            attn_prior=attn_prior,
+            conditioning_vector=speaker_embeddings_projected
         )
         # import ipdb; ipdb.set_trace()
         codebook_loss = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
@@ -372,6 +415,12 @@ class T5TTS_Model(ModelPT):
         target_audio_lens = batch['audio_lens']
         attn_prior = batch.get('align_prior_matrix', None)
         attn_prior = self.scale_prior(attn_prior, self.global_step)
+
+        target_audio_16khz = batch['audio_16khz']
+        target_audio_lens_16khz = batch['audio_lens_16khz']
+        speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
+        speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
+
         audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
         audio_codes_input = audio_codes[:, :, :-1]
         audio_codes_target = audio_codes[:, :, 1:]
@@ -382,7 +431,8 @@ class T5TTS_Model(ModelPT):
             text_lens=text_lens,
             audio_codes=audio_codes_input,
             audio_codes_lens=audio_codes_lens_input,
-            attn_prior=attn_prior
+            attn_prior=attn_prior,
+            conditioning_vector=speaker_embeddings_projected
         )
         
         # import ipdb; ipdb.set_trace()
@@ -436,10 +486,13 @@ class T5TTS_Model(ModelPT):
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
                 audio_codes_next = self.sample_codes_from_logits(all_code_logits_t) # (B, num_codebooks)
                 all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01) # (B, num_codebooks)
+                
                 for item_idx in range(all_codes_next_argmax.size(0)):
-                    pred_token = all_codes_next_argmax[item_idx][0].item()
-                    if pred_token == self.audio_eos_id:
-                        end_indices[item_idx] = idx
+                    if item_idx not in end_indices:
+                        pred_token = all_codes_next_argmax[item_idx][0].item()
+                        if pred_token == self.audio_eos_id:
+                            print("End detected for item {} at timestep {}".format(item_idx, idx))
+                            end_indices[item_idx] = idx
 
                 all_predictions.append(audio_codes_next)
                 audio_codes_input = torch.cat([audio_codes_input, audio_codes_next.unsqueeze(-1)], dim=-1) # (B, C, T')

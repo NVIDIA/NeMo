@@ -355,13 +355,23 @@ class T5TTSDataset(TextToSpeechDataset):
             volume_norm=self.volume_norm,
         )
         audio = torch.tensor(audio_array, dtype=torch.float32)
-        # Pad audio to be multiple of downsample factor
         audio = torch.nn.functional.pad(
             audio,
             (0, self.codec_model_downsample_factor - (audio.shape[0] % self.codec_model_downsample_factor)),
             value=0
         )
         audio_len = audio.shape[0]
+
+        audio_array_16khz, _, _ = load_audio(
+            manifest_entry=data.manifest_entry,
+            audio_dir=data.audio_dir,
+            sample_rate=16000,
+            volume_norm=self.volume_norm,
+        )
+        audio_16khz = torch.tensor(audio_array_16khz, dtype=torch.float32)
+        audio_len_16khz = audio_16khz.shape[0]
+        # Pad audio to be multiple of downsample factor
+        
 
         tokens = self.text_tokenizer(data.text)
         tokens = tokens + [self.eos_id] # Not adding BOS id
@@ -373,6 +383,8 @@ class T5TTSDataset(TextToSpeechDataset):
             "audio_filepath": audio_filepath_rel,
             "audio": audio,
             "audio_len": audio_len,
+            "audio_16khz": audio_16khz,
+            "audio_len_16khz": audio_len_16khz,
             "tokens": tokens,
             "text_len": text_len,
         }
@@ -402,3 +414,71 @@ class T5TTSDataset(TextToSpeechDataset):
 
         return example
     
+    def collate_fn(self, batch: List[dict]):
+        dataset_name_list = []
+        audio_filepath_list = []
+        audio_list = []
+        audio_len_list = []
+        audio_list_16khz = []
+        audio_len_list_16khz = []
+        token_list = []
+        token_len_list = []
+        speaker_list = []
+        prior_list = []
+
+        for example in batch:
+            dataset_name_list.append(example["dataset_name"])
+            audio_filepath_list.append(example["audio_filepath"])
+
+            audio_list.append(example["audio"])
+            audio_len_list.append(example["audio_len"])
+
+            audio_list_16khz.append(example["audio_16khz"])
+            audio_len_list_16khz.append(example["audio_len_16khz"])
+
+            token_list.append(example["tokens"])
+            token_len_list.append(example["text_len"])
+
+            if self.include_speaker:
+                speaker_list.append(example["speaker_index"])
+
+            if self.include_align_prior:
+                prior_list.append(example["align_prior"])
+
+        batch_audio_len = torch.IntTensor(audio_len_list)
+        audio_max_len = int(batch_audio_len.max().item())
+
+        batch_audio_len_16khz = torch.IntTensor(audio_len_list_16khz)
+        audio_max_len_16khz = int(batch_audio_len_16khz.max().item())
+
+        batch_token_len = torch.IntTensor(token_len_list)
+        token_max_len = int(batch_token_len.max().item())
+
+        batch_audio = stack_tensors(audio_list, max_lens=[audio_max_len])
+        batch_audio_16khz = stack_tensors(audio_list_16khz, max_lens=[audio_max_len_16khz])
+        batch_tokens = stack_tensors(token_list, max_lens=[token_max_len], pad_value=self.text_tokenizer.pad)
+
+        batch_dict = {
+            "dataset_names": dataset_name_list,
+            "audio_filepaths": audio_filepath_list,
+            "audio": batch_audio,
+            "audio_lens": batch_audio_len,
+            "audio_16khz": batch_audio_16khz,
+            "audio_lens_16khz": batch_audio_len_16khz,
+            "text": batch_tokens,
+            "text_lens": batch_token_len,
+        }
+
+        if self.include_speaker:
+            batch_dict["speaker_id"] = torch.IntTensor(speaker_list)
+
+        if self.include_align_prior:
+            spec_max_len = max([prior.shape[0] for prior in prior_list])
+            text_max_len = max([prior.shape[1] for prior in prior_list])
+            batch_dict["align_prior_matrix"] = stack_tensors(prior_list, max_lens=[text_max_len, spec_max_len],)
+
+        for featurizer in self.featurizers:
+            feature_dict = featurizer.collate_fn(batch)
+            batch_dict.update(feature_dict)
+
+        return batch_dict

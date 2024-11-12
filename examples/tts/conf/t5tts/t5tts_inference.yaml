@@ -58,6 +58,7 @@ model:
       num_workers: 2
 
   t5_encoder:
+    speaker_emb_dim: 192
     is_causal: false
     pos_emb:
       name: "rope"

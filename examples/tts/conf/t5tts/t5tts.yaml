@@ -18,6 +18,7 @@ sample_rate: 22050
 phoneme_dict_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/heteronyms-052722"
 model:
+  speaker_emb_dim: 192
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1024
