@@ -55,6 +55,7 @@ if __name__ == '__main__':
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
+    parser.add_argument('--model-accelerator', default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--model-save-path', type=str, default=None)
@@ -76,6 +77,11 @@ if __name__ == '__main__':
     model = llm.HfAutoModelForCausalLM(args.model)
     tokenizer = model.tokenizer
 
+    callbacks = []
+    if args.model_accelerator:
+        if args.model_accelerator == "te":
+            callbacks.append(TETransform())
+
     llm.api.finetune(
         model=model,
         data=squad(tokenizer),
@@ -90,12 +96,16 @@ if __name__ == '__main__':
             accumulate_grad_batches=10,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
-            callbacks=[TETransform()],
+            callbacks=callbacks,
             logger=wandb,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
+
+    if args.model_accelerator:
+        if args.model_accelerator == "te":
+            print("TE Accelerated: ", TEAccelerator.te_accelerated(model.model))
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)
