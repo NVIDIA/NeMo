@@ -5,12 +5,15 @@ Batching
 
 Batch size is one of the first parameters you should play with. For efficiency and convergence reasons we recommend you first try maximizing your batch size per GPU so that your GPU RAM usage is maximized.
 
-NeMo Megatron uses the following concepts.
+NeMo Framework uses the following concepts.
 
-*Micro batch size* is the number of examples per data parallel rank. It is controlled by ``model.micro_batch_size`` parameter.
-
-*Global batch size* = micro_batch_size * data_parallel_size * gradient_accumulation_steps. For details on ``data_parallel_size`` see :ref:`parallelisms` section, but typically it is equal to the number of GPUs being used.
-Global batch size is controlled by ``model.global_batch_size`` parameter. 
+===========================  ==================================================================================================================================
+Parameter                    Description
+===========================  ==================================================================================================================================
+Micro Batch Size             The number of examples per data parallel rank.
+Global Batch Size            ``global batch size = micro_batch_size * data_parallel_size * gradient_accumulation_steps``. For details on ``data_parallel_size`` see :doc:`../../features/parallelisms`, but typically it is equal to the number of GPUs being used.
+Gradient Accumulation        Overlap gradient reduce-scatter with compute
+===========================  ==================================================================================================================================
 
 
 *Gradient Accumulation*
