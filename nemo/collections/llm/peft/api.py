@@ -12,29 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Union
 
-import nemo_run as run
 import pytorch_lightning as pl
-import torch
 from megatron.core import dist_checkpointing
-from pytorch_lightning.loops import _PredictionLoop
 from pytorch_lightning.trainer.states import TrainerFn
-from typing_extensions import Annotated
 
-from nemo.collections import llm
-from nemo.collections.llm.api import _set_with_io
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.utils import factory
-from nemo.lightning import AutoResume, NeMoLogger, Trainer
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
-from nemo.lightning.io import load_context
-from nemo.lightning.io.pl import TrainerContext
+from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib, io
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.callbacks.peft import PEFT
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 
 @factory
@@ -44,129 +39,142 @@ def gpt_lora() -> PEFT:
 
 def merge_lora(
     model: pl.LightningModule,
-    trainer: Trainer,
+    lora_checkpoint_path: str,
     output_path: str,
-    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
-    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
 ):
-    _log = log or NeMoLogger()
-    # logger will setup paths in trainer
-    _log.setup(
-        trainer,
-        resume_if_exists=getattr(resume, "resume_if_exists", False),
-        task_config=None,
+    """
+    Merges the LoRA adapter weights into the base model's weights.
+
+    Python Usage:
+    ```python
+    def llama3_8b() -> pl.LightningModule:
+        from transformers import AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
+        return llm.LlamaModel(llm.Llama3Config8B(), tokenizer=tokenizer)
+
+
+    if __name__ == '__main__':
+        llm.peft.merge_lora(
+            model=llama3_8b(),
+            lora_checkpoint_path=your_lora_checkpoint_path,
+            output_path=your_output_path,
+        )
+    ```
+
+    Args:
+        model: The base model instance to merge the LoRA adapter weights into.
+        lora_checkpoint_path: The path to the LoRA checkpoint.
+        output_path: The path to save the merged checkpoint.
+
+    """
+    from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+
+    trainer = Trainer(
+        devices=1,
+        accelerator="cpu",
+        strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
     )
-    resume.setup(trainer, model)
-    lora = load_context(resume.get_context_path(), "model.model_transform")
-    if lora:
-        _set_with_io(model, "model_transform", lora)
-        trainer.callbacks.append(lora)
+
+    if (
+        adapter_meta_path := ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False) / ADAPTER_META_FILENAME
+    ).exists():
+        with open(adapter_meta_path, "r") as f:
+            metadata = json.load(f)
+        restore_config = RestoreConfig(
+            path=metadata["model_ckpt_path"],
+            load_model_state=True,
+            load_optim_state=False,
+        )
     else:
-        raise Exception("Cannot find LoRA config")
+        raise ValueError(f"Cannot find adapter meta file in {lora_checkpoint_path}")
 
-    predict_dataloader = llm.SquadDataModule(seq_length=2048, micro_batch_size=2, global_batch_size=8, num_workers=0)
+    trainer.strategy.restore_config = restore_config
+    trainer.strategy._setup_optimizers = False
+    trainer.ckpt_path = None
+    trainer.strategy.connect(model)
+    trainer.strategy.setup_environment()
 
-    class LoRAMergeLoop(_PredictionLoop):  # PredictionLoop is internal now X_X
-        def __init__(self, trainer, inference_mode: bool = True):
-            super().__init__(trainer, inference_mode)
+    if not model.state_dict():
+        with _strategy_lib.megatron_cpu_init_context(model.config):
+            model.configure_model()
 
-        def run(self):
-            self._on_predict_start()  # trigger ModelTransform on_predict_start hook to enter PEFT load ckpt for the second time, loading adapter state_dict
-            if trainer.state.fn == TrainerFn.PREDICTING:  # no need ?
-                # base_state_dict = {k:v for k,v in trainer.model.state_dict().items() if 'adapter' not in k and 'extra_state' not in k }
-                base_sharded_dict = {k: v for k, v in trainer.model.sharded_state_dict().items() if 'adapter' not in k}
-                lora_sharded_dict = {
-                    k: v.data.data
-                    for k, v in trainer.model.sharded_state_dict().items()
-                    if 'adapter' in k and 'extra_state' not in k
-                }
-                merged_weights = self._merge_lora_weights(
-                    base_model_state_dict=base_sharded_dict,
-                    lora_state_dict=lora_sharded_dict,
-                    num_layers=trainer.model.config.num_layers,
-                    tp_size=trainer.strategy.tensor_model_parallel_size,
-                    rank=torch.distributed.get_rank(),
+    trainer.strategy.setup(trainer)
+    trainer.state.fn = TrainerFn.TESTING
+    trainer.strategy.setup_megatron_parallel(trainer=trainer)
+    trainer.strategy.trainer = trainer
+
+    lora: Union[io.TrainerContext, LoRA] = io.load_context(
+        ckpt_to_context_subdir(lora_checkpoint_path), "model.model_transform"
+    )
+    assert isinstance(lora, LoRA), "LoRA config not found in checkpoint"
+    model = lora(model)
+    adapter_sharded_state_dict = {
+        k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items() if ".adapter." in k
+    }
+    adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
+        ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
+    )
+    trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+    base_sharded_dict = {
+        k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items() if 'adapter' not in k
+    }
+    lora_sharded_dict = {
+        k: v.data.data
+        for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items()
+        if 'adapter' in k and 'extra_state' not in k
+    }
+
+    merged_weights = _merge_lora_weights(
+        base_model_state_dict=base_sharded_dict,
+        lora_state_dict=lora_sharded_dict,
+        num_layers=trainer.model.config.num_layers,
+    )
+    weight_path = ckpt_to_weights_subdir(output_path, is_saving=True)
+    Path(weight_path).mkdir(parents=True, exist_ok=True)
+    dist_checkpointing.save(merged_weights, str(ckpt_to_weights_subdir(output_path, is_saving=True)))
+    if hasattr(model.tokenizer, "save_pretrained"):
+        model.tokenizer.save_pretrained("/tmp/nemo_tokenizer")
+        model.tokenizer = AutoTokenizer("/tmp/nemo_tokenizer")
+    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
+        trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
+    TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path), yaml_attrs=["model"])
+    logging.info(f"Merged checkpoint saved to {output_path}")
+
+
+def _merge_lora_weights(
+    base_model_state_dict: Dict[str, Any],
+    lora_state_dict: Dict[str, Any],
+    num_layers: int,
+):
+    mcore_layer_keys = [
+        "self_attention.linear_qkv.weight",
+        "self_attention.linear_proj.weight",
+        "mlp.linear_fc1.weight",
+        "mlp.linear_fc2.weight",
+    ]
+    for nl in range(num_layers):
+        for key in mcore_layer_keys:
+            key_base = f'module.decoder.layers.{nl}.{key}'
+            key_lora_in = f'module.decoder.layers.{nl}.{key.rsplit(".weight", 1)[0] + ".adapter.linear_in.weight"}'
+            key_lora_out = f'module.decoder.layers.{nl}.{key.rsplit(".weight", 1)[0] + ".adapter.linear_out.weight"}'
+            if key_lora_in in lora_state_dict and key_lora_out in lora_state_dict:
+                wt_lora_in = lora_state_dict[key_lora_in]
+                wt_lora_out = lora_state_dict[key_lora_out]
+                wt_lora = wt_lora_out @ wt_lora_in
+                wt_lora_current_rank = wt_lora
+
+                wt_base = base_model_state_dict[key_base].data.data
+                logging.info(
+                    f"Full {key_base} wt_lora_in {wt_lora_in.shape}, wt_lora_out {wt_lora_out.shape}, wt_lora {wt_lora.shape}, wt_base {wt_base.shape}"
                 )
-            weight_path = ckpt_to_weights_subdir(output_path)
-            Path(weight_path).mkdir(parents=True, exist_ok=True)
-            dist_checkpointing.save(merged_weights, str(ckpt_to_weights_subdir(weight_path)))
-            if is_global_rank_zero():
-                # trainer.model.io_dump(output_path)
-                if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
-                    trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path), yaml_attrs="model")
-            logging.info(f"Merged checkpoint saved to {output_path}")
 
-        def _merge_lora_weights(
-            self,
-            base_model_state_dict: Dict[str, Any],
-            lora_state_dict: Dict[str, Any],
-            num_layers: int,
-            tp_size: int,
-            rank: int,
-        ):
-            mcore_layer_keys = [
-                "self_attention.linear_qkv.weight",
-                "self_attention.linear_proj.weight",
-                "mlp.linear_fc1.weight",
-                "mlp.linear_fc2.weight",
-            ]
-            print("###### TP_SIZE", tp_size)
-            for nl in range(num_layers):
-                for key in mcore_layer_keys:
-                    key_base = f'module.decoder.layers.{nl}.{key}'
-                    key_lora_in = (
-                        f'module.decoder.layers.{nl}.{key.rsplit(".weight", 1)[0] + ".adapter.linear_in.weight"}'
-                    )
-                    key_lora_out = (
-                        f'module.decoder.layers.{nl}.{key.rsplit(".weight", 1)[0] + ".adapter.linear_out.weight"}'
-                    )
-                    if key_lora_in in lora_state_dict and key_lora_out in lora_state_dict:
-                        if tp_size > 1:
-                            gathered_lora_in = [torch.zeros_like(lora_state_dict[key_lora_in]) for _ in range(tp_size)]
-                            gathered_lora_out = [
-                                torch.zeros_like(lora_state_dict[key_lora_out]) for _ in range(tp_size)
-                            ]
-                            torch.distributed.all_gather(gathered_lora_in, lora_state_dict[key_lora_in])
-                            torch.distributed.all_gather(gathered_lora_out, lora_state_dict[key_lora_out])
+                base_model_state_dict[key_base].data.data = (
+                    wt_base.float() + wt_lora_current_rank.to(wt_base.device)
+                ).type_as(wt_base)
+                logging.info(f'merging for weight {key_base}')
 
-                            if is_global_rank_zero():
-                                print(
-                                    f"RANK{torch.distributed.get_rank()} has {key_lora_in} shape {lora_state_dict[key_lora_in].shape}"
-                                )  # gathered lorain{gathered_lora_in}")
-                                print(
-                                    f"RANK{torch.distributed.get_rank()} has {key_lora_out} shape {lora_state_dict[key_lora_out].shape}"
-                                )  # gathered loraout {gathered_lora_out}")
-                            tp_dim_lora_in = (
-                                1 if key in ["self_attention.linear_proj.weight", "mlp.linear_fc2.weight"] else 0
-                            )
-                            wt_lora_in = torch.cat(gathered_lora_in, dim=tp_dim_lora_in).float()
-                            wt_lora_out = torch.cat(gathered_lora_out, dim=0).float()
-                            wt_lora = wt_lora_out @ wt_lora_in
-                            tp_dim_base = (
-                                0 if key in ["self_attention.linear_qkv.weight", "mlp.linear_fc1.weight"] else 1
-                            )
-                            wt_lora_current_rank = torch.chunk(wt_lora, tp_size, dim=tp_dim_base)[rank]
-                        else:  # when tp==1
-                            wt_lora_in = lora_state_dict[key_lora_in]
-                            wt_lora_out = lora_state_dict[key_lora_out]
-                            wt_lora = wt_lora_out @ wt_lora_in
-                            wt_lora_current_rank = wt_lora
-
-                        wt_base = base_model_state_dict[key_base].data.data
-                        logging.info(
-                            f"Full {key_base} wt_lora_in {wt_lora_in.shape}, wt_lora_out {wt_lora_out.shape}, wt_lora {wt_lora.shape}, wt_base {wt_base.shape}"
-                        )
-
-                        base_model_state_dict[key_base].data.data = (
-                            wt_base.float() + wt_lora_current_rank.to(wt_base.device)
-                        ).type_as(wt_base)
-                        logging.info(f'merging for weight {key_base}')
-
-            return base_model_state_dict  # reference, no need to return. return for clarity??
-
-    trainer.predict_loop = LoRAMergeLoop(trainer)
-    trainer.predict(model, dataloaders=predict_dataloader)  # How to get rid of this dummy data loader??
+    return base_model_state_dict  # reference, no need to return. return for clarity??
 
 
 __all__ = ["gpt_lora", "merge_lora"]
