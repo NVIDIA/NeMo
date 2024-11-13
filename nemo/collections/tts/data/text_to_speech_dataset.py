@@ -347,7 +347,6 @@ class T5TTSDataset(TextToSpeechDataset):
     
     def __getitem__(self, index):
         data = self.data_samples[index]
-
         audio_array, _, audio_filepath_rel = load_audio(
             manifest_entry=data.manifest_entry,
             audio_dir=data.audio_dir,

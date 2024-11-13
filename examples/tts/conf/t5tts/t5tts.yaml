@@ -15,8 +15,8 @@ val_ds_meta: ???
 # Modify these values based on your sample rate
 sample_rate: 22050
 
-phoneme_dict_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
-heteronyms_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/heteronyms-052722"
+phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
   speaker_emb_dim: 192
   num_audio_codebooks: 8
@@ -27,7 +27,7 @@ model:
   prior_scaledown_start_step: 200
   alignment_loss_scale: 0.0
   embedding_dim: 768
-  codecmodel_path: null
+  codecmodel_path: ???
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
 
@@ -54,7 +54,7 @@ model:
       weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
       sample_rate: ${sample_rate}
       # speaker_path: ${speaker_path}
-      min_duration: 0.1
+      min_duration: 1.0
       max_duration: 20.0
 
     dataloader_params:
@@ -68,6 +68,8 @@ model:
       dataset_meta: ${val_ds_meta}
       sample_rate: ${sample_rate}
       # speaker_path: ${speaker_path}
+      min_duration: 1.0
+      max_duration: 20.0
 
     dataloader_params:
       batch_size: ${batch_size}
