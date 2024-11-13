@@ -110,8 +110,7 @@ def to_img(tokens_string, image_tokenizer):
 
 
 def load_prompts(cfg):
-    """Function to return the prompts passed into the model
-    """
+    """Function to return the prompts passed into the model"""
     prompts = []
     for caption in cfg.captions:
         prompt = f'You are a helpful assistant. Draw a picture for the caption given by the user. USER: {caption}. ASSISTANT: '
@@ -125,8 +124,7 @@ if not torch.cuda.is_available():
 
 @hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_image_generation")
 def main(cfg) -> None:
-    """Main function
-    """
+    """Main function"""
 
     callbacks = []
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
