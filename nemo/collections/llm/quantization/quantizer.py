@@ -261,8 +261,6 @@ class Quantizer:
 
         return loop
 
-
-
     def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
         # TODO: Add sample generate
