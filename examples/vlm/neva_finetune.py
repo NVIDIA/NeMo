@@ -90,7 +90,12 @@ def main(args):
     #
     # model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
-    model = vlm.LlavaModel(vlm.Llava15Config7B(freeze_vision_model=True,), tokenizer=data.tokenizer)
+    model = vlm.LlavaModel(
+        vlm.Llava15Config7B(
+            freeze_vision_model=True,
+        ),
+        tokenizer=data.tokenizer,
+    )
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(

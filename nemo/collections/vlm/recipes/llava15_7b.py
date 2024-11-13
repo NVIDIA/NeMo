@@ -108,7 +108,7 @@ def finetune_recipe(
         plugins=bf16_mixed(),
         strategy=strategy,
         val_check_interval=1000,
-        callbacks=[run.Config(TimingCallback)]
+        callbacks=[run.Config(TimingCallback)],
     )
 
     recipe = run.Partial(
