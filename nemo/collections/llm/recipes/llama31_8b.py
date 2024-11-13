@@ -15,46 +15,51 @@
 
 from typing import Callable, Optional
 
-import lightning.pytorch as pl
 import nemo_run as run
+import pytorch_lightning as pl
 import torch
-from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
+from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
+from nemo.collections.llm.gpt.model.llama import Llama31Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+)
+from nemo.lightning.pytorch.callbacks import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama3_8b"
+NAME = "llama31_8b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama3 8B model configuration.
+    Factory function to create a Llama3.1 8B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama3 8B model.
+        run.Config[pl.LightningModule]: Configuration for the Llama3.1 8B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama3_8b ...
+            $ nemo llm pretrain model=llama31_8b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(LlamaModel, config=run.Config(Llama3Config8B))
+    conf = run.Config(Llama31Config8B)
+    conf.seq_length = 8192
+    return run.Config(LlamaModel, config=conf)
 
 
 def trainer(
@@ -70,9 +75,9 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama3 8B model.
+    Configure the NeMo Lightning Trainer for Llama3.1 8B model.
 
-    This function sets up the distributed training strategy and other training parameters.
+    This function sets up the distributed training strategy optimized for the large 8B model.
 
     Args:
         tensor_parallelism (int): Degree of tensor model parallelism.
@@ -91,15 +96,14 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama3_8b ...
+            $ nemo llm pretrain trainer=llama31_8b ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
             >>> print(trainer_config)
 
     Note:
-        For more information on distributed training strategies, refer to the
-        NeMo documentation on multi-GPU and multi-node training.
+        This configuration uses extensive parallelism to handle the large model size efficiently.
     """
     strategy = run.Config(
         nl.MegatronStrategy,
@@ -152,7 +156,7 @@ def pretrain_recipe(
     fn: Callable = pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Llama3 8B model.
+    Create a pre-training recipe for Llama3.1 8B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -170,16 +174,15 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama3_8b
-            $ nemo llm pretrain --factory "llama3_8b(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory llama31_8b
+            $ nemo llm pretrain --factory "llama31_8b(num_nodes=4, name='my_8b_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_8b_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe(name="llama31_8b_pretrain", num_nodes=4)
             >>> print(recipe)
 
     Note:
-        For more details on pre-training LLMs with NeMo, see the pre-training
-        guide in the `examples/llm/pretrain/` directory.
+        This recipe is optimized for the large 8B model and requires significant computational resources.
     """
     recipe = run.Partial(
         fn,
@@ -203,7 +206,7 @@ def pretrain_recipe(
 
 def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Llama3 8B model.
+    Create a performance-optimized pre-training recipe for Llama3.1 8B model.
 
     This method enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
@@ -218,12 +221,25 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         Use this method with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
+
+    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
+    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
+    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
+    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
+    # each PP stage launches independently as needed.
+
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
+            tp_comm_overlap=True,
+            tp_comm_overlap_cfg=userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+            defer_embedding_wgrad_compute=True,
+            wgrad_deferral_limit=50,
+            overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
+            align_param_gather=True,
         )
     )
+
     return recipe
 
 
@@ -239,7 +255,7 @@ def finetune_recipe(
     performance_mode: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama3 8B model.
+    Create a fine-tuning recipe for Llama3.1 8B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -261,10 +277,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama3_8b
+            $ nemo llm finetune --factory llama31_8b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama3_8b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="llama31_8b_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -282,7 +298,7 @@ def finetune_recipe(
         seq_length = 4096 if packed_sequence else 2048
 
     recipe = default_finetune_recipe(
-        model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), "meta-llama/Meta-Llama-3.1-8B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
