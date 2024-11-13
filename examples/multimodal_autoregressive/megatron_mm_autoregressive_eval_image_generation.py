@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-import os
-import math
 import datetime
+import math
+import os
+import re
+
 import torch
 import torchvision
+from examples.nlp.language_modeling.megatron_gpt_eval import (
+    load_model_from_config,
+    remove_padded_prompts,
+    round_to_mult,
+)
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.video_tokenizers.cosmos_tokenizer import CausalVideoTokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy
 from nemo.core.config import hydra_runner
-from examples.nlp.language_modeling.megatron_gpt_eval import load_model_from_config,round_to_mult, remove_padded_prompts
 
 """
 This is the script to run multimodal autoregresssive text generation.
@@ -88,7 +93,7 @@ def to_img(tokens_string, image_tokenizer):
     visual_tokens = [int(match) for match in re.findall(visual_token_pattern, tokens_string)]
     # We assume image is square. So if 64 tokensa are present, we reshape it to 8x8 and then pass it to decoder
     dim = int(math.sqrt(len(visual_tokens)))
-    visual_tokens_tensor = torch.tensor(visual_tokens[:dim*dim])
+    visual_tokens_tensor = torch.tensor(visual_tokens[: dim * dim])
     # Decoder accepts input of the following format [bs, channel_dim, h, w]
     visual_tokens_tensor_reshaped = visual_tokens_tensor.reshape((dim, dim)).unsqueeze(0).unsqueeze(0)
     visual_tokens_final = visual_tokens_tensor_reshaped.to(image_tokenizer._device)
@@ -97,7 +102,7 @@ def to_img(tokens_string, image_tokenizer):
     # Convert from bf16 to 16 and to format [channel_dim, h, w]
     image = torchvision.transforms.functional.to_pil_image(img.float().squeeze())
     return image
-    
+
 
 def load_prompts(cfg):
     prompts = []
@@ -106,8 +111,10 @@ def load_prompts(cfg):
         prompts.append(prompt)
     return prompts
 
+
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
+
 
 @hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_image_generation")
 def main(cfg) -> None:
@@ -124,10 +131,7 @@ def main(cfg) -> None:
     )
 
     image_tokenizer = CausalVideoTokenizer.from_pretrained(
-        tokenizer_type=cfg.image_encoder,
-        load_encoder=False,
-        load_decoder=True,
-        load_full_model=False
+        tokenizer_type=cfg.image_encoder, load_encoder=False, load_decoder=True, load_full_model=False
     )
 
     model = load_model_from_config(trainer, cfg)
@@ -177,8 +181,9 @@ def main(cfg) -> None:
     for idx, output_token_string in enumerate(output_tokens_strings):
         image = to_img(output_token_string, image_tokenizer)
         image.save(os.path.join(cfg.images_output_path, f'{idx}.jpg'))
-        
+
     print(f'Images saved to {cfg.images_output_path}')
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter

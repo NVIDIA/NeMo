@@ -14,10 +14,17 @@
 
 
 import datetime
-from PIL import Image
-from omegaconf import OmegaConf
+
 import torch
 import torchvision
+from examples.nlp.language_modeling.megatron_gpt_eval import (
+    RequestDataSet,
+    load_model_from_config,
+    remove_padded_prompts,
+    round_to_mult,
+)
+from omegaconf import OmegaConf
+from PIL import Image
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
@@ -25,7 +32,6 @@ from transformers import AutoModel, AutoTokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy
 from nemo.core.config import hydra_runner
-from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet, load_model_from_config,round_to_mult, remove_padded_prompts
 
 """
 This is the script to run multimodal autoregresssive text generation.
@@ -86,18 +92,17 @@ Usage:
 EMU_HUB = "BAAI/Emu3-Gen"
 VQ_HUB = "BAAI/Emu3-VisionTokenizer"
 
+
 def to_imgstr(image_tokens, tokenizer):
     image_tokens = image_tokens.cpu().numpy().tolist()
     image_token_str = [
-        [
-            '<|visual token {token_id:0>6d}|>'.format(token_id=token_id)
-            for token_id in token_row
-        ]
+        ['<|visual token {token_id:0>6d}|>'.format(token_id=token_id) for token_id in token_row]
         for token_row in image_tokens
     ]
     image_row_str = ["".join(token_row) for token_row in image_token_str]
     imgstr = tokenizer.eol_token.join(image_row_str)
     return imgstr
+
 
 def load_prompts(cfg, image_tokenizer, tokenizer):
     prompts = []
@@ -109,20 +114,22 @@ def load_prompts(cfg, image_tokenizer, tokenizer):
         bs, h, w = image_tokens.shape
         imgstr = to_imgstr(image_tokens[0], tokenizer=tokenizer)
         image_prompt = (
-            tokenizer.boi_token +
-            f'{h}*{w}' +
-            tokenizer.img_token + 
-            imgstr + 
-            tokenizer.eol_token +
-            tokenizer.eof_token +
-            tokenizer.eoi_token
+            tokenizer.boi_token
+            + f'{h}*{w}'
+            + tokenizer.img_token
+            + imgstr
+            + tokenizer.eol_token
+            + tokenizer.eof_token
+            + tokenizer.eoi_token
         )
         prompt = f'{tokenizer.bos_token}You are a helpful assistant. USER: {image_prompt}{text}. ASSISTANT:'
         prompts.append(prompt)
     return prompts
 
+
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
+
 
 @hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_vision_understanding")
 def main(cfg) -> None:
@@ -200,7 +207,6 @@ def main(cfg) -> None:
     print("***************************")
     print(response)
     print("***************************")
-
 
 
 if __name__ == '__main__':
