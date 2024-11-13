@@ -50,6 +50,8 @@ class BatchedBeamHyps:
         )
         self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
         self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
+        self.scores.fill_(-float("inf"))
+        self.scores[:, 0].fill_(0.0)
 
         # self.last_timestep = torch.full((batch_size, self.beam_size), fill_value=-1, device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
@@ -64,7 +66,8 @@ class BatchedBeamHyps:
         self.current_lengths_wb.fill_(0)
         self.transcript.fill_(0)
         self.timesteps.fill_(0)
-        self.scores.fill_(0.0)
+        self.scores.fill_(-float("inf"))
+        self.scores[:, 0].fill_(0.0)
         self.transcript_prev_ptr.fill_(-1)
         # self.last_timestep.fill_(-1)
         self.last_timestep_lasts.fill_(0)
@@ -95,6 +98,7 @@ class BatchedBeamHyps:
         next_labels,
         next_hyps_prob,
     ):
+        # TODO: timesteps
         self.scores.copy_(next_hyps_prob)
         self.transcript[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = next_labels.view(
             -1
@@ -202,7 +206,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             batch_size=batch_size,
             beam_size=self.beam_size,
             blank_index=self._blank_index,
-            init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
+            init_length=max_time * (self.max_symbols + 1) if self.max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
         )
@@ -295,7 +299,10 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             hyps_indices = torch.gather(hyps_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
             next_labels = torch.gather(labels_top_k.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
 
-            batched_hyps.add_results_(hyps_indices, next_labels, next_hyps_prob)
+            if self.max_symbols is None:
+                batched_hyps.add_results_(hyps_indices, next_labels, next_hyps_prob)
+            else:
+                batched_hyps.add_results_no_checks_(hyps_indices, next_labels, next_hyps_prob)
 
             last_labels_wb = torch.where(
                 next_labels >= 0, next_labels, torch.full_like(next_labels, fill_value=self._blank_index)
