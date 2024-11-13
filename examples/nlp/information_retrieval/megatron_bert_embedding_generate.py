@@ -23,7 +23,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="megatron_bert_embedding_config")
+@hydra_runner(config_path="conf", config_name="megatron_bert_embedding_generate_config")
 def main(cfg) -> None:
     if cfg.model.data.dataloader_type != "LDDL":
         mp.set_start_method("spawn", force=True)
