@@ -19,6 +19,7 @@ safe_import("transformer_engine")
 
 from nemo.collections.llm import peft
 from nemo.collections.llm.gpt.data import (
+    AlpacaDataModule,
     DollyDataModule,
     FineTuningDataModule,
     HfDatasetDataModule,
@@ -26,7 +27,7 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
-from nemo.collections.llm.gpt.data.api import dolly, mock, squad
+from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (
     Baichuan2Config,
     Baichuan2Config7B,
@@ -46,6 +47,11 @@ from nemo.collections.llm.gpt.model import (
     CodeLlamaConfig13B,
     CodeLlamaConfig34B,
     CodeLlamaConfig70B,
+    Gemma2Config,
+    Gemma2Config2B,
+    Gemma2Config9B,
+    Gemma2Config27B,
+    Gemma2Model,
     GemmaConfig,
     GemmaConfig2B,
     GemmaConfig7B,
@@ -81,8 +87,8 @@ from nemo.collections.llm.gpt.model import (
     MixtralModel,
     Nemotron3Config4B,
     Nemotron3Config8B,
+    Nemotron3Config22B,
     Nemotron4Config15B,
-    Nemotron4Config22B,
     Nemotron4Config340B,
     NemotronConfig,
     NemotronModel,
@@ -134,8 +140,8 @@ __all__ = [
     "NemotronModel",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
+    "Nemotron3Config22B",
     "Nemotron4Config15B",
-    "Nemotron4Config22B",
     "Nemotron4Config340B",
     "NemotronConfig",
     "SSMConfig",
@@ -167,6 +173,11 @@ __all__ = [
     "CodeGemmaConfig2B",
     "CodeGemmaConfig7B",
     "GemmaModel",
+    "Gemma2Model",
+    "Gemma2Config9B",
+    "Gemma2Config",
+    "Gemma2Config27B",
+    "Gemma2Config2B",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
@@ -189,6 +200,7 @@ __all__ = [
     "squad",
     "dolly",
     "peft",
+    "hf_dataset",
     "HfAutoModelForCausalLM",
 ]
 

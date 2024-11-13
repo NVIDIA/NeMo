@@ -55,7 +55,7 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 1,
+    tensor_parallelism: int = 2,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
@@ -171,6 +171,9 @@ def pretrain_recipe(
         For more details on pre-training LLMs with NeMo, see the pre-training
         guide in the `examples/llm/pretrain/` directory.
     """
+    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
+    os.environ['NVTE_FUSED_ATTN'] = "0"
+
     return run.Partial(
         fn,
         model=model(),
@@ -254,6 +257,7 @@ def finetune_recipe(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        packed_sequence (Optional[bool]): Packing multiple training sequences into one long sequence for training efficiency. Default sequence length is 2048.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -277,6 +281,9 @@ def finetune_recipe(
     recipe = default_finetune_recipe(
         model(), "google/gemma-7b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
+    # Gemma requires BOS
+    recipe.data.dataset_kwargs = {'add_bos': True}
+
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6

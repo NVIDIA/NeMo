@@ -21,10 +21,12 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
+from rich.console import Console
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
+from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 
@@ -414,7 +416,71 @@ def import_ckpt(
     output_path: Optional[Path] = None,
     overwrite: bool = False,
 ) -> Path:
-    return io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite)
+    """
+    Imports a checkpoint into a model using the model's associated importer, typically for
+    the purpose of fine-tuning a community model trained in an external framework, such as
+    Hugging Face.
+
+    This function can be used both programmatically and through the NeMo CLI:
+
+    CLI Usage:
+    ```bash
+    # Import Llama 3 8B from HuggingFace (saves to $NEMO_MODELS_CACHE)
+    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B"
+
+    # Import with custom output path
+    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" output_path="/path/to/save"
+
+    # Force overwrite existing checkpoint
+    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" overwrite=true
+    ```
+
+    Python Usage:
+    ```python
+    model = Mistral7BModel()
+    imported_path = import_ckpt(model, "hf://mistralai/Mistral-7B-v0.1")
+    ```
+
+    The importer component of the model reads the checkpoint data from the specified source
+    and transforms it into the right format. This is particularly useful for adapting
+    models that have been pre-trained in different environments or frameworks to be fine-tuned
+    or further developed within the current system.
+
+    For instance, using `import_ckpt(Mistral7BModel(), "hf")` initiates the import process
+    by searching for a registered model importer tagged with "hf". In NeMo, `HFMistral7BImporter`
+    is registered under this tag via:
+    `@io.model_importer(Mistral7BModel, "hf", default_path="mistralai/Mistral-7B-v0.1")`.
+    This links `Mistral7BModel` to `HFMistral7BImporter`, designed for HuggingFace checkpoints.
+
+    Args:
+        model (pl.LightningModule): The model into which the checkpoint will be imported.
+            This model must implement the ConnectorMixin.
+        source (str): The source from which the checkpoint will be imported. This can be
+            a file path, URL, or any other string identifier that the model's importer
+            can recognize.
+        output_path (Optional[Path]): The path where the imported checkpoint will be stored.
+            If not specified, the checkpoint will be saved to $NEMO_MODELS_CACHE
+            (defaults to ~/.cache/nemo/models/ if the environment variable is not set).
+        overwrite (bool): If set to True, existing files at the output path will be overwritten.
+            This is useful for model updates where retaining old checkpoint files is not required.
+
+    Returns:
+        Path: The path where the checkpoint has been saved after import.
+
+    Raises:
+        ValueError: If the model does not implement ConnectorMixin, indicating a lack of
+            necessary importer functionality.
+    """
+    output = io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite)
+
+    console = Console()
+    if output_path:
+        console.print(f"[green]✓ Checkpoint imported to {output}[/green]")
+    else:
+        console.print(f"[green] $NEMO_MODELS_CACHE={NEMO_MODELS_CACHE} [/green]")
+        console.print(f"[green]✓ Checkpoint imported to {output}[/green]")
+
+    return output
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnector:
@@ -429,7 +495,59 @@ def export_ckpt(
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
 ) -> Path:
-    return io.export_ckpt(path, target, output_path, overwrite, load_connector)
+    """
+    Exports a checkpoint from a model using the model's associated exporter, typically for
+    the purpose of sharing a model that has been fine-tuned or customized within NeMo.
+
+    This function can be used both programmatically and through the NeMo CLI:
+
+    CLI Usage:
+    ```bash
+    # Export model to HuggingFace format (saves to {checkpoint_path}/hf/)
+    nemo llm export /path/to/model.nemo target="hf"
+
+    # Export with custom output path
+    nemo llm export /path/to/model.nemo target="hf" output_path="/path/to/save"
+
+    # Force overwrite existing export
+    nemo llm export /path/to/model.nemo target="hf" overwrite=true
+    ```
+
+    Python Usage:
+    ```python
+    nemo_ckpt_path = Path("/path/to/model.nemo")
+    export_path = export_ckpt(nemo_ckpt_path, "hf")
+    ```
+
+    The exporter component of the model reads the model's state from the specified path and
+    exports it into the format specified by the 'target' identifier. This is particularly
+    useful for adapting models that have been developed or fine-tuned within NeMo to be
+    compatible with other environments or frameworks.
+
+    Args:
+        path (Path): The path to the model's checkpoint file from which data will be exported.
+        target (str): The identifier for the exporter that defines the format of the export
+            (e.g., "hf" for HuggingFace format).
+        output_path (Optional[Path]): The path where the exported checkpoint will be saved.
+            If not specified, defaults to {checkpoint_path}/{target}/.
+        overwrite (bool): If set to True, existing files at the output path will be overwritten.
+            This is useful for model updates where retaining old checkpoint files is not required.
+        load_connector (Callable[[Path, str], ModelConnector]): A function to load the appropriate
+            exporter based on the model and target format. Defaults to `load_connector_from_trainer_ckpt`.
+
+    Returns:
+        Path: The path where the checkpoint has been saved after export.
+
+    Raises:
+        ValueError: If the model does not implement ConnectorMixin, indicating a lack of
+            necessary exporter functionality.
+    """
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
+
+    console = Console()
+    console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
+
+    return output
 
 
 @run.cli.entrypoint(name="generate", namespace="llm")
@@ -446,6 +564,72 @@ def generate(
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
 ) -> list[Union["InferenceRequest", str]]:
+    """
+    Generates text using a NeMo LLM model.
+
+    This function takes a checkpoint path and a list of prompts,
+    and generates text based on the loaded model and parameters.
+    It returns a list of generated text, either as a string or as an InferenceRequest object.
+
+    Python Usage:
+    ```python
+    strategy = nl.MegatronStrategy(
+        tensor_model_parallel_size=2,
+        pipeline_model_parallel_size=1,
+        context_parallel_size=1,
+        sequence_parallel=False,
+        setup_optimizers=False,
+        store_optimizer_states=False,
+    )
+
+    trainer = nl.Trainer(
+        accelerator="gpu",
+        devices=2,
+        num_nodes=1,
+        strategy=strategy,
+        plugins=nl.MegatronMixedPrecision(
+            precision="bf16-mixed",
+            params_dtype=torch.bfloat16,
+            pipeline_dtype=torch.bfloat16,
+            autocast_enabled=False,
+            grad_reduce_in_fp32=False,
+        ),
+    )
+    prompts = [
+        "Hello, how are you?",
+        "How many r's are in the word 'strawberry'?",
+        "Which number is bigger? 10.119 or 10.19?",
+    ]
+
+    if __name__ == "__main__":
+        results = api.generate(
+            path=os.path.join(os.environ["NEMO_HOME"], "models", "meta-llama/Meta-Llama-3-8B"),
+            prompts=prompts,
+            trainer=trainer,
+            inference_params=CommonInferenceParams(temperature=0.1, top_k=10, num_tokens_to_generate=512),
+            text_only=True,
+        )
+    ```
+
+    Args:
+        path (Union[Path, str]): The path to the model checkpoint.
+        prompts (list[str]): The list of prompts to generate text for.
+        trainer (nl.Trainer): The trainer object.
+        encoder_prompts (Optional[list[str]], optional): The list of encoder prompts. Defaults to None.
+        params_dtype (torch.dtype, optional): The data type of the model parameters. Defaults to torch.bfloat16.
+        add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
+        max_batch_size (int, optional): The maximum batch size. Defaults to 4.
+        random_seed (Optional[int], optional): The random seed. Defaults to None.
+        inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than
+            this threshold then we will not use pipelining, otherwise we will. Defaults to 1000.
+        inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
+            Mcore's CommonInferenceParams. Defaults to None.
+        text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
+
+    Returns:
+        list[Union["InferenceRequest", str]]: A list of generated text,
+            either as a string or as an InferenceRequest object.
+    """
     from nemo.collections.llm import inference
 
     inference_wrapped_model, mcore_tokenizer = inference.setup_model_and_tokenizer(

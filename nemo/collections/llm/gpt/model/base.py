@@ -20,6 +20,7 @@ import torch
 import torch.distributed
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -44,8 +45,6 @@ except ImportError:
     _grad_accum_fusion_available = False
 
 if TYPE_CHECKING:
-    from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -63,21 +62,31 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     else:
         _batch = batch
 
-    required_keys = set()
-    required_keys.add("attention_mask")
+    required_device_keys = set()
+    required_host_keys = set()
+
+    required_device_keys.add("attention_mask")
     if 'cu_seqlens' in _batch:
-        required_keys.add('cu_seqlens')
-        required_keys.add('cu_seqlens_argmin')
-        required_keys.add('max_seqlen')
+        required_device_keys.add('cu_seqlens')
+        required_host_keys.add('cu_seqlens_argmin')
+        required_host_keys.add('max_seqlen')
 
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("tokens", "position_ids"))
+        required_device_keys.update(("tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask"))
+        required_device_keys.update(("labels", "loss_mask"))
 
-    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    _batch_required_keys = {}
+    for key, val in _batch.items():
+        if key in required_device_keys:
+            _batch_required_keys[key] = val.cuda(non_blocking=True)
+        elif key in required_host_keys:
+            _batch_required_keys[key] = val.cpu()
+        else:
+            _batch_required_keys[key] = None
+
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_context_parallel_rank(_batch_required_keys)
 
     return output
 
@@ -111,6 +120,14 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     )
 
 
+def transformer_engine_full_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
+        get_gpt_full_te_layer_autocast_spec,
+    )
+
+    return get_gpt_full_te_layer_autocast_spec(transformer_config=config)
+
+
 def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     from megatron.core.models.gpt import gpt_layer_specs
 
@@ -121,9 +138,21 @@ def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
     if HAVE_TE:
-        return transformer_engine_layer_spec(config)
+        if config.use_transformer_engine_full_layer_spec:
+            return transformer_engine_full_layer_spec(config)
+        else:
+            return transformer_engine_layer_spec(config)
     else:
         return local_layer_spec(config)
+
+
+def torch_dtype_from_mcore_config(config: TransformerConfig):
+    if config.fp16:
+        return torch.float16
+    elif config.bf16:
+        return torch.bfloat16
+    else:
+        return torch.float
 
 
 @dataclass
@@ -144,7 +173,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     gradient_accumulation_fusion: bool = _grad_accum_fusion_available
     deallocate_pipeline_outputs = True
 
+    use_transformer_engine_full_layer_spec: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
+
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
@@ -157,7 +188,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
         from megatron.core import parallel_state
-        from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
@@ -172,7 +202,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
-        return MCoreGPTModel(
+        model = MCoreGPTModel(
             self,
             transformer_layer_spec=transformer_layer_spec,
             vocab_size=vocab_size,
@@ -188,6 +218,35 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             post_process=parallel_state.is_pipeline_last_stage(),
         )
 
+        # If using full TE layer, need to set TP, CP group since the module call
+        # is not routed through megatron core, which normally handles passing the
+        # TP, CP group to the TE modules.
+        # Deep iterate but skip self to avoid infinite recursion.
+        if HAVE_TE and self.use_transformer_engine_full_layer_spec:
+            # Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
+            if parallel_state.get_tensor_model_parallel_world_size() > 1:
+                for index, child in enumerate(model.modules()):
+                    if index == 0:
+                        continue
+                    if hasattr(child, "set_tensor_parallel_group"):
+                        tp_group = parallel_state.get_tensor_model_parallel_group()
+                        child.set_tensor_parallel_group(tp_group)
+
+            if parallel_state.get_context_parallel_world_size() > 1:
+                cp_stream = torch.cuda.Stream()
+                for module in self.get_model_module_list():
+                    for index, child in enumerate(module.modules()):
+                        if index == 0:
+                            continue
+                        if hasattr(child, "set_context_parallel_group"):
+                            child.set_context_parallel_group(
+                                parallel_state.get_context_parallel_group(),
+                                parallel_state.get_context_parallel_global_ranks(),
+                                cp_stream,
+                            )
+
+        return model
+
 
 @dataclass
 class GPTConfig126M(GPTConfig):
@@ -196,6 +255,9 @@ class GPTConfig126M(GPTConfig):
     hidden_size: int = 768
     ffn_hidden_size: int = 3072
     num_attention_heads: int = 12
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
+    use_transformer_engine_full_layer_spec: bool = True
 
 
 @dataclass
@@ -205,9 +267,9 @@ class GPTConfig5B(GPTConfig):
     hidden_size: int = 4096
     ffn_hidden_size: int = 16384
     num_attention_heads: int = 32
-
     bias_activation_fusion: bool = True
     bias_dropout_add_fusion: bool = True
+    use_transformer_engine_full_layer_spec: bool = True
 
 
 @dataclass
@@ -217,6 +279,9 @@ class GPTConfig7B(GPTConfig):
     hidden_size: int = 4096
     ffn_hidden_size: int = 10880
     num_attention_heads: int = 32
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
+    use_transformer_engine_full_layer_spec: bool = True
 
 
 @dataclass
@@ -226,9 +291,9 @@ class GPTConfig20B(GPTConfig):
     hidden_size: int = 6144
     ffn_hidden_size: int = 24576
     num_attention_heads: int = 48
-
     bias_activation_fusion: bool = True
     bias_dropout_add_fusion: bool = True
+    use_transformer_engine_full_layer_spec: bool = True
 
 
 @dataclass
@@ -238,6 +303,9 @@ class GPTConfig40B(GPTConfig):
     hidden_size: int = 8192
     ffn_hidden_size: int = 32768
     num_attention_heads: int = 64
+    bias_activation_fusion: bool = True
+    bias_dropout_add_fusion: bool = True
+    use_transformer_engine_full_layer_spec: bool = True
 
 
 @dataclass
@@ -247,9 +315,12 @@ class GPTConfig175B(GPTConfig):
     hidden_size: int = 12288
     ffn_hidden_size: int = 49152
     num_attention_heads: int = 96
-
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
     bias_activation_fusion: bool = True
     bias_dropout_add_fusion: bool = True
+    use_transformer_engine_full_layer_spec: bool = True
+    layernorm_zero_centered_gamma: bool = True
 
 
 class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
