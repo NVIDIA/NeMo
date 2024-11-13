@@ -279,8 +279,6 @@ def _forward(
                 streaming=streaming,
                 output_sequence_lengths=True,
                 return_dict=True,
-                output_log_probs=sampling_kwargs.get('output_log_probs', False),
-                all_probs=sampling_kwargs.get('all_probs', False),
             )
 
             torch.cuda.synchronize()
