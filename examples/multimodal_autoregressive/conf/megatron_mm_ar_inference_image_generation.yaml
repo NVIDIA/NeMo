@@ -1,9 +1,9 @@
 inference:
-  greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
   top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
   temperature: 1.0 # sampling temperature
-  add_BOS: False # add the bos token at the begining of the prompt
+  add_BOS: True # add the bos token at the begining of the prompt
   tokens_to_generate: 30 # The minimum length of the sequence to be generated.
   all_probs: False  # whether return the log prob for all the tokens in vocab
   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
@@ -23,10 +23,14 @@ tensor_model_parallel_size: -1
 pipeline_model_parallel_size: -1
 pipeline_model_parallel_split_rank: -1 # used for encoder and decoder model (0 for others)
 megatron_amp_O2: False  # Enable O2-level automatic mixed precision to save memory
+image_encoder: Cosmos-Tokenizer-DV8x16x16
 gpt_model_file: null  # GPT nemo file path
 checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the GPT training
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
-images_path: # prompts for GPT inference
-  - "/path/to/image1"
-  - "/path/to/image2"
+captions: # prompts for GPT inference
+  - "a drawing of a green pokemon with red eyes"
+  - "a red pokemon with green eyes"
+  - "a cartoon fish with a big smile"
+images_output_path: null # Path to the directory to store the output images
+

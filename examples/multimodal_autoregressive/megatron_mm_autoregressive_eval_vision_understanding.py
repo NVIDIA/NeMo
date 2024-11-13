@@ -124,7 +124,7 @@ def load_prompts(cfg, image_tokenizer, tokenizer):
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
 
-@hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference")
+@hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_vision_understanding")
 def main(cfg) -> None:
 
     callbacks = []
