@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 from nemo.collections import llm
 from nemo.collections.llm.inference.base import MCoreTokenizerWrappper, generate
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, CONTEXT_PATH
+from nemo.lightning.ckpt_utils import CONTEXT_PATH, ckpt_to_context_subdir
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
