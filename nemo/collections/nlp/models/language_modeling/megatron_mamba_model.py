@@ -68,10 +68,7 @@ class MegatronMambaModel(MegatronGPTModel):
         self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
         self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
         self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
-		if self.cfg.get('params_dtype'):
-            with open_dict(self.cfg):
-                self.cfg.params_dtype = torch.bfloat16 if self.cfg.params_dtype == "bf16" else torch.float32
-        self.transformer_config.params_dtype = self.cfg.params_dtype
+        self.transformer_config.params_dtype = torch.bfloat16 if self.cfg.params_dtype == "bf16" else torch.float32
         if self.cfg.get('kv_channels'):
             self.transformer_config.kv_channels = self.cfg.get('kv_channels')
         if self.cfg.get('squared_relu_activation'):
