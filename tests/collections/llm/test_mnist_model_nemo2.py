@@ -25,14 +25,14 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tupl
 
 import megatron.core.num_microbatches_calculator
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.distributed
 from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import MegatronModule
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch.loggers import TensorBoardLogger
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from torchvision import transforms

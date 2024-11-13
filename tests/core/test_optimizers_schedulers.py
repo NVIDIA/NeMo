@@ -17,10 +17,10 @@ import random
 
 import omegaconf
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.optim
-from pytorch_lightning.utilities import rank_zero_only
+from lightning.pytorch.utilities import rank_zero_only
 
 from nemo.core import config, optim
 from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS

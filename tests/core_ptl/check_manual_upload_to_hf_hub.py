@@ -14,7 +14,7 @@
 import shutil
 
 from huggingface_hub import HfApi
-from pytorch_lightning.utilities import rank_zero_only
+from lightning.pytorch.utilities import rank_zero_only
 
 from nemo.core import ModelPT
 from nemo.utils import AppState, logging

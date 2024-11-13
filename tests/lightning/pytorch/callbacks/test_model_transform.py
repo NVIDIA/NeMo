@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch import nn
 
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform

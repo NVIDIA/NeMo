@@ -16,10 +16,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-import pytorch_lightning as ptl
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+import lightning.pytorch as ptl
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
-from nemo.core.config.pytorch_lightning import TrainerConfig
+from nemo.core.config.lightning.pytorch import TrainerConfig
 from nemo.utils import config_utils
 from nemo.utils.exp_manager import EarlyStoppingParams
 

@@ -19,7 +19,7 @@ import argparse
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm

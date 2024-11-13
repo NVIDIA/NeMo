@@ -18,7 +18,7 @@ import shutil
 import pytest
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.core import ModelPT
 from nemo.utils import logging

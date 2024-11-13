@@ -19,10 +19,10 @@ from typing import Iterator, Optional, Sequence, Tuple
 
 import megatron
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from megatron.core import ModelParallelConfig, parallel_state
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch import Tensor
 
 import nemo.lightning as nl

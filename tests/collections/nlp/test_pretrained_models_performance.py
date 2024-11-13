@@ -18,7 +18,7 @@ from shutil import rmtree
 from unittest import TestCase
 
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
 import nemo.collections.nlp.models as models

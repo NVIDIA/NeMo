@@ -14,7 +14,7 @@
 import os
 
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 
 from nemo.utils.exp_manager import exp_manager
 

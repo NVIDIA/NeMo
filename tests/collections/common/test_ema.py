@@ -16,12 +16,12 @@ import os.path
 from typing import Any, Dict, Union
 
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Callback, Trainer
-from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.utilities.types import STEP_OUTPUT
+from lightning.pytorch import Callback, Trainer
+from lightning.pytorch.utilities.exceptions import MisconfigurationException
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 from nemo.collections.common.callbacks import EMA
 from nemo.collections.common.callbacks.ema import EMAOptimizer

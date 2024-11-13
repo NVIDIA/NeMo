@@ -18,10 +18,10 @@ from pathlib import Path
 from typing import Any, Dict
 
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import TorchCheckpointIO
-from pytorch_lightning.demos.boring_classes import BoringModel
+from lightning.fabric.plugins import TorchCheckpointIO
+from lightning.pytorch.demos.boring_classes import BoringModel
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils.callbacks.dist_ckpt_io import (

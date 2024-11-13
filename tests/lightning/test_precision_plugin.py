@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from megatron.core.optimizer import OptimizerConfig
 

@@ -16,7 +16,7 @@ import tempfile
 
 import onnx
 import pytest
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import wget
 from omegaconf import DictConfig, OmegaConf

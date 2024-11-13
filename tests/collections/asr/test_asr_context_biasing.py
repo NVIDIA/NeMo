@@ -19,7 +19,7 @@ import tempfile
 import numpy as np
 import pytest
 import torch
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.asr.models import EncDecCTCModelBPE
 from nemo.collections.asr.parts import context_biasing
