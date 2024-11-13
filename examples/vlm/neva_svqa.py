@@ -31,9 +31,7 @@ from nemo.collections.vlm import Llava15Config7B, LlavaModel
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-def generate(
-    model, input_ids, media, position_ids, tokenizer, num_media_tiles=None, max_length=20, attention_mask=None
-):
+def generate(model, input_ids, media, position_ids, tokenizer, max_length=20, attention_mask=None):
     """
     Performs greedy generation on the model using provided inputs.
 
@@ -55,7 +53,6 @@ def generate(
                 input_ids=input_ids,
                 position_ids=position_ids,
                 attention_mask=attention_mask,
-                num_media_tiles=num_media_tiles,
             )
 
             next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
@@ -94,13 +91,13 @@ def main(args) -> None:
     )
 
     # Load processor and tokenizer
-    processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
+    processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
     hf_tokenizer = processor.tokenizer
 
     # Load model
     fabric = trainer.to_fabric()
     if args.load_from_hf:
-        model = fabric.import_model("hf://llava-hf/llava-v1.6-vicuna-7b-hf", LlavaModel)
+        model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
     else:
         model = LlavaModel(Llava15Config7B(), tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
@@ -195,7 +192,7 @@ def predict_answers(args, model, processor):
         inputs = processor(prompt, image, return_tensors='pt').to(0, torch.float16)
         input_ids = inputs['input_ids'][:, 1:].cuda()  # strip bos token
         input_ids[input_ids == 32000] = -200  # Handle specific token in the input
-        media = inputs['pixel_values'].cuda().reshape(inputs['pixel_values'].size(1), 3, 336, 336) if image else None
+        media = inputs['pixel_values'].cuda().reshape(inputs['pixel_values'].size(0), 3, 336, 336) if image else None
         position_ids = (
             torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
             .unsqueeze(0)
@@ -206,14 +203,7 @@ def predict_answers(args, model, processor):
 
         # Generate the response using the model
         generated_ids, predicted_ids = generate(
-            model,
-            input_ids,
-            media.bfloat16() if media is not None else torch.ones([0, 3, 336, 336], dtype=torch.bfloat16).cuda(),
-            position_ids,
-            tokenizer,
-            attention_mask=attention_mask,
-            max_length=args.max_length,
-            num_media_tiles=[media.size(0)] if media is not None else None,
+            model, input_ids, media.bfloat16() if media is not None else torch.ones([0, 3, 336, 336], dtype=torch.bfloat16).cuda(), position_ids, tokenizer, attention_mask=attention_mask, max_length=args.max_length
         )
 
         # Post-process and decode the generated response
