@@ -427,6 +427,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
 
         total_step_preds = torch.cat([previous_pred_out, chunk_preds], dim=1)
 
+        if not self.training and self.sortformer_modules.visualization:
+            self.chunk_preds_list.append(chunk_preds.detach().cpu().numpy())
+            self.fifo_preds_list.append(fifo_preds.detach().cpu().numpy())
+            self.mem_preds_list.append(mem_preds.detach().cpu().numpy())
+
         return mem, fifo, mem_preds, fifo_preds, total_step_preds
 
     def _get_aux_train_evaluations(self, preds, targets, target_lens):
@@ -561,6 +566,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
 
     def test_batch(self,):
         self.preds_total_list, self.batch_f1_accs_list, self.batch_precision_list, self.batch_recall_list, self.batch_f1_accs_ats_list = [], [], [], [], []
+        if self.sortformer_modules.visualization:
+            self.chunk_preds_list = []
+            self.fifo_preds_list = []
+            self.mem_preds_list = []
 
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self._test_dl)):

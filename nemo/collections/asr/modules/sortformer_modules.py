@@ -15,6 +15,12 @@
 import math
 from collections import OrderedDict
 
+from tqdm import tqdm
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -233,9 +239,8 @@ class SortformerModules(NeuralModule, Exportable):
                 
         if pop_out_embs.shape[1] > 0: # only update memory buffer when pop_out_embs is not empty
             mem = torch.cat([mem, pop_out_embs], dim=1)
-            mem_preds = torch.cat([mem_preds, pop_out_preds], dim=1)
             if mem.shape[1] > self.mem_len:
-                mem = self._compress_memory(mem, mem_preds)
+                mem = self._compress_memory(mem, torch.cat([mem_preds, pop_out_preds], dim=1))
             
         if self.log:
             logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
@@ -334,3 +339,109 @@ class SortformerModules(NeuralModule, Exportable):
         memory_buff = torch.where(is_inf.unsqueeze(-1), emb_seq_sil_mean, emb_seq_gathered)
 
         return memory_buff
+    
+    def visualize_all_session(self, mem_preds_list, fifo_preds_list, chunk_preds_list, uniq_ids=None, out_dir='./'):
+        '''
+        Visualize the memory, FIFO queue, and chunk predictions for all sessions.
+        Each session is saved as a gif file.
+        Args:
+            mem_preds_list: list of torch.Tensor, [(B, mem_len, num_spks)]
+            fifo_preds_list: list of torch.Tensor, [(B, fifo_len, num_spks)]
+            chunk_preds_list: list of torch.Tensor, [(B, chunk_len, num_spks)]
+        '''
+        batch_size = mem_preds_list[0].shape[0]
+        if uniq_ids is None:
+            uniq_ids = [f'batch_{i:05d}' for i in range(batch_size)]
+
+        pbar = tqdm(enumerate(uniq_ids), total=len(uniq_ids))
+        for i, uniq_id in pbar:
+            pbar.set_description(f'Visualizing session {uniq_id}')
+            mem_preds = [mem_preds_list[j][i] for j in range(len(mem_preds_list))]
+            fifo_preds = [fifo_preds_list[j][i] for j in range(len(fifo_preds_list))]
+            chunk_preds = [chunk_preds_list[j][i] for j in range(len(chunk_preds_list))]
+
+            pbar.set_description(f'Generating frames for session {uniq_id}')
+            frames = self.preds_to_frames(mem_preds, fifo_preds, chunk_preds)
+            
+            pbar.set_description(f'Saving GIF for session {uniq_id}')
+            self.array_to_gif(frames, f'{out_dir}/{uniq_id}.gif', frame_len=self.step_len*80)
+
+            
+    
+    def preds_to_frames(self, mem_preds, fifo_preds, chunk_preds):
+        '''
+        Generate frames from the memory, FIFO queue, and chunk predictions from one session.
+        Args:
+            mem_preds: list of torch.Tensor, [(mem_len, num_spks)]
+            fifo_preds: list of torch.Tensor, [(fifo_len, num_spks)]
+            chunk_preds: list of torch.Tensor, [(chunk_len, num_spks)]
+        '''
+        n_steps = len(mem_preds)
+        frames = []
+        for step_idx in range(n_steps):
+            frame = self.pred_to_frame(mem_preds[step_idx], fifo_preds[step_idx], chunk_preds[step_idx], step_idx)
+            frames.append(frame)
+
+        return frames
+
+    
+    def pred_to_frame(self, mem_pred, fifo_pred, chunk_pred, step_idx=0):
+        '''
+        Generate a frame from the memory, FIFO queue, and chunk predictions at one step.
+        Args:
+            mem_pred: torch.Tensor, (mem_len, num_spks)
+            fifo_pred: torch.Tensor, (fifo_len, num_spks)
+            chunk_pred: torch.Tensor, (chunk_len, num_spks)
+            step_idx: int, the index of the step
+        '''
+        if mem_pred.shape[0] < self.mem_len:
+            mem_pred = np.pad(mem_pred, ((self.mem_len - mem_pred.shape[0], 0), (0, 0)), 'constant', constant_values=0)
+        if fifo_pred.shape[0] < self.fifo_len:
+            fifo_pred = np.pad(fifo_pred, ((self.fifo_len - fifo_pred.shape[0], 0), (0, 0)), 'constant', constant_values=0)
+
+        cmap_str = 'viridis'
+        aspect_float = 7.0
+        FS = 20
+        offset = round(step_idx * self.step_len * 0.08, 2) 
+
+        # Plotting
+        fig, axs = plt.subplots(1, 3, figsize=(40,3), layout='constrained', width_ratios=[10, 10, 1], height_ratios=[1])
+
+        # Plot preds_mat
+        cax0 = axs[0].imshow(mem_pred.T, cmap=cmap_str, interpolation='nearest', aspect=aspect_float)
+        cax2 = axs[1].imshow(fifo_pred.T, cmap=cmap_str, interpolation='nearest', aspect=aspect_float)
+        cax3 = axs[2].imshow(chunk_pred.T, cmap=cmap_str, interpolation='nearest', aspect=aspect_float)
+        axs[0].set_title('Memory', fontsize=FS)
+        axs[1].set_title('FIFO queue', fontsize=FS)
+        minutes = int(offset // 60)
+        seconds = offset % 60
+        axs[2].set_title(f'Chunk {minutes:02}:{seconds:05.2f}', fontsize=FS)
+
+        for a in axs:
+            a.get_xaxis().set_visible(False)
+            a.get_yaxis().set_visible(False)
+
+        fig.canvas.draw()
+        frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+        frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        frame = Image.fromarray(frame)
+        plt.close()
+
+        return frame
+
+    def array_to_gif(self, frames, filepath, frame_len=960):
+        '''
+        Save a list of frames as a gif file.
+        Args:
+            frames: list of PIL.Image, [frame1, frame2, ...]
+            filepath: str, the path to save the gif file
+            frame_len: int, the duration in milliseconds per frame
+        '''
+        frames[0].save(
+            filepath,
+            save_all=True,
+            append_images=frames[1:],
+            duration=frame_len,  # Duration in milliseconds per frame
+            loop=0  # Loop forever
+        )
+        

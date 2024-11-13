@@ -105,8 +105,9 @@ class DiarizationConfig:
     step_len: int = 100
     step_left_context: int = 100
     step_right_context: int = 100
+    visualization: bool = False
     streaming_eval: bool = False # If True, evaluation will be done in a streaming fashion
-    out_der_file: Optional[str] = None # Path to a file to save DER values
+    out_dir: Optional[str] = None # Path to a file to save DER values
 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
@@ -223,11 +224,10 @@ def convert_pred_mat_to_segments_chunkwise(
     cfg_vad_params = OmegaConf.structured(postprocessing_cfg)
     pred_len = batch_preds_list[0].shape[1]
     batch_pred_ts_segs, all_hypothesis, all_reference, all_uems = [], [], [], []
-    for cur_chunk_idx in tqdm(range(0, pred_len, chunk_size), desc="Running post-processing"):
+    for cur_chunk_idx in range(0, pred_len, chunk_size):
         offset, duration = cur_chunk_idx*unit_10ms_frame_count*0.01, chunk_size*unit_10ms_frame_count*0.01
-        for sample_idx, (uniq_id, audio_rttm_values) in tqdm(enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc="Running post-processing"):
+        for sample_idx, (uniq_id, audio_rttm_values) in enumerate(audio_rttm_map_dict.items()):
             spk_ts = []
-            # offset, duration = audio_rttm_values['offset'], audio_rttm_values['duration']
             
             speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)[cur_chunk_idx:cur_chunk_idx+chunk_size]
             speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
@@ -319,7 +319,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.fifo_len = cfg.fifo_len
     diar_model.sortformer_modules.log = cfg.log
     diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
-    
+    diar_model.sortformer_modules.visualization = cfg.visualization
     
     # Save the list of tensors
     diar_model.test_batch()
@@ -366,10 +366,20 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                                                                     verbose=False
                                                                     )
                 ders.append(itemized_errors[0])
-            if cfg.out_der_file is not None:
-                with open(cfg.out_der_file, 'w') as f:
+            if cfg.out_dir is not None:
+                der_file = os.path.join(cfg.out_dir, "ders.txt")
+                with open(der_file, 'w') as f:
                     for der in ders:
                         f.write(f"{der}\n")
+
+        if cfg.visualization:
+            diar_model.sortformer_modules.visualize_all_session(
+                mem_preds_list=diar_model.mem_preds_list, 
+                fifo_preds_list=diar_model.fifo_preds_list, 
+                chunk_preds_list=diar_model.chunk_preds_list,
+                uniq_ids=list(mapping_dict.keys()),
+                out_dir=cfg.out_dir
+            )
                         
 if __name__ == '__main__':
     main()
