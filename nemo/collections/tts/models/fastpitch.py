@@ -18,9 +18,9 @@ from typing import List, Optional
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf, open_dict
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss

@@ -18,9 +18,9 @@ import contextlib
 import omegaconf
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import WandbLogger
+from omegaconf import DictConfig, OmegaConf
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 

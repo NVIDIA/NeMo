@@ -15,8 +15,8 @@
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, open_dict
 from lightning.pytorch.loggers import TensorBoardLogger
+from omegaconf import DictConfig, open_dict
 
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import GlowVocoder

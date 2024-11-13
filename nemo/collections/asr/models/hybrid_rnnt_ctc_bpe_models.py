@@ -17,8 +17,8 @@ import os
 from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset

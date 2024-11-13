@@ -22,8 +22,8 @@ from typing import Any, Dict, List, Optional, Union
 import editdistance
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, OmegaConf, open_dict
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
 from torchmetrics.text import SacreBLEUScore
 from tqdm.auto import tqdm
