@@ -304,7 +304,7 @@ def finetune_recipe(
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 8
-        recipe.trainer.strategy.context_parallel_size = 2
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)
@@ -324,9 +324,9 @@ def finetune_recipe(
     # Sequence length settings in the model and dataset must agree
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
-    # if packed_sequence:
-    #     recipe.data.pad_to_max_length = True
-    #     recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+    if packed_sequence:
+        recipe.data.pad_to_max_length = True
+        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
     if performance_mode:
         recipe = finetune_performance_optimizations(recipe, peft_scheme)
@@ -360,8 +360,8 @@ def finetune_performance_optimizations(
         recipe.trainer.callbacks = []
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 8
-        recipe.trainer.strategy.context_parallel_size = 4
+        recipe.trainer.strategy.tensor_model_parallel_size = 4
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
