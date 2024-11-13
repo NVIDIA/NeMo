@@ -237,7 +237,7 @@ class AppState(metaclass=Singleton):
             size (int):  Number of GPUs in each model parallel group.
         """
         self._pipeline_model_parallel_size = size
-    
+
     @property
     def pipeline_model_parallel_comm_backend(self):
         """Property returns the backend communication library of pipeline communication.
