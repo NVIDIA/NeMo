@@ -19,7 +19,6 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from packaging import version
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -43,6 +42,7 @@ from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+from packaging import version
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
 from pytorch_lightning.loops.fetchers import _DataLoaderIterDataFetcher
@@ -269,9 +269,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 # FSDP 2 is only supported after torch 2.4
                 self._fsdp = fsdp
             else:
-                logging.warning(
-                    "Setting FSDP2 to False. FSDP2 require torch version >= 2.4."
-                )
+                logging.warning("Setting FSDP2 to False. FSDP2 require torch version >= 2.4.")
 
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
