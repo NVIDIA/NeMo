@@ -95,9 +95,11 @@ class BatchedBeamHyps:
         next_hyps_prob,
     ):
         self.scores.copy_(next_hyps_prob)
-        self.transcript[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = next_labels
+        self.transcript[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = next_labels.view(
+            -1
+        )
         self.transcript_prev_ptr[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = (
-            hyps_indices
+            hyps_indices.view(-1)
         )
         self.current_lengths_wb += 1
         extended_with_blank = next_labels == self.blank_index
@@ -306,7 +308,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 decoder_output.view(batch_size, self.beam_size, 1, -1),
                 dim=1,
                 index=hyps_indices[:, :, None, None].expand(batch_size, self.beam_size, 1, decoder_output.shape[-1]),
-            )
+            ).view(batch_size * self.beam_size, 1, -1)
             # TODO: move to decoder
             # state: tuple, each is of [1, (BxBeam), Dim]
             prev_state = (
@@ -323,7 +325,10 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             )
 
             decoder_output, state, *_ = self.decoder.predict(
-                next_labels.reshape(-1).unsqueeze(1), prev_state, add_sos=False, batch_size=batch_size * self.beam_size
+                last_labels_wb.reshape(-1).unsqueeze(1),
+                prev_state,
+                add_sos=False,
+                batch_size=batch_size * self.beam_size,
             )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
             torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, decoder_output)
