@@ -98,7 +98,7 @@ def main():
     run_plugins: list[run.Plugin] = [FaultTolerancePlugin(num_in_process_restarts=1, num_job_retries_on_failure=0)]
     pretrain_recipe.trainer.callbacks = [
         run.Config(TimingCallback),
-        straggler_det_callback(straggler_report_time_interval=0.5)
+        straggler_det_callback(straggler_report_time_interval=0.5),
     ]
 
     if args.crash_step:
