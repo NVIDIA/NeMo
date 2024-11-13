@@ -403,30 +403,32 @@ def evaluate(
 ):
     """
     Evaluates nemo model deployed on PyTriton server (via trtllm) using lm-evaluation-harness (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
-    nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt which is
-    required to tokenize the evaluation input and output prompts.
-    url (str): rest serice url and port that were used in the deploy method above in the format: http://{rest_service_http}:{rest_service_port}.
-    Post requests with evaluation input prompts (from lm-eval-harness) are sent to this url which is then passed to the model deployed in PyTriton server.
-    The rest service url and port serve as the entry point to evaluate model deployed on PyTriton server.
-    model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as triton_model_name passed to the deploy method above to be able
-    to launch evaluation.
-    eval_task (str): task to be evaluated on. For ex: "gsm8k", "gsm8k_cot", "mmlu", "lambada". Default: "gsm8k".
-    These are the tasks that are supported currently. Any other task of type generate_until or loglikelihood from lm-evaluation-harness can be run,
-    but only the above mentioned ones are tested. Tasks of type loglikelihood_rolling are not supported yet.
-    num_fewshot (int): number of examples in few-shot context. Default: None.
-    limit (Union[int, float]): Limit the number of examples per task. If <1 (i.e float val between 0 and 1), limit is a percentage of the total number of examples.
-    If int say x, then run evaluation only on x number of samples/samples from the eval dataset. Default: None, which means eval is run the entire dataset.
-    bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. set to 0 for no stderr calculations to be performed. Default: 100000.
-    # inference params
-    max_tokens_to_generate (int): max tokens to generate. Default: 256.
-    temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token with highest prob is chosen. Default: 0.000000001.
-    Temp can't be set to 0.0, due to a bug with TRTLLM (# TODO to be investigated) hence using a very samll value.
-    top_p: Optional[float]: float value between 0 and 1. limits to the top tokens within a certain probability. top_p=0 means the model will only consider
-    the single most likely token for the next prediction. Default: 0.0.
-    top_k: Optional[int]: limits to a certain number (K) of the top tokens to consider. top_k=1 means the model will only consider the single most likely token
-    for the next prediction. Default: 1
-    add_bos: Optional[bool]: whether a special token representing the beginning of a sequence should be added when encoding a string. Default: False since typically for
-    CausalLM its set to False. If needed set add_bos to True.
+
+    Args:
+        nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt which is
+        required to tokenize the evaluation input and output prompts.
+        url (str): rest serice url and port that were used in the deploy method above in the format: http://{rest_service_http}:{rest_service_port}.
+        Post requests with evaluation input prompts (from lm-eval-harness) are sent to this url which is then passed to the model deployed in PyTriton server.
+        The rest service url and port serve as the entry point to evaluate model deployed on PyTriton server.
+        model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as triton_model_name passed to the deploy method above to be able
+        to launch evaluation.
+        eval_task (str): task to be evaluated on. For ex: "gsm8k", "gsm8k_cot", "mmlu", "lambada". Default: "gsm8k".
+        These are the tasks that are supported currently. Any other task of type generate_until or loglikelihood from lm-evaluation-harness can be run,
+        but only the above mentioned ones are tested. Tasks of type loglikelihood_rolling are not supported yet.
+        num_fewshot (int): number of examples in few-shot context. Default: None.
+        limit (Union[int, float]): Limit the number of examples per task. If <1 (i.e float val between 0 and 1), limit is a percentage of the total number of examples.
+        If int say x, then run evaluation only on x number of samples/samples from the eval dataset. Default: None, which means eval is run the entire dataset.
+        bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. set to 0 for no stderr calculations to be performed. Default: 100000.
+        # inference params
+        max_tokens_to_generate (int): max tokens to generate. Default: 256.
+        temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token with highest prob is chosen. Default: 0.000000001.
+        Temp can't be set to 0.0, due to a bug with TRTLLM (# TODO to be investigated) hence using a very samll value.
+        top_p: Optional[float]: float value between 0 and 1. limits to the top tokens within a certain probability. top_p=0 means the model will only consider
+        the single most likely token for the next prediction. Default: 0.0.
+        top_k: Optional[int]: limits to a certain number (K) of the top tokens to consider. top_k=1 means the model will only consider the single most likely token
+        for the next prediction. Default: 1
+        add_bos: Optional[bool]: whether a special token representing the beginning of a sequence should be added when encoding a string. Default: False since typically for
+        CausalLM its set to False. If needed set add_bos to True.
 
     """
     try:
