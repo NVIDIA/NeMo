@@ -1,3 +1,3 @@
-from nemo.collections.llm.evaluation.eval_utils import NeMoFWLMEval, unset_environment_variables, get_trtllm_deployable, wait_for_rest_service
+from nemo.collections.llm.evaluation.base import NeMoFWLMEval, wait_for_rest_service
 
-__all__ = ["NeMoFWLMEval", "unset_environment_variables", "get_trtllm_deployable", "wait_for_rest_service"]
+__all__ = ["NeMoFWLMEval", "wait_for_rest_service"]

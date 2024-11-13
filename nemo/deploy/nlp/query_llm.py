@@ -273,9 +273,8 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "object": "text_completion",
                         "created": int(time.time()),
                         "model": self.model_name,
-                        "choices": [{"text": str(sentences),
-                                     #"generation_logits": result_dict["generation_logits"].tolist()
-                                     }]   
+                        "choices": [{"text": str(sentences)
+                                     }]
                     }
                     # Convert gneration logits to a list to make it json serializable and add it to openai_response dict
                     if output_generation_logits: openai_response["choices"][0]["generation_logits"] = result_dict["generation_logits"].tolist()

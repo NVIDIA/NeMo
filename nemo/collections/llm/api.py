@@ -312,9 +312,9 @@ def deploy(
         logProb of the output token. Default: True.
     """
     from nemo.deploy import DeployPyTriton
-    from nemo.collections.llm import evaluation
+    from nemo.collections.llm import deploy
 
-    evaluation.unset_environment_variables()
+    deploy.unset_environment_variables()
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
@@ -326,7 +326,7 @@ def deploy(
         os.environ['OPENAI_FORMAT_RESPONSE'] = str(openai_format_response)
         os.environ['OUTPUT_GENERATION_LOGITS'] = str(output_generation_logits)
 
-    triton_deployable = evaluation.get_trtllm_deployable(
+    triton_deployable = deploy.get_trtllm_deployable(
         nemo_checkpoint,
         model_type,
         triton_model_repository,
