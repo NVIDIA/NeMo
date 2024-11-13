@@ -16,6 +16,7 @@ from typing import Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
+import torch
 
 import nemo.lightning as nl
 from nemo.collections import llm
@@ -82,7 +83,7 @@ def default_finetune_recipe(
 def default_finetune_trainer(
     tensor_parallelism=1,
     pipeline_parallelism=1,
-    pipeline_parallelism_type=None,
+    pipeline_parallelism_type=torch.bfloat16,
     virtual_pipeline_parallelism=None,
     context_parallelism=1,
     sequence_parallelism=False,
