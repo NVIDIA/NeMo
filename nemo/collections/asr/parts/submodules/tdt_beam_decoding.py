@@ -353,7 +353,6 @@ class BeamTDTInfer(Typing):
         )
         kept_hyps = [start_hyp]
 
-        time_idx = 0
         for time_idx in range(int(encoded_lengths)):
             # Retrieve hypotheses for current and future frames
             hyps = [hyp for hyp in kept_hyps if hyp.last_frame == time_idx]  # hypotheses for current frame
