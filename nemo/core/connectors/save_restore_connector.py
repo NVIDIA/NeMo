@@ -25,7 +25,7 @@ from typing import Callable, Generator, Optional, Set, Union
 import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.core import classes as nemo_classes  # to avoid circular import do not import ModelPT directly
 from nemo.utils import logging, model_utils
