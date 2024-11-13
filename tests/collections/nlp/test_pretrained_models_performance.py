@@ -17,8 +17,8 @@ from pathlib import Path
 from shutil import rmtree
 from unittest import TestCase
 
-import pytest
 import lightning.pytorch as pl
+import pytest
 from omegaconf import OmegaConf
 
 import nemo.collections.nlp.models as models

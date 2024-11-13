@@ -16,9 +16,11 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
+
 import torch
-from megatron.core.optimizer import OptimizerConfig
 from lightning.pytorch.loggers import TensorBoardLogger
+from megatron.core.optimizer import OptimizerConfig
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import train

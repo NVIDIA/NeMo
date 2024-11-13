@@ -17,8 +17,8 @@ import types
 from pathlib import Path
 from typing import Any, Dict
 
-import pytest
 import lightning.pytorch as pl
+import pytest
 import torch
 from lightning.fabric.plugins import TorchCheckpointIO
 from lightning.pytorch.demos.boring_classes import BoringModel

@@ -15,8 +15,8 @@
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
 import lightning.pytorch as ptl
+import pytest
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 from nemo.core.config.lightning.pytorch import TrainerConfig
@@ -126,7 +126,9 @@ class TestConfigUtils:
         assert dataclass_subset is None
 
     @pytest.mark.unit
-    def test_early_stopping_config(self,):
+    def test_early_stopping_config(
+        self,
+    ):
         result = config_utils.assert_dataclass_signature_match(EarlyStopping, EarlyStoppingParams)
         signatures_match, cls_subset, dataclass_subset = result
 

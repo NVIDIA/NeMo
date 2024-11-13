@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import OmegaConf
 from lightning.pytorch.strategies import DDPStrategy
+from omegaconf import OmegaConf
 
 from nemo.utils.trainer_utils import resolve_trainer_cfg
 

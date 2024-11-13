@@ -13,8 +13,8 @@
 # limitations under the License.
 import os
 
-import pytest
 import lightning.pytorch as pl
+import pytest
 
 from nemo.utils.exp_manager import exp_manager
 

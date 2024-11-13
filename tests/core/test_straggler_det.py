@@ -14,8 +14,8 @@
 
 import sys
 
-import pytest
 import lightning.pytorch as pl
+import pytest
 import torch
 from omegaconf import OmegaConf
 

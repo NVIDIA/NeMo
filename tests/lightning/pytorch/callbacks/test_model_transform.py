@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import lightning.pytorch as pl
+import pytest
 from torch import nn
 
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform

@@ -17,12 +17,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional, Sequence, Tuple
 
+import lightning.pytorch as pl
 import megatron
 import pytest
-import lightning.pytorch as pl
 import torch
-from megatron.core import ModelParallelConfig, parallel_state
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from megatron.core import ModelParallelConfig, parallel_state
 from torch import Tensor
 
 import nemo.lightning as nl

@@ -14,9 +14,9 @@
 import os
 import tempfile
 
+import lightning.pytorch as pl
 import onnx
 import pytest
-import lightning.pytorch as pl
 import torch
 import wget
 from omegaconf import DictConfig, OmegaConf

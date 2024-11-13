@@ -16,9 +16,9 @@ import os
 import shutil
 
 import torch
-from omegaconf import OmegaConf
 from lightning.pytorch import Trainer
 from lightning.pytorch.utilities import rank_zero_only
+from omegaconf import OmegaConf
 
 from nemo.core import ModelPT
 from nemo.utils import logging
