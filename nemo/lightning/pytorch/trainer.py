@@ -18,6 +18,7 @@ from copy import deepcopy
 import fiddle as fdl
 import pytorch_lightning as pl
 from pytorch_lightning.loops import _TrainingEpochLoop
+from pytorch_lightning.loops.fetchers import _DataFetcher
 from typing_extensions import Self
 
 from nemo.lightning.fabric.conversion import to_fabric
@@ -33,9 +34,19 @@ class NoValOnRestartTrainingLoop(_TrainingEpochLoop):
     """
 
     def _should_check_val_fx(self, data_fetcher) -> bool:
-        if self.restarting:
+        if self.skip_val_on_restart:
             return False
         return super()._should_check_val_fx(data_fetcher)
+
+    def load_state_dict(self, state_dict: dict, prefix: str = "") -> None:
+        super().load_state_dict(state_dict, prefix)
+
+        self.skip_val_on_restart = True
+
+    def advance(self, data_fetcher: _DataFetcher) -> None:
+        super().advance(data_fetcher)
+
+        self.skip_val_on_restart = False
 
 
 def configure_no_restart_validation_training_loop(trainer: pl.Trainer) -> None:
