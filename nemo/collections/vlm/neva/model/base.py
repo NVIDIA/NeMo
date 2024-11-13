@@ -220,8 +220,8 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     hidden_size: int = 1024
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
 
-    def configure_hf_config(self, *args, **kwargs) -> None:
-        CLIPVisionConfig.__init__(self, *args, **kwargs)
+    def __post_init__(self, *args, **kwargs) -> None:
+        CLIPVisionConfig.__init__(self, *args, **kwargs, hidden_size=self.hidden_size)
 
     def configure_model(self) -> "CLIPVisionModel":
         # Monkey patch the method to the vision encoder
@@ -411,11 +411,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
             freeze_vision_projection=config.freeze_vision_projection,
         )
 
-        self.model_type = ModelType.encoder_and_decoder
+        self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
-        self.vision_model_from_hf = str(self.vision_model.__class__.__module__).startswith("transformers.")
+        self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
         if self.vision_model_from_hf:
             # img_h, img_w, patch_dim, add_class_token, class_token_len
             self._img_seq_len = get_image_sequence_length(
