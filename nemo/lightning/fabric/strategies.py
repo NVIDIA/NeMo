@@ -40,6 +40,7 @@ from lightning_fabric.strategies import DDPStrategy
 from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
 from lightning_fabric.utilities.types import _PATH, _Stateful
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.model_parallel_config import ModelParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.loops.fetchers import _DataFetcher
@@ -59,8 +60,6 @@ from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 if TYPE_CHECKING:
-    from megatron.core.model_parallel_config import ModelParallelConfig
-
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
 
