@@ -14,8 +14,8 @@
 
 import torch
 import torch.nn.functional as F
-from omegaconf.dictconfig import DictConfig
 from omegaconf import open_dict
+from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
