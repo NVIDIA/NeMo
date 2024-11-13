@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
 
-import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
 from torch import nn
