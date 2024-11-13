@@ -187,12 +187,12 @@ def check_beam_decoding(test_data_dir, beam_config):
     enc_len = encoded_len
 
     with torch.no_grad():
-        hyps = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]  # type: rnnt_utils.Hypothesis
+        hyps: rnnt_utils.Hypothesis = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]
         _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
         all_hyps = all_hyps[0]
 
         print("Beam search algorithm :", beam_config['search_type'])
-        for idx, hyp_ in enumerate(all_hyps):  # idx: int, hyp_: rnnt_utils.Hypothesis
+        for idx, hyp_ in enumerate(all_hyps):
             print("Hyp index", idx + 1, "text :", hyp_.text)
 
             assert len(hyp_.timestep) > 0
