@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Optional
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
@@ -140,7 +138,7 @@ class BatchedBeamHyps:
         self.current_lengths_wb += 1
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
-        self.current_lengths_nb += extended_with_label
+        self.current_lengths_nb = torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         # self.last_timestep += extended_with_blank
         self.last_timestep_lasts = torch.where(
             extended_with_blank,
@@ -364,8 +362,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             last_labels_wb = torch.where(
                 next_labels >= 0, next_labels, torch.full_like(next_labels, fill_value=self._blank_index)
             )
-            preserve_state = (next_labels < 0) | (next_labels == self._blank_index)
-            # logging.warning(f"Step {step} | Next labels: {next_labels} | {hyps_indices} | {next_hyps_prob}")
+            preserve_state = last_labels_wb == self._blank_index
 
             # update decoder + lm state
             # decoder_output: [(B x Beam), 1, Dim]
