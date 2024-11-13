@@ -17,28 +17,38 @@ import subprocess
 import os
 from pathlib import Path
 
-def unset_environment_variables():
+def unset_environment_variables() -> None:
     """
     SLURM_, PMI_, PMIX_ Variables are needed to be unset for trtllm export to work
     on clusters. This method takes care of unsetting these env variables
-    # TODO maybe move this to NeMo-Run script ?
     """
     logging.info("Unsetting all SLURM_, PMI_, PMIX_ Variables")
 
     # Function to unset variables with a specific prefix
     def unset_vars_with_prefix(prefix):
+        unset_vars = []
         cmd = f"env | grep ^{prefix} | cut -d= -f1"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         vars_to_unset = result.stdout.strip().split('\n')
         for var in vars_to_unset:
             if var:  # Check if the variable name is not empty
                 os.environ.pop(var, None)
+                unset_vars.append(var)
+        return unset_vars
+
+    # Collect all unset variables across all prefixes
+    all_unset_vars = []
 
     # Unset variables for each prefix
     for prefix in ['SLURM_', 'PMI_', 'PMIX_']:
-        unset_vars_with_prefix(prefix)
+        unset_vars = unset_vars_with_prefix(prefix)
+        all_unset_vars.extend(unset_vars)
 
-    logging.info("Variables unset successfully")
+    if all_unset_vars:
+        logging.info(f"Unset env variables: {', '.join(all_unset_vars)}")
+    else:
+        logging.info("No env variables were unset.")
+
 
 def get_trtllm_deployable(
     nemo_checkpoint,
@@ -53,6 +63,9 @@ def get_trtllm_deployable(
     dtype,
     output_generation_logits
 ):
+    """
+    Exports the nemo checkpoint to trtllm and returns trt_llm_exporter that is used to deploy on PyTriton.
+    """
     from nemo.export.tensorrt_llm import TensorRTLLM
 
     if triton_model_repository is None:

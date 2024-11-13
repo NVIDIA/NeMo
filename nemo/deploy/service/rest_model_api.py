@@ -51,7 +51,7 @@ class TritonSettings(BaseSettings):
     @property
     def openai_format_response(self):
         """
-        Retuns the response from Triton server in OpenAI compatible formar if set to True.
+        Retuns the response from Triton server in OpenAI compatible format if set to True.
         """
         return self._openai_format_response
 

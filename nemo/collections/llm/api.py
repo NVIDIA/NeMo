@@ -288,12 +288,13 @@ def deploy(
         nemo_checkpoint (Path): Path for nemo checkpoint.
         model_type (str): Type of the model. Choices: gpt, llama, falcon, starcoder. Default: llama.
         triton_model_name (str): Name for the model that gets deployed on PyTriton. Please ensure that the same model name
-        is passed to the evalute method for the model to be accessible while sending evalution requests.  Default: 'triton_model'.
+        is passed to the evalute method for the model to be accessible while sending evalution requests. Default: 'triton_model'.
         triton_model_version (Optional[int]): Version for the triton model. Default: 1.
         triton_port (int): Port for the PyTriton server. Default: 8000.
         triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
-        triton_request_timeout (int): Timeout in seconds for Triton server. Default: 60,
-        triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engin gets saved in this path specified. Default: None.
+        triton_request_timeout (int): Timeout in seconds for Triton server. Default: 60.
+        triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engine gets saved in this specified
+        path. If None, saves it in /tmp dir. Default: None.
         num_gpus (int): Number of GPUs for export to trtllm and deploy. Default: 1.
         tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
         pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.
@@ -301,15 +302,14 @@ def deploy(
         max_input_len (int): Max input length of the model. Default: 256.
         max_output_len (int): Max output length of the model. Default: 256.
         max_batch_size (int): Max batch size of the model. Default: 8.
-        start_rest_service (bool): Start rest service that is used to send evaluation requests to the PyTriton server. Needs to be True
-        to be able to run evaluation . Default: True.
+        start_rest_service (bool): Start rest service that is used to send evaluation requests to the PyTriton server.
+        Needs to be True to be able to run evaluation. Default: True.
         rest_service_http_address (str): HTTP address for the rest service. Default: "0.0.0.0".
-        rest_service_port (int): Port for the rest service. Ensure the rest service port is the port fowarded between host machine and docker
-        when running locally inside a docker container. Default: 8080.
-        openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to be True while running evaluation.
-        Default: True.
-        output_generation_logits (bool): If true builds trtllm engine with gather_generation_logits set to True. generation_logits are used to compute the
-        logProb of the output token. Default: True.
+        rest_service_port (int): Port for the rest service. Default: 8080.
+        openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to be
+        True while running evaluation. Default: True.
+        output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
+        generation_logits are used to compute the logProb of the output token. Default: True.
     """
     from nemo.deploy import DeployPyTriton
     from nemo.collections.llm import deploy
@@ -388,7 +388,7 @@ def deploy(
 
 def evaluate(
     nemo_checkpoint_path: Path,
-    url: str = "http://0.0.0.0:1234/v1",
+    url: str = "http://0.0.0.0:8080/v1",
     model_name: str = "triton_model",
     eval_task: str = "gsm8k",
     num_fewshot: Optional[int] = None,
@@ -402,34 +402,39 @@ def evaluate(
     add_bos: Optional[bool] = False,
 ):
     """
-    Evaluates nemo model deployed on PyTriton server (via trtllm) using lm-evaluation-harness (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
+    Evaluates nemo model deployed on PyTriton server (via trtllm) using lm-evaluation-harness
+    (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
 
     Args:
-        nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt which is
-        required to tokenize the evaluation input and output prompts.
-        url (str): rest serice url and port that were used in the deploy method above in the format: http://{rest_service_http}:{rest_service_port}.
-        Post requests with evaluation input prompts (from lm-eval-harness) are sent to this url which is then passed to the model deployed in PyTriton server.
-        The rest service url and port serve as the entry point to evaluate model deployed on PyTriton server.
-        model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as triton_model_name passed to the deploy method above to be able
-        to launch evaluation.
+        nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt which
+        is required to tokenize the evaluation input and output prompts.
+        url (str): rest serice url and port that were used in the deploy method above in the format:
+        http://{rest_service_http}:{rest_service_port}. Post requests with evaluation input prompts (from lm-eval-harness)
+        are sent to this url which is then passed to the model deployed on PyTriton server. The rest service url and port
+        serve as the entry point to evaluate model deployed on PyTriton server.
+        model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as triton_model_name
+        passed to the deploy method above to be able to launch evaluation. Deafult: "triton_model".
         eval_task (str): task to be evaluated on. For ex: "gsm8k", "gsm8k_cot", "mmlu", "lambada". Default: "gsm8k".
-        These are the tasks that are supported currently. Any other task of type generate_until or loglikelihood from lm-evaluation-harness can be run,
-        but only the above mentioned ones are tested. Tasks of type loglikelihood_rolling are not supported yet.
+        These are the tasks that are supported currently. Any other task of type generate_until or loglikelihood from
+        lm-evaluation-harness can be run, but only the above mentioned ones are tested. Tasks of type
+        loglikelihood_rolling are not supported yet.
         num_fewshot (int): number of examples in few-shot context. Default: None.
-        limit (Union[int, float]): Limit the number of examples per task. If <1 (i.e float val between 0 and 1), limit is a percentage of the total number of examples.
-        If int say x, then run evaluation only on x number of samples/samples from the eval dataset. Default: None, which means eval is run the entire dataset.
-        bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. set to 0 for no stderr calculations to be performed. Default: 100000.
+        limit (Union[int, float]): Limit the number of examples per task. If <1 (i.e float val between 0 and 1), limit
+        is a percentage of the total number of examples. If int say x, then run evaluation only on x number of samples
+        from the eval dataset. Default: None, which means eval is run the entire dataset.
+        bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. Set to 0
+        for no stderr calculations to be performed. Default: 100000.
         # inference params
         max_tokens_to_generate (int): max tokens to generate. Default: 256.
-        temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token with highest prob is chosen. Default: 0.000000001.
-        Temp can't be set to 0.0, due to a bug with TRTLLM (# TODO to be investigated) hence using a very samll value.
-        top_p: Optional[float]: float value between 0 and 1. limits to the top tokens within a certain probability. top_p=0 means the model will only consider
-        the single most likely token for the next prediction. Default: 0.0.
-        top_k: Optional[int]: limits to a certain number (K) of the top tokens to consider. top_k=1 means the model will only consider the single most likely token
-        for the next prediction. Default: 1
-        add_bos: Optional[bool]: whether a special token representing the beginning of a sequence should be added when encoding a string. Default: False since typically for
-        CausalLM its set to False. If needed set add_bos to True.
-
+        temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token
+        with highest prob is chosen. Temperature can't be set to 0.0 currently, due to a bug with TRTLLM(# TODO to be investigated).
+        Hence using a very samll value as the default. Default: 0.000000001.
+        top_p: Optional[float]: float value between 0 and 1. limits to the top tokens within a certain probability.
+        top_p=0 means the model will only consider the single most likely token for the next prediction. Default: 0.0.
+        top_k: Optional[int]: limits to a certain number (K) of the top tokens to consider. top_k=1 means the model will
+        only consider the single most likely token for the next prediction. Default: 1
+        add_bos: Optional[bool]: whether a special token representing the beginning of a sequence should be added when
+        encoding a string. Default: False since typically for CausalLM its set to False. If needed set add_bos to True.
     """
     try:
         # lm-evaluation-harness import

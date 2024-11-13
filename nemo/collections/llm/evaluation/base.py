@@ -28,7 +28,8 @@ from lm_eval.api.model import LM
 
 class NeMoFWLMEval(LM):
     """
-    NeMoFWLMEval is a wrapper class subclassing lm_eval.api.model.LM class, that defines how lm_eval interfaces with our model deployed on PyTriton server.
+    NeMoFWLMEval is a wrapper class subclassing lm_eval.api.model.LM class, that defines how lm_eval interfaces with
+    NeMo model deployed on PyTriton server.
     Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
     """
     def __init__(self, model_name, api_url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos):
@@ -44,7 +45,8 @@ class NeMoFWLMEval(LM):
 
     def _generate_tokens_logits(self, payload, return_text: bool = False, return_logits: bool = False):
         """
-        A private method that sends post request to the model on PyTriton server and returns either generated text or logits.
+        A private method that sends post request to the model on PyTriton server and returns either generated text or
+        logits.
         """
         # send a post request to /v1/completions/ endpoint with the payload
         response = requests.post(f"{self.api_url}/v1/completions/", json=payload)
@@ -63,17 +65,22 @@ class NeMoFWLMEval(LM):
             return response_data['choices'][0]['generation_logits']
 
     def tokenizer_type(self, tokenizer):
+        """
+        Returns the type of the tokenizer.
+        """
         if isinstance(tokenizer, AutoTokenizer):
             return "AutoTokenizer"
         elif isinstance(tokenizer, SentencePieceTokenizer):
             return "SentencePieceTokenizer"
         else:
-            return "Unknown tokenizer type"
+            raise ValueError("Tokenizer type is not one of SentencePieceTokenizer or HF's AutoTokenizer. Please check "
+                             "how to handle special tokens for this tokenizer")
 
     def loglikelihood(self, requests: list[Instance]):
         """
-        Defines the loglikelihood request. Takes input requests of type list[Instance] where Instance is a dataclass defined in lm_eval.api.instance.
-        Each Instance conists of the input prompt, output prompt, request type(here loglikelihood) and other relevant args like few shot samples.
+        Defines the loglikelihood request. Takes input requests of type list[Instance] where Instance is a dataclass
+        defined in lm_eval.api.instance. Each Instance conists of the input prompt, output prompt, request type(here
+        loglikelihood) and other relevant args like few shot samples.
         """
         special_tokens_kwargs = {}
         if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
@@ -129,8 +136,9 @@ class NeMoFWLMEval(LM):
 
     def generate_until(self, inputs: list[Instance]):
         """
-        Defines the generate_until request type. Takes input requests of type list[Instance] where Instance is a dataclass defined in lm_eval.api.instance.
-        Each Instance conists of the input prompt, output prompt, request type(here loglikelihood) and other relevant args like few shot samples.
+        Defines the generate_until request type. Takes input requests of type list[Instance] where Instance is a dataclass
+        defined in lm_eval.api.instance. Each Instance conists of the input prompt, output prompt, request type(here
+        loglikelihood) and other relevant args like few shot samples.
         """
         results = []
         for instance in inputs:
