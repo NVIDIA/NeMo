@@ -204,9 +204,7 @@ class FluxControlNet(VisionModule):
         controlnet_single_block_samples = [sample * conditioning_scale for sample in controlnet_single_block_samples]
 
         controlnet_double_block_samples = None if len(controlnet_double_block_samples) == 0 else controlnet_double_block_samples
-        controlnet_single_block_samples = (
-            None if len(controlnet_single_block_samples) == 0 else controlnet_single_block_samples
-        )
+        controlnet_single_block_samples = None if len(controlnet_single_block_samples) == 0 else controlnet_single_block_samples
 
         return controlnet_double_block_samples, controlnet_single_block_samples
 
@@ -226,6 +224,11 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.module = FluxControlNet(self.flux_controlnet_config)
             if self.flux_controlnet_config.load_from_flux_transformer:
                 self.module.load_from_flux_transformer(self.flux)
+            if self.flux_controlnet_config.num_single_layers == 0:
+                ## when there is no single layer, encoder_hidden_states related params are not included in computation graph
+                for name, param in self.module.named_parameters():
+                    if 'context' in name or 'added' in name:
+                        param.requires_grad = False
 
         self.configure_vae(self.vae_params)
         self.configure_scheduler(self.scheduler_params)
