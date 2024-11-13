@@ -538,10 +538,10 @@ class MMDiTLayer(TransformerLayer):
         self.adaln = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
 
         self.context_pre_only = context_pre_only
-        context_norm_type = "ada_norm_continous" if context_pre_only else "ada_norm_zero"
+        context_norm_type = "ada_norm_continuous" if context_pre_only else "ada_norm_zero"
 
-        if context_norm_type == "ada_norm_continous":
-            self.adaln_context = AdaLNContinous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
+        if context_norm_type == "ada_norm_continuous":
+            self.adaln_context = AdaLNContinuous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
         elif context_norm_type == "ada_norm_zero":
             self.adaln_context = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
         else:
