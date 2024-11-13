@@ -243,10 +243,10 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             )
             log_probs = F.log_softmax(logits, dim=-1)  # [(B x Beam), V]
             if self.ngram_lm_batch:
-                log_probs[:, -1] += self.ngram_lm_alpha * lm_scores
-            log_probs = log_probs.reshape(batch_size, self.beam_size, -1)
+                log_probs[:, :-1] += self.ngram_lm_alpha * lm_scores
+            log_probs = log_probs.view(batch_size, self.beam_size, -1)
             log_probs_top_k, labels_top_k = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
-            log_probs_blank = log_probs[:, :, self._blank_index]
+            log_probs_blank = log_probs[..., self._blank_index]
             # size: batch_size x beam_size x beam_size (k)
             hyps_scores = batched_hyps.scores
             hyps_candidates_prob = hyps_scores.unsqueeze(-1) + log_probs_top_k
@@ -267,12 +267,11 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 active_mask.unsqueeze(-1), labels_top_k, torch.full_like(labels_top_k, fill_value=-1)
             )
 
-            # force max_symbols -> extend with blank
+            # force blank extension with respect to self.max_symbols
             if self.max_symbols is not None:
                 force_blank = (batched_hyps.last_timestep_lasts >= self.max_symbols) & active_mask
             else:
                 force_blank = torch.full_like(active_mask, fill_value=False)
-            # force blank extension with respect to self.max_symbols
             hyps_candidates_prob = torch.where(
                 force_blank.unsqueeze(-1),
                 torch.full_like(hyps_candidates_prob, fill_value=-float("inf")),
@@ -331,12 +330,14 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 batch_size=batch_size * self.beam_size,
             )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-            torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, decoder_output)
+
+            decoder_output = torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, decoder_output)
             self.decoder.batch_replace_states_mask(
                 src_states=prev_state, dst_states=state, mask=preserve_state.view(-1)
             )
             # TODO: lm state
-            # if self.ngram_lm_batch is not None:
+            if self.ngram_lm_batch is not None:
+                raise NotImplementedError
             #     lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
             #         states=batch_lm_states
             #     )  # vocab_size_no_blank
