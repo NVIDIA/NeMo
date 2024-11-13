@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
+from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 
 
 class NeMoMixedPrecisionPlugin(MixedPrecisionPlugin):
