@@ -335,6 +335,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
+        self.optim = optim
         if optim is not None:
             self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform

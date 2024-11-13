@@ -57,17 +57,14 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
             lazy_init=True,
             ddp=None,
         ),
-        plugins=nl.MegatronMixedPrecision(precision='bf16', pipeline_dtype=torch.bfloat16, autocast_enabled=True),
+        plugins=nl.MegatronMixedPrecision(precision='bf16', params_dtype=torch.bfloat16, autocast_enabled=True),
     )
     model_path = Path(nemo_checkpoint_path)
     config = nl.io.load_context(ckpt_to_context_subdir(model_path), subpath="model.config")
     tokenizer = nl.io.load_context(ckpt_to_context_subdir(model_path), subpath="model.tokenizer")
-
     config = quantizable_model_config(config)
-    torch.cuda.empty_cache()
     model = llm.GPTModel(config, tokenizer=tokenizer, optim=None)
     _setup_trainer_and_restore_model(nemo_checkpoint_path, trainer, model)
-    torch.cuda.empty_cache()
     return model
 
 

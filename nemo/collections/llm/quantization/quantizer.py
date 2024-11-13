@@ -82,7 +82,6 @@ class ExportConfig:
     decoder_type: Optional[str] = None
     inference_tensor_parallel: int = 1
     inference_pipeline_parallel: int = 1
-    # sample_generate: bool = True
 
 
 def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
@@ -104,7 +103,7 @@ def get_modelopt_decoder_type(config: llm.GPTConfig) -> str:
         if isinstance(config, config_class):
             return decoder_type
 
-    logging.warning("Could not directly infer the decoder type")
+    logging.warning("Could not infer the decoder type, assuming llama")
     # TODO: Add a reasonable behavior for GPTConfig (for instance based on position_embedding_type)
     return "llama"
 
@@ -262,21 +261,11 @@ class Quantizer:
 
         return loop
 
-    def _sample_generate(self, model):
-        mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
-        mcore_inference = model.get_inference_wrapper(torch.bfloat16, 50)
 
-        prompts = ["Born in north-east France, Soyer trained as a", "Born in California, Soyer trained as a"]
-        generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
-        outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
-        logging.info(f'Example NeMo after PTQ: {outputs}"')
 
     def export(self, model: llm.GPTModel) -> None:
         assert self.export_config is not None, "Export config is not set"
-
-        # if self.export_config.sample_generate:
-        self._sample_generate(model)
-
+        # TODO: Add sample generate
         # TODO: Support megatron_amp_O2
         export_dir = self.export_config.path
 
