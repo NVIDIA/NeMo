@@ -74,7 +74,6 @@ class HfDatasetDataModule(pl.LightningDataModule):
             for key in keys
         }
 
-
     def setup(self, stage: str):
         if not self.use_mcore_sampler:
             return
