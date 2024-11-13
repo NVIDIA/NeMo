@@ -910,9 +910,7 @@ class ModelPT(LightningModule, Model):
 
         if stage == 'test':
             test_deferred_setup = (
-                'test_ds' in self._cfg
-                and not self._cfg.test_ds
-                and self._cfg.test_ds.get('defer_setup', False)
+                'test_ds' in self._cfg and not self._cfg.test_ds and self._cfg.test_ds.get('defer_setup', False)
             )
             if self.test_dataloader() is None and test_deferred_setup:
                 self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
