@@ -29,9 +29,6 @@ TOKENIZER_CONFIG_FILE = "tokenizer_config.yaml"
 
 def get_nmt_tokenizer(nemo_checkpoint_path: str):
     """Build tokenizer from Nemo tokenizer config."""
-    context_path = ckpt_to_context_subdir(nemo_checkpoint_path)
-    if context_path.exists():
-        return nl.io.load_context(context_path, subpath="tokenizer")
 
     print(f"Initializing tokenizer from {TOKENIZER_CONFIG_FILE}")
     tokenizer_cfg = OmegaConf.load(os.path.join(nemo_checkpoint_path, TOKENIZER_CONFIG_FILE))
