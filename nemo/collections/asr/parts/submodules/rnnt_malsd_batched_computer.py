@@ -309,18 +309,18 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 index=hyps_indices[:, :, None, None].expand(batch_size, self.beam_size, 1, decoder_output.shape[-1]),
             ).view(batch_size * self.beam_size, 1, -1)
             # TODO: move to decoder
-            # state: tuple, each is of [1, (BxBeam), Dim]
+            # state: tuple, each is of [Layers, (BxBeam), Dim]
             prev_state = (
                 torch.gather(
-                    state[0].view(1, batch_size, self.beam_size, -1),
+                    state[0].view(state[0].shape[0], batch_size, self.beam_size, -1),
                     dim=2,
-                    index=hyps_indices[None, :, :, None].expand(1, batch_size, self.beam_size, state[0].shape[-1]),
-                ).view(1, batch_size * self.beam_size, -1),
+                    index=hyps_indices[None, :, :, None].expand(state[0].shape[0], batch_size, self.beam_size, state[0].shape[-1]),
+                ).view(state[0].shape[0], batch_size * self.beam_size, -1),
                 torch.gather(
-                    state[1].view(1, batch_size, self.beam_size, -1),
+                    state[1].view(state[1].shape[0], batch_size, self.beam_size, -1),
                     dim=2,
-                    index=hyps_indices[None, :, :, None].expand(1, batch_size, self.beam_size, state[1].shape[-1]),
-                ).view(1, batch_size * self.beam_size, -1),
+                    index=hyps_indices[None, :, :, None].expand(state[1].shape[0], batch_size, self.beam_size, state[1].shape[-1]),
+                ).view(state[1].shape[0], batch_size * self.beam_size, -1),
             )
 
             decoder_output, state, *_ = self.decoder.predict(
