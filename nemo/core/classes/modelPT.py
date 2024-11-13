@@ -35,9 +35,9 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-from omegaconf import DictConfig, OmegaConf, open_dict
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.utilities import model_summary, rank_zero_only
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo import package_info
 from nemo.core import optim

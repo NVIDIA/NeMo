@@ -20,8 +20,7 @@ from lightning.pytorch.utilities import rank_zero_only
 
 
 class LogEpochTimeCallback(Callback):
-    """Simple callback that logs how long each epoch takes, in seconds, to a pytorch lightning log
-    """
+    """Simple callback that logs how long each epoch takes, in seconds, to a pytorch lightning log"""
 
     @rank_zero_only
     def on_train_epoch_start(self, trainer, pl_module):
