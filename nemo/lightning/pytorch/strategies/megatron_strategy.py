@@ -276,7 +276,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
-            if fsdp:
+            if self._fsdp:
                 raise ValueError("Please set ddp to megatron to run Torch FSDP2.")
             self.ddp_config = None
             self.no_ddp_communication_hook = False
