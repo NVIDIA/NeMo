@@ -33,37 +33,22 @@ from tests.collections.llm.common import create_verify_precision, small_llama_cf
 
 
 class CrashCallback(Callback):
-    def __init__(self, crash_step=3, crash_time=None):
+    def __init__(self, crash_step=3):
         self.crash_step = crash_step
-        self.crash_time = crash_time
-        print(f"Setup to simulate a crash if step time > {self.crash_step} before {self.crash_time}")
+        print(f"Setup to simulate a crash if step == {self.crash_step}")
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if self.crash_step and trainer.global_step == self.crash_step:
             raise Exception(f"Simulating a crash at step {self.crash_step}!")
 
-        # if (
-        #    datetime.now() <= datetime.strptime(self.crash_time, "%Y-%m-%d %H:%M:%S")
-        #    and trainer.global_step >= self.crash_step
-        # ):
-        #    raise Exception("Simulating a crash!")
-
 
 def get_args():
     parser = argparse.ArgumentParser(prog="", description="")
     parser.add_argument('--devices', type=int, required=True, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, required=True, help="Number of steps to train for")
-    parser.add_argument(
-        '--crash-time',
-        type=str,
-        # required=True,
-        help="Datetime string which indicates when to simulate a crash. Set this to a few minutes after the training starts to ensure a successful crash.",
-    )
     parser.add_argument(
         '--crash-step',
         type=int,
-        required=True,
-        help="Crash step",
+        help="Step when a crash should be simulated",
     )
     parser.add_argument(
         '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
@@ -109,12 +94,15 @@ def main():
     pretrain_recipe.trainer.limit_val_batches = 2
 
     executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
+    # Add the fault tolerance plugin which enables restart after a crash
     run_plugins: list[run.Plugin] = [FaultTolerancePlugin(num_in_process_restarts=1, num_job_retries_on_failure=0)]
     pretrain_recipe.trainer.callbacks = [
         run.Config(TimingCallback),
-        straggler_det_callback(),
-        run.Config(CrashCallback, crash_step=6, crash_time=args.crash_time),
+        straggler_det_callback(straggler_report_time_interval=0.5)
     ]
+
+    if args.crash_step:
+        pretrain_recipe.trainer.callbacks.append(run.Config(CrashCallback, crash_step=args.crash_step))
 
     run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
 
