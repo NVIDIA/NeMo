@@ -382,7 +382,6 @@ class MLlamaBaseModel(MegatronModule):
         self.patch_size = 14
         self.image_res = vision_model_config.vision_chunk_size
         self.max_num_chunks = vision_model_config.vision_max_num_chunks
-        logging.warning("[WARNING] NeMo Mllama will always pad images to max number of tiles. A fix is coming soon!")
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
         self.language_model.setup_cache(max_batch_size, dtype)
@@ -444,8 +443,8 @@ class MLlamaBaseModel(MegatronModule):
                 self.config.hidden_size,
             )
             skip_vision_encoder = False
-            num_chunks[num_chunks > 0] = self.max_num_chunks
             if max_num_images == 0:
+                num_chunks[num_chunks > 0] = self.max_num_chunks
                 skip_vision_encoder = True
 
             if self.encoder_hidden_state is not None:
