@@ -103,7 +103,7 @@ class BatchedBeamHyps:
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
         self.current_lengths_nb += extended_with_label
-        self.last_timestep += extended_with_blank
+        # self.last_timestep += extended_with_blank
         self.last_timestep_lasts = torch.where(
             extended_with_blank,
             torch.zeros_like(self.last_timestep_lasts),
@@ -119,18 +119,18 @@ class BatchedBeamHyps:
         # TODO: faster parallel aggregation
         hypotheses: list[rnnt_utils.Hypothesis] = []
         for i in range(batch_size):
-            transcript = []
+            cur_transcript = []
             cur_index = end_indices[i]
             for j in range(hyp_length - 1, -1, -1):
-                token = transcript[cur_index, j]
+                token = transcript[i][cur_index][j]
                 if token > 0 and token != self.blank_index:
-                    transcript.append(token)
-                cur_index = transcript_prev_ptr[cur_index, j]
+                    cur_transcript.append(token)
+                cur_index = transcript_prev_ptr[i][cur_index][j]
             hypotheses.append(
                 rnnt_utils.Hypothesis(
                     score=self.scores[i, end_indices[i]].item(),
                     # TODO: aggregate hyp
-                    y_sequence=reversed(transcript),
+                    y_sequence=cur_transcript[::-1],
                     timestep=[],
                     alignments=None,
                     dec_state=None,
@@ -290,27 +290,55 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             next_hyps_prob, hyps_candidates_indices = torch.topk(
                 hyps_candidates_prob.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True
             )
-            hyps_indices = hyps_indices[:, hyps_candidates_indices]
-            next_labels = labels_top_k[:, hyps_candidates_indices]
+            hyps_indices = torch.gather(hyps_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
+            next_labels = torch.gather(labels_top_k.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
 
             batched_hyps.add_results_(hyps_indices, next_labels, next_hyps_prob)
 
+            last_labels_wb = torch.where(
+                next_labels >= 0, next_labels, torch.full_like(next_labels, fill_value=self._blank_index)
+            )
+            preserve_state = (next_labels < 0) | (next_labels == self._blank_index)
+
             # update decoder + lm state
-            prev_decoder_output = decoder_output
+            # decoder_output: [(B x Beam), 1, Dim]
+            prev_decoder_output = torch.gather(
+                decoder_output.view(batch_size, self.beam_size, 1, -1),
+                dim=1,
+                index=hyps_indices[:, :, None, None].expand(batch_size, self.beam_size, 1, decoder_output.shape[-1]),
+            )
+            # TODO: move to decoder
+            # state: tuple, each is of [1, (BxBeam), Dim]
+            prev_state = (
+                torch.gather(
+                    state[0].view(1, batch_size, self.beam_size, -1),
+                    dim=2,
+                    index=hyps_indices[None, :, :, None].expand(1, batch_size, self.beam_size, state[0].shape[-1]),
+                ).view(1, batch_size * self.beam_size, -1),
+                torch.gather(
+                    state[1].view(1, batch_size, self.beam_size, -1),
+                    dim=2,
+                    index=hyps_indices[None, :, :, None].expand(1, batch_size, self.beam_size, state[1].shape[-1]),
+                ).view(1, batch_size * self.beam_size, -1),
+            )
+
             decoder_output, state, *_ = self.decoder.predict(
-                last_labels_wb.reshape(-1).unsqueeze(1), state, add_sos=False, batch_size=batch_size * self.beam_size
+                next_labels.reshape(-1).unsqueeze(1), prev_state, add_sos=False, batch_size=batch_size * self.beam_size
             )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-            torch.where((last_labels_wb == self._blank_index).view(-1), prev_decoder_output, decoder_output)
-            self.decoder.batch_replace_states_mask(...)
-            # TODO: replace state
+            torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, decoder_output)
+            self.decoder.batch_replace_states_mask(
+                src_states=prev_state, dst_states=state, mask=preserve_state.view(-1)
+            )
             # TODO: lm state
-            if self.ngram_lm_batch is not None:
-                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
-                    states=batch_lm_states
-                )  # vocab_size_no_blank
-                lm_scores = lm_scores.to(dtype=float_dtype)
+            # if self.ngram_lm_batch is not None:
+            #     lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+            #         states=batch_lm_states
+            #     )  # vocab_size_no_blank
+            #     lm_scores = lm_scores.to(dtype=float_dtype)
 
+            time_indices = batched_hyps.current_lengths_wb - batched_hyps.current_lengths_nb
+            torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
 
         return batched_hyps.to_hyps_list()
