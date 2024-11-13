@@ -34,11 +34,13 @@ class BatchedBeamHyps:
         batch_size: int,
         init_length: int,
         beam_size: int,
+        blank_index: int,
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
     ):
         self._max_length = init_length
         self.beam_size = beam_size
+        self.blank_index = blank_index
 
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
@@ -49,9 +51,12 @@ class BatchedBeamHyps:
         self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
         self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
 
-        self.last_timestep = torch.full((batch_size, self.beam_size), fill_value=-1, device=device, dtype=torch.long)
+        # self.last_timestep = torch.full((batch_size, self.beam_size), fill_value=-1, device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-        self._batch_indices = torch.arange(batch_size, device=device).unsqueeze(1).expand(-1, self.beam_size)
+        self._batch_indices = (
+            torch.arange(batch_size, device=device).unsqueeze(1).expand(-1, self.beam_size).reshape(-1)
+        )
+        self._beam_indices = torch.arange(beam_size, device=device).unsqueeze(0).expand(batch_size, -1).reshape(-1)
         self._ones_batch = torch.ones_like(self._batch_indices)
 
     def clear_(self):
@@ -61,7 +66,7 @@ class BatchedBeamHyps:
         self.timesteps.fill_(0)
         self.scores.fill_(0.0)
         self.transcript_prev_ptr.fill_(-1)
-        self.last_timestep.fill_(-1)
+        # self.last_timestep.fill_(-1)
         self.last_timestep_lasts.fill_(0)
 
     def _allocate_more(self):
@@ -89,46 +94,48 @@ class BatchedBeamHyps:
         next_labels,
         next_hyps_prob,
     ):
-        # accumulate scores
-        # same as self.scores[active_mask] += scores[active_mask], but non-blocking
-        torch.where(active_mask, self.scores + scores, self.scores, out=self.scores)
-
-        # store transcript and timesteps
-        self.transcript[self._batch_indices, self.current_lengths] = labels
-        self.timesteps[self._batch_indices, self.current_lengths] = time_indices
-        # store last observed timestep + number of observation for the current timestep
-        # if last_timestep == time_indices, increase; else set to 1
-        torch.where(
-            torch.logical_and(active_mask, self.last_timestep == time_indices),
-            self.last_timestep_lasts + 1,
-            self.last_timestep_lasts,
-            out=self.last_timestep_lasts,
+        self.scores.copy_(next_hyps_prob)
+        self.transcript[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = next_labels
+        self.transcript_prev_ptr[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = (
+            hyps_indices
         )
-        torch.where(
-            torch.logical_and(active_mask, self.last_timestep != time_indices),
-            self._ones_batch,
-            self.last_timestep_lasts,
-            out=self.last_timestep_lasts,
+        self.current_lengths_wb += 1
+        extended_with_blank = next_labels == self.blank_index
+        extended_with_label = (~extended_with_blank) & (next_labels >= 0)
+        self.current_lengths_nb += extended_with_label
+        self.last_timestep += extended_with_blank
+        self.last_timestep_lasts = torch.where(
+            extended_with_blank,
+            torch.zeros_like(self.last_timestep_lasts),
+            self.last_timestep_lasts + extended_with_label,
         )
-        # same as: self.last_timestep[active_mask] = time_indices[active_mask], but non-blocking
-        torch.where(active_mask, time_indices, self.last_timestep, out=self.last_timestep)
-        # increase lengths
-        self.current_lengths += active_mask
 
     def to_hyps_list(self) -> list[rnnt_utils.Hypothesis]:
-        num_hyps = self.current_lengths.shape[0]
-        best_hyps_ids = torch.argmax(self.scores, dim=1).tolist()
-        hypotheses = [
-            rnnt_utils.Hypothesis(
-                score=self.scores[i, best_hyps_ids[i]].item(),
-                # TODO: aggregate hyp
-                y_sequence=self.transcript[i, best_hyps_ids[i], : self.current_lengths[i, best_hyps_ids[i]]],
-                timestep=[],
-                alignments=None,
-                dec_state=None,
+        transcript = self.transcript.tolist()
+        transcript_prev_ptr = self.transcript_prev_ptr.tolist()
+        end_indices = torch.argmax(self.scores, dim=-1).tolist()
+        batch_size = self.scores.shape[0]
+        hyp_length = self.current_lengths_wb[0, 0].item()
+        # TODO: faster parallel aggregation
+        hypotheses: list[rnnt_utils.Hypothesis] = []
+        for i in range(batch_size):
+            transcript = []
+            cur_index = end_indices[i]
+            for j in range(hyp_length - 1, -1, -1):
+                token = transcript[cur_index, j]
+                if token > 0 and token != self.blank_index:
+                    transcript.append(token)
+                cur_index = transcript_prev_ptr[cur_index, j]
+            hypotheses.append(
+                rnnt_utils.Hypothesis(
+                    score=self.scores[i, end_indices[i]].item(),
+                    # TODO: aggregate hyp
+                    y_sequence=reversed(transcript),
+                    timestep=[],
+                    alignments=None,
+                    dec_state=None,
+                )
             )
-            for i in range(num_hyps)
-        ]
         return hypotheses
 
 
@@ -191,6 +198,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         batched_hyps = BatchedBeamHyps(
             batch_size=batch_size,
             beam_size=self.beam_size,
+            blank_index=self._blank_index,
             init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
@@ -249,7 +257,9 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 torch.full_like(hyps_candidates_prob, fill_value=-float("inf")),
             )
             hyps_candidates_prob[..., 0] = torch.where(
-                active_mask, hyps_candidates_prob[..., 0], hyps_scores,
+                active_mask,
+                hyps_candidates_prob[..., 0],
+                hyps_scores,
             )
             labels_top_k = torch.where(
                 active_mask.unsqueeze(-1), labels_top_k, torch.full_like(labels_top_k, fill_value=-1)
@@ -262,15 +272,15 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 force_blank = torch.full_like(active_mask, fill_value=False)
             # force blank extension with respect to self.max_symbols
             hyps_candidates_prob = torch.where(
-                can_extend_nb.unsqueeze(-1),
-                hyps_candidates_prob,
+                force_blank.unsqueeze(-1),
                 torch.full_like(hyps_candidates_prob, fill_value=-float("inf")),
+                hyps_candidates_prob,
             )
             hyps_candidates_prob[..., 0] = torch.where(
-                can_extend_nb, hyps_candidates_prob[..., 0], hyps_candidates_prob_forced_blank
+                force_blank, hyps_candidates_prob_forced_blank, hyps_candidates_prob[..., 0]
             )
             labels_top_k = torch.where(
-                can_extend_nb.unsqueeze(-1), labels_top_k, torch.full_like(labels_top_k, fill_value=self._blank_index)
+                force_blank.unsqueeze(-1), torch.full_like(labels_top_k, fill_value=self._blank_index), labels_top_k
             )
 
             hyps_indices = torch.arange(self.beam_size, dtype=torch.long, device=device)[None, :, None].expand(
@@ -283,7 +293,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             hyps_indices = hyps_indices[:, hyps_candidates_indices]
             next_labels = labels_top_k[:, hyps_candidates_indices]
 
-            batched_hyps.add_results_masked_(hyps_indices, next_labels, next_hyps_prob)
+            batched_hyps.add_results_(hyps_indices, next_labels, next_hyps_prob)
 
             # update decoder + lm state
             prev_decoder_output = decoder_output
