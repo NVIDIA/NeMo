@@ -351,7 +351,7 @@ def extract_nemotron_tokenizer(nemo_file, model_config, output_hf_path, nemo_tok
         convert_tiktoken(vocab_file)
         converted_tokenizer = TikTokenConverter(vocab_file=vocab_file, additional_special_tokens=special_tokens).converted()
         os.remove(vocab_file)
-        tokenizer = PreTrainedTokenizerFast(tokenizer_object=converted_tokenizer)
+        tokenizer = PreTrainedTokenizerFast(tokenizer_object=converted_tokenizer, model_input_names=["input_ids", "attention_mask"], bos_token="<s>", eos_token="</s>")
         tokenizer.save_pretrained(output_hf_path)
     elif isinstance(nemo_tokenizer, AutoTokenizer):
         nemo_tokenizer.tokenizer.save_pretrained(output_hf_path)
