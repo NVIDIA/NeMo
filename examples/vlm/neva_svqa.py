@@ -203,7 +203,13 @@ def predict_answers(args, model, processor):
 
         # Generate the response using the model
         generated_ids, predicted_ids = generate(
-            model, input_ids, media.bfloat16() if media is not None else torch.ones([0, 3, 336, 336], dtype=torch.bfloat16).cuda(), position_ids, tokenizer, attention_mask=attention_mask, max_length=args.max_length
+            model,
+            input_ids,
+            media.bfloat16() if media is not None else torch.ones([0, 3, 336, 336], dtype=torch.bfloat16).cuda(),
+            position_ids,
+            tokenizer,
+            attention_mask=attention_mask,
+            max_length=args.max_length,
         )
 
         # Post-process and decode the generated response

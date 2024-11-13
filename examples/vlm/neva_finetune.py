@@ -23,8 +23,8 @@ from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.callbacks import NsysCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.run.plugins import NsysPlugin
+from nemo.utils.exp_manager import TimingCallback
 
 
 def main(args):
@@ -124,8 +124,11 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback, TimingCallback(),
-                   NsysCallback(start_step=10, end_step=11, ranks=[0, 1], gen_shape=True)],
+        callbacks=[
+            checkpoint_callback,
+            TimingCallback(),
+            NsysCallback(start_step=10, end_step=11, ranks=[0, 1], gen_shape=True),
+        ],
         val_check_interval=100,
         limit_val_batches=gbs,
         log_every_n_steps=1,
@@ -190,7 +193,9 @@ if __name__ == "__main__":
     # Argument parsing
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
-    parser.add_argument("--log_dir", type=str, required=False, default=None, help="Directory for logging and checkpoints")
+    parser.add_argument(
+        "--log_dir", type=str, required=False, default=None, help="Directory for logging and checkpoints"
+    )
     parser.add_argument(
         "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
     )

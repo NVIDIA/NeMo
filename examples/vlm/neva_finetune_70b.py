@@ -52,6 +52,7 @@ def main(args):
     # )
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
     tokenizer = AutoTokenizer("meta-llama/Llama-3.1-70B")
     data = vlm.NevaMockDataModule(
         seq_length=decoder_seq_length,
@@ -185,7 +186,9 @@ if __name__ == "__main__":
     # Argument parsing
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
-    parser.add_argument("--log_dir", type=str, required=False, default=None, help="Directory for logging and checkpoints")
+    parser.add_argument(
+        "--log_dir", type=str, required=False, default=None, help="Directory for logging and checkpoints"
+    )
     parser.add_argument(
         "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
     )
