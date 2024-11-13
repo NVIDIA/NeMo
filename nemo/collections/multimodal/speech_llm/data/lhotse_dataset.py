@@ -214,6 +214,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         instructions, instruction_lengths = [], []
         target_texts, target_text_lengths = [], []
         remove_ids = []
+        start_time_tokens, word_lengths = [], []
         for id, cut in enumerate(cuts):
             metadata.append({'audio_filepath': cut.id + '.wav'})
             # TODO: the following use of _process_example is not ideal. Should update
@@ -225,12 +226,21 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             else:
                 raise Exception("First speaker should be user")
 
-            if cut.supervisions[1].speaker == "agent":
-                target_text = self.text_processor._process_example(context="", output=cut.supervisions[1].text)
-                # -1 to remove the eos token added by the text processor
-                target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
-                    len(target_text["answer_ids"]) - 1
-                )
+            if cut.supervisions[2].speaker == "agent":
+                use_timestamp = getattr(cut, "s2s_align", False)
+                text = cut.supervisions[2].text
+                if not use_timestamp:
+                    pattern = r"<\|\d+\|>"
+                    output_text = re.sub(pattern, "", text)
+                    output_text = re.sub(r'\s+', ' ', output_text).strip()
+                    target_text = self.text_processor._process_example(context="", output=output_text)
+                    # -1 to remove the eos token added by the text processor
+                    target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
+                        len(target_text["answer_ids"]) - 1
+                    )
+                else:
+                    target_text, start_time_token, word_length = extract_text_and_time_tokens(text)
+                    target_text_length = len(target_text)
             else:
                 raise Exception("Second speaker should be agent")
 
@@ -238,6 +248,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             instruction_lengths.append(instruction_length)
             target_texts.append(target_text)
             target_text_lengths.append(target_text_length)
+            if use_timestamp:
+                word_lengths.append(word_length)
+                start_time_tokens.append(start_time_token)
 
         # Load source audio
         audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
@@ -298,6 +311,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         target_codec = None
         answer_audios, answer_audio_lens = None, None
+        assert self.load_answer_audio
         if not self.load_answer_audio:
             assert not getattr(cut, "s2t", False), "s2t not supported when load_answer_audio is False"
             features_lens = torch.tensor(
@@ -340,6 +354,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # Prepare dummy target_codec with speech_pad_id and eos_tensor, the dummy values will be filled in training_step or validation_step
             # once the audio codecs are extracted from the audio.
             features_lens = torch.tensor(features_lens, dtype=torch.int)
+            # TODO: can remove the following except features_lens
             target_codec = get_3d_empty_tensor(
                 len(cuts), max(features_lens).item() + 1, text_pad_id, self.speech_pad_id
             )
@@ -372,6 +387,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 texts_expanded = texts_expanded[:, :-1]
             return texts, text_lengths, texts_expanded
 
+        unpadded_target_texts = target_texts
         target_texts, target_text_lengths, target_texts_expanded = _convert_text_to_3d_tensor(target_texts)
         instructions, instruction_lengths, instructions_expanded_no_eos = _convert_text_to_3d_tensor(
             # tokens_to_generate is used in inference
@@ -382,6 +398,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         # answers = torch.concat([speaker_context, bos_tensor, target_codec], 1)
 
+        # TODO: remove the following stanza
         if getattr(cut, "s2s", False):
             # Add 1 for eos token
             token_list = [
@@ -406,6 +423,44 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
             full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_lengths
 
+        elif getattr(cut, "s2s_align", False):
+            max_feat_len = max(features_lens).item() + 1
+            # [batch, max_feat_len]
+            # the only thing needed is features_lens which can be estimated from target_audio length
+            target_texts_expanded = _expand_text_with_timestamps_and_word_lengths(
+                unpadded_target_texts,
+                word_lengths,
+                start_time_tokens,
+                features_lens + 1,
+                cut.target_codes.frame_shift,
+                pad_id=text_unk_id,
+            )
+            # import pdb; pdb.set_trace()
+            logging.debug(f'start_time_token: {start_time_tokens[0]}')
+            logging.debug(f'word_length: {word_lengths[0]}')
+            logging.debug(f'target_tokens: {unpadded_target_texts[0]}')
+            logging.debug(f'target_texts_expanded: {target_texts_expanded[0,:]}')
+            # [batch, max_feat_len, 1+V], where V = #codebooks * reduction_factor
+            target_codec[:, :, 0] = target_texts_expanded
+            token_list = target_codec
+
+            logging.debug(f'token_list[0].shape: {token_list[0].shape}')
+            if not self.t5_style:
+                token_list = [
+                    torch.concat([it[:itl], tt], 0)
+                    for tt, it, itl in zip(token_list, instructions_expanded_no_eos, instruction_lengths)
+                ]
+            tokens, _ = collate_and_pad(token_list)
+            speech_loss_mask = tokens[:, :, 1:] != self.speech_pad_id
+            # Make the text loss mask the same as speech since they are aligned
+            loss_mask = torch.cat([speech_loss_mask[..., :1], speech_loss_mask], dim=-1)
+            if not self.t5_style:
+                for itl in instruction_lengths:
+                    loss_mask[:, :itl, :] = False
+            # loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
+            # full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_length
+            full_lengths = features_lens + 1 + instruction_length
+            target_text_lengths = -1 * target_text_lengths
         elif getattr(cut, "direct_s2s", False):
             # Add 1 for eos token
             # tt[0] is the bos token
@@ -462,6 +517,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "metadata": metadata,
             # For forward
             "instructions": instructions,
+            "target_texts_expanded": target_texts_expanded,  # used in prepare_llm_input
             "contexts": instructions_expanded_no_eos,  # used in inference
             "context_lengths": instruction_lengths,
             "tokens": tokens[:, :-1, :],

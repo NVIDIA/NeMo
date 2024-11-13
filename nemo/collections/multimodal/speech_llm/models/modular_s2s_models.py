@@ -889,3 +889,40 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         self.additional_models = {}
 
         super().__init__(cfg, trainer)
+
+    '''
+    def prepare_llm_input(self, audio_batch):
+        """Prepare input for the LLM."""
+        if not self.extract_codec_on_the_fly:
+            logging.warn('TODO: remove the legacy prepare_llm_input under modular_models.py')
+            return super().prepare_llm_input(audio_batch)
+        input_signal = audio_batch['audio_signal']
+        logging.debug(f'input_signal.shape: {input_signal.shape}')
+        input_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+        answer_signal = audio_batch['answer_audio']
+        answer_signal_length = audio_batch['answer_audio_lens']
+
+        answer_codecs, answer_codecs_lens = self._get_codec_embeddings(
+            answer_signal, answer_signal_length
+        )  # list, list
+        instructions_expanded_no_eos, instruction_lengths = audio_batch['contexts'], audio_batch['context_lengths']
+        target_texts_expanded, target_text_lengths = audio_batch['target_texts_expanded'], audio_batch['target_text_lengths']
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+
+        # TODO: combine above tensors into one sequence for s2s, s2s_align, s2s_align_multiturn, s2s_align_duplex
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length
+    '''

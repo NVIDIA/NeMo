@@ -375,6 +375,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             audio_batch['labels'],
             audio_batch['loss_mask'],
         )
+        context_lengths = audio_batch['context_lengths']
 
         if self.extract_codec_on_the_fly:
             answer_signal = audio_batch['answer_audio']
@@ -385,10 +386,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 answer_signal, answer_signal_length
             )  # list, list
             for i, answer_codec in enumerate(answer_codecs):
-                input_ids[i, target_text_lengths[i] + 1 : target_text_lengths[i] + 1 + answer_codecs_lens[i], 1:] = (
-                    answer_codec
-                )
-                labels[i, target_text_lengths[i] : target_text_lengths[i] + answer_codecs_lens[i], 1:] = answer_codec
+                base_length = target_text_lengths[i] + context_lengths[i]
+                input_ids[i, base_length + 1 : base_length + 1 + answer_codecs_lens[i], 1:] = answer_codec
+                labels[i, base_length : base_length + answer_codecs_lens[i], 1:] = answer_codec
 
         num_audios = audio_batch.get("num_audios", None)
         context_start_idx = audio_batch.get("context_start_idx", None)
