@@ -1934,7 +1934,7 @@ class ModelPT(LightningModule, Model):
                 if self._chakra_profile_enabled and not self._chakra_profile_in_progress:
                     if (
                         self.trainer.global_step >= self._chakra_profile_start_step
-                        and self.trainer.global_step < self._chakra_profile_end_step
+                        and self.trainer.global_step <= self._chakra_profile_end_step
                     ):
                         logging.info(
                             f"====== Start chakra profiling from global_step {self.trainer.global_step} ======"
