@@ -19,10 +19,10 @@ PATCH = 0
 PRE_RELEASE = 'rc0'
 DEV = 'dev0'
 
-# Use the following formatting: (major, minor, patch, pre-release)
-VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)
+# Use the following formatting: (major, minor, patch, pre-release, dev)
+VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE, DEV)
 
-__shortversion__ = '.'.join(map(str, VERSION[:3]))
+__shortversion__ = ".".join(map(str, VERSION[:3]))
 __version__ = __shortversion__ + VERSION[3] + "." + ".".join(VERSION[4:])
 
 __package_name__ = 'nemo_toolkit'
