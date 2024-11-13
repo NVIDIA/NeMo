@@ -71,6 +71,7 @@ class BatchedBeamHyps:
 
     def _allocate_more(self):
         self.transcript = torch.cat((self.transcript, torch.zeros_like(self.transcript)), dim=-1)
+        self.transcript_prev_ptr = torch.cat((self.transcript_prev_ptr, torch.zeros_like(self.transcript_prev_ptr)), dim=-1)
         self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
         self._max_length *= 2
 
