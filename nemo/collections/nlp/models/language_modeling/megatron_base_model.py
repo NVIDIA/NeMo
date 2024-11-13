@@ -588,11 +588,7 @@ class MegatronBaseModel(NLPModel):
         Manipulate vocabulary (e.g., pad vocabulary for increased performance)/
         """
         # TODO: add config to allow to disable it?
-        self.padded_vocab_size = self._vocab_size_with_padding(
-            orig_vocab_size=self.tokenizer.vocab_size,
-            make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
-        )
+        self.padded_vocab_size = self.tokenizer.vocab_size
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and
