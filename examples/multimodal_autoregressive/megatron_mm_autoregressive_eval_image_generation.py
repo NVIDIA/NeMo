@@ -90,6 +90,10 @@ Usage:
 
 
 def to_img(tokens_string, image_tokenizer):
+    """Converts visual tokens to images
+
+    Given input visual tokens, we extract the indices, pass it to the decoder to get the image
+    """
     visual_token_pattern = r"<\|visual token (\d+)\|>"
     visual_tokens = [int(match) for match in re.findall(visual_token_pattern, tokens_string)]
     # We assume image is square. So if 64 tokensa are present, we reshape it to 8x8 and then pass it to decoder
@@ -106,6 +110,8 @@ def to_img(tokens_string, image_tokenizer):
 
 
 def load_prompts(cfg):
+    """Function to return the prompts passed into the model
+    """
     prompts = []
     for caption in cfg.captions:
         prompt = f'You are a helpful assistant. Draw a picture for the caption given by the user. USER: {caption}. ASSISTANT: '
@@ -119,6 +125,8 @@ if not torch.cuda.is_available():
 
 @hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_image_generation")
 def main(cfg) -> None:
+    """Main function
+    """
 
     callbacks = []
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks

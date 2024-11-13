@@ -95,6 +95,8 @@ VQ_HUB = "BAAI/Emu3-VisionTokenizer"
 
 
 def to_imgstr(image_tokens, tokenizer):
+    """Convert integer image tokens to visual tokens string
+    """
     image_tokens = image_tokens.cpu().numpy().tolist()
     image_token_str = [
         ['<|visual token {token_id:0>6d}|>'.format(token_id=token_id) for token_id in token_row]
@@ -106,6 +108,10 @@ def to_imgstr(image_tokens, tokenizer):
 
 
 def load_prompts(cfg, image_tokenizer, tokenizer):
+    """Function to generate prompts
+
+    The prompts generated here are fed to the model.
+    """
     prompts = []
     text = "Please describe the image"
     for image_path in cfg.images_path:
@@ -134,6 +140,8 @@ if not torch.cuda.is_available():
 
 @hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_vision_understanding")
 def main(cfg) -> None:
+    """Main function
+    """
 
     callbacks = []
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
