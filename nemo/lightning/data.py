@@ -103,7 +103,7 @@ def setup_microbatch_calculator(
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=app_state.data_parallel_size,
                 rampup_batch_size=rampup_batch_size,
-                decrease_batch_size_if_needed=False
+                decrease_batch_size_if_needed=False,
             )
         else:
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
