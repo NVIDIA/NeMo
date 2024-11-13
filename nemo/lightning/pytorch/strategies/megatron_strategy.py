@@ -19,6 +19,7 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
+from packaging import version
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -115,7 +116,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             across GPU ranks. Defaults to 1.
         virtual_pipeline_model_parallel_size (Optional[int]): Interleaved pipeline parallelism used to
             improve performance by reducing the pipeline bubble. Defaults to None.
-        microbatch_group_size_per_vp_stage（Optional[int]）: the number of micro-batches that are executed
+        microbatch_group_size_per_vp_stage (Optional[int]): the number of micro-batches that are executed
             at a time for a given virtual stage (both forward and backward). Defaults to None and convert
             to pipeline_parallel_size. which specifies a depth-first schedule.
         context_parallel_size (int): Splits network input along sequence dimension across GPU ranks.
@@ -134,7 +135,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
-        fsdp (bool, optional): Whether model should run Torch FSDP2 instead of DDP. Defaults to False.
+        fsdp (bool, optional): Option of using torch FSDP2. Defaults to False
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
@@ -262,7 +263,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.restore_config = restore_config
 
         self._ddp = ddp
-        self._fsdp = fsdp
+        self._fsdp = False
+        if fsdp:
+            if version.parse(torch.__version__) >= version.parse("2.4.0"):
+                # FSDP 2 is only supported after torch 2.4
+                self._fsdp = fsdp
+            else:
+                logging.warning(
+                    "Setting FSDP2 to False. FSDP2 require torch version >= 2.4."
+                )
+
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
         elif isinstance(ddp, DistributedDataParallelConfig):
