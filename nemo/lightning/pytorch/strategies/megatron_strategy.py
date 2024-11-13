@@ -134,6 +134,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
+        fsdp (bool, optional): Whether model should run Torch FSDP2 instead of DDP. Defaults to False.
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
