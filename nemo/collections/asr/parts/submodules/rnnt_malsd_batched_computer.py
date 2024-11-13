@@ -44,8 +44,13 @@ class BatchedBeamHyps:
 
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        self.transcript = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
-        self.transcript_prev_ptr = torch.full(
+        self.transcript_wb = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
+        self.transcript_wb_prev_ptr = torch.full(
+            (batch_size, self.beam_size, self._max_length), fill_value=-1, device=device, dtype=torch.long
+        )
+        self.transcript_nb = torch.zeros((batch_size, self.beam_size, self._max_length), device=device,
+                                         dtype=torch.long)
+        self.transcript_nb_prev_ptr = torch.full(
             (batch_size, self.beam_size, self._max_length), fill_value=-1, device=device, dtype=torch.long
         )
         self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
@@ -64,17 +69,20 @@ class BatchedBeamHyps:
     def clear_(self):
         self.current_lengths_nb.fill_(0)
         self.current_lengths_wb.fill_(0)
-        self.transcript.fill_(0)
+        self.transcript_wb.fill_(0)
         self.timesteps.fill_(0)
         self.scores.fill_(-float("inf"))
         self.scores[:, 0].fill_(0.0)
-        self.transcript_prev_ptr.fill_(-1)
+        self.transcript_wb_prev_ptr.fill_(-1)
         # self.last_timestep.fill_(-1)
         self.last_timestep_lasts.fill_(0)
 
     def _allocate_more(self):
-        self.transcript = torch.cat((self.transcript, torch.zeros_like(self.transcript)), dim=-1)
-        self.transcript_prev_ptr = torch.cat((self.transcript_prev_ptr, torch.zeros_like(self.transcript_prev_ptr)), dim=-1)
+        self.transcript_wb = torch.cat((self.transcript_wb, torch.zeros_like(self.transcript_wb)), dim=-1)
+        self.transcript_wb_prev_ptr = torch.cat((self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1)
+        self.transcript_nb = torch.cat((self.transcript_nb, torch.zeros_like(self.transcript_nb)), dim=-1)
+        self.transcript_nb_prev_ptr = torch.cat(
+            (self.transcript_nb_prev_ptr, torch.zeros_like(self.transcript_nb_prev_ptr)), dim=-1)
         self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
         self._max_length *= 2
 
@@ -100,10 +108,17 @@ class BatchedBeamHyps:
     ):
         # TODO: timesteps
         self.scores.copy_(next_hyps_prob)
-        self.transcript[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = next_labels.view(
+        self.transcript_wb[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = next_labels.view(
             -1
         )
-        self.transcript_prev_ptr[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = (
+        self.transcript_wb_prev_ptr[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = (
+            hyps_indices.view(-1)
+        )
+        self.transcript_nb[
+            self._batch_indices, self._beam_indices, self.current_lengths_nb.view(-1)] = next_labels.view(
+            -1
+        )
+        self.transcript_nb_prev_ptr[self._batch_indices, self._beam_indices, self.current_lengths_nb.view(-1)] = (
             hyps_indices.view(-1)
         )
         self.current_lengths_wb += 1
@@ -118,8 +133,8 @@ class BatchedBeamHyps:
         )
 
     def to_hyps_list(self) -> list[rnnt_utils.Hypothesis]:
-        transcript = self.transcript.tolist()
-        transcript_prev_ptr = self.transcript_prev_ptr.tolist()
+        transcript = self.transcript_wb.tolist()
+        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr.tolist()
         end_indices = torch.argmax(self.scores, dim=-1).tolist()
         batch_size = self.scores.shape[0]
         hyp_length = self.current_lengths_wb[0, 0].item()
@@ -132,7 +147,7 @@ class BatchedBeamHyps:
                 token = transcript[i][cur_index][j]
                 if token > 0 and token != self.blank_index:
                     cur_transcript.append(token)
-                cur_index = transcript_prev_ptr[i][cur_index][j]
+                cur_index = transcript_wb_prev_ptr[i][cur_index][j]
             hypotheses.append(
                 rnnt_utils.Hypothesis(
                     score=self.scores[i, end_indices[i]].item(),
@@ -292,7 +307,9 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             hyps_indices = torch.arange(self.beam_size, dtype=torch.long, device=device)[None, :, None].expand(
                 batch_size, -1, self.beam_size
             )
-
+            # for i in range(batch_size):
+            #     ...
+            # take topk
             next_hyps_prob, hyps_candidates_indices = torch.topk(
                 hyps_candidates_prob.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True
             )
@@ -308,6 +325,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 next_labels >= 0, next_labels, torch.full_like(next_labels, fill_value=self._blank_index)
             )
             preserve_state = (next_labels < 0) | (next_labels == self._blank_index)
+            logging.warning(f"Next labels: {next_labels} | {hyps_indices} | {next_hyps_prob}")
 
             # update decoder + lm state
             # decoder_output: [(B x Beam), 1, Dim]
