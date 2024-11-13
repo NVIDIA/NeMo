@@ -36,19 +36,33 @@ from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 '''
-Example
+Examples
 
+Use for CPU only (no forward pass check between converted nemo model and the source checkpoint)
 python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
                                 --input_name_or_path <path to the source pytorch model> \
                                 --output_path <path to target nemo model> \
                                 --mamba_ssm_ngroups 8 \
                                 --precision bf16 \
-                                --source_dist_ckpt False \
+                                --source_dist_ckpt \
                                 --tokenizer_type None \
                                 --tokenizer_library None \
                                 --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None> \
                                 --tokenizer_vocab_file <path to tokenizer vocab, defaults to None> \
                                 --cpu_only
+
+Use for checking forward pass (WARNING: this will require GPU and may result in OOM for larger models)
+CUDA_VISIBLE_DEVICES="0" torchrun --nproc-per-node=1 /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+                                --input_name_or_path <path to the source pytorch model> \
+                                --output_path <path to target nemo model> \
+                                --mamba_ssm_ngroups 8 \
+                                --precision bf16 \
+                                --source_dist_ckpt \
+                                --tokenizer_type None \
+                                --tokenizer_library None \
+                                --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None> \
+                                --tokenizer_vocab_file <path to tokenizer vocab, defaults to None> \
+                                --check_fwd_pass
 '''
 
 
@@ -248,6 +262,8 @@ def dist_ckpt_handler(checkpoint_dir, cpu_only):
     else:
         dist_ckpt_args.multi_latent_attention = False
         config = core_transformer_config_from_args(dist_ckpt_args)
+        config.tensor_model_parallel_size = 1
+        config.pipeline_model_parallel_size = 1
         config.use_cpu_initialization = False  # TE needs CUDA so there is no need to load the model on CPU
         assert dist_ckpt_args.use_legacy_models == False, "Mamba only supported in Mcore!"
 
