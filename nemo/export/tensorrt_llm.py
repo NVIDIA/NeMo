@@ -25,12 +25,12 @@ from typing import List, Optional
 
 import numpy as np
 import safetensors
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 import tensorrt_llm
 import torch
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
 
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
@@ -489,7 +489,7 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
-    
+
     def get_transformer_config(self, nemo_model_config):
         from megatron.core.transformer.transformer_config import TransformerConfig
 
@@ -599,12 +599,12 @@ class TensorRTLLM(ITritonDeployable):
         Accumulate all vp model chunks together, and reshard model (i.e) gather all pp ranks
         if required and return the final model state dict
         """
+
         def _get_layer_index(split_key):
             for index, key in enumerate(split_key):
                 if key == "layers":
                     return index + 1
             raise ValueError(f"Unknown layer name format: {split_key}")
-
 
         def rename_layer_num(param_name, layer_num):
             split_key = param_name.split(".")
@@ -612,13 +612,13 @@ class TensorRTLLM(ITritonDeployable):
             split_key[layer_index] = str(layer_num)
             return ".".join(split_key)
 
-
         def get_layer_num(param_name):
             split_key = param_name.split(".")
             layer_index = int(_get_layer_index(split_key))
             return int(split_key[layer_index])
 
         from megatron.core import parallel_state
+
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         pp_rank = parallel_state.get_pipeline_model_parallel_rank()
         pp_first_rank = parallel_state.get_pipeline_model_parallel_first_rank()
@@ -692,9 +692,9 @@ class TensorRTLLM(ITritonDeployable):
                 tensor_shape = [tensor.shape]
             else:
                 tensor_shape = [None]
-                
+
             torch.distributed.broadcast_object_list(tensor_shape, pp_src_idx, group=group)
-            
+
             if tensor_shape[0] is None:
                 return None
             if torch.distributed.get_rank() != pp_src_idx:
@@ -722,7 +722,7 @@ class TensorRTLLM(ITritonDeployable):
             key = 'output_layer.weight'
             tensor = get_tensor_if_available(key, pp_last_rank, pp_group)
             if tensor is not None:
-                model_state_dict[key] = tensor       
+                model_state_dict[key] = tensor
 
         return model_state_dict
 
@@ -731,6 +731,7 @@ class TensorRTLLM(ITritonDeployable):
         Return mcore export dtype given torch dtype
         """
         from megatron.core.export.data_type import DataType
+
         if storage_dtype == torch.bfloat16:
             return DataType.bfloat16
         elif storage_dtype == torch.float32:
@@ -741,16 +742,15 @@ class TensorRTLLM(ITritonDeployable):
     def get_nemo_to_trtllm_conversion_dict(self, model_state_dict):
         # MCore export supports some default conversion dictionaries
         # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models sometimes start with "model.decoder.layers.4.blahblah". so we append model prefix. to the keys
-        from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
-                DEFAULT_CONVERSION_DICT,
-            )
-        model_prefix, _ = get_layer_prefix(layer_names= model_state_dict.keys(), is_mcore=True)
+        from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import DEFAULT_CONVERSION_DICT
+
+        model_prefix, _ = get_layer_prefix(layer_names=model_state_dict.keys(), is_mcore=True)
 
         nemo_model_conversion_dict = {}
         for key, value in DEFAULT_CONVERSION_DICT.items():
             if 'layers' in key:
-                nemo_model_conversion_dict[f'{model_prefix}.{key}'] = value 
-            else :
+                nemo_model_conversion_dict[f'{model_prefix}.{key}'] = value
+            else:
                 nemo_model_conversion_dict[key] = value
         return DEFAULT_CONVERSION_DICT
 
@@ -811,7 +811,7 @@ class TensorRTLLM(ITritonDeployable):
                 ),
                 share_embeddings_and_output_weights=model_config.get("share_embeddings_and_output_weights", False),
             )
-            
+
             input_dtype = self.get_input_dtype(storage_dtype)
 
             trtllm_model_weights_list, trtllm_model_config_list = (
@@ -829,16 +829,16 @@ class TensorRTLLM(ITritonDeployable):
 
             if reshard_model:
                 assert self.pp_size == 1, 'Reshard is true, but pp size is not one'
-                # MCORE Export will use parallel_state to determine pp . 
+                # MCORE Export will use parallel_state to determine pp .
                 # Since we reshard to pp = 1, we need to modify the config and mapping
-                world_size = self.tp_size * self.pp_size 
+                world_size = self.tp_size * self.pp_size
                 trtllm_model_config.pp_size = self.pp_size
                 trtllm_model_config.world_size = world_size
                 trtllm_model_config.mapping = tensorrt_llm.Mapping(
-                        world_size=world_size,
-                        rank=self.mp_rank,
-                        tp_size=self.tp_size,
-                        pp_size=self.pp_size,
+                    world_size=world_size,
+                    rank=self.mp_rank,
+                    tp_size=self.tp_size,
+                    pp_size=self.pp_size,
                 )
 
             engine = trtllm_helper.build_and_save_engine(
@@ -851,7 +851,7 @@ class TensorRTLLM(ITritonDeployable):
                 engine_dir=self.model_dir,
                 use_refit=use_refit,
             )
-        else:      
+        else:
             weights, model_config = model_to_trtllm_ckpt(
                 model=model,
                 nemo_model_config=model_config,
@@ -892,32 +892,38 @@ class TensorRTLLM(ITritonDeployable):
         This function should only be used after calling build()
         """
         weights_dict = None
-        if use_mcore_path : 
-            from megatron.core.export.trtllm.trtllm_weights_converter.distributed_trtllm_model_weights_converter import DistributedTRTLLMModelWeightsConverter
+        if use_mcore_path:
+            from megatron.core.export.trtllm.trtllm_weights_converter.distributed_trtllm_model_weights_converter import (
+                DistributedTRTLLMModelWeightsConverter,
+            )
 
             transformer_config = self.get_transformer_config(model_config)
             storage_dtype = torch_dtype_from_precision(model_config.precision)
             dtype = self.get_input_dtype(storage_dtype)
 
             dist_trtllm_model_weights_converter = DistributedTRTLLMModelWeightsConverter(
-                transformer_config = transformer_config,
-                dtype = dtype,
-                multi_query_mode = model_config.get("multi_query_mode", False),
+                transformer_config=transformer_config,
+                dtype=dtype,
+                multi_query_mode=model_config.get("multi_query_mode", False),
                 activation=model_config.get('activation', "gelu"),
             )
-            
+
             model_state_dict = self.gather_and_reshard_model(model_config, model, storage_dtype)
             nemo_model_conversion_dict = self.get_nemo_to_trtllm_conversion_dict(model_state_dict)
-            dist_trtllm_model_weights_converter.convert(model_state_dict = model_state_dict, tokenizer_vocab_size = self.tokenizer.vocab_size, trtllm_conversion_dict = nemo_model_conversion_dict)
+            dist_trtllm_model_weights_converter.convert(
+                model_state_dict=model_state_dict,
+                tokenizer_vocab_size=self.tokenizer.vocab_size,
+                trtllm_conversion_dict=nemo_model_conversion_dict,
+            )
             weights_dict = dist_trtllm_model_weights_converter.trtllm_model_weights
-        else :
+        else:
             weights_dict = dist_model_to_trt_llm_ckpt(
                 model=model,
                 nemo_model_config=model_config,
                 inference_tp_size=self.tp_size,
                 inference_pp_size=self.pp_size,
                 tokenizer_vocab_size=self.tokenizer.vocab_size,
-            )                 
+            )
         load_distributed(self.model_dir, self.mp_rank, self.gpus_per_node)
         gc.collect()
         torch.cuda.empty_cache()
