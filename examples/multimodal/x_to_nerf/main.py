@@ -14,7 +14,7 @@
 
 from hydra.utils import get_class, instantiate
 from omegaconf.omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer, seed_everything
+from lightning.pytorch import Trainer, seed_everything
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

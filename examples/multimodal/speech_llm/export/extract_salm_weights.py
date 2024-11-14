@@ -20,7 +20,7 @@ import tempfile
 import torch
 from megatron.core import dist_checkpointing
 from omegaconf import OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
