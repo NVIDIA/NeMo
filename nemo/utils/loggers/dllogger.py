@@ -17,11 +17,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from lightning_utilities.core.apply_func import apply_to_collection
-from omegaconf import DictConfig, ListConfig, OmegaConf
 from lightning.pytorch.loggers import Logger
 from lightning.pytorch.utilities import rank_zero_only
 from lightning.pytorch.utilities.parsing import AttributeDict
+from lightning_utilities.core.apply_func import apply_to_collection
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.utils import logging
 

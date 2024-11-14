@@ -105,7 +105,10 @@ def initialize_sagemaker() -> None:
     """
 
     StrategyRegistry.register(
-        name='smddp', strategy=SageMakerDDPStrategy, process_group_backend="smddp", find_unused_parameters=False,
+        name='smddp',
+        strategy=SageMakerDDPStrategy,
+        process_group_backend="smddp",
+        find_unused_parameters=False,
     )
 
     def _install_system_libraries() -> None:
