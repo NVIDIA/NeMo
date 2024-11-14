@@ -492,6 +492,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 preserve_alignments=self.preserve_alignments,
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                ngram_lm_strategy=self.cfg.beam.get('ngram_lm_strategy', "blank_lm_max"),
             )
         else:
 

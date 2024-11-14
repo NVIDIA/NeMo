@@ -1521,6 +1521,7 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
             preserve_alignments: bool = False,
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
+            ngram_lm_strategy: str = "blank_lm_max",
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -1546,6 +1547,7 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
             preserve_alignments=preserve_alignments,
             ngram_lm_model=ngram_lm_model,
             ngram_lm_alpha=ngram_lm_alpha,
+            ngram_lm_strategy=ngram_lm_strategy,
         )
 
     @property
@@ -1623,5 +1625,6 @@ class BeamRNNTInferConfig:
     max_symbols_per_step: int = 10
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: Optional[float] = 0.0
+    ngram_lm_strategy: str = "blank_lm_max"
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0
