@@ -77,7 +77,6 @@ model:
   megatron_legacy: False
   persist_layer_norm: True
   squared_relu_activation: True
-  params_dtype: bf16
   tokenizer:
     library: 'huggingface'
     type: 'EleutherAI/gpt-neox-20b' 
