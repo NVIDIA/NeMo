@@ -55,6 +55,7 @@ class SortformerModules(NeuralModule, Exportable):
             If 'cos_sim', cosine similarity values are used for the input of the sequence models.
             If 'elem_prod', element-wise product values are used for the input of the sequence models.
     """
+
     def init_weights(self, m):
         if type(m) == nn.Linear:
             torch.nn.init.xavier_uniform_(m.weight)
@@ -91,9 +92,9 @@ class SortformerModules(NeuralModule, Exportable):
             mask (torch.Tensor): tensor of shape (batch_size, max_len) containing 0's
                                 in the padded region and 1's elsewhere
         """
-        lengths = torch.tensor([context_embs.shape[1]] * context_embs.shape[0]) 
+        lengths = torch.tensor([context_embs.shape[1]] * context_embs.shape[0])
         batch_size = context_embs.shape[0]
-        max_len=context_embs.shape[1]
+        max_len = context_embs.shape[1]
         # create a tensor with the shape (batch_size, 1) filled with ones
         row_vector = torch.arange(max_len).unsqueeze(0).expand(batch_size, -1).to(lengths.device)
         # create a tensor with the shape (batch_size, max_len) filled with lengths
@@ -101,7 +102,7 @@ class SortformerModules(NeuralModule, Exportable):
         # create a mask by comparing the row vector and length matrix
         mask = row_vector < length_matrix
         return mask.float().to(context_embs.device)
-     
+
     def forward_speaker_sigmoids(self, hidden_out):
         hidden_out = self.dropout(F.relu(hidden_out))
         hidden_out = self.first_hidden_to_hidden(hidden_out)

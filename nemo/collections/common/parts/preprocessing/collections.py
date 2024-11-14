@@ -1242,6 +1242,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
         )
         return item
 
+
 class EndtoEndDiarizationLabel(_Collection):
     """List of diarization audio-label correspondence with preprocessing."""
 
@@ -1283,9 +1284,7 @@ class EndtoEndDiarizationLabel(_Collection):
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
 
-        zipped_items = zip(
-            audio_files, uniq_ids, durations, rttm_files, offsets
-        )
+        zipped_items = zip(audio_files, uniq_ids, durations, rttm_files, offsets)
         for (
             audio_file,
             uniq_id,
@@ -1328,7 +1327,8 @@ class EndtoEndDiarizationLabel(_Collection):
                 data.sort(key=lambda entity: entity.duration)
 
         logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
+            "Filtered duration for loading collection is %f.",
+            duration_filtered,
         )
         logging.info(f"Total {len(data)} session files loaded accounting to # {len(audio_files)} audio clips")
 
@@ -1346,8 +1346,8 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
         **kwargs,
     ):
         """
-        Parse lists of audio files, durations, RTTM (Diarization annotation) files. 
-        Since diarization model infers only two speakers, speaker pairs are generated 
+        Parse lists of audio files, durations, RTTM (Diarization annotation) files.
+        Since diarization model infers only two speakers, speaker pairs are generated
         from the total number of speakers in the session.
 
         Args:
@@ -1404,12 +1404,12 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
-        if isinstance(item['audio_file'], list): 
+        if isinstance(item['audio_file'], list):
             item['audio_file'] = [os.path.expanduser(audio_file_path) for audio_file_path in item['audio_file']]
         else:
             item['audio_file'] = os.path.expanduser(item['audio_file'])
 
-        if not isinstance(item['audio_file'], list): 
+        if not isinstance(item['audio_file'], list):
             if 'uniq_id' not in item:
                 item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
         elif 'uniq_id' not in item:
