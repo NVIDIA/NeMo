@@ -210,17 +210,6 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         )
         vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
 
-        # Use MCore instead of Pytorch
-        # from nemo.collections import vlm
-        # from nemo.collections.vlm.neva.model.vision import get_vision_model_config
-        # vision_transformer_config = vlm.CLIPViTConfig(vision_model_type="clip")
-        # vision_transformer_config = get_vision_model_config(
-        #     vision_transformer_config, apply_query_key_layer_scaling=False
-        # )
-        # vision_projection_config = MultimodalProjectorConfig(
-        #     input_size=1024, hidden_size=4096, ffn_hidden_size=4096, projector_type="mcore_mlp",
-        # )
-
         output = LlavaConfig(
             language_transformer_config=language_transformer_config,
             vision_transformer_config=vision_transformer_config,
