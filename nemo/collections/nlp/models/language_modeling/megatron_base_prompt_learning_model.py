@@ -18,9 +18,9 @@ from collections import OrderedDict
 from typing import Any, Optional
 
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
-from lightning.pytorch.trainer.trainer import Trainer
 from torch import Tensor
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer

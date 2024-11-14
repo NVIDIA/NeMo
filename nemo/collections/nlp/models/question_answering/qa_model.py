@@ -16,8 +16,8 @@ import json
 from typing import Optional
 
 import torch
-from omegaconf import DictConfig, OmegaConf
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig, OmegaConf
 from torch.cuda.amp import autocast
 
 from nemo.collections.common.losses import SpanningLoss

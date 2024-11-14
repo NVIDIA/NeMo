@@ -17,8 +17,8 @@ import os
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, ListConfig
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (

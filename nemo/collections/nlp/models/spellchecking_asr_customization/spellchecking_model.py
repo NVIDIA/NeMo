@@ -17,8 +17,8 @@ from time import perf_counter
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.spellchecking_asr_customization import (

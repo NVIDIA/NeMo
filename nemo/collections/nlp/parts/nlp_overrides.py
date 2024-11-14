@@ -28,7 +28,6 @@ import torch
 from lightning.fabric.plugins import TorchCheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.optimizer import _optimizer_to_device
-from omegaconf import OmegaConf
 from lightning.pytorch.callbacks.progress import TQDMProgressBar
 from lightning.pytorch.callbacks.progress.tqdm_progress import _update_n
 from lightning.pytorch.core.optimizer import LightningOptimizer
@@ -41,6 +40,7 @@ from lightning.pytorch.plugins.precision.fsdp import FSDPPrecision
 from lightning.pytorch.strategies import DDPStrategy, FSDPStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import OmegaConf
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
@@ -107,6 +107,7 @@ try:
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+
     from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
     HAVE_MEGATRON_CORE = True

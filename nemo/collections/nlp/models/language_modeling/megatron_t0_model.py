@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
-from omegaconf import DictConfig, ListConfig
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,

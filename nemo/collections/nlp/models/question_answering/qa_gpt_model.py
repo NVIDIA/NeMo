@@ -16,8 +16,8 @@ import collections
 from typing import List, Optional
 
 import torch
-from omegaconf import DictConfig
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor

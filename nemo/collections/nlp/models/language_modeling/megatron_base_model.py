@@ -23,12 +23,12 @@ from typing import Any, Dict, Optional, Union
 import omegaconf
 import torch
 import torch.nn as nn
-from omegaconf import OmegaConf, open_dict
-from omegaconf.dictconfig import DictConfig
 from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 from lightning.pytorch.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from lightning.pytorch.trainer.trainer import Trainer
 from lightning.pytorch.utilities.exceptions import MisconfigurationException
+from omegaconf import OmegaConf, open_dict
+from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION

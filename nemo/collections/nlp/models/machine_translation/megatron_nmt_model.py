@@ -19,10 +19,10 @@ from typing import List, Optional
 
 import numpy as np
 import torch
-from omegaconf.dictconfig import DictConfig
-from omegaconf.listconfig import ListConfig
 from lightning.pytorch.loops.fetchers import _DataFetcherWrapper
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf.dictconfig import DictConfig
+from omegaconf.listconfig import ListConfig
 from sacrebleu import corpus_bleu
 
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (

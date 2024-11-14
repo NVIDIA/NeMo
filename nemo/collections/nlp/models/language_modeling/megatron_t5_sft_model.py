@@ -16,9 +16,9 @@ import json
 from typing import Dict, List
 
 import torch
-from omegaconf import DictConfig, ListConfig
 from lightning.pytorch.loops.fetchers import _DataFetcherWrapper
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
