@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterator, List, Optional
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (

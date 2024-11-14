@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dataset import (
     ZeroShotIntentDataset,

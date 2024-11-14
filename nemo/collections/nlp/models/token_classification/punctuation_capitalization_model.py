@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from tqdm import tqdm
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss

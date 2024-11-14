@@ -22,7 +22,7 @@ import torch
 from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from torch.distributed import all_gather as all_gather_no_backprop
 from torch.distributed.nn.functional import all_gather as all_gather_with_backprop
 

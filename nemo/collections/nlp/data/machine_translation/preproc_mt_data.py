@@ -22,7 +22,7 @@ import tempfile
 
 from joblib import Parallel, delayed
 from omegaconf import ListConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset

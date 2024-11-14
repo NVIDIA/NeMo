@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch.nn import Linear
 from tqdm import tqdm
 

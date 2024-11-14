@@ -20,7 +20,7 @@ import numpy as np
 import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric

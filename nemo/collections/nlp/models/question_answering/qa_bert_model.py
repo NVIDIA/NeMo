@@ -18,7 +18,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers.models.bert.tokenization_bert import BasicTokenizer
 
 from nemo.collections.common.losses import SpanningLoss

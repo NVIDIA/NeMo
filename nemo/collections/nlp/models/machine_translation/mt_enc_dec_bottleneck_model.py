@@ -16,7 +16,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import torch
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.common.losses import NLLLoss
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig

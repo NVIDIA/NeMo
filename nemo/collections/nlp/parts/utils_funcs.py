@@ -30,7 +30,7 @@ import torch
 import torch.nn.functional as F
 from matplotlib import pyplot as plt
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
 

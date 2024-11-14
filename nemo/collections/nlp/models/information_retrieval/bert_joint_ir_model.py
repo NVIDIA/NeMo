@@ -16,7 +16,7 @@ from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.models.information_retrieval.base_ir_model import BaseIRModel

@@ -17,7 +17,7 @@ from typing import Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch.cuda.amp import autocast
 
 from nemo.collections.common.losses import SpanningLoss

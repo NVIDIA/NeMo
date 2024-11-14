@@ -19,7 +19,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from sklearn.metrics import f1_score, precision_score, recall_score
 from torch.utils.data import DataLoader
 

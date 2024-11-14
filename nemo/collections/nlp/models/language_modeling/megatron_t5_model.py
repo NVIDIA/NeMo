@@ -16,7 +16,7 @@ import enum
 import math
 
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (

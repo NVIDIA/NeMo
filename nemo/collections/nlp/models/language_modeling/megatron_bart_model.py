@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 

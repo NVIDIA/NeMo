@@ -16,7 +16,7 @@ from functools import partial
 
 import torch
 from omegaconf import DictConfig, ListConfig
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric

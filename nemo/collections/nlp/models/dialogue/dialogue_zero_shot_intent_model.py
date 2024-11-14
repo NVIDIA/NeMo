@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from nemo.collections.nlp.data.dialogue import DialogueSGDDataProcessor

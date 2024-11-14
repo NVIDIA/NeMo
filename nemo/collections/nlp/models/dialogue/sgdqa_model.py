@@ -23,7 +23,7 @@ from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.data.dialogue import DialogueSGDBERTDataset, DialogueSGDDataProcessor

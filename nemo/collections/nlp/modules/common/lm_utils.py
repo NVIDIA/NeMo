@@ -18,7 +18,7 @@ from typing import List, Optional, Union
 
 from attr import asdict
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule

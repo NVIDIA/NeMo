@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
