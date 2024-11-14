@@ -15,6 +15,7 @@
 import torch
 from megatron.core.jit import jit_fuser
 
+
 @torch.jit.script
 def gelu_impl(x):
     """OpenAI's gelu implementation."""

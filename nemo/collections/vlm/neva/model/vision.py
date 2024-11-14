@@ -68,7 +68,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
-            self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
+        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
     ) -> torch.Tensor:
         if num_unused_layers > 0:
             unused_layers = self.decoder.layers[-num_unused_layers:]
