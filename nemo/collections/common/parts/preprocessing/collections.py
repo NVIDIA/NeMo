@@ -16,8 +16,7 @@ import collections
 import json
 import os
 from itertools import combinations
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
-
+from typing import Any, Dict, Iterable, List, Optional, Union
 import numpy as np
 import pandas as pd
 
@@ -311,7 +310,7 @@ class VideoText(_Collection):
 class ASRAudioText(AudioText):
     """`AudioText` collector from asr structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], parse_func: Optional[Callable] = None, *args, **kwargs):
+    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -334,9 +333,8 @@ class ASRAudioText(AudioText):
             [],
             [],
         )
-
         speakers, orig_srs, token_labels, langs = [], [], [], []
-        for item in manifest.item_iter(manifests_files, parse_func=parse_func):
+        for item in manifest.item_iter(manifests_files):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
@@ -1233,6 +1231,190 @@ class DiarizationSpeechLabel(DiarizationLabel):
             )
         item['audio_file'] = os.path.expanduser(item['audio_file'])
         item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
+        if 'duration' not in item:
+            raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
+        item = dict(
+            audio_file=item['audio_file'],
+            uniq_id=item['uniq_id'],
+            duration=item['duration'],
+            rttm_file=item['rttm_filepath'],
+            offset=item.get('offset', None),
+        )
+        return item
+
+class EndtoEndDiarizationLabel(_Collection):
+    """List of diarization audio-label correspondence with preprocessing."""
+
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='DiarizationLabelEntity',
+        field_names='audio_file uniq_id duration rttm_file offset',
+    )
+
+    def __init__(
+        self,
+        audio_files: List[str],
+        uniq_ids: List[str],
+        durations: List[float],
+        rttm_files: List[str],
+        offsets: List[float],
+        max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
+    ):
+        """
+        Instantiates audio-label manifest with filters and preprocessing.
+
+        This method initializes the EndtoEndDiarizationLabel object by processing the input data
+        and applying optional filters and sorting.
+
+        Args:
+            audio_files (List[str]): List of audio file paths.
+            uniq_ids (List[str]): List of unique identifiers for each audio file.
+            durations (List[float]): List of float durations for each audio file.
+            rttm_files (List[str]): List of RTTM path strings (Groundtruth diarization annotation file).
+            offsets (List[float]): List of offsets or None for each audio file.
+            max_number (Optional[int]): Maximum number of samples to collect. Defaults to None.
+            do_sort_by_duration (bool): If True, sort samples list by duration. Defaults to False.
+            index_by_file_id (bool): If True, saves a mapping from filename base (ID) to index in data. Defaults to False.
+
+        """
+        if index_by_file_id:
+            self.mapping = {}
+        output_type = self.OUTPUT_TYPE
+        data, duration_filtered = [], 0.0
+
+        zipped_items = zip(
+            audio_files, uniq_ids, durations, rttm_files, offsets
+        )
+        for (
+            audio_file,
+            uniq_id,
+            duration,
+            rttm_file,
+            offset,
+        ) in zipped_items:
+
+            if duration is None:
+                duration = 0
+
+            data.append(
+                output_type(
+                    audio_file,
+                    uniq_id,
+                    duration,
+                    rttm_file,
+                    offset,
+                )
+            )
+
+            if index_by_file_id:
+                if isinstance(audio_file, list):
+                    if len(audio_file) == 0:
+                        raise ValueError(f"Empty audio file list: {audio_file}")
+                    audio_file_name = sorted(audio_file)[0]
+                else:
+                    audio_file_name = audio_file
+                file_id, _ = os.path.splitext(os.path.basename(audio_file))
+                self.mapping[file_id] = len(data) - 1
+
+            # Max number of entities filter.
+            if len(data) == max_number:
+                break
+
+        if do_sort_by_duration:
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
+
+        logging.info(
+            "Filtered duration for loading collection is %f.", duration_filtered,
+        )
+        logging.info(f"Total {len(data)} session files loaded accounting to # {len(audio_files)} audio clips")
+
+        super().__init__(data)
+
+
+class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
+    """`DiarizationLabel` diarization data sample collector from structured json files."""
+
+    def __init__(
+        self,
+        manifests_files: Union[str, List[str]],
+        round_digits=2,
+        *args,
+        **kwargs,
+    ):
+        """
+        Parse lists of audio files, durations, RTTM (Diarization annotation) files. 
+        Since diarization model infers only two speakers, speaker pairs are generated 
+        from the total number of speakers in the session.
+
+        Args:
+            manifest_filepath (str):
+                Path to input manifest json files.
+            round_digit (int):
+                Number of digits to be rounded.
+            *args: Args to pass to `SpeechLabel` constructor.
+            **kwargs: Kwargs to pass to `SpeechLabel` constructor.
+        """
+        self.round_digits = round_digits
+        audio_files, uniq_ids, durations, rttm_files, offsets = (
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+
+        for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
+            # Training mode
+            rttm_labels = []
+            with open(item['rttm_file'], 'r') as f:
+                for index, rttm_line in enumerate(f.readlines()):
+                    rttm = rttm_line.strip().split()
+                    start = round(float(rttm[3]), round_digits)
+                    end = round(float(rttm[4]), round_digits) + round(float(rttm[3]), round_digits)
+                    speaker = rttm[7]
+                    rttm_labels.append('{} {} {}'.format(start, end, speaker))
+            audio_files.append(item['audio_file'])
+            uniq_ids.append(item['uniq_id'])
+            durations.append(item['duration'])
+            rttm_files.append(item['rttm_file'])
+            offsets.append(item['offset'])
+
+        super().__init__(
+            audio_files,
+            uniq_ids,
+            durations,
+            rttm_files,
+            offsets,
+            *args,
+            **kwargs,
+        )
+
+    def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
+        """Parse each rttm file and save it to in Dict format"""
+        item = json.loads(line)
+        if 'audio_filename' in item:
+            item['audio_file'] = item.pop('audio_filename')
+        elif 'audio_filepath' in item:
+            item['audio_file'] = item.pop('audio_filepath')
+        else:
+            raise ValueError(
+                f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
+            )
+        if isinstance(item['audio_file'], list): 
+            item['audio_file'] = [os.path.expanduser(audio_file_path) for audio_file_path in item['audio_file']]
+        else:
+            item['audio_file'] = os.path.expanduser(item['audio_file'])
+
+        if not isinstance(item['audio_file'], list): 
+            if 'uniq_id' not in item:
+                item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
+        elif 'uniq_id' not in item:
+            raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper uniq_id key.")
+
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
         item = dict(
