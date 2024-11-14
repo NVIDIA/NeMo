@@ -49,7 +49,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ``every_n_epochs`` or ``every_n_train_steps``.
         save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
         save_optim_on_train_end: Whether to include the optimizer states in the final checkpoint
-            at the end of training. Only applicable when save_weights_only is ``True``.
+            at the end of training. Only applicable when save_weights_only is ``False``.
         always_save_context: Whether to dump the artifacts needed to reinintialize the current
             model, trainer, and dataloader to allow for reproducibility of experiments.
         save_context_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
@@ -58,7 +58,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
     """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
-    WEIGHTS_PATH = "weights"
 
     def __init__(
         self,
@@ -73,7 +72,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         save_optim_on_train_end: Optional[bool] = False,
-        always_save_context: bool = False,
+        always_save_context: bool = True,
         save_context_on_train_end: bool = True,
         **kwargs,
     ):
@@ -196,7 +195,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 match = re.search('[A-z]', checkpoint[index:])
                 if match:
                     value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hyphen
-                    self.best_k_models[checkpoint] = float(value)
+                else:
+                    value = checkpoint[index:]
+                self.best_k_models[checkpoint] = float(value)
         if len(self.best_k_models) < 1:
             return  # No saved checkpoints yet
 
@@ -290,7 +291,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
+                TrainerContext.from_trainer(trainer).io_dump(
+                    ckpt_to_dir(self.last_model_path) / "context", yaml_attrs=["model"]
+                )
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -434,7 +437,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
-        ckpt_filepath = ckpt_to_dir(filepath) / ModelCheckpoint.WEIGHTS_PATH
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
 
@@ -451,15 +453,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if self.async_save:
                 raise ValueError('async_save with EMA not supported')
             with ema_callback.save_original_optimizer_state(trainer):
-                super()._save_checkpoint(trainer, ckpt_filepath)
+                super()._save_checkpoint(trainer, filepath)
 
             # save EMA copy of the model as well.
             with ema_callback.save_ema_model(trainer):
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
-                ckpt_filepath = self._ema_format_filepath(ckpt_filepath)
+                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                filepath = self._ema_format_filepath(filepath)
                 if self.verbose:
-                    rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
-                super()._save_checkpoint(trainer, ckpt_filepath)
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
             ## Determine whether to include optimizer states in the checkpoint
@@ -485,10 +487,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 self.deferred_ckpts_to_remove.append([])
             else:
                 storage_options = None
-            trainer.save_checkpoint(ckpt_filepath, save_weights_only, storage_options=storage_options)
+            trainer.save_checkpoint(filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context", yaml_attrs=["model"])
 
             if self.async_save:
                 self._last_checkpoint_saved = filepath
@@ -594,11 +596,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
         }
 
         checkpoint_filepaths = {f.resolve() for f in checkpoint_dir.rglob("*.ckpt")}
-        for ckpt_filepath in checkpoint_filepaths:
-            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(ckpt_filepath)
+        for filepath in checkpoint_filepaths:
+            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(filepath)
             if possible_marker_path in existing_marker_filepaths:
-                logging.warning(f'Removing unfinished checkpoint: {ckpt_filepath}')
-                os.remove(ckpt_filepath)
+                logging.warning(f'Removing unfinished checkpoint: {filepath}')
+                os.remove(filepath)
 
         # some directories might be distributed checkpoints, we remove these if they have a unfinished marker
         all_dirpaths = {d.resolve() for d in checkpoint_dir.glob("*") if d.is_dir()}

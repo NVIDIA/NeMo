@@ -233,7 +233,6 @@ class JointSelfAttention(Attention):
         query, key, value = self.get_query_key_value_tensors(hidden_states)
         added_query, added_key, added_value = self.get_added_query_key_value_tensors(additional_hidden_states)
 
-
         query = torch.cat([added_query, query], dim=0)
         key = torch.cat([added_key, key], dim=0)
         value = torch.cat([added_value, value], dim=0)
@@ -282,8 +281,6 @@ class JointSelfAttention(Attention):
         # ==================================
         # core attention computation
         # ==================================
-        if query.dtype != key.dtype or value.dtype != query.dtype:
-            import pdb;pdb.set_trace()
         if self.checkpoint_core_attention and self.training:
             core_attn_out = self._checkpointed_attention_forward(
                 query,

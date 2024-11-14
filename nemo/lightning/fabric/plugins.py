@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Generator, Literal, TypeVar
 
@@ -112,7 +126,6 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         """Convert the config to the precision type this plugin handles.
 
         This is optional and depends on the precision limitations during optimization.
-
         """
         return update_config_with_dtype_overrides(self.dtype_config, config)
 
@@ -122,6 +135,9 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
 
         """
+        if not hasattr(module, "module"):
+            return module
+
         from megatron.core.transformer.module import Float16Module
         from megatron.core.utils import get_model_config
 
@@ -141,7 +157,6 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         """Convert the optimizer parameters to the precision type this plugin handles.
 
         This is optional and depends on the precision limitations during optimization.
-
         """
         for optim_config in get_optim_config(optimizer):
             assert optim_config.bf16 == self.dtype_config.bf16, "BF16 model/optim config mismatch"

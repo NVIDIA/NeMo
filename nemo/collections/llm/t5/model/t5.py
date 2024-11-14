@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
@@ -5,14 +19,14 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.model_inference_wrappers.t5.t5_inference_wrapper import T5InferenceWrapper
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.llm import fn
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
-from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -31,6 +45,9 @@ if TYPE_CHECKING:
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
+
+    from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
+    from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
 
     batch = next(dataloader_iter)
 
@@ -183,6 +200,38 @@ class T5Config(TransformerConfig, io.IOMixin):
         return model
 
 
+@dataclass
+class T5Config220M(T5Config):
+    """
+    NeMo's T5 model variant
+    https://github.com/NVIDIA/NeMo-Framework-Launcher/blob/main/launcher_scripts/conf/training/t5/220m.yaml
+    """
+
+    num_layers: int = 12
+    encoder_num_layers: int = 12
+    hidden_size: int = 768
+    ffn_hidden_size: int = 3072
+    num_attention_heads: int = 12
+
+
+@dataclass
+class T5Config3B(T5Config):
+    num_layers: int = 24
+    encoder_num_layers: int = 24
+    hidden_size: int = 2048
+    ffn_hidden_size: int = 5120
+    num_attention_heads: int = 32
+
+
+@dataclass
+class T5Config11B(T5Config):
+    num_layers: int = 24
+    encoder_num_layers: int = 24
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 10240
+    num_attention_heads: int = 64
+
+
 class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
@@ -242,6 +291,26 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
+
+    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+        # This is to get the MCore model required in T5InferenceWrapper.
+        mcore_model = self.module
+        while mcore_model:
+            if type(mcore_model) is MCoreT5Model:
+                break
+            mcore_model = getattr(mcore_model, "module", None)
+        if mcore_model is None or type(mcore_model) is not MCoreT5Model:
+            raise ValueError("Exact MCoreT5Model instance not found in the model structure.")
+
+        inference_wrapper_config = InferenceWrapperConfig(
+            hidden_size=mcore_model.config.hidden_size,
+            params_dtype=params_dtype,
+            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+            padded_vocab_size=self.tokenizer.vocab_size,
+        )
+
+        model_inference_wrapper = T5InferenceWrapper(mcore_model, inference_wrapper_config)
+        return model_inference_wrapper
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:

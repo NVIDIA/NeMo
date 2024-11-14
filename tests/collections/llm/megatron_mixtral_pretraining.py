@@ -65,7 +65,7 @@ def main(args):
     strategy = MegatronStrategy(
         expert_model_parallel_size=args.devices,
         tensor_model_parallel_size=1,
-        sequence_parallel=True,
+        sequence_parallel=False,
         context_parallel_size=1,
         params_dtype=torch.bfloat16,
         pipeline_dtype=torch.bfloat16,
@@ -158,7 +158,7 @@ def main(args):
     )
 
     # Confirm checkpoint directory structure
-    output_path = Path(args.experiment_dir) / "checkpoints/--None=0.0000-epoch=0/"
+    output_path = Path(args.experiment_dir) / "checkpoints/--None=0.0000-epoch=0/weights"
     assert output_path.exists(), f"Expected {output_path} to exist"
     assert output_path.is_dir(), f"Expected {output_path} to be a directory"
     output_files = ['__0_0.distcp', '__0_1.distcp', 'common.pt', 'metadata.json', '.metadata']
