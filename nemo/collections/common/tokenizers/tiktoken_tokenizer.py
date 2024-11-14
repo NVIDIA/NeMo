@@ -193,7 +193,7 @@ class TiktokenTokenizer(TokenizerSpec):
                 tokens.extend([t + self.num_special_tokens for t in token_ids])
         return tokens
 
-    def ids_to_text(self, tokens: List[int], skip_special_tokens: bool = True):
+    def ids_to_text(self, tokens: List[int], skip_special_tokens: bool = False):
         result = []
         for token in tokens:
             if token < self.num_special_tokens:
