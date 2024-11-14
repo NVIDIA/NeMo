@@ -29,9 +29,9 @@ from pathlib import Path
 
 import torch
 import torch.nn
-from omegaconf import OmegaConf
 from lightning.pytorch.core.saving import _load_state as ptl_load_state
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import OmegaConf
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel

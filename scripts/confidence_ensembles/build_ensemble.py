@@ -80,8 +80,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import joblib
-import numpy as np
 import lightning.pytorch as pl
+import numpy as np
 from omegaconf import MISSING, DictConfig, OmegaConf
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
@@ -215,7 +215,12 @@ class BuildEnsembleConfig:
             preserve_frame_confidence=True,
             exclude_blank=True,
             aggregation="mean",
-            method_cfg=ConfidenceMethodConfig(name="entropy", entropy_type="renyi", alpha=0.25, entropy_norm="lin",),
+            method_cfg=ConfidenceMethodConfig(
+                name="entropy",
+                entropy_type="renyi",
+                alpha=0.25,
+                entropy_norm="lin",
+            ),
         )
     )
     temperature: float = 1.0
@@ -499,7 +504,12 @@ def find_best_confidence(
         dev_features = np.array(list(zip(*cur_dev_confidences)))
         dev_labels = np.array(dev_labels)
         pipe, score = train_model_selection(
-            training_features, training_labels, dev_features, dev_labels, tune_lr, tune_lr_config,
+            training_features,
+            training_labels,
+            dev_features,
+            dev_labels,
+            tune_lr,
+            tune_lr_config,
         )
         if max_score < score:
             max_score = score

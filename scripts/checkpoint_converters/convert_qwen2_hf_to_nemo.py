@@ -25,8 +25,8 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from omegaconf import OmegaConf
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import OmegaConf
 from transformers import Qwen2ForCausalLM, Qwen2Tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel

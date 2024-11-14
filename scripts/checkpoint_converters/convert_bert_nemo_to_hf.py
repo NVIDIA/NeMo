@@ -207,10 +207,16 @@ def convert_config(ref_config, hf_state_dict):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, required=True, help="Path to .nemo file",
+        "--input_name_or_path",
+        type=str,
+        required=True,
+        help="Path to .nemo file",
     )
     parser.add_argument(
-        "--output_path", type=str, required=True, help="Output HF model path",
+        "--output_path",
+        type=str,
+        required=True,
+        help="Output HF model path",
     )
 
     args = parser.parse_args()
