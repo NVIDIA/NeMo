@@ -112,14 +112,14 @@ to learn how to create a custom training recipe or use an `existing recipe <http
 Train a Model
 ~~~~~~~~~~~~~
 
-Once you have prepared training data, tokenizer, and recipe you are ready to train the model. You can follow `this tutorial https://github.com/NVIDIA/NeMo/blob/main/examples/llm/pretrain/README.md#run-pre-training-with-a-default-recipe`_ 
-to train a model using an existing recipe or `this one https://github.com/NVIDIA/NeMo/blob/main/examples/llm/pretrain/README.md#create-and-run-a-custom-recipe`_ to train a model with a custom recipe.
+Once you have prepared training data, tokenizer, and recipe you are ready to train the model. You can follow `this tutorial <https://github.com/NVIDIA/NeMo/blob/main/examples/llm/pretrain/README.md#run-pre-training-with-a-default-recipe>`_ 
+to train a model using an existing recipe or `this one <https://github.com/NVIDIA/NeMo/blob/main/examples/llm/pretrain/README.md#create-and-run-a-custom-recipe>`_ to train a model with a custom recipe.
 
 Next Steps
 ~~~~~~~~~~
 
 For more information, please refer to:
 
-* `batching https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/nemo_megatron/batching.rst`_ section for batch size adjustments.
-* `parallelisms https://github.com/NVIDIA/NeMo/blob/main/docs/source/features/parallelisms.rst`_ section for understanding various types of parallelisms.
+* `batching <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/nemo_megatron/batching.rst>`_ section for batch size adjustments.
+* `parallelisms <https://github.com/NVIDIA/NeMo/blob/main/docs/source/features/parallelisms.rst>`_ section for understanding various types of parallelisms.
 
