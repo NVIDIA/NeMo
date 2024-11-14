@@ -805,8 +805,9 @@ class DDP(McoreDDP):
     def __getattr__(self, item: Any) -> Any:
         return getattr_proxy(self, item)
 
+
 if HAVE_MCORE_FSDP2:
-# remove later
+    # remove later
     class TorchFSDP(McoreTorchFSDP):
         def __init__(
             self,
