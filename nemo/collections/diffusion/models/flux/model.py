@@ -215,10 +215,10 @@ class Flux(VisionModule):
             if controlnet_single_block_samples is not None:
                 interval_control = len(self.single_blocks) / len(controlnet_single_block_samples)
                 interval_control = int(np.ceil(interval_control))
-                hidden_states[encoder_hidden_states.shape[0]: , ...] = (
-                    hidden_states[encoder_hidden_states.shape[0]: , ...]
-                    + controlnet_single_block_samples[id_block // interval_control]
-                )
+                hidden_states = torch.cat([
+                    hidden_states[:encoder_hidden_states.shape[0]],
+                    hidden_states[encoder_hidden_states.shape[0]:] + controlnet_single_block_samples[id_block // interval_control]
+                ])
 
         hidden_states = hidden_states[encoder_hidden_states.shape[0]:, ...]
 
