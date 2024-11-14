@@ -423,7 +423,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_lengths
 
         elif getattr(cut, "s2s_align", False):
-            max_feat_len = max(features_lens).item() + 1
+            bos_tensor = torch.full(
+                (target_codec.shape[0], 1, self.n_speech_codebooks * self.decoder_reduction_factor + 1),
+                self.speech_bos_id,
+            ).to(torch.int)
+            bos_tensor[:, 0] = self.text_processor.text_bos_id
             # [batch, max_feat_len]
             # the only thing needed is features_lens which can be estimated from target_audio length
             target_texts_expanded = _expand_text_with_timestamps_and_word_lengths(
@@ -441,7 +445,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             logging.debug(f'target_texts_expanded: {target_texts_expanded[0,:]}')
             # [batch, max_feat_len, 1+V], where V = #codebooks * reduction_factor
             target_codec[:, :, 0] = target_texts_expanded
-            token_list = target_codec
+            token_list = torch.concat([bos_tensor, target_codec], 1)
 
             logging.debug(f'token_list[0].shape: {token_list[0].shape}')
             if not self.t5_style:
