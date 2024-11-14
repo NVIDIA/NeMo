@@ -22,6 +22,7 @@ from nemo.collections.asr.parts.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.utils import logging
+from nemo.utils.enum import PrettyStrEnum
 
 MINUS_INF = -float("inf")
 
@@ -149,6 +150,12 @@ class BatchedBeamHyps:
         return hypotheses
 
 
+class LMFusionStrategy(PrettyStrEnum):
+    SIMPLE = "simple"
+    EARLY_PRUNING = "early_pruning"
+    PRESERVE_BLANK = "preserve_blank"
+
+
 class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
     """
     mALSD decoding: https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9053040
@@ -166,6 +173,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        ngram_lm_strategy: Optional[str | LMFusionStrategy] = "preserve_blank",
     ):
         super().__init__()
         self.decoder = decoder
@@ -182,8 +190,11 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            assert ngram_lm_strategy is not None
+            self.ngram_lm_strategy = LMFusionStrategy(ngram_lm_strategy)
         else:
             self.ngram_lm_batch = None
+            self.ngram_lm_strategy = None
         self.ngram_lm_alpha = ngram_lm_alpha
         assert not self.preserve_alignments
         assert not self.preserve_frame_confidence
@@ -248,11 +259,39 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 .squeeze(1)
                 .squeeze(1)
             )
-            log_probs = F.log_softmax(logits, dim=-1)  # [(B x Beam), V]
+            log_probs = F.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
             if self.ngram_lm_batch:
-                log_probs[:, :-1] += self.ngram_lm_alpha * lm_scores
-            log_probs = log_probs.view(batch_size, self.beam_size, -1)
-            log_probs_top_k, labels_top_k = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
+                if self.ngram_lm_strategy is LMFusionStrategy.SIMPLE:
+                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+                elif self.ngram_lm_strategy is LMFusionStrategy.PRESERVE_BLANK:
+                    _, labels_top_k = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
+                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    _, labels_with_lm_top_kp1 = torch.topk(
+                        log_probs, self.beam_size + 1, dim=-1, largest=True, sorted=True
+                    )
+                    # [(BxBeam), beam]
+                    labels_with_lm_top_k = labels_with_lm_top_kp1[..., :-1]
+                    labels_top_k = torch.where(
+                        (labels_with_lm_top_k == self._blank_index)
+                        & (labels_top_k != self._blank_index).all(dim=-1).unsqueeze(-1),
+                        labels_with_lm_top_kp1[..., -1:].expand_as(labels_with_lm_top_k),
+                        labels_with_lm_top_k,
+                    )
+                    log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
+                elif self.ngram_lm_strategy is LMFusionStrategy.EARLY_PRUNING:
+                    _, labels_top_k = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
+                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
+                else:
+                    raise NotImplementedError
+            else:
+                log_probs_top_k, labels_top_k = torch.topk(
+                    log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                )
+
             log_probs_blank = log_probs[..., self._blank_index]
             # size: batch_size x beam_size x beam_size (k)
             hyps_scores = batched_hyps.scores

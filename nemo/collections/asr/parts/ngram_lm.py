@@ -447,8 +447,6 @@ class FastNGramLM(nn.Module):
     def compute_scores_batch(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.use_triton and states.device.type == "cuda":
             return self._compute_scores_batch_triton(states=states)
-        if self._custom_kernel is not None and states.device.type == "cuda":
-            return self._compute_scores_batch_cuda(states=states)
         return self._compute_scores_batch_pytorch(states=states)
 
     def _compute_scores_batch_triton(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
