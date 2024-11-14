@@ -82,6 +82,7 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
         rotary_pos_emb: Tensor = None,
         rotary_pos_cos: Tensor = None,
         rotary_pos_sin: Tensor = None,
+        attention_bias: Tensor = None,
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
     ):
@@ -93,6 +94,7 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
             rotary_pos_emb,
             rotary_pos_cos,
             rotary_pos_sin,
+            attention_bias,
             inference_params,
             packed_seq_params,
         )
@@ -232,6 +234,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         packed_seq_params=None,
         rotary_pos_cos=None,
         rotary_pos_sin=None,
+        attention_bias=None,
     ):
         # hidden_states: [sq, b, h]
 
