@@ -23,10 +23,10 @@ from typing import Any, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
-from omegaconf import OmegaConf
-from omegaconf.dictconfig import DictConfig
 from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.clip.clip_dataset import (

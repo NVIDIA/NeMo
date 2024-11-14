@@ -79,7 +79,10 @@ def main(cfg):
         seeds = [local_task_id * chunk_size + batch_idx * batch_size + idx for idx in range(len(batch_captions))]
         with torch.no_grad():
             images, all_res_images, *_ = pipeline(
-                prompts=batch_captions, seed=seeds, single_batch_mode=True, classifier_free_guidance=current_node_cfg,
+                prompts=batch_captions,
+                seed=seeds,
+                single_batch_mode=True,
+                classifier_free_guidance=current_node_cfg,
             )
 
         if cfg.fid.save_all_res:

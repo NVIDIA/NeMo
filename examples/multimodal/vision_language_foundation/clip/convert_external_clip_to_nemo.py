@@ -45,9 +45,9 @@ from argparse import ArgumentParser
 import einops
 import open_clip
 import torch
-from omegaconf import OmegaConf
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import OmegaConf
 from transformers import CLIPModel
 
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel

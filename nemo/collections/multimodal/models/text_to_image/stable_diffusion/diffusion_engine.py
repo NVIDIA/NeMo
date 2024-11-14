@@ -22,9 +22,9 @@ import torch
 import torch._dynamo
 import torch.nn as nn
 from einops import rearrange
-from omegaconf import DictConfig, ListConfig, OmegaConf
 from lightning.pytorch import Trainer
 from lightning.pytorch.utilities import rank_zero_only
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR

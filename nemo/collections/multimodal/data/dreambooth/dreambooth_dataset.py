@@ -15,8 +15,8 @@ import os
 from pathlib import Path
 
 import torch
-from PIL import Image
 from lightning.pytorch.utilities import rank_zero_only
+from PIL import Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 

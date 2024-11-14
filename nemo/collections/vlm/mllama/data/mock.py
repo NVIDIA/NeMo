@@ -14,8 +14,8 @@
 
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import lightning.pytorch as pl
+import numpy as np
 import torch
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data

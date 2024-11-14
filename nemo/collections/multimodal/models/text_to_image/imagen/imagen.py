@@ -17,8 +17,8 @@ from functools import partial
 from typing import Any
 
 import torch
-from omegaconf import DictConfig, open_dict
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig, open_dict
 
 from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
 from nemo.collections.multimodal.models.text_to_image.imagen.precond import ContinousDDPMPrecond, EDMPrecond

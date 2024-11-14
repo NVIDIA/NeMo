@@ -14,8 +14,8 @@
 
 import os
 
-from omegaconf import OmegaConf
 from lightning.pytorch import Trainer
+from omegaconf import OmegaConf
 
 from nemo.collections.multimodal.models.text_to_image.imagen.imagen_pipeline import (
     ImagenPipeline,

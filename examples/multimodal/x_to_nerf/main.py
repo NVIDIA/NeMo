@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from hydra.utils import get_class, instantiate
-from omegaconf.omegaconf import DictConfig, OmegaConf
 from lightning.pytorch import Trainer, seed_everything
+from omegaconf.omegaconf import DictConfig, OmegaConf
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

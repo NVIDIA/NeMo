@@ -17,10 +17,10 @@ from typing import Any, Callable, Tuple
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
-from PIL import Image
 from lightning.pytorch import Trainer
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
+from omegaconf import DictConfig, OmegaConf, open_dict
+from PIL import Image
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform

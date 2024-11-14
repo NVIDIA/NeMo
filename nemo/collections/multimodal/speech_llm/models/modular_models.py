@@ -21,11 +21,11 @@ import hydra
 import sacrebleu
 import torch
 from hydra.utils import get_class
+from lightning.pytorch.trainer.trainer import Trainer
+from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
-from lightning.pytorch.trainer.trainer import Trainer
-from lightning.pytorch.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
