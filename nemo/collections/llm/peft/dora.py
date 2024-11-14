@@ -160,6 +160,7 @@ class DoRA(PEFT):
     dropout_position: Literal['pre', 'post'] = 'pre'
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
+
     def __post_init__(self):
         assert self.dropout_position == "pre", (
             "DoRA only supports pre-adapter dropout at this time." "Please set DoRA(..., dropout_position='pre')"
