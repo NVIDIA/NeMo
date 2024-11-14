@@ -147,6 +147,7 @@ class LMFusionStrategy(PrettyStrEnum):
     BLANK_LM_MAX = "blank_lm_max"
     EARLY_PRUNING = "early_pruning"
     PRESERVE_BLANK = "preserve_blank"
+    BLANK_CONST = "blank_const"
 
 
 class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
@@ -257,6 +258,12 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             if self.ngram_lm_batch:
                 if self.ngram_lm_strategy is LMFusionStrategy.SIMPLE:
                     log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+                elif self.ngram_lm_strategy is LMFusionStrategy.BLANK_CONST:
+                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs[..., -1] += self.ngram_lm_alpha * (-0.3)  # np.log(12.5 / (12.5 + 3*1.5))
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
