@@ -314,7 +314,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 dim=1,
                 index=hyps_indices[:, :, None, None].expand(batch_size, self.beam_size, 1, decoder_output.shape[-1]),
             ).view(batch_size * self.beam_size, 1, -1)
-            # TODO: move to decoder
+            # TODO: move state aggregation to decoder + support stateless decoder:
+            #  self.decoder.batch_aggregate_states_beam(...)
             # state: tuple, each is of [Layers, (BxBeam), Dim]
             prev_state = (
                 torch.gather(
