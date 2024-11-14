@@ -244,6 +244,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         # decoder_output: [(B x Beam), 1, Dim]
 
         while active_mask.any():
+            # torch.cuda.set_sync_debug_mode(2)
             logits = (
                 self.joint.joint_after_projection(
                     encoder_output_projected[batch_indices.view(-1), safe_time_indices.view(-1)].unsqueeze(1),
@@ -424,6 +425,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             time_indices = batched_hyps.current_lengths_wb - batched_hyps.current_lengths_nb
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
+            # torch.cuda.set_sync_debug_mode(0)
 
         return batched_hyps.to_hyps_list()
 
