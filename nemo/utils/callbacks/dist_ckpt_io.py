@@ -22,9 +22,9 @@ from typing import Any, Dict, Optional, Union
 import lightning.pytorch as pl
 from lightning.pytorch import Callback
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.types import _PATH
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.types import _PATH
 
 from nemo.utils import logging
 

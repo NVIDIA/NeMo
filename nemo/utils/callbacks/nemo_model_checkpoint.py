@@ -25,7 +25,7 @@ from _weakref import proxy
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from lightning.pytorch.trainer import call
 from lightning.pytorch.utilities import rank_zero_info
-from lightning_fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.cloud_io import get_filesystem
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
