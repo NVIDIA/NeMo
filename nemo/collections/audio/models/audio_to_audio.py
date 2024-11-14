@@ -23,7 +23,7 @@ import librosa
 import soundfile as sf
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
