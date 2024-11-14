@@ -26,6 +26,7 @@ LLM_VOCAB_SIZE_MAP = {
     "nemotron": 256000,
     "bert": 29000,
     "mixtral": 32000,
+    "grok": 128256,
 }
 
 

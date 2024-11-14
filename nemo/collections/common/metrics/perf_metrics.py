@@ -134,6 +134,7 @@ class FLOPsMeasurementCallback(Callback):
             "nemotron": self._nemotron,
             "mixtral": self._mixtral,
             "bert": self._bert,
+            "grok": self._grok,
         }
 
         if self.model is not None:
@@ -246,4 +247,22 @@ class FLOPsMeasurementCallback(Callback):
             * self.hs
             * self.hs
             * (1 + (self.enc_seq_len / (6 * self.hs)) + (vocab_size / (12 * self.hs * self.layers)))
+        )
+
+    def _grok(self):
+        """Model FLOPs for Grok family"""
+        vocab_size = LLM_VOCAB_SIZE_MAP["grok"]
+        return (
+            self.layers
+            * self.gbs 
+            * self.enc_seq_len
+            * self.hs 
+            * self.hs 
+            * (
+                12
+                + (12 * self.query_groups / self.attention_heads)
+                + (18 * self.moe_router_topk * self.ffn_hs / self.hs)
+                + (12 * self.enc_seq_len / self.hs)
+                + (6 * vocab_size / (self.layers * self.hs))
+            )
         )
