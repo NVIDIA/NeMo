@@ -66,6 +66,7 @@ LOGGER = logging.getLogger("NeMo")
 
 @wrapt.decorator
 def noop_decorator(func):
+    """No op decorator"""
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
@@ -80,7 +81,7 @@ try:
 except Exception:
     use_pytriton = False
 
-
+# pylint: disable=line-too-long
 class TensorRTLLM(ITritonDeployable):
     """
     Exports nemo checkpoints to TensorRT-LLM and run fast inference.
@@ -491,6 +492,8 @@ class TensorRTLLM(ITritonDeployable):
             self._load()
 
     def get_transformer_config(self, nemo_model_config):
+        """Given nemo model config get transformer config
+        """
         from megatron.core.transformer.transformer_config import TransformerConfig
 
         normalization = nemo_model_config.get('normalization', 'layernorm')
@@ -529,6 +532,8 @@ class TensorRTLLM(ITritonDeployable):
         use_embedding_sharing: bool = False,
         dtype: str = "bfloat16",
     ):
+        """Convert to safe tensor
+        """
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
 
         if Path(self.model_dir).exists():
@@ -740,8 +745,9 @@ class TensorRTLLM(ITritonDeployable):
             return DataType.float16
 
     def get_nemo_to_trtllm_conversion_dict(self, model_state_dict):
-        # MCore export supports some default conversion dictionaries
-        # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models sometimes start with "model.decoder.layers.4.blahblah". so we append model prefix. to the keys
+        """ MCore export supports some default conversion dictionaries
+        All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models sometimes start with "model.decoder.layers.4.blahblah". so we append model prefix. to the keys
+        """ 
         from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import DEFAULT_CONVERSION_DICT
 
         model_prefix, _ = get_layer_prefix(layer_names=model_state_dict.keys(), is_mcore=True)
@@ -1064,6 +1070,7 @@ class TensorRTLLM(ITritonDeployable):
                 )
 
     def add_prompt_table(self, task_name: str, prompt_embeddings_checkpoint_path: str):
+        """ Add prompt table """
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported to TensorRT-LLM and "
@@ -1085,6 +1092,7 @@ class TensorRTLLM(ITritonDeployable):
         self._prep_ptuning_table()
 
     def remove_prompt_table(self, task_name: str):
+        """Remove prompt table"""
         if self.ptuning_tables is not None:
             for i in range(len(self.ptuning_tables)):
                 if self.ptuning_tables[i]["task_name"] == task_name:
@@ -1096,11 +1104,13 @@ class TensorRTLLM(ITritonDeployable):
 
     @property
     def get_supported_models_list(self):
+        """Supported model list"""
         # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
         return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral", "gemma"]
 
     @property
     def get_hidden_size(self):
+        """ Get hidden size"""
         if self.config is None:
             return None
         else:
@@ -1108,6 +1118,7 @@ class TensorRTLLM(ITritonDeployable):
 
     @property
     def get_triton_input(self):
+        """ Get triton input"""
         inputs = (
             Tensor(name="prompts", shape=(-1,), dtype=bytes),
             Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
@@ -1125,11 +1136,13 @@ class TensorRTLLM(ITritonDeployable):
 
     @property
     def get_triton_output(self):
+         """Get Triton Output"""
         outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
+         """Triton infer function for streaming"""
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
@@ -1167,6 +1180,7 @@ class TensorRTLLM(ITritonDeployable):
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
+        """Triton infer function for streaming"""
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
@@ -1376,4 +1390,5 @@ class TensorRTLLM(ITritonDeployable):
                     ) from error
 
     def unload_engine(self):
+        """Unload engine"""
         unload_engine()
