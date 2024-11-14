@@ -3,7 +3,7 @@
 # Medennikov, Ivan, et al. "Target-Speaker Voice Activity Detection: a Novel Approach for Multi-Speaker Diarization in a Dinner Party Scenario." (2020).
 # These parameters were optimized with with hybrid-loss trained Sortformer model introduced in https://arxiv.org/pdf/2409.06656.
 # These parameters were optimized on CallHome Dataset from the NIST SRE 2000 Disc8, especially from the split2 specified in: Kaldi, “Kaldi x-vector recipe v2,” https://github.com/kaldi-asr/kaldi/tree/master/egs/callhome_diarization/v2.
-# Trial 180 finished with value: 0.12329626986650599 and parameters: {'onset': 0.56, 'offset': 0.81, 'pad_onset': 0.05, 'pad_offset': 0.0, 'min_duration_on': 0.1, 'min_duration_off': 0.16}. Best is trial 180 with value: 0.12329626986650599.    
+# Trial 732 finished with value: 0.12171946949255649 and parameters: {'onset': 0.64, 'offset': 0.74, 'pad_onset': 0.06, 'pad_offset': 0.0, 'min_duration_on': 0.1, 'min_duration_off': 0.15}. Best is trial 732 with value: 0.12171946949255649. 
 parameters: 
   window_length_in_sec: 0.0 # Not used
   shift_length_in_sec: 0.0 # Not used 
