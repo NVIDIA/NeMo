@@ -129,7 +129,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
-        """ PTL callback setup function. """
+        """PTL callback setup function."""
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
 
         super().setup(trainer, pl_module, stage=stage)

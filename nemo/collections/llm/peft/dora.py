@@ -51,6 +51,7 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
     """
     Adapter class for DoRA to handle the additional weight_magnitude parameter
     """
+
     def init_weight_magnitude(self, value):
         """
         Initialize weight_magnitude with shape (d,), where d is the output dim of the linear layer
@@ -93,6 +94,7 @@ class DoRALinear(AdapterWrapper):
     An adapter wrapper that is designed to be used with DoRA
     It extends the AdapterWrapper class to provide a specific implementation of the forward method.
     """
+
     def __init__(self, to_wrap: nn.Module, adapter: ParallelLinearDoRAAdapter):
         super().__init__(to_wrap, adapter)
         self.adapter: ParallelLinearDoRAAdapter
