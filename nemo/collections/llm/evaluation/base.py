@@ -132,13 +132,16 @@ class NeMoFWLMEval(LM):
         return results
 
     def loglikelihood_rolling(self, requests: list[Instance]):
+        """
+        Defines the loglikelihood_rolling request type. Yet to be implemented.
+        """
         pass
 
     def generate_until(self, inputs: list[Instance]):
         """
-        Defines the generate_until request type. Takes input requests of type list[Instance] where Instance is a dataclass
-        defined in lm_eval.api.instance. Each Instance conists of the input prompt, output prompt, request type(here
-        loglikelihood) and other relevant args like few shot samples.
+        Defines the generate_until request type. Takes input requests of type list[Instance] where Instance is a
+        dataclass defined in lm_eval.api.instance. Each Instance conists of the input prompt, output prompt, request
+        type(here loglikelihood) and other relevant args like few shot samples.
         """
         results = []
         for instance in inputs:
