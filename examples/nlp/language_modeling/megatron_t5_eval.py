@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import T5RequestDataset

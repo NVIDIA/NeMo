@@ -16,7 +16,7 @@ import torch
 import torch.multiprocessing as mp
 from datasets import load_dataset
 from omegaconf import OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from tqdm import tqdm
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel

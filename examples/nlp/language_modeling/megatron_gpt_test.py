@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from omegaconf.omegaconf import OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank

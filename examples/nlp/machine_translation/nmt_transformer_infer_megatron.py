@@ -25,7 +25,7 @@ USAGE Example:
 import os
 
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel

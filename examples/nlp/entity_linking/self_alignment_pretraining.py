@@ -17,7 +17,7 @@
 # more information on entity linking and self alignment pretraining.
 
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.models import EntityLinkingModel
 from nemo.core.config import hydra_runner

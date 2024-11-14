@@ -22,7 +22,7 @@ from typing import Dict, List
 import torch
 import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,

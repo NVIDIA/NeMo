@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from omegaconf import OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_bottleneck_model import MTBottleneckModel

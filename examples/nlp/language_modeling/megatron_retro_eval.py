@@ -17,7 +17,7 @@ import os
 
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel

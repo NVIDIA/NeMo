@@ -15,10 +15,10 @@
 import os
 
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
-from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
+from lightning.pytorch import Trainer
+from lightning.pytorch.plugins.environments import TorchElasticEnvironment
+from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
+from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo

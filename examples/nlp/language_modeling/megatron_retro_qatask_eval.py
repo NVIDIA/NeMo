@@ -18,7 +18,7 @@ import os
 
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import QAExample

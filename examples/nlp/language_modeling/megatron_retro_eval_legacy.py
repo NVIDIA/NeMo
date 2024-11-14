@@ -16,7 +16,7 @@ import os
 
 from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel

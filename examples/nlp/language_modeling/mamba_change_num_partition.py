@@ -20,7 +20,7 @@ from argparse import ArgumentParser
 
 import torch
 from omegaconf import open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 from nemo.collections.nlp.parts.nlp_overrides import (

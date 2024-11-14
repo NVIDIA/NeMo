@@ -17,7 +17,7 @@ from typing import Optional
 
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import MISSING
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
