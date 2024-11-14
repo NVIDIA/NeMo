@@ -21,7 +21,7 @@ from megatron.core import dist_checkpointing
 from pytorch_lightning.trainer.states import TrainerFn
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.peft.lora import LoRA, LoRAMerge
 from nemo.collections.llm.utils import factory
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib, io
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
@@ -116,20 +116,10 @@ def merge_lora(
         ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
     )
     trainer.strategy.load_model_state_dict(adapter_state, strict=False)
-    base_sharded_dict = {
-        k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items() if 'adapter' not in k
-    }
-    lora_sharded_dict = {
-        k: v.data.data
-        for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items()
-        if 'adapter' in k and 'extra_state' not in k
-    }
 
-    merged_weights = _merge_lora_weights(
-        base_model_state_dict=base_sharded_dict,
-        lora_state_dict=lora_sharded_dict,
-        num_layers=trainer.model.config.num_layers,
-    )
+    lora_merge = LoRAMerge()
+    merged_model = lora_merge(trainer.strategy.megatron_parallel)
+    merged_weights = {k: v for k, v in merged_model.sharded_state_dict().items() if ".adapter." not in k}
     weight_path = ckpt_to_weights_subdir(output_path, is_saving=True)
     Path(weight_path).mkdir(parents=True, exist_ok=True)
     dist_checkpointing.save(merged_weights, str(ckpt_to_weights_subdir(output_path, is_saving=True)))
@@ -140,41 +130,6 @@ def merge_lora(
         trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
     TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path), yaml_attrs=["model"])
     logging.info(f"Merged checkpoint saved to {output_path}")
-
-
-def _merge_lora_weights(
-    base_model_state_dict: Dict[str, Any],
-    lora_state_dict: Dict[str, Any],
-    num_layers: int,
-):
-    mcore_layer_keys = [
-        "self_attention.linear_qkv.weight",
-        "self_attention.linear_proj.weight",
-        "mlp.linear_fc1.weight",
-        "mlp.linear_fc2.weight",
-    ]
-    for nl in range(num_layers):
-        for key in mcore_layer_keys:
-            key_base = f'module.decoder.layers.{nl}.{key}'
-            key_lora_in = f'module.decoder.layers.{nl}.{key.rsplit(".weight", 1)[0] + ".adapter.linear_in.weight"}'
-            key_lora_out = f'module.decoder.layers.{nl}.{key.rsplit(".weight", 1)[0] + ".adapter.linear_out.weight"}'
-            if key_lora_in in lora_state_dict and key_lora_out in lora_state_dict:
-                wt_lora_in = lora_state_dict[key_lora_in]
-                wt_lora_out = lora_state_dict[key_lora_out]
-                wt_lora = wt_lora_out @ wt_lora_in
-                wt_lora_current_rank = wt_lora
-
-                wt_base = base_model_state_dict[key_base].data.data
-                logging.info(
-                    f"Full {key_base} wt_lora_in {wt_lora_in.shape}, wt_lora_out {wt_lora_out.shape}, wt_lora {wt_lora.shape}, wt_base {wt_base.shape}"
-                )
-
-                base_model_state_dict[key_base].data.data = (
-                    wt_base.float() + wt_lora_current_rank.to(wt_base.device)
-                ).type_as(wt_base)
-                logging.info(f'merging for weight {key_base}')
-
-    return base_model_state_dict  # reference, no need to return. return for clarity??
 
 
 __all__ = ["gpt_lora", "merge_lora"]

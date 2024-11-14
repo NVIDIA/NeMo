@@ -244,3 +244,16 @@ class LoRA(PEFT):
             )
             return AdapterParallelAdd(m, adapter)
         return m
+
+
+class LoRAMerge(PEFT):
+    @torch.no_grad()
+    def transform(self, m: nn.Module, name=None, prefix=None):
+        print(f"merging module", (prefix if prefix else "") + "." + (name if name else ""))
+        if not isinstance(m, AdapterParallelAdd):
+            return m
+        base_weight = m.to_wrap.weight
+        lora_weight = m.adapter.linear_out.weight.to(base_weight) @ m.adapter.linear_in.weight.to(base_weight.device)
+        merged_weight = base_weight + lora_weight
+        m.to_wrap.weight.data = merged_weight
+        return m
