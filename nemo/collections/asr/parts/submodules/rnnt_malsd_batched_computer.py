@@ -224,8 +224,6 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         assert not self.preserve_alignments
         assert not self.preserve_frame_confidence
 
-        self._force_greedy_hyp = False
-
     def modified_alsd_beam_torch(
         self,
         encoder_output: torch.Tensor,
@@ -335,19 +333,9 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             hyps_indices = torch.arange(self.beam_size, dtype=torch.long, device=device)[None, :, None].expand(
                 batch_size, -1, self.beam_size
             )
-            if self._force_greedy_hyp:
-                hyps_candidates_prob_cp = hyps_candidates_prob.clone()
-                hyps_candidates_prob_cp[torch.arange(batch_size, device=device, dtype=torch.long), 0, torch.argmax(
-                    hyps_candidates_prob[:, 0, :], dim=-1)] = float("inf")
-                next_hyps_prob, hyps_candidates_indices = torch.topk(
-                    hyps_candidates_prob_cp.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True
-                )
-                next_hyps_prob = torch.gather(hyps_candidates_prob.view(batch_size, -1), dim=-1,
-                                              index=hyps_candidates_indices)
-            else:
-                next_hyps_prob, hyps_candidates_indices = torch.topk(
-                    hyps_candidates_prob.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True
-                )
+            next_hyps_prob, hyps_candidates_indices = torch.topk(
+                hyps_candidates_prob.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True
+            )
             hyps_indices = torch.gather(hyps_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
             next_labels = torch.gather(labels_top_k.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
 
