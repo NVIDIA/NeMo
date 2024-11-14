@@ -1,5 +1,445 @@
 # Changelog
 
+## NVIDIA Neural Modules 2.0.0
+
+### Detailed Changelogs
+
+#### ASR
+  
+<details><summary>Changelog</summary>
+
+- add parakeet-tdt_ctc-110m model by @nithinraok :: PR: #10461
+- fix asr finetune by @stevehuang52 :: PR: #10508
+- replace unbiased with correction by @nithinraok :: PR: #10555
+- Update Multi_Task_Adapters.ipynb by @pzelasko :: PR: #10600
+- Fix asr warnings by @nithinraok :: PR: #10469
+- Fix typo in ASR RNNT BPE model by @pzelasko :: PR: #10742
+- TestEncDecMultiTaskModel for canary parallel by @karpnv :: PR: #10740
+- fix chunked infer by @stevehuang52 :: PR: #10581
+- training code for hybrid-autoregressive inference model by @hainan-xv :: PR: #10841
+- remove stacking operation from batched functions by @lilithgrigoryan :: PR: #10524
+- Add lhotse fixes for rnnt model training and WER hanging issue with f… by @nithinraok :: PR: #10821
+- Fix ASR tests by @artbataev :: PR: #10794
+- [Fix] Fixed sampler override and audio_key in prepare_audio_data by @anteju :: PR: #10980
+- [WIP] Add docs for NEST SSL by @stevehuang52 :: PR: #10804
+- Akoumparouli/mixtral recipe fix r2.0.0 by @akoumpa :: PR: #10994
+- TDT compute timestamps option and Extra Whitespace handling for SPE by @monica-sekoyan :: PR: #10875
+- ci: Switch to CPU only runner by @ko3n1g :: PR: #11035
+- Fix timestamps tests by @monica-sekoyan :: PR: #11053
+- ci: Pin release freeze by @ko3n1g :: PR: #11143
+- Fix RNN-T loss memory usage by @artbataev :: PR: #11144
+- Added deprecation notice by @Ssofja :: PR: #11133
+- Fixes for Canary adapters tutorial by @pzelasko :: PR: #11184
+- add ipython import guard by @nithinraok :: PR: #11191
+- Self Supervised Pre-Training tutorial Fix by @monica-sekoyan :: PR: #11206
+- update the return type by @nithinraok :: PR: #11210
+- Timestamps to transcribe by @nithinraok :: PR: #10950
+- [Doc fixes] update file names, installation instructions, bad links by @erastorgueva-nv :: PR: #11045
+- Beam search algorithm implementation for TDT models by @lilithgrigoryan :: PR: #10903
+
+</details>
+
+#### TTS
+  
+<details><summary>Changelog</summary>
+
+- Fix asr warnings by @nithinraok :: PR: #10469
+- Make nemo text processing optional in TTS by @blisc :: PR: #10584
+- [Doc fixes] update file names, installation instructions, bad links by @erastorgueva-nv :: PR: #11045
+
+</details>
+
+#### NLP / NMT
+  
+<details><summary>Changelog</summary>
+
+- Bump `Dockerfile.ci` (2024-09-09) by @ko3n1g :: PR: #10423
+- MCORE interface for TP-only FP8 AMAX reduction by @erhoo82 :: PR: #10437
+- Remove Apex dependency if not using MixedFusedLayerNorm by @cuichenx :: PR: #10468
+- Add missing import guards for causal_conv1d and mamba_ssm dependencies by @janekl :: PR: #10429
+- Update doc for fp8 trt-llm export by @Laplasjan107 :: PR: #10444
+- set mock in GPTDatasetConfig by @akoumpa :: PR: #10435
+- Remove running validating after finetuning by @huvunvidia :: PR: #10560
+- Extending modelopt spec for TEDotProductAttention by @janekl :: PR: #10523
+- Fix mb_calculator import in lora tutorial by @BoxiangW :: PR: #10624
+- .nemo conversion bug fix by @dimapihtar :: PR: #10598
+- Updating modelopt spec for Mixtral by @janekl :: PR: #10660
+- Require setuptools>=70 and update deprecated api by @thomasdhc :: PR: #10659
+- Akoumparouli/fix get tokenizer list by @akoumpa :: PR: #10596
+- [McoreDistOptim] fix the naming to match apex.dist by @gdengk :: PR: #10707
+- [fix] Ensures disabling exp_manager with exp_manager=null does not error by @terrykong :: PR: #10651
+- [feat] Update get_model_parallel_src_rank to support tp-pp-dp ordering by @terrykong :: PR: #10652
+- feat: Migrate GPTSession refit path in Nemo export to ModelRunner for Aligner by @terrykong :: PR: #10654
+- [MCoreDistOptim] Add assertions for McoreDistOptim and fix fp8 arg specs by @gdengk :: PR: #10748
+- Fix for crashes with tensorboard_logger=false and VP + LoRA by @vysarge :: PR: #10792
+- Adding init_model_parallel to FabricMegatronStrategy by @marcromeyn :: PR: #10733
+- Moving steps to MegatronParallel to improve UX for Fabric by @marcromeyn :: PR: #10732
+- Adding setup_megatron_optimizer to FabricMegatronStrategy by @marcromeyn :: PR: #10833
+- Make FabricMegatronMixedPrecision match MegatronMixedPrecision by @marcromeyn :: PR: #10835
+- Fix VPP bug in MegatronStep by @marcromeyn :: PR: #10847
+- Expose drop_last in MegatronDataSampler by @farhadrgh :: PR: #10837
+- Move collectiob.nlp imports inline for t5 by @marcromeyn :: PR: #10877
+- Use a context-manager when opening files by @akoumpa :: PR: #10895
+- Packed sequence bug fixes by @cuichenx :: PR: #10898
+- ckpt convert bug fixes by @dimapihtar :: PR: #10878
+- remove deprecated ci tests by @dimapihtar :: PR: #10922
+- Adithyare/oai chat completion by @arendu :: PR: #10785
+- Update T5 tokenizer (adding additional tokens to tokenizer config) by @huvunvidia :: PR: #10972
+- Add support and recipes for HF models via AutoModelForCausalLM by @akoumpa :: PR: #10962
+  - gpt3 175b cli by @malay-nagda :: PR: #10985
+  - Fix for crash with LoRA + tp_overlap_comm=false + sequence_parallel=true by @vysarge :: PR: #10920
+  - Update `BaseMegatronSampler` for compatibility with PTL's `_BatchProgress` by @ashors1 :: PR: #11016
+  - add deprecation note by @dimapihtar :: PR: #11024
+  - Update ModelOpt Width Pruning example defaults by @kevalmorabia97 :: PR: #10902
+  - switch to NeMo 2.0 recipes by @dimapihtar :: PR: #10948
+  - NeMo 1.0: upcycle dense to moe by @akoumpa :: PR: #11002
+  - Update mcore parallelism initialization in nemo2 by @yaoyu-33 :: PR: #10643
+  - Gemma2 in Nemo2 with Recipes by @suiyoubi :: PR: #11037
+  - Add Packed Seq option to GPT based models by @suiyoubi :: PR: #11100
+  - Fix MCoreGPTModel import in llm.gpt.model.base by @hemildesai :: PR: #11109
+  - TP+MoE peft fix by @akoumpa :: PR: #11114
+  - GPT recipes to use full te spec by @JimmyZhang12 :: PR: #11119
+  - Virtual pipeline parallel support for LoRA in NLPAdapterModelMixin by @vysarge :: PR: #11128
+  - update nemo args for mcore flash decode arg change by @HuiyingLi :: PR: #11138
+  - Call `ckpt_to_weights_subdir` from `MegatronCheckpointIO` by @ashors1 :: PR: #10897
+  - fix typo by @dimapihtar :: PR: #11234
+  - [Doc fixes] update file names, installation instructions, bad links by @erastorgueva-nv :: PR: #11045
+  - fix(export): GPT models w/ bias=False convert properly by @terrykong :: PR: #11255
+  
+  </details>
+
+#### Text Normalization / Inverse Text Normalization
+  
+  <details><summary>Changelog</summary>
+  
+  - Adding support for LightningDataModule inside Fabric-API by @marcromeyn :: PR: #10879
+  - Save yaml config for model in nemo.lightning.io by @hemildesai :: PR: #10765
+  - Add registry to register all needed classes with artifacts in nemo.lightning.io by @hemildesai :: PR: #10861
+  
+  </details>
+
+#### Export
+  
+  <details><summary>Changelog</summary>
+  
+  - Update doc for fp8 trt-llm export by @Laplasjan107 :: PR: #10444
+  - Fix pps issue on nemo export by @oyilmaz-nvidia :: PR: #10544
+  - Add lazy init for export by @akoumpa :: PR: #10613
+  - feat: Migrate GPTSession refit path in Nemo export to ModelRunner for Aligner by @terrykong :: PR: #10654
+  - Fix load nemo issue in Multimodal TRTLLM by @meatybobby :: PR: #10744
+  - Update engine build step for TRT-LLM 0.13.0 by @janekl :: PR: #10880
+  - Nemo 2.0 ckpt support in TRT-LLM export by @oyilmaz-nvidia :: PR: #10891
+  - Fix TRTLLM parallel_embedding by @meatybobby :: PR: #10975
+  - Export & deploy updates (part I) by @janekl :: PR: #10941
+  - Add doc-strings to import & export + improve logging by @marcromeyn :: PR: #11078
+  - NeMo-UX: fix nemo-ux export path by @akoumpa :: PR: #11081
+  - Fix TRTLLM nemo2 activation parsing by @meatybobby :: PR: #11062
+  - Support exporting Nemotron-340B for TensorRT-LLM by @jinyangyuan-nvidia :: PR: #11015
+  - vLLM Hugging Face exporter by @oyilmaz-nvidia :: PR: #11124
+  - Fix export of configuration parameters to Weights and Biases by @soluwalana :: PR: #10995
+  - Change activation parsing in TRTLLM by @meatybobby :: PR: #11173
+  - Remove builder_opt param from trtllm-build for TensorRT-LLM >= 0.14.0 by @janekl :: PR: #11259
+  - fix(export): GPT models w/ bias=False convert properly by @terrykong :: PR: #11255
+  - fix(export): update API for disabling device reassignment in TRTLLM for Aligner by @terrykong :: PR: #10863
+  
+  </details>
+
+#### Bugfixes
+  
+  <details><summary>Changelog</summary>
+  
+  - Time interval checkpointing fix by @maanug-nv :: PR: #10561
+  - Change default ckpt name by @maanug-nv :: PR: #11277
+  
+  </details>
+
+#### Uncategorized:
+  
+  <details><summary>Changelog</summary>
+  
+  - ci: Use PAT for cherry-picking by @ko3n1g :: PR: #10406
+  - ci: Allow default token to write workflows by @ko3n1g :: PR: #10407
+  - ci: More permissions for cherry-pick automation by @ko3n1g :: PR: #10409
+  - ci: Overhaul cherry-pick workflow by @ko3n1g :: PR: #10410
+  - ci: Ignore failures on cherry-picking by @ko3n1g :: PR: #10411
+  - Ko3n1g/ci/test cherry picking by @ko3n1g :: PR: #10412
+  - ci: Fix cherry-pick config by @ko3n1g :: PR: #10413
+  - ci: Minor change by @ko3n1g :: PR: #10415
+  - ci: Remove dead code by @ko3n1g :: PR: #10416
+  - Ko3n1g/ci/test cherry picking 2 by @ko3n1g :: PR: #10417
+  - ci: Small test by @ko3n1g :: PR: #10419
+  - ci: Small fix by @ko3n1g :: PR: #10420
+  - remove scripts by @JRD971000 :: PR: #10427
+  - CICD: Attempt fix for False positive (not all tests have run) by @pablo-garay :: PR: #10436
+  - [Nemo CICD] Make flaky test optional  by @pablo-garay :: PR: #10442
+  - ci: Fix secrets detector on forks by @ko3n1g :: PR: #10426
+  - [Nemo CICD] Optional test needs optional field set true by @pablo-garay :: PR: #10475
+  - Fix nemo run entrypoints by @hemildesai :: PR: #10464
+  - [Nemo CICD] Make flaky test optional by @pablo-garay :: PR: #10476
+  - Bump `Dockerfile.ci` (2024-09-13) by @ko3n1g :: PR: #10477
+  - Update adapter saving logic to be compatible with `save_weights_only` by @cuichenx :: PR: #10466
+  - Akoumparouli/nemo ux update param name by @akoumpa :: PR: #10441
+  - ci: Fix hyperlink to PR by @ko3n1g :: PR: #10494
+  - [Nemo CICD] Flaky test optional until fixed by @pablo-garay :: PR: #10495
+  - fix NeMoLogger log -> log_dir rename by @akoumpa :: PR: #10498
+  - ci: Fix base branch of secrets detector by @ko3n1g :: PR: #10501
+  - Call reload_model_params only if there's no optimizer state by @akoumpa :: PR: #10470
+  - ci: Disable flaky secrets test by @ko3n1g :: PR: #10503
+  - [SD] TE-DPA: Disbale TE-DPA In Inference Flow by @alpha0422 :: PR: #10488
+  - Add py-modules to pyproject.toml by @thomasdhc :: PR: #10509
+  - Bump `Dockerfile.ci` (2024-09-18) by @ko3n1g :: PR: #10518
+  - Update modelopt to 0.17.0 by @janekl :: PR: #10489
+  - Move NeMo 2.0 test out of `examples` by @ashors1 :: PR: #10529
+  - handle logging case where grad_norm is None by @akoumpa :: PR: #10457
+  - Make nemo_run dependency optional (llm/__init__ ) by @akoumpa :: PR: #10453
+  - move mamba installation by @akoumpa :: PR: #10447
+  - Update inference tests scripts and models by @janekl :: PR: #10505
+  - Adds Llama 3.1 405b configurations by @Elnifio :: PR: #10472
+  - [nemo-ux] Added nemotron recipes and tests by @ahmadki :: PR: #10432
+  - added energon dataloader for neva training by @yashaswikarnati :: PR: #10451
+  - Add unit tests for model configs in nemo.collections.llm by @hemildesai :: PR: #10497
+  - Add copyright headers to nemo llm examples by @hemildesai :: PR: #10543
+  - Upgrade librosa version to fix librosa.display.specshow issue in ASR tutorial notebooks by @github-actions[bot] :: PR: #10553
+  - Akoumparouli/nemo ux ckpt conv bugfix by @akoumpa :: PR: #10558
+  - Add AutoResume to NeMo 2 test by @ashors1 :: PR: #10556
+  - ci: Add original author as reviewer to cherry-pick by @ko3n1g :: PR: #10566
+  - ci: Improve title of cherry-picked PR by @ko3n1g :: PR: #10568
+  - Bump `Dockerfile.ci` (2024-09-21) by @ko3n1g :: PR: #10562
+  - ci: Further improve cherry pick title by @ko3n1g :: PR: #10569
+  - Bump `Dockerfile.ci` (2024-09-22) by @ko3n1g :: PR: #10565
+  - ci: Send link to release page by @ko3n1g :: PR: #10570
+  - ci: Add label to cherry pick PR by @ko3n1g :: PR: #10574
+  - Bump `Dockerfile.ci` (2024-09-23) by @ko3n1g :: PR: #10577
+  - remove exp dir by @JRD971000 :: PR: #10460
+  - ci: Send direct alert on failed cherry-pick by @ko3n1g :: PR: #10588
+  - Add ConfigValidation plugin to nemo.lightning.run by @hemildesai :: PR: #10541
+  - fix type error in llm collection by @stevehuang52 :: PR: #10552
+  - ci: Safer sequence escaping by @ko3n1g :: PR: #10595
+  - ci: Fix issues with version bump by @ko3n1g :: PR: #10467
+  - ci: Add missing test specs by @ko3n1g :: PR: #10597
+  - Import guard for SimpleMultiModalDataModule by @akoumpa :: PR: #10592
+  - add support for train_time_interval to consider hydra object by @nithinraok :: PR: #10559
+  - Move update_config_with_dtype_overrides logging to debug by @akoumpa :: PR: #10602
+  - ci: Wrap into quotes by @ko3n1g :: PR: #10616
+  - Romeyn/sampler by @akoumpa :: PR: #10525
+  - Add inference optimization blog post announcement to README by @pzelasko :: PR: #10623
+  - Fix LoRA contiguous tensor by @cuichenx :: PR: #10611
+  - Fix Clip initializing issue in r2.0.0 by @yaoyu-33 :: PR: #10585
+  - ci: Add CICD result feedback by @ko3n1g :: PR: #10629
+  - ci: Fix mention by @ko3n1g :: PR: #10635
+  - ci: Fix hyperlink for feedback by @ko3n1g :: PR: #10637
+  - chore(ci): Increase shm to 64gb by @ko3n1g :: PR: #10656
+  - Update llm recipe README to add a note about handling multi-process jobs by @hemildesai :: PR: #10649
+  - Adding Resume pretraining for NeMo 2.0 T5 CICD  by @huvunvidia :: PR: #10640
+  - [NeMo-UX] Support `save_last="link"` by @ashors1 :: PR: #10548
+  - DB tutorial ckpt path update by @Victor49152 :: PR: #10662
+  - ci: Stability to CI/CD by @ko3n1g :: PR: #10694
+  - Update NeVA Mixtral Tutorial by @paul-gibbons :: PR: #10669
+  - Add NeMo 2.0 section to the readme by @ashors1 :: PR: #10646
+  - ci: Disable feedback on forks by @ko3n1g :: PR: #10709
+  - ci: Restore docker cache by @ko3n1g :: PR: #10708
+  - NeMo 2.0 mixtral ci test by @akoumpa :: PR: #10655
+  - In-framework inference fixes by @janekl :: PR: #10698
+  - ci: Add workflow for scheduled VM reboot by @ko3n1g :: PR: #10695
+  - ci: Fix issue with feedback by @ko3n1g :: PR: #10734
+  - ci: Fix secret by @ko3n1g :: PR: #10736
+  - Bump `Dockerfile.ci` (2024-10-03) by @ko3n1g :: PR: #10727
+  - remove rm -rf /home/TestData and use /tmp instead by @akoumpa :: PR: #10729
+  - Remove finetuning recipes for Long Context  by @BoxiangW :: PR: #10703
+  - ci(slack): Fix job pagination by @ko3n1g :: PR: #10737
+  - Add Llama 3.1 Pruning and Distillation Tutorial by @gvenkatakris :: PR: #10720
+  - ci: Apply hotfix to `Nemo_CICD_Test` by @ko3n1g :: PR: #10757
+  - Remove long context recipe finetuning tests by @maanug-nv :: PR: #10755
+  - ci: Improve caching and image retention by @ko3n1g :: PR: #10735
+  - Bump `Dockerfile.ci` (2024-10-04) by @ko3n1g :: PR: #10754
+  - Akoumparouli/nemo ux test fixes by @akoumpa :: PR: #10641
+  - Vllm 0.6.0 integration test by @HuiyingLi :: PR: #10697
+  - ci: Fix `Nemo_CICD_Test` step by @ko3n1g :: PR: #10756
+  - Revert always_save_context to False by @athitten :: PR: #10667
+  - add diffusion energon dataloader by @ethanhe42 :: PR: #10700
+  - Packed Sequence [NeMo 2] by @cuichenx :: PR: #10445
+  - Checkpoint connector bugfixes by @jstjohn :: PR: #10647
+  - ci: Re-instantiate optional tests by @ko3n1g :: PR: #10739
+  - ci: Fix broken notifications by @ko3n1g :: PR: #10774
+  - Bump `Dockerfile.ci` (2024-10-05) by @ko3n1g :: PR: #10776
+  - Bump `Dockerfile.ci` (2024-10-06) by @ko3n1g :: PR: #10778
+  - Bump `Dockerfile.ci` (2024-10-07) by @ko3n1g :: PR: #10779
+  - Update convert_llava_nemo_to_hf.py by @leejinho610 :: PR: #10537
+  - ci: Add cherry-pick label to cherry-picks by @ko3n1g :: PR: #10775
+  - ci: Cleanup required tests by @ko3n1g :: PR: #10773
+  - Akoumparouli/mcore microbatch calculator fix by @akoumpa :: PR: #10780
+  - remove 8x3b recipes by @akoumpa :: PR: #10764
+  - Bump `Dockerfile.ci` (2024-10-08) by @ko3n1g :: PR: #10789
+  - Update mamba.rst after dist ckpt addition by @JRD971000 :: PR: #10800
+  - Fix error raising logic in model import by @cuichenx :: PR: #10728
+  - use ckpt_to_weights_subdir in restore by @akoumpa :: PR: #10786
+  - Mixtral set seq_length=4k by @akoumpa :: PR: #10704
+  - Disable checkpoint conversion inside AutoResume by @hemildesai :: PR: #10645
+  - remove optional flag by @JRD971000 :: PR: #10781
+  - Fix gradient clipping mistral by @maanug-nv :: PR: #10725
+  - ci: Fix successful notification by @ko3n1g :: PR: #10813
+  - Reduce storage usage in favor of local storage by @pablo-garay :: PR: #10767
+  - ci: Disable workflow by @ko3n1g :: PR: #10819
+  - move exp_dir to tmp; use 2 layers by @akoumpa :: PR: #10822
+  - ci: Teardown of container by @ko3n1g :: PR: #10817
+  - Revert making test optional by @pablo-garay :: PR: #10816
+  - Fix model importer by @cuichenx :: PR: #10811
+  - Don't store defaults in IOMixin by @marcromeyn :: PR: #10812
+  - Adding NeMo 2.0 T5 finetuning (on Squad dataset) by @huvunvidia :: PR: #10716
+  - Bump `Dockerfile.ci` (2024-10-10) by @ko3n1g :: PR: #10828
+  - [NeMo-UX] Support LoRA when TE and Apex are not installed by @ashors1 :: PR: #10810
+  - Add missing copyright headers by @ashors1 :: PR: #10829
+  - Fix LoRA merge script by @cuichenx :: PR: #10823
+  - mixtral bitexact ci test by @akoumpa :: PR: #10692
+  - NeVA tutorial updates by @paul-gibbons :: PR: #10836
+  - allow cudnn fa by @JimmyZhang12 :: PR: #10741
+  - ub configs (for performance) by @malay-nagda :: PR: #10762
+  - Augmenting NeMo 2.0 LoRA implementation  by @huvunvidia :: PR: #10850
+  - Add CI tests for SFT/PEFT by @cuichenx :: PR: #10632
+  - [nemo-ux] fix param gather overlap by @JimmyZhang12 :: PR: #10852
+  - ci: Use Slack group by @ko3n1g :: PR: #10866
+  - Update experiment dir to /tmp in CI tests by @cuichenx :: PR: #10859
+  - Diffusion Transformer Training Pipeline by @zpx01 :: PR: #10843
+  - Random read for tarr files in lhotse dataloaders by @nune-tadevosyan :: PR: #10536
+  - Bump `Dockerfile.ci` (2024-10-14) by @ko3n1g :: PR: #10871
+  - Use trainer.local_rank/global_rank by @akoumpa :: PR: #10860
+  - [NeMo-UX] Add llm.generate to nemo.collections.llm by @hemildesai :: PR: #10471
+  - add world_size/pp_size runtime check by @akoumpa :: PR: #10842
+  - Fix peft resume by @cuichenx :: PR: #10887
+  - enable vboost and set LM SM margin by @malay-nagda :: PR: #10853
+  - use _get_extra_te_kwargs_meta in fabric (call mcore's _get_extra_te_k… by @akoumpa :: PR: #10608
+  - call __post_init__ after altering config values by @akoumpa :: PR: #10885
+  - Late import prettytable by @maanug-nv :: PR: #10912
+  - Bump `Dockerfile.ci` (2024-10-17) by @ko3n1g :: PR: #10919
+  - Warning for missing FP8 checkpoint support for vLLM deployment by @janekl :: PR: #10906
+  - Fix artifact saving by @hemildesai :: PR: #10914
+  - Lora improvement by @cuichenx :: PR: #10918
+  - Huvu/t5 nemo2.0 peft by @huvunvidia :: PR: #10916
+  - Support `tie_word_embeddings=True` in `convert_mistral_7b_nemo_to_hf.py` by @suhara :: PR: #10710
+  - long context performance numbers in doc by @youngeunkwon0405 :: PR: #10784
+  - perf recipes and Mcore DistOpt params by @malay-nagda :: PR: #10883
+  - ci: Fix cherry pick team by @ko3n1g :: PR: #10945
+  - Fix requirements for MacOS by @artbataev :: PR: #10930
+  - Fix nemo 2.0 recipes  by @BoxiangW :: PR: #10915
+  - Akoumparouli/nemo ux fix dir or string artifact by @akoumpa :: PR: #10936
+  - Fix typo in docstring by @ashors1 :: PR: #10955
+  - [Nemo CICD] Remove deprecated tests by @pablo-garay :: PR: #10960
+  - Restore NeMo 2.0 T5 pretraining CICD test by @huvunvidia :: PR: #10952
+  - Convert perf plugin env vars to strings by @hemildesai :: PR: #10947
+  - disable dynamo for ddp checker by @akoumpa :: PR: #10961
+  - Bump `Dockerfile.ci` (2024-10-21) by @ko3n1g :: PR: #10965
+  - Mistral-NeMo-12B recipe by @akoumpa :: PR: #10607
+  - respect warnings' filters by @akoumpa :: PR: #10953
+  - Alit/mamba recipe by @JRD971000 :: PR: #10935
+  - Long context performance doc hot fix by @youngeunkwon0405 :: PR: #10946
+  - Performance mode by @malay-nagda :: PR: #10926
+  - Add flux inference pipeline by @Victor49152 :: PR: #10752
+  - Add assertion for always save nemo add model parallel size by @BoxiangW :: PR: #10690
+  - Bump `Dockerfile.ci` (2024-10-22) by @ko3n1g :: PR: #10979
+  - Reflect CLI change nemorun -> nemo by @marcromeyn :: PR: #10443
+  - minor fix by @JRD971000 :: PR: #10990
+  - Add more recipes by @cuichenx :: PR: #10957
+  - Upgrade transformers by @cuichenx :: PR: #10854
+  - ci: Update tests by @ko3n1g :: PR: #10987
+  - Bump `Dockerfile.ci` (2024-10-23) by @ko3n1g :: PR: #11001
+  - llm.generate fixes by @HuiyingLi :: PR: #10983
+  - use __dict__ in check by @akoumpa :: PR: #11012
+  - LoRA support for HF::AutoModelForCausalLM by @akoumpa :: PR: #10982
+  - Change default for always_save_context to True by @athitten :: PR: #11014
+  - Add a build option to load_context by @marcromeyn :: PR: #10713
+  - Fix pip install by @marcromeyn :: PR: #11026
+  - Change dist ckpt defaults by @ShriyaPalsamudram :: PR: #10913
+  - Fix _strategy_lib tests by @maanug-nv :: PR: #11033
+  - PTQ example for NeMo 2.0 by @Laplasjan107 :: PR: #10642
+  - Basic online dynamic FP8 quantization with vLLM by @janekl :: PR: #10904
+  - ci: Improve VM maintenance by @ko3n1g :: PR: #10758
+  - Expose packed seq in finetuning recipes by @cuichenx :: PR: #11006
+  - PEFT Inference by @cuichenx :: PR: #11030
+  - added Lhotse online augmentation tutorial for SE by @nasretdinovr :: PR: #10944
+  - Bump `Dockerfile.ci` (2024-10-27) by @ko3n1g :: PR: #11051
+  - ci: Send team alerts on specific keywords by @ko3n1g :: PR: #10986
+  - Qwen2 Recipe by @suiyoubi :: PR: #10974
+  - Bump `Dockerfile.ci` (2024-10-28) by @ko3n1g :: PR: #11054
+  - Generalizing Inference pipeline in NeMo 2.0 to support encoder-decoder models by @huvunvidia :: PR: #10924
+  - [Bug fix] In energon MultiModalSampleConfig use default_factory in dataclass by @guyueh1 :: PR: #11041
+  - fix: Resolve mutable default issue in MultiModalSampleConfig dataclass by @michal2409 :: PR: #11061
+  - SC1/SC2 Recipe by @suiyoubi :: PR: #10971
+  - Wrap batch_sampler with _IndexBatchSamplerWrapper by @farhadrgh :: PR: #10934
+  - Performance fine-tuning recipes for llama3 8b + 70b by @vysarge :: PR: #11046
+  - Set TE spec name for NeMo to HF checkpoint converters by @kevalmorabia97 :: PR: #11036
+  - ci: Re-add secrets detector by @ko3n1g :: PR: #11038
+  - Adding nemo-run recipes for NeMo 2.0 T5  by @huvunvidia :: PR: #10964
+  - Minor fixes for NeMo 2.0 PTQ by @Laplasjan107 :: PR: #11079
+  - Add L2 llama test by @maanug-nv :: PR: #10824
+  - Add copyright check by @pablo-garay :: PR: #11048
+  - Fix finalize model grad for PEFT by @cuichenx :: PR: #11065
+  - ci: Less verbose infra alerts by @ko3n1g :: PR: #11080
+  - Add copyright notice by @pablo-garay :: PR: #11085
+  - ci: Fix cron schedule  by @ko3n1g :: PR: #11076
+  - ci: Use code-freeze via Nemo-FW-Templates by @ko3n1g :: PR: #11073
+  - Akoumparouli/hf lit module peft ckpt bugfix by @akoumpa :: PR: #11022
+  - PEFT perf and TE spec fixes by @JimmyZhang12 :: PR: #11070
+  - Bump `Dockerfile.ci` (2024-10-30) by @ko3n1g :: PR: #11092
+  - NeMorun for NeMo 2.0 T5 finetuning by @huvunvidia :: PR: #11040
+  - fix model_checkpoint.py by @ethanhe42 :: PR: #11057
+  - Update PTQ tests and ModelOpt version by @janekl :: PR: #11095
+  - Fix datasets in CLI by @marcromeyn :: PR: #11097
+  - Fix yaml serialization in io mixin by @hemildesai :: PR: #11106
+  - disable overlap_param_gather_with_optimizer_step by @JimmyZhang12 :: PR: #11102
+  - nemo1 to nemo2 checkpoint convert by @HuiyingLi :: PR: #10937
+  - fix expert regex filter by @akoumpa :: PR: #11103
+  - Remove stale checkpoint deletion on checkpoint saving failure by @akoumpa :: PR: #11116
+  - NeMo-UX: Mistral/mixtral peft ci test by @akoumpa :: PR: #11094
+  - Make nemo.collections.llm PreTrainingDataModule num samples configurable by @hemildesai :: PR: #11088
+  - Fix packed seq path by @cuichenx :: PR: #11121
+  - Allow arguments passed to dataset class + Gemma recipe fix by @cuichenx :: PR: #11125
+  - Nemotron Recipe by @suiyoubi :: PR: #11118
+  - NeMo-UX: HF PeFT fix by @akoumpa :: PR: #11096
+  - Remove deprecated tests by @pablo-garay :: PR: #11134
+  - Recipe Fix for NeMo CI by @suiyoubi :: PR: #11127
+  - Fix freeze_model call in peft by @cuichenx :: PR: #11146
+  - Bump `Dockerfile.ci` (2024-11-05) by @ko3n1g :: PR: #11159
+  - NeMo-UX: Add sgd optim by @akoumpa :: PR: #11157
+  - Update copyright check by @pablo-garay :: PR: #11168
+  - add lora recipt for 405b by @JRD971000 :: PR: #10991
+  - dit training diagrams by @zpx01 :: PR: #10873
+  - ci: Switch to FW templates for build by @ko3n1g :: PR: #11077
+  - Bump `Dockerfile.ci` (2024-11-06) by @ko3n1g :: PR: #11174
+  - feat: Run PyLint by @ko3n1g :: PR: #11147
+  - Add Alpaca Finetune Datamodule by @suiyoubi :: PR: #11185
+  - Updated Diffusion Collection README by @zpx01 :: PR: #11179
+  - Add support for Cosmos Tokenizers by @jojennin :: PR: #11194
+  - Run formatting only if files changed. Echo message if pylint fails. by @artbataev :: PR: #11188
+  - Bump `Dockerfile.ci` (2024-11-07) by @ko3n1g :: PR: #11196
+  - Fix rotary_percentage parsing in nemo2 config by @meatybobby :: PR: #11197
+  - ci: Update cherry pick workflow by @ko3n1g :: PR: #11202
+  - ci: Build, test, publish a wheel by @ko3n1g :: PR: #11183
+  - Bump `Dockerfile.ci` (2024-11-08) by @ko3n1g :: PR: #11222
+  - update default pipeline_parallelism_type by @akoumpa :: PR: #11213
+  - check actual value of vocab_file by @akoumpa :: PR: #11228
+  - Fix VP Initialization Issue with Latest MCore by @suiyoubi :: PR: #11209
+  - ci: Run Pylint strictly on new files, softly on history by @ko3n1g :: PR: #11212
+  - Add LLama32 Vision Model Support in Nemo 2.0 by @yaoyu-33 :: PR: #10763
+  - ci: Add release workflow by @ko3n1g :: PR: #11180
+  - Fix llm.generate by @hemildesai :: PR: #11217
+  - Bump `Dockerfile.ci` (2024-11-11) by @ko3n1g :: PR: #11247
+  - Bump `Dockerfile.ci` (2024-11-12) by @ko3n1g :: PR: #11254
+  - Handling tokenizer in PTQ for Nemo 2.0 by @janekl :: PR: #11237
+  - Fix finetuning datamodule resume by @cuichenx :: PR: #11187
+  - ci: Move `bump mcore` to templates by @ko3n1g :: PR: #11229
+  - ci: Fix secrets detector by @ko3n1g :: PR: #11205
+  - chore(beep boop 🤖): Bump `MCORE_TAG=aded519...` (2024-11-12) by @ko3n1g :: PR: #11260
+  - ci: Run secrets detector on `pull_request_target` by @ko3n1g :: PR: #11263
+  - Advanced Diffusion Training Features by @zpx01 :: PR: #11246
+  - Update pruning and distillation tutorial notebooks by @gvenkatakris :: PR: #11091
+  - update nemo1->2 conversion according to changes in main by @HuiyingLi :: PR: #11253
+  - Add llama 3.1 recipes by @cuichenx :: PR: #11273
+  - Fix Finetune Recipe by @suiyoubi :: PR: #11267
+  - Configure no restart validation loop in nl.Trainer by @hemildesai :: PR: #11029
+  - Handle _io_unflatten_object when _thread_local.output_dir is not available by @hemildesai :: PR: #11199
+  
+  </details>
+
 ## NVIDIA Neural Modules 2.0.0rc1
 
 ### Highlights
