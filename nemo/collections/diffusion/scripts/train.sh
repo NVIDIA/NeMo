@@ -26,4 +26,4 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 DIR=`pwd`
 
-srun -l --container-image nvcr.io/nvidia/nemo:dev --container-mounts "/home:/home" --no-container-mount-home --mpi=pmix bash -c "cd ${DIR} ; python -u nemo/collections/diffusion/train.py --yes $*"
+srun -l --container-image nvcr.io/nvidia/nemo:cosmos.01 --container-mounts "/home:/home" --no-container-mount-home --mpi=pmix bash -c "cd ${DIR} ; python -u nemo/collections/diffusion/train.py --yes $*"
