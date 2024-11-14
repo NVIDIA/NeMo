@@ -31,6 +31,8 @@ from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
+
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -555,9 +557,10 @@ def export_ckpt(
 @run.cli.entrypoint(name="generate", namespace="llm")
 def generate(
     path: Union[Path, str],
-    prompts: list[str],
     trainer: nl.Trainer,
+    prompts: Optional[list[str]] = None,
     encoder_prompts: Optional[list[str]] = None,
+    input_dataset: Optional[pl.LightningDataModule] = None,
     params_dtype: torch.dtype = torch.bfloat16,
     add_BOS: bool = False,
     max_batch_size: int = 4,
@@ -565,6 +568,7 @@ def generate(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
+    output_path: Optional[Union[Path, str]] = None,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -618,6 +622,8 @@ def generate(
         prompts (list[str]): The list of prompts to generate text for.
         trainer (nl.Trainer): The trainer object.
         encoder_prompts (Optional[list[str]], optional): The list of encoder prompts. Defaults to None.
+        input_dataset (Optional[pl.LightningDataModule], optional): The input data module.
+            Test set will be used for generation. Defaults to None.
         params_dtype (torch.dtype, optional): The data type of the model parameters. Defaults to torch.bfloat16.
         add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
@@ -627,12 +633,23 @@ def generate(
         inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
             Mcore's CommonInferenceParams. Defaults to None.
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
+        output_path (Optional[Union[Path, str]], optional): The path to save the generated text or test dataset
+            predictions. Defaults to None.
 
     Returns:
         list[Union["InferenceRequest", str]]: A list of generated text,
             either as a string or as an InferenceRequest object.
     """
     from nemo.collections.llm import inference
+
+    if input_dataset is not None:
+        with open(input_dataset.test_path) as f:
+            dataset = [json.loads(sample) for sample in f.readlines()]
+            inputs = [sample["input"] for sample in dataset]
+    elif prompts is not None:
+        inputs = prompts
+    else:
+        raise ValueError("Either prompts or input_dataset must be provided.")
 
     inference_wrapped_model, mcore_tokenizer = inference.setup_model_and_tokenizer(
         path=path,
@@ -643,15 +660,15 @@ def generate(
 
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
     dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
-    chunk_size = (len(prompts) + dp_size - 1) // dp_size
+    chunk_size = (len(inputs) + dp_size - 1) // dp_size
     start_idx = dp_rank * chunk_size
-    end_idx = min(start_idx + chunk_size, len(prompts))
-    prompts_on_this_dp_rank = prompts[start_idx:end_idx]
+    end_idx = min(start_idx + chunk_size, len(inputs))
+    inputs_on_this_dp_rank = inputs[start_idx:end_idx]
 
     results_on_this_dp_rank = inference.generate(
         model=inference_wrapped_model,
         tokenizer=mcore_tokenizer,
-        prompts=prompts_on_this_dp_rank,
+        prompts=inputs_on_this_dp_rank,
         encoder_prompts=encoder_prompts,
         add_BOS=add_BOS,
         max_batch_size=max_batch_size,
@@ -667,52 +684,20 @@ def generate(
     )
     gathered_results = [result for sublist in gathered_results for result in sublist]
 
-    return gathered_results
+    assert len(gathered_results) == len(inputs)
 
-
-@run.cli.entrypoint(name="eval", namespace="llm")
-def batch_inference(
-    trainer: nl.Trainer,
-    ckpt_path: Union[Path, str],
-    input_dataset: pl.LightningDataModule,
-    output_path: Union[Path, str],
-    encoder_prompts: Optional[list[str]] = None,
-    params_dtype: torch.dtype = torch.bfloat16,
-    add_BOS: bool = False,
-    max_batch_size: int = 4,
-    random_seed: Optional[int] = None,
-    inference_batch_times_seqlen_threshold: int = 1000,
-    inference_params: Optional["CommonInferenceParams"] = None,
-) -> None:
-
-    from nemo.utils.get_rank import is_global_rank_zero
-
-    with open(input_dataset.test_path) as f:
-        dataset = [json.loads(sample) for sample in f.readlines()]
-        inputs = [sample["input"] for sample in dataset]
-
-    results = generate(
-        ckpt_path,
-        trainer=trainer,
-        prompts=inputs,
-        encoder_prompts=encoder_prompts,
-        params_dtype=params_dtype,
-        add_BOS=add_BOS,
-        max_batch_size=max_batch_size,
-        random_seed=random_seed,
-        inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-        inference_params=inference_params,
-        text_only=True,
-    )
-
-    assert len(results) == len(dataset)
-    if is_global_rank_zero():
+    if output_path is not None and is_global_rank_zero():
         with open(output_path, "w") as f:
-            for sample, pred in zip(dataset, results):
-                line = json.dumps({"input": sample["input"], "label": sample["output"], "prediction": pred})
-                f.writelines(line + "\n")
+            for sample, pred in zip(dataset if input_dataset else inputs, gathered_results):
+                if type(sample) == dict:
+                    sample["label"] = sample.pop("output", None)
+                    sample["prediction"] = pred if text_only else pred.generated_text
+                elif type(sample) == str:
+                    sample = {"input": sample, "prediction": pred if text_only else pred.generated_text}
+                f.write(json.dumps(sample) + "\n")
+        logging.info(f"Predictions written to {output_path}")
 
-    logging.info(f"Predictions written to {output_path}")
+    return gathered_results
 
 
 def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:
