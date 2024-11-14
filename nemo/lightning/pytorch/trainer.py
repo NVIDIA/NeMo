@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from copy import deepcopy
 
 import fiddle as fdl
@@ -31,7 +45,7 @@ class Trainer(pl.Trainer, IOMixin):
         return fdl.Config(type(self), **cfg_kwargs)
 
     def to_fabric(self, callbacks=None, loggers=None) -> Fabric:
-        accelerator, devices, strategy, plugins = None, None, None, None
+        accelerator, devices, strategy, plugins, num_nodes = None, None, None, None, None
         if hasattr(self.__io__, "devices"):
             devices = self.__io__.devices
         if hasattr(self.__io__, "accelerator"):
@@ -48,6 +62,9 @@ class Trainer(pl.Trainer, IOMixin):
                 plugins = fdl.build(plugins)
             plugins = to_fabric(plugins)
 
+        if hasattr(self.__io__, "num_nodes"):
+            num_nodes = self.__io__.num_nodes
+
         out = Fabric(
             devices=devices,
             accelerator=accelerator,
@@ -55,6 +72,7 @@ class Trainer(pl.Trainer, IOMixin):
             plugins=plugins,
             callbacks=callbacks,
             loggers=loggers,
+            num_nodes=num_nodes,
         )
 
         return out

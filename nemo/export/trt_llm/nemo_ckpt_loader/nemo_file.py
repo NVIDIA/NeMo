@@ -17,16 +17,20 @@ import functools
 import json
 import logging
 import os
+import re
+import shutil
+from io import BytesIO
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import yaml
 import zarr
-from tensorrt_llm._utils import np_bfloat16
-from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
+from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch
+from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
 from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
@@ -65,7 +69,70 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
-def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
+def get_extra_state_key(state_dict: dict) -> Optional[str]:
+    for key in state_dict.keys():
+        if '_extra_state/' in key:
+            return key
+    return None
+
+
+def unpack_extra_state_key(key: str) -> Tuple[str, int]:
+    basename = key.split('/')[0]
+    size = int(key.split('/')[1].split('_')[-1])
+    return basename, size
+
+
+def clear_loaded_extra_states(state_dict: dict, basename: str) -> dict:
+    """The scaling factors are originally saved to state_dict under the keynames 'basename/*'
+    The standardized representation is saved to 'basename.*'. This function clears the former from the state.
+    """
+    to_remove = [k for k in state_dict.keys() if basename + '/' in k]
+    for key in to_remove:
+        state_dict.pop(key)
+    return state_dict
+
+
+def retrieve_scale(bytes: BytesIO) -> Optional[torch.Tensor]:
+    bytes.seek(0)
+    extra_state = torch.load(bytes)
+    if not extra_state or 'scale_fwd' not in extra_state:
+        return None
+    return extra_state['scale_fwd'].cpu()
+
+
+def load_scales_from_bytes(bytes_list: List[BytesIO]) -> Optional[torch.Tensor]:
+    scales = []
+    for bytes in bytes_list:
+        scale = retrieve_scale(bytes)
+        if scale is None:
+            return None
+        scales.append(scale)
+    return torch.stack(scales)
+
+
+def load_scaling_factors(state_dict: dict, basename: str, size: int) -> Optional[torch.Tensor]:
+    keynames = [f'{basename}/shard_{layer}_{size}' for layer in range(size)]
+    bytes_list = [state_dict[keyname][0] for keyname in keynames]
+    return load_scales_from_bytes(bytes_list)
+
+
+def filter_experts_extra_states(state_dict: dict):
+    pattern = r'model\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
+    return {k: v for k, v in state_dict.items() if not re.fullmatch(pattern, k)}
+
+
+def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
+    while key := get_extra_state_key(state_dict):
+        basename, size = unpack_extra_state_key(key)
+        scaling_factors = load_scaling_factors(state_dict, basename, size)
+        if scaling_factors is not None:
+            state_dict[basename + '.scale_fwd'] = scaling_factors
+        state_dict = clear_loaded_extra_states(state_dict, basename)
+
+    return state_dict
+
+
+def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor: bool = True):
     fs_reader = TarFileSystemReader(checkpoint_dir)
     metadata = fs_reader.read_metadata()
 
@@ -74,11 +141,18 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
         for k, tp in metadata.state_dict_metadata.items()
         if isinstance(tp, TensorStorageMetadata)
     }
+
+    state_dict.update(
+        {k: [] for k, tp in metadata.state_dict_metadata.items() if isinstance(tp, BytesStorageMetadata)}
+    )
+
     load_state_dict(
         state_dict,
         storage_reader=fs_reader,
         no_dist=True,
     )
+    state_dict = filter_experts_extra_states(state_dict)
+    state_dict = standarize_distributed_scaling_factors(state_dict)
 
     if not torch_tensor:
         for k, v in state_dict.items():
@@ -89,24 +163,61 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
     return state_dict
 
 
+def get_sharded_file(dir: dict, layer_number: int) -> Optional[os.PathLike]:
+    pt_file_list = list(dir.glob(f'shard_{layer_number}_*.pt'))
+    if pt_file_list == []:
+        return None
+    return pt_file_list[0]
+
+
+def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
+    def _get_layer_number(file):
+        basename = os.path.basename(str(file))
+        return int(basename.split('_')[1])
+
+    pt_files = list(dir.glob('shard_*_*.pt'))
+    bytes_list = []
+    for file in sorted(pt_files, key=_get_layer_number):
+        with file.open('rb') as opened_file:
+            bytes_list.append(torch.load(opened_file))
+
+    return load_scales_from_bytes(bytes_list)
+
+
+def contains_extra_states(subdir: Union[Path, TarPath]):
+    return list(subdir.glob('shard_0_*.pt')) != []
+
+
+def load_extra_state_from_pickle(sharded_state_dict: dict, subdir: Union[Path, TarPath]):
+    scales = load_sharded_pickle_extra_state_scale(subdir)
+    if scales is not None:
+        key = subdir.name + '.scale_fwd'
+        sharded_state_dict[key] = scales
+
+    return sharded_state_dict
+
+
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
-        if not subdir.is_dir() or not (subdir / '.zarray').exists():
+        if not subdir.is_dir():
             continue
-        key = subdir.name
 
-        zstore = ZarrPathStore(subdir)
-        arr = zarr.open(zstore, 'r')
+        if contains_extra_states(subdir):
+            sharded_state_dict = load_extra_state_from_pickle(sharded_state_dict, subdir)
+        elif (subdir / '.zarray').exists():
+            key = subdir.name
+            zstore = ZarrPathStore(subdir)
+            arr = zarr.open(zstore, 'r')
 
-        if torch_tensor:
-            # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
-            if arr.dtype.name == "bfloat16":
-                sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
+            if torch_tensor:
+                # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
+                if arr.dtype.name == "bfloat16":
+                    sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
+                else:
+                    sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
             else:
-                sharded_state_dict[key] = torch.from_numpy(arr[:])
-        else:
-            sharded_state_dict[key] = arr[:]
+                sharded_state_dict[key] = arr[:]
 
     return sharded_state_dict
 
@@ -172,14 +283,23 @@ def copy_tokenizer_files(config, out_dir):
                 outfile.write(infile.read())
 
 
-def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
-    """Loads the tokenizer from the decoded NEMO weights dir."""
-    if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
-        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
+def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenizer:
+    """Loads the tokenizer from the decoded NeMo weights dir."""
+    tokenizer_dir_or_path = Path(tokenizer_dir_or_path)
+    if (tokenizer_dir_or_path / "nemo_context").exists():
+        from nemo.lightning import io
 
-    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
-    tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
-    return build_tokenizer(tokenizer_config)
+        tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context"), subpath="model.tokenizer")
+        return build_tokenizer(tokenizer_spec)
+    else:
+        if (tokenizer_dir_or_path / "huggingface_tokenizer").is_dir():
+            return AutoTokenizer.from_pretrained(tokenizer_dir_or_path / "huggingface_tokenizer")
+
+        model_path = (
+            tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        )
+        tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
+        return build_tokenizer(tokenizer_config)
 
 
 def build_tokenizer(tokenizer):
@@ -206,6 +326,7 @@ def build_tokenizer(tokenizer):
                 def batch_encode_patch(self, ids):
                     if torch.is_tensor(ids):
                         ids = ids.cpu().numpy()
+                        ids = ids[0] if len(ids.shape) > 1 else ids
                     return self.ids_to_text(ids)
 
                 tokenizer.bos_token_id = tokenizer.bos_id
@@ -228,11 +349,13 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
     else:
         nemo_dir = TarPath(nemo_ckpt)
 
+    tokenizer = None
     try:
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
-        dist_ckpt_folder = nemo_dir / "model_weights"
-        if dist_ckpt_folder.exists():
+        if (nemo_dir / "model_weights").exists():
+            dist_ckpt_folder = nemo_dir / "model_weights"
+
             model = load_sharded_metadata(dist_ckpt_folder)
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
@@ -247,6 +370,51 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
                 tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
                 tokenizer = build_tokenizer(tokenizer_config)
+        elif (nemo_dir / "weights").exists():
+            dist_ckpt_folder = nemo_dir / "weights"
+            model = load_sharded_metadata(dist_ckpt_folder)
+            io_folder = nemo_dir / "context"
+
+            if (io_folder / "model.yaml").exists():
+                with open(io_folder / "model.yaml", 'r') as stream:
+                    config = yaml.safe_load(stream)
+
+                nemo_model_config = {}
+                for k, v in config["config"].items():
+                    if isinstance(v, (float, int, str, bool)):
+                        nemo_model_config[k] = v
+                    elif k == "activation_func":
+                        nemo_model_config["activation"] = v["_target_"].rsplit('.', 1)[-1]
+            else:
+                from nemo.lightning import io
+
+                config = io.load_context(io_folder, subpath="model.config")
+
+                nemo_model_config = {}
+                for k, v in config.__dict__.items():
+                    if isinstance(v, (float, int, str, bool)):
+                        nemo_model_config[k] = v
+                    elif k == "activation_func":
+                        if isinstance(v, torch.jit.ScriptFunction):
+                            nemo_model_config["activation"] = v.name
+                        else:
+                            nemo_model_config["activation"] = v.__name__
+
+            if nemo_model_config.get("num_moe_experts") is None:
+                nemo_model_config["num_moe_experts"] = 0
+                nemo_model_config["moe_router_topk"] = 0
+            if nemo_model_config["activation"] == "silu":
+                nemo_model_config["activation"] = "fast-swiglu"
+            elif nemo_model_config["activation"] == "openai_gelu":
+                nemo_model_config["activation"] = "openai-gelu"
+            elif nemo_model_config["activation"] == "squared_relu":
+                nemo_model_config["activation"] = "squared-relu"
+
+            nemo_model_config["mcore_gpt"] = True
+            nemo_model_config["max_position_embeddings"] = nemo_model_config.get("seq_length", 4096)
+            nemo_model_config["rotary_percentage"] = nemo_model_config.get("rotary_percent", 1.0)
+
+            shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:
             raise Exception("Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported.")
     finally:

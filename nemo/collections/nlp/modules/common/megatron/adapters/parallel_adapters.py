@@ -136,6 +136,26 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
     _target_: str = "{0}.{1}".format(MLPInfusedAdapter.__module__, MLPInfusedAdapter.__name__)
 
 
+def pad_seq_to_mult(x, mult):
+    import torch.nn.functional as F
+
+    if x.shape[0] % mult == 0:
+        return x, 0
+    pad_len = mult - (x.shape[0] % mult)
+    with torch.no_grad():
+        # pad at the tail
+        x = torch.nn.functional.pad(x, (0, 0, 0, pad_len))
+    return x, pad_len
+
+
+def unpad_seq_to_mult(x, pad_len):
+    if pad_len <= 0:
+        return x
+    with torch.no_grad():
+        # prune tail padding
+        return x[:-pad_len, :]
+
+
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
@@ -154,12 +174,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         alpha: float | None = None,
         dropout_position: str = 'post',
         a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
+        is_expert: bool = False,
         **kwargs,
     ):
         super().__init__()
-        if not HAVE_APEX:
-            logging.info("Apex is required to use ParallelLinearAdapters.")
-            raise RuntimeError("ParallelLinearAdapter can not run without Apex.")
         if not HAVE_MEGATRON_CORE:
             logging.info("Megatron-core is required to use ParallelLinearAdapters.")
             raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
@@ -170,6 +188,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.input_is_parallel = input_is_parallel
         self.dropout_position = dropout_position
         self.use_a2a = a2a_experimental
+        self.is_expert = is_expert
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -177,6 +196,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             model_parallel_config = ModelParallelConfig()
         self._sequence_parallel = model_parallel_config.sequence_parallel
         model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
+        self.config = model_parallel_config
 
         if input_is_parallel:
             self.linear_in = RowParallelLinear(
@@ -226,6 +246,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if self.norm_position in ["pre", "post"]:
             ln_features = in_features if self.norm_position == "pre" else out_features
             if norm_type == 'mixedfusedlayernorm':
+                assert HAVE_APEX, "Apex is required to use MixedFusedLayerNorm"
                 self.layer_norm = MixedFusedLayerNorm(ln_features, 1e-5, sequence_parallel_enbaled=False)
             elif norm_type == 'layernorm':
                 self.layer_norm = nn.LayerNorm(ln_features)
@@ -253,11 +274,15 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if self._sequence_parallel and not input_is_parallel:
             from importlib.metadata import version
 
-            from pkg_resources import packaging
+            import packaging
 
             te_version = packaging.version.Version(version("transformer-engine"))
             if te_version >= packaging.version.Version("1.5.0dev") and (
-                not self.input_is_parallel and getattr(model_parallel_config, "tp_comm_overlap_disable_qkv", False)
+                not self.input_is_parallel
+                and (
+                    not getattr(model_parallel_config, "tp_comm_overlap", False)
+                    or getattr(model_parallel_config, "tp_comm_overlap_disable_qkv", False)
+                )
             ):
                 # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
                 # in the forward method is not needed, so set self._sequence_parallel to False
@@ -289,6 +314,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if self.dropout is not None and self.dropout_position == 'pre':
             x = self.dropout(x)
 
+        pad_len = 0
+        if self.is_expert:
+            x, pad_len = pad_seq_to_mult(x, self.config.tensor_model_parallel_size)
+
         if self.norm_position == 'pre':
             x = self.layer_norm(x)
         if self._sequence_parallel and not self.input_is_parallel:
@@ -298,11 +327,17 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             # this function also handles the backward pass correctly
             x = gather_from_sequence_parallel_region(x)
 
+        if self.config.cpu_offloading and self.config.cpu_offloading_activations:
+            x.activation_offloading = True
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+
         x = self.activation(x)
+
+        if self.config.cpu_offloading and self.config.cpu_offloading_activations:
+            x.activation_offloading = True
         x, _ = self.linear_out(x)
 
-        if self._sequence_parallel and self.input_is_parallel:
+        if self._sequence_parallel and self.input_is_parallel and not self.is_expert:
             # for attention_dense and linear_fc2
             # layernorm after lora is impacted by sequence parallel,
             # hence seq dim need to be scattered right after lora linear layers
@@ -321,6 +356,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             x = self.dropout(x)
 
         x = x * (self.alpha / self.dim)
+
+        if pad_len > 0:
+            # Remove MoE padding.
+            x = unpad_seq_to_mult(x, pad_len)
 
         return x
 
