@@ -19,6 +19,7 @@ from nemo.collections.asr.models.classification_models import (
     EncDecClassificationModel,
     EncDecFrameClassificationModel,
 )
+from nemo.collections.asr.models.sortformer_diar_models import SortformerEncLabelModel
 from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -35,9 +36,5 @@ from nemo.collections.asr.models.msdd_models import EncDecDiarLabelModel, Neural
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.models.slu_models import SLUIntentSlotBPEModel
-from nemo.collections.asr.models.ssl_models import (
-    EncDecDenoiseMaskedTokenPredModel,
-    EncDecMaskedTokenPredModel,
-    SpeechEncDecSelfSupervisedModel,
-)
+from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.models.transformer_bpe_models import EncDecTransfModelBPE

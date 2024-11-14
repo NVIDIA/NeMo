@@ -21,10 +21,11 @@ from copy import deepcopy
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
-import omegaconf
+from omegaconf import OmegaConf
+from omegaconf.listconfig import ListConfig 
 import soundfile as sf
 import torch
-from pyannote.core import Annotation, Segment
+from pyannote.core import Annotation, Segment, Timeline
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
@@ -108,7 +109,10 @@ def audio_rttm_map(manifest, attach_dur=False):
             if attach_dur:
                 uniqname = get_uniq_id_with_dur(meta)
             else:
-                uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
+                if "uniq_id" in dic.keys():
+                    uniqname = dic['uniq_id']
+                else:
+                    uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
 
             if uniqname not in AUDIO_RTTM_MAP:
                 AUDIO_RTTM_MAP[uniqname] = meta
@@ -144,7 +148,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
     """
     check_float_config = [isinstance(var, float) for var in (window_lengths_in_sec, shift_lengths_in_sec)]
     check_list_config = [
-        isinstance(var, (omegaconf.listconfig.ListConfig, list, tuple))
+        isinstance(var, (ListConfig, list, tuple))
         for var in (window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights)
     ]
     if all(check_list_config) or all(check_float_config):
@@ -928,28 +932,61 @@ def segments_manifest_to_subsegments_manifest(
     return subsegments_manifest_file
 
 
-def get_subsegments(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
+def get_subsegments(
+    offset: float, 
+    window: float, 
+    shift: float, 
+    duration: float, 
+    min_subsegment_duration: float = 0.01,
+    decimals: int = 2,
+    use_asr_style_frame_count: bool = False,
+    sample_rate: int = 16000,
+    feat_per_sec: int = 100,
+    ) -> List[List[float]]:
     """
-    Return subsegments from a segment of audio file
+    Return subsegments from a segment of audio file.
+    
+    Example:
+        (window, shift) = 1.5, 0.75
+        Segment:  [12.05, 14.45]    
+        Subsegments: [[12.05, 13.55], [12.8, 14.3], [13.55, 14.45], [14.3, 14.45]]
+
     Args:
-        offset (float): start time of audio segment
-        window (float): window length for segments to subsegments length
-        shift (float): hop length for subsegments shift
-        duration (float): duration of segment
+        offset (float): Start time of audio segment
+        window (float): Window length for segments to subsegments length
+        shift (float): Hop length for subsegments shift
+        duration (float): Duration of segment
+        min_subsegment_duration (float): Exclude subsegments smaller than this duration value
+        decimals (int): Number of decimal places to round to
+        use_asr_style_frame_count (bool): If True, use asr style frame count to generate subsegments.
+                                          For example, if duration is 10 secs and frame_shift is 0.08 secs, 
+                                          it results in (10/0.08)+1 = 125 + 1 frames.
+                                          
     Returns:
         subsegments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each subsegment
     """
-    subsegments: List[List[float]] = []
+    subsegments:  List[List[float]] = []
     start = offset
     slice_end = start + duration
-    base = math.ceil((duration - window) / shift)
-    slices = 1 if base < 0 else base + 1
-    for slice_id in range(slices):
-        end = start + window
-        if end > slice_end:
-            end = slice_end
-        subsegments.append([start, end - start])
-        start = offset + (slice_id + 1) * shift
+    if min_subsegment_duration <= duration < shift:
+        slices = 1
+    elif use_asr_style_frame_count is True:    
+        num_feat_frames = np.ceil((1+duration*sample_rate)/int(sample_rate/feat_per_sec)).astype(int)
+        slices = np.ceil(num_feat_frames/int(feat_per_sec*shift)).astype(int)
+        slice_end = start + shift * slices
+    else:
+        slices = np.ceil(1+ (duration-window)/shift).astype(int)
+    if slices == 1:
+        if min(duration, window) >= min_subsegment_duration:
+            subsegments.append([start, min(duration, window)])
+    elif slices > 0: # What if slcies = 0 ?
+        start_col = torch.arange(offset, slice_end, shift)[:slices]
+        dur_col = window * torch.ones(slices)
+        dur_col = torch.min(slice_end*torch.ones_like(start_col)- start_col, window * torch.ones_like(start_col))
+        dur_col = torch.round(dur_col, decimals=decimals)
+        valid_mask = dur_col >= min_subsegment_duration
+        valid_subsegments = torch.stack([start_col[valid_mask], dur_col[valid_mask]], dim=1)
+        subsegments = valid_subsegments.tolist()
     return subsegments
 
 
@@ -1000,6 +1037,15 @@ def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     return [[float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0])]
 
 
+def generate_diarization_output_lines(speaker_timestamps, model_spk_num): 
+    speaker_lines_total = [] 
+    for spk_idx in range(model_spk_num):
+        ts_invervals = speaker_timestamps[spk_idx]
+        merged_ts_intervals = merge_float_intervals(ts_invervals)
+        for ts_interval in merged_ts_intervals:
+            speaker_lines_total.extend([f"{ts_interval[0]:.3f} {ts_interval[1]:.3f} speaker_{int(spk_idx)}"])
+    return speaker_lines_total
+        
 def get_speech_labels_for_update(
     frame_start: float,
     buffer_end: float,
@@ -1578,6 +1624,83 @@ def make_rttm_with_overlap(
                 no_references = True
                 all_reference = []
     return all_reference, all_hypothesis
+
+
+def timestamps_to_pyannote_object(speaker_timestamps: List[Tuple[float, float]],
+                                  uniq_id: str, 
+                                  audio_rttm_values: Dict[str, str], 
+                                  all_hypothesis: List[Tuple[str, Timeline]], 
+                                  all_reference: List[Tuple[str, Timeline]], 
+                                  all_uems: List[Tuple[str, Timeline]],
+                                  out_rttm_dir: str | None
+                                ):
+    """ 
+    Convert speaker timestamps to pyannote.core.Timeline object.
+    
+    Args:
+        speaker_timestamps (List[Tuple[float, float]]): 
+            Timestamps of each speaker: start time and end time of each speaker.
+        uniq_id (str): 
+            Unique ID of each speaker.
+        audio_rttm_values (Dict[str, str]):
+            Dictionary of manifest values.
+        all_hypothesis (List[Tuple[str, pyannote.core.Timeline]]):
+            List of hypothesis in pyannote.core.Timeline object.
+        all_reference (List[Tuple[str, pyannote.core.Timeline]]):
+            List of reference in pyannote.core.Timeline object.
+        all_uems (List[Tuple[str, pyannote.core.Timeline]]):
+            List of uems in pyannote.core.Timeline object.
+        out_rttm_dir (str | None):
+            Directory to save RTTMs
+            
+    Returns:
+        all_hypothesis (List[Tuple[str, pyannote.core.Timeline]]):
+            List of hypothesis in pyannote.core.Timeline object with an added Timeline object.
+        all_reference (List[Tuple[str, pyannote.core.Timeline]]):
+            List of reference in pyannote.core.Timeline object with an added Timeline object.
+        all_uems (List[Tuple[str, pyannote.core.Timeline]]):
+            List of uems in pyannote.core.Timeline object with an added Timeline object.
+    """
+    offset, dur = float(audio_rttm_values.get('offset', None)), float(audio_rttm_values.get('duration', None))
+    hyp_labels = generate_diarization_output_lines(speaker_timestamps=speaker_timestamps, model_spk_num=len(speaker_timestamps))
+    hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=uniq_id)
+    if out_rttm_dir is not None and os.path.exists(out_rttm_dir):
+        with open(f'{out_rttm_dir}/{uniq_id}.rttm','w') as f:
+            hypothesis.write_rttm(f)
+    all_hypothesis.append([uniq_id, hypothesis])
+    rttm_file = audio_rttm_values.get('rttm_filepath', None)
+    if rttm_file is not None and os.path.exists(rttm_file):
+        uem_lines = [[offset, dur+offset]] 
+        org_ref_labels = rttm_to_labels(rttm_file)
+        ref_labels = org_ref_labels
+        reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
+        uem_obj = get_uem_object(uem_lines, uniq_id=uniq_id)
+        all_uems.append(uem_obj)
+        all_reference.append([uniq_id, reference])
+    return all_hypothesis, all_reference, all_uems 
+    
+def get_uem_object(uem_lines: List[List[float]], uniq_id: str):
+    """
+    Generate pyannote timeline segments for uem file.
+    
+     <UEM> file format
+     UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
+     
+    Args:
+        uem_lines (list): list of session ID and start, end times.
+            Example:
+            [[0.0, 30.41], [60.04, 165.83]]
+        uniq_id (str): Unique session ID.
+        
+    Returns:
+        timeline (pyannote.core.Timeline): pyannote timeline object.
+    """
+    timeline = Timeline(uri=uniq_id)
+    for uem_stt_end in uem_lines:
+        start_time, end_time = uem_stt_end 
+        timeline.add(Segment(float(start_time), float(end_time)))
+    return timeline
+
 
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):
