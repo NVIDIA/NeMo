@@ -22,8 +22,8 @@ import torch.nn.functional as F
 from megatron.core import parallel_state
 from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.multimodal.data.clip.clip_dataset import tokenize
 from nemo.collections.multimodal.data.nsfw.nsfw_dataset import build_dataset

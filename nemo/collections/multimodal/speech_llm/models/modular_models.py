@@ -24,8 +24,8 @@ from hydra.utils import get_class
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from lightning.pytorch.trainer.trainer import Trainer
+from lightning.pytorch.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations

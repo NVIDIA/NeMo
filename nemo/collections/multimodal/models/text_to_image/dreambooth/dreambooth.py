@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch._inductor import config as inductor_config
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset

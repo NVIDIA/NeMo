@@ -25,8 +25,8 @@ import torch
 import torch.nn.functional as F
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.trainer.trainer import Trainer
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.clip.clip_dataset import (

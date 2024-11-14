@@ -18,7 +18,7 @@ from typing import Callable, List, Optional, Union
 
 import torch
 from omegaconf.omegaconf import OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch.cuda.amp import autocast
 
 from nemo.collections.multimodal.models.text_to_image.imagen.imagen import Imagen, MegatronImagen

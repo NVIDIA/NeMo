@@ -18,7 +18,7 @@ from typing import Any
 
 import torch
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
 from nemo.collections.multimodal.models.text_to_image.imagen.precond import ContinousDDPMPrecond, EDMPrecond
