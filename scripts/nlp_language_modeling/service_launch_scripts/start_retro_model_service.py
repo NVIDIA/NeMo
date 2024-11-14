@@ -16,7 +16,7 @@ import os
 
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer

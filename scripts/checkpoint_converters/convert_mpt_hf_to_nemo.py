@@ -56,7 +56,7 @@ python convert_mpt_hf_to_nemo.py \
 import argparse
 import os
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import yaml
 from omegaconf import OmegaConf

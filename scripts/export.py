@@ -31,7 +31,7 @@ import sys
 
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 
 import nemo
 from nemo.core import ModelPT

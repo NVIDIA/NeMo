@@ -81,7 +81,7 @@ from typing import Dict, List, Optional, Tuple
 
 import joblib
 import numpy as np
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import MISSING, DictConfig, OmegaConf
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
@@ -513,7 +513,7 @@ def find_best_confidence(
 @hydra_runner(config_name="BuildEnsembleConfig", schema=BuildEnsembleConfig)
 def main(cfg: BuildEnsembleConfig):
     # silencing all messages from nemo/ptl to avoid dumping tons of configs to the stdout
-    logging.getLogger('pytorch_lightning').setLevel(logging.CRITICAL)
+    logging.getLogger('lightning.pytorch').setLevel(logging.CRITICAL)
     logging.getLogger('nemo_logger').setLevel(logging.CRITICAL)
     LOG.info(f'Build ensemble config:\n{OmegaConf.to_yaml(cfg)}')
 

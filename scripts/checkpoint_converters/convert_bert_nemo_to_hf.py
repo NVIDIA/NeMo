@@ -26,7 +26,7 @@ from argparse import ArgumentParser
 
 import torch
 import torch.nn.functional as F
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import AutoTokenizer, BertConfig, BertModel
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel

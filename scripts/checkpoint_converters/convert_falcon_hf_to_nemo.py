@@ -32,7 +32,7 @@ import os
 import time
 from typing import Dict
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import yaml
 from omegaconf import OmegaConf
