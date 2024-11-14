@@ -19,7 +19,7 @@ import lightning.pytorch as ptl
 import pytest
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
-from nemo.core.config.lightning.pytorch import TrainerConfig
+from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import config_utils
 from nemo.utils.exp_manager import EarlyStoppingParams
 
