@@ -14,8 +14,8 @@
 
 
 import lightning.pytorch as pl
-from omegaconf import DictConfig, OmegaConf
 from lightning.pytorch.strategies import DDPStrategy
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.language_modeling import BERTLMModel
 from nemo.core.config import hydra_runner

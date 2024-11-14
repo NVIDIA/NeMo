@@ -19,8 +19,8 @@ from typing import Any, Dict
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
 import torch.multiprocessing as mp
-from omegaconf import DictConfig, OmegaConf, open_dict
 from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 try:
     from megatron.core import parallel_state, tensor_parallel

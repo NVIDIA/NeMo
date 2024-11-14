@@ -16,8 +16,8 @@
 # Please see tutorial at Nemo/tutorials/nlp/Entity_Linking_Medical.ipynb for
 # more information on entity linking and self alignment pretraining.
 
-from omegaconf import DictConfig, OmegaConf
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import EntityLinkingModel
 from nemo.core.config import hydra_runner

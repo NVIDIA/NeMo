@@ -32,7 +32,7 @@ MODEL_NAMES = [MODEL]
 def instantiate_model_and_trainer(
     cfg: DictConfig, model_name: str, do_training: bool
 ) -> Tuple[pl.Trainer, SpellcheckingAsrCustomizationModel]:
-    """ Function for instantiating a model and a trainer
+    """Function for instantiating a model and a trainer
     Args:
         cfg: The config used to instantiate the model and the trainer.
         model_name: A str indicates the model direction, currently only 'itn'.

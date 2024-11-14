@@ -43,11 +43,11 @@ from typing import Any, Optional
 
 import torch
 from lightning.fabric.utilities.cloud_io import _load as pl_load
-from megatron.core import parallel_state
 from lightning.pytorch.core.saving import _load_state as ptl_load_state
 from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from lightning.pytorch.trainer.trainer import Trainer
 from lightning.pytorch.utilities.migration import pl_legacy_patch
+from megatron.core import parallel_state
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
