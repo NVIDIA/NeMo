@@ -27,7 +27,14 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
+from nemo.collections.llm.bert.data import BERTPreTrainingDataModule
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
+from nemo.collections.llm.bert.model import (
+    BertConfig,
+    GoogleBERTBaseConfig,
+    GoogleBERTConfig,
+    BertModel,
+)
 from nemo.collections.llm.gpt.model import (
     Baichuan2Config,
     Baichuan2Config7B,

@@ -11,5 +11,5 @@ __all__ = [
     "BertConfig",
     "BertModel",
     "GoogleBERTBaseConfig",
-    "GoogleBertConfig",
+    "GoogleBERTConfig",
 ]
