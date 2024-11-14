@@ -42,7 +42,7 @@ from collections import OrderedDict
 from typing import Any, Optional
 
 import torch
-from lightning_fabric.utilities.cloud_io import _load as pl_load
+from lightning.fabric.utilities.cloud_io import _load as pl_load
 from megatron.core import parallel_state
 from lightning.pytorch.core.saving import _load_state as ptl_load_state
 from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
