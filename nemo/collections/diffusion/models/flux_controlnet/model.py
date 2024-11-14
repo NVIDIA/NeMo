@@ -219,6 +219,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
     def configure_model(self):
         if not hasattr(self, "module"):
             self.flux = self.config.configure_model()
+            self.__autocast_flux()
             for param in self.flux.parameters():
                 param.requires_grad = False
             self.module = FluxControlNet(self.flux_controlnet_config)
@@ -250,7 +251,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
 
         return self.forward_step(batch)
 
-    def on_train_start(self):
+    def __autocast_flux(self):
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
         elif self.optim.config.fp16:
