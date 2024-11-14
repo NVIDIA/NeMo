@@ -384,8 +384,6 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
-        from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
         while mcore_model:
