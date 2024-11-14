@@ -17,8 +17,8 @@ from pathlib import Path
 from time import sleep
 
 import wget
-from pytorch_lightning.plugins.environments import LightningEnvironment
-from pytorch_lightning.strategies import DDPStrategy, StrategyRegistry
+from lightning.pytorch.plugins.environments import LightningEnvironment
+from lightning.pytorch.strategies import DDPStrategy, StrategyRegistry
 
 from nemo.utils import logging
 

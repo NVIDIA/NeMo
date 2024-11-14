@@ -19,9 +19,9 @@ from typing import Optional
 
 from lightning_utilities.core.apply_func import apply_to_collection
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pytorch_lightning.loggers import Logger
-from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.utilities.parsing import AttributeDict
+from lightning.pytorch.loggers import Logger
+from lightning.pytorch.utilities import rank_zero_only
+from lightning.pytorch.utilities.parsing import AttributeDict
 
 from nemo.utils import logging
 

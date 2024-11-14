@@ -21,9 +21,9 @@ from typing import Any, List, Literal, Mapping, Optional, Union
 import pandas as pd
 from lightning_utilities.core.apply_func import apply_to_collection
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pytorch_lightning.callbacks import Checkpoint
-from pytorch_lightning.loggers import Logger
-from pytorch_lightning.utilities.parsing import AttributeDict
+from lightning.pytorch.callbacks import Checkpoint
+from lightning.pytorch.loggers import Logger
+from lightning.pytorch.utilities.parsing import AttributeDict
 from torch import Tensor
 
 from nemo.utils import logging
