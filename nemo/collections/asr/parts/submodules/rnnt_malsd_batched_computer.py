@@ -370,7 +370,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 batch_lm_states = torch.gather(
                     batch_lm_states_candidates, dim=-1, index=last_labels_wb_blank_replaced.unsqueeze(-1)
                 )
-                batch_lm_states = torch.where(preserve_state, batch_lm_states_prev, batch_lm_states)
+                batch_lm_states = torch.where(preserve_state, batch_lm_states_prev, batch_lm_states).view(-1)
 
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
                     states=batch_lm_states
