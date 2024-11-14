@@ -57,7 +57,6 @@ class BatchedBeamHyps:
         self.scores.fill_(-float("inf"))
         self.scores[:, 0].fill_(0.0)
 
-        # self.last_timestep = torch.full((batch_size, self.beam_size), fill_value=-1, device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self._batch_indices = (
             torch.arange(batch_size, device=device).unsqueeze(1).expand(-1, self.beam_size).reshape(-1)
@@ -73,7 +72,6 @@ class BatchedBeamHyps:
         self.scores.fill_(-float("inf"))
         self.scores[:, 0].fill_(0.0)
         self.transcript_wb_prev_ptr.fill_(-1)
-        # self.last_timestep.fill_(-1)
         self.last_timestep_lasts.fill_(0)
 
     def _allocate_more(self):
@@ -139,11 +137,10 @@ class BatchedBeamHyps:
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
         self.current_lengths_nb = torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
-        # self.last_timestep += extended_with_blank
         self.last_timestep_lasts = torch.where(
             extended_with_blank,
             torch.zeros_like(self.last_timestep_lasts),
-            self.last_timestep_lasts + extended_with_label,
+            torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
         )
 
     # def _get_transript(self, batch_i, beam_i):
