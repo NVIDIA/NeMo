@@ -178,7 +178,7 @@ class TensorRTLLM(ITritonDeployable):
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
-        use_mcore_path: bool = True,
+        use_mcore_path: bool = False,
         reduce_fusion: bool = True,
         fp8_quantized: Optional[bool] = None,
         fp8_kvcache: Optional[bool] = None,
