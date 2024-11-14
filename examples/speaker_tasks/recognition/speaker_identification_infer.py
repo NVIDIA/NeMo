@@ -17,7 +17,7 @@ import json
 import numpy as np
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning import seed_everything
+from lightning.pytorch import seed_everything
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
