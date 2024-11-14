@@ -25,9 +25,9 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 
 import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import TorchCheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.optimizer import _optimizer_to_device
+from lightning.fabric.plugins import TorchCheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.optimizer import _optimizer_to_device
 from omegaconf import OmegaConf
 from lightning.pytorch.callbacks.progress import TQDMProgressBar
 from lightning.pytorch.callbacks.progress.tqdm_progress import _update_n

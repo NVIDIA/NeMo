@@ -19,7 +19,7 @@ import os
 from typing import Any, Mapping, Optional, Union
 
 import torch
-from lightning_fabric.utilities.cloud_io import _load as pl_load
+from lightning.fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import DictConfig, OmegaConf
 from lightning.pytorch import Trainer
 from lightning.pytorch.core.saving import _load_state as ptl_load_state

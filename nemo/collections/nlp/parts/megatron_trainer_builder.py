@@ -15,7 +15,7 @@
 import sys
 from typing import Optional, Union
 
-from lightning_fabric.utilities.exceptions import MisconfigurationException
+from lightning.fabric.utilities.exceptions import MisconfigurationException
 from omegaconf import DictConfig, open_dict
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import ModelSummary
