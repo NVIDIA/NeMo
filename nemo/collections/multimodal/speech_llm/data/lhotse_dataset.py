@@ -226,9 +226,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             else:
                 raise Exception("First speaker should be user")
 
-            if cut.supervisions[2].speaker == "agent":
+            if cut.supervisions[1].speaker == "agent":
                 use_timestamp = getattr(cut, "s2s_align", False)
-                text = cut.supervisions[2].text
+                text = cut.supervisions[1].text
                 if not use_timestamp:
                     pattern = r"<\|\d+\|>"
                     output_text = re.sub(pattern, "", text)
@@ -337,6 +337,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             target_codec = target_codec.to(torch.int)
         else:
             assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
+            assert self.decoder_reduction_factor == 1, "TODO: add the support in on the fly"
             # TODO(subhankarg) load answer audio from cut.target_codes logic
             answer_audio_lens = []
             answer_audios = []
@@ -358,13 +359,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             target_codec = get_3d_empty_tensor(
                 len(cuts), max(features_lens).item() + 1, text_pad_id, self.speech_pad_id
             )
-            eos_tensor = torch.full(
-                (1, self.n_speech_codebooks * self.decoder_reduction_factor + 1), self.speech_eos_id
-            ).to(torch.int)
+            eos_tensor = torch.full((1, target_codec.shape[-1]), self.speech_eos_id).to(torch.int)
             eos_tensor[:, 0] = self.text_processor.unk_id
             for i, cut in enumerate(cuts):
                 target_codec[i, : features_lens[i], 0] = text_unk_id
-                feat_i = torch.full((features_lens[i], self.n_speech_codebooks), self.speech_pad_id - 1)
+                feat_i = torch.full((features_lens[i], target_codec.shape[-1] - 1), self.speech_pad_id - 1)
                 target_codec[i, : feat_i.shape[0], 1:] = feat_i
                 target_codec[i, feat_i.shape[0], :] = eos_tensor
             target_codec = target_codec.to(torch.int)
@@ -432,7 +431,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 word_lengths,
                 start_time_tokens,
                 features_lens + 1,
-                cut.target_codes.frame_shift,
+                self.codec_model_downsampling_factor / self.sample_rate,
                 pad_id=text_unk_id,
             )
             # import pdb; pdb.set_trace()
@@ -460,7 +459,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
             # full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_length
             full_lengths = features_lens + 1 + instruction_length
-            target_text_lengths = -1 * target_text_lengths
+            target_text_lengths = -1 * torch.ones_like(target_text_lengths)
         elif getattr(cut, "direct_s2s", False):
             # Add 1 for eos token
             # tt[0] is the bos token

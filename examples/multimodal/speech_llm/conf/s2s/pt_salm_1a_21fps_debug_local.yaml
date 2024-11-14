@@ -72,9 +72,9 @@ model:
   # proj_head_dims[0] should be set to LLM vocab size (32k below)
   # proj_head_dims[1:] should be set to nemo codec vocab size (1024 below)
   proj_head_dims: [32000, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048]
-  s2s_vocab_size: 97536 # This should be equal to the proj_head_dims[0] + decoder_reduction_factor * sum(proj_head_dims[1:])
+  s2s_vocab_size: 48384 # This should be equal to the proj_head_dims[0] + decoder_reduction_factor * sum(proj_head_dims[1:])
   proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
-  decoder_reduction_factor: 4
+  decoder_reduction_factor: 1
 
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
@@ -253,7 +253,7 @@ model:
       #     lang: en
       #     s2s: True
       - type: lhotse_shar
-        shar_path: /workspace/nemo/works/zhehuaic_works/data/s2s_otf/msmarco_train_normalized.b/
+        shar_path: /data/tmp/msmarco_train_normalized.b/
         weight: 0.5
         tags:
           lang: en
@@ -319,7 +319,6 @@ model:
           weight: 1.0
           tags:
             lang: en
-            s2s: True
           input_cfg:
             # - type: lhotse_shar
             #   shar_path: /lustre/fs7/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/s2s_synthetic_data/s2s_shars_21fps/squadv2/ # speech SQA
@@ -328,7 +327,7 @@ model:
             #     lang: en
             #     s2s: True
             - type: lhotse_shar
-              shar_path: /workspace/nemo/works/zhehuaic_works/data/s2s_otf/msmarco_train_normalized.b/
+              shar_path: /data/tmp/msmarco_train_normalized.b/
               weight: 0.1
               tags:
                 lang: en
