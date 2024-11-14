@@ -10,6 +10,7 @@ from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
+
 @dataclass
 class GoogleBERTConfig(BertConfig):
     transformer_block_type: str = 'post_ln'
@@ -19,7 +20,7 @@ class GoogleBERTConfig(BertConfig):
     hidden_dropout: float = 0.1
     normalization: float = 'LayerNorm'
     layernorm_epsilon: float = 1e-5
-    
+
 
 @dataclass
 class GoogleBERTBaseConfig(GoogleBERTConfig):

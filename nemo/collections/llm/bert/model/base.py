@@ -1,32 +1,33 @@
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
 import pytorch_lightning as L
 import torch
 import torch.distributed
-from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
+from megatron.core import InferenceParams, ModelParallelConfig, parallel_state, tensor_parallel
+from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.models.bert import bert_layer_specs
-from nemo.collections.llm.bert.model.bert_spec import bert_layer_with_transformer_engine_spec_postln, bert_layer_local_spec_postln
-from nemo.collections.llm import fn
-from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, BERTLossReduction
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-from megatron.core.models.bert.bert_model import BertModel as MCoreBert
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
+from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 from megatron.core.models.bert.pooler import Pooler
+from megatron.core.optimizer import OptimizerConfig
+from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.transformer_block import TransformerBlock
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
 from megatron.core.utils import make_viewless_tensor
-from megatron.core import InferenceParams, ModelParallelConfig, parallel_state, tensor_parallel
-from torch import Tensor
-from megatron.core.transformer.spec_utils import build_module
-from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.transformer.transformer_block import TransformerBlock
-from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+from torch import Tensor, nn
+
+from nemo.collections.llm import fn
+from nemo.collections.llm.bert.model.bert_spec import (
+    bert_layer_local_spec_postln,
+    bert_layer_with_transformer_engine_spec_postln,
+)
+from nemo.lightning import get_vocab_size, io
+from nemo.lightning.megatron_parallel import BERTLossReduction, MaskedTokenLossReduction
+from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 HAVE_TE = True
 try:
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
 
 def bert_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     batch = next(dataloder_iter)
-    
+
     _batch: dict
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]
@@ -59,6 +60,7 @@ def bert_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     output = get_batch_on_this_context_parallel_rank(_batch)
 
     return output
+
 
 def bert_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
     """
@@ -80,14 +82,16 @@ def bert_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) 
 
 def default_layer_spec(config: "BertConfig") -> ModuleSpec:
     transformer_block_type = getattr(config, 'transformer_block_type', 'pre_ln')
-    assert transformer_block_type == 'pre_ln' or transformer_block_type == 'post_ln', f'Unknown transformer block type {transformer_block_type}, supported type for bert model is: pre_ln, post_ln'
+    assert (
+        transformer_block_type == 'pre_ln' or transformer_block_type == 'post_ln'
+    ), f'Unknown transformer block type {transformer_block_type}, supported type for bert model is: pre_ln, post_ln'
     if HAVE_TE:
         if transformer_block_type == 'pre_ln':
             return bert_layer_specs.bert_layer_with_transformer_engine_spec
         else:
             return bert_layer_with_transformer_engine_spec_postln
-  
-    if transformer_block_type == 'pre_ln':      
+
+    if transformer_block_type == 'pre_ln':
         return bert_layer_specs.bert_layer_local_spec
     else:
         return bert_layer_local_spec_postln
@@ -112,7 +116,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
     transformer_layer_spec: Union[ModuleSpec, Callable[["BertConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = bert_forward_step
     data_step_fn: Callable = bert_data_step
-    
+
     transformer_block_type: Literal["pre-ln", "post-ln"] = "pre-ln"
     add_pooler: bool = True
     bert_binary_head: bool = True
@@ -147,7 +151,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
             # TODO: MCore bert not have rotary base
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             add_binary_head=self.bert_binary_head,
-            return_embeddings=False, #TODO
+            return_embeddings=False,  # TODO
         )
 
 
@@ -155,6 +159,8 @@ class BertConfig(TransformerConfig, io.IOMixin):
 This class is used for working with HF Bert Checkpoints. These checkpoints
 by default have post layer norm, while the vanilla mcore bert model does not support it.
 '''
+
+
 class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     def __init__(self, transformer_block_type='pre-ln', add_pooler=True, *args, **kwargs):
 
@@ -264,6 +270,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         loss = self.compute_language_model_loss(lm_labels, logits)
 
         return loss, binary_logits
+
 
 @dataclass
 class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
@@ -414,6 +421,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
             hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params
         )
 
+
 class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
@@ -427,7 +435,7 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.config = config
         self.tokenizer = tokenizer
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
-        self.optim.connect(self) # This will bind the `configure_optimizers` method
+        self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
         self._training_loss_reduction = None
         self._validation_loss_reduction = None

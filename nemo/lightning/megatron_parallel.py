@@ -1752,6 +1752,7 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
 
     return loss
 
+
 def masked_token_with_zero(tensor: Tensor, mask: Tensor):
     # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction. In that case loss mask is all zeros
     # i.e Happens when the entire batch is masked out (Practically when MBS=1 or 2, and the number of tokens in each batch is < 7 )
@@ -1761,7 +1762,7 @@ def masked_token_with_zero(tensor: Tensor, mask: Tensor):
         loss = torch.sum(losses.view(-1)) * 0.0
     else:
         loss = torch.sum(losses.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
-    
+
     return loss
 
 
@@ -1769,7 +1770,7 @@ def setence_order_prediction_loss(tensor: Tensor, sentence_order: Tensor):
     losses = tensor.view(-1, 2).float()
     sentence_order = sentence_order.view(-1)
     loss = F.cross_entropy(losses, sentence_order, ignore_index=-1)
-    
+
     return loss
 
 

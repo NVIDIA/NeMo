@@ -125,8 +125,8 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
         )
 
     def setup(self, stage: str = "") -> None:
-        from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
         from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDataset
+        from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 
         assert (
             hasattr(self, "trainer") and self.trainer is not None
@@ -240,7 +240,7 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
             classification_head=True,
             masking_probability=0.15,
             short_sequence_probability=0.10,
-            masking_max_ngram=3, # Following values are taken from megatron-lm/pretrain_bert.py
+            masking_max_ngram=3,  # Following values are taken from megatron-lm/pretrain_bert.py
             masking_do_full_word=True,
             masking_do_permutation=False,
             masking_use_longer_ngrams=False,
