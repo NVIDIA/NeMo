@@ -78,6 +78,7 @@ MODEL_CONFIG_ATTR = [
     'qk_layernorm',
     'test_mode',
     'calculate_per_token_loss',
+    'seq_length',
 ]
 
 

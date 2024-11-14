@@ -21,6 +21,7 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.callbacks import NsysCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.run.plugins import NsysPlugin
@@ -30,14 +31,14 @@ from nemo.utils.exp_manager import TimingCallback
 def main(args):
     # Global and micro batch sizes
     gbs = 128
-    mbs = 2
+    mbs = 4
     seq_length = 576
     decoder_seq_length = 4096
 
     # # Data configuration
     # data_config = ImageDataConfig(
     #     image_folder=args.image_folder,
-    #     conv_template="v1",
+    #     c onv_template="v1",
     # )
     #
     # # Data module setup
@@ -91,20 +92,30 @@ def main(args):
     # )
     #
     # model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
-
+    conf = vlm.Llava15Config7B(
+            freeze_vision_model=False,
+        )
+    conf.language_transformer_config.tp_comm_overlap = True
     model = vlm.LlavaModel(
-        vlm.Llava15Config7B(
-            freeze_vision_model=True,
-        ),
+        conf,
         tokenizer=data.tokenizer,
     )
 
+    from megatron.core.distributed import DistributedDataParallelConfig
     # Training strategy setup
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
+        sequence_parallel=True,
+        ddp=DistributedDataParallelConfig(
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            average_in_collective=True,
+        ),
     )
 
     # Checkpoint callback setup
@@ -127,7 +138,8 @@ def main(args):
         callbacks=[
             checkpoint_callback,
             TimingCallback(),
-            NsysCallback(start_step=10, end_step=11, ranks=[0, 1], gen_shape=True),
+            # NsysCallback(start_step=10, end_step=11, ranks=[0, 1], gen_shape=True),
+            MegatronCommOverlapCallback(tp_comm_overlap=True),
         ],
         val_check_interval=100,
         limit_val_batches=gbs,

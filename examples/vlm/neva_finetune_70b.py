@@ -56,7 +56,6 @@ def main(args):
     tokenizer = AutoTokenizer("meta-llama/Llama-3.1-70B")
     data = vlm.NevaMockDataModule(
         seq_length=decoder_seq_length,
-        # decoder_seq_length=decoder_seq_length,
         global_batch_size=gbs,
         micro_batch_size=mbs,
         tokenizer=tokenizer,
@@ -65,7 +64,7 @@ def main(args):
     )
 
     # Transformer configurations
-    language_transformer_config = llm.Llama31Config70B(seq_length=decoder_seq_length)
+    language_transformer_config = llm.Llama31Config70B(seq_length=decoder_seq_length, tp_comm_overlap=True)
     if args.encoder_pp_size > 0:
         language_transformer_config.first_pipeline_num_layers = 0
     # from nemo.collections.vlm.neva.model.vision import get_vision_model_config
@@ -95,6 +94,7 @@ def main(args):
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
     # model = vlm.LlavaModel(vlm.Llava15Config13B(freeze_vision_model=True,), tokenizer=data.tokenizer)
+    from megatron.core.distributed import DistributedDataParallelConfig
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
@@ -102,6 +102,14 @@ def main(args):
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
+        sequence_parallel=True,
+        ddp=DistributedDataParallelConfig(
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            average_in_collective=True,
+        ),
     )
 
     # Checkpoint callback setup
@@ -112,7 +120,7 @@ def main(args):
         every_n_train_steps=1000,
         dirpath=args.log_dir,
     )
-
+    from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
     # Trainer setup
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,
@@ -121,7 +129,12 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback, TimingCallback()],
+        callbacks=[
+            checkpoint_callback,
+            TimingCallback(),
+            # NsysCallback(start_step=10, end_step=11, ranks=[0, 1], gen_shape=True),
+            MegatronCommOverlapCallback(tp_comm_overlap=True),
+        ],
         val_check_interval=100,
         limit_val_batches=gbs,
         log_every_n_steps=1,
