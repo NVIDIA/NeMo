@@ -2,6 +2,35 @@
 
 ## NVIDIA Neural Modules 2.0.0
 
+### Highlights
+
+#### Large language models & Multi modal
+
+- Training
+  - Long context recipe
+  - PyTorch Native FSDP 1
+- Models
+  - Llama 3
+  - Mixtral	
+  - Nemotron
+- NeMo 1.0
+  - SDXL (text-2-image)
+  - Model Opt
+    - Depth Pruning ([docs](https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/nemo_megatron/model_distillation/drop_layers.rst))
+    - Logit based Knowledge Distillation ([docs](https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/distillation.rst))
+
+#### Export
+
+- TensorRT-LLM v0.12 integration
+- LoRA support for vLLM
+- FP8 checkpoint
+
+#### ASR
+
+- Parakeet large (ASR with PnC model)
+- Added `Uzbek <https://huggingface.co/nvidia/stt_uz_fastconformer_hybrid_large_pc>`__ offline and `Gregorian <https://huggingface.co/nvidia/stt_ka_fastconformer_hybrid_transducer_ctc_large_streaming_80ms_pc>`__ streaming models
+- Optimization feature for efficient bucketing to improve bs consumption on GPUs
+
 ### Detailed Changelogs
 
 #### ASR
