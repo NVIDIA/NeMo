@@ -93,8 +93,8 @@ def main(args):
     #
     # model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
     conf = vlm.Llava15Config7B(
-            freeze_vision_model=False,
-        )
+        freeze_vision_model=False,
+    )
     conf.language_transformer_config.tp_comm_overlap = True
     model = vlm.LlavaModel(
         conf,
@@ -102,6 +102,7 @@ def main(args):
     )
 
     from megatron.core.distributed import DistributedDataParallelConfig
+
     # Training strategy setup
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,

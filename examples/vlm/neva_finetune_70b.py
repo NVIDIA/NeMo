@@ -121,6 +121,7 @@ def main(args):
         dirpath=args.log_dir,
     )
     from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+
     # Trainer setup
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,
