@@ -55,7 +55,7 @@ def build_and_save_engine(
     gemm_plugin: str = "auto",
     reduce_fusion: bool = False,
     gather_context_logits: bool = False,
-    gather_generation_logits: bool = False
+    gather_generation_logits: bool = False,
 ):
     architecture = "LLaMAForCausalLM" if model_config.architecture == "LlamaForCausalLM" else model_config.architecture
     try:

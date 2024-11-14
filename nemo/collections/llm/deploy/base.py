@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.utils import logging
-import subprocess
 import os
+import subprocess
 from pathlib import Path
+
+from nemo.utils import logging
+
 
 def unset_environment_variables() -> None:
     """
@@ -61,7 +63,7 @@ def get_trtllm_deployable(
     max_output_len,
     max_batch_size,
     dtype,
-    output_generation_logits
+    output_generation_logits,
 ):
     """
     Exports the nemo checkpoint to trtllm and returns trt_llm_exporter that is used to deploy on PyTriton.
@@ -107,7 +109,7 @@ def get_trtllm_deployable(
                 max_output_len=max_output_len,
                 max_batch_size=max_batch_size,
                 dtype=dtype,
-                gather_generation_logits=output_generation_logits
+                gather_generation_logits=output_generation_logits,
             )
         except Exception as error:
             raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))

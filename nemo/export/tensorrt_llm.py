@@ -181,7 +181,7 @@ class TensorRTLLM(ITritonDeployable):
         fp8_quantized: Optional[bool] = None,
         fp8_kvcache: Optional[bool] = None,
         gather_context_logits: Optional[bool] = False,
-        gather_generation_logits: Optional[bool] = False
+        gather_generation_logits: Optional[bool] = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -500,7 +500,7 @@ class TensorRTLLM(ITritonDeployable):
                             gpt_attention_plugin=gpt_attention_plugin,
                             gemm_plugin=gemm_plugin,
                             gather_context_logits=gather_context_logits,
-                            gather_generation_logits=gather_generation_logits
+                            gather_generation_logits=gather_generation_logits,
                         )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
@@ -877,8 +877,10 @@ class TensorRTLLM(ITritonDeployable):
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),
-                   Tensor(name="generation_logits", shape=(-1,), dtype=np.single))
+        outputs = (
+            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="generation_logits", shape=(-1,), dtype=np.single),
+        )
         return outputs
 
     @batch

@@ -276,7 +276,7 @@ def deploy(
     rest_service_http_address: str = "0.0.0.0",
     rest_service_port: int = 8080,
     openai_format_response: bool = True,
-    output_generation_logits: bool = True
+    output_generation_logits: bool = True,
 ):
     """
     Deploys nemo model on a PyTriton server by converting the nemo ckpt to trtllm.
@@ -311,8 +311,8 @@ def deploy(
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token. Default: True.
     """
-    from nemo.deploy import DeployPyTriton
     from nemo.collections.llm import deploy
+    from nemo.deploy import DeployPyTriton
 
     deploy.unset_environment_variables()
     if start_rest_service:
@@ -337,7 +337,7 @@ def deploy(
         max_output_len,
         max_batch_size,
         dtype,
-        output_generation_logits
+        output_generation_logits,
     )
 
     try:
@@ -440,8 +440,9 @@ def evaluate(
         # lm-evaluation-harness import
         from lm_eval import evaluator
     except ImportError:
-        raise ImportError("Please ensure that lm-evaluation-harness is installed in your env as it is required "
-                          "to run evaluations")
+        raise ImportError(
+            "Please ensure that lm-evaluation-harness is installed in your env as it is required " "to run evaluations"
+        )
 
     from nemo.collections.llm import evaluation
 
@@ -450,7 +451,9 @@ def evaluate(
     # Wait for rest service to be ready before starting evaluation
     evaluation.wait_for_rest_service(rest_url=f"{url}/v1/health")
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
-    model = evaluation.NeMoFWLMEval(model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos)
+    model = evaluation.NeMoFWLMEval(
+        model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos
+    )
     results = evaluator.simple_evaluate(
         model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
     )
