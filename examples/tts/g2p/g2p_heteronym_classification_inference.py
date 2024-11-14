@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
