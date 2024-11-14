@@ -359,7 +359,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     index=hyps_indices[:, :, None].expand(
                         batch_size, self.beam_size, batch_lm_states_candidates.shape[-1]
                     ),
-                ).view(-1)
+                )
                 batch_lm_states_prev = torch.gather(
                     batch_lm_states.view(batch_size, self.beam_size), dim=1, index=hyps_indices
                 )
@@ -369,7 +369,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
 
                 batch_lm_states = torch.gather(
                     batch_lm_states_candidates, dim=-1, index=last_labels_wb_blank_replaced.unsqueeze(-1)
-                )
+                ).squeeze(-1)
                 batch_lm_states = torch.where(preserve_state, batch_lm_states_prev, batch_lm_states).view(-1)
 
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
