@@ -57,11 +57,6 @@ class BatchedBeamHyps:
         self.scores[:, 0].fill_(0.0)
 
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-        self._batch_indices = (
-            torch.arange(batch_size, device=device).unsqueeze(1).expand(-1, self.beam_size).reshape(-1)
-        )
-        self._beam_indices = torch.arange(beam_size, device=device).unsqueeze(0).expand(batch_size, -1).reshape(-1)
-        self._ones_batch = torch.ones_like(self._batch_indices)
 
     def clear_(self):
         self.current_lengths_nb.fill_(0)
@@ -103,12 +98,8 @@ class BatchedBeamHyps:
     ):
         # TODO: timesteps
         self.scores.copy_(next_hyps_prob)
-        self.transcript_wb[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = (
-            next_labels.view(-1)
-        )
-        self.transcript_wb_prev_ptr[self._batch_indices, self._beam_indices, self.current_lengths_wb.view(-1)] = (
-            hyps_indices.view(-1)
-        )
+        self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
+        self.transcript_wb_prev_ptr.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
         self.current_lengths_wb += 1
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
@@ -152,6 +143,8 @@ class BatchedBeamHyps:
 
 class LMFusionStrategy(PrettyStrEnum):
     SIMPLE = "simple"
+    BLANK_LM_WEIGHTED = "blank_lm_weighted"
+    BLANK_LM_MAX = "blank_lm_max"
     EARLY_PRUNING = "early_pruning"
     PRESERVE_BLANK = "preserve_blank"
 
@@ -173,7 +166,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        ngram_lm_strategy: Optional[str | LMFusionStrategy] = "preserve_blank",
+        ngram_lm_strategy: Optional[str | LMFusionStrategy] = "blank_lm_max",
     ):
         super().__init__()
         self.decoder = decoder
@@ -285,6 +278,18 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     _, labels_top_k = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
                     log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
                     log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
+                elif self.ngram_lm_strategy is LMFusionStrategy.BLANK_LM_WEIGHTED:
+                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs[..., -1] *= (1 + self.ngram_lm_alpha)
+                    log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+                elif self.ngram_lm_strategy is LMFusionStrategy.BLANK_LM_MAX:
+                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs[..., -1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1).max(dim=-1, keepdim=False).values
+                    log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
                 else:
                     raise NotImplementedError
             else:
