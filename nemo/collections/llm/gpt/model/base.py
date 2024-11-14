@@ -328,16 +328,15 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self,
         config: GPTConfig,
         # TODO: Add transformer_layer_spec when we update mcore
-        optim=MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)),
+        optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim
-        if optim is not None:
-            self.optim.connect(self)  # This will bind the `configure_optimizers` method
+        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
         self._training_loss_reduction = None
         self._validation_loss_reduction = None

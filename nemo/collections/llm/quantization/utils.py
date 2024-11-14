@@ -18,7 +18,7 @@ import torch
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.inference import _setup_trainer_and_restore_model
+from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 
@@ -43,7 +43,8 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     return model_cfg
 
 
-def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
+def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1):
+    # TODO: setting ddp="pytorch" with manually deleting model.optim is a hackish way to disable DDP initialization. Needs a systematic solution.
     trainer = nl.Trainer(
         devices=calib_tp,
         num_nodes=calib_pp,
@@ -63,7 +64,8 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
     config = nl.io.load_context(ckpt_to_context_subdir(model_path), subpath="model.config")
     tokenizer = nl.io.load_context(ckpt_to_context_subdir(model_path), subpath="model.tokenizer")
     config = quantizable_model_config(config)
-    model = llm.GPTModel(config, tokenizer=tokenizer, optim=None)
+    model = llm.GPTModel(config, tokenizer=tokenizer)
+    del model.optim
     _setup_trainer_and_restore_model(nemo_checkpoint_path, trainer, model)
     return model
 

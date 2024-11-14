@@ -277,6 +277,7 @@ class Quantizer:
             inference_pipeline_parallel=self.export_config.inference_pipeline_parallel,
             use_nfs_workspace=use_nfs_workspace,
         )
+        dist.barrier()
 
         # Save the model context in order to restore its tokenizer later. The destination
         # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
