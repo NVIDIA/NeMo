@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Sequence, Tuple, Union
 import torch
 
 from nemo.utils.export_utils import add_casts_around_norms, replace_for_export
-from nemo.utils.import_utils import safe_import, safe_import_from
+from nemo.utils.import_utils import safe_import
 
 polygraphy, polygraphy_imported = safe_import("polygraphy")
 if polygraphy_imported:
@@ -596,17 +596,20 @@ class TrtCompiler:
 
             # Use temporary directory for easy cleanup in case of external weights
             with tempfile.TemporaryDirectory() as tmpdir:
-                unrolled_input = unroll_input(self.input_names, input_example)
+                if export_args.get("dynamo", False):
+                    input_names = None
+                else:
+                    input_names = list(unroll_input(self.input_names, input_example).keys())
                 onnx_path = str(Path(tmpdir) / "model.onnx")
                 self.logger.info(
-                    f"Exporting to {onnx_path}:\nunrolled_inputs={list(unrolled_input.keys())}\n"
+                    f"Exporting to {onnx_path}:\n"
                     + f"output_names={self.output_names}\ninput_names={self.input_names}\nexport args: {export_args}"
                 )
                 torch.onnx.export(
                     model,
-                    input_example,
+                    (input_example,),
                     onnx_path,
-                    input_names=list(unrolled_input.keys()),
+                    input_names=input_names,
                     output_names=self.output_names,
                     **export_args,
                 )

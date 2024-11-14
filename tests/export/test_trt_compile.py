@@ -16,10 +16,9 @@ import unittest
 from typing import List
 
 import torch
-from parameterized import parameterized
 
 from nemo.export import trt_compile
-from nemo.utils.import_utils import safe_import, safe_import_from
+from nemo.utils.import_utils import safe_import
 
 trt, trt_imported = safe_import("tensorrt")
 torch_tensorrt, torch_trt_imported = safe_import("torch_tensorrt")
@@ -67,12 +66,50 @@ class TestTRTCompile(unittest.TestCase):
         x = torch.randn(1, 16).to("cuda")
 
         with tempfile.TemporaryDirectory() as tempdir:
-            args = {"method": "torch_trt"}
-            input_example = x
+            args = {
+                "method": "torch_trt",
+                "dynamic_batchsize": [1, 4, 8],
+            }
+            input_example = (x,)
             output_example = model(*input_example)
             trt_compile(
                 model,
                 f"{tempdir}/test_lists",
+                args=args,
+            )
+            self.assertIsNone(model._trt_compiler.engine)
+            trt_output = model(*input_example)
+            # Check that lazy TRT build succeeded
+            self.assertIsNotNone(model._trt_compiler.engine)
+            torch.testing.assert_close(trt_output, output_example, rtol=0.01, atol=0.01)
+
+    def test_profiles(self):
+        model = ListAdd().cuda()
+
+        with torch.no_grad(), tempfile.TemporaryDirectory() as tmpdir:
+            args = {
+                "export_args": {
+                    "dynamo": False,
+                },
+                "input_profiles": [
+                    {
+                        "x_0": [[1, 8], [2, 16], [2, 32]],
+                        "x_1": [[1, 8], [2, 16], [2, 32]],
+                        "x_2": [[1, 8], [2, 16], [2, 32]],
+                        "y": [[1, 8], [2, 16], [2, 32]],
+                        "z": [[1, 8], [1, 16], [1, 32]],
+                    }
+                ],
+                "output_lists": [[-1], [2], []],
+            }
+            x = torch.randn(1, 16).to("cuda")
+            y = torch.randn(1, 16).to("cuda")
+            z = torch.randn(1, 16).to("cuda")
+            input_example = ([x, y, z], y.clone(), z.clone())
+            output_example = model(*input_example)
+            trt_compile(
+                model,
+                f"{tmpdir}/test_dynamo_trt",
                 args=args,
             )
             self.assertIsNone(model._trt_compiler.engine)
@@ -86,6 +123,9 @@ class TestTRTCompile(unittest.TestCase):
 
         with torch.no_grad(), tempfile.TemporaryDirectory() as tmpdir:
             args = {
+                "export_args": {
+                    "dynamo": True,
+                },
                 "output_lists": [[-1], [2], []],
             }
             x = torch.randn(1, 16).to("cuda")
