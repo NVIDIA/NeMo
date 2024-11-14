@@ -129,6 +129,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+        """ PTL callback setup function. """
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
 
         super().setup(trainer, pl_module, stage=stage)
@@ -242,6 +243,14 @@ class AdapterWrapper(nn.Module):
         self.adapter = adapter
 
     def base_linear_forward(self, x):
+        """
+        Run the forward method of the linear module `to_wrap`.
+        Return a tuple of three elements: linear_output, bias, layernorm_output
+
+        x -> [layernorm/identity] -> layernorm_output -> [linear] -> linear_output, bias
+
+        layernorm_output is different from input x only when linear layer is LayerNormColumnParallelLinear.
+        """
         linear_output = self.to_wrap(x)
         assert isinstance(
             linear_output, tuple
@@ -396,7 +405,8 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         As such, this function will be entered twice during PEFT training resume.
 
         For the FIRST TIME this function is called by trainer._checkpoint_connector._restore_modules_and_callbacks.
-        `path = AdapterPath(<adapter_path>, base_model_path=<base_path>)`, and sharded_state_dict contains only base model weights
+        `path = AdapterPath(<adapter_path>, base_model_path=<base_path>)`, and sharded_state_dict contains only base
+        model weights
 
         For the SECOND TIME this function is called by PEFT.apply_transform (above, in the same file).
         `path = PosixPath(<adapter_path>)`, and sharded_state_dict contains only adapter weights.

@@ -48,16 +48,28 @@ HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
 
 class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
+    """
+    Adapter class for DoRA to handle the additional weight_magnitude parameter
+    """
     def init_weight_magnitude(self, value):
-        # weight_magnitude has shape (d,) where d is the output dim of the linear layer
+        """
+        Initialize weight_magnitude with shape (d,), where d is the output dim of the linear layer
+        """
         self.weight_magnitude = nn.Parameter(value, requires_grad=True)
 
     def get_weight_magnitude(self):
+        """
+        Public function to get the weight magnitude parameter
+        """
         return self.weight_magnitude
 
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
     ) -> ShardedStateDict:
+        """
+        Sharded state dict implementation for DoRA adapter.
+        Weight magnitude is TP sharded for linear_qkv and linear_fc1 only.
+        """
         sharded_state_dict = super().sharded_state_dict(prefix, sharded_offsets, metadata)
 
         magnitude_key = f"{prefix}weight_magnitude"
@@ -77,6 +89,10 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
 
 
 class DoRALinear(AdapterWrapper):
+    """
+    An adapter wrapper that is designed to be used with DoRA
+    It extends the AdapterWrapper class to provide a specific implementation of the forward method.
+    """
     def __init__(self, to_wrap: nn.Module, adapter: ParallelLinearDoRAAdapter):
         super().__init__(to_wrap, adapter)
         self.adapter: ParallelLinearDoRAAdapter
@@ -95,27 +111,29 @@ class DoRALinear(AdapterWrapper):
         return torch.linalg.norm(weight, dim=1).to(weight.dtype).detach()
 
     def forward(self, x):
-        linear_output, bias, layernorm_output = self.base_linear_forward(x)
-        adapter_output = self.adapter(layernorm_output.contiguous())
-
-        # mag_norm_scale is  ||W_0 + B_0 A_0|| / ||W_0 + B A||  (scaling in front of BA not shown)
-        mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, 1, -1)
         """
+        Forward method for DoRA
+
           mag_norm_scale * (linear_output + adapter_output)
         = ||W_0 + B_0 A_0|| / ||W_0 + B A|| * (W_0 x + B A x)
         = ||W_0 + B_0 A_0|| ((W_0 + B A) / ||W_0 + B A||) x
         = m ((W_0 + B A) / ||W_0 + B A||) x
         = equation 5 in DoRA paper
+
+        When dropout is used, equation becomes
+          W_0 x + (m /||W_0 + B A|| - 1) W_0 dropout(x) + m /||W_0 + B A|| B A dropout(x)
+        = ...
+        = m /||W_0 + B A|| (W_0 x + B A dropout(x)) + (m /||W_0 + B A|| - 1) W_0 (dropout(x) - x)
+
         """
+        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        adapter_output = self.adapter(layernorm_output.contiguous())
+
+        # mag_norm_scale is  ||W_0 + B_0 A_0|| / ||W_0 + B A||  (scaling in front of BA not shown)
+        mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, 1, -1)
         if self.adapter.dropout is None or not self.training:
             dropout_correction = 0
         else:
-            """
-            When dropout is used, equation becomes
-              W_0 x + (m /||W_0 + B A|| - 1) W_0 dropout(x) + m /||W_0 + B A|| B A dropout(x)
-            = ...
-            = m /||W_0 + B A|| (W_0 x + B A dropout(x)) + (m /||W_0 + B A|| - 1) W_0 (dropout(x) - x)
-            """
             dropout_correction = (mag_norm_scale - 1) * self.base_linear_forward(
                 self.adapter.dropout(layernorm_output) - layernorm_output
             )[0]
@@ -145,8 +163,8 @@ class DoRA(PEFT):
 
     References:
     -----------
-        Shih-Yang Liu, Chien-Yi Wang, Hongxu Yin, Pavlo Molchanov, Yu-Chiang Frank Wang, Kwang-Ting Cheng, Min-Hung Chen (2024).
-        DoRA: Weight-Decomposed Low-Rank Adaptation. arXiv preprint arXiv:2402.09353.
+        Shih-Yang Liu, Chien-Yi Wang, Hongxu Yin, Pavlo Molchanov, Yu-Chiang Frank Wang, Kwang-Ting Cheng,
+        Min-Hung Chen (2024). DoRA: Weight-Decomposed Low-Rank Adaptation. arXiv preprint arXiv:2402.09353.
         https://arxiv.org/abs/2402.09353
     )
     """
