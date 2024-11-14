@@ -14,7 +14,7 @@
 
 from dataclasses import asdict
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import EncDecCTCModel, configs
