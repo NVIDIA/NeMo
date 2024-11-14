@@ -53,6 +53,13 @@ from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
 
+try:
+    from megatron.core.distributed import TorchFullyShardedDataParallel as McoreTorchFSDP
+
+    HAVE_MCORE_FSDP2 = True
+except:
+    HAVE_MCORE_FSDP2 = False
+
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
 T = TypeVar('T')
@@ -573,7 +580,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         from megatron.core import parallel_state
 
-        if self.fsdp:
+        if self.fsdp and HAVE_MCORE_FSDP2:
             DP = TorchFSDP
         else:
             DP = DDP
@@ -798,34 +805,35 @@ class DDP(McoreDDP):
     def __getattr__(self, item: Any) -> Any:
         return getattr_proxy(self, item)
 
+if HAVE_MCORE_FSDP2:
+# remove later
+    class TorchFSDP(McoreTorchFSDP):
+        def __init__(
+            self,
+            config: TransformerConfig,
+            ddp_config: DistributedDataParallelConfig,
+            module: torch.nn.Module,
+            disable_bucketing: bool = False,
+            **kwargs,
+        ):
+            init_parameters = inspect.signature(McoreDDP.__init__).parameters
+            # Updates to the McoreDDP class have removed some parameters, so we need to
+            #  filter out any kwargs that are not part of the updated signature, if a new
+            #  version of mcore is being used.
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
+            super().__init__(
+                config=config,
+                ddp_config=ddp_config,
+                module=module,
+                disable_bucketing=disable_bucketing,
+                **filtered_kwargs,
+            )
 
-class TorchFSDP(McoreTorchFSDP):
-    def __init__(
-        self,
-        config: TransformerConfig,
-        ddp_config: DistributedDataParallelConfig,
-        module: torch.nn.Module,
-        disable_bucketing: bool = False,
-        **kwargs,
-    ):
-        init_parameters = inspect.signature(McoreDDP.__init__).parameters
-        # Updates to the McoreDDP class have removed some parameters, so we need to
-        #  filter out any kwargs that are not part of the updated signature, if a new
-        #  version of mcore is being used.
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
-        super().__init__(
-            config=config,
-            ddp_config=ddp_config,
-            module=module,
-            disable_bucketing=disable_bucketing,
-            **filtered_kwargs,
-        )
+        def state_dict(self, prefix='', keep_vars=False, **kwargs):
+            self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
 
-    def state_dict(self, prefix='', keep_vars=False, **kwargs):
-        self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
-
-    def __getattr__(self, item: Any) -> Any:
-        return getattr_proxy(self, item)
+        def __getattr__(self, item: Any) -> Any:
+            return getattr_proxy(self, item)
 
 
 class CallbackConnector:
