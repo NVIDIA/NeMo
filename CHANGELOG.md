@@ -28,7 +28,7 @@
 #### ASR
 
 - Parakeet large (ASR with PnC model)
-- Added [`Uzbek__ offline`](https://huggingface.co/nvidia/stt_uz_fastconformer_hybrid_large_pc) and [`Gregorian__ streaming models`](https://huggingface.co/nvidia/stt_ka_fastconformer_hybrid_transducer_ctc_large_streaming_80ms_pc)
+- Added [Uzbek](https://huggingface.co/nvidia/stt_uz_fastconformer_hybrid_large_pc) offline and [Gregorian](https://huggingface.co/nvidia/stt_ka_fastconformer_hybrid_transducer_ctc_large_streaming_80ms_pc) streaming models
 - Optimization feature for efficient bucketing to improve bs consumption on GPUs
 
 ### Detailed Changelogs
