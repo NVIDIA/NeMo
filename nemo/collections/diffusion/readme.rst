@@ -613,7 +613,25 @@ launch training
 multinode training with slurm
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The slurm launch script is `<diffusion_energon_datamodule.py>`_.  You can use it with either sbatch or salloc then srun. 
+The slurm launch script is `<scripts/train.sh>`_.  You can use it with either sbatch or salloc then srun. 
+
+example to use sbatch
+
+.. code-block:: bash
+
+   sbatch nemo/collections/diffusion/scripts/train.sh \
+   --factory mock_dit7b_8k  \
+   trainer.strategy.tensor_model_parallel_size=1 \
+   trainer.strategy.sequence_parallel=False \
+   trainer.strategy.context_parallel_size=1 \
+   model.config.recompute_granularity=full \
+   model.config.recompute_method=uniform \
+   model.config.recompute_num_layers=1 \
+   data.micro_batch_size=1 \
+   data.global_batch_size=256 \
+   data.seq_length=65536 \
+   data.task_encoder.seq_length=65536
+
 
 example to use salloc
 
@@ -639,21 +657,7 @@ example to use salloc
 
     </details>
 
-
-
-
-
-To launch training on one node
-
-.. code-block:: bash
-
-   torchrun --nproc-per-node 8 nemo/collections/diffusion/train.py --yes --factory pretrain_xl
-
-To launch training on multiple nodes using Slurm
-
-.. code-block:: bash
-
-   sbatch nemo/collections/diffusion/scripts/train.sh --factory pretrain_xl
+then use bash instead of sbatch to run ``nemo/collections/diffusion/scripts/train.sh``
 
 
 Citations
