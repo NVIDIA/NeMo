@@ -55,7 +55,7 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
             ckpt_parallel_save_optim=False,
             setup_optimizers=False,
             lazy_init=True,
-            ddp=None,
+            ddp="pytorch",
         ),
         plugins=nl.MegatronMixedPrecision(precision='bf16', params_dtype=torch.bfloat16, autocast_enabled=True),
     )

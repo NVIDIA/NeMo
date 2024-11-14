@@ -25,7 +25,6 @@ from tqdm import tqdm
 from nemo.collections import llm
 from nemo.lightning.ckpt_utils import CONTEXT_PATH
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 from .utils import get_unwrapped_mcore_model
 
@@ -281,7 +280,7 @@ class Quantizer:
 
         # Save the model context in order to restore its tokenizer later. The destination
         # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-        if is_global_rank_zero():
+        if dist.get_rank() == 0:
             shutil.copytree(
                 os.path.join(model_dir, CONTEXT_PATH),
                 os.path.join(export_dir, "nemo_context"),
