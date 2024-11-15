@@ -478,7 +478,8 @@ class NLPDDPStrategy(DDPStrategy):
         # @akoumparouli: check if it contains an mcore dist opt
         if sharded_state_dict.get('optimizer_states') is None:
             return False
-        if common_state_dict['optimizer_states'][0].get('param_groups', None) is None:
+        #TODO: Resolve MCore Dist Opt mismatch, Apex Fused Adam + Dist Fused Adam working.
+        if self._get_param_group(common_state_dict) is None:
             return False
         model_param_groups = self._get_param_group(common_state_dict)
         checkpoint_param_groups = self._get_param_group(sharded_state_dict)
@@ -581,9 +582,6 @@ class NLPDDPStrategy(DDPStrategy):
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
-            # Check whether to load optim states
-            if load_optimizer_states:
-                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
             #Check if the model has a separate LM head stage
             def is_lm_head_separate_stage(module=None, state_dict=None):
@@ -611,7 +609,7 @@ class NLPDDPStrategy(DDPStrategy):
                 decoder = getattr(model_module, 'decoder', None)
                 final_layernorm = getattr(decoder, 'final_layernorm', None)
             
-                return (isinstance(output_layer, ColumnParallelLinear) and isinstance(final_layernorm, norm_type))        
+                return (isinstance(output_layer, ColumnParallelLinear)) or isinstance(final_layernorm, norm_type)
               
             patch_separate_lm_head_stage = is_lm_head_separate_stage(self.lightning_module, sharded_state_dict)
 
@@ -622,7 +620,6 @@ class NLPDDPStrategy(DDPStrategy):
                 checkpoint = self._fix_param_groups(checkpoint_path, checkpoint,patch_separate_lm_head_stage)
             else:
                 checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
-
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
