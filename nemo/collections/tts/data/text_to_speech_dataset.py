@@ -325,6 +325,8 @@ class T5TTSDataset(TextToSpeechDataset):
         codec_model_downsample_factor: int = None,
         bos_id: int = None,
         eos_id: int = None,
+        audio_bos_id: int = None,
+        audio_eos_id: int = None,
         prior_scaling_factor: float = None,
     ):
         super().__init__(
@@ -342,6 +344,8 @@ class T5TTSDataset(TextToSpeechDataset):
         )
         self.bos_id = bos_id
         self.eos_id = eos_id
+        self.audio_bos_id = audio_bos_id
+        self.audio_eos_id = audio_eos_id
         self.codec_model_downsample_factor = codec_model_downsample_factor
         self.include_align_prior = prior_scaling_factor is not None
         self.prior_scaling_factor = prior_scaling_factor
@@ -390,17 +394,26 @@ class T5TTSDataset(TextToSpeechDataset):
             "text_len": text_len,
         }
 
+        if 'target_audio_codes_path' in data.manifest_entry:
+            audio_codes_path = data.manifest_entry['target_audio_codes_path']
+            audio_codes = torch.load(audio_codes_path).long() # (C, T)
+            # codec_len_from_audio = int(audio_len / self.codec_model_downsample_factor)
+            # assert audio_codes.shape[1] == codec_len_from_audio, f"Audio codes shape {audio_codes.shape} does not match audio len {audio_len} and downsample factor {self.codec_model_downsample_factor}"
+            spec_len = audio_codes.shape[1] + 1 # +1 for EOS
+            auidio_bos_tensor = torch.full((audio_codes.shape[0], 1), self.audio_bos_id, dtype=audio_codes.dtype)
+            audio_eos_tensor = torch.full((audio_codes.shape[0], 1), self.audio_eos_id, dtype=audio_codes.dtype)
+            audio_codes = torch.cat([auidio_bos_tensor, audio_codes, audio_eos_tensor], dim=1)
+            audio_codes_len = audio_codes.shape[1]
+            example['audio_codes'] = audio_codes
+            example['audio_codes_len'] = audio_codes_len
+        else:
+            spec_len = int(audio_len / self.codec_model_downsample_factor) + 1 # +1 for EOS
+
         if data.speaker is not None:
             example["speaker"] = data.speaker
             example["speaker_index"] = data.speaker_index
 
         if self.include_align_prior:
-            spec_len = int(audio_len / self.codec_model_downsample_factor) + 1
-            # align_prior = beta_binomial_prior_distribution(
-            #     phoneme_count=text_len,
-            #     mel_count=spec_len,
-            #     scaling_factor=self.prior_scaling_factor
-            # )
             align_prior = self.beta_binomial_interpolator(spec_len, text_len)
             align_prior = torch.tensor(align_prior, dtype=torch.float32)
             example["align_prior"] = align_prior
@@ -427,6 +440,8 @@ class T5TTSDataset(TextToSpeechDataset):
         token_len_list = []
         speaker_list = []
         prior_list = []
+        audio_codes_list = []
+        audio_codes_len_list = []
 
         for example in batch:
             dataset_name_list.append(example["dataset_name"])
@@ -446,6 +461,10 @@ class T5TTSDataset(TextToSpeechDataset):
 
             if self.include_align_prior:
                 prior_list.append(example["align_prior"])
+            
+            if 'audio_codes' in example:
+                audio_codes_list.append(example['audio_codes'])
+                audio_codes_len_list.append(example['audio_codes_len'])
 
         batch_audio_len = torch.IntTensor(audio_len_list)
         audio_max_len = int(batch_audio_len.max().item())
@@ -470,6 +489,12 @@ class T5TTSDataset(TextToSpeechDataset):
             "text": batch_tokens,
             "text_lens": batch_token_len,
         }
+
+        if len(audio_codes_list) > 0:
+            audio_codes_max_len = max([audio_codes.shape[1] for audio_codes in audio_codes_list])
+            batch_audio_codes = stack_tensors(audio_codes_list, max_lens=[audio_codes_max_len])
+            batch_dict['audio_codes'] = batch_audio_codes
+            batch_dict['audio_codes_lens'] = torch.IntTensor(audio_codes_len_list)
 
         if self.include_speaker:
             batch_dict["speaker_id"] = torch.IntTensor(speaker_list)

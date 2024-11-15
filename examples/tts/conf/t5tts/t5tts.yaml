@@ -79,7 +79,8 @@ model:
     pos_emb:
       name: "rope"
       base: 512
-    use_flash_attention: false
+    use_flash_self_attention: false
+    use_flash_x_attention: false
     deterministic: false
     d_model: 768
     n_layers: 12
@@ -97,7 +98,8 @@ model:
     pos_emb:
       name: "rope"
       base: 512
-    use_flash_attention: false
+    use_flash_self_attention: false
+    use_flash_x_attention: false
     deterministic: false
     d_model: 768
     n_layers: 12

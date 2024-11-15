@@ -376,14 +376,19 @@ class T5TTS_Model(ModelPT):
 
         target_audio_16khz = batch['audio_16khz']
         target_audio_lens_16khz = batch['audio_lens_16khz']
+        
         speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
         speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
+        if 'audio_codes' not in batch:
+            audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
+        else:
+            audio_codes = batch['audio_codes']
+            audio_codes_lens = batch['audio_codes_lens']
 
-        audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
         audio_codes_input = audio_codes[:, :, :-1]
         audio_codes_target = audio_codes[:, :, 1:]
         audio_codes_lens_input = audio_codes_lens_target = audio_codes_lens - 1
-
+        
         logits, attn_info = self.forward(
             text=text,
             text_lens=text_lens,
@@ -404,7 +409,6 @@ class T5TTS_Model(ModelPT):
             loss = codebook_loss
         
         self.log('train_loss', loss, prog_bar=True, sync_dist=True)
-
         return loss
     
     
@@ -421,7 +425,12 @@ class T5TTS_Model(ModelPT):
         speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
         speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
 
-        audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
+        if 'audio_codes' not in batch:
+            audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
+        else:
+            audio_codes = batch['audio_codes']
+            audio_codes_lens = batch['audio_codes_lens']
+
         audio_codes_input = audio_codes[:, :, :-1]
         audio_codes_target = audio_codes[:, :, 1:]
         audio_codes_lens_input = audio_codes_lens_target = audio_codes_lens - 1
@@ -447,8 +456,10 @@ class T5TTS_Model(ModelPT):
 
         if batch_idx == 0 and self.global_rank == 0:
             self.log_train_val_example(logits, audio_codes_target, audio_codes_lens_target)
-            cross_attention_probs = [attn['cross_attn_probabilities'][0] for attn in attn_info]
-            self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix="val_")
+            if len(attn_info[0]['cross_attn_probabilities']) > 1:
+                # cross_attn_probabilities only returned when not using flash attention
+                cross_attention_probs = [attn['cross_attn_probabilities'][0] for attn in attn_info]
+                self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix="val_")
 
         val_output = {
             'val_loss': loss,
@@ -549,6 +560,8 @@ class T5TTS_Model(ModelPT):
             text_tokenizer=self.tokenizer,
             bos_id=self.bos_id,
             eos_id=self.eos_id,
+            audio_bos_id=self.audio_bos_id,
+            audio_eos_id=self.audio_eos_id,
             codec_model_downsample_factor=self.cfg.codec_model_downsample_factor,
             prior_scaling_factor=self.cfg.prior_scaling_factor,
         )

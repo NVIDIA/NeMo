@@ -344,7 +344,7 @@ class TransformerBlock(nn.Module):
                  has_xattn, remove_self_attention=False, is_causal=True,
                  apply_norm_to_cond=True, layer_norm_method='pre',
                  use_layer_scale=False, layer_scale_init=1e-1,
-                 use_flash_attention=True, deterministic=False,
+                 use_flash_self_attention=True, use_flash_x_attention=True, deterministic=False,
                  pos_emb={"name": "alibi"}, max_length_causal_mask=4096):
         super(TransformerBlock, self).__init__()
         """
@@ -360,7 +360,7 @@ class TransformerBlock(nn.Module):
             self.self_attention = Attention(
                 n_heads=n_heads, d_model=d_model, p_dropout=p_dropout,
                 is_self_attention=True,
-                use_flash_attention=use_flash_attention,
+                use_flash_attention=use_flash_self_attention,
                 deterministic=deterministic, pos_emb=pos_emb,
                 max_length_causal_mask=max_length_causal_mask)
             if self.use_layer_scale:
@@ -377,7 +377,7 @@ class TransformerBlock(nn.Module):
                 n_heads=params['n_heads'], d_model=d_model,
                 p_dropout=p_dropout, is_causal=False,
                 is_self_attention=False, d_memory=params['d_heads'],
-                use_flash_attention=use_flash_attention,
+                use_flash_attention=use_flash_x_attention,
                 deterministic=deterministic,
                 pos_emb=params.get('pos_emb', pos_emb),
                 max_length_causal_mask=params.get(
