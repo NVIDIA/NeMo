@@ -26,6 +26,15 @@ from nemo.utils.enum import PrettyStrEnum
 
 MINUS_INF = -float("inf")
 
+# https://stackoverflow.com/a/77213071
+MULTIPLIER = 6364136223846793005
+INCREMENT = 1
+MODULUS = 2**64
+
+
+def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
+    return prev_hash * MULTIPLIER + INCREMENT + add_labels
+
 
 class BatchedBeamHyps:
     """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
@@ -38,10 +47,13 @@ class BatchedBeamHyps:
         blank_index: int,
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
+        allow_recombine_hyps: bool = False,
     ):
         self._max_length = init_length
         self.beam_size = beam_size
         self.blank_index = blank_index
+        self.batch_size = batch_size
+        self.allow_recombine_hyps = allow_recombine_hyps
 
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
@@ -51,6 +63,8 @@ class BatchedBeamHyps:
         self.transcript_wb_prev_ptr = torch.full(
             (batch_size, self.beam_size, self._max_length), fill_value=-1, device=device, dtype=torch.long
         )
+        self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
+        self.last_label = torch.full([batch_size, self.beam_size], fill_value=-1, device=device, dtype=torch.long)
         # self.transcript = torch.zeros(
         #     (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
         # )
@@ -71,6 +85,8 @@ class BatchedBeamHyps:
         self.current_lengths_wb.fill_(0)
         self.transcript_wb.fill_(0)
         self.transcript_wb_prev_ptr.fill_(-1)
+        self.transcript_hash.fill_(0)
+        self.last_label.fill_(-1)
         # self.transcript.fill_(0)
         # self.transcript_prev_ptr.fill_(-1)
         self.timesteps.fill_(0)
@@ -129,6 +145,42 @@ class BatchedBeamHyps:
             torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
         )
 
+        # track last label
+        torch.where(
+            extended_with_label,
+            next_labels,
+            torch.gather(self.last_label, dim=-1, index=hyps_indices),
+            out=self.last_label,
+        )
+
+        prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
+        new_transcript_hash = hash_text(prev_transcript_hash, next_labels)
+        torch.where(extended_with_label, new_transcript_hash, prev_transcript_hash, out=self.transcript_hash)
+        if self.allow_recombine_hyps:
+            self.recombine_hyps_()
+
+    def recombine_hyps_(self):
+        if self.beam_size <= 1:
+            return
+        # TODO: separate lm scores
+        hyps_equal = (
+            (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
+            & (self.last_label[:, :, None] == self.last_label[:, None, :])
+            & (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
+        )
+
+        scores_matrix = torch.where(
+            hyps_equal,
+            self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
+            torch.full_like(self.scores, fill_value=MINUS_INF)[:, :, None],
+        )
+        scores_argmax = scores_matrix.argmax(-1, keepdim=False)
+        scores_to_keep = (
+            torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
+        )
+        new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
+        torch.where(scores_to_keep, new_scores, torch.full_like(new_scores, fill_value=MINUS_INF), out=self.scores)
+
     def to_hyps_list(self) -> list[rnnt_utils.Hypothesis]:
         transcript = self.transcript_wb.tolist()
         transcript_wb_prev_ptr = self.transcript_wb_prev_ptr.tolist()
@@ -139,18 +191,18 @@ class BatchedBeamHyps:
         # TODO: faster parallel aggregation
         # TODO: timesteps
         hypotheses: list[rnnt_utils.Hypothesis] = []
-        for i in range(batch_size):
+        for batch_i in range(batch_size):
             cur_transcript = []
-            cur_index = end_indices[i]
+            cur_index = end_indices[batch_i]
             # hyp_length = self.last_timestep[i, cur_index]
             for j in range(hyp_length - 1, -1, -1):
-                token = transcript[i][cur_index][j]
+                token = transcript[batch_i][cur_index][j]
                 if token > 0 and token != self.blank_index:
                     cur_transcript.append(token)
-                cur_index = transcript_wb_prev_ptr[i][cur_index][j]
+                cur_index = transcript_wb_prev_ptr[batch_i][cur_index][j]
             hypotheses.append(
                 rnnt_utils.Hypothesis(
-                    score=scores[i][end_indices[i]],
+                    score=scores[batch_i][end_indices[batch_i]],
                     y_sequence=cur_transcript[::-1],
                     timestep=[],
                     alignments=None,
@@ -267,6 +319,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         # step = -1
         while active_mask.any():
             # step += 1
+            # logging.warning(f"Step: {step}")
             # torch.cuda.set_sync_debug_mode(2)
             logits = (
                 self.joint.joint_after_projection(
