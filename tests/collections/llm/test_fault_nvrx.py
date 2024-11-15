@@ -109,10 +109,16 @@ def main():
 
     # assume that NeMo logs are written into "nemo_log_globalrank-0_localrank-0.txt"
     rank0_log_content = None
-    with open(os.path.join(args.experiment_dir, "L2_llama3_small_pretrain_fault_tolerance_test", "nemo_log_globalrank-0_localrank-0.txt")) as f:
+    with open(
+        os.path.join(
+            args.experiment_dir,
+            "L2_llama3_small_pretrain_fault_tolerance_test",
+            "nemo_log_globalrank-0_localrank-0.txt",
+        )
+    ) as f:
         rank0_log_content = f.read()
 
-    if args.check_report:    
+    if args.check_report:
         assert "GPU relative performance" in rank0_log_content
         assert "GPU individual performance" in rank0_log_content
         assert "Straggler report processing time" in rank0_log_content
