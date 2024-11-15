@@ -890,6 +890,37 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         super().__init__(cfg, trainer)
 
+    def prepare_llm_input(self, audio_batch):
+        encoder_input, attention_mask, labels, loss_mask, encoder_length = super().prepare_llm_input(audio_batch)
+        if all(audio_batch['num_turns'] == 2):
+            return encoder_input, attention_mask, labels, loss_mask, encoder_length
+        new_encoder_input = []
+        new_labels = []
+        new_loss_mask = []
+        new_encoder_length = []
+        cnt = 0
+        for num_turns in audio_batch['num_turns']:
+            tmp_encoder_input = []
+            tmp_labels = []
+            tmp_loss_mask = []
+            tmp_encoder_length = []
+            for i in range(0, num_turns, 2):
+                input_len = encoder_length[cnt]
+                if i != num_turns - 2:  # last turn
+                    input_len -= 1  # remove the last token as it is eos between the turns
+                tmp_encoder_input.append(encoder_input[cnt][:input_len])
+                tmp_labels.append(labels[cnt][:input_len])
+                tmp_loss_mask.append(loss_mask[cnt][:input_len])
+                tmp_encoder_length.append(input_len)
+                cnt += 1
+            new_encoder_input.append(torch.cat(tmp_encoder_input, dim=0))
+            new_encoder_length.append(sum(tmp_encoder_length))
+            new_labels.append(torch.cat(tmp_labels, dim=0))
+            new_loss_mask.append(torch.cat(tmp_loss_mask, dim=0))
+        assert cnt == encoder_length.shape[0]
+        new_attention_mask = self._create_attention_mask(new_encoder_input)
+        return new_encoder_input, new_attention_mask, new_labels, new_loss_mask, new_encoder_length
+
     '''
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
