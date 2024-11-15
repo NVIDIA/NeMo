@@ -262,6 +262,8 @@ class PerfEnvPlugin(run.Plugin):
     enable_vboost: bool = False
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
+        "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
+        
         import shlex
 
         vboost_cmd = " ".join(
@@ -281,6 +283,7 @@ class PerfEnvPlugin(run.Plugin):
         return vboost_cmd
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+        """Enable the performance environment settings"""
 
         if task.trainer.strategy.__fn_or_cls__ == MegatronStrategy:
             # Force program order kernel launch for TP, CP overlap
