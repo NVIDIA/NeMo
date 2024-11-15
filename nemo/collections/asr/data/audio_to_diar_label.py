@@ -687,7 +687,7 @@ class _AudioMSDDInferDataset(Dataset):
         seg_target = self.get_diar_target_labels_from_fr_target(uniq_id, fr_level_target)
         return seg_target
 
-    def get_diar_target_labels_from_fr_target(self, uniq_id, fr_level_target):
+    def get_diar_target_labels_from_fr_target(self, uniq_id: str, fr_level_target: torch.Tensor) -> torch.Tensor:
         """
         Generate base-scale level binary diarization label from frame-level target matrix. For the given frame-level
         speaker target matrix fr_level_target, we count the number of frames that belong to each speaker and calculate
@@ -1222,7 +1222,6 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
         else:
             session_len_sec = min(sample.duration, self.session_len_sec)
 
-        uniq_id = self.get_uniq_id_with_range(sample)
         audio_signal = self.featurizer.process(sample.audio_file, offset=offset, duration=session_len_sec)
 
         # We should resolve the length mis-match from the round-off errors between these two variables:
