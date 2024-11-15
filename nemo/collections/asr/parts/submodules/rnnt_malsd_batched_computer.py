@@ -63,7 +63,7 @@ class BatchedBeamHyps:
         self.scores.fill_(MINUS_INF)
         self.scores[:, 0].fill_(0.0)
 
-        self.last_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
+        # self.last_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
 
     def clear_(self):
@@ -76,7 +76,7 @@ class BatchedBeamHyps:
         self.timesteps.fill_(0)
         self.scores.fill_(MINUS_INF)
         self.scores[:, 0].fill_(0.0)
-        self.last_timestep.fill_(0)
+        # self.last_timestep.fill_(0)
         self.last_timestep_lasts.fill_(0)
 
     def _allocate_more(self):
@@ -121,7 +121,7 @@ class BatchedBeamHyps:
         self.current_lengths_nb = (
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
-        self.last_timestep = torch.gather(self.last_timestep, dim=-1, index=hyps_indices) + extended_with_blank
+        # self.last_timestep = torch.gather(self.last_timestep, dim=-1, index=hyps_indices) + 1 - extended_with_label
         self.last_timestep_lasts = torch.where(
             extended_with_blank,
             torch.zeros_like(self.last_timestep_lasts),
@@ -456,7 +456,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
 
-            time_indices = batched_hyps.last_timestep
+            time_indices = batched_hyps.current_lengths_wb - batched_hyps.current_lengths_nb
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
             # torch.cuda.set_sync_debug_mode(0)
