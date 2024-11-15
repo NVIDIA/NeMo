@@ -109,7 +109,11 @@ def main():
     if args.check_report:
         # assume that NeMo logs are written into "nemo_log_globalrank-0_localrank-0.txt"
         rank0_log_content = None
-        with open(args.experiment_dir / "L2_llama3_small_pretrain_fault_tolerance_test" / "nemo_log_globalrank-0_localrank-0.txt") as f:
+        with open(
+            args.experiment_dir
+            / "L2_llama3_small_pretrain_fault_tolerance_test"
+            / "nemo_log_globalrank-0_localrank-0.txt"
+        ) as f:
             rank0_log_content = f.read()
 
         assert "GPU relative performance" in rank0_log_content
