@@ -278,7 +278,7 @@ class ConfigValidationPlugin(run.Plugin):
             assert any(
                 map(
                     lambda callback: (
-                        callback.__fn_or_cls__ == PreemptionCallback if '__fn_or_cls__' in dir(callback) else False
+                        callback.__fn_or_cls__ == PreemptionCallback
                     ),
                     task.trainer.callbacks,
                 )
