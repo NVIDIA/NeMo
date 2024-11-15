@@ -33,7 +33,7 @@ from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples, ifnone
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.utils.data_utils import is_datastore_path, datastore_path_to_webdataset_url
+from nemo.utils.data_utils import datastore_path_to_webdataset_url, is_datastore_path
 
 
 class LazyNeMoIterator:
@@ -118,12 +118,14 @@ class LazyNeMoIterator:
             if is_datastore_path(audio_path):
                 audio_path = datastore_path_to_webdataset_url(audio_path)
 
-            with open_best(
-                audio_path, mode="rb"
-                ) as opened_audio:
-                
+            with open_best(audio_path, mode="rb") as opened_audio:
+
                 cut = self._create_cut(
-                    audio_path=audio_path, data=opened_audio.read(), offset=offset, duration=duration, sampling_rate=data.pop("sampling_rate", None)
+                    audio_path=audio_path,
+                    data=opened_audio.read(),
+                    offset=offset,
+                    duration=duration,
+                    sampling_rate=data.pop("sampling_rate", None),
                 )
                 # Note that start=0 and not start=offset because supervision's start if relative to the
                 # start of the cut; and cut.start is already set to offset
