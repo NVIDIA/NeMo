@@ -238,6 +238,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
+        allow_recombine_hyps: bool = True,
     ):
         super().__init__()
         self.decoder = decoder
@@ -247,6 +248,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
+        self.allow_recombine_hyps = allow_recombine_hyps
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
@@ -258,6 +260,10 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 self.blank_lm_score_mode = BlankLMScoreMode.LM_TOP_MAX
             else:
                 self.blank_lm_score_mode = BlankLMScoreMode(blank_lm_score_mode)
+            if self.allow_recombine_hyps:
+                # TODO: implement separate scores and fix
+                logging.warning("Hyps recombination is not implemented yet with LM, setting to false")
+                self.allow_recombine_hyps = False
         else:
             self.ngram_lm_batch = None
             self.blank_lm_score_mode = None
@@ -289,6 +295,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             init_length=max_time * (self.max_symbols + 1) if self.max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
+            allow_recombine_hyps=self.allow_recombine_hyps,
         )
 
         last_labels_wb = torch.full(
