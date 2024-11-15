@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -172,7 +172,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             soft_targets=config.soft_targets if 'soft_targets' in config else False,
         )
         logging.info(
-            f"AAB: Dataloader dataset is created, starting torch.utils.data.Dataloader step B: {time.time() - time_flag}"
+            f"AAB: Dataloader dataset is created, starting torch.utils.data.Dataloader" 
+            f"step B: {time.time() - time_flag}"
         )
 
         self.data_collection = dataset.collection
@@ -581,4 +582,5 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     def diarize(
         self,
     ):
+        """One-clieck runner function for diarization."""
         raise NotImplementedError

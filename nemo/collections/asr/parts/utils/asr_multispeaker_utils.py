@@ -28,7 +28,8 @@ def find_first_nonzero(mat: torch.Tensor, max_cap_val=-1, thres: float = 0.5) ->
         thres (float): The threshold value for discretizing the matrix values.
 
     Returns:
-        mask_max_indices (Tensor): A torch tensor representing the discretized matrix with the first nonzero value in each row.
+        mask_max_indices (Tensor): A torch tensor representing the discretized matrix with the first 
+        nonzero value in each row.
     """
     # Discretize the matrix to the specified maximum capacity
     labels_discrete = mat.clone()
@@ -229,7 +230,8 @@ def get_mask_from_segments(
         speaker_to_idx_map (dict): A dictionary mapping speaker names to indices.
         num_speakers (int): max number of speakers for all cuts ("mask" dim0), 4 by default
         feat_per_sec (int): number of frames per second, 100 by default, 0.01s frame rate
-        ignore_num_spk_mismatch (bool): This is a temporary solution to handle speaker mismatch. Will be removed in the future.
+        ignore_num_spk_mismatch (bool): This is a temporary solution to handle speaker mismatch. 
+                                        Will be removed in the future.
 
     Returns:
         mask (Tensor): A numpy array of shape (num_speakers, encoder_hidden_len).
@@ -315,25 +317,34 @@ def speaker_to_target(
     ignore_num_spk_mismatch: bool = True,
     soft_thres: float = 0.5,
 ):
-    '''
-    Get rttm samples corresponding to one cut, generate speaker mask numpy.ndarray with shape (num_speaker, hidden_length)
-    This function is needed for speaker diarization with ASR model trainings.
+    """
+    Get rttm samples corresponding to one cut, generate speaker mask numpy.ndarray with shape 
+    (num_speaker, hidden_length). This function is needed for speaker diarization with ASR model trainings.
 
     Args:
-        a_cut (MonoCut, MixedCut): Lhotse Cut instance which is MonoCut or MixedCut instance.
-        num_speakers (int): max number of speakers for all cuts ("mask" dim0), 4 by default
-        num_sample_per_mel_frame (int): number of sample per mel frame, sample_rate / 1000 * window_stride, 160 by default (10ms window stride)
-        num_mel_frame_per_asr_frame (int): encoder subsampling_factor, 8 by default
-        spk_tar_all_zero (Tensor): set to True gives all zero "mask"
-        boundary_segments (bool): set to True to include segments containing the boundary of the cut, False by default for multi-speaker ASR training
-        soft_label (bool): set to True to use soft label that enables values in [0, 1] range, False by default and leads to binary labels.
-        ignore_num_spk_mismatch (bool): This is a temporary solution to handle speaker mismatch. Will be removed in the future.
+        a_cut (MonoCut, MixedCut): 
+            Lhotse Cut instance which is MonoCut or MixedCut instance.
+        num_speakers (int): 
+            Max number of speakers for all cuts ("mask" dim0), 4 by default
+        num_sample_per_mel_frame (int): 
+            Number of sample per mel frame, sample_rate / 1000 * window_stride, 160 by default (10ms window stride)
+        num_mel_frame_per_asr_frame (int): 
+            Encoder subsampling_factor, 8 by default
+        spk_tar_all_zero (Tensor): 
+            Set to True gives all zero "mask"
+        boundary_segments (bool): 
+            Set to True to include segments containing the boundary of the cut, 
+            False by default for multi-speaker ASR training
+        soft_label (bool): 
+            Set to True to use soft label that enables values in [0, 1] range, 
+            False by default and leads to binary labels.
+        ignore_num_spk_mismatch (bool): 
+            This is a temporary solution to handle speaker mismatch. Will be removed in the future.
 
     Returns:
-        mask (Tensor): speaker mask with shape (num_speaker, hidden_lenght)
-    '''
+        mask (Tensor): Speaker mask with shape (num_speaker, hidden_lenght)
+    """
     # get cut-related segments from rttms
-    # basename = os.path.basename(a_cut.rttm_filepath).replace('.rttm', '')
     if isinstance(a_cut, MixedCut):
         cut_list = [track.cut for track in a_cut.tracks if isinstance(track.cut, MonoCut)]
         offsets = [track.offset for track in a_cut.tracks if isinstance(track.cut, MonoCut)]
@@ -374,7 +385,8 @@ def speaker_to_target(
     speaker_to_idx_map = {spk: idx for idx, spk in enumerate(speaker_ats)}
     if len(speaker_to_idx_map) > num_speakers and not ignore_num_spk_mismatch:  # raise error if number of speakers
         raise ValueError(
-            f"Number of speakers {len(speaker_to_idx_map)} is larger than the maximum number of speakers {num_speakers}"
+            f"Number of speakers {len(speaker_to_idx_map)} is larger than "
+            f"the maximum number of speakers {num_speakers}"
         )
 
     # initialize mask matrices (num_speaker, encoder_hidden_len)

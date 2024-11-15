@@ -36,6 +36,7 @@ seed_everything(42)
 
 @hydra_runner(config_path="../conf/neural_diarizer", config_name="sortformer_diarizer_hybrid_loss_4spk-v1.yaml")
 def main(cfg):
+    """Main function for training the sortformer diarizer model."""
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

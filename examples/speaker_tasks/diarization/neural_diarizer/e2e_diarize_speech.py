@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,6 +45,12 @@ torch.backends.cudnn.deterministic = True
 
 @dataclass
 class PostProcessingParams:
+    """
+    Postprocessing parameters for end-to-end speaker diarization models.
+    These parameters can significantly affect DER performance depending on the evaluation style and the dataset.
+    It is recommended to tune these parameters based on the evaluation style and the dataset 
+    to achieve the desired DER performance.
+    """
     onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
     offset: float = 0.5  # Offset threshold for detecting the end of a speech
     pad_onset: float = 0.0  # Adding durations before each speech segment
@@ -55,7 +61,7 @@ class PostProcessingParams:
 
 @dataclass
 class DiarizationConfig:
-    # Required configs
+    """Diarization configuration parameters for inference."""
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
@@ -221,6 +227,17 @@ def run_optuna_hyperparam_search(
     preds_list: List[torch.Tensor],
     temp_out_dir: str,
 ):
+    """
+    Run Optuna hyperparameter optimization for speaker diarization.
+
+    Args:
+        cfg (DiarizationConfig): The configuration object containing model and dataset details.
+        postprocessing_cfg (PostProcessingParams): The current postprocessing configuration.
+        infer_audio_rttm_dict (dict): dictionary of audio file path, offset, duration and RTTM filepath.
+        preds_list (List[torch.Tensor]): list of prediction matrices containing sigmoid values for each speaker.
+            Dimension: [(1, frames, num_speakers), ..., (1, frames, num_speakers)]
+        temp_out_dir (str): temporary directory for storing intermediate outputs.
+    """
     worker_function = lambda trial: diarization_objective(
         trial=trial,
         postprocessing_cfg=postprocessing_cfg,
@@ -300,6 +317,7 @@ def convert_pred_mat_to_segments(
 
 @hydra_runner(config_name="DiarizationConfig", schema=DiarizationConfig)
 def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
+    """Main function for end-to-end speaker diarization inference."""
     for key in cfg:
         cfg[key] = None if cfg[key] == 'None' else cfg[key]
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -26,24 +24,13 @@ __all__ = ['SortformerModules']
 
 class SortformerModules(NeuralModule, Exportable):
     """
-    Multi-scale Diarization Decoder (MSDD) for overlap-aware diarization and improved diarization accuracy from clustering diarizer.
-    Based on the paper: Taejin Park et. al, "Multi-scale Speaker Diarization with Dynamic Scale Weighting", Interspeech 2022.
-    Arxiv version: https://arxiv.org/pdf/2203.15974.pdf
-
-    Args:
-        num_spks (int):
-            Max number of speakers that are processed by the model. In `MSDD_module`, `num_spks=2` for pairwise inference.
-        hidden_size (int):
-            Number of hidden units in sequence models and intermediate layers.
-        dropout_rate (float):
-            Dropout rate for linear layers, CNN and LSTM.
-        fc_d_model (int):
-            Dimension of the embedding vectors.
-        tf_d_model (int):
-            Dimension of the embedding vectors.
+    A class including auxiliary functions for Sortformer models.
+    This class contains and will contain the following functions that performs streaming features,
+    and any neural layers that are not included in the NeMo neural modules (e.g. Transformer, Fast-Conformer).
     """
 
     def init_weights(self, m):
+        """Init weights for linear layers."""
         if type(m) == nn.Linear:
             torch.nn.init.xavier_uniform_(m.weight)
             m.bias.data.fill_(0.01)
@@ -56,6 +43,19 @@ class SortformerModules(NeuralModule, Exportable):
         fc_d_model: int = 512,
         tf_d_model: int = 192,
     ):
+        """ 
+        Args:
+            num_spks (int):
+                Max number of speakers that are processed by the model. 
+            hidden_size (int):
+                Number of hidden units in sequence models and intermediate layers.
+            dropout_rate (float):
+                Dropout rate for linear layers, CNN and LSTM.
+            fc_d_model (int):
+                Dimension of the embedding vectors.
+            tf_d_model (int):
+                Dimension of the embedding vectors. 
+        """
         super().__init__()
         self.fc_d_model = fc_d_model
         self.tf_d_model = tf_d_model
@@ -91,6 +91,15 @@ class SortformerModules(NeuralModule, Exportable):
         return mask.float().to(context_embs.device)
 
     def forward_speaker_sigmoids(self, hidden_out):
+        """
+        A set of layers for predicting speaker probabilities with a sigmoid activation function.
+        
+        Args:
+            hidden_out (torch.Tensor): tensor of shape (batch_size, seq_len, hidden_size)
+
+        Returns:
+            preds (torch.Tensor): tensor of shape (batch_size, num_spks) containing speaker probabilities
+        """
         hidden_out = self.dropout(F.relu(hidden_out))
         hidden_out = self.first_hidden_to_hidden(hidden_out)
         hidden_out = self.dropout(F.relu(hidden_out))

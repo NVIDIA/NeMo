@@ -310,10 +310,9 @@ class VideoText(_Collection):
 class InstructionTuningAudioText(_Collection):
     """`AudioText` collector from asr structured json files."""
 
-    OUTPUT_TYPE = collections.namedtuple(
-        typename='InstructionTuningText',
-        field_names='id context context_type context_duration question question_type answer answer_type answer_duration speaker',
-    )
+    OUTPUT_TYPE = collections.namedtuple(typename='InstructionTuningText',
+                                         field_names=('id context context_type context_duration question '
+                                                      'question_type answer answer_type answer_duration speaker'),)
 
     def __init__(
         self,
@@ -558,7 +557,6 @@ class SpeechLLMAudioText(object):
         max_num_samples: Optional[int] = None,
     ):
         """Instantiates audio-context-answer manifest with filters and preprocessing.
-
 
         Args:
             ids: List of examples positions.
@@ -1471,7 +1469,7 @@ class EndtoEndDiarizationLabel(_Collection):
 
 
 class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
-    """`DiarizationLabel` diarization data sample collector from structured json files."""
+    """End-to-end speaker diarization data sample collector from structured json files."""
 
     def __init__(
         self,

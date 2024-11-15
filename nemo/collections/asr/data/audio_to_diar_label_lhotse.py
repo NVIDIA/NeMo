@@ -37,6 +37,8 @@ class LhotseAudioToSpeechE2ESpkDiarDataset(torch.utils.data.Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Define the output types of the dataset.
+        """
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
