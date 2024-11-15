@@ -158,7 +158,7 @@ class BatchedBeamHyps:
         return hypotheses
 
 
-class LMFusionStrategy(PrettyStrEnum):
+class BlankLMScoreMode(PrettyStrEnum):
     SIMPLE = "simple"
     BLANK_LM_WEIGHTED = "blank_lm_weighted"
     BLANK_LM_MAX = "blank_lm_max"
@@ -166,6 +166,8 @@ class LMFusionStrategy(PrettyStrEnum):
     BLANK_LM_BEST_MAX = "blank_lm_best_max"
     BLANK_LM_BEST_MIN = "blank_lm_best_min"
     BLANK_LM_BEST_MEAN = "blank_lm_best_mean"
+    BLANK_LM_BEST_BEST = "blank_lm_best_best"
+    BLANK_LM_BEST_WORST = "blank_lm_best_worst"
 
 
 class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
@@ -185,7 +187,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        ngram_lm_strategy: Optional[str | LMFusionStrategy] = "blank_lm_max",
+        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None
     ):
         super().__init__()
         self.decoder = decoder
@@ -202,13 +204,13 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
-            assert ngram_lm_strategy is not None
-            self.ngram_lm_strategy = LMFusionStrategy(ngram_lm_strategy)
-            # self.ngram_lm_strategy = LMFusionStrategy.BLANK_LM_MAX
-            # self.ngram_lm_strategy = LMFusionStrategy.BLANK_LM_BEST_MAX
+            if blank_lm_score_mode is None:
+                self.blank_lm_score_mode = BlankLMScoreMode.BLANK_LM_BEST_MAX
+            else:
+                self.blank_lm_score_mode = BlankLMScoreMode(blank_lm_score_mode)
         else:
             self.ngram_lm_batch = None
-            self.ngram_lm_strategy = None
+            self.blank_lm_score_mode = None
         self.ngram_lm_alpha = ngram_lm_alpha
         assert not self.preserve_alignments
         assert not self.preserve_frame_confidence
@@ -278,12 +280,12 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             )
             log_probs = F.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
             if self.ngram_lm_batch:
-                if self.ngram_lm_strategy is LMFusionStrategy.SIMPLE:
+                if self.blank_lm_score_mode is BlankLMScoreMode.SIMPLE:
                     log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.ngram_lm_strategy is LMFusionStrategy.PRESERVE_BLANK:
+                elif self.blank_lm_score_mode is BlankLMScoreMode.PRESERVE_BLANK:
                     _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
                     log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
                     _, labels_with_lm_nb_top_k = torch.topk(
@@ -298,13 +300,13 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         labels_top_k[..., -1],
                     )
                     log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
-                elif self.ngram_lm_strategy is LMFusionStrategy.BLANK_LM_WEIGHTED:
+                elif self.blank_lm_score_mode is BlankLMScoreMode.BLANK_LM_WEIGHTED:
                     log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
                     log_probs[..., -1] *= 1 + self.ngram_lm_alpha
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.ngram_lm_strategy is LMFusionStrategy.BLANK_LM_MAX:
+                elif self.blank_lm_score_mode is BlankLMScoreMode.BLANK_LM_MAX:
                     log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
                     log_probs[..., -1] += (
                         self.ngram_lm_alpha
@@ -313,10 +315,12 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.ngram_lm_strategy in {
-                    LMFusionStrategy.BLANK_LM_BEST_MAX,
-                    LMFusionStrategy.BLANK_LM_BEST_MIN,
-                    LMFusionStrategy.BLANK_LM_BEST_MEAN,
+                elif self.blank_lm_score_mode in {
+                    BlankLMScoreMode.BLANK_LM_BEST_MAX,
+                    BlankLMScoreMode.BLANK_LM_BEST_MIN,
+                    BlankLMScoreMode.BLANK_LM_BEST_MEAN,
+                    BlankLMScoreMode.BLANK_LM_BEST_BEST,
+                    BlankLMScoreMode.BLANK_LM_BEST_WORST,
                 }:
                     _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
                     log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
@@ -329,13 +333,17 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         dim=-1,
                         index=labels_with_lm_nb_top_k,
                     )
-                    match self.ngram_lm_strategy:
-                        case LMFusionStrategy.BLANK_LM_BEST_MAX:
+                    match self.blank_lm_score_mode:
+                        case BlankLMScoreMode.BLANK_LM_BEST_MAX:
                             blank_lm_scores = lm_only_scores.max(dim=-1, keepdim=False).values
-                        case LMFusionStrategy.BLANK_LM_BEST_MIN:
+                        case BlankLMScoreMode.BLANK_LM_BEST_MIN:
                             blank_lm_scores = lm_only_scores.min(dim=-1, keepdim=False).values
-                        case LMFusionStrategy.BLANK_LM_BEST_MEAN:
+                        case BlankLMScoreMode.BLANK_LM_BEST_MEAN:
                             blank_lm_scores = lm_only_scores.mean(dim=-1, keepdim=False).values
+                        case BlankLMScoreMode.BLANK_LM_BEST_BEST:
+                            blank_lm_scores = lm_only_scores[..., 0]
+                        case BlankLMScoreMode.BLANK_LM_BEST_WORST:
+                            blank_lm_scores = lm_only_scores[..., -1]
                         case _:
                             raise NotImplementedError
                     log_probs[..., -1] += blank_lm_scores
