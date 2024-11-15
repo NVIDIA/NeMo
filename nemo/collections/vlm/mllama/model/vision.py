@@ -360,6 +360,7 @@ class PrecomputedTilePositionEmbedding(torch.nn.Module):
     Methods:
         forward(hidden_states, aspect_ratio_ids): Applies positional embeddings to the input states.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
@@ -449,6 +450,7 @@ class ImageTransformerLayer(TransformerLayer):
         layer_number (int, default=1): Layer number in the transformer.
         hidden_dropout (float, optional): Dropout rate for hidden layers.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
@@ -551,6 +553,7 @@ class VisionEncoder(MegatronModule):
         post_process (bool, default=True): Whether to postprocess output.
         return_intermediate (Optional[bool]): Whether to return intermediate layers.
     """
+
     def __init__(
         self,
         config: 'CrossAttentionVisionConfig',
