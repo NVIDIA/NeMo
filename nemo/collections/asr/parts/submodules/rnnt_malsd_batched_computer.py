@@ -58,6 +58,7 @@ class BatchedBeamHyps:
         #     (batch_size, self.beam_size, self._max_length), fill_value=-1, device=device, dtype=torch.long
         # )
         self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
+        # TODO: separate lm scores (is this necessary?)
         self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
         self.scores.fill_(MINUS_INF)
         self.scores[:, 0].fill_(0.0)
@@ -442,7 +443,6 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             self.decoder.batch_replace_states_mask(
                 src_states=prev_state, dst_states=state, mask=preserve_state.view(-1)
             )
-            # TODO: lm state
             if self.ngram_lm_batch is not None:
                 # batch_lm_states: [(BxBeam)]
                 # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
