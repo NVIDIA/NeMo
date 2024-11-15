@@ -64,32 +64,55 @@ class AutoTokenizer(TokenizerSpec):
             additional_special_tokens: list of other tokens beside standard special tokens (bos, eos, pad, etc.). For example, sentinel tokens for T5 (<extra_id_0>, <extra_id_1>, etc.)
             use_fast: whether to use fast HuggingFace tokenizer
         """
-        try:
-            # this logic deals with different huggingface tokenizers having different positional args
-            if vocab_file is None:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name,
-                    use_fast=use_fast,
-                    trust_remote_code=trust_remote_code,
-                )
-            elif merges_file is None:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name,
-                    vocab_file=vocab_file,
-                    use_fast=use_fast,
-                    trust_remote_code=trust_remote_code,
-                )
-            else:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name,
-                    vocab_file=vocab_file,
-                    merges_file=merges_file,
-                    use_fast=use_fast,
-                    trust_remote_code=trust_remote_code,
-                )
-        except Exception as e:
-            raise ValueError(
-                f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
+        # try:
+        #     # this logic deals with different huggingface tokenizers having different positional args
+        #     if vocab_file is None:
+        #         self.tokenizer = AUTOTOKENIZER.from_pretrained(
+        #             pretrained_model_name_or_path=pretrained_model_name,
+        #             use_fast=use_fast,
+        #             trust_remote_code=trust_remote_code,
+        #         )
+        #     elif merges_file is None:
+        #         self.tokenizer = AUTOTOKENIZER.from_pretrained(
+        #             pretrained_model_name_or_path=pretrained_model_name,
+        #             vocab_file=vocab_file,
+        #             use_fast=use_fast,
+        #             trust_remote_code=trust_remote_code,
+        #         )
+        #     else:
+        #         self.tokenizer = AUTOTOKENIZER.from_pretrained(
+        #             pretrained_model_name_or_path=pretrained_model_name,
+        #             vocab_file=vocab_file,
+        #             merges_file=merges_file,
+        #             use_fast=use_fast,
+        #             trust_remote_code=trust_remote_code,
+        #         )
+        # except Exception as e:
+        #     raise ValueError(
+        #         f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
+        #     )
+
+        # this logic deals with different huggingface tokenizers having different positional args
+        if vocab_file is None:
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                pretrained_model_name_or_path=pretrained_model_name,
+                use_fast=use_fast,
+                trust_remote_code=trust_remote_code,
+            )
+        elif merges_file is None:
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                pretrained_model_name_or_path=pretrained_model_name,
+                vocab_file=vocab_file,
+                use_fast=use_fast,
+                trust_remote_code=trust_remote_code,
+            )
+        else:
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                pretrained_model_name_or_path=pretrained_model_name,
+                vocab_file=vocab_file,
+                merges_file=merges_file,
+                use_fast=use_fast,
+                trust_remote_code=trust_remote_code,
             )
 
         self.original_vocab_size = len(self.tokenizer)
