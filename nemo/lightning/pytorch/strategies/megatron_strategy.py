@@ -202,7 +202,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_load: bool = True,
         ckpt_parallel_save_optim: bool = True,
         ckpt_load_directly_on_device: bool = True,
-        ckpt_load_strictness:  Optional['StrictHandling'] = None,
+        ckpt_load_strictness: Optional['StrictHandling'] = None,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
@@ -707,7 +707,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
-        strict = self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+        strict = (
+            self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+        )
         checkpoint = self.checkpoint_io.load_checkpoint(
             checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
         )
@@ -721,7 +723,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         logging.info(f"Doing selective restore from {self.restore_config}")
 
         strict = True if self.ckpt_load_strictness is None else self.ckpt_load_strictness
-        checkpoint = self.load_checkpoint(checkpoint_path=self.restore_config.path, selective_restore=True, strict=strict)
+        checkpoint = self.load_checkpoint(
+            checkpoint_path=self.restore_config.path, selective_restore=True, strict=strict
+        )
 
         if self.restore_config.load_model_state:
             logging.info(f"Restoring model weights from {self.restore_config}")
