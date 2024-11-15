@@ -284,7 +284,7 @@ class T5TTS_Model(ModelPT):
 
         return all_preds
 
-    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.1, topk=80):
+    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = []
         for idx in range(self.cfg.num_audio_codebooks):
@@ -470,7 +470,14 @@ class T5TTS_Model(ModelPT):
             audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens)
 
             text_mask = ~get_mask_from_lengths(text_lens)
-            encoder_out = self.t5_encoder(self.text_embedding(text), text_mask, cond=None, cond_mask=None)
+            encoder_out = self.t5_encoder(self.text_embedding(text), text_mask, cond=None, cond_mask=None)['output']
+
+            target_audio_16khz = batch['audio_16khz']
+            target_audio_lens_16khz = batch['audio_lens_16khz']
+            speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
+            speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
+
+            encoder_out = encoder_out + speaker_embeddings_projected.unsqueeze(1)
 
             all_predictions = []
             end_indices = {}
@@ -479,7 +486,7 @@ class T5TTS_Model(ModelPT):
                 decoder_out = self.t5_decoder(
                     audio_codes_embedded,
                     audio_codes_mask,
-                    cond=encoder_out['output'],
+                    cond=encoder_out,
                     cond_mask=text_mask,
                 )
                 all_code_logits = self.final_proj(decoder_out['output']) # (B, T', num_codebooks * num_tokens_per_codebook)

@@ -15,9 +15,10 @@ test_ds_meta: ???
 # Modify these values based on your sample rate
 sample_rate: 22050
 
-phoneme_dict_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
-heteronyms_path: "/home/pneekhara/2023/NeMo/scripts/tts_dataset_files/heteronyms-052722"
+phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
+  speaker_emb_dim: 192
   max_decoder_steps: 500
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
@@ -25,6 +26,7 @@ model:
   prior_scaling_factor: 1.0
   prior_end_step: 500
   prior_scaledown_start_step: 200
+  alignment_loss_scale: 0.0
   embedding_dim: 768
   codecmodel_path: null
   max_epochs: ${max_epochs}
@@ -51,6 +53,8 @@ model:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.T5TTSDataset
       dataset_meta: ${test_ds_meta}
       sample_rate: ${sample_rate}
+      min_duration: 1.0
+      max_duration: 20.0
       # speaker_path: ${speaker_path}
 
     dataloader_params:
@@ -58,7 +62,6 @@ model:
       num_workers: 2
 
   t5_encoder:
-    speaker_emb_dim: 192
     is_causal: false
     pos_emb:
       name: "rope"

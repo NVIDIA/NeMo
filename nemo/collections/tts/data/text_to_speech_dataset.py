@@ -25,6 +25,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import Bas
 from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
 from nemo.collections.tts.parts.preprocessing.features import Featurizer
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
+    BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
     filter_dataset_by_duration,
     get_weighted_sampler,
@@ -344,6 +345,7 @@ class T5TTSDataset(TextToSpeechDataset):
         self.codec_model_downsample_factor = codec_model_downsample_factor
         self.include_align_prior = prior_scaling_factor is not None
         self.prior_scaling_factor = prior_scaling_factor
+        self.beta_binomial_interpolator = BetaBinomialInterpolator(scaling_factor=prior_scaling_factor)
     
     def __getitem__(self, index):
         data = self.data_samples[index]
@@ -394,11 +396,12 @@ class T5TTSDataset(TextToSpeechDataset):
 
         if self.include_align_prior:
             spec_len = int(audio_len / self.codec_model_downsample_factor) + 1
-            align_prior = beta_binomial_prior_distribution(
-                phoneme_count=text_len,
-                mel_count=spec_len,
-                scaling_factor=self.prior_scaling_factor
-            )
+            # align_prior = beta_binomial_prior_distribution(
+            #     phoneme_count=text_len,
+            #     mel_count=spec_len,
+            #     scaling_factor=self.prior_scaling_factor
+            # )
+            align_prior = self.beta_binomial_interpolator(spec_len, text_len)
             align_prior = torch.tensor(align_prior, dtype=torch.float32)
             example["align_prior"] = align_prior
 
