@@ -85,7 +85,9 @@ if __name__ == '__main__':
             if int(args.devices) > 1:
                 raise Exception("Only devices = 1 when transformer engine accelerator is used.")
             else:
-                model_transform = ModelCallback(on_train_start=lambda model: accelerate(model, fp8_autocast=args.fp8_autocast))
+                model_transform = ModelCallback(
+                    on_train_start=lambda model: accelerate(model, fp8_autocast=args.fp8_autocast)
+                )
                 callbacks.append(model_transform)
 
     llm.api.finetune(
