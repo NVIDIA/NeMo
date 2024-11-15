@@ -47,17 +47,12 @@ torch.backends.cudnn.deterministic = True
 
 @dataclass
 class PostProcessingParams:
-    window_length_in_sec: float = 0.15
-    shift_length_in_sec: float = 0.01
-    smoothing: bool = False
-    overlap: float = 0.5
-    onset: float = 0.5
-    offset: float = 0.5
-    pad_onset: float = 0.0
-    pad_offset: float = 0.0
-    min_duration_on: float = 0.0
-    min_duration_off: float = 0.0
-    filter_speech_first: bool = True
+    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
+    offset: float = 0.5  # Offset threshold for detecting the end of a speech
+    pad_onset: float = 0.0  # Adding durations before each speech segment
+    pad_offset: float = 0.0  # Adding durations after each speech segment
+    min_duration_on: float = 0.0  # Threshold for small non-speech deletion
+    min_duration_off: float = 0.0  # Threshold for short speech segment deletion
 
 @dataclass
 class DiarizationConfig:
@@ -124,7 +119,9 @@ def load_postprocessing_from_yaml(postprocessing_yaml):
 def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optuna.Trial) -> PostProcessingParams:
     """
     Suggests hyperparameters for postprocessing using Optuna.
-
+    See the following link for `trial` instance in Optuna framework.
+    https://optuna.readthedocs.io/en/stable/reference/generated/optuna.trial.Trial.html#optuna.trial.Trial
+    
     Args:
         postprocessing_cfg (PostProcessingParams): The current postprocessing configuration.
         trial (optuna.Trial): The Optuna trial object used to suggest hyperparameters.
@@ -373,13 +370,13 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                                                                     out_rttm_dir=cfg.out_rttm_dir
                                                                    )
         logging.info(f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments...")
-        metric, mapping_dict, itemized_errors = score_labels(AUDIO_RTTM_MAP=infer_audio_rttm_dict, 
-                                                            all_reference=all_refs, 
-                                                            all_hypothesis=all_hyps, 
-                                                            all_uem=all_uems, 
-                                                            collar=cfg.collar, 
-                                                            ignore_overlap=cfg.ignore_overlap
-                                                            )
+        score_labels(AUDIO_RTTM_MAP=infer_audio_rttm_dict, 
+                    all_reference=all_refs, 
+                    all_hypothesis=all_hyps, 
+                    all_uem=all_uems, 
+                    collar=cfg.collar, 
+                    ignore_overlap=cfg.ignore_overlap
+                    )
         logging.info(f"PostProcessingParams: {postprocessing_cfg}")
 
 if __name__ == '__main__':

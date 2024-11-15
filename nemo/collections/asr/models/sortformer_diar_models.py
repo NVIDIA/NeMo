@@ -36,17 +36,6 @@ from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_pil_targets, get_ats_targets
 from nemo.utils import logging
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
-# torch.backends.cudnn.enabled = False 
-
 __all__ = ['SortformerEncLabelModel']
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
@@ -549,14 +538,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                     audio_signal_length=audio_signal_length,
                 )
                 preds = preds.detach().to('cpu')
-                if preds.shape[0] == 1: # batch size = 1
+                if preds.shape[0] == 1: # If batch size is absolute 1
                     self.preds_total_list.append(preds)
                 else:
                     self.preds_total_list.extend(torch.split(preds, [1] * preds.shape[0]))
                 torch.cuda.empty_cache()
                 self._get_aux_test_batch_evaluations(batch_idx, preds, targets, target_lens)
-                # except:
-                #     import ipdb; ipdb.set_trace()
+                
         logging.info(f"Batch F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_list))}")
         logging.info(f"Batch Precision MEAN: {torch.mean(torch.tensor(self.batch_precision_list))}")
         logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")

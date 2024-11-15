@@ -20,7 +20,6 @@ import torch.nn.functional as F
 
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import EncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.core.neural_types.elements import ProbsType
 
 __all__ = ['SortformerModules']
@@ -37,23 +36,12 @@ class SortformerModules(NeuralModule, Exportable):
             Max number of speakers that are processed by the model. In `MSDD_module`, `num_spks=2` for pairwise inference.
         hidden_size (int):
             Number of hidden units in sequence models and intermediate layers.
-        num_lstm_layers (int):
-            Number of the stacked LSTM layers.
         dropout_rate (float):
             Dropout rate for linear layers, CNN and LSTM.
+        fc_d_model (int):
+            Dimension of the embedding vectors.
         tf_d_model (int):
             Dimension of the embedding vectors.
-        scale_n (int):
-            Number of scales in multi-scale system.
-        clamp_max (float):
-            Maximum value for limiting the scale weight values.
-        conv_repeat (int):
-            Number of CNN layers after the first CNN layer.
-        weighting_scheme (str):
-            Name of the methods for estimating the scale weights.
-        context_vector_type (str):
-            If 'cos_sim', cosine similarity values are used for the input of the sequence models.
-            If 'elem_prod', element-wise product values are used for the input of the sequence models.
     """
     def init_weights(self, m):
         if type(m) == nn.Linear:

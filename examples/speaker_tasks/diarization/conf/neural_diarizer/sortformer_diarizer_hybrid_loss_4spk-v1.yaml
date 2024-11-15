@@ -1,6 +1,6 @@
-# Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
-# Model name convention for Sortformer Diarizer: sortformer_diarizer_<FC_layer>_<TF_layer>_<loss_type>_loss.yaml
-# (Example) `sortformer_diarizer_FC18_TF18_hybrid_loss.yaml` has 18 layers for FastConformer and 18 layers of Transformer.
+sortformer_diarizer_hybrid_loss_4spk-v1.yaml# Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
+# Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<speaker count limit>_<version>.yaml
+# (Example) `sortformer_diarizer_hybrid_loss_4spk-v1.yaml`.
 # Sortformer Diarizer model checkpoint (.ckpt) and NeMo file (.nemo) contain Fast Conformer Encoder model (NEST Encoder) and the pre-trained NEST model is loaded along with the Transformer Encoder layers.
 # Example: a manifest line for training 
 # {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 90.00, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
@@ -10,21 +10,21 @@ num_workers: 18
 batch_size: 8
 
 model: 
-  pil_weight: 0.5
-  ats_weight: 0.5
-  num_workers: ${num_workers}
-  fc_d_model: 512
-  tf_d_model: 192
-  max_num_of_spks: 4 # Number of speakers per model. This is currently fixed at 4.
-  session_len_sec: 90
+  pil_weight: 0.5 # Weight for Permutation Invariant Loss (PIL) used in training the Sortformer diarizer model
+  ats_weight: 0.5 # Weight for Arrival Time Sort (ATS) loss in training the Sortformer diarizer model
+  num_workers: ${num_workers} # Number of workers for data loading
+  fc_d_model: 512 # Hidden dimension size of the Fast-conformer Encoder
+  tf_d_model: 192 # Hidden dimension size of the Transformer Encoder
+  max_num_of_spks: 4 # Maximum number of speakers per model; currently set to 4
+  session_len_sec: 90 # Maximum session length in seconds
 
   train_ds:
     manifest_filepath: ???
     sample_rate: ${sample_rate}
     num_spks: ${model.max_num_of_spks}
     session_len_sec: ${model.session_len_sec}
-    soft_label_thres: 0.5
-    soft_targets: False
+    soft_label_thres: 0.5 # Threshold for binarizing target values; higher values make the model more conservative in predicting speaker activity.
+    soft_targets: False # If True, use continuous values as target values when calculating cross-entropy loss
     labels: null
     batch_size: ${batch_size}
     shuffle: True
@@ -52,7 +52,7 @@ model:
     sample_rate: ${sample_rate}
     num_spks: ${model.max_num_of_spks}
     session_len_sec: ${model.session_len_sec}
-    soft_label_thres: 0.5
+    soft_label_thres: 0.5 # A threshold value for setting up the binarized labels. The higher the more conservative the model becomes. 
     soft_targets: False
     labels: null
     batch_size: ${batch_size}
@@ -121,10 +121,8 @@ model:
     subsampling_factor: 8 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
     causal_downsampling: false
-
     # Feed forward module's params
     ff_expansion_factor: 4
-
     # Multi-headed Attention Module's params
     self_attention_model: rel_pos # rel_pos or abs_pos
     n_heads: 8 # may need to be lower for smaller d_models
@@ -134,19 +132,16 @@ model:
     xscaling: true # scales up the input embeddings by sqrt(d_model)
     untie_biases: true # unties the biases of the TransformerXL layers
     pos_emb_max_len: 5000
-
     # Convolution module's params
     conv_kernel_size: 9
     conv_norm_type: 'batch_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
     conv_context_size: null
-
-    ### regularization
+    # Regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
     dropout_pre_encoder: 0.1 # The dropout used before the encoder
     dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
-
-    # set to non-zero to enable stochastic depth
+    # Set to non-zero to enable stochastic depth
     stochastic_depth_drop_prob: 0.0
     stochastic_depth_mode: linear  # linear or uniform
     stochastic_depth_start_layer: 1
