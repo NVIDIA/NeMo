@@ -106,6 +106,8 @@ class AutoTokenizer(TokenizerSpec):
             print("vocab_file: ", vocab_file)
             print("use_fast: ", use_fast)
             print("trust_remote_code: ", trust_remote_code)
+            import os
+            print("os.path.exists(vocab_file): ", os.path.exists(vocab_file))
             try:
                 import subprocess
                 result = subprocess.run(['ls ' + vocab_file], capture_output=True, text=True)
