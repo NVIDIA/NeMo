@@ -800,7 +800,7 @@ class TensorRTLLM(ITritonDeployable):
 
             nemo_model_conversion_dict = self.get_nemo_to_trtllm_conversion_dict(model_state_dict)
 
-            trtllm_helper = TRTLLMHelper(
+            self.trtllm_helper = TRTLLMHelper(
                 transformer_config=transformer_config,
                 model_type=input_model_type,
                 trtllm_conversion_dict=nemo_model_conversion_dict,
@@ -821,7 +821,7 @@ class TensorRTLLM(ITritonDeployable):
             input_dtype = self.get_input_dtype(storage_dtype)
 
             trtllm_model_weights_list, trtllm_model_config_list = (
-                trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
+                self.trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
                     model_state_dict=model_state_dict,
                     dtype=input_dtype,
                     state_dict_split_by_layer_numbers=True,
@@ -847,7 +847,7 @@ class TensorRTLLM(ITritonDeployable):
                     pp_size=self.pp_size,
                 )
 
-            engine = trtllm_helper.build_and_save_engine(
+            engine = self.trtllm_helper.build_and_save_engine(
                 max_input_len=max_input_len,
                 max_output_len=max_output_len,
                 max_seq_len=max_input_len + max_output_len,
@@ -899,29 +899,18 @@ class TensorRTLLM(ITritonDeployable):
         """
         weights_dict = None
         if use_mcore_path:
-            from megatron.core.export.trtllm.trtllm_weights_converter.distributed_trtllm_model_weights_converter import (
-                DistributedTRTLLMModelWeightsConverter,
-            )
-
-            transformer_config = self.get_transformer_config(model_config)
             storage_dtype = torch_dtype_from_precision(model_config.precision)
-            dtype = self.get_input_dtype(storage_dtype)
-
-            dist_trtllm_model_weights_converter = DistributedTRTLLMModelWeightsConverter(
-                transformer_config=transformer_config,
-                dtype=dtype,
-                multi_query_mode=model_config.get("multi_query_mode", False),
-                activation=model_config.get('activation', "gelu"),
-            )
 
             model_state_dict = self.gather_and_reshard_model(model_config, model, storage_dtype)
+
             nemo_model_conversion_dict = self.get_nemo_to_trtllm_conversion_dict(model_state_dict)
-            dist_trtllm_model_weights_converter.convert(
+            self.trtllm_helper.weights_converter.convert(
                 model_state_dict=model_state_dict,
                 tokenizer_vocab_size=self.tokenizer.vocab_size,
                 trtllm_conversion_dict=nemo_model_conversion_dict,
             )
-            weights_dict = dist_trtllm_model_weights_converter.trtllm_model_weights
+            weights_dict = self.trtllm_helper.weights_converter.trtllm_model_weights
+
         else:
             weights_dict = dist_model_to_trt_llm_ckpt(
                 model=model,
