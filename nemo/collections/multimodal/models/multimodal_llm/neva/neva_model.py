@@ -618,7 +618,8 @@ class NevaBaseModel:
             - state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
         )
         state_dict['model.language_model.embedding.word_embeddings.weight'] = F.pad(
-            state_dict['model.language_model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length)
+            state_dict['model.language_model.embedding.word_embeddings.weight'],
+            (0, 0, 0, pad_length)
         )
 
         if 'model.language_model.output_layer.weight' in state_dict:
@@ -627,7 +628,8 @@ class NevaBaseModel:
                 == state_dict['model.language_model.output_layer.weight'].shape
             )
             state_dict['model.language_model.output_layer.weight'] = F.pad(
-                state_dict['model.language_model.output_layer.weight'], (0, 0, 0, pad_length)
+                state_dict['model.language_model.output_layer.weight'],
+                (0, 0, 0, pad_length)
             )
         return state_dict
 

@@ -133,6 +133,9 @@ def build_encoder_attention_mask(
 
 
 def apply_scaling(freqs: torch.Tensor):
+    """
+    Scale frequency values based on predefined thresholds and a smoothing factor.
+    """
     # Values obtained from grid search
     scale_factor = 8
     low_freq_factor = 1
@@ -157,6 +160,9 @@ def apply_scaling(freqs: torch.Tensor):
 
 # Use this spec for an implementation using modules in TE
 def get_image_transformer_layer_spec() -> ModuleSpec:
+    """
+    Create a specification for an image transformer layer.
+    """
     image_transformer_submodules = TransformerLayerSubmodules(
         input_layernorm=TENorm,
         self_attention=ModuleSpec(
@@ -195,6 +201,10 @@ def forward_with_return_intermediate(
     packed_seq_params: PackedSeqParams = None,
     return_intermediate: List[int] = None,
 ):
+    """
+    Perform a forward pass through the transformer layers with optional intermediate outputs.
+    Override regular MCore transformer layer forward pass.
+    """
     # hidden_states (float): [s, b, h]
     # attention_mask (bool): [1, 1, s, s]
 
@@ -342,6 +352,7 @@ class ColumnParallelConv2dPatch(MegatronModule):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward."""
         x = self._unfold(x)
         x = x.permute(0, 2, 1)
         x = F.linear(x, self._linear.weight)
@@ -356,9 +367,6 @@ class PrecomputedTilePositionEmbedding(torch.nn.Module):
     Args:
         config (TransformerConfig): Configuration object.
         gated (bool, default=False): Whether to apply gating to the embeddings.
-
-    Methods:
-        forward(hidden_states, aspect_ratio_ids): Applies positional embeddings to the input states.
     """
 
     def __init__(
@@ -377,6 +385,7 @@ class PrecomputedTilePositionEmbedding(torch.nn.Module):
             self.gate = nn.Parameter(torch.zeros(1))
 
     def forward(self, hidden_states: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
+        """Forward."""
         embeddings = self.embedding(aspect_ratio_ids)
         embeddings = embeddings.reshape(-1, self.max_num_tiles, 1, self.hidden_size)
 
@@ -482,6 +491,7 @@ class ImageTransformerLayer(TransformerLayer):
         inference_params=None,
         packed_seq_params=None,
     ):
+        """Forward."""
         # hidden_states: [s, b, h]
 
         # Residual connection.
@@ -625,7 +635,7 @@ class VisionEncoder(MegatronModule):
         self.gated_positional_embedding_gate = nn.Parameter(torch.zeros(1))
 
     def apply_positional_embedding(self, x, aspect_ratio_ids):
-        # apply regular position embedding
+        """Apply regular position embedding and tile positonal embedding."""
         bsz, num_chunks, num_tokens, dim = x.shape
         x = x.view(bsz * num_chunks, num_tokens, dim)
         x = x + self.positional_embedding * (1 - self.gated_positional_embedding_gate.tanh())
@@ -636,6 +646,7 @@ class VisionEncoder(MegatronModule):
         return x
 
     def apply_class_embedding(self, x):
+        """Concat class embedding tokens."""
         x = torch.cat(
             [
                 self.class_embedding.to(x.dtype)
@@ -647,6 +658,7 @@ class VisionEncoder(MegatronModule):
         return x
 
     def forward(self, images: torch.Tensor, ar_ids: torch.Tensor) -> torch.Tensor:
+        """Forward."""
         if images.ndim == 5:
             num_concurrent_media = 1
             bsz, num_chunks, nch, w, h = images.shape
