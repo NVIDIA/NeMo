@@ -172,7 +172,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             soft_targets=config.soft_targets if 'soft_targets' in config else False,
         )
         logging.info(
-            f"AAB: Dataloader dataset is created, starting torch.utils.data.Dataloader" 
+            f"AAB: Dataloader dataset is created, starting torch.utils.data.Dataloader"
             f"step B: {time.time() - time_flag}"
         )
 

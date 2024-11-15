@@ -28,7 +28,7 @@ def find_first_nonzero(mat: torch.Tensor, max_cap_val=-1, thres: float = 0.5) ->
         thres (float): The threshold value for discretizing the matrix values.
 
     Returns:
-        mask_max_indices (Tensor): A torch tensor representing the discretized matrix with the first 
+        mask_max_indices (Tensor): A torch tensor representing the discretized matrix with the first
         nonzero value in each row.
     """
     # Discretize the matrix to the specified maximum capacity
@@ -230,7 +230,7 @@ def get_mask_from_segments(
         speaker_to_idx_map (dict): A dictionary mapping speaker names to indices.
         num_speakers (int): max number of speakers for all cuts ("mask" dim0), 4 by default
         feat_per_sec (int): number of frames per second, 100 by default, 0.01s frame rate
-        ignore_num_spk_mismatch (bool): This is a temporary solution to handle speaker mismatch. 
+        ignore_num_spk_mismatch (bool): This is a temporary solution to handle speaker mismatch.
                                         Will be removed in the future.
 
     Returns:
@@ -318,27 +318,27 @@ def speaker_to_target(
     soft_thres: float = 0.5,
 ):
     """
-    Get rttm samples corresponding to one cut, generate speaker mask numpy.ndarray with shape 
+    Get rttm samples corresponding to one cut, generate speaker mask numpy.ndarray with shape
     (num_speaker, hidden_length). This function is needed for speaker diarization with ASR model trainings.
 
     Args:
-        a_cut (MonoCut, MixedCut): 
+        a_cut (MonoCut, MixedCut):
             Lhotse Cut instance which is MonoCut or MixedCut instance.
-        num_speakers (int): 
+        num_speakers (int):
             Max number of speakers for all cuts ("mask" dim0), 4 by default
-        num_sample_per_mel_frame (int): 
+        num_sample_per_mel_frame (int):
             Number of sample per mel frame, sample_rate / 1000 * window_stride, 160 by default (10ms window stride)
-        num_mel_frame_per_asr_frame (int): 
+        num_mel_frame_per_asr_frame (int):
             Encoder subsampling_factor, 8 by default
-        spk_tar_all_zero (Tensor): 
+        spk_tar_all_zero (Tensor):
             Set to True gives all zero "mask"
-        boundary_segments (bool): 
-            Set to True to include segments containing the boundary of the cut, 
+        boundary_segments (bool):
+            Set to True to include segments containing the boundary of the cut,
             False by default for multi-speaker ASR training
-        soft_label (bool): 
-            Set to True to use soft label that enables values in [0, 1] range, 
+        soft_label (bool):
+            Set to True to use soft label that enables values in [0, 1] range,
             False by default and leads to binary labels.
-        ignore_num_spk_mismatch (bool): 
+        ignore_num_spk_mismatch (bool):
             This is a temporary solution to handle speaker mismatch. Will be removed in the future.
 
     Returns:

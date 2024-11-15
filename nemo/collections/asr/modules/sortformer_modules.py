@@ -43,10 +43,10 @@ class SortformerModules(NeuralModule, Exportable):
         fc_d_model: int = 512,
         tf_d_model: int = 192,
     ):
-        """ 
+        """
         Args:
             num_spks (int):
-                Max number of speakers that are processed by the model. 
+                Max number of speakers that are processed by the model.
             hidden_size (int):
                 Number of hidden units in sequence models and intermediate layers.
             dropout_rate (float):
@@ -54,7 +54,7 @@ class SortformerModules(NeuralModule, Exportable):
             fc_d_model (int):
                 Dimension of the embedding vectors.
             tf_d_model (int):
-                Dimension of the embedding vectors. 
+                Dimension of the embedding vectors.
         """
         super().__init__()
         self.fc_d_model = fc_d_model
@@ -93,7 +93,7 @@ class SortformerModules(NeuralModule, Exportable):
     def forward_speaker_sigmoids(self, hidden_out):
         """
         A set of layers for predicting speaker probabilities with a sigmoid activation function.
-        
+
         Args:
             hidden_out (torch.Tensor): tensor of shape (batch_size, seq_len, hidden_size)
 
