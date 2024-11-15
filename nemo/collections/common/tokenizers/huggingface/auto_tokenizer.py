@@ -100,6 +100,13 @@ class AutoTokenizer(TokenizerSpec):
                 trust_remote_code=trust_remote_code,
             )
         elif merges_file is None:
+
+            # DEBUGGING
+            print("pretrained_model_name: ", pretrained_model_name)
+            print("vocab_file: ", vocab_file)
+            print("use_fast: ", use_fast)
+            print("trust_remote_code: ", trust_remote_code)
+
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
                 pretrained_model_name_or_path=pretrained_model_name,
                 vocab_file=vocab_file,
