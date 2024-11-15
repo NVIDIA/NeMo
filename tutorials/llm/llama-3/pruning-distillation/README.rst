@@ -37,10 +37,10 @@ Requirements
 
 ``NOTE:`` The default configuration in the notebook runs on 8 x 80GB NVIDIA GPUs. However, you can potentially reduce the Tensor Parallel size ``(TENSOR_PARALLEL_SIZE)`` along with the Micro-Batchsize ``(MICRO_BATCH_SIZE)`` in the teacher fine-tuning and distillation scripts to accommodate lower resource availability.
 
-Create a pruned and distilled model with NeMo Framework
+Create a Pruned and Distilled Model with NeMo Framework
 ------------------------------------------------------------------------------
 
-For pruning and distilling the model, you will use the NeMo Framework which is available as a `docker container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`_.
+For pruning and distilling the model, you will use the NeMo Framework, which is available as a `Docker container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`_.
 
 ``NOTE:`` These notebooks use the `NVIDIA TensorRT Model Optimizer <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_ under the hood for pruning and distillation.
 

@@ -2,7 +2,7 @@
 Getting Started with Llama 3 and Llama 3.1
 ==========================================
 
-This repository contains Jupyter Notebook tutorials using the NeMo Framework for LLama-3 and LLama-3.1 models by Meta.
+This repository contains Jupyter Notebook tutorials using the NeMo Framework for Llama-3 and Llama-3.1 models by Meta.
 
 .. list-table:: 
    :widths: 100 25 100
