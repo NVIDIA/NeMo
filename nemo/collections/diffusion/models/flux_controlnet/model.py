@@ -208,6 +208,26 @@ class FluxControlNet(VisionModule):
 
         return controlnet_double_block_samples, controlnet_single_block_samples
 
+
+class FluxControlnetForwardWrapper(VisionModule):
+    def __init__(self, flux_config: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
+        super().__init__(flux_config)
+
+        self.flux = self.config.configure_model()
+        for param in self.flux.parameters():
+            param.requires_grad = False
+
+        self.flux_controlnet = FluxControlNet(flux_controlnet_config)
+        if flux_controlnet_config.load_from_flux_transformer:
+            self.flux_controlnet.load_from_flux_transformer(self.flux)
+        if flux_controlnet_config.num_single_layers == 0:
+            ## when there is no single layer, encoder_hidden_states related params are not included in computation graph
+            for name, param in self.module.named_parameters():
+                if 'context' in name or 'added' in name:
+                    param.requires_grad = False
+
+
+
 class MegatronFluxControlNetModel(MegatronFluxModel):
     def __init__(self, flux_config: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
         super().__init__(flux_config)
@@ -218,29 +238,21 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
 
     def configure_model(self):
         if not hasattr(self, "module"):
-            self.flux = self.config.configure_model()
-            self.__autocast_flux()
-            for param in self.flux.parameters():
-                param.requires_grad = False
-            self.module = FluxControlNet(self.flux_controlnet_config)
-            if self.flux_controlnet_config.load_from_flux_transformer:
-                self.module.load_from_flux_transformer(self.flux)
-            if self.flux_controlnet_config.num_single_layers == 0:
-                ## when there is no single layer, encoder_hidden_states related params are not included in computation graph
-                for name, param in self.module.named_parameters():
-                    if 'context' in name or 'added' in name:
-                        param.requires_grad = False
+            self.module = FluxControlnetForwardWrapper(self.config, self.flux_controlnet_config)
 
-        self.configure_vae(self.vae_params)
-        self.configure_scheduler(self.scheduler_params)
-        self.configure_text_encoders(self.clip_params, self.t5_params)
+            self.configure_vae(self.vae_params)
+            self.configure_scheduler(self.scheduler_params)
+            self.configure_text_encoders(self.clip_params, self.t5_params)
+
+
 
 
     def data_step(self, dataloader_iter):
         return self.flux_controlnet_config.data_step_fn(dataloader_iter)
 
     def forward(self, *args, **kwargs):
-        return self.module(*args, **kwargs)
+        # FSDP module -> Bfloat16 module -> ForwardWrapper -> flux controlnet
+        return self.module.module.module.flux_controlnet(*args, **kwargs)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
@@ -251,16 +263,14 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
 
         return self.forward_step(batch)
 
-    def __autocast_flux(self):
+
+    def forward_step(self, batch) -> torch.Tensor:
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
         elif self.optim.config.fp16:
             self.autocast_dtype = torch.float
         else:
             self.autocast_dtype = torch.float32
-        self.flux.to(self.autocast_dtype)
-
-    def forward_step(self, batch) -> torch.Tensor:
         with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16),
                 dtype=self.autocast_dtype,
@@ -303,7 +313,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 txt_ids=text_ids,
                 guidance=guidance_vec,
             )
-            noise_pred = self.flux(
+            noise_pred = self.module.module.module.flux(
                 img=packed_noisy_model_input,
                 txt=prompt_embeds,
                 y=pooled_prompt_embeds,

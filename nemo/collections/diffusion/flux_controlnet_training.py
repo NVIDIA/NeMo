@@ -126,7 +126,7 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=1000,
+        val_check_interval=0,
         limit_val_batches=0,
         log_every_n_steps=1,
         num_sanity_val_steps=0,

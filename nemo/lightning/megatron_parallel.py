@@ -605,18 +605,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
-            ### This is a hacky way to wrap the frozen flux into FSDP, just for reproducing the issue with illegal memory when two FSDP module exists
-
-            flux = model_chunk.flux
-            fsdp_flux = FullyShardedDataParallel(
-                flux.config,
-                self.ddp_config,
-                flux,
-                disable_bucketing=disable_bucketing,
-            )
-            model_chunk.buffers = fsdp_flux.buffers
-            model_chunk.flux = fsdp_flux
-
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
         no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
         for module in self:
