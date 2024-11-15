@@ -227,7 +227,7 @@ jobs:
         with:
           files: |
             **.py
-          files_ignore: 'nemo/experimental/**.py'
+          files_ignore: 'nemo/experimental/**.py,tests/experimental/**.py'
 
       - name: Setup Python env
         uses: actions/setup-python@v5
