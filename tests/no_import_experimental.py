@@ -28,7 +28,7 @@ class ForbiddenImportChecker(BaseChecker):
         super().__init__(linter)
         logger.debug("ForbiddenImportChecker initialized")  # Initialization check
 
-   def visit_import(self, node):
+    def visit_import(self, node):
         """Check for forbidden imports using the 'import' statement."""
 
         for name, _ in node.names:
