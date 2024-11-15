@@ -17,19 +17,16 @@ Test fault tolerance with LLaMA3 recipe and a smaller model.
 """
 
 import argparse
-import os
-from datetime import datetime, timedelta
 
 import nemo_run as run
-import torch
 
 from pytorch_lightning.callbacks import Callback
 
 from nemo.collections import llm
-from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
+from nemo.collections.llm.recipes.callbacks.common import straggler_det_callback
 from nemo.lightning.run.plugins import FaultTolerancePlugin
 from nemo.utils.exp_manager import TimingCallback
-from tests.collections.llm.common import create_verify_precision, small_llama_cfg, train_data, verify_ckpt_dir
+from tests.collections.llm.common import small_llama_cfg, train_data
 
 
 class CrashCallback(Callback):
