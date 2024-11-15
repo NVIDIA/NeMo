@@ -48,69 +48,29 @@ jobs:
         id: all
         run: |
           echo "main=${{ contains(fromJSON(steps.test_to_run.outputs.main), 'all') }}" | tee -a "$GITHUB_OUTPUT" 
-
-  gpu-test:
-    needs: [pre-flight]
-    runs-on: self-hosted-azure
-    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
-    steps:
-    - name: Run nvidia-smi test
-      run: |
-        whoami
-        nvidia-smi
   
-
-  cicd-cluster-clean:
-    runs-on: self-hosted-azure-builder
-    needs: [pre-flight]
+  cicd-test-container-build:
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
-    steps:
-    - name: Clean server from old files
-      run: |
-        docker system prune --filter "until=24h" --filter "label=nemo.library=nemo-core" --force
-        
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.1.0
+    with:
+      image-name: nemo_container
+      dockerfile: Dockerfile.ci
+      image-label: nemo-core
+      build-args: |
+        IMAGE_LABEL=nemo-core
+      prune-filter-timerange: 24h
+      
   cicd-test-container-setup:
-    needs: [cicd-cluster-clean, pre-flight]
+    needs: [cicd-test-container-build, pre-flight]
     runs-on: self-hosted-azure-builder
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     outputs:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
       all: ${{ needs.pre-flight.outputs.all }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        path: ${{ github.run_id }}
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      with: 
-        # We use `docker` driver as this speeds things up for 
-        # trivial (non-multi-stage) builds.
-        driver: docker
-
-    - name: Restore cache
-      run: |
-        docker pull nemoci.azurecr.io/nemo_container:latest
-        docker pull nemoci.azurecr.io/nemo_container_${{ github.event.number || 'noop' }} || true
-
-    - name: Build and push
-      uses: docker/build-push-action@v5
-      with:
-        file: Dockerfile.ci
-        push: true
-        cache-from: |
-          nemoci.azurecr.io/nemo_container:latest
-          nemoci.azurecr.io/nemo_container_${{ github.event.number || 'noop' }}
-        cache-to: type=inline
-        tags: |
-          nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-          nemoci.azurecr.io/nemo_container_${{ github.event.number || 'noop' }}
-          nemoci.azurecr.io/nemo_container:latest
-
     - name: Run some checks
       run: |
-        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '\
+        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
           # PyTorch Lightning version
           python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
 
@@ -468,32 +428,32 @@ jobs:
 #           --model-type VITA \
 #           --conv-template llama_3
 
-#   # this test is using a 7B model which is too large for GitHub CI
-#   # replace the model in this test with a toy model or move the test
-#   # to the nightly CI
-#   # OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2:
-#   #   needs: [cicd-test-container-setup]
-#   #   runs-on: self-hosted-azure
-#   #   container:
-#   #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-#   #     options: 
-#   #       # --user 0:128
-#   #       --device=/dev/nvidia0
-#   #       --gpus all
-#   #       --shm-size=8g
-#   #       --env TRANSFORMERS_OFFLINE=0 
-#   #       --env HYDRA_FULL_ERROR=1
-#   #       --volume /mnt/datadrive/TestData:/home/TestData
-#   #   steps:
-#   #       - name: Checkout repository
-#   #         uses: actions/checkout@v4
-#   #       - run: |
-#   #           python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
-#   #           --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
-#   #           --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
-#   #           rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
-#   #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-#   #         if: "failure()"
+  # this test is using a 7B model which is too large for GitHub CI
+  # replace the model in this test with a toy model or move the test
+  # to the nightly CI
+  # OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2:
+  #   needs: [cicd-test-container-setup]
+  #   runs-on: self-hosted-azure
+  #   container:
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /mnt/datadrive/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v4
+  #       - run: |
+  #           python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
+  #           --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
+  #           --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
+  #           rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
+  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+  #         if: "failure()"
 
 #   L2_PTQ_Llama2_FP8:
 #     needs: [cicd-test-container-setup]
@@ -522,40 +482,40 @@ jobs:
 #       AFTER_SCRIPT: |
 #         rm -rf /tmp/nlp_megatron_llama_eo/ci_fp8.qnemo
 
-#   # OPTIONAL_L2_QAT_Llama2_INT4:
-#   #    needs: [cicd-test-container-setup]
-#   #    runs-on: self-hosted-azure
-#   #    timeout-minutes: 10
-#   #    container:
-#   #      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-#   #      options:
-#   #        # --user 0:128
-#   #        --device=/dev/nvidia0
-#   #        --gpus all
-#   #        --shm-size=8g
-#   #        --env TRANSFORMERS_OFFLINE=0
-#   #        --env HYDRA_FULL_ERROR=1
-#   #        --volume /mnt/datadrive/TestData:/home/TestData
-#   #    steps:
-#   #        - name: Checkout repository
-#   #          uses: actions/checkout@v4
-#   #        - run: |
-#   #           python examples/nlp/language_modeling/tuning/megatron_gpt_qat.py \
-#   #           quantization.algorithm=int4 \
-#   #           quantization.num_calib_size=8 \
-#   #           trainer.devices=1 \
-#   #           trainer.num_nodes=1 \
-#   #           trainer.max_steps=4 \
-#   #           trainer.val_check_interval=4 \
-#   #           +trainer.limit_val_batches=2 \
-#   #           exp_manager.explicit_log_dir=llama2_qat_results \
-#   #           model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-#   #           model.tensor_model_parallel_size=1 \
-#   #           model.pipeline_model_parallel_size=1 \
-#   #           model.global_batch_size=2 \
-#   #           model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-#   #           model.data.train_ds.concat_sampling_probabilities=[1.0] \
-#   #           model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl]
+  # OPTIONAL_L2_QAT_Llama2_INT4:
+  #    needs: [cicd-test-container-setup]
+  #    runs-on: self-hosted-azure
+  #    timeout-minutes: 10
+  #    container:
+  #      image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+  #      options:
+  #        # --user 0:128
+  #        --device=/dev/nvidia0
+  #        --gpus all
+  #        --shm-size=8g
+  #        --env TRANSFORMERS_OFFLINE=0
+  #        --env HYDRA_FULL_ERROR=1
+  #        --volume /mnt/datadrive/TestData:/home/TestData
+  #    steps:
+  #        - name: Checkout repository
+  #          uses: actions/checkout@v4
+  #        - run: |
+  #           python examples/nlp/language_modeling/tuning/megatron_gpt_qat.py \
+  #           quantization.algorithm=int4 \
+  #           quantization.num_calib_size=8 \
+  #           trainer.devices=1 \
+  #           trainer.num_nodes=1 \
+  #           trainer.max_steps=4 \
+  #           trainer.val_check_interval=4 \
+  #           +trainer.limit_val_batches=2 \
+  #           exp_manager.explicit_log_dir=llama2_qat_results \
+  #           model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+  #           model.tensor_model_parallel_size=1 \
+  #           model.pipeline_model_parallel_size=1 \
+  #           model.global_batch_size=2 \
+  #           model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+  #           model.data.train_ds.concat_sampling_probabilities=[1.0] \
+  #           model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl]
 
 #   #           rm -rf llama2_qat_results
 
@@ -3495,36 +3455,73 @@ jobs:
   # # L2: Megatron Mock Data Generation                
   # L2_Megatron_Mock_Data_Generation_MockGPTDataset:
   #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_Mock_Data_Generation_MockGPTDataset') || needs.cicd-test-container-setup.outputs.all == 'true'
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-  #           trainer.max_steps=10 \
-  #           trainer.limit_val_batches=7 \
-  #           trainer.val_check_interval=10 \
-  #           exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-  #           model.mcore_gpt=True \
-  #           model.data.data_impl=mock \
-  #           model.data.data_prefix=[]
+  #   runs-on: self-hosted-azure
+  #   timeout-minutes: 10
+  #   container:
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /mnt/datadrive/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v4
+  #       - run: |
+  #           python examples/tts/radtts.py \
+  #           train_dataset=/home/TestData/an4_dataset/an4_train.json \
+  #           validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+  #           sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
+  #           trainer.devices="[0]" \
+  #           +trainer.limit_train_batches=1 \
+  #           +trainer.limit_val_batches=1 \
+  #           trainer.max_epochs=1 \
+  #           trainer.strategy=auto \
+  #           model.pitch_mean=212.35873413085938 \
+  #           model.pitch_std=68.52806091308594 \
+  #           model.train_ds.dataloader_params.batch_size=4 \
+  #           model.train_ds.dataloader_params.num_workers=0 \
+  #           model.validation_ds.dataloader_params.batch_size=4 \
+  #           model.validation_ds.dataloader_params.num_workers=0 \
+  #           export_dir=/home/TestData/radtts_test \
+  #           model.optim.lr=0.0001 \
+  #           model.modelConfig.decoder_use_partial_padding=True \
+  #           ~trainer.check_val_every_n_epoch \
+  #           ~model.text_normalizer \
+  #           ~model.text_normalizer_call_kwargs
+  #       #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+  #       #  if: "failure()"
 
   # L2_Megatron_Mock_Data_Generation_MockT5Dataset:
   #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_Mock_Data_Generation_MockT5Dataset') || needs.cicd-test-container-setup.outputs.all == 'true'
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-  #       trainer.max_steps=10 \
-  #       trainer.limit_val_batches=3 \
-  #       trainer.val_check_interval=10 \
-  #       exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-  #       model.data.data_impl=mock \
-  #       model.data.data_prefix=[]
-  #     AFTER_SCRIPT: |
-  #       rm -rf examples/nlp/language_modeling/t5_pretrain_results
+  #   runs-on: self-hosted-azure
+  #   container:
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g 
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /mnt/datadrive/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v4
+  #       - run: |
+  #           python examples/multimodal/text_to_image/nerf/main.py \
+  #           trainer.num_nodes=1 \
+  #           trainer.devices="[0]" \
+  #           trainer.max_steps=1000 \
+  #           model.prompt="a DSLR photo of a delicious hamburger" \
+  #           exp_manager.exp_dir=examples/multimodal/text_to_image/nerf/dreamfusion_results
+  #
+  #           rm -rf examples/multimodal/text_to_image/nerf/dreamfusion_results
+  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+  #         if: "failure()"
 
   # # L2: TTS Fast dev runs 1
   # L2_TTS_Fast_dev_runs_1_Tacotron_2:
@@ -4368,7 +4365,6 @@ jobs:
   Nemo_CICD_Test:
     needs: 
       - pre-flight
-      - gpu-test
       - cicd-test-container-setup
 
       # - L0_Unit_Tests_GPU_ASR
