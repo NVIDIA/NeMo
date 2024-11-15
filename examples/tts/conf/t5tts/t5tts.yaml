@@ -60,7 +60,6 @@ model:
     dataloader_params:
       batch_size: ${batch_size}
       num_workers: 4
-      shuffle: true
 
   validation_ds:
     dataset:

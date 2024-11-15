@@ -324,8 +324,8 @@ class T5TTS_Model(ModelPT):
         pred_audio, pred_audio_lens = self.codes_to_audio(pred_audio_codes, audio_codes_lens_target)
         target_audio, target_audio_lens = self.codes_to_audio(target_audio_codes, audio_codes_lens_target)
         for idx in range(min(3, pred_audio.size(0))):
-            pred_audio_np = pred_audio[idx].detach().cpu().numpy()
-            target_audio_np = target_audio[idx].detach().cpu().numpy()
+            pred_audio_np = pred_audio[idx].float().detach().cpu().numpy()
+            target_audio_np = target_audio[idx].float().detach().cpu().numpy()
             pred_audio_np = pred_audio_np[:pred_audio_lens[idx]]
             target_audio_np = target_audio_np[:target_audio_lens[idx]]
             self.tb_logger.add_audio(
@@ -515,7 +515,7 @@ class T5TTS_Model(ModelPT):
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
             for idx in range(predicted_audio.size(0)):
-                predicted_audio_np = predicted_audio[idx].detach().cpu().numpy()
+                predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
                 item_idx = batch_idx * test_dl_batch_size + idx
                 self.tb_logger.add_audio(
