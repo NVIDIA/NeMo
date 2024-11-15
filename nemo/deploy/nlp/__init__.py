@@ -21,6 +21,6 @@ except Exception:
 
 use_megatron_llm = True
 try:
-    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
+    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy, MegatronLLMDeployable
 except Exception:
     use_megatron_llm = False
