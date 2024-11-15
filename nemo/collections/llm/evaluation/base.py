@@ -86,9 +86,10 @@ class NeMoFWLMEval(LM):
         loglikelihood) and other relevant args like few shot samples.
         """
         special_tokens_kwargs = {}
-        if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
+        tokenizer_type = self.tokenizer_type(self.tokenizer)
+        if tokenizer_type == "SentencePieceTokenizer":
             special_tokens_kwargs['add_bos'] = self.add_bos
-        elif self.tokenizer_type(self.tokenizer) == "AutoTokenizer":
+        elif tokenizer_type == "AutoTokenizer":
             special_tokens_kwargs['add_special_tokens'] = self.add_bos
 
         results = []
