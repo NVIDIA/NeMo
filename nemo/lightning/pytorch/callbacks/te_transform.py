@@ -17,7 +17,7 @@ from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.pytorch.accelerate import TEAccelerator
+from nemo.lightning.pytorch.accelerate.transformer_engine import accelerate, apply_fp8_autocast
 
 
 def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
@@ -46,6 +46,6 @@ class TETransform(Callback, IOMixin):
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
 
-        TEAccelerator.accelerate(model)
+        accelerate(model)
         if self.fp8_autocast:
-            TEAccelerator.apply_fp8_autocast(model)
+            apply_fp8_autocast(model)

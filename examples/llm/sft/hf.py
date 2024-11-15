@@ -19,8 +19,9 @@ from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.accelerate import TEAccelerator
-from nemo.lightning.pytorch.callbacks import TETransform
+from nemo.collections.nlp.modules.common.megatron.transformer import fp8_autocast
+from nemo.lightning.pytorch.accelerate.transformer_engine import accelerate, te_accelerated
+from nemo.lightning.pytorch.callbacks import ModelCallback
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
@@ -81,10 +82,11 @@ if __name__ == '__main__':
     callbacks = []
     if args.model_accelerator:
         if args.model_accelerator == "te":
-            if args.devices > 1:
+            if int(args.devices) > 1:
                 raise Exception("Only devices = 1 when transformer engine accelerator is used.")
             else:
-                callbacks.append(TETransform(fp8_autocast=args.fp8_autocast))
+                model_transform = ModelCallback(on_train_start=lambda model: accelerate(model, fp8_autocast=args.fp8_autocast))
+                callbacks.append(model_transform)
 
     llm.api.finetune(
         model=model,
@@ -109,7 +111,7 @@ if __name__ == '__main__':
 
     if args.model_accelerator:
         if args.model_accelerator == "te":
-            print("TE Accelerated: ", TEAccelerator.te_accelerated(model.model))
+            print("TE Accelerated: ", te_accelerated(model.model))
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)

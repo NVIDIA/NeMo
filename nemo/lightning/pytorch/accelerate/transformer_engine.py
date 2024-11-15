@@ -18,87 +18,84 @@ import torch
 from transformer_engine import pytorch as te
 
 
-class TEAccelerator:
+def accelerate(model, fp8_autocast=False):
+    _accelerate(model)
+    if fp8_autocast:
+        apply_fp8_autocast(model)
 
-    @staticmethod
-    def accelerate(model):
-        TEAccelerator._accelerate(model)
 
-    @staticmethod
-    def _accelerate(model):
-        for name, module in model.named_children():
-            if isinstance(module, torch.nn.Linear):
-                has_bias = module.bias is not None
-                if any(p % 16 != 0 for p in module.weight.shape):
-                    print("continuing")
-                    continue
-                te_module = te.Linear(
-                    module.in_features, module.out_features, bias=has_bias, params_dtype=module.weight.dtype
-                )
-                with torch.no_grad():
-                    te_module.weight.copy_(module.weight)
-                    if has_bias:
-                        te_module.bias.copy_(module.bias)
-
-                setattr(model, name, te_module)
-            elif isinstance(module, torch.nn.LayerNorm):
-                te_module = te.LayerNorm(module.normalized_shape[0], eps=module.eps, params_dtype=module.weight.dtype)
+def _accelerate(model):
+    for name, module in model.named_children():
+        if isinstance(module, torch.nn.Linear):
+            has_bias = module.bias is not None
+            if any(p % 16 != 0 for p in module.weight.shape):
+                print("continuing")
+                continue
+            te_module = te.Linear(
+                module.in_features, module.out_features, bias=has_bias, params_dtype=module.weight.dtype
+            )
+            with torch.no_grad():
                 te_module.weight.copy_(module.weight)
-                te_module.bias.copy_(module.bias)
-                setattr(model, name, te_module)
-            elif isinstance(module, torch.nn.RMSNorm):
-                te_module = te.RMSNorm(module.normalized_shape[0], eps=module.eps, dtype=module.weight.dtype)
-                te_module.weight.copy_(module.weight)
-                te_module.bias.copy_(module.bias)
-                setattr(model, name, te_module)
-            else:
-                if len(list(module.children())) > 0:
-                    TEAccelerator._accelerate(module)
+                if has_bias:
+                    te_module.bias.copy_(module.bias)
 
-        # return model
-
-    @staticmethod
-    def te_accelerated(model):
-        return TEAccelerator._te_accelerated(model)
-
-    @staticmethod
-    def _te_accelerated(model):
-        for name, module in model.named_children():
-            if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
-                return True
-            else:
-                if TEAccelerator._te_accelerated(module):
-                    return True
-
-        return False
-
-    @staticmethod
-    def contextual_fp8_autocast(model_forward, fp8_recipe, use_during_eval=False):
-        from transformer_engine.pytorch import fp8_autocast
-
-        def forward(self, *args, **kwargs):
-            enabled = use_during_eval or self.training
-            with fp8_autocast(enabled=enabled, fp8_recipe=fp8_recipe):
-                return model_forward(*args, **kwargs)
-
-        forward.__wrapped__ = model_forward
-
-        return forward
-
-    @staticmethod
-    def apply_fp8_autocast(model, fp8_recipe_handler=None):
-        import transformer_engine.common.recipe as te_recipe
-
-        kwargs = fp8_recipe_handler.to_kwargs() if fp8_recipe_handler is not None else {}
-        if "fp8_format" in kwargs:
-            kwargs["fp8_format"] = getattr(te_recipe.Format, kwargs["fp8_format"])
-        use_during_eval = kwargs.pop("use_autocast_during_eval", False)
-        fp8_recipe = te_recipe.DelayedScaling(**kwargs)
-        new_forward = TEAccelerator.contextual_fp8_autocast(model.forward, fp8_recipe, use_during_eval)
-
-        if hasattr(model.forward, "__func__"):
-            model.forward = MethodType(new_forward, model)
+            setattr(model, name, te_module)
+        elif isinstance(module, torch.nn.LayerNorm):
+            te_module = te.LayerNorm(module.normalized_shape[0], eps=module.eps, params_dtype=module.weight.dtype)
+            te_module.weight.copy_(module.weight)
+            te_module.bias.copy_(module.bias)
+            setattr(model, name, te_module)
+        elif isinstance(module, torch.nn.RMSNorm):
+            te_module = te.RMSNorm(module.normalized_shape[0], eps=module.eps, dtype=module.weight.dtype)
+            te_module.weight.copy_(module.weight)
+            te_module.bias.copy_(module.bias)
+            setattr(model, name, te_module)
         else:
-            model.forward = new_forward
+            if len(list(module.children())) > 0:
+                _accelerate(module)
 
-        return model
+
+def te_accelerated(model):
+    return _te_accelerated(model)
+
+
+def _te_accelerated(model):
+    for name, module in model.named_children():
+        if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
+            return True
+        else:
+            if _te_accelerated(module):
+                return True
+
+    return False
+
+
+def apply_fp8_autocast(model, fp8_recipe_handler=None):
+    import transformer_engine.common.recipe as te_recipe
+
+    kwargs = fp8_recipe_handler.to_kwargs() if fp8_recipe_handler is not None else {}
+    if "fp8_format" in kwargs:
+        kwargs["fp8_format"] = getattr(te_recipe.Format, kwargs["fp8_format"])
+    use_during_eval = kwargs.pop("use_autocast_during_eval", False)
+    fp8_recipe = te_recipe.DelayedScaling(**kwargs)
+    new_forward = _contextual_fp8_autocast(model.forward, fp8_recipe, use_during_eval)
+
+    if hasattr(model.forward, "__func__"):
+        model.forward = MethodType(new_forward, model)
+    else:
+        model.forward = new_forward
+
+    return model
+
+
+def _contextual_fp8_autocast(model_forward, fp8_recipe, use_during_eval=False):
+    from transformer_engine.pytorch import fp8_autocast
+
+    def forward(self, *args, **kwargs):
+        enabled = use_during_eval or self.training
+        with fp8_autocast(enabled=enabled, fp8_recipe=fp8_recipe):
+            return model_forward(*args, **kwargs)
+
+    forward.__wrapped__ = model_forward
+
+    return forward
