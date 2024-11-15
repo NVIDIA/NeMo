@@ -339,7 +339,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         case BlankLMScoreMode.BLANK_LM_BEST_MIN:
                             blank_lm_scores = lm_only_scores.min(dim=-1, keepdim=False).values
                         case BlankLMScoreMode.BLANK_LM_BEST_MEAN:
-                            blank_lm_scores = lm_only_scores.mean(dim=-1, keepdim=False).values
+                            blank_lm_scores = lm_only_scores.mean(dim=-1, keepdim=False)
                         case BlankLMScoreMode.BLANK_LM_BEST_BEST:
                             blank_lm_scores = lm_only_scores[..., 0]
                         case BlankLMScoreMode.BLANK_LM_BEST_WORST:
