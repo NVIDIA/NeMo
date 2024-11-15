@@ -112,8 +112,8 @@ class LoRA(PEFT):
         target_modules (List[str], optional): A list of module names to apply LoRA to.
             Defaults to all linear layers ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'].
                 - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
-                                in self-attention modules.
-                - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention modules.
+                                in self-attention.
+                - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention.
                 - 'linear_fc1': Apply LoRA to the first fully-connected layer in MLP.
                 - 'linear_fc2': Apply LoRA to the second fully-connected layer in MLP.
             Target modules can also contain wildcards. For example, you can specify

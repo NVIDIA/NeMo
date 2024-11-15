@@ -161,6 +161,13 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy._setup_optimizers = False
 
     def apply_transform(self, trainer):
+        """
+        This function does the following:
+        1. Apply PEFT model transform.
+        2. Set up model parallel and optimizer, which were skipped in setup
+        3. Load weights and optimizer state dict
+        4. Set up `finalize_model_grads` from mcore.
+        """
         super().apply_transform(trainer)
         self.trainable_params = set(
             name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
@@ -206,6 +213,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
             )
 
     def adapter_key_filter(self, key: str) -> bool:
+        """
+        Given a key in the state dict, return whether the key is an adapter (or base model).
+        This function can be subclassed in each PEFT method class.
+        """
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
 
 
@@ -353,6 +364,36 @@ class AdapterWrapper(nn.Module):
 
 
 class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
+    """
+    A wrapper class for checkpoint I/O operations, specifically designed for PEFT (Parameter-Efficient Fine-Tuning).
+
+    This class handles the complexities of saving and loading checkpoints for both initial PEFT training and resuming
+    PEFT training. It ensures that only the necessary adapter weights are saved and loaded, while also preserving the
+    base model weights.
+
+    **Usage:**
+
+    1. **Initial PEFT Training:**
+       - The class handles the saving of only adapter weights.
+       - Metadata about the base model checkpoint is stored for future reference.
+
+    2. **PEFT Resume:**
+       - The class loads both base model and adapter weights.
+       - The previously stored metadata is used to locate the correct base model checkpoint.
+
+    **Attributes:**
+
+    - `peft`: The PEFT instance associated with the wrapped checkpoint I/O.
+    - `model_ckpt_path`: The path to the base model checkpoint.
+    - `adapter_ckpt_path`: The path to the adapter checkpoint.
+    Note that the paths are set by save/load functions and users do not need to set them.
+
+    **Methods:**
+
+    - `save_checkpoint`: Saves the adapter weights and metadata to the specified path.
+    - `load_checkpoint`: Loads the base model and adapter weights based on the specified path and metadata.
+    """
+
     peft: Optional[PEFT] = None
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
