@@ -263,7 +263,7 @@ class PerfEnvPlugin(run.Plugin):
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
         "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
-        
+
         import shlex
 
         vboost_cmd = " ".join(
