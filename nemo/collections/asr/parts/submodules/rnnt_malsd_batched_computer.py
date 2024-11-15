@@ -165,7 +165,6 @@ class BlankLMScoreMode(PrettyStrEnum):
     PRESERVE_BLANK = "preserve_blank"
     BLANK_LM_BEST_MAX = "blank_lm_best_max"
     BLANK_LM_BEST_MIN = "blank_lm_best_min"
-    BLANK_LM_BEST_MEAN = "blank_lm_best_mean"
     BLANK_LM_BEST_BEST = "blank_lm_best_best"
     BLANK_LM_BEST_WORST = "blank_lm_best_worst"
 
@@ -318,7 +317,6 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 elif self.blank_lm_score_mode in {
                     BlankLMScoreMode.BLANK_LM_BEST_MAX,
                     BlankLMScoreMode.BLANK_LM_BEST_MIN,
-                    BlankLMScoreMode.BLANK_LM_BEST_MEAN,
                     BlankLMScoreMode.BLANK_LM_BEST_BEST,
                     BlankLMScoreMode.BLANK_LM_BEST_WORST,
                 }:
@@ -338,8 +336,6 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                             blank_lm_scores = lm_only_scores.max(dim=-1, keepdim=False).values
                         case BlankLMScoreMode.BLANK_LM_BEST_MIN:
                             blank_lm_scores = lm_only_scores.min(dim=-1, keepdim=False).values
-                        case BlankLMScoreMode.BLANK_LM_BEST_MEAN:
-                            blank_lm_scores = lm_only_scores.mean(dim=-1, keepdim=False)
                         case BlankLMScoreMode.BLANK_LM_BEST_BEST:
                             blank_lm_scores = lm_only_scores[..., 0]
                         case BlankLMScoreMode.BLANK_LM_BEST_WORST:
