@@ -134,8 +134,8 @@ class _MockT5Dataset(Dataset):
         # self.mask_encoder_decoder = self.mask_encoder_decoder < 0.5
 
         # update for T5 now use FlashFused attention (b11s)
-        self.mask_encoder = torch.ones(self.seq_length), device='cpu')
-        self.mask_decoder = torch.ones(self.seq_length_dec), device='cpu'))
+        self.mask_encoder = torch.ones(self.seq_length, device='cpu')
+        self.mask_decoder = torch.ones(self.seq_length_dec, device='cpu'))
         self.loss_mask = torch.ones(self.seq_length_dec, dtype=torch.float)
 
     def __len__(self) -> int:
