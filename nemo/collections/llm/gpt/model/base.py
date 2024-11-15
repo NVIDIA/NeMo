@@ -181,7 +181,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
         vp_size = self.virtual_pipeline_model_parallel_size
-        if vp_size:
+        use_asymmetric_pipeline = getattr(self, 'standalone_embedding_stage', False) or getattr(self, 'standalone_loss_stage', False)
+        if vp_size and not use_asymmetric_pipeline:
             p_size = self.pipeline_model_parallel_size
             assert (
                 self.num_layers // p_size

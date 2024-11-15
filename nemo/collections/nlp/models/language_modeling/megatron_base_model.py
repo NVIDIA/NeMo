@@ -181,9 +181,10 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 vp_size = None
             else:
-                assert (
-                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+                if not(self.cfg.get('standalone_embedding_stage', False) and self.cfg.get('standalone_loss_stage', False)):
+                    assert (
+                        self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                    ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,
@@ -536,6 +537,9 @@ class MegatronBaseModel(NLPModel):
 
         tp_only_amax_red = self.cfg.get('tp_only_amax_red', False)
 
+        standalone_embedding_stage = self.cfg.get('standalone_embedding_stage', False)
+        standalone_loss_stage = self.cfg.get('standalone_loss_stage', False)
+
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
@@ -560,6 +564,8 @@ class MegatronBaseModel(NLPModel):
             'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
             'tp_only_amax_red': tp_only_amax_red,
+            'standalone_embedding_stage': standalone_embedding_stage,
+            'standalone_loss_stage': standalone_loss_stage,
         }
 
         # populate the transformer config dict
@@ -998,9 +1004,10 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 self.cfg['virtual_pipeline_model_parallel_size'] = None
             else:
-                assert (
-                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+                if not(self.cfg.get('standalone_embedding_stage', False) and self.cfg.get('standalone_loss_stage', False)):
+                    assert (
+                        self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                    ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
             if not self.cfg.get('sequence_parallel', False):

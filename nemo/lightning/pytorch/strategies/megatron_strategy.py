@@ -99,6 +99,8 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
+    standalone_embedding_stage: bool = False
+    standalone_loss_stage: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -125,6 +127,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         expert_model_parallel_size (int): Distributes MoE Experts across sub data parallel dimension.
             Defaults to 1.
         moe_extended_tp (bool): Alternative parallelization strategy for expert parallelism. Defaults to False.
+        standalone_embedding_stage: TODO
+        standalone_loss_stage: TODO
         data_sampler (Optional['DataSampler']): Custom data sampler for distributed training. Defaults to None.
         parallel_devices (Optional[List[torch.device]]): List of devices to use for parallelism. Defaults to None.
         cluster_environment: Cluster environment for distributed training. Defaults to None.
@@ -185,6 +189,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         moe_extended_tp: bool = False,
         encoder_tensor_model_parallel_size: Optional[int] = 0,
         encoder_pipeline_model_parallel_size: Optional[int] = 0,
+        standalone_embedding_stage: bool = False,
+        standalone_loss_stage: bool = False,
         data_sampler: Optional["DataSampler"] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
@@ -235,6 +241,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.sequence_parallel = sequence_parallel
         self.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
         self.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
+        self.standalone_embedding_stage = standalone_embedding_stage
+        self.standalone_loss_stage = standalone_loss_stage
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
@@ -862,6 +870,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             moe_extended_tp=self.moe_extended_tp,
             encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
             encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
+            standalone_embedding_stage=self.standalone_embedding_stage,
+            standalone_loss_stage=self.standalone_loss_stage,
             pipeline_dtype=self.pipeline_dtype,
         )
 
