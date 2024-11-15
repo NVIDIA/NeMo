@@ -67,6 +67,8 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         dec_mask,
         enc_mask,
     )
+    # set dec_mask to None because decoder uses AttnMaskType.causal
+    dec_mask = None
     _batch['enc_mask'] = enc_mask
     _batch['dec_mask'] = dec_mask
     _batch['enc_dec_mask'] = enc_dec_mask
@@ -75,6 +77,8 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     for key in _batch.keys():
         if key == "enc_dec_mask": # because enc_dec_mask is a tuple
             _batch[key] = (_batch[key][0].cuda(non_blocking=True), _batch[key][1].cuda(non_blocking=True))
+        elif key == "dec_mask": # because dec_mask is a None since decoder uses AttnMaskType.causal
+            continue
         else:
             _batch[key] = _batch[key].cuda(non_blocking=True)
 
@@ -144,6 +148,7 @@ class T5Config(TransformerConfig, io.IOMixin):
     share_embeddings_and_output_weights: bool = True
     make_vocab_size_divisible_by: int = 128
     position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
+    apply_rope_fusion: bool = True
     max_position_embeddings: int = 512
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
