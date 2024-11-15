@@ -48,6 +48,9 @@ def get_args():
         help="Step when a crash should be simulated",
     )
     parser.add_argument(
+        '--check-report', type=bool, default=False, help="Check if StragglerDetection reports performance scores"
+    )
+    parser.add_argument(
         '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
     )
     parser.add_argument(
@@ -102,6 +105,16 @@ def main():
         pretrain_recipe.trainer.callbacks.append(run.Config(CrashCallback, crash_step=args.crash_step))
 
     run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
+
+    if args.check_report:
+        # assume that NeMo logs are written into "nemo_log_globalrank-0_localrank-0.txt"
+        rank0_log_content = None
+        with open(args.experiment_dir / "L2_llama3_small_pretrain_fault_tolerance_test" / "nemo_log_globalrank-0_localrank-0.txt") as f:
+            rank0_log_content = f.read()
+
+        assert "GPU relative performance" in rank0_log_content
+        assert "GPU individual performance" in rank0_log_content
+        assert "Straggler report processing time" in rank0_log_content
 
 
 if __name__ == '__main__':

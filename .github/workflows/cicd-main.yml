@@ -3795,7 +3795,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
 
-        python tests/collections/llm/test_nvrx.py \
+        python tests/collections/llm/test_fault_nvrx.py \
         --devices=2 \
         --crash-step=4 \
         --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
@@ -3811,8 +3811,9 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
 
-        python tests/collections/llm/test_nvrx.py \
+        python tests/collections/llm/test_fault_nvrx.py \
         --devices=2 \
+        --check-report=True \
         --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
         --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
         --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \

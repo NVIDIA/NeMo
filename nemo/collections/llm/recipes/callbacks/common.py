@@ -26,7 +26,7 @@ def straggler_det_callback(
     straggler_report_time_interval: Optional[int] = 300, stop_if_detected_straggler: Optional[bool] = True
 ) -> Config[res_module.StragglerDetectionCallback]:
     """
-    The Straggler Detection package's purpose is to detect slower ranks participating in a PyTorch distributed workload.
+    This callback is used to detect slower ranks participating in a PyTorch distributed workload.
     This callback is obtained from nvidia-resiliency-ext.
     Performance scores are scalar values from 0.0 (worst) to 1.0 (best), reflecting each rank's performance. 
     A performance score can be interpreted as the ratio of current performance to reference performance.
@@ -36,7 +36,7 @@ def straggler_det_callback(
     Relative performance score: The best-performing rank in the workload is used as a reference.
     Individual performance score: The best historical performance of the rank is used as a reference.
 
-    If the performance score drops below the threshold which is set to 0.7, the corresponding section or GPU is identified as a straggler. 
+    If the performance score drops below the threshold which is set to 0.7, it is deemed as a straggler. 
     To detect the stragglers, users can enable this callback which reports the performance scores every 5mins.
 
     Args:
