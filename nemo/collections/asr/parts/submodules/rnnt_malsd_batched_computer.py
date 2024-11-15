@@ -310,7 +310,6 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
                 elif self.blank_lm_score_mode is BlankLMScoreMode.LM_TOP_MAX:
-                    _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
                     log_probs[..., :-1] += lm_scores
                     _, labels_with_lm_nb_top_k = torch.topk(
                         log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
@@ -321,8 +320,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         dim=-1,
                         index=labels_with_lm_nb_top_k,
                     )
-                    blank_lm_scores = lm_only_scores.max(dim=-1, keepdim=False).values
-                    log_probs[..., -1] += blank_lm_scores
+                    log_probs[..., -1] += lm_only_scores.max(dim=-1, keepdim=False).values
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
