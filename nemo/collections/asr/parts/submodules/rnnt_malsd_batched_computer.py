@@ -135,6 +135,7 @@ class BatchedBeamHyps:
         batch_size = self.scores.shape[0]
         hyp_length = self.current_lengths_wb[0, 0].cpu().item()
         # TODO: faster parallel aggregation
+        # TODO: timesteps
         hypotheses: list[rnnt_utils.Hypothesis] = []
         for i in range(batch_size):
             cur_transcript = []
