@@ -17,6 +17,7 @@ Test fault tolerance with LLaMA3 recipe and a smaller model.
 """
 
 import argparse
+import os
 
 import nemo_run as run
 
@@ -109,11 +110,15 @@ def main():
     if args.check_report:
         # assume that NeMo logs are written into "nemo_log_globalrank-0_localrank-0.txt"
         rank0_log_content = None
+<<<<<<< Updated upstream
         with open(
             args.experiment_dir
             / "L2_llama3_small_pretrain_fault_tolerance_test"
             / "nemo_log_globalrank-0_localrank-0.txt"
         ) as f:
+=======
+        with open(os.path.join(args.experiment_dir, "L2_llama3_small_pretrain_fault_tolerance_test", "nemo_log_globalrank-0_localrank-0.txt")) as f:
+>>>>>>> Stashed changes
             rank0_log_content = f.read()
 
         assert "GPU relative performance" in rank0_log_content
