@@ -48,9 +48,10 @@ class PostProcessingParams:
     """
     Postprocessing parameters for end-to-end speaker diarization models.
     These parameters can significantly affect DER performance depending on the evaluation style and the dataset.
-    It is recommended to tune these parameters based on the evaluation style and the dataset 
+    It is recommended to tune these parameters based on the evaluation style and the dataset
     to achieve the desired DER performance.
     """
+
     onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
     offset: float = 0.5  # Offset threshold for detecting the end of a speech
     pad_onset: float = 0.0  # Adding durations before each speech segment
@@ -62,6 +63,7 @@ class PostProcessingParams:
 @dataclass
 class DiarizationConfig:
     """Diarization configuration parameters for inference."""
+
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files

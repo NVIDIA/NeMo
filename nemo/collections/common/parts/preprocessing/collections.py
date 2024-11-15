@@ -310,9 +310,13 @@ class VideoText(_Collection):
 class InstructionTuningAudioText(_Collection):
     """`AudioText` collector from asr structured json files."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='InstructionTuningText',
-                                         field_names=('id context context_type context_duration question '
-                                                      'question_type answer answer_type answer_duration speaker'),)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='InstructionTuningText',
+        field_names=(
+            'id context context_type context_duration question '
+            'question_type answer answer_type answer_duration speaker'
+        ),
+    )
 
     def __init__(
         self,
