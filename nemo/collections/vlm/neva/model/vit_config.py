@@ -1,11 +1,8 @@
 from dataclasses import dataclass
-from typing import Optional
 
-import torch
-from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from nemo.collections.llm.fn.activation import openai_gelu, quick_gelu
 
-from nemo.collections.vlm import CLIPViTConfig
+from nemo.collections.vlm.neva.model.base import CLIPViTConfig
 
 
 @dataclass
@@ -63,18 +60,3 @@ class SigLIPViT400M_14_384_Config(CLIPViTConfig):
     qk_layernorm = False
     layernorm_epsilon = 1e-6
 
-
-class CLIPViTModel(MCoreCLIPViTModel):
-    """CLIP ViT vision model."""
-
-    def forward(
-        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
-    ) -> torch.Tensor:
-        if num_unused_layers > 0:
-            unused_layers = self.decoder.layers[-num_unused_layers:]
-            self.decoder.layers = self.decoder.layers[:-num_unused_layers]
-            x = super().forward(x, attention_mask)
-            self.decoder.layers.append(unused_layers)
-            return x
-
-        return super().forward(x, attention_mask)

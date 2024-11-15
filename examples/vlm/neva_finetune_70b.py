@@ -27,7 +27,7 @@ from nemo.utils.exp_manager import TimingCallback
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 16
+    gbs = 128
     mbs = 1
     seq_length = 576
     decoder_seq_length = 4096

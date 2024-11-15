@@ -46,12 +46,13 @@ from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
-from nemo.collections.vlm.neva.model.vision import CLIPViTModel
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
+from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
+
 
 MODEL_CONFIG_ATTR = [
     'num_layers',
@@ -345,6 +346,22 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         return model
 
 
+class CLIPViTModel(MCoreCLIPViTModel):
+    """CLIP ViT vision model."""
+
+    def forward(
+            self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
+    ) -> torch.Tensor:
+        if num_unused_layers > 0:
+            unused_layers = self.decoder.layers[-num_unused_layers:]
+            self.decoder.layers = self.decoder.layers[:-num_unused_layers]
+            x = super().forward(x, attention_mask)
+            self.decoder.layers.append(unused_layers)
+            return x
+
+        return super().forward(x, attention_mask)
+
+
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
         self,
@@ -481,6 +498,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # media is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
             if self.vision_model_from_hf:
+                self.vision_model = self.vision_model.eval()
                 media_embeddings = self.vision_model(media, output_hidden_states=True)
                 media_embeddings = media_embeddings[-1][
                     self.config.vision_feature_layer
