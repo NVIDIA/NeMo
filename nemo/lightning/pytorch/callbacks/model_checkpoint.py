@@ -95,6 +95,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.deferred_ckpts_to_remove: List[List[str]] = []
         self.ckpts_to_link: Dict[str, str] = {}
 
+        # used to drop optimizer states
+        self.base_checkpoint_io = None
+
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
             monitor=monitor,
@@ -322,8 +325,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 ema_callback = callback
         return ema_callback
 
-    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
+    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path]) -> None:
         from nemo.utils.get_rank import is_global_rank_zero
+        from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 
         # Get list of saved checkpoints
         checkpoints = self._get_checkpoints_list(filepath)
@@ -331,19 +335,23 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # Drop optimizer states
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
         if len(checkpoints) > self.save_last_n_optim_states:
-            checkpoint_path = Path(checkpoints[checkpoint_index])
-            checkpoint_path = (
-                checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
-            )
-            ## TODO: verify this
             if is_global_rank_zero():
                 checkpoint_path = Path(checkpoints[checkpoint_index])
                 checkpoint_path = (
                     checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
                 )
-                print(f'dropping optimizer states at {checkpoint_path}')
-                ## TODO: what do we do if drop_optimizer_states is not implemented?
-                trainer.strategy.checkpoint_io.drop_optimizer_states(checkpoint_path)
+
+                ## get base checkpoint io in case of wrapping
+                if self.base_checkpoint_io is None:
+                    self.base_checkpoint_io = trainer.strategy.checkpoint_io
+                    while isinstance(self.base_checkpoint_io, _WrappingCheckpointIO):
+                        self.base_checkpoint_io = self.base_checkpoint_io.checkpoint_io
+                    assert hasattr(self.base_checkpoint_io, "drop_optimizer_states"), \
+                        f"{checkpoint_io=} does not support dropping optimizer states. \
+                        Please disable dropping optimizer states by setting save_last_n_optim_states=-1."
+
+                logging.info(f'dropping optimizer states at {checkpoint_path}')
+                self.base_checkpoint_io.drop_optimizer_states(checkpoint_path)
 
         torch.distributed.barrier()
 
@@ -525,9 +533,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             else:
                 finalize_fn()
 
-            if self.save_last_n_optim_states >= 0 and '-last' in filepath:
-                self._drop_optimizer_states(trainer, filepath, storage_options)
-
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
@@ -545,6 +550,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
             # we don't want to remove the marker until all checkpointing is done.
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+
+            if self.save_last_n_optim_states >= 0 and '-last' not in filepath:
+                self._drop_optimizer_states(trainer, filepath)
 
             if not self.async_save:
                 return
