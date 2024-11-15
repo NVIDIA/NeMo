@@ -23,6 +23,7 @@ model:
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1024
+  load_cached_codes_if_available: true
   prior_scaling_factor: 1.0
   prior_end_step: 500
   prior_scaledown_start_step: 200
@@ -66,7 +67,8 @@ model:
     pos_emb:
       name: "rope"
       base: 512
-    use_flash_attention: false
+    use_flash_self_attention: false
+    use_flash_x_attention: false
     deterministic: false
     d_model: 768
     n_layers: 12
@@ -84,7 +86,8 @@ model:
     pos_emb:
       name: "rope"
       base: 512
-    use_flash_attention: false
+    use_flash_self_attention: false
+    use_flash_x_attention: false
     deterministic: false
     d_model: 768
     n_layers: 12

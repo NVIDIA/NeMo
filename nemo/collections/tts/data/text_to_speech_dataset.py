@@ -328,6 +328,7 @@ class T5TTSDataset(TextToSpeechDataset):
         audio_bos_id: int = None,
         audio_eos_id: int = None,
         prior_scaling_factor: float = None,
+        load_cached_codes_if_available: bool = True,
     ):
         super().__init__(
             dataset_meta=dataset_meta,
@@ -349,6 +350,7 @@ class T5TTSDataset(TextToSpeechDataset):
         self.codec_model_downsample_factor = codec_model_downsample_factor
         self.include_align_prior = prior_scaling_factor is not None
         self.prior_scaling_factor = prior_scaling_factor
+        self.load_cached_codes_if_available = load_cached_codes_if_available
         self.beta_binomial_interpolator = BetaBinomialInterpolator(scaling_factor=prior_scaling_factor)
     
     def __getitem__(self, index):
@@ -394,7 +396,7 @@ class T5TTSDataset(TextToSpeechDataset):
             "text_len": text_len,
         }
 
-        if 'target_audio_codes_path' in data.manifest_entry:
+        if self.load_cached_codes_if_available and 'target_audio_codes_path' in data.manifest_entry:
             audio_codes_path = data.manifest_entry['target_audio_codes_path']
             audio_codes = torch.load(audio_codes_path).long() # (C, T)
             # codec_len_from_audio = int(audio_len / self.codec_model_downsample_factor)

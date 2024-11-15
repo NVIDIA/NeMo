@@ -22,6 +22,7 @@ model:
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1024
+  load_cached_codes_if_available: true
   prior_scaling_factor: 1.0
   prior_end_step: 500
   prior_scaledown_start_step: 200

@@ -564,6 +564,7 @@ class T5TTS_Model(ModelPT):
             audio_eos_id=self.audio_eos_id,
             codec_model_downsample_factor=self.cfg.codec_model_downsample_factor,
             prior_scaling_factor=self.cfg.prior_scaling_factor,
+            load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
         )
         
         return dataset
