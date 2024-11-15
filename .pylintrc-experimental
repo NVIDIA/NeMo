@@ -1,0 +1,10 @@
+[MAIN]
+max-line-length=100
+load-plugins=tests.no_import_experimental
+
+[MESSAGES CONTROL]
+disable=all
+
+enable=C9001
+# C9001: no-import-experimental
+

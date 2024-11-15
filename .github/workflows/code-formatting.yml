@@ -10,7 +10,7 @@ name: Isort and Black Formatting; PyLint Docs check
 # For details see https://github.com/orgs/community/discussions/25702
 
 on:
-  pull_request_target:
+  pull_request: # pull_request_target:
     paths:
       - '**.py'
     types: [ opened, synchronize, reopened, labeled, unlabeled ]
@@ -72,7 +72,7 @@ jobs:
             message: Apply isort and black reformatting
             commit: --signoff
 
-  check_pylint:
+  check_pylint_docs:
     name: "check_pylint (strict-mode: ${{ matrix.strict-mode }})"
     runs-on: ubuntu-latest
     permissions:
@@ -114,7 +114,8 @@ jobs:
           STRICT_MODE: ${{ matrix.strict-mode }}
           CHANGED_FILES: "${{ steps.changed-files.outputs.all_changed_files }}"
         run: |
-          pip install pylint
+          export PYTHONPATH=$(pwd)
+          pip install "pylint<3.0.0"
 
           FILTERED=()
           for file in $CHANGED_FILES; do
@@ -140,7 +141,7 @@ jobs:
           ${FILTERED[@]}"
 
           set +e
-          LOG=$(pylint ${FILTERED[@]})          
+          LOG=$(pylint --rcfile .pylintrc ${FILTERED[@]})          
           EXIT_CODE=$?
           set -e
           
@@ -202,3 +203,45 @@ jobs:
             ---
 
             Thank you for improving NeMo's documentation!
+
+  check_pylint_experimental:
+    name: "check_pylint_experimental"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          # setup repository and ref for PRs, see
+          # https://github.com/EndBug/add-and-commit?tab=readme-ov-file#working-with-prs
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      
+      # https://github.com/tj-actions/changed-files
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **.py
+          files_ignore: 'nemo/experimental/**.py'
+
+      - name: Setup Python env
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: pylint
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+        id: pylint
+        env:
+          # only *.py files included
+          STRICT_MODE: ${{ matrix.strict-mode }}
+          CHANGED_FILES: "${{ steps.changed-files.outputs.all_changed_files }}"
+        run: |
+          export PYTHONPATH=$(pwd)
+          pip install "pylint<3.0.0"
+          pylint --rcfile .pylintrc-experimental ${CHANGED_FILES}

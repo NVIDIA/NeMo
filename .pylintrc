@@ -1,6 +1,6 @@
 [MAIN]
-ignore-paths=tests
-max-line-length=119
+ignore-paths=tests,nemo/experimental
+max-line-length=100
 
 [MESSAGES CONTROL]
 disable=all
@@ -10,3 +10,4 @@ enable=C0115,C0116,W0611,C0301
 # C0116: missing-function-docstring
 # W0611: unused-import
 # C0301: line-too-long
+
