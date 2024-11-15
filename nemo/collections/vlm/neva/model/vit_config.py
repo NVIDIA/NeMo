@@ -59,4 +59,3 @@ class SigLIPViT400M_14_384_Config(CLIPViTConfig):
     apply_rope_fusion = False
     qk_layernorm = False
     layernorm_epsilon = 1e-6
-

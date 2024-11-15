@@ -27,6 +27,7 @@ from megatron.core.enums import ModelType
 from megatron.core.extensions.transformer_engine import TEDotProductAttention
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
@@ -51,8 +52,6 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
-from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
-
 
 MODEL_CONFIG_ATTR = [
     'num_layers',
@@ -350,7 +349,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
-            self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
+        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
     ) -> torch.Tensor:
         if num_unused_layers > 0:
             unused_layers = self.decoder.layers[-num_unused_layers:]
