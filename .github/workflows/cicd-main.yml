@@ -3802,6 +3802,7 @@ jobs:
         --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
         --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
         --index-mapping-dir=/tmp/llm_tests/llama_index_mappings \
+        2>&1 | tee /tmp/llm_tests/llama_pretrain_results/run.log \
 
   L2_NeMo_2_llama3_straggler_detection:
     needs: [cicd-test-container-setup]
@@ -3818,6 +3819,7 @@ jobs:
         --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
         --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
         --index-mapping-dir=/tmp/llm_tests/llama_index_mappings \
+        2>&1 | tee /tmp/llm_tests/llama_pretrain_results/run.log \
 
   L2_NeMo_2_GPT_DDP_Param_Parity_check:
     needs: [cicd-test-container-setup]

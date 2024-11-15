@@ -107,23 +107,19 @@ def main():
 
     run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
 
-    # assume that NeMo logs are written into "nemo_log_globalrank-0_localrank-0.txt"
-    rank0_log_content = None
-    with open(
-        os.path.join(
-            args.experiment_dir,
-            "L2_llama3_small_pretrain_fault_tolerance_test",
-            "nemo_log_globalrank-0_localrank-0.txt",
-        )
-    ) as f:
-        rank0_log_content = f.read()
+    # Assumes that NeMo logs are written into "run.log"
+    # When a crash a simulated, error shows up on the terminal but it is not written to a file
+    # So the test appends run output to run.log in the experiment-dir
+    log_content = None
+    with open(os.path.join(args.experiment_dir, "run.log")) as f:
+        log_content = f.read()
 
     if args.check_report:
-        assert "GPU relative performance" in rank0_log_content
-        assert "GPU individual performance" in rank0_log_content
-        assert "Straggler report processing time" in rank0_log_content
+        assert "GPU relative performance" in log_content
+        assert "GPU individual performance" in log_content
+        assert "Straggler report processing time" in log_content
     if args.crash_step:
-        assert f"Simulating a crash at step {self.crash_step}!" in rank0_log_content
+        assert f"Exception: Simulating a crash at step {args.crash_step}!" in log_content
 
 
 if __name__ == '__main__':
