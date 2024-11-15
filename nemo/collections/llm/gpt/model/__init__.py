@@ -79,7 +79,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig,
     NemotronModel,
 )
-from nemo.collections.llm.gpt.model.phi3 import Phi3Config, Phi3ConfigMini, Phi3Model
+from nemo.collections.llm.gpt.model.phi3mini import Phi3Config, Phi3ConfigMini, Phi3Model
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config,
     Qwen2Config1P5B,
