@@ -106,6 +106,13 @@ class AutoTokenizer(TokenizerSpec):
             print("vocab_file: ", vocab_file)
             print("use_fast: ", use_fast)
             print("trust_remote_code: ", trust_remote_code)
+            try:
+                import subprocess
+                result = subprocess.run(['ls ' + vocab_file], capture_output=True, text=True)
+                print("Running ls command: ")
+                print(result.stdout)
+            except:
+                pass
 
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
                 pretrained_model_name_or_path=pretrained_model_name,
