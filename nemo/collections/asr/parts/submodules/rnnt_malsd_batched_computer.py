@@ -51,21 +51,31 @@ class BatchedBeamHyps:
         self.transcript_wb_prev_ptr = torch.full(
             (batch_size, self.beam_size, self._max_length), fill_value=-1, device=device, dtype=torch.long
         )
+        # self.transcript = torch.zeros(
+        #     (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
+        # )
+        # self.transcript_prev_ptr = torch.full(
+        #     (batch_size, self.beam_size, self._max_length), fill_value=-1, device=device, dtype=torch.long
+        # )
         self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
         self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
         self.scores.fill_(MINUS_INF)
         self.scores[:, 0].fill_(0.0)
 
+        self.last_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
 
     def clear_(self):
         self.current_lengths_nb.fill_(0)
         self.current_lengths_wb.fill_(0)
         self.transcript_wb.fill_(0)
+        self.transcript_wb_prev_ptr.fill_(-1)
+        # self.transcript.fill_(0)
+        # self.transcript_prev_ptr.fill_(-1)
         self.timesteps.fill_(0)
         self.scores.fill_(MINUS_INF)
         self.scores[:, 0].fill_(0.0)
-        self.transcript_wb_prev_ptr.fill_(-1)
+        self.last_timestep.fill_(0)
         self.last_timestep_lasts.fill_(0)
 
     def _allocate_more(self):
@@ -100,11 +110,16 @@ class BatchedBeamHyps:
         self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
+        # self.transcript.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
+        # self.transcript_prev_ptr.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
         self.current_lengths_wb += 1
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
         self.current_lengths_nb = (
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
+        )
+        self.last_timestep = (
+            torch.gather(self.last_timestep, dim=-1, index=hyps_indices) + extended_with_blank
         )
         self.last_timestep_lasts = torch.where(
             extended_with_blank,
@@ -124,6 +139,7 @@ class BatchedBeamHyps:
         for i in range(batch_size):
             cur_transcript = []
             cur_index = end_indices[i]
+            # hyp_length = self.last_timestep[i, cur_index]
             for j in range(hyp_length - 1, -1, -1):
                 token = transcript[i][cur_index][j]
                 if token > 0 and token != self.blank_index:
@@ -185,7 +201,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
             assert ngram_lm_strategy is not None
-            self.ngram_lm_strategy = LMFusionStrategy(ngram_lm_strategy)
+            # self.ngram_lm_strategy = LMFusionStrategy(ngram_lm_strategy)
+            self.ngram_lm_strategy = LMFusionStrategy.BLANK_LM_MAX
         else:
             self.ngram_lm_batch = None
             self.ngram_lm_strategy = None
@@ -429,7 +446,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype)
 
-            time_indices = batched_hyps.current_lengths_wb - batched_hyps.current_lengths_nb
+            # time_indices = batched_hyps.current_lengths_wb - batched_hyps.current_lengths_nb
+            time_indices = batched_hyps.last_timestep
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
             # torch.cuda.set_sync_debug_mode(0)
