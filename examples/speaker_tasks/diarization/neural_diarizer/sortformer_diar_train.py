@@ -34,6 +34,7 @@ python ./sortformer_diar_train.py --config-path='../conf/neural_diarizer' --conf
 
 seed_everything(42)
 
+
 @hydra_runner(config_path="../conf/neural_diarizer", config_name="sortformer_diarizer_hybrid_loss_4spk-v1.yaml")
 def main(cfg):
     """Main function for training the sortformer diarizer model."""
@@ -43,6 +44,7 @@ def main(cfg):
     sortformer_model = SortformerEncLabelModel(cfg=cfg.model, trainer=trainer)
     sortformer_model.maybe_init_from_pretrained_checkpoint(cfg)
     trainer.fit(sortformer_model)
+
 
 if __name__ == '__main__':
     main()

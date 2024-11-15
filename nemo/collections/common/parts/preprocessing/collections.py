@@ -476,6 +476,7 @@ class ASRAudioText(AudioText):
 
 class SpeechLLMAudioTextEntity(object):
     """Class for SpeechLLM dataloader instance."""
+
     def __init__(self, sid, audio_file, duration, context, answer, offset, speaker, orig_sr, lang) -> None:
         """Initialize the AudioTextEntity for a SpeechLLM dataloader instance."""
         self.id = sid
@@ -1014,9 +1015,9 @@ class FeatureSequenceLabel(_Collection):
     def relative_speaker_parser(self, seq_label):
         """Convert sequence of speaker labels to relative labels.
         Convert sequence of absolute speaker to sequence of relative speaker [E A C A E E C] -> [0 1 2 1 0 0 2]
-        In this seq of label , if label do not appear before, assign new relative labels len(pos); 
+        In this seq of label , if label do not appear before, assign new relative labels len(pos);
         else reuse previous assigned relative labels.
-        
+
         Args:
             seq_label (str): A string of a sequence of labels.
 
@@ -1053,12 +1054,12 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
         """Parse lists of feature files and sequences of labels.
 
         Args:
-            manifests_files: 
+            manifests_files:
                 Either single string file or list of such manifests to yield items from.
-            max_number:  
+            max_number:
                 Maximum number of samples to collect; pass to `FeatureSequenceLabel` constructor.
-            index_by_file_id: 
-                If True, saves a mapping from filename base (ID) to index in data; 
+            index_by_file_id:
+                If True, saves a mapping from filename base (ID) to index in data;
                 pass to `FeatureSequenceLabel` constructor.
         """
 
@@ -1221,8 +1222,8 @@ class DiarizationSpeechLabel(DiarizationLabel):
         **kwargs,
     ):
         """
-        Parse lists of audio files, durations, RTTM (Diarization annotation) files. Since the diarization 
-        model infers only two speakers, speaker pairs are generated from the total number of speakers in 
+        Parse lists of audio files, durations, RTTM (Diarization annotation) files. Since the diarization
+        model infers only two speakers, speaker pairs are generated from the total number of speakers in
         the session.
 
         Args:
@@ -1237,9 +1238,9 @@ class DiarizationSpeechLabel(DiarizationLabel):
             seq_eval_mode (bool):
                 If True, F1 score will be calculated for each speaker pair during inference mode.
             pairwise_infer (bool):
-                If True, this dataset class operates in inference mode. In inference mode, a set of 
-                speakers in the input audio is split into multiple pairs of speakers and speaker tuples 
-                (e.g., 3 speakers: [(0,1), (1,2), (0,2)]) and then fed into the diarization system to 
+                If True, this dataset class operates in inference mode. In inference mode, a set of
+                speakers in the input audio is split into multiple pairs of speakers and speaker tuples
+                (e.g., 3 speakers: [(0,1), (1,2), (0,2)]) and then fed into the diarization system to
                 merge the individual results.
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
@@ -1411,7 +1412,7 @@ class EndtoEndDiarizationLabel(_Collection):
             offsets (List[float]): List of offsets or None for each audio file.
             max_number (Optional[int]): Maximum number of samples to collect. Defaults to None.
             do_sort_by_duration (bool): If True, sort samples list by duration. Defaults to False.
-            index_by_file_id (bool): If True, saves a mapping from filename base (ID) to index in data. 
+            index_by_file_id (bool): If True, saves a mapping from filename base (ID) to index in data.
                                      Defaults to False.
 
         """
@@ -1830,7 +1831,7 @@ class ASRFeatureLabel(FeatureLabel):
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
             max_number:  Maximum number of samples to collect; pass to `FeatureSequenceLabel` constructor.
-            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data; 
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data;
                               pass to `FeatureSequenceLabel` constructor.
         """
 

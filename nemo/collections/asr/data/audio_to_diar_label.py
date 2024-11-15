@@ -81,7 +81,7 @@ def extract_seg_info_from_rttm(rttm_lines, mapping_dict=None, target_spks=None):
         mapping_dict (dict):
             Mapping between the estimated speakers and the speakers in the ground-truth annotation.
             `mapping_dict` variable is only provided when the inference mode is running in sequence-eval mode.
-            Sequence eval mode uses the mapping between the estimated speakers and the speakers 
+            Sequence eval mode uses the mapping between the estimated speakers and the speakers
             in ground-truth annotation.
     Returns:
         rttm_tup (tuple):
@@ -116,10 +116,10 @@ def assign_frame_level_spk_vector(rttm_timestamps, round_digits, frame_per_sec, 
             List containing start and end time for each speaker segment label.
             `stt_list`, `end_list` and `speaker_list` are contained.
         frame_per_sec (int):
-            Number of feature frames per second. This quantity is determined by 
+            Number of feature frames per second. This quantity is determined by
             `window_stride` variable in preprocessing module.
         target_spks (tuple):
-            Speaker indices that are generated from combinations. 
+            Speaker indices that are generated from combinations.
             If there are only one or two speakers,
             only a single `target_spks` variable is generated.
 
@@ -151,13 +151,13 @@ def get_subsegments_to_timestamps(
     subsegments: List[Tuple[float, float]], feat_per_sec: int = 100, max_end_ts: float = None, decimals=2
 ):
     """
-    Convert subsegment timestamps to scale timestamps by multiplying with the feature rate (`feat_per_sec`) 
-    and rounding. Segment is consisted of many subsegments and sugsegments are equivalent to `frames` 
+    Convert subsegment timestamps to scale timestamps by multiplying with the feature rate (`feat_per_sec`)
+    and rounding. Segment is consisted of many subsegments and sugsegments are equivalent to `frames`
     in end-to-end speaker diarization models.
 
     Args:
         subsegments (List[Tuple[float, float]]):
-            A list of tuples where each tuple contains the start and end times of a subsegment 
+            A list of tuples where each tuple contains the start and end times of a subsegment
             (frames in end-to-end models).
             >>> subsegments = [[t0_start, t0_duration], [t1_start, t1_duration],..., [tN_start, tN_duration]]
         feat_per_sec (int, optional):
@@ -251,7 +251,7 @@ def get_frame_targets_from_rttm(
             List containing start and end time for each speaker segment label.
             stt_list, end_list and speaker_list are contained.
         feat_per_sec (int):
-            Number of feature frames per second. 
+            Number of feature frames per second.
             This quantity is determined by window_stride variable in preprocessing module.
         target_spks (tuple):
             Speaker indices that are generated from combinations. If there are only one or two speakers,
@@ -415,16 +415,16 @@ class _AudioMSDDTrainDataset(Dataset):
 
     def get_diar_target_labels(self, uniq_id, sample, fr_level_target):
         """
-        Convert frame-level diarization target variable into segment-level target variable. 
-        Since the granularity is reduced from frame level (10ms) to segment level (100ms~500ms), 
-        we need a threshold value, `soft_label_thres`, which determines the label of each segment 
+        Convert frame-level diarization target variable into segment-level target variable.
+        Since the granularity is reduced from frame level (10ms) to segment level (100ms~500ms),
+        we need a threshold value, `soft_label_thres`, which determines the label of each segment
         based on the overlap between a segment range (start and end time) and the frame-level target variable.
 
         Args:
             uniq_id (str):
                 Unique file ID that refers to an input audio file and corresponding RTTM (Annotation) file.
             sample:
-                `DiarizationSpeechLabel` instance containing sample information such as 
+                `DiarizationSpeechLabel` instance containing sample information such as
                 audio filepath and RTTM filepath.
             fr_level_target (torch.tensor):
                 Tensor containing label for each feature-level frame.
@@ -433,7 +433,7 @@ class _AudioMSDDTrainDataset(Dataset):
             seg_target (torch.tensor):
                 Tensor containing binary speaker labels for base-scale segments.
             base_clus_label (torch.tensor):
-                Representative speaker label for each segment. This variable only has one speaker label 
+                Representative speaker label for each segment. This variable only has one speaker label
                 for each base-scale segment.
                 -1 means that there is no corresponding speaker in the target_spks tuple.
         """
@@ -469,7 +469,7 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                `DiarizationSpeechLabel` instance containing sample information such as 
+                `DiarizationSpeechLabel` instance containing sample information such as
                 audio filepath and RTTM filepath.
             target_spks (tuple):
                 Speaker indices that are generated from combinations. If there are only one or two speakers,
@@ -591,7 +591,7 @@ class _AudioMSDDInferDataset(Dataset):
         emb_dict (dict):
             Dictionary containing cluster-average embeddings and speaker mapping information.
         emb_seq (dict):
-            Dictionary containing multiscale speaker embedding sequence, 
+            Dictionary containing multiscale speaker embedding sequence,
             scale mapping and corresponding segment timestamps.
         clus_label_dict (dict):
             Subsegment-level (from base-scale) speaker labels from clustering results.
@@ -691,8 +691,8 @@ class _AudioMSDDInferDataset(Dataset):
         """
         Generate base-scale level binary diarization label from frame-level target matrix. For the given frame-level
         speaker target matrix fr_level_target, we count the number of frames that belong to each speaker and calculate
-        ratios for each speaker into the `soft_label_vec` variable. Finally, `soft_label_vec` variable is compared 
-        with `soft_label_thres` to determine whether a label vector should contain 0 or 1 for each speaker bin. 
+        ratios for each speaker into the `soft_label_vec` variable. Finally, `soft_label_vec` variable is compared
+        with `soft_label_thres` to determine whether a label vector should contain 0 or 1 for each speaker bin.
         Note that seg_target variable has dimension of (number of base-scale segments x 2) dimension.
 
         Example of seg_target:
@@ -739,7 +739,7 @@ class _AudioMSDDInferDataset(Dataset):
 
         if avg_embs.shape[2] > self.max_spks:
             raise ValueError(
-                f" avg_embs.shape[2] {avg_embs.shape[2]} should be less than or equal to " 
+                f" avg_embs.shape[2] {avg_embs.shape[2]} should be less than or equal to "
                 f"self.max_num_speakers {self.max_spks}"
             )
 
@@ -834,7 +834,7 @@ def _msdd_train_collate_fn(self, batch):
 
 def _msdd_infer_collate_fn(self, batch):
     """
-    Collate batch of feats (speaker embeddings), feature lengths, target label sequences 
+    Collate batch of feats (speaker embeddings), feature lengths, target label sequences
     and cluster-average embeddings.
 
     Args:
@@ -959,12 +959,12 @@ class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
         emb_dict (dict):
             Dictionary containing cluster-average embeddings and speaker mapping information.
         emb_seq (dict):
-            Dictionary containing multiscale speaker embedding sequence, scale mapping 
+            Dictionary containing multiscale speaker embedding sequence, scale mapping
             and corresponding segment timestamps.
         clus_label_dict (dict):
             Subsegment-level (from base-scale) speaker labels from clustering results.
         soft_label_thres (float):
-            Threshold that determines speaker labels of segments depending on the overlap 
+            Threshold that determines speaker labels of segments depending on the overlap
             with groundtruth speaker timestamps.
         featurizer:
             Featurizer instance for generating features from raw waveform.
@@ -973,11 +973,11 @@ class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
         seq_eval_mode (bool):
             If True, F1 score will be calculated for each speaker pair during inference mode.
         window_stride (float):
-            Window stride for acoustic feature. This value is used for calculating the numbers of 
+            Window stride for acoustic feature. This value is used for calculating the numbers of
             feature-level frames.
         pairwise_infer (bool):
-            If True, this Dataset class operates in inference mode. In inference mode, a set of speakers 
-            in the input audio is split into multiple pairs of speakers and speaker tuples 
+            If True, this Dataset class operates in inference mode. In inference mode, a set of speakers
+            in the input audio is split into multiple pairs of speakers and speaker tuples
             (e.g. 3 speakers: [(0,1), (1,2), (0,2)]) and then fed into the MSDD to merge the individual results.
     """
 
@@ -1225,7 +1225,7 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
         uniq_id = self.get_uniq_id_with_range(sample)
         audio_signal = self.featurizer.process(sample.audio_file, offset=offset, duration=session_len_sec)
 
-        # We should resolve the length mis-match from the round-off errors between these two variables: 
+        # We should resolve the length mis-match from the round-off errors between these two variables:
         # `session_len_sec` and `audio_signal.shape[0]`
         session_len_sec = (
             np.floor(audio_signal.shape[0] / self.featurizer.sample_rate * self.floor_decimal) / self.floor_decimal
@@ -1252,14 +1252,14 @@ def _eesd_train_collate_fn(self, batch):
 
     Returns:
         audio_signal (torch.Tensor):
-            A tensor containing the raw waveform samples (time series) loaded from the `audio_filepath` 
+            A tensor containing the raw waveform samples (time series) loaded from the `audio_filepath`
             in the input manifest file.
         feature_length (torch.Tensor):
             A tensor containing the lengths of the raw waveform samples.
         targets (torch.Tensor):
             Groundtruth speaker labels for the given input embedding sequence.
         target_lens (torch.Tensor):
-            A tensor containing the number of segments for each sample in the batch, necessary for 
+            A tensor containing the number of segments for each sample in the batch, necessary for
             reshaping inputs to the EESD model.
     """
     packed_batch = list(zip(*batch))
