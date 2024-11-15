@@ -20,7 +20,6 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from nemo.collections.asr.parts.utils.asr_multispeaker_utils import find_first_nonzero
 from nemo.collections.asr.parts.utils.offline_clustering import get_argmin_mat
 from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, get_subsegments, prepare_split_data
 from nemo.collections.common.parts.preprocessing.collections import (
