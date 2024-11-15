@@ -560,7 +560,7 @@ def generate(
     trainer: nl.Trainer,
     prompts: Optional[list[str]] = None,
     encoder_prompts: Optional[list[str]] = None,
-    input_dataset: Optional[pl.LightningDataModule] = None,
+    input_dataset: Optional[Union[pl.LightningDataModule, str]] = None,
     params_dtype: torch.dtype = torch.bfloat16,
     add_BOS: bool = False,
     max_batch_size: int = 4,
@@ -622,8 +622,8 @@ def generate(
         prompts (list[str]): The list of prompts to generate text for.
         trainer (nl.Trainer): The trainer object.
         encoder_prompts (Optional[list[str]], optional): The list of encoder prompts. Defaults to None.
-        input_dataset (Optional[pl.LightningDataModule], optional): The input data module.
-            Test set will be used for generation. Defaults to None.
+        input_dataset (Optional[Union[pl.LightningDataModule, str]], optional): The input data module or jsonl file.
+            Test set will be used for generation for data modules. Defaults to None.
         params_dtype (torch.dtype, optional): The data type of the model parameters. Defaults to torch.bfloat16.
         add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
@@ -643,7 +643,8 @@ def generate(
     from nemo.collections.llm import inference
 
     if input_dataset is not None:
-        with open(input_dataset.test_path) as f:
+        input_path = input_dataset if isinstance(input_dataset, str) else input_dataset.test_path
+        with open(input_path) as f:
             dataset = [json.loads(sample) for sample in f.readlines()]
             inputs = [sample["input"] for sample in dataset]
     elif prompts is not None:
