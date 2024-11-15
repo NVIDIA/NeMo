@@ -295,8 +295,8 @@ class PerfEnvPlugin(run.Plugin):
                 executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
                 executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
 
-            # Use a large chunk size (2MB) for P2P communications to reduce the buffering overhead
-            # from the communication kernel execution time
+            # Set the chunk size of P2P communications. Using a large chunk size reduces the
+            # buffering overhead from the communication kernel execution time
             pp_size = task.trainer.strategy.pipeline_model_parallel_size
             if pp_size > 1 and self.nccl_pp_comm_chunksize is not None:
                 assert isinstance(self.nccl_pp_comm_chunksize, int) and self.nccl_pp_comm_chunksize > 1
