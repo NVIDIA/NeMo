@@ -33,6 +33,7 @@ from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples, ifnone
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+from nemo.utils.data_utils import is_datastore_path, datastore_path_to_webdataset_url
 
 
 class LazyNeMoIterator:
@@ -92,7 +93,7 @@ class LazyNeMoIterator:
         self.shuffle_shards = shuffle_shards
         self.shard_seed = shard_seed
         paths = expand_sharded_filepaths(path)
-        cache_datastore_manifests(paths)
+        # cache_datastore_manifests(paths)
 
         if len(paths) == 1:
             self.source = LazyJsonlIterator(paths[0])
@@ -111,28 +112,36 @@ class LazyNeMoIterator:
         # Propagate the random seed
         extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
         for data in self.source:
-            audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path))
             duration = data.pop("duration")
             offset = data.pop("offset", None)
-            cut = self._create_cut(
-                audio_path=audio_path, offset=offset, duration=duration, sampling_rate=data.pop("sampling_rate", None)
-            )
-            # Note that start=0 and not start=offset because supervision's start if relative to the
-            # start of the cut; and cut.start is already set to offset
-            cut.supervisions.append(
-                SupervisionSegment(
-                    id=cut.id,
-                    recording_id=cut.recording_id,
-                    start=0,
-                    duration=cut.duration,
-                    text=data.get(self.text_field),
-                    language=data.get(self.lang_field),
+            audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path), cached=False)
+
+            if is_datastore_path(audio_path):
+                audio_path = datastore_path_to_webdataset_url(audio_path)
+
+            with open_best(
+                audio_path, mode="rb"
+                ) as opened_audio:
+                
+                cut = self._create_cut(
+                    audio_path=audio_path, data=opened_audio.read(), offset=offset, duration=duration, sampling_rate=data.pop("sampling_rate", None)
                 )
-            )
-            cut.custom = data
-            for extra_field in extra_fields:
-                extra_field.attach_to(cut)
-            yield cut
+                # Note that start=0 and not start=offset because supervision's start if relative to the
+                # start of the cut; and cut.start is already set to offset
+                cut.supervisions.append(
+                    SupervisionSegment(
+                        id=cut.id,
+                        recording_id=cut.recording_id,
+                        start=0,
+                        duration=cut.duration,
+                        text=data.get(self.text_field),
+                        language=data.get(self.lang_field),
+                    )
+                )
+                cut.custom = data
+                for extra_field in extra_fields:
+                    extra_field.attach_to(cut)
+                yield cut
 
     def __len__(self) -> int:
         return len(self.source)
@@ -143,12 +152,13 @@ class LazyNeMoIterator:
     def _create_cut(
         self,
         audio_path: str,
+        data: bytes,
         offset: float,
         duration: float,
         sampling_rate: int | None = None,
     ) -> Cut:
         if not self.metadata_only:
-            recording = self._create_recording(audio_path, duration, sampling_rate)
+            recording = self._create_recording(audio_path, data, duration, sampling_rate)
             cut = recording.to_cut()
             if offset is not None:
                 cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
@@ -179,6 +189,7 @@ class LazyNeMoIterator:
     def _create_recording(
         self,
         audio_path: str,
+        data: bytes,
         duration: float,
         sampling_rate: int | None = None,
     ) -> Recording:
@@ -186,14 +197,14 @@ class LazyNeMoIterator:
             # TODO(pzelasko): It will only work with single-channel audio in the current shape.
             return Recording(
                 id=audio_path,
-                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
+                sources=[AudioSource(type="memory", channels=[0], source=data)],
                 sampling_rate=sampling_rate,
                 num_samples=compute_num_samples(duration, sampling_rate),
                 duration=duration,
                 channel_ids=[0],
             )
         else:
-            return Recording.from_file(audio_path)
+            return Recording.from_bytes(data=data, recording_id=audio_path)
 
 
 class LazyNeMoTarredIterator:
@@ -581,16 +592,6 @@ def expand_sharded_filepaths(paths: str | Path | list[str]) -> list[str]:
         paths = str(paths)
 
     return _expand_sharded_filepaths(paths, shard_strategy="replicate", world_size=1, global_rank=0)
-
-
-def cache_datastore_manifests(paths: str | Path | list[str]):
-    # local import to avoid circular imports
-    from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests as _cache_datastore_manifests
-
-    if isinstance(paths, Path):
-        paths = str(paths)
-
-    return _cache_datastore_manifests(paths, cache_audio=True)
 
 
 def _to_custom_attr_dict(d: dict, _excluded_fields: set[str] = {"duration", "audio_filepath"}) -> dict:

@@ -17,6 +17,7 @@ import pathlib
 import shutil
 import subprocess
 from typing import Tuple
+from urllib.parse import urlparse
 
 from nemo import __version__ as NEMO_VERSION
 from nemo import constants
@@ -46,16 +47,22 @@ def is_datastore_path(path) -> bool:
     """Check if a path is from a data object store.
     Currently, only AIStore is supported.
     """
-    return path.startswith('ais://') or path.startswith('s3://')
+    try:
+        result = urlparse(path)
+        return result.scheme in ["ais", "s3"]
+    except AttributeError:
+        return False
 
 
 def is_tarred_path(path) -> bool:
-    """Check if a path is for a tarred file."""
+    """Check if a path is for a tarred file.
+    """
     return path.endswith('.tar')
 
 
 def is_datastore_cache_shared() -> bool:
-    """Check if store cache is shared."""
+    """Check if store cache is shared.
+    """
     # Assume cache is shared by default, e.g., as in resolve_cache_dir (~/.cache)
     cache_shared = int(os.environ.get(constants.NEMO_ENV_DATA_STORE_CACHE_SHARED, 1))
 
@@ -68,7 +75,8 @@ def is_datastore_cache_shared() -> bool:
 
 
 def ais_cache_base() -> str:
-    """Return path to local cache for AIS."""
+    """Return path to local cache for AIS.
+    """
     override_dir = os.environ.get(constants.NEMO_ENV_DATA_STORE_CACHE_DIR, "")
     if override_dir == "":
         cache_dir = resolve_cache_dir().as_posix()
@@ -82,7 +90,8 @@ def ais_cache_base() -> str:
 
 
 def ais_endpoint() -> str:
-    """Get configured AIS endpoint."""
+    """Get configured AIS endpoint.
+    """
     return os.getenv('AIS_ENDPOINT')
 
 
@@ -110,7 +119,7 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
 
     Args:
         endpoint: AIStore endpoint in format https://host:port
-
+    
     Returns:
         Directory formed as `host/port`.
     """
@@ -123,7 +132,8 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
 
 
 def ais_binary() -> str:
-    """Return location of `ais` binary."""
+    """Return location of `ais` binary.
+    """
     path = shutil.which('ais')
 
     if path is not None:
@@ -150,7 +160,7 @@ def datastore_path_to_local_path(store_path: str) -> str:
     Returns:
         Path to the same object in local cache.
     """
-    if store_path.startswith('ais://') or store_path.startswith('s3://'):
+    if is_datastore_path(store_path):
         endpoint = ais_endpoint()
         if endpoint is None:
             raise RuntimeError(f'AIS endpoint not set, cannot resolve {store_path}')
@@ -173,11 +183,11 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
         path: path to an object
         force: force download, even if a local file exists
         num_retries: number of retries if the get command fails
-
+    
     Returns:
         Local path of the object.
     """
-    if path.startswith('ais://') or path.startswith('s3://'):
+    if is_datastore_path(path):
         endpoint = ais_endpoint()
         if endpoint is None:
             raise RuntimeError(f'AIS endpoint not set, cannot resolve {path}')
@@ -242,12 +252,14 @@ class DataStoreObject:
 
     @property
     def store_path(self) -> str:
-        """Return store path of the object."""
+        """Return store path of the object.
+        """
         return self._store_path
 
     @property
     def local_path(self) -> str:
-        """Return local path of the object."""
+        """Return local path of the object.
+        """
         return self._local_path
 
     def get(self, force: bool = False) -> str:
@@ -276,7 +288,8 @@ class DataStoreObject:
         raise NotImplementedError()
 
     def __str__(self):
-        """Return a human-readable description of the object."""
+        """Return a human-readable description of the object.
+        """
         description = f'{type(self)}: store_path={self.store_path}, local_path={self.local_path}'
         return description
 
@@ -290,7 +303,7 @@ def datastore_path_to_webdataset_url(store_path: str):
     Returns:
         URL which can be directly used with WebDataset.
     """
-    if store_path.startswith('ais://') or store_path.startswith('s3://'):
+    if is_datastore_path(store_path):
         url = f'pipe:ais get {store_path} - || true'
     else:
         raise ValueError(f'Unknown store path format: {store_path}')

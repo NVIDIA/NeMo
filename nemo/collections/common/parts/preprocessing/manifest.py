@@ -206,6 +206,7 @@ def get_full_path(
     manifest_file: Optional[str] = None,
     data_dir: Optional[str] = None,
     audio_file_len_limit: int = 255,
+    cached: bool = True,
 ) -> Union[str, List[str]]:
     """Get full path to audio_file.
 
@@ -265,12 +266,14 @@ def get_full_path(
             # assume audio_file path is relative to data_dir
             audio_file_path = os.path.join(data_dir, audio_file)
 
-            if is_datastore_path(audio_file_path):
+            if is_datastore_path(audio_file_path) and cached:
                 # If audio was originally on an object store, use locally-cached path
                 audio_file_path = datastore_path_to_local_path(audio_file_path)
 
-            if os.path.isfile(audio_file_path):
+            if os.path.isfile(audio_file_path) and cached:
                 audio_file = os.path.abspath(audio_file_path)
+            elif not cached:
+                audio_file = audio_file_path
             else:
                 audio_file = expanduser(audio_file)
         else:
