@@ -160,6 +160,7 @@ class BatchedBeamHyps:
             self.recombine_hyps_()
 
     def recombine_hyps_(self):
+        # TODO: move to decoder, use recombination before pruning
         if self.beam_size <= 1:
             return
         # TODO: separate lm scores
