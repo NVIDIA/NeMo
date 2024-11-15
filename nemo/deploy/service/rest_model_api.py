@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 from nemo.deploy.nlp import NemoQueryLLM
-
+from nemo.utils import logging
 
 class TritonSettings(BaseSettings):
     _triton_service_port: int
@@ -33,7 +33,7 @@ class TritonSettings(BaseSettings):
             self._openai_format_response = os.environ.get('OPENAI_FORMAT_RESPONSE', 'False').lower() == 'true'
             self._output_generation_logits = os.environ.get('OUTPUT_GENERATION_LOGITS', 'False').lower() == 'true'
         except Exception as error:
-            print("An exception occurred:", error)
+            logging.error("An exception occurred trying to retrieve set args in TritonSettings class. Error:", error)
             return
 
     @property
@@ -93,7 +93,7 @@ async def check_triton_health():
     triton_url = (
         f"http://{triton_settings.triton_service_ip}:{str(triton_settings.triton_service_port)}/v2/health/ready"
     )
-    print(f"Attempting to connect to Triton server at: {triton_url}")
+    logging.info(f"Attempting to connect to Triton server at: {triton_url}")
     try:
         response = requests.get(triton_url, timeout=5)
         if response.status_code == 200:
@@ -118,7 +118,7 @@ def completions_v1(request: CompletionRequest):
             temperature=request.temperature,
             init_timeout=triton_settings.triton_request_timeout,
             openai_format_response=triton_settings.openai_format_response,
-            output_generation_logits=triton_settings.output_generation_logits,
+            output_generation_logits=triton_settings.output_generation_logits
         )
         if triton_settings.openai_format_response:
             return output
@@ -127,5 +127,5 @@ def completions_v1(request: CompletionRequest):
                 "output": output[0][0],
             }
     except Exception as error:
-        print("An exception occurred:", error)
+        logging.error("An exception occurred with the post request to /v1/completions/ endpoint:", error)
         return {"error": "An exception occurred"}
