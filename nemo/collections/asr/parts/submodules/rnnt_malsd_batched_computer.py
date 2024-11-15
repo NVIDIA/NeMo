@@ -238,7 +238,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
-        allow_recombine_hyps: bool = True,
+        allow_recombine_hyps: bool = False,
     ):
         super().__init__()
         self.decoder = decoder
