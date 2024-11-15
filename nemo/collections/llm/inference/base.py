@@ -102,14 +102,14 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy.trainer = trainer
     trainer.strategy.selective_restore()
 
-    lora: Union[io.TrainerContext, LoRA] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
-    if isinstance(lora, LoRA):
-        model = lora(model)
-        adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}
-        adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
-            ckpt_to_weights_subdir(path), sharded_state_dict=adapter_sharded_state_dict
-        )
-        trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+    # lora: Union[io.TrainerContext, LoRA] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
+    # if isinstance(lora, LoRA):
+    #     model = lora(model)
+    #     adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}
+    #     adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
+    #         ckpt_to_weights_subdir(path), sharded_state_dict=adapter_sharded_state_dict
+    #     )
+    #     trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 
 
 def setup_model_and_tokenizer(
