@@ -24,7 +24,7 @@ from nemo.lightning.pytorch.callbacks import TETransform
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
-    def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
