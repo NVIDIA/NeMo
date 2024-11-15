@@ -24,15 +24,12 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.phi3 import Phi3ConfigMini, Phi3Model
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "phi3_mini_4k_instruct"
@@ -225,9 +222,11 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 
+        'none'/None.
         seq_length (int): Maximum number of tokens per microbatch.
-        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given maximum seq_length for better efficiency. By default, this value equals performance_mode.
+        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given 
+        maximum seq_length for better efficiency. By default, this value equals performance_mode.
         performance_mode (bool): If true, enables optimizations for maximum performance.
 
     Returns:

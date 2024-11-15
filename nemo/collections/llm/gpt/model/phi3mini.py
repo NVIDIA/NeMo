@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -24,11 +23,11 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
-from nemo.utils import logging
 
 
 @dataclass
 class Phi3Config(GPTConfig):
+    # pylint: disable=C0115,C0116
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
     gated_linear_unit: bool = True
@@ -42,6 +41,7 @@ class Phi3Config(GPTConfig):
 
 @dataclass
 class Phi3ConfigMini(Phi3Config):
+    # pylint: disable=C0115,C0116
     num_layers: int = 32
     hidden_size: int = 3072
     ffn_hidden_size: int = 8192
@@ -52,6 +52,7 @@ class Phi3ConfigMini(Phi3Config):
 
 
 class Phi3Model(GPTModel):
+    # pylint: disable=C0115,C0116
     def __init__(
         self,
         config: Optional[Phi3Config] = None,
@@ -64,6 +65,7 @@ class Phi3Model(GPTModel):
 
 @io.model_importer(Phi3Model, "hf")
 class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
+    # pylint: disable=C0115,C0116
     def init(self) -> Phi3Model:
         return Phi3Model(self.config, tokenizer=self.tokenizer)
 
@@ -89,6 +91,7 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
         return output_path
 
     def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116
         # Define mapping for mini-4k-instruct
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
@@ -106,12 +109,14 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
 
     @property
     def tokenizer(self):
+        # pylint: disable=C0115,C0116
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> Phi3Config:
+        # pylint: disable=C0115,C0116
         from transformers import Phi3Config as HFPhi3Config
 
         source = HFPhi3Config.from_pretrained(str(self))
@@ -143,6 +148,7 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
 
 @io.model_exporter(Phi3Model, "hf")
 class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
+    # pylint: disable=C0115,C0116
     def init(self) -> "Phi3ForCausalLM":
         from transformers import AutoModelForCausalLM
 
@@ -159,6 +165,7 @@ class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116
         mapping = {
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
@@ -178,10 +185,12 @@ class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
 
     @property
     def tokenizer(self):
+        # pylint: disable=C0115,C0116
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
     def config(self) -> "HFPhi3Config":
+        # pylint: disable=C0115,C0116
         source: Phi3Config = io.load_context(str(self)).model.config
 
         from transformers import Phi3Config as HFPhi3Config
