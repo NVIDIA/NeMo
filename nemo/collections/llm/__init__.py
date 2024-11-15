@@ -146,7 +146,7 @@ __all__ = [
     "Nemotron4Config15B",
     "Nemotron4Config340B",
     "NemotronConfig",
-    "Phi3config",
+    "Phi3Config",
     "Phi3ConfigMini",
     "Phi3Model",
     "SSMConfig",
