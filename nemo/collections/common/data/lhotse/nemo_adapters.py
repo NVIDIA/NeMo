@@ -93,7 +93,6 @@ class LazyNeMoIterator:
         self.shuffle_shards = shuffle_shards
         self.shard_seed = shard_seed
         paths = expand_sharded_filepaths(path)
-        # cache_datastore_manifests(paths)
 
         if len(paths) == 1:
             self.source = LazyJsonlIterator(paths[0])
