@@ -35,7 +35,8 @@ res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
 
 # This file contains plugins based on NeMo-Run's run.Plugin API.
 # Plugins operate both on a configured task and an executor at the same time, and are specific to NeMo-Run.
-# If you are adding functionality that goes directly into the Pytorch Lightning trainer, you may consider adding a callback instead of a plugin.
+# If you are adding functionality that goes directly into the Pytorch Lightning trainer, 
+# you may consider adding a callback instead of a plugin.
 
 
 def _merge_callbacks(partial: run.Partial, callbacks: list[run.Config[Callback]]):
@@ -275,14 +276,7 @@ class ConfigValidationPlugin(run.Plugin):
         logging.info(f"Validating {task.__fn_or_cls__.__qualname__} and {executor.__class__.__qualname__}.")
         if self.validate_preemption:
             logging.info("Validating preemption callback")
-            assert any(
-                map(
-                    lambda callback: (
-                        callback.__fn_or_cls__ == PreemptionCallback
-                    ),
-                    task.trainer.callbacks,
-                )
-            )
+            assert any(map(lambda callback: callback.__fn_or_cls__ == PreemptionCallback, task.trainer.callbacks))
 
         if self.validate_checkpoint_dir:
             if isinstance(executor, run.SlurmExecutor):
