@@ -149,18 +149,25 @@ def get_subsegments_to_timestamps(
     subsegments: List[Tuple[float, float]], feat_per_sec: int = 100, max_end_ts: float = None, decimals=2
 ):
     """
-    Convert subsegment timestamps to scale timestamps by multiplying with the feature rate and rounding.
-    All `ts` related tensors are dimensioned as (N, 2), where N is the number of subsegments.
-
+    Convert subsegment timestamps to scale timestamps by multiplying with the feature rate (`feat_per_sec`) and rounding.
+    Segment is consisted of many subsegments and sugsegments are equivalent to `frames` in end-to-end speaker diarization models.
+    
     Args:
         subsegments (List[Tuple[float, float]]):
-            A list of tuples where each tuple contains the start and end times of a subsegment.
+            A list of tuples where each tuple contains the start and end times of a subsegment (frames in end-to-end models).
+            >>> subsegments = [[t0_start, t0_duration], [t1_start, t1_duration],..., [tN_start, tN_duration]]
         feat_per_sec (int, optional):
             The number of feature frames per second. Defaults to 100.
         max_end_ts (float, optional):
             The maximum end timestamp to clip the results. If None, no clipping is applied. Defaults to None.
         decimals (int, optional):
             The number of decimal places to round the timestamps. Defaults to 2.
+    
+    Example: 
+        Segments starting from 0.0 and ending at 69.2 seconds.
+        If hop-length is 0.08 and the subsegment (frame) length is 0.16 seconds, 
+        there are 864 = (69.2 - 0.16)/0.08 + 1 subsegments (frames in end-to-end models) in this segment.
+        >>> subsegments = [[[0.0, 0.16], [0.08, 0.16], ..., [69.04, 0.16], [69.12, 0.08]]
 
     Returns:
         ts (torch.tensor):
@@ -175,7 +182,7 @@ def get_subsegments_to_timestamps(
     return ts
 
 
-def extract_frame_info_from_rttm(uniq_id, offset, duration, rttm_lines, round_digits=3):
+def extract_frame_info_from_rttm(offset, duration, rttm_lines, round_digits=3):
     """
     Extracts RTTM lines containing speaker labels, start time, and end time for a given audio segment.
 
@@ -1093,7 +1100,7 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
             [[0., 1.], [0., 1.], [1., 1.], [1., 0.], [1., 0.], ..., [0., 1.]]
         """
         rttm_lines = open(rttm_file).readlines()
-        rttm_timestamps, sess_to_global_spkids = extract_frame_info_from_rttm(uniq_id, offset, duration, rttm_lines)
+        rttm_timestamps, sess_to_global_spkids = extract_frame_info_from_rttm(offset, duration, rttm_lines)
 
         fr_level_target = get_frame_targets_from_rttm(
             rttm_timestamps=rttm_timestamps,

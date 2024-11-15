@@ -1310,9 +1310,6 @@ class EndtoEndDiarizationLabel(_Collection):
                 if isinstance(audio_file, list):
                     if len(audio_file) == 0:
                         raise ValueError(f"Empty audio file list: {audio_file}")
-                    audio_file_name = sorted(audio_file)[0]
-                else:
-                    audio_file_name = audio_file
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 self.mapping[file_id] = len(data) - 1
 

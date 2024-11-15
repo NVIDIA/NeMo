@@ -33,11 +33,6 @@ from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeaker
 from nemo.collections.asr.parts.utils.offline_clustering import SpeakerClustering, get_argmin_mat, split_input_data
 from nemo.utils import logging
 
-"""
-This file contains all the utility functions required for speaker embeddings part in diarization scripts
-"""
-
-
 def get_uniqname_from_filepath(filepath):
     """
     Return base name from provided filepath
