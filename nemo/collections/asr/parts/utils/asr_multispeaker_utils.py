@@ -210,6 +210,7 @@ def find_segments_from_rttm(
         if segment.start < end_before + tolerance and segment.end > start_after + tolerance
     ]
 
+
 def get_mask_from_segments(
     segments: list,
     a_cut,

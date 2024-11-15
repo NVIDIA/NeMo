@@ -151,7 +151,7 @@ def get_subsegments_to_timestamps(
     """
     Convert subsegment timestamps to scale timestamps by multiplying with the feature rate (`feat_per_sec`) and rounding.
     Segment is consisted of many subsegments and sugsegments are equivalent to `frames` in end-to-end speaker diarization models.
-    
+
     Args:
         subsegments (List[Tuple[float, float]]):
             A list of tuples where each tuple contains the start and end times of a subsegment (frames in end-to-end models).
@@ -162,10 +162,10 @@ def get_subsegments_to_timestamps(
             The maximum end timestamp to clip the results. If None, no clipping is applied. Defaults to None.
         decimals (int, optional):
             The number of decimal places to round the timestamps. Defaults to 2.
-    
-    Example: 
+
+    Example:
         Segments starting from 0.0 and ending at 69.2 seconds.
-        If hop-length is 0.08 and the subsegment (frame) length is 0.16 seconds, 
+        If hop-length is 0.08 and the subsegment (frame) length is 0.16 seconds,
         there are 864 = (69.2 - 0.16)/0.08 + 1 subsegments (frames in end-to-end models) in this segment.
         >>> subsegments = [[[0.0, 0.16], [0.08, 0.16], ..., [69.04, 0.16], [69.12, 0.08]]
 
