@@ -160,13 +160,11 @@ class BatchedBeamHyps:
 
 
 class BlankLMScoreMode(PrettyStrEnum):
-    SIMPLE = "simple"
-    BLANK_LM_WEIGHTED = "blank_lm_weighted"
-    BLANK_LM_MAX = "blank_lm_max"
+    NO_SCORE = "no_score"
     PRESERVE_BLANK = "preserve_blank"
-    BLANK_LM_BEST_MAX = "blank_lm_best_max"
-    BLANK_LM_BEST_BEST = "blank_lm_best_best"
-    BLANK_LM_BEST_WORST = "blank_lm_best_worst"
+    LM_WEIGHTED = "lm_weighted"
+    LM_MAX = "lm_max"
+    LM_TOP_MAX = "lm_top_max"
 
 
 class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
@@ -204,7 +202,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
             if blank_lm_score_mode is None:
-                self.blank_lm_score_mode = BlankLMScoreMode.BLANK_LM_BEST_MAX
+                self.blank_lm_score_mode = BlankLMScoreMode.LM_TOP_MAX
             else:
                 self.blank_lm_score_mode = BlankLMScoreMode(blank_lm_score_mode)
         else:
@@ -279,7 +277,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             )
             log_probs = F.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
             if self.ngram_lm_batch is not None:
-                if self.blank_lm_score_mode is BlankLMScoreMode.SIMPLE:
+                if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
                     log_probs[..., :-1] += lm_scores
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
@@ -299,23 +297,19 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         labels_top_k[..., -1],
                     )
                     log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
-                elif self.blank_lm_score_mode is BlankLMScoreMode.BLANK_LM_WEIGHTED:
+                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED:
                     log_probs[..., :-1] += lm_scores
                     log_probs[..., -1] *= 1 + self.ngram_lm_alpha
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.BLANK_LM_MAX:
+                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_MAX:
                     log_probs[..., :-1] += lm_scores
                     log_probs[..., -1] += lm_scores.max(dim=-1, keepdim=False).values
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.blank_lm_score_mode in {
-                    BlankLMScoreMode.BLANK_LM_BEST_MAX,
-                    BlankLMScoreMode.BLANK_LM_BEST_BEST,
-                    BlankLMScoreMode.BLANK_LM_BEST_WORST,
-                }:
+                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_TOP_MAX:
                     _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
                     log_probs[..., :-1] += lm_scores
                     _, labels_with_lm_nb_top_k = torch.topk(
@@ -327,15 +321,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         dim=-1,
                         index=labels_with_lm_nb_top_k,
                     )
-                    match self.blank_lm_score_mode:
-                        case BlankLMScoreMode.BLANK_LM_BEST_MAX:
-                            blank_lm_scores = lm_only_scores.max(dim=-1, keepdim=False).values
-                        case BlankLMScoreMode.BLANK_LM_BEST_BEST:
-                            blank_lm_scores = lm_only_scores[..., 0]
-                        case BlankLMScoreMode.BLANK_LM_BEST_WORST:
-                            blank_lm_scores = lm_only_scores[..., -1]
-                        case _:
-                            raise NotImplementedError
+                    blank_lm_scores = lm_only_scores.max(dim=-1, keepdim=False).values
                     log_probs[..., -1] += blank_lm_scores
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
