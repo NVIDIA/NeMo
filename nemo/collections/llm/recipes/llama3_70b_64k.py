@@ -22,7 +22,6 @@ import torch
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes import llama3_70b
-from nemo.collections.llm.recipes.callbacks.default import straggler_det_callback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_70b_64k"
@@ -86,7 +85,7 @@ def trainer(
         sequence_parallelism=True,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
-        callbacks=[run.Config(TimingCallback), straggler_det_callback()],
+        callbacks=[run.Config(TimingCallback)],
     )
 
 
