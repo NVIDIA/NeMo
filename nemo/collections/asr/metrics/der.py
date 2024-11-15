@@ -123,7 +123,7 @@ def uem_timeline_from_file(uem_file, uniq_name=''):
         lines = f.readlines()
         for line in lines:
             line = line.strip()
-            speaker_id, channel, start_time, end_time = line.split()
+            _, _, start_time, end_time = line.split()
             timeline.add(Segment(float(start_time), float(end_time)))
 
     return timeline
@@ -145,14 +145,21 @@ def score_labels(
 
 
     Args:
-        AUDIO_RTTM_MAP (dict): Dictionary containing information provided from manifestpath
-        all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
-        all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
-        verbose (bool): Warns if RTTM file is not found.
+        AUDIO_RTTM_MAP (dict): 
+            Dictionary containing information provided from manifestpath
+        all_reference (list[uniq_name,Annotation]): 
+            Reference annotations for score calculation
+        all_hypothesis (list[uniq_name,Annotation]): 
+            Hypothesis annotations for score calculation
+        verbose (bool): 
+            Warns if RTTM file is not found.
 
     Returns:
-        metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object. This object contains detailed scores of each audiofile.
-        mapping (dict): Mapping dict containing the mapping speaker label for each audio input
+        metric (pyannote.DiarizationErrorRate): 
+            Pyannote Diarization Error Rate metric object. 
+            This object contains detailed scores of each audiofile.
+        mapping (dict): 
+            Mapping dict containing the mapping speaker label for each audio input
 
     < Caveat >
     Unlike md-eval.pl, "no score" collar in pyannote.metrics is the maximum length of
@@ -171,7 +178,8 @@ def score_labels(
                 correct_spk_count += 1
             if verbose and len(ref_labels.labels()) != len(hyp_labels.labels()):
                 logging.info(
-                    f"Wrong Spk. Count with uniq_id:...{ref_key[-10:]}, Ref: {len(ref_labels.labels())}, Hyp: {len(hyp_labels.labels())}"
+                    f"Wrong Spk. Count with uniq_id:...{ref_key[-10:]}, " 
+                    f"Ref: {len(ref_labels.labels())}, Hyp: {len(hyp_labels.labels())}"
                 )
             uem_obj = None
             if all_uem is not None:
@@ -187,7 +195,7 @@ def score_labels(
         spk_count_acc = correct_spk_count / len(all_reference)
         DER = abs(metric)
         if metric['total'] == 0:
-            raise ValueError(f"Total evaluation time is 0. Abort.")
+            raise ValueError("Total evaluation time is 0. Abort.")
         CER = metric['confusion'] / metric['total']
         FA = metric['false alarm'] / metric['total']
         MISS = metric['missed detection'] / metric['total']
@@ -195,18 +203,18 @@ def score_labels(
         itemized_errors = (DER, CER, FA, MISS)
 
         if verbose:
-            # logging.info(f"\n{metric.report()}")
-            pass
+            logging.info(f"\n{metric.report()}")
         logging.info(
-            "Cumulative Results for collar {} sec and ignore_overlap {}: \n| FA: {:.4f} | MISS: {:.4f} | CER: {:.4f} | DER: {:.4f} | Spk. Count Acc. {:.4f}\n".format(
-                collar, ignore_overlap, FA, MISS, CER, DER, spk_count_acc
-            )
+            f"Cumulative Results for collar {collar} sec and ignore_overlap {ignore_overlap}: \n"
+            f"| FA: {FA:.4f} | MISS: {MISS:.4f} | CER: {CER:.4f} | DER: {DER:.4f} | "
+            f"Spk. Count Acc. {spk_count_acc:.4f}\n"
         )
 
         return metric, mapping_dict, itemized_errors
     elif verbose:
         logging.warning(
-            "Check if each ground truth RTTMs were present in the provided manifest file. Skipping calculation of Diariazation Error Rate"
+            "Check if each ground truth RTTMs were present in the provided manifest file. "
+            "Skipping calculation of Diariazation Error Rate"
         )
     return None
 

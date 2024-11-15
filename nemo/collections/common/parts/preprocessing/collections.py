@@ -350,7 +350,9 @@ class ASRAudioText(AudioText):
 
 
 class SpeechLLMAudioTextEntity(object):
+    """Class for SpeechLLM dataloader instance."""
     def __init__(self, sid, audio_file, duration, context, answer, offset, speaker, orig_sr, lang) -> None:
+        """Initialize the AudioTextEntity for a SpeechLLM dataloader instance."""
         self.id = sid
         self.audio_file = audio_file
         self.duration = duration
@@ -642,7 +644,8 @@ class SpeechLLMAudioTextCollection(SpeechLLMAudioText):
         elif 'question' in item:
             # compatability with old manifests that uses 'question' as context key
             logging.warning(
-                f"Neither `{self.context_key}` is found nor `context_file` is set, but found `question` in item: {item}",
+                f"Neither `{self.context_key}` is found nor"
+                f"`context_file` is set, but found `question` in item: {item}",
                 mode=logging_mode.ONCE,
             )
             item['context'] = item.pop('question')
@@ -739,7 +742,8 @@ class SpeechLabel(_Collection):
         else:
             logging.info(f"Filtered duration for loading collection is {duration_filtered / 3600: .2f} hours.")
             logging.info(
-                f"Dataset successfully loaded with {len(data)} items and total duration provided from manifest is {total_duration / 3600: .2f} hours."
+                f"Dataset successfully loaded with {len(data)} items "
+                f"and total duration provided from manifest is {total_duration / 3600: .2f} hours."
             )
 
         self.uniq_labels = sorted(set(map(lambda x: x.label, data)))
@@ -880,13 +884,15 @@ class FeatureSequenceLabel(_Collection):
             if len(data) == max_number:
                 break
 
-        logging.info("# {} files loaded including # {} unique labels".format(len(data), len(self.uniq_labels)))
+        logging.info(f"# {len(data)} files loaded including # {len(self.uniq_labels)} unique labels")
         super().__init__(data)
 
     def relative_speaker_parser(self, seq_label):
         """Convert sequence of speaker labels to relative labels.
         Convert sequence of absolute speaker to sequence of relative speaker [E A C A E E C] -> [0 1 2 1 0 0 2]
-        In this seq of label , if label do not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
+        In this seq of label , if label do not appear before, assign new relative labels len(pos); 
+        else reuse previous assigned relative labels.
+        
         Args:
             seq_label (str): A string of a sequence of labels.
 
@@ -923,10 +929,13 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
         """Parse lists of feature files and sequences of labels.
 
         Args:
-            manifests_files: Either single string file or list of such -
-                manifests to yield items from.
-            max_number:  Maximum number of samples to collect; pass to `FeatureSequenceLabel` constructor.
-            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data; pass to `FeatureSequenceLabel` constructor.
+            manifests_files: 
+                Either single string file or list of such manifests to yield items from.
+            max_number:  
+                Maximum number of samples to collect; pass to `FeatureSequenceLabel` constructor.
+            index_by_file_id: 
+                If True, saves a mapping from filename base (ID) to index in data; 
+                pass to `FeatureSequenceLabel` constructor.
         """
 
         feature_files, seq_labels = [], []
@@ -1088,24 +1097,26 @@ class DiarizationSpeechLabel(DiarizationLabel):
         **kwargs,
     ):
         """
-        Parse lists of audio files, durations, RTTM (Diarization annotation) files. Since diarization model infers only
-        two speakers, speaker pairs are generated from the total number of speakers in the session.
+        Parse lists of audio files, durations, RTTM (Diarization annotation) files. Since the diarization 
+        model infers only two speakers, speaker pairs are generated from the total number of speakers in 
+        the session.
 
         Args:
             manifest_filepath (str):
-                Path to input manifest json files.
+                Path to input manifest JSON files.
             emb_dict (Dict):
                 Dictionary containing cluster-average embeddings and speaker mapping information.
             clus_label_dict (Dict):
                 Segment-level speaker labels from clustering results.
             round_digit (int):
-                Number of digits to be rounded.
+                Number of digits to round.
             seq_eval_mode (bool):
                 If True, F1 score will be calculated for each speaker pair during inference mode.
             pairwise_infer (bool):
-                If True, this dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
-                is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (0,2)]) and then
-                fed into the diarization system to merge the individual results.
+                If True, this dataset class operates in inference mode. In inference mode, a set of 
+                speakers in the input audio is split into multiple pairs of speakers and speaker tuples 
+                (e.g., 3 speakers: [(0,1), (1,2), (0,2)]) and then fed into the diarization system to 
+                merge the individual results.
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
@@ -1244,7 +1255,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
 
 
 class EndtoEndDiarizationLabel(_Collection):
-    """List of diarization audio-label correspondence with preprocessing."""
+    """List of end-to-end diarization audio-label correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
         typename='DiarizationLabelEntity',
@@ -1276,7 +1287,8 @@ class EndtoEndDiarizationLabel(_Collection):
             offsets (List[float]): List of offsets or None for each audio file.
             max_number (Optional[int]): Maximum number of samples to collect. Defaults to None.
             do_sort_by_duration (bool): If True, sort samples list by duration. Defaults to False.
-            index_by_file_id (bool): If True, saves a mapping from filename base (ID) to index in data. Defaults to False.
+            index_by_file_id (bool): If True, saves a mapping from filename base (ID) to index in data. 
+                                     Defaults to False.
 
         """
         if index_by_file_id:
@@ -1694,7 +1706,8 @@ class ASRFeatureLabel(FeatureLabel):
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
             max_number:  Maximum number of samples to collect; pass to `FeatureSequenceLabel` constructor.
-            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data; pass to `FeatureSequenceLabel` constructor.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data; 
+                              pass to `FeatureSequenceLabel` constructor.
         """
 
         feature_files, labels, durations = [], [], []

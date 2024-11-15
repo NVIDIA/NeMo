@@ -1,4 +1,4 @@
-sortformer_diarizer_hybrid_loss_4spk-v1.yaml# Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
+# Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
 # Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<speaker count limit>_<version>.yaml
 # (Example) `sortformer_diarizer_hybrid_loss_4spk-v1.yaml`.
 # Sortformer Diarizer model checkpoint (.ckpt) and NeMo file (.nemo) contain Fast Conformer Encoder model (NEST Encoder) and the pre-trained NEST model is loaded along with the Transformer Encoder layers.

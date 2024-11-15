@@ -20,7 +20,6 @@ import torch.nn.functional as F
 
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types.elements import ProbsType
 
 __all__ = ['SortformerModules']
 

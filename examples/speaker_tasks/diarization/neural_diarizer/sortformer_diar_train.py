@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,33 +22,26 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 """
-Example training session (single GPU training on telephonic datasets)
+Example training session (single node training)
 
-python ./multiscale_diar_decoder.py --config-path='../conf/neural_diarizer' --config-name='msdd_5scl_15_05_50Povl_256x3x32x2.yaml' \
+python ./sortformer_diar_train.py --config-path='../conf/neural_diarizer' --config-name='' \
     trainer.devices=1 \
-    model.base.diarizer.speaker_embeddings.model_path="titanet_large" \
     model.train_ds.manifest_filepath="<train_manifest_path>" \
     model.validation_ds.manifest_filepath="<dev_manifest_path>" \
-    model.train_ds.emb_dir="<train_temp_dir>" \
-    model.validation_ds.emb_dir="<dev_temp_dir>" \
     exp_manager.name='sample_train' \
-    exp_manager.exp_dir='./msdd_exp'
+    exp_manager.exp_dir='./sortformer_diar_train'
 """
 
 seed_everything(42)
 
-
-@hydra_runner(config_path="../conf/neural_diarizer", config_name="msdd_5scl_15_05_50Povl_256x3x32x2.yaml")
+@hydra_runner(config_path="../conf/neural_diarizer", config_name="sortformer_diarizer_hybrid_loss_4spk-v1.yaml")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     sortformer_model = SortformerEncLabelModel(cfg=cfg.model, trainer=trainer)
-    # Initialize the weights of the model from another model, if provided via config
     sortformer_model.maybe_init_from_pretrained_checkpoint(cfg)
     trainer.fit(sortformer_model)
 
-
 if __name__ == '__main__':
-
     main()
