@@ -185,7 +185,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None
+        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
     ):
         super().__init__()
         self.decoder = decoder
@@ -256,7 +256,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         if self.ngram_lm_batch is not None:
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(states=batch_lm_states)  # vocab_size_no_blank
-            lm_scores = lm_scores.to(dtype=float_dtype)
+            lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
 
         decoder_output, state, *_ = self.decoder.predict(
             last_labels_wb.reshape(-1).unsqueeze(1), None, add_sos=False, batch_size=batch_size * self.beam_size
@@ -277,15 +277,15 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 .squeeze(1)
             )
             log_probs = F.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
-            if self.ngram_lm_batch:
+            if self.ngram_lm_batch is not None:
                 if self.blank_lm_score_mode is BlankLMScoreMode.SIMPLE:
-                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs[..., :-1] += lm_scores
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
                 elif self.blank_lm_score_mode is BlankLMScoreMode.PRESERVE_BLANK:
                     _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
-                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs[..., :-1] += lm_scores
                     _, labels_with_lm_nb_top_k = torch.topk(
                         log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
                     )
@@ -299,17 +299,14 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     )
                     log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
                 elif self.blank_lm_score_mode is BlankLMScoreMode.BLANK_LM_WEIGHTED:
-                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs[..., :-1] += lm_scores
                     log_probs[..., -1] *= 1 + self.ngram_lm_alpha
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
                 elif self.blank_lm_score_mode is BlankLMScoreMode.BLANK_LM_MAX:
-                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
-                    log_probs[..., -1] += (
-                        self.ngram_lm_alpha
-                        * lm_scores.view(batch_size, self.beam_size, -1).max(dim=-1, keepdim=False).values
-                    )
+                    log_probs[..., :-1] += lm_scores
+                    log_probs[..., -1] += lm_scores.max(dim=-1, keepdim=False).values
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
@@ -319,13 +316,13 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     BlankLMScoreMode.BLANK_LM_BEST_WORST,
                 }:
                     _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
-                    log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1)
+                    log_probs[..., :-1] += lm_scores
                     _, labels_with_lm_nb_top_k = torch.topk(
                         log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
                     )
                     # [(BxBeam), beam]
                     lm_only_scores = torch.gather(
-                        self.ngram_lm_alpha * lm_scores.view(batch_size, self.beam_size, -1),
+                        lm_scores,
                         dim=-1,
                         index=labels_with_lm_nb_top_k,
                     )
@@ -471,7 +468,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
                     states=batch_lm_states
                 )  # vocab_size_no_blank
-                lm_scores = lm_scores.to(dtype=float_dtype)
+                lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
 
             time_indices = batched_hyps.last_timestep
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
