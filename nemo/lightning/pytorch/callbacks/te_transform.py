@@ -45,6 +45,7 @@ class TETransform(Callback, IOMixin):
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
+
         TEAccelerator.accelerate(model)
         if self.fp8_autocast:
             TEAccelerator.apply_fp8_autocast(model)

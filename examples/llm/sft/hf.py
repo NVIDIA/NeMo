@@ -81,7 +81,10 @@ if __name__ == '__main__':
     callbacks = []
     if args.model_accelerator:
         if args.model_accelerator == "te":
-            callbacks.append(TETransform(fp8_autocast=args.fp8_autocast))
+            if args.devices > 1:
+                raise Exception("Only devices = 1 when transformer engine accelerator is used.")
+            else:
+                callbacks.append(TETransform(fp8_autocast=args.fp8_autocast))
 
     llm.api.finetune(
         model=model,

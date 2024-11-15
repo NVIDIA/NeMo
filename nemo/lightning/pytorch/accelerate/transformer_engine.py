@@ -23,17 +23,11 @@ class TEAccelerator:
     @staticmethod
     def accelerate(model):
         TEAccelerator._accelerate(model)
-        return model
 
     @staticmethod
     def _accelerate(model):
         for name, module in model.named_children():
             if isinstance(module, torch.nn.Linear):
-                # print(name, module)
-                # print(module.weight)
-                # print("")
-                # print("")
-
                 has_bias = module.bias is not None
                 if any(p % 16 != 0 for p in module.weight.shape):
                     print("continuing")
@@ -47,10 +41,21 @@ class TEAccelerator:
                         te_module.bias.copy_(module.bias)
 
                 setattr(model, name, te_module)
-                # print(te_module.weight)
-            TEAccelerator._accelerate(module)
+            elif isinstance(module, torch.nn.LayerNorm):
+                te_module = te.LayerNorm(module.normalized_shape[0], eps=module.eps, params_dtype=module.weight.dtype)
+                te_module.weight.copy_(module.weight)
+                te_module.bias.copy_(module.bias)
+                setattr(model, name, te_module)
+            elif isinstance(module, torch.nn.RMSNorm):
+                te_module = te.RMSNorm(module.normalized_shape[0], eps=module.eps, dtype=module.weight.dtype)
+                te_module.weight.copy_(module.weight)
+                te_module.bias.copy_(module.bias)
+                setattr(model, name, te_module)
+            else:
+                if len(list(module.children())) > 0:
+                    TEAccelerator._accelerate(module)
 
-        return model
+        # return model
 
     @staticmethod
     def te_accelerated(model):
