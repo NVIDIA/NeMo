@@ -125,7 +125,7 @@ def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optun
     Suggests hyperparameters for postprocessing using Optuna.
     See the following link for `trial` instance in Optuna framework.
     https://optuna.readthedocs.io/en/stable/reference/generated/optuna.trial.Trial.html#optuna.trial.Trial
-    
+
     Args:
         postprocessing_cfg (PostProcessingParams): The current postprocessing configuration.
         trial (optuna.Trial): The Optuna trial object used to suggest hyperparameters.
@@ -390,13 +390,14 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             out_rttm_dir=cfg.out_rttm_dir,
         )
         logging.info(f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments...")
-        score_labels(AUDIO_RTTM_MAP=infer_audio_rttm_dict, 
-                    all_reference=all_refs, 
-                    all_hypothesis=all_hyps, 
-                    all_uem=all_uems, 
-                    collar=cfg.collar, 
-                    ignore_overlap=cfg.ignore_overlap
-                    )
+        score_labels(
+            AUDIO_RTTM_MAP=infer_audio_rttm_dict,
+            all_reference=all_refs,
+            all_hypothesis=all_hyps,
+            all_uem=all_uems,
+            collar=cfg.collar,
+            ignore_overlap=cfg.ignore_overlap,
+        )
         logging.info(f"PostProcessingParams: {postprocessing_cfg}")
 
 

@@ -14,7 +14,6 @@
 
 import math
 import torch
-from tqdm import tqdm
 from lhotse import SupervisionSet
 from lhotse.cut import MixedCut, MonoCut
 
@@ -173,6 +172,7 @@ def get_pil_targets(labels: torch.Tensor, preds: torch.Tensor, speaker_permutati
     max_score_permed_labels = reconstruct_labels(labels, batch_perm_inds)  # (batch_size, num_speakers, num_classes)
     return max_score_permed_labels  # (batch_size, num_speakers, num_classes)
 
+
 def find_segments_from_rttm(
     recording_id: str,
     rttms,
@@ -302,17 +302,18 @@ def get_hidden_length_from_sample_length(
     hidden_length = math.ceil(mel_frame_count / num_mel_frame_per_asr_frame)
     return int(hidden_length)
 
+
 def speaker_to_target(
     a_cut,
-    num_speakers: int = 4, 
-    num_sample_per_mel_frame: int = 160, 
-    num_mel_frame_per_asr_frame: int = 8, 
+    num_speakers: int = 4,
+    num_sample_per_mel_frame: int = 160,
+    num_mel_frame_per_asr_frame: int = 8,
     spk_tar_all_zero: bool = False,
     boundary_segments: bool = False,
     soft_label: bool = False,
     ignore_num_spk_mismatch: bool = True,
     soft_thres: float = 0.5,
-    ):
+):
     '''
     Get rttm samples corresponding to one cut, generate speaker mask numpy.ndarray with shape (num_speaker, hidden_length)
     This function is needed for speaker diarization with ASR model trainings.
@@ -326,7 +327,7 @@ def speaker_to_target(
         boundary_segments (bool): set to True to include segments containing the boundary of the cut, False by default for multi-speaker ASR training
         soft_label (bool): set to True to use soft label that enables values in [0, 1] range, False by default and leads to binary labels.
         ignore_num_spk_mismatch (bool): This is a temporary solution to handle speaker mismatch. Will be removed in the future.
-    
+
     Returns:
         mask (Tensor): speaker mask with shape (num_speaker, hidden_lenght)
     '''
@@ -340,14 +341,18 @@ def speaker_to_target(
         offsets = [0]
     else:
         raise ValueError(f"Unsupported cut type type{a_cut}: only MixedCut and MonoCut are supported")
-    
+
     segments_total = []
     for i, cut in enumerate(cut_list):
         rttms = SupervisionSet.from_rttm(cut.rttm_filepath)
-        if boundary_segments: # segments with seg_start < total_end and seg_end > total_start are included
-            segments_iterator = find_segments_from_rttm(recording_id=cut.recording_id, rttms=rttms, start_after=cut.start, end_before=cut.end, tolerance=0.0)
-        else: # segments with seg_start > total_start and seg_end < total_end are included
-            segments_iterator = rttms.find(recording_id=cut.recording_id, start_after=cut.start, end_before=cut.end, adjust_offset=True)
+        if boundary_segments:  # segments with seg_start < total_end and seg_end > total_start are included
+            segments_iterator = find_segments_from_rttm(
+                recording_id=cut.recording_id, rttms=rttms, start_after=cut.start, end_before=cut.end, tolerance=0.0
+            )
+        else:  # segments with seg_start > total_start and seg_end < total_end are included
+            segments_iterator = rttms.find(
+                recording_id=cut.recording_id, start_after=cut.start, end_before=cut.end, adjust_offset=True
+            )
 
         for seg in segments_iterator:
             if seg.start < 0:
@@ -357,28 +362,31 @@ def speaker_to_target(
                 seg.duration -= seg.end - cut.duration
             seg.start += offsets[i]
             segments_total.append(seg)
-    
+
     # apply arrival time sorting to the existing segments
-    segments_total.sort(key = lambda rttm_sup: rttm_sup.start)
+    segments_total.sort(key=lambda rttm_sup: rttm_sup.start)
 
     seen = set()
     seen_add = seen.add
     speaker_ats = [s.speaker for s in segments_total if not (s.speaker in seen or seen_add(s.speaker))]
-     
-    speaker_to_idx_map = {
-            spk: idx
-            for idx, spk in enumerate(speaker_ats)
-    }
+
+    speaker_to_idx_map = {spk: idx for idx, spk in enumerate(speaker_ats)}
     if len(speaker_to_idx_map) > num_speakers and not ignore_num_spk_mismatch:  # raise error if number of speakers
-        raise ValueError(f"Number of speakers {len(speaker_to_idx_map)} is larger than the maximum number of speakers {num_speakers}")
-        
+        raise ValueError(
+            f"Number of speakers {len(speaker_to_idx_map)} is larger than the maximum number of speakers {num_speakers}"
+        )
+
     # initialize mask matrices (num_speaker, encoder_hidden_len)
-    feat_per_sec = int(a_cut.sampling_rate / num_sample_per_mel_frame) # 100 by default
-    num_samples = get_hidden_length_from_sample_length(a_cut.num_samples, num_sample_per_mel_frame, num_mel_frame_per_asr_frame)
-    if spk_tar_all_zero: 
+    feat_per_sec = int(a_cut.sampling_rate / num_sample_per_mel_frame)  # 100 by default
+    num_samples = get_hidden_length_from_sample_length(
+        a_cut.num_samples, num_sample_per_mel_frame, num_mel_frame_per_asr_frame
+    )
+    if spk_tar_all_zero:
         frame_mask = torch.zeros((num_samples, num_speakers))
     else:
-        frame_mask = get_mask_from_segments(segments_total, a_cut, speaker_to_idx_map, num_speakers, feat_per_sec, ignore_num_spk_mismatch)
+        frame_mask = get_mask_from_segments(
+            segments_total, a_cut, speaker_to_idx_map, num_speakers, feat_per_sec, ignore_num_spk_mismatch
+        )
     soft_mask = get_soft_mask(frame_mask, num_samples, num_mel_frame_per_asr_frame)
 
     if soft_label:

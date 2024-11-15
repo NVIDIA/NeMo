@@ -977,7 +977,9 @@ def get_subsegments(
             subsegments.append([start, min(duration, window)])
     elif slices > 0:  # What if slcies = 0 ?
         start_col = torch.arange(offset, slice_end, shift)[:slices]
-        dur_col_raw = torch.min(slice_end*torch.ones_like(start_col)- start_col, window * torch.ones_like(start_col))
+        dur_col_raw = torch.min(
+            slice_end * torch.ones_like(start_col) - start_col, window * torch.ones_like(start_col)
+        )
         dur_col = torch.round(dur_col_raw, decimals=decimals)
         valid_mask = dur_col >= min_subsegment_duration
         valid_subsegments = torch.stack([start_col[valid_mask], dur_col[valid_mask]], dim=1)
