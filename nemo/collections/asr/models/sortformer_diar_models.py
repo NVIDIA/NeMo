@@ -12,31 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import itertools
 import random
-import torch
+import time
 from collections import OrderedDict
 from typing import Dict, List, Optional, Union
+
+import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from tqdm import tqdm
+
+from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
+from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
+from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
+from nemo.collections.asr.models.asr_model import ExportableEncDecModel
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_ats_targets, get_pil_targets
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 from nemo.core.neural_types.elements import ProbsType
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
-from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
-from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
-from nemo.collections.asr.models.asr_model import ExportableEncDecModel
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_pil_targets, get_ats_targets
 from nemo.utils import logging
 
 __all__ = ['SortformerEncLabelModel']
+
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     """
@@ -69,7 +72,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         random.seed(42)
         self._trainer = trainer if trainer else None
         self._cfg = cfg
-        
+
         if self._trainer:
             self.world_size = trainer.num_nodes * trainer.num_devices
         else:
@@ -98,27 +101,27 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
         self._init_eval_metrics()
-        
+
         speaker_inds = list(range(self._cfg.max_num_of_spks))
-        self.speaker_permutations = torch.tensor(list(itertools.permutations(speaker_inds))) # Get all permutations
-    
+        self.speaker_permutations = torch.tensor(list(itertools.permutations(speaker_inds)))  # Get all permutations
+
     def _init_loss_weights(self):
         pil_weight = self._cfg.get("pil_weight", 0.0)
         ats_weight = self._cfg.get("ats_weight", 1.0)
         if pil_weight + ats_weight == 0:
             raise ValueError(f"weights for PIL {pil_weight} and ATS {ats_weight} cannot sum to 0")
-        self.pil_weight = pil_weight/(pil_weight + ats_weight)
-        self.ats_weight = ats_weight/(pil_weight + ats_weight)
+        self.pil_weight = pil_weight / (pil_weight + ats_weight)
+        self.ats_weight = ats_weight / (pil_weight + ats_weight)
         logging.info(f"Normalized weights for PIL {self.pil_weight} and ATS {self.ats_weight}")
-        
+
     def _init_eval_metrics(self):
-        """ 
+        """
         If there is no label, then the evaluation metrics will be based on Permutation Invariant Loss (PIL).
         """
         self._accuracy_test = MultiBinaryAccuracy()
         self._accuracy_train = MultiBinaryAccuracy()
         self._accuracy_valid = MultiBinaryAccuracy()
-        
+
         self._accuracy_test_ats = MultiBinaryAccuracy()
         self._accuracy_train_ats = MultiBinaryAccuracy()
         self._accuracy_valid_ats = MultiBinaryAccuracy()
@@ -126,11 +129,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     def _reset_train_metrics(self):
         self._accuracy_train.reset()
         self._accuracy_train_ats.reset()
-        
+
     def _reset_valid_metrics(self):
         self._accuracy_valid.reset()
         self._accuracy_valid_ats.reset()
-        
+
     def __setup_dataloader_from_config(self, config):
         # Switch to lhotse dataloader if specified in the config
         if config.get("use_lhotse"):
@@ -157,7 +160,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             global_rank = 0
         time_flag = time.time()
         logging.info("AAB: Starting Dataloader Instance loading... Step A")
-        
+
         dataset = AudioToSpeechE2ESpkDiarDataset(
             manifest_filepath=config.manifest_filepath,
             soft_label_thres=config.soft_label_thres,
@@ -168,11 +171,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             global_rank=global_rank,
             soft_targets=config.soft_targets if 'soft_targets' in config else False,
         )
-        logging.info(f"AAB: Dataloader dataset is created, starting torch.utils.data.Dataloader step B: {time.time() - time_flag}")
+        logging.info(
+            f"AAB: Dataloader dataset is created, starting torch.utils.data.Dataloader step B: {time.time() - time_flag}"
+        )
 
         self.data_collection = dataset.collection
         self.collate_ds = dataset
-         
+
         dataloader_instance = torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config.batch_size,
@@ -184,15 +189,21 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         )
         logging.info(f"AAC: Dataloader Instance loading is done ETA Step B done: {time.time() - time_flag}")
         return dataloader_instance
-    
+
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        self._train_dl = self.__setup_dataloader_from_config(config=train_data_config,)
+        self._train_dl = self.__setup_dataloader_from_config(
+            config=train_data_config,
+        )
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config,)
-    
+        self._validation_dl = self.__setup_dataloader_from_config(
+            config=val_data_layer_config,
+        )
+
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
-        self._test_dl = self.__setup_dataloader_from_config(config=test_data_config,)
+        self._test_dl = self.__setup_dataloader_from_config(
+            config=test_data_config,
+        )
 
     def test_dataloader(self):
         if self._test_dl is not None:
@@ -216,11 +227,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 "preds": NeuralType(('B', 'T', 'C'), ProbsType()),
             }
         )
-    
+
     def frontend_encoder(self, processed_signal, processed_signal_length):
-        """ 
+        """
         Generate encoder outputs from frontend encoder.
-        
+
         Args:
             process_signal (torch.Tensor): tensor containing audio-feature (mel spectrogram, mfcc, etc.)
             processed_signal_length (torch.Tensor): tensor containing lengths of audio signal in integers
@@ -237,7 +248,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         emb_seq = emb_seq.transpose(1, 2)
         if self._cfg.encoder.d_model != self._cfg.tf_d_model:
             self.sortformer_modules.encoder_proj = self.sortformer_modules.encoder_proj.to(self.device)
-            emb_seq = self.sortformer_modules.encoder_proj(emb_seq)   
+            emb_seq = self.sortformer_modules.encoder_proj(emb_seq)
         return emb_seq, emb_seq_length
 
     def forward_infer(self, emb_seq):
@@ -247,7 +258,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         Args:
             emb_seq (torch.Tensor): tensor containing FastConformer encoder states (embedding vectors).
                 Dimension: (batch_size, diar_frame_count, emb_dim)
-        
+
         Returns:
             preds (torch.Tensor): Sorted tensor containing Sigmoid values for predicted speaker labels.
                 Dimension: (batch_size, diar_frame_count, num_speakers)
@@ -258,9 +269,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         trans_emb_seq = self.transformer_encoder(encoder_states=emb_seq, encoder_mask=encoder_mask)
         preds = self.sortformer_modules.forward_speaker_sigmoids(trans_emb_seq)
         return preds
-    
+
     def process_signal(self, audio_signal, audio_signal_length):
-        """ 
+        """
         Extract audio features from time-series signal for further processing in the model.
 
         This function performs the following steps:
@@ -282,43 +293,49 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                     Shape: (batch_size,)
         """
         audio_signal = audio_signal.to(self.device)
-        audio_signal = (1/(audio_signal.max()+self.eps)) * audio_signal 
-        processed_signal, processed_signal_length = self.preprocessor(input_signal=audio_signal, length=audio_signal_length) 
+        audio_signal = (1 / (audio_signal.max() + self.eps)) * audio_signal
+        processed_signal, processed_signal_length = self.preprocessor(
+            input_signal=audio_signal, length=audio_signal_length
+        )
         return processed_signal, processed_signal_length
-    
+
     def forward(
-        self, 
-        audio_signal, 
-        audio_signal_length, 
+        self,
+        audio_signal,
+        audio_signal_length,
     ):
         """
         Forward pass for training and inference.
-        
+
         Args:
             audio_signal (torch.Tensor): tensor containing audio waveform
                 Dimension: (batch_size, num_samples)
             audio_signal_length (torch.Tensor): tensor containing lengths of audio waveforms
                 Dimension: (batch_size,)
-            
+
         Returns:
             preds (torch.Tensor): Sorted tensor containing predicted speaker labels
                 Dimension: (batch_size, diar_frame_count, num_speakers)
             encoder_states_list (list): List containing total speaker memory for each step for debugging purposes
                 Dimension: [(batch_size, diar_frame_count, inner dim), ]
         """
-        processed_signal, processed_signal_length = self.process_signal(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
-        processed_signal = processed_signal[:, :, :processed_signal_length.max()]
+        processed_signal, processed_signal_length = self.process_signal(
+            audio_signal=audio_signal, audio_signal_length=audio_signal_length
+        )
+        processed_signal = processed_signal[:, :, : processed_signal_length.max()]
         if self._cfg.get("streaming_mode", False):
             raise NotImplementedError("Streaming mode is not implemented yet.")
         else:
-            emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
+            emb_seq, _ = self.frontend_encoder(
+                processed_signal=processed_signal, processed_signal_length=processed_signal_length
+            )
             preds = self.forward_infer(emb_seq)
         return preds
-    
+
     def _get_aux_train_evaluations(self, preds, targets, target_lens):
-        """ 
+        """
         Compute auxiliary training evaluations including losses and metrics.
-        
+
         This function calculates various losses and metrics for the training process,
         including ATS (Anchored Temporal Segmentation) and PIL (Permutation Invariant Loss)
         based evaluations.
@@ -355,7 +372,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             'train_precision': train_precision,
             'train_recall': train_recall,
             'train_f1_acc_ats': train_f1_acc_ats,
-        } 
+        }
         return train_metrics
 
     def training_step(self, batch: list) -> dict:
@@ -381,7 +398,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         return {'loss': train_metrics['loss']}
 
     def _get_aux_validation_evaluations(self, preds, targets, target_lens):
-        """ 
+        """
         Compute auxiliary validation evaluations including losses and metrics.
         This function calculates various losses and metrics for the validation process,
         including ATS (Anchored Temporal Segmentation) and PIL (Permutation Invariant Loss)
@@ -471,7 +488,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         val_f1_acc_ats_mean = torch.stack([x['val_f1_acc_ats'] for x in outputs]).mean()
 
         self._reset_valid_metrics()
-        
+
         multi_val_metrics = {
             'val_loss': val_loss_mean,
             'val_ats_loss': val_ats_loss_mean,
@@ -484,9 +501,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         return {'log': multi_val_metrics}
 
     def _get_aux_test_batch_evaluations(self, batch_idx: int, preds, targets, target_lens):
-        """ 
+        """
         Compute auxiliary validation evaluations including losses and metrics.
-        
+
         This function calculates various losses and metrics for the validation process,
         including ATS (Anchored Temporal Segmentation) and PIL (Permutation Invariant Loss)
         based evaluations.
@@ -514,19 +531,29 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy_test_ats(preds, targets_ats, target_lens)
         f1_acc_ats, precision_ats, recall_ats = self._accuracy_test_ats.compute()
         self.batch_f1_accs_ats_list.append(f1_acc_ats)
-        logging.info(f"batch {batch_idx}: f1_acc_ats={f1_acc_ats}, precision_ats={precision_ats}, recall_ats={recall_ats}")
+        logging.info(
+            f"batch {batch_idx}: f1_acc_ats={f1_acc_ats}, precision_ats={precision_ats}, recall_ats={recall_ats}"
+        )
 
         self._accuracy_test.reset()
         self._accuracy_test_ats.reset()
 
-    def test_batch(self,):
-        """ 
+    def test_batch(
+        self,
+    ):
+        """
         Perform batch testing on the model.
-        
+
         This method iterates through the test data loader, making predictions for each batch,
         and calculates various evaluation metrics. It handles both single and multi-sample batches.
         """
-        self.preds_total_list, self.batch_f1_accs_list, self.batch_precision_list, self.batch_recall_list, self.batch_f1_accs_ats_list = [], [], [], [], []
+        (
+            self.preds_total_list,
+            self.batch_f1_accs_list,
+            self.batch_precision_list,
+            self.batch_recall_list,
+            self.batch_f1_accs_ats_list,
+        ) = ([], [], [], [], [])
 
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self._test_dl)):
@@ -538,7 +565,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                     audio_signal_length=audio_signal_length,
                 )
                 preds = preds.detach().to('cpu')
-                if preds.shape[0] == 1: # If batch size is absolute 1
+                if preds.shape[0] == 1:  # batch size = 1
                     self.preds_total_list.append(preds)
                 else:
                     self.preds_total_list.extend(torch.split(preds, [1] * preds.shape[0]))
@@ -550,5 +577,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
         logging.info(f"Batch ATS F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_ats_list))}")
 
-    def diarize(self,):
+    def diarize(
+        self,
+    ):
         raise NotImplementedError

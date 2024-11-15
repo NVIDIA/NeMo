@@ -15,17 +15,22 @@
 import os
 from collections import OrderedDict
 from statistics import mode
-from typing import Dict, List, Tuple, Optional
-import torch
-import numpy as np
+from typing import Dict, List, Optional, Tuple
 
-from nemo.collections.asr.parts.utils.offline_clustering import get_argmin_mat
+import numpy as np
+import torch
+
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import find_first_nonzero
-from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, prepare_split_data, get_subsegments
-from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel, EndtoEndDiarizationSpeechLabel
+from nemo.collections.asr.parts.utils.offline_clustering import get_argmin_mat
+from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, get_subsegments, prepare_split_data
+from nemo.collections.common.parts.preprocessing.collections import (
+    DiarizationSpeechLabel,
+    EndtoEndDiarizationSpeechLabel,
+)
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType, ProbsType
 from nemo.utils import logging
+
 
 def get_scale_mapping_list(uniq_timestamps):
     """
@@ -125,7 +130,7 @@ def assign_frame_level_spk_vector(rttm_timestamps, round_digits, frame_per_sec, 
         return None
     else:
         sorted_speakers = sorted(list(set(speaker_list)))
-        total_fr_len = int(max(end_list) * (10 ** round_digits))
+        total_fr_len = int(max(end_list) * (10**round_digits))
         spk_num = max(len(sorted_speakers), min_spks)
         speaker_mapping_dict = {rttm_key: x_int for x_int, rttm_key in enumerate(sorted_speakers)}
         fr_level_target = torch.zeros(total_fr_len, spk_num)
@@ -141,27 +146,24 @@ def assign_frame_level_spk_vector(rttm_timestamps, round_digits, frame_per_sec, 
 
 
 def get_subsegments_to_timestamps(
-    subsegments: List[Tuple[float, float]], 
-    feat_per_sec: int = 100, 
-    max_end_ts: float=None, 
-    decimals=2
-    ):
+    subsegments: List[Tuple[float, float]], feat_per_sec: int = 100, max_end_ts: float = None, decimals=2
+):
     """
     Convert subsegment timestamps to scale timestamps by multiplying with the feature rate and rounding.
     All `ts` related tensors are dimensioned as (N, 2), where N is the number of subsegments.
 
     Args:
-        subsegments (List[Tuple[float, float]]): 
+        subsegments (List[Tuple[float, float]]):
             A list of tuples where each tuple contains the start and end times of a subsegment.
-        feat_per_sec (int, optional): 
+        feat_per_sec (int, optional):
             The number of feature frames per second. Defaults to 100.
-        max_end_ts (float, optional): 
+        max_end_ts (float, optional):
             The maximum end timestamp to clip the results. If None, no clipping is applied. Defaults to None.
-        decimals (int, optional): 
+        decimals (int, optional):
             The number of decimal places to round the timestamps. Defaults to 2.
 
     Returns:
-        ts (torch.tensor): 
+        ts (torch.tensor):
             A tensor containing the scaled and rounded timestamps for each subsegment.
     """
     seg_ts = (torch.tensor(subsegments) * feat_per_sec).float()
@@ -169,8 +171,9 @@ def get_subsegments_to_timestamps(
     ts = ts_round.long()
     ts[:, 1] = ts[:, 0] + ts[:, 1]
     if max_end_ts is not None:
-        ts = np.clip(ts, 0, int(max_end_ts*feat_per_sec))
-    return ts 
+        ts = np.clip(ts, 0, int(max_end_ts * feat_per_sec))
+    return ts
+
 
 def extract_frame_info_from_rttm(uniq_id, offset, duration, rttm_lines, round_digits=3):
     """
@@ -190,42 +193,43 @@ def extract_frame_info_from_rttm(uniq_id, offset, duration, rttm_lines, round_di
     rttm_stt, rttm_end = offset, offset + duration
     stt_list, end_list, speaker_list, speaker_set = [], [], [], []
     sess_to_global_spkids = dict()
-    
+
     for rttm_line in rttm_lines:
         start, end, speaker = convert_rttm_line(rttm_line)
-        
+
         # Skip invalid RTTM lines where the start time is greater than the end time.
         if start > end:
             continue
-        
+
         # Check if the RTTM segment overlaps with the specified segment of interest.
         if (end > rttm_stt and start < rttm_end) or (start < rttm_end and end > rttm_stt):
             # Adjust the start and end times to fit within the segment of interest.
             start, end = max(start, rttm_stt), min(end, rttm_end)
         else:
             continue
-        
+
         # Round the start and end times to the specified number of decimal places.
         end_list.append(round(end, round_digits))
         stt_list.append(round(start, round_digits))
-        
+
         # Assign a unique index to each speaker and maintain a mapping.
         if speaker not in speaker_set:
             speaker_set.append(speaker)
         speaker_list.append(speaker_set.index(speaker))
         sess_to_global_spkids.update({speaker_set.index(speaker): speaker})
-    
+
     rttm_mat = (stt_list, end_list, speaker_list)
     return rttm_mat, sess_to_global_spkids
 
+
 def get_frame_targets_from_rttm(
-    rttm_timestamps: list, 
-    offset: float, 
-    duration: float, 
-    round_digits: int, 
-    feat_per_sec: int, 
+    rttm_timestamps: list,
+    offset: float,
+    duration: float,
+    round_digits: int,
+    feat_per_sec: int,
     max_spks: int,
-    ):
+):
     """
     Create a multi-dimensional vector sequence containing speaker timestamp information in RTTM.
     The unit-length is the frame shift length of the acoustic feature. The feature-level annotations
@@ -249,15 +253,17 @@ def get_frame_targets_from_rttm(
     sorted_speakers = sorted(list(set(speaker_list)))
     total_fr_len = int(duration * feat_per_sec)
     if len(sorted_speakers) > max_spks:
-        logging.warning(f"Number of speakers in RTTM file {len(sorted_speakers)} exceeds the maximum number of speakers: {max_spks}! Only {max_spks} first speakers remain, and this will affect frame metrics!")
-    feat_level_target = torch.zeros(total_fr_len, max_spks) 
+        logging.warning(
+            f"Number of speakers in RTTM file {len(sorted_speakers)} exceeds the maximum number of speakers: {max_spks}! Only {max_spks} first speakers remain, and this will affect frame metrics!"
+        )
+    feat_level_target = torch.zeros(total_fr_len, max_spks)
     for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
         if end < offset or stt > offset + duration:
             continue
         stt, end = max(offset, stt), min(offset + duration, end)
         spk = spk_rttm_key
         if spk < max_spks:
-            stt_fr, end_fr = int((stt - offset) * feat_per_sec), int((end - offset)* feat_per_sec)
+            stt_fr, end_fr = int((stt - offset) * feat_per_sec), int((end - offset) * feat_per_sec)
             feat_level_target[stt_fr:end_fr, spk] = 1
     return feat_level_target
 
@@ -337,7 +343,7 @@ class _AudioMSDDTrainDataset(Dataset):
         self.multiscale_args_dict = multiscale_args_dict
         self.emb_dir = emb_dir
         self.round_digits = 2
-        self.decim = 10 ** self.round_digits
+        self.decim = 10**self.round_digits
         self.soft_label_thres = soft_label_thres
         self.pairwise_infer = pairwise_infer
         self.max_spks = 2
@@ -347,7 +353,10 @@ class _AudioMSDDTrainDataset(Dataset):
         self.global_rank = global_rank
         self.manifest_filepath = manifest_filepath
         self.multiscale_timestamp_dict = prepare_split_data(
-            self.manifest_filepath, self.emb_dir, self.multiscale_args_dict, self.global_rank,
+            self.manifest_filepath,
+            self.emb_dir,
+            self.multiscale_args_dict,
+            self.global_rank,
         )
 
     def __len__(self):
@@ -364,7 +373,7 @@ class _AudioMSDDTrainDataset(Dataset):
                 Unique sample ID for training.
             base_scale_clus_label (torch.tensor):
                 Tensor variable containing the speaker labels for the base-scale segments.
-        
+
         Returns:
             per_scale_clus_label (torch.tensor):
                 Tensor variable containing the speaker labels for each segment in each scale.
@@ -415,7 +424,7 @@ class _AudioMSDDTrainDataset(Dataset):
         seg_target_list, base_clus_label = [], []
         self.scale_n = len(self.multiscale_timestamp_dict[uniq_id]['scale_dict'])
         subseg_time_stamp_list = self.multiscale_timestamp_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"]
-        for (seg_stt, seg_end) in subseg_time_stamp_list:
+        for seg_stt, seg_end in subseg_time_stamp_list:
             seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
             soft_label_vec_sess = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (
                 seg_end_fr - seg_stt_fr
@@ -619,7 +628,7 @@ class _AudioMSDDInferDataset(Dataset):
         self.emb_seq = emb_seq
         self.clus_label_dict = clus_label_dict
         self.round_digits = 2
-        self.decim = 10 ** self.round_digits
+        self.decim = 10**self.round_digits
         self.frame_per_sec = int(1 / window_stride)
         self.soft_label_thres = soft_label_thres
         self.pairwise_infer = pairwise_infer
@@ -685,7 +694,7 @@ class _AudioMSDDInferDataset(Dataset):
             return None
         else:
             seg_target_list = []
-            for (seg_stt, seg_end, label_int) in self.clus_label_dict[uniq_id]:
+            for seg_stt, seg_end, label_int in self.clus_label_dict[uniq_id]:
                 seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
                 soft_label_vec = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (
                     seg_end_fr - seg_stt_fr
@@ -975,6 +984,7 @@ class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
     def msdd_infer_collate_fn(self, batch):
         return _msdd_infer_collate_fn(self, batch)
 
+
 class _AudioToSpeechE2ESpkDiarDataset(Dataset):
     """
     Dataset class that loads a json file containing paths to audio files,
@@ -1047,8 +1057,8 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
         self.use_asr_style_frame_count = True
         self.soft_targets = soft_targets
         self.round_digits = 2
-        self.floor_decimal = 10 ** self.round_digits
-    
+        self.floor_decimal = 10**self.round_digits
+
     def __len__(self):
         return len(self.collection)
 
@@ -1085,15 +1095,16 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
         rttm_lines = open(rttm_file).readlines()
         rttm_timestamps, sess_to_global_spkids = extract_frame_info_from_rttm(uniq_id, offset, duration, rttm_lines)
 
-        fr_level_target = get_frame_targets_from_rttm(rttm_timestamps=rttm_timestamps,
-                                                      offset=offset,
-                                                      duration=duration,
-                                                      round_digits=self.round_digits,
-                                                      feat_per_sec=self.feat_per_sec,
-                                                      max_spks=self.max_spks)
+        fr_level_target = get_frame_targets_from_rttm(
+            rttm_timestamps=rttm_timestamps,
+            offset=offset,
+            duration=duration,
+            round_digits=self.round_digits,
+            feat_per_sec=self.feat_per_sec,
+            max_spks=self.max_spks,
+        )
 
-        soft_target_seg = self.get_soft_targets_seg(feat_level_target=fr_level_target,
-                                                    target_len=target_len)
+        soft_target_seg = self.get_soft_targets_seg(feat_level_target=fr_level_target, target_len=target_len)
         if self.soft_targets:
             step_target = soft_target_seg
         else:
@@ -1128,15 +1139,15 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
                 seg_end_feat = feat_level_target.shape[0]
             else:
                 seg_end_feat = stride * index - 1 + int(stride / 2)
-            targets[index] = torch.mean(feat_level_target[seg_stt_feat:seg_end_feat+1, :], axis=0)
+            targets[index] = torch.mean(feat_level_target[seg_stt_feat : seg_end_feat + 1, :], axis=0)
         return targets
 
     def get_segment_timestamps(
         self,
-        duration: float, 
-        offset: float = 0, 
+        duration: float,
+        offset: float = 0,
         sample_rate: int = 16000,
-        ):
+    ):
         """
         Get start and end time of segments in each scale.
 
@@ -1150,22 +1161,28 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
                 Number of segments for each scale. This information is used for reshaping embedding batch
                 during forward propagation.
         """
-        subsegments = get_subsegments(offset=offset, 
-                                      window=round(self.diar_frame_length * 2, self.round_digits),
-                                      shift=self.diar_frame_length,
-                                      duration=duration, 
-                                      min_subsegment_duration=self.min_subsegment_duration,
-                                      use_asr_style_frame_count=self.use_asr_style_frame_count,
-                                      sample_rate=sample_rate,
-                                      feat_per_sec=self.feat_per_sec,
+        subsegments = get_subsegments(
+            offset=offset,
+            window=round(self.diar_frame_length * 2, self.round_digits),
+            shift=self.diar_frame_length,
+            duration=duration,
+            min_subsegment_duration=self.min_subsegment_duration,
+            use_asr_style_frame_count=self.use_asr_style_frame_count,
+            sample_rate=sample_rate,
+            feat_per_sec=self.feat_per_sec,
         )
         if self.use_asr_style_frame_count:
-            effective_dur =  np.ceil((1+duration*sample_rate)/int(sample_rate/self.feat_per_sec)).astype(int)/self.feat_per_sec
+            effective_dur = (
+                np.ceil((1 + duration * sample_rate) / int(sample_rate / self.feat_per_sec)).astype(int)
+                / self.feat_per_sec
+            )
         else:
-            effective_dur = duration 
-        ts_tensor = get_subsegments_to_timestamps(subsegments, self.feat_per_sec, decimals=2, max_end_ts=(offset+effective_dur))
+            effective_dur = duration
+        ts_tensor = get_subsegments_to_timestamps(
+            subsegments, self.feat_per_sec, decimals=2, max_end_ts=(offset + effective_dur)
+        )
         target_len = torch.tensor([ts_tensor.shape[0]])
-        return target_len    
+        return target_len
 
     def __getitem__(self, index):
         sample = self.collection[index]
@@ -1179,24 +1196,25 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
 
         uniq_id = self.get_uniq_id_with_range(sample)
         audio_signal = self.featurizer.process(sample.audio_file, offset=offset, duration=session_len_sec)
-        
+
         # We should resolve the length mis-match from the round-off errors: `session_len_sec` and `audio_signal.shape[0]`
-        session_len_sec = np.floor(audio_signal.shape[0] / self.featurizer.sample_rate * self.floor_decimal)/self.floor_decimal
-        audio_signal = audio_signal[:round(self.featurizer.sample_rate*session_len_sec)]
-        
+        session_len_sec = (
+            np.floor(audio_signal.shape[0] / self.featurizer.sample_rate * self.floor_decimal) / self.floor_decimal
+        )
+        audio_signal = audio_signal[: round(self.featurizer.sample_rate * session_len_sec)]
+
         audio_signal_length = torch.tensor(audio_signal.shape[0]).long()
         audio_signal, audio_signal_length = audio_signal.to('cpu'), audio_signal_length.to('cpu')
         target_len = self.get_segment_timestamps(duration=session_len_sec, sample_rate=self.featurizer.sample_rate)
-        targets = self.parse_rttm_for_targets_and_lens(uniq_id=uniq_id,
-                                                 rttm_file=sample.rttm_file,
-                                                 offset=offset,
-                                                 duration=session_len_sec, 
-                                                 target_len=target_len)
+        targets = self.parse_rttm_for_targets_and_lens(
+            uniq_id=uniq_id, rttm_file=sample.rttm_file, offset=offset, duration=session_len_sec, target_len=target_len
+        )
         return audio_signal, audio_signal_length, targets, target_len
+
 
 def _eesd_train_collate_fn(self, batch):
     """
-    Collate a batch of variables needed for training the end-to-end speaker diarization (EESD) model 
+    Collate a batch of variables needed for training the end-to-end speaker diarization (EESD) model
     from raw waveforms to diarization labels. The following variables are included in the training/validation batch:
 
     Args:
@@ -1249,24 +1267,25 @@ def _eesd_train_collate_fn(self, batch):
     targets = torch.stack(targets_list)
     return audio_signal, feature_length, targets, target_lens
 
+
 class AudioToSpeechE2ESpkDiarDataset(_AudioToSpeechE2ESpkDiarDataset):
     """
     Dataset class for loading a JSON file containing paths to audio files,
     RTTM (Rich Transcription Time Marked) files, and the number of speakers.
-    This class is designed for training or fine-tuning a speaker embedding 
+    This class is designed for training or fine-tuning a speaker embedding
     extractor and diarization decoder simultaneously.
 
     The JSON manifest file should have entries in the following format:
-    
+
     Example:
     {
-        "audio_filepath": "/path/to/audio_0.wav", 
+        "audio_filepath": "/path/to/audio_0.wav",
         "num_speakers": 2,
         "rttm_filepath": "/path/to/diar_label_0.rttm"
     }
     ...
     {
-        "audio_filepath": "/path/to/audio_n.wav", 
+        "audio_filepath": "/path/to/audio_n.wav",
         "num_speakers": 2,
         "rttm_filepath": "/path/to/diar_label_n.rttm"
     }
@@ -1283,7 +1302,7 @@ class AudioToSpeechE2ESpkDiarDataset(_AudioToSpeechE2ESpkDiarDataset):
         featurizer:
             Instance of a featurizer for generating features from the raw waveform.
         window_stride (float):
-            Window stride (in seconds) for extracting acoustic features, used to calculate 
+            Window stride (in seconds) for extracting acoustic features, used to calculate
             the number of feature frames.
         global_rank (int):
             Global rank of the current process (used for distributed training).
@@ -1294,6 +1313,7 @@ class AudioToSpeechE2ESpkDiarDataset(_AudioToSpeechE2ESpkDiarDataset):
         eesd_train_collate_fn(batch):
             Collates a batch of data for end-to-end speaker diarization training.
     """
+
     def __init__(
         self,
         *,
