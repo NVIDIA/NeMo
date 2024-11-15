@@ -208,8 +208,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
-        return None 
-    
+        return None
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):

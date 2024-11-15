@@ -76,11 +76,11 @@ def audio_rttm_map(manifest, attach_dur=False):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps
-    
+
     Args:
         manifest (str): Path to the manifest file
         attach_dur (bool, optional): If True, attach duration information to the unique name. Defaults to False.
-        
+
     Returns:
         AUDIO_RTTM_MAP (dict) : Dictionary with unique names as keys and corresponding metadata as values.
     """
@@ -117,7 +117,7 @@ def audio_rttm_map(manifest, attach_dur=False):
                 raise KeyError(
                     f"file {meta['audio_filepath']} is already part of AUDIO_RTTM_MAP, it might be duplicated, "
                     "Note: file basename must be unique"
-                    )
+                )
 
     return AUDIO_RTTM_MAP
 
@@ -247,7 +247,7 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
 def get_timestamps(multiscale_timestamps, multiscale_args_dict):
     """
     The timestamps in `multiscale_timestamps` dictionary are indexed by scale index.
-    This function rearranges the extracted speaker embedding and timestamps by unique ID 
+    This function rearranges the extracted speaker embedding and timestamps by unique ID
     to make the further processing more convenient.
 
     Args:
@@ -442,19 +442,19 @@ def perform_clustering(
             'embeddings' : Tensor containing embeddings. Dimensions:(# of embs) x (emb. dimension)
             'timestamps' : Tensor containing ime stamps list for each audio recording
             'multiscale_segment_counts' : Tensor containing the number of segments for each scale
-        AUDIO_RTTM_MAP (dict): 
+        AUDIO_RTTM_MAP (dict):
             AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
-        out_rttm_dir (str): 
+        out_rttm_dir (str):
             Path to write predicted rttms
-        clustering_params (dict): 
-            Clustering parameters provided through config that contains max_num_speakers (int), 
-            oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) 
+        clustering_params (dict):
+            Clustering parameters provided through config that contains max_num_speakers (int),
+            oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int)
             and enhance_count_threshold (int).
-        use_torch_script (bool): 
+        use_torch_script (bool):
             Boolean that determines whether to use torch.jit.script for speaker clustering
-        device (torch.device): 
+        device (torch.device):
             Device we are running on ('cpu', 'cuda').
-        verbose (bool): 
+        verbose (bool):
             Enable TQDM progress bar.
 
     Returns:
@@ -624,7 +624,7 @@ def read_rttm_lines(rttm_file_path):
         raise FileNotFoundError(
             "Requested to construct manifest from rttm with oracle VAD option "
             f"or from NeMo VAD but received filename as {rttm_file_path}"
-            )
+        )
     return lines
 
 
@@ -893,7 +893,7 @@ def segments_manifest_to_subsegments_manifest(
     Generate subsegments manifest from segments manifest file
     Args:
         segments_manifest file (str): path to segments manifest file, typically from VAD output
-        subsegments_manifest_file (str): path to output subsegments manifest file 
+        subsegments_manifest_file (str): path to output subsegments manifest file
                                         (default (None) : writes to current working directory)
         window (float): window length for segments to subsegments length
         shift (float): hop length for subsegments shift
@@ -968,7 +968,7 @@ def get_subsegments(
                                           it results in (10/0.08)+1 = 125 + 1 frames.
 
     Returns:
-        subsegments (List[tuple[float, float]]): subsegments generated for the segments as 
+        subsegments (List[tuple[float, float]]): subsegments generated for the segments as
         list of tuple of start and duration of each subsegment
     """
     subsegments: List[List[float]] = []
@@ -1051,9 +1051,9 @@ def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
 
 
 def generate_diarization_output_lines(speaker_timestamps: List[List[float]], model_spk_num: int) -> List[str]:
-    """ 
+    """
     Generate diarization output lines list from the speaker timestamps list by merging overlapping intervals.
-    
+
     Args:
         speaker_timestamps (list):
             List containing the start and end time of the speech intervals for each speaker.
@@ -1061,7 +1061,7 @@ def generate_diarization_output_lines(speaker_timestamps: List[List[float]], mod
                 >>> speaker_timestamps = [[0.5, 3.12], [3.51, 7.26],... ]
         model_spk_num (int):
             Number of speakers in the model.
-            
+
     Returns:
         speaker_lines_total (list):
             List containing the diarization output lines in the format:
@@ -1393,20 +1393,20 @@ def get_overlap_stamps(cont_stamps: List[str], ovl_spk_idx: List[str]):
 
 def get_adaptive_threshold(estimated_num_of_spks: int, min_threshold: float, overlap_infer_spk_limit: int):
     """
-    This function controls the magnitude of the sigmoid threshold based on the estimated number of 
-    speakers. As the number of speakers becomes larger, diarization error rate is very sensitive 
-    to overlap speech detection. This function linearly increases the threshold in proportion to 
-    the estimated number of speakers so more confident overlap speech results are reflected when 
+    This function controls the magnitude of the sigmoid threshold based on the estimated number of
+    speakers. As the number of speakers becomes larger, diarization error rate is very sensitive
+    to overlap speech detection. This function linearly increases the threshold in proportion to
+    the estimated number of speakers so more confident overlap speech results are reflected when
     the number of estimated speakers is relatively high.
 
     Args:
         estimated_num_of_spks (int):
             Estimated number of speakers from the clustering result.
         min_threshold (float):
-            Sigmoid threshold value from the config file. This threshold value is the minimum 
+            Sigmoid threshold value from the config file. This threshold value is the minimum
             threshold when `estimated_num_of_spks=2`.
         overlap_infer_spk_limit (int):
-            If the `estimated_num_of_spks` is less than `overlap_infer_spk_limit`, overlap speech 
+            If the `estimated_num_of_spks` is less than `overlap_infer_spk_limit`, overlap speech
             estimation is skipped.
 
     Returns:
@@ -1423,37 +1423,37 @@ def generate_speaker_timestamps(
     clus_labels: List[Union[float, int]], msdd_preds: List[torch.Tensor], **params
 ) -> Tuple[List[str], List[str]]:
     """
-    Generate speaker timestamps from the segmentation information. If `use_clus_as_main=True`, use 
-    clustering result for main speaker labels and use timestamps from the predicted sigmoid values. 
-    In this function, the main speaker labels in `maj_labels` exist for every subsegment step, while 
+    Generate speaker timestamps from the segmentation information. If `use_clus_as_main=True`, use
+    clustering result for main speaker labels and use timestamps from the predicted sigmoid values.
+    In this function, the main speaker labels in `maj_labels` exist for every subsegment step, while
     overlap speaker labels in `ovl_labels` only exist for segments where overlap speech occurs.
 
     Args:
         clus_labels (list):
             List containing integer-valued speaker clustering results.
         msdd_preds (list):
-            List containing tensors of the predicted sigmoid values. Each tensor has shape of: 
+            List containing tensors of the predicted sigmoid values. Each tensor has shape of:
             (Session length, estimated number of speakers).
         params:
             Parameters for generating RTTM output and evaluation. Parameters include:
                 infer_overlap (bool): If False, overlap speech will not be detected.
-                use_clus_as_main (bool): Add overlap-speech detection from MSDD to clustering results. 
-                                         If False, only MSDD output is used for constructing output 
+                use_clus_as_main (bool): Add overlap-speech detection from MSDD to clustering results.
+                                         If False, only MSDD output is used for constructing output
                                          RTTM files.
                 overlap_infer_spk_limit (int): Above this limit, overlap-speech detection is bypassed.
-                use_adaptive_thres (bool): Boolean that determines whether to use adaptive thresholds 
+                use_adaptive_thres (bool): Boolean that determines whether to use adaptive thresholds
                                            depending on the estimated number of speakers.
                 max_overlap_spks (int): Maximum number of overlap speakers detected. Default is 2.
                 threshold (float): Sigmoid threshold for MSDD output.
 
     Returns:
         maj_labels (list):
-            List containing string-formatted single-speaker speech segment timestamps and corresponding 
+            List containing string-formatted single-speaker speech segment timestamps and corresponding
             speaker labels.
             Example: [..., '551.685 552.77 speaker_1', '552.99 554.43 speaker_0', '554.97 558.19 speaker_0', ...]
         ovl_labels (list):
-            List containing string-formatted additional overlapping speech segment timestamps and 
-            corresponding speaker labels. Note that `ovl_labels` includes only overlapping speech that 
+            List containing string-formatted additional overlapping speech segment timestamps and
+            corresponding speaker labels. Note that `ovl_labels` includes only overlapping speech that
             is not included in `maj_labels`.
             Example: [..., '152.495 152.745 speaker_1', '372.71 373.085 speaker_0', '554.97 555.885 speaker_1', ...]
     """
@@ -1510,7 +1510,7 @@ def get_id_tup_dict(uniq_id_list: List[str], test_data_collection, preds_list: L
         uniq_id_list (list):
             List containing the `uniq_id` values.
         test_data_collection (collections.DiarizationLabelEntity):
-            Class instance that is containing session information such as targeted speaker indices, 
+            Class instance that is containing session information such as targeted speaker indices,
             audio filepath and RTTM filepath.
         preds_list (list):
             List containing tensors of predicted sigmoid values.
@@ -1540,14 +1540,14 @@ def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global
 
     Returns:
         multiscale_args_dict (dict):
-            - Dictionary containing two types of arguments: multi-scale weights and subsegment timestamps 
+            - Dictionary containing two types of arguments: multi-scale weights and subsegment timestamps
               for each data sample.
             - Each data sample has two keys: `multiscale_weights` and `scale_dict`.
                 - `multiscale_weights` key contains a list containing multiscale weights.
                 - `scale_dict` is indexed by integer keys which are scale index.
-            - Each data sample is indexed by using the following naming convention: 
+            - Each data sample is indexed by using the following naming convention:
                 `<uniq_id>_<start time in ms>_<end time in ms>`
-                
+
                 Example: `fe_03_00106_mixed_626310_642300`
     """
     speaker_dir = os.path.join(_out_dir, 'speaker_outputs')

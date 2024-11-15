@@ -145,20 +145,20 @@ def score_labels(
 
 
     Args:
-        AUDIO_RTTM_MAP (dict): 
+        AUDIO_RTTM_MAP (dict):
             Dictionary containing information provided from manifestpath
-        all_reference (list[uniq_name,Annotation]): 
+        all_reference (list[uniq_name,Annotation]):
             Reference annotations for score calculation
-        all_hypothesis (list[uniq_name,Annotation]): 
+        all_hypothesis (list[uniq_name,Annotation]):
             Hypothesis annotations for score calculation
-        verbose (bool): 
+        verbose (bool):
             Warns if RTTM file is not found.
 
     Returns:
-        metric (pyannote.DiarizationErrorRate): 
-            Pyannote Diarization Error Rate metric object. 
+        metric (pyannote.DiarizationErrorRate):
+            Pyannote Diarization Error Rate metric object.
             This object contains detailed scores of each audiofile.
-        mapping (dict): 
+        mapping (dict):
             Mapping dict containing the mapping speaker label for each audio input
 
     < Caveat >
@@ -178,7 +178,7 @@ def score_labels(
                 correct_spk_count += 1
             if verbose and len(ref_labels.labels()) != len(hyp_labels.labels()):
                 logging.info(
-                    f"Wrong Spk. Count with uniq_id:...{ref_key[-10:]}, " 
+                    f"Wrong Spk. Count with uniq_id:...{ref_key[-10:]}, "
                     f"Ref: {len(ref_labels.labels())}, Hyp: {len(hyp_labels.labels())}"
                 )
             uem_obj = None

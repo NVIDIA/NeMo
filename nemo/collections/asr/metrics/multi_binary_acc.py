@@ -84,15 +84,15 @@ class MultiBinaryAccuracy(Metric):
     def update(
         self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor, cumulative=False
     ) -> torch.Tensor:
-        """ 
+        """
         Update the metric with the given predictions, targets, and signal lengths to the metric instance.
-        
+
         Args:
             preds (torch.Tensor): Predicted values.
             targets (torch.Tensor): Target values.
             signal_lengths (torch.Tensor): Length of each sequence in the batch input.
             cumulative (bool): Whether to accumulate the values over time.
-            
+
         Returns:
             f1_score (torch.Tensor): F1 score calculated from the predicted value and binarized target values.
         """
