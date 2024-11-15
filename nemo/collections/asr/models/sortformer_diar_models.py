@@ -571,7 +571,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                     self.preds_total_list.extend(torch.split(preds, [1] * preds.shape[0]))
                 torch.cuda.empty_cache()
                 self._get_aux_test_batch_evaluations(batch_idx, preds, targets, target_lens)
-                
+
         logging.info(f"Batch F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_list))}")
         logging.info(f"Batch Precision MEAN: {torch.mean(torch.tensor(self.batch_precision_list))}")
         logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
