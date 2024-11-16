@@ -207,6 +207,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 assert num_turns[i] / 2 == len(audios_list)
                 for audios in audios_list:
                     # TODO: resample?
+                    # TODO: tmp solution for the next two lines
+                    from lhotse import Recording
+
+                    audios = Recording.from_file(audios['sources'][0]['source'])
+
                     answer_audio = torch.tensor(audios.load_audio()).float()
                     answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
                     answer_audios.append(answer_audio)
@@ -259,7 +264,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             metadata,
             word_lengths,
             start_time_tokens,
-            instruction_lengths,
+            torch.Tensor(instruction_lengths).long(),
             num_turns,
         )
 
@@ -399,11 +404,12 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             return texts_expanded
 
+        batch_size = audio.shape[0]
         # TODO: can remove the following except features_lens
-        target_codec = get_3d_empty_tensor(len(cuts), max(features_lens).item() + 1, text_pad_id, self.speech_pad_id)
+        target_codec = get_3d_empty_tensor(batch_size, max(features_lens).item() + 1, text_pad_id, self.speech_pad_id)
         eos_tensor = torch.full((1, target_codec.shape[-1]), self.speech_eos_id).to(torch.int)
         eos_tensor[:, 0] = self.text_processor.unk_id
-        for i, cut in enumerate(cuts):
+        for i in range(batch_size):
             target_codec[i, : features_lens[i], 0] = text_unk_id
             feat_i = torch.full((features_lens[i], target_codec.shape[-1] - 1), self.speech_pad_id - 1)
             target_codec[i, : feat_i.shape[0], 1:] = feat_i
@@ -421,7 +427,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         # answers = torch.concat([speaker_context, bos_tensor, target_codec], 1)
 
         # TODO: remove the following stanza
-        if getattr(cut, "s2s", False):
+        if getattr(cuts[0], "s2s", False):
             # Add 1 for eos token
             token_list = [
                 torch.concat([tt[: ttl + 1], tc[: tcl + 1]], 0)
@@ -445,7 +451,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
             full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_lengths
 
-        elif getattr(cut, "s2s_align", False):
+        elif getattr(cuts[0], "s2s_align", False):
             bos_tensor = torch.full(
                 (target_codec.shape[0], 1, self.n_speech_codebooks * self.decoder_reduction_factor + 1),
                 self.speech_bos_id,
@@ -488,7 +494,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_length
             full_lengths = features_lens + 1 + instruction_length
             target_text_lengths = -1 * torch.ones_like(target_text_lengths)  # bos_tensor
-        elif getattr(cut, "direct_s2s", False):
+        elif getattr(cuts[0], "direct_s2s", False):
             # Add 1 for eos token
             # tt[0] is the bos token
             token_list = [
@@ -510,7 +516,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     text_loss_mask[:, :itl, :] = False
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
             full_lengths = 1 + features_lens + 1 + instruction_length
-        elif getattr(cut, "s2t", False):
+        elif getattr(cuts[0], "s2t", False):
             # Add 1 for eos token
             token_list = [tt[: ttl + 1] for tt, ttl in zip(target_texts_expanded, target_text_lengths)]
             if not self.t5_style:

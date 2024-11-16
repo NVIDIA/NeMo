@@ -12,6 +12,7 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from torch import Tensor
+from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
@@ -908,7 +909,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 input_len = encoder_length[cnt]
                 if i != num_turns - 2:  # last turn
                     input_len -= 1  # remove the last token as it is eos between the turns
-                tmp_encoder_input.append(encoder_input[cnt][:input_len])
+                tmp_encoder_input.append(encoder_input.transpose(0, 1)[cnt][:input_len])
                 tmp_labels.append(labels[cnt][:input_len])
                 tmp_loss_mask.append(loss_mask[cnt][:input_len])
                 tmp_encoder_length.append(input_len)
@@ -917,9 +918,19 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             new_encoder_length.append(sum(tmp_encoder_length))
             new_labels.append(torch.cat(tmp_labels, dim=0))
             new_loss_mask.append(torch.cat(tmp_loss_mask, dim=0))
+        new_encoder_input = pad_sequence(new_encoder_input, batch_first=True)
+        new_encoder_length = torch.Tensor(new_encoder_length).long()
+        new_labels = pad_sequence(new_labels, batch_first=True)
+        new_loss_mask = pad_sequence(new_loss_mask, batch_first=True)
         assert cnt == encoder_length.shape[0]
         new_attention_mask = self._create_attention_mask(new_encoder_input)
-        return new_encoder_input, new_attention_mask, new_labels, new_loss_mask, new_encoder_length
+        return (
+            new_encoder_input.transpose(0, 1).contiguous(),
+            new_attention_mask,
+            new_labels,
+            new_loss_mask,
+            new_encoder_length,
+        )
 
     '''
     def prepare_llm_input(self, audio_batch):

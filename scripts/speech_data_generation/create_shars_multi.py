@@ -44,6 +44,9 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
         # For single turn convs is a list of 2 elements
         # First element is user speech and second is agent speech
         convs = line["conversations"]
+        for conv in convs:
+            conv["value"] = conv["value"].replace("fs7", "fsw")
+
         # User_Speech
         user_recording = Recording.from_file(convs[0]['value'])
         user_recordings.append(user_recording)
@@ -80,6 +83,7 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
     for i, cut in tqdm(enumerate(cuts)):
         convs = in_manifest[i]["conversations"]
         cut.target_audios = []
+        cut.source_audios = []
         for i in range(0, len(convs), 2):
             cut.supervisions.append(
                 SupervisionSegment(
@@ -106,11 +110,12 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
             cut.source_audios.append(Recording.from_file(convs[i]['value']))
             cut.target_audios.append(Recording.from_file(convs[i + 1]['value']))
 
+    breakpoint()
     print("...Making Shars")
     out_shar_dir = Path(out_shar_dir)
     out_shar_dir.mkdir(parents=True, exist_ok=True)
     shard_size = shard_size
-    assert len(user_recordings) % shard_size != 0, "Lhotse breaks if feat_list is a multiple of shard_size"
+    # assert len(user_recordings) % shard_size != 0, "Lhotse breaks if feat_list is a multiple of shard_size"
     exported = cuts.to_shar(out_shar_dir, fields={"recording": "wav"}, num_jobs=4, shard_size=shard_size)
     print(f"...share created")
 
