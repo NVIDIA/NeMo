@@ -61,6 +61,7 @@ model:
     dataloader_params:
       batch_size: ${batch_size}
       num_workers: 4
+      drop_last: true
 
   validation_ds:
     dataset:
@@ -73,7 +74,7 @@ model:
 
     dataloader_params:
       batch_size: ${batch_size}
-      num_workers: 2
+      num_workers: 0
 
   t5_encoder:
     is_causal: false
