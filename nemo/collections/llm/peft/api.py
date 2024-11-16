@@ -38,7 +38,6 @@ def gpt_lora() -> PEFT:
 
 
 def merge_lora(
-    model: pl.LightningModule,
     lora_checkpoint_path: str,
     output_path: str,
 ):
@@ -47,23 +46,14 @@ def merge_lora(
 
     Python Usage:
     ```python
-    def llama3_8b() -> pl.LightningModule:
-        from transformers import AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
-        return llm.LlamaModel(llm.Llama3Config8B(), tokenizer=tokenizer)
-
-
     if __name__ == '__main__':
         llm.peft.merge_lora(
-            model=llama3_8b(),
             lora_checkpoint_path=your_lora_checkpoint_path,
             output_path=your_output_path,
         )
     ```
 
     Args:
-        model: The base model instance to merge the LoRA adapter weights into.
         lora_checkpoint_path: The path to the LoRA checkpoint.
         output_path: The path to save the merged checkpoint.
 
@@ -88,6 +78,10 @@ def merge_lora(
         )
     else:
         raise ValueError(f"Cannot find adapter meta file in {lora_checkpoint_path}")
+    
+    model = io.load_context(ckpt_to_context_subdir(lora_checkpoint_path), "model")
+    model.model_transform, model.__io__.model_transform=None, None
+    model.config.bf16=False
 
     trainer.strategy.restore_config = restore_config
     trainer.strategy._setup_optimizers = False
