@@ -2486,10 +2486,10 @@ jobs:
         rm -rf examples/nlp/language_modeling/gpt_index_mappings
       IS_OPTIONAL: true
 
-  OPTIONAL_L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124:
+  L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
@@ -2512,7 +2512,6 @@ jobs:
         --get_results
       AFTER_SCRIPT: |
         rm -rf examples/llm/auto_configurator/auto_conf_logs
-      IS_OPTIONAL: true
 
   L2_Megatron_GPT_Finetuning_PP2:
     needs: [cicd-test-container-setup]
@@ -3455,73 +3454,36 @@ jobs:
   # L2: Megatron Mock Data Generation                
   L2_Megatron_Mock_Data_Generation_MockGPTDataset:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
-    timeout-minutes: 10
-    container:
-      image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /mnt/datadrive/TestData:/home/TestData
-    steps:
-        - name: Checkout repository
-          uses: actions/checkout@v4
-        - run: |
-            python examples/tts/radtts.py \
-            train_dataset=/home/TestData/an4_dataset/an4_train.json \
-            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
-            trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 \
-            +trainer.limit_val_batches=1 \
-            trainer.max_epochs=1 \
-            trainer.strategy=auto \
-            model.pitch_mean=212.35873413085938 \
-            model.pitch_std=68.52806091308594 \
-            model.train_ds.dataloader_params.batch_size=4 \
-            model.train_ds.dataloader_params.num_workers=0 \
-            model.validation_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.num_workers=0 \
-            export_dir=/home/TestData/radtts_test \
-            model.optim.lr=0.0001 \
-            model.modelConfig.decoder_use_partial_padding=True \
-            ~trainer.check_val_every_n_epoch \
-            ~model.text_normalizer \
-            ~model.text_normalizer_call_kwargs
-        #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-        #  if: "failure()"
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_Mock_Data_Generation_MockGPTDataset') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+            trainer.max_steps=10 \
+            trainer.limit_val_batches=7 \
+            trainer.val_check_interval=10 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+            model.mcore_gpt=True \
+            model.data.data_impl=mock \
+            model.data.data_prefix=[]
 
   L2_Megatron_Mock_Data_Generation_MockT5Dataset:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
-    container:
-      image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g 
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /mnt/datadrive/TestData:/home/TestData
-    steps:
-        - name: Checkout repository
-          uses: actions/checkout@v4
-        - run: |
-            python examples/multimodal/text_to_image/nerf/main.py \
-            trainer.num_nodes=1 \
-            trainer.devices="[0]" \
-            trainer.max_steps=1000 \
-            model.prompt="a DSLR photo of a delicious hamburger" \
-            exp_manager.exp_dir=examples/multimodal/text_to_image/nerf/dreamfusion_results
-  
-            rm -rf examples/multimodal/text_to_image/nerf/dreamfusion_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-          if: "failure()"
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_Mock_Data_Generation_MockT5Dataset') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.max_steps=10 \
+        trainer.limit_val_batches=3 \
+        trainer.val_check_interval=10 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        model.data.data_impl=mock \
+        model.data.data_prefix=[]
+      AFTER_SCRIPT: |
+        rm -rf examples/nlp/language_modeling/t5_pretrain_results
 
   # L2: TTS Fast dev runs 1
   L2_TTS_Fast_dev_runs_1_Tacotron_2:
@@ -3609,7 +3571,7 @@ jobs:
   #   runs-on: self-hosted-azure
   #   timeout-minutes: 10
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
@@ -3646,32 +3608,6 @@ jobs:
   #       #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
   #       #  if: "failure()"
 
-  L2_TTS_Fast_dev_runs_1_Mixer-TTS:
-    needs: [cicd-test-container-setup]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Mixer-TTS') || needs.cicd-test-container-setup.outputs.all == 'true'
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/tts/mixer_tts.py \
-        train_dataset=/home/TestData/an4_dataset/an4_train.json \
-        validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-        sup_data_path=/home/TestData/an4_dataset/sup_data \
-        trainer.devices="[0]" \
-        +trainer.limit_train_batches=1 \
-        +trainer.limit_val_batches=1 \
-        trainer.max_epochs=1 \
-        trainer.strategy=auto \
-        model.pitch_mean=212.35873413085938 \
-        model.pitch_std=68.52806091308594 \
-        model.train_ds.dataloader_params.batch_size=4 \
-        model.train_ds.dataloader_params.num_workers=0 \
-        model.validation_ds.dataloader_params.batch_size=4 \
-        model.validation_ds.dataloader_params.num_workers=0 \
-        ~trainer.check_val_every_n_epoch \
-        ~model.text_normalizer \
-        ~model.text_normalizer_call_kwargs
-
   L2_TTS_Fast_dev_runs_1_Hifigan:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -3700,7 +3636,7 @@ jobs:
   #   needs: [cicd-test-container-setup]
   #   runs-on: self-hosted-azure
   #   container:
-  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
   #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
@@ -4444,7 +4380,7 @@ jobs:
       - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
       # - Optional_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
-      #- OPTIONAL_L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
+      - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
       - L2_Megatron_GPT_Embedding
@@ -4470,7 +4406,6 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_WaveGlow
       - L2_TTS_Fast_dev_runs_1_FastPitch
       #- OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS
-      - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
       - L2_Stable_Diffusion_Training
