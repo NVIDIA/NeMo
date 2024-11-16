@@ -78,10 +78,10 @@ def merge_lora(
         )
     else:
         raise ValueError(f"Cannot find adapter meta file in {lora_checkpoint_path}")
-    
+
     model = io.load_context(ckpt_to_context_subdir(lora_checkpoint_path), "model")
-    model.model_transform, model.__io__.model_transform=None, None
-    model.config.bf16=False
+    model.model_transform, model.__io__.model_transform = None, None
+    model.config.bf16 = False
 
     trainer.strategy.restore_config = restore_config
     trainer.strategy._setup_optimizers = False

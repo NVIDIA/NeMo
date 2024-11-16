@@ -253,7 +253,12 @@ class LoRAMerge(PEFT):
             return m
         logging.info(f'merging {(prefix if prefix else "") + "." + (name if name else "")}')
         base_weight = m.to_wrap.weight
-        lora_weight = m.adapter.alpha / m.adapter.dim * m.adapter.linear_out.weight.to(base_weight.device) @ m.adapter.linear_in.weight.to(base_weight.device)
+        lora_weight = (
+            m.adapter.alpha
+            / m.adapter.dim
+            * m.adapter.linear_out.weight.to(base_weight.device)
+            @ m.adapter.linear_in.weight.to(base_weight.device)
+        )
         merged_weight = base_weight + lora_weight
         m.to_wrap.weight.data = merged_weight
         return m
