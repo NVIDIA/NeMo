@@ -14,9 +14,8 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Union
 
-import pytorch_lightning as pl
 from megatron.core import dist_checkpointing
 from pytorch_lightning.trainer.states import TrainerFn
 
@@ -40,7 +39,7 @@ def gpt_lora() -> PEFT:
 def merge_lora(
     lora_checkpoint_path: str,
     output_path: str,
-):
+) -> None:
     """
     Merges the LoRA adapter weights into the base model's weights.
 
