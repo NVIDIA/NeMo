@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import contextlib
 from typing import List
 from math import ceil
 import numpy as np
@@ -570,7 +570,12 @@ class T5TTS_Model(ModelPT):
         return dataset
 
     def _setup_train_dataloader(self, cfg):
-        dataset = self.get_dataset(cfg)
+        phon_mode = contextlib.nullcontext() # From Fastpitch model
+        if hasattr(self.tokenizer, "set_phone_prob"):
+            phon_mode = self.tokenizer.set_phone_prob(self.tokenizer.phoneme_probability)
+        with phon_mode:
+            dataset = self.get_dataset(cfg)
+
         sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
@@ -578,7 +583,11 @@ class T5TTS_Model(ModelPT):
         return data_loader
 
     def _setup_test_dataloader(self, cfg):
-        dataset = self.get_dataset(cfg)
+        phon_mode = contextlib.nullcontext() # From Fastpitch model
+        if hasattr(self.tokenizer, "set_phone_prob"):
+            phon_mode = self.tokenizer.set_phone_prob(0.0)
+        with phon_mode:
+            dataset = self.get_dataset(cfg)
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
         return data_loader
 
