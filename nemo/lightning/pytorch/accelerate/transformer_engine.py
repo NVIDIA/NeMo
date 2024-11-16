@@ -25,11 +25,10 @@ def accelerate(model, fp8_autocast=False):
 
 
 def _accelerate(model):
-    for name, module in model.named_children():
+    for name, module in model.named_modules():
         if isinstance(module, torch.nn.Linear):
             has_bias = module.bias is not None
             if any(p % 16 != 0 for p in module.weight.shape):
-                print("continuing")
                 continue
             te_module = te.Linear(
                 module.in_features, module.out_features, bias=has_bias, params_dtype=module.weight.dtype
@@ -39,33 +38,23 @@ def _accelerate(model):
                 if has_bias:
                     te_module.bias.copy_(module.bias)
 
-            setattr(model, name, te_module)
+            setattr(module, name.split(".")[-1], te_module)
         elif isinstance(module, torch.nn.LayerNorm):
             te_module = te.LayerNorm(module.normalized_shape[0], eps=module.eps, params_dtype=module.weight.dtype)
             te_module.weight.copy_(module.weight)
             te_module.bias.copy_(module.bias)
-            setattr(model, name, te_module)
+            setattr(module, name.split(".")[-1], te_module)
         elif isinstance(module, torch.nn.RMSNorm):
             te_module = te.RMSNorm(module.normalized_shape[0], eps=module.eps, dtype=module.weight.dtype)
             te_module.weight.copy_(module.weight)
             te_module.bias.copy_(module.bias)
-            setattr(model, name, te_module)
-        else:
-            if len(list(module.children())) > 0:
-                _accelerate(module)
+            setattr(module, name.split(".")[-1], te_module)
 
 
 def te_accelerated(model):
-    return _te_accelerated(model)
-
-
-def _te_accelerated(model):
-    for name, module in model.named_children():
+    for name, module in model.named_modules():
         if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
             return True
-        else:
-            if _te_accelerated(module):
-                return True
 
     return False
 
