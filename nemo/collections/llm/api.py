@@ -377,7 +377,7 @@ def deploy(
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token. Default: True.
     """
-    from nemo.collections.llm.deploy.base import unset_environment_variables
+    from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
     unset_environment_variables()
@@ -392,7 +392,7 @@ def deploy(
         os.environ['OPENAI_FORMAT_RESPONSE'] = str(openai_format_response)
         os.environ['OUTPUT_GENERATION_LOGITS'] = str(output_generation_logits)
 
-    triton_deployable = deploy.get_trtllm_deployable(
+    triton_deployable = get_trtllm_deployable(
         nemo_checkpoint,
         model_type,
         triton_model_repository,
