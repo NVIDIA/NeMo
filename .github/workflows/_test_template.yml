@@ -60,7 +60,11 @@ jobs:
               ARG=("--runtime=nvidia --gpus all")
             fi
 
-            docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
+            if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then     
+              echo Container already running.
+            else
+              docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c "sleep $(( 60 * 60 * 24 * 7 ))"
+            fi            
 
         - id: main
           name: Run main script
@@ -90,9 +94,3 @@ jobs:
           if: always() && inputs.AFTER_SCRIPT != ':'
           run: |
             docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
-
-        - name: Container shutdown
-          if: always()
-          run: |
-            docker container stop nemo_container_${{ github.run_id }} || true
-            docker container rm nemo_container_${{ github.run_id }} || true
