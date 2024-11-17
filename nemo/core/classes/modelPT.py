@@ -1763,7 +1763,7 @@ class ModelPT(LightningModule, Model):
             trace_dir: None # Path to store the profile output file
         """
         if self.cfg.get('chakra_profile', None) is not None:
-            if self.cfg.chakra_profile.get('enabled', False):                
+            if self.cfg.chakra_profile.get('enabled', False):
 
                 from torch.profiler import ExecutionTraceObserver
                 from nemo.utils.env_var_parsing import get_envint
