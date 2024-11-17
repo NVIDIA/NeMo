@@ -100,11 +100,22 @@ class TiktokenTokenizer(TokenizerSpec):
         self._unk_id = special_tokens.index("<unk>")
         self._bos_id = special_tokens.index("<s>")
         self._eos_id = special_tokens.index("</s>")
+        
+        # DEBUGGING
+        if "<mask>" in special_tokens:
+            self.mask_id = special_tokens.index("<mask>")
+        if "<pad>" in special_tokens:
+            self.pad_id = special_tokens.index("<pad>")
+        if "<cls>" in special_tokens:
+            self.cls_id = special_tokens.index("<cls>")
+        if "<sep>" in special_tokens:
+            self.sep_id = special_tokens.index("<sep>")
 
         self._vocab_size = vocab_size
         print(f'{self._vocab_size = }')
         self.num_special_tokens = num_special_tokens
         special_filler = [SPECIAL_TOKEN_TEMPLATE.format(id=i) for i in range(len(special_tokens), num_special_tokens)]
+        self.special_filler = special_filler
         if special_filler:
             print(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
         self.special_tokens = special_tokens + special_filler
@@ -117,8 +128,11 @@ class TiktokenTokenizer(TokenizerSpec):
         assert set(range(self.inner_vocab_size)) == set(self.id2token.keys())
 
         self.shifted_id2token = {i: tok for i, tok in enumerate(self.special_tokens)}
+        # DEBUGGING
+        # for key, value in self.id2token.items():
+        #     self.shifted_id2token[key + self.num_special_tokens] = value
         for key, value in self.id2token.items():
-            self.shifted_id2token[key + self.num_special_tokens] = value
+            self.shifted_id2token[key + self.num_special_tokens] = value.decode('utf-8', errors='replace')
 
         self.tokenizer = tiktoken.Encoding(
             name=Path(vocab_file).parent.name,
@@ -135,21 +149,37 @@ class TiktokenTokenizer(TokenizerSpec):
         token_ids = [self.tokenizer.encode_single_token(tokens) for tokens in tokens]
         return self.tokenizer.decode(token_ids)
 
+    # # DEBUGGING
+    # def token_to_id(self, token):
+    #     return self.tokenizer.encode_single_token(token)
     def token_to_id(self, token):
-        return self.tokenizer.encode_single_token(token)
+        if token in self.special_tokens:
+            return self.special_tokens.index(token)
+        else:
+            return (self.tokenizer.encode_single_token(token) + self.num_special_tokens)
 
+    # # DEBUGGING
+    # def tokens_to_ids(self, tokens):
+    #     return [self.tokenizer.encode_single_token(token) for token in tokens]
     def tokens_to_ids(self, tokens):
-        return [self.tokenizer.encode_single_token(token) for token in tokens]
+        return [self.token_to_id(token) for token in tokens]    
 
+    # DEBUGGING
+    # add new code
+    def id_to_token(self, token_id):
+        if token_id < self.num_special_tokens:
+            return self.special_tokens[token_id]
+        else:
+            token_id -= self.num_special_tokens
+            token_bytes = self.tokenizer.decode_single_token_bytes(token_id)
+            return token_bytes.decode('utf-8', errors='replace')
+
+    # DEBUGGING
+    # add new code
     def ids_to_tokens(self, token_ids):
         tokens = []
         for token_id in token_ids:
-            if token_id < self.num_special_tokens:
-                tokens.append(self.special_tokens[token_id])
-            else:
-                token_id -= self.num_special_tokens
-                token_bytes = self.tokenizer.decode_single_token_bytes(token_id)
-                tokens.append(token_bytes.decode('utf-8', errors='replace'))
+            tokens.append(self.id_to_token(token_id))
         return tokens
 
     def text_to_ids(self, text: str):
@@ -198,3 +228,31 @@ class TiktokenTokenizer(TokenizerSpec):
     @property
     def vocab_size(self) -> int:
         return self._vocab_size
+
+    # DEBUGGING
+    # add new code
+    @property
+    def additional_special_tokens_ids(self):
+        """
+        Returns a list of the additional special tokens, excluding [bos, eos, pad, unk] and special_filler. 
+        Used to return sentinel tokens for e.g. T5.
+        """
+
+        excluding_tokens = self.ids_to_tokens([self._unk_id, self._bos_id, self._eos_id]) + self.special_filler
+
+        result = [self.token_to_id(token) for token in self.special_tokens if token not in excluding_tokens]
+        
+        # # DEBUGGING
+        # import torch
+        # if torch.distributed.get_rank()==0:
+        #     print("excluding_tokens: ", excluding_tokens)
+        #     print("self.special_tokens: ", self.special_tokens)
+        #     print("[self.token_to_id(token) for token in self.special_tokens if token not in excluding_tokens]: ", [self.token_to_id(token) for token in self.special_tokens if token not in excluding_tokens])
+        #     print("additional_special_tokens_ids: ", result)
+
+        return result
+
+    @property
+    # add new code
+    def inv_vocab(self):
+        return self.shifted_id2token

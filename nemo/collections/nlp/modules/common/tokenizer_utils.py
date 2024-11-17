@@ -238,7 +238,10 @@ def get_nmt_tokenizer(
     elif library == 'tiktoken':
         from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 
-        return TiktokenTokenizer(vocab_file=vocab_file)
+        return TiktokenTokenizer(
+            vocab_file=vocab_file,
+            special_tokens = special_tokens['additional_special_tokens']
+        )
     else:
         raise NotImplementedError(
             'Currently we only support "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'
