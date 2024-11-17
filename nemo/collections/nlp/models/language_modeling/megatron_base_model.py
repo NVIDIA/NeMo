@@ -388,11 +388,10 @@ class MegatronBaseModel(NLPModel):
         def is_official_release_version(nvidia_torch_version):
             return re.fullmatch("[0-9][0-9]\.[0-9][0-9].*", nvidia_torch_version)  # "YY.MM.*"
 
-        # Support DLFW dev container
-        if not is_official_release_version(nvidia_torch_version):
-            nvidia_torch_version = datetime.now().strftime('%y.%m')
-
         if nvidia_torch_version is not None:
+            # Support DLFW dev container
+            if not is_official_release_version(nvidia_torch_version):
+                nvidia_torch_version = datetime.now().strftime('%y.%m')
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
             except Exception:
