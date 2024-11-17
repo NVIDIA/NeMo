@@ -377,10 +377,10 @@ def deploy(
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token. Default: True.
     """
-    from nemo.collections.llm import deploy
+    from nemo.collections.llm.deploy.base import unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
-    deploy.unset_environment_variables()
+    unset_environment_variables()
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
