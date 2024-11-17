@@ -62,10 +62,10 @@ jobs:
               ARG=("--runtime=nvidia --gpus all")
             fi
 
-            if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then     
+            if docker ps --format '{{.Image}}' | grep -q "^${CONTAINER_NAME}$"; then     
               echo Container $CONTAINER_NAME already running.
             else
-              docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData $CONTAINER_NAME bash -c "sleep $(( 60 * 60 * 24 * 7 ))"
+              docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData $CONTAINER_NAME bash -c "sleep $(( 60 * 60 * 24 * 7 ))" || true
             fi            
 
         - id: main
