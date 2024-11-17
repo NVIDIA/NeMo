@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import copy
 import inspect
-import json
 import os
-import sys
 import uuid
 from abc import abstractmethod
 from os import path
@@ -40,7 +38,6 @@ except (ImportError, ModuleNotFoundError):
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import model_summary, rank_zero_only
-from torch.profiler import ExecutionTraceObserver, _ExperimentalConfig
 
 from nemo import package_info
 from nemo.core import optim
@@ -1766,7 +1763,11 @@ class ModelPT(LightningModule, Model):
             trace_dir: None # Path to store the profile output file
         """
         if self.cfg.get('chakra_profile', None) is not None:
-            if self.cfg.chakra_profile.get('enabled', False):
+            if self.cfg.chakra_profile.get('enabled', False):                
+
+                from torch.profiler import ExecutionTraceObserver
+                from nemo.utils.env_var_parsing import get_envint
+
                 self._chakra_profile_enabled = True
                 self._chakra_profile_start_step = self.cfg.chakra_profile.get('start_step', 0)
                 self._chakra_profile_end_step = self.cfg.chakra_profile.get('end_step', 0)
@@ -1779,8 +1780,6 @@ class ModelPT(LightningModule, Model):
                 warmup_steps = self.cfg.chakra_profile.get('warmup_steps', 0)
                 active_steps = self.cfg.chakra_profile.get('active_steps', 1)
 
-                from nemo.utils.env_var_parsing import get_envint
-
                 job_id = get_envint("SLURM_JOB_ID", 0)
 
                 self._chakra_trace_dir = trace_dir / f'{job_id}_chakra'
@@ -1789,14 +1788,14 @@ class ModelPT(LightningModule, Model):
                 self._chakra_trace_dir.mkdir(parents=True, exist_ok=True)
                 self._kineto_trace_dir.mkdir(parents=True, exist_ok=True)
 
-                if type(self._chakra_profile_start_step) == int:
+                if isinstance(self._chakra_profile_start_step, int):
                     logging.info(f'chakra profiling setup with start_step: {self._chakra_profile_start_step}')
                 else:
                     raise ValueError(
                         f'chakra start_step must be of type int. Found: {type(self._chakra_profile_start_step)}'
                     )
 
-                if type(self._chakra_profile_end_step) == int:
+                if isinstance(self._chakra_profile_end_step, int):
                     logging.info(f'chakra profiling setup with end_step: {self._chakra_profile_end_step}')
                 else:
                     raise ValueError(
