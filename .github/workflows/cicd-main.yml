@@ -3733,10 +3733,15 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
-        pip uninstall -y transformer_engine
+        apt-get update
+        apt-get install -y python3-venv
+        python -m venv venv
+        cp -r /usr/local/lib/python3.10/dist-packages/ venv/lib/python3.10/
 
-        python tests/collections/llm/megatron_gpt_pretraining.py \
+        venv/bin/pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
+        venv/bin/pip uninstall -y transformer_engine
+
+        venv/bin/python tests/collections/llm/megatron_gpt_pretraining.py \
         --devices=2 \
         --max-steps=3 \
         --experiment-dir=tests/collections/llm/gpt_pretrain_results \
@@ -3746,7 +3751,7 @@ jobs:
         --index-mapping-dir=tests/collections/llm/gpt_index_mappings \
         --no-masked-softmax-fusion
 
-        python tests/collections/llm/megatron_gpt_pretraining.py \
+        venv/bin/python tests/collections/llm/megatron_gpt_pretraining.py \
         --devices=2 \
         --max-steps=6 \
         --experiment-dir=tests/collections/llm/gpt_pretrain_results \
@@ -3758,6 +3763,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/gpt_pretrain_results
         rm -rf tests/collections/llm/gpt_index_mappings
+        rm -rf venv
 
   L2_NeMo_2_llama3_pretraining_recipe:
     needs: [cicd-test-container-setup]
