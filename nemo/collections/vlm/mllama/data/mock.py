@@ -44,6 +44,7 @@ class MockDataModule(pl.LightningDataModule):
         pin_memory (bool): Whether to pin memory for data loading.
         persistent_workers (bool): Whether workers should remain persistent.
     """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -134,6 +135,7 @@ class _MockMLlamaDataset(Dataset):
         seq_length (int): Sequence length for the text data.
         seed (int): Seed for random number generation.
     """
+
     def __init__(
         self,
         vocab_size,
