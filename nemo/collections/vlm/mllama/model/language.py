@@ -624,7 +624,7 @@ class MLlamaCrossAttention(Attention):
         return key, value
 
     def get_query_tensor(self, hidden_states):
-        """"Get query tensor."""
+        """ "Get query tensor."""
         # Attention head [sq, b, h] --> [sq, b, hp]
         query, _ = self.linear_q(hidden_states)
 
