@@ -169,9 +169,7 @@ def main():
             "70b_16k": {
                 "exp_name": "llama3-70b-16k",
                 "nemo": {
-                    "pretrain": partial(
-                        llm.llama3_70b_16k.pretrain_recipe, num_nodes=8, num_gpus_per_node=8
-                    ),
+                    "pretrain": partial(llm.llama3_70b_16k.pretrain_recipe, num_nodes=8, num_gpus_per_node=8),
                 },
             },
             "70b_64k": {
