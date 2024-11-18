@@ -15,16 +15,22 @@
 from types import MethodType
 
 import torch
-from transformer_engine import pytorch as te
+from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
+
+te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 
 def te_accelerate(model, fp8_autocast=False):
-    _te_accelerate(model)
-    if fp8_autocast:
-        apply_fp8_autocast(model)
+    if not HAVE_TE:
+        logging.warning("Transformer Engine is not available and the module replacements " "will not be applied.")
+    else:
+        _apply_basic_module_replacement(model)
+        if fp8_autocast:
+            apply_fp8_autocast(model)
 
 
-def _te_accelerate(model):
+def _apply_basic_module_replacement(model):
     for name, module in model.named_modules():
         if isinstance(module, torch.nn.Linear):
             has_bias = module.bias is not None
@@ -52,29 +58,34 @@ def _te_accelerate(model):
 
 
 def is_te_accelerated(model):
-    for name, module in model.named_modules():
-        if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
-            return True
+    if not HAVE_TE:
+        logging.warning("Transformer Engine is not available.")
+        return False
+    else:
+        for name, module in model.named_modules():
+            if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
+                return True
 
-    return False
+        return False
 
 
 def apply_fp8_autocast(model, fp8_recipe_handler=None):
-    import transformer_engine.common.recipe as te_recipe
-
-    kwargs = fp8_recipe_handler.to_kwargs() if fp8_recipe_handler is not None else {}
-    if "fp8_format" in kwargs:
-        kwargs["fp8_format"] = getattr(te_recipe.Format, kwargs["fp8_format"])
-    use_during_eval = kwargs.pop("use_autocast_during_eval", False)
-    fp8_recipe = te_recipe.DelayedScaling(**kwargs)
-    new_forward = _contextual_fp8_autocast(model.forward, fp8_recipe, use_during_eval)
-
-    if hasattr(model.forward, "__func__"):
-        model.forward = MethodType(new_forward, model)
+    if not HAVE_TE:
+        logging.warning("Transformer Engine is not available and the FP8 autocast " "will not be applied.")
     else:
-        model.forward = new_forward
+        import transformer_engine.common.recipe as te_recipe
 
-    return model
+        kwargs = fp8_recipe_handler.to_kwargs() if fp8_recipe_handler is not None else {}
+        if "fp8_format" in kwargs:
+            kwargs["fp8_format"] = getattr(te_recipe.Format, kwargs["fp8_format"])
+        use_during_eval = kwargs.pop("use_autocast_during_eval", False)
+        fp8_recipe = te_recipe.DelayedScaling(**kwargs)
+        new_forward = _contextual_fp8_autocast(model.forward, fp8_recipe, use_during_eval)
+
+        if hasattr(model.forward, "__func__"):
+            model.forward = MethodType(new_forward, model)
+        else:
+            model.forward = new_forward
 
 
 def _contextual_fp8_autocast(model_forward, fp8_recipe, use_during_eval=False):
