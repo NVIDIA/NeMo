@@ -14,11 +14,11 @@
 import os
 from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm import GemmaConfig2B, GemmaModel
@@ -282,7 +282,7 @@ def finetune_recipe(
     recipe.data.dataset_kwargs = {'add_bos': True}
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.trainer.strategy.context_parallel_size = 2
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)

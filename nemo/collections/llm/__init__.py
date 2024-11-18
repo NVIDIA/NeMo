@@ -93,6 +93,9 @@ from nemo.collections.llm.gpt.model import (
     NemotronModel,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
+    Phi3Config,
+    Phi3ConfigMini,
+    Phi3Model,
     Qwen2Config,
     Qwen2Config1P5B,
     Qwen2Config7B,
@@ -143,6 +146,9 @@ __all__ = [
     "Nemotron4Config15B",
     "Nemotron4Config340B",
     "NemotronConfig",
+    "Phi3Config",
+    "Phi3ConfigMini",
+    "Phi3Model",
     "SSMConfig",
     "BaseMambaConfig130M",
     "BaseMambaConfig370M",
@@ -232,3 +238,10 @@ try:
     __all__.append("deploy")
 except ImportError as error:
     logging.warning(f"The deploy module could not be imported: {error}")
+
+try:
+    from nemo.collections.llm.api import evaluate
+
+    __all__.append("evaluate")
+except ImportError as error:
+    logging.warning(f"The evaluate module could not be imported: {error}")
