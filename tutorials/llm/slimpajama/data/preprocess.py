@@ -18,10 +18,10 @@ import subprocess
 import time
 from typing import Optional
 
-from data.extract import get_shard_list
+from data.extract import _get_shard_list
 
 
-def execute_cmd(cmd_tuple: tuple):
+def _execute_cmd(cmd_tuple: tuple):
     cmd, task_id = cmd_tuple
     start_time = time.time()
     print(f" ****** Task ID {task_id:02d} starts to preprocess {os.path.basename(cmd[2])}...")
@@ -44,6 +44,22 @@ def preprocess_data(
     task_id: Optional[int] = None,
     extra_args: Optional[list[str]] = None,
 ):
+    """
+    Preprocess data for Megatron Core using scripts/nlp_language_modeling/preprocess_data_for_megatron.py
+
+    Args:
+        data_dir: Path to the directory containing the data to preprocess.
+        output_dir: Path to the directory where the preprocessed data will be saved.
+        dataset_impl: Dataset implementation to use.
+        tokenizer_type: Tokenizer type to use.
+        tokenizer_library: Tokenizer library to use.
+        tokenizer_model: Tokenizer model to use.
+        vocab_file_path: Path to the vocabulary file.
+        merges_file_path: Path to the merges file.
+        num_tasks: Number of tasks to split the data into.
+        task_id: Task ID of run.
+        extra_args: Extra arguments to pass to the preprocess_data_for_megatron.py script.
+    """
     if not num_tasks:
         if "SLURM_ARRAY_TASK_COUNT" in os.environ:
             num_tasks = int(os.environ["SLURM_ARRAY_TASK_COUNT"])
@@ -51,7 +67,7 @@ def preprocess_data(
         else:
             num_tasks = 1
             task_id = 0
-    shards_to_extract = get_shard_list(data_dir, num_tasks, extension="concatenated*.jsonl")
+    shards_to_extract = _get_shard_list(data_dir, num_tasks, extension="concatenated*.jsonl")
     shard_files = shards_to_extract[task_id]
     cmd = [
         "python",
@@ -94,4 +110,4 @@ def preprocess_data(
         final_cmds.append((final_cmd, task_id))
 
     for cmd in final_cmds:
-        execute_cmd(cmd)
+        _execute_cmd(cmd)

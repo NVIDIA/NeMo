@@ -20,7 +20,7 @@ from data.extract import run_extraction
 from data.preprocess import preprocess_data
 
 
-def slurm_executor(
+def slurm_executor( # pylint: disable=C0116
     user: str,
     host: str,
     remote_job_dir: str,
@@ -37,7 +37,7 @@ def slurm_executor(
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and tasks_per_node):
         raise RuntimeError(
-            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this function."
+            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this function." # pylint: disable=line-too-long
         )
 
     mounts = []
@@ -74,7 +74,7 @@ def slurm_executor(
     return executor
 
 
-def docker_executor():
+def docker_executor(): # pylint: disable=C0116
     packager = run.GitArchivePackager(subpath="examples/llm/slimpajama")
     executor = run.DockerExecutor(
         packager=packager,
@@ -88,7 +88,7 @@ def docker_executor():
     return executor
 
 
-def run_data_pipeline():
+def run_data_pipeline(): # pylint: disable=C0116
     executor = docker_executor()
     with run.Experiment("slimpajama-data-pipeline") as exp:
         exp.add(

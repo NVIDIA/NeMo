@@ -63,7 +63,7 @@ def approve_source(filename: str, source_list: list):
     return
 
 
-def split_shards(dataset: list[str], w_size: int) -> list:
+def _split_shards(dataset: list[str], w_size: int) -> list:
     shards = []
     for shard in range(w_size):
         idx_start = (shard * len(dataset)) // w_size
@@ -72,13 +72,13 @@ def split_shards(dataset: list[str], w_size: int) -> list:
     return shards
 
 
-def get_shard_list(data_dir: str, w_size: int, extension: str = "*zst") -> list:
+def _get_shard_list(data_dir: str, w_size: int, extension: str = "*zst") -> list:
     files = Path(data_dir).rglob(extension)
     files = sorted([str(f) for f in files])
-    return split_shards(files, w_size)
+    return _split_shards(files, w_size)
 
 
-def extract_single_zst_file(input_path: str, save_dir: str, file_name: str, rm_input: bool = False):
+def _extract_single_zst_file(input_path: str, save_dir: str, file_name: str, rm_input: bool = False):
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, file_name)
     if os.path.exists(save_path):
@@ -108,15 +108,15 @@ def extract_single_zst_file(input_path: str, save_dir: str, file_name: str, rm_i
         os.remove(input_path)
 
 
-def extract_single_shard(shard_tuple: tuple):
+def _extract_single_shard(shard_tuple: tuple):
     data_dir, shard, source_list, rm_downloaded = shard_tuple
     file_path = os.path.join(data_dir, shard)
-    extract_single_zst_file(file_path, data_dir, shard[:-4], rm_downloaded)
+    _extract_single_zst_file(file_path, data_dir, shard[:-4], rm_downloaded)
     shard_path = os.path.join(data_dir, shard[:-4])
     approve_source(shard_path, source_list)
 
 
-def run_extraction_on_shard(
+def _run_extraction_on_shard(
     data_dir: str,
     shards_to_extract: list,
     shard_index: int,
@@ -137,7 +137,7 @@ def run_extraction_on_shard(
 
     shards_to_process = [(data_dir, shard, source_list, rm_downloaded) for shard in shards_to_extract[shard_index]]
     with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
-        pool.map(extract_single_shard, shards_to_process)
+        pool.map(_extract_single_shard, shards_to_process)
 
 
 def run_extraction(
@@ -163,6 +163,6 @@ def run_extraction(
             num_tasks = 1
             task_id = 0
 
-    shards_to_extract = get_shard_list(data_dir, num_tasks)
-    run_extraction_on_shard(data_dir, shards_to_extract, task_id, approved_sources, rm_downloaded)
+    shards_to_extract = _get_shard_list(data_dir, num_tasks)
+    _run_extraction_on_shard(data_dir, shards_to_extract, task_id, approved_sources, rm_downloaded)
     print(f"Extracted {len(shards_to_extract[task_id])} files")
