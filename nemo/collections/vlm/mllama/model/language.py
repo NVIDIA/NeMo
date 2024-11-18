@@ -63,6 +63,7 @@ class MLlamaCrossAttentionSubmodules:
     """
     Defines the submodules required for cross-attention layers in the Llama architecture.
     """
+
     linear_q: Union[ModuleSpec, type] = None
     linear_kv: Union[ModuleSpec, type] = None
     core_attention: Union[ModuleSpec, type] = None
@@ -75,6 +76,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
     """
     GPT-based model with integrated cross-attention layers for multimodal tasks.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
@@ -217,6 +219,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
     """
     Transformer block with integrated cross-attention layers for multimodal tasks.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -423,6 +426,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
     """
     Transformer layer with cross-attention for integration.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
