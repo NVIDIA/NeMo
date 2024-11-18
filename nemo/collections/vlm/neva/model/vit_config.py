@@ -8,6 +8,7 @@ from nemo.collections.vlm.neva.model.base import CLIPViTConfig
 @dataclass
 class CLIPViTL_14_336_Config(CLIPViTConfig):
     """Clip vit large patch14 config"""
+
     vision_model_type = "clip"
     patch_dim = 14
     img_h = 336
@@ -36,6 +37,7 @@ class CLIPViTL_14_336_Config(CLIPViTConfig):
 @dataclass
 class SigLIPViT400M_14_384_Config(CLIPViTConfig):
     """Siglip so400m patch14 384 config"""
+
     vision_model_type = "siglip"
     patch_dim = 14
     img_h = 384
