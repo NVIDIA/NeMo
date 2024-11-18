@@ -95,7 +95,7 @@ if __name__ == '__main__':
     )
 
     if args.peft in ['lora', 'dora']:
-        peft = llm.peft.PEFT_STR2CLS()
+        peft = llm.peft.PEFT_STR2CLS[args.peft]()
     else:
         peft = None
 
