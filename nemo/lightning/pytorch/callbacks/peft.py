@@ -337,30 +337,30 @@ class AdapterWrapper(nn.Module):
         sharded_state_dict.update(self.adapter.sharded_state_dict(f"{prefix}adapter.", sharded_offsets, metadata))
         return sharded_state_dict
 
-    def load_state_dict(self, state_dict, strict=True):
-        """Load a state dictionary into the wrapped module and adapter.
-
-        This method overrides the default load_state_dict behavior to handle
-        loading states for both the main module and the adapter.
-
-        Args:
-            state_dict (dict): The state dictionary to load.
-            strict (bool): Whether to strictly enforce that the keys in state_dict
-                           match the keys returned by this module's state_dict()
-                           function. Defaults to True.
-        """
-        # Check if the 'adapters' key is present in the state_dict
-        if 'adapters' in state_dict:
-            adapter_state_dict = state_dict.pop('adapters')
-        else:
-            adapter_state_dict = {}
-
-        # Load the main module state dict
-        self.to_wrap.load_state_dict(state_dict, strict)
-
-        # Load the adapter module state dict if present
-        if adapter_state_dict:
-            self.adapter.load_state_dict(adapter_state_dict, strict)
+    # def load_state_dict(self, state_dict, strict=True):
+    #     """Load a state dictionary into the wrapped module and adapter.
+    #
+    #     This method overrides the default load_state_dict behavior to handle
+    #     loading states for both the main module and the adapter.
+    #
+    #     Args:
+    #         state_dict (dict): The state dictionary to load.
+    #         strict (bool): Whether to strictly enforce that the keys in state_dict
+    #                        match the keys returned by this module's state_dict()
+    #                        function. Defaults to True.
+    #     """
+    #     # Check if the 'adapters' key is present in the state_dict
+    #     if 'adapters' in state_dict:
+    #         adapter_state_dict = state_dict.pop('adapters')
+    #     else:
+    #         adapter_state_dict = {}
+    #
+    #     # Load the main module state dict
+    #     self.to_wrap.load_state_dict(state_dict, strict)
+    #
+    #     # Load the adapter module state dict if present
+    #     if adapter_state_dict:
+    #         self.adapter.load_state_dict(adapter_state_dict, strict)
 
 
 class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
