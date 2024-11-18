@@ -2,18 +2,15 @@ import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional
+from typing import Annotated, Callable, Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
-from tests.collections.asr.confidence.test_asr_confidence_primitives import vocab_size
-
 
 @dataclass
 class GoogleBertConfig(BertConfig):
@@ -57,8 +54,6 @@ class GoogleBertModel(BertModel):
 @io.model_importer(GoogleBertModel, "hf")
 class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
     def __init__(self, *args, **kwargs):
-        # super().__init__(path)
-        # super().__init__(*args)
         if sys.version_info > (3, 11):
             # In Python versions <= 3.11, *Path classes don’t have a __init__ method,
             # and do all their initialization in __new__/ helper methods.
@@ -252,7 +247,7 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
     emb_size = embedding.size(0)
     padded_emb_size = int(math.ceil(emb_size / divisible) * divisible)
     print(padded_emb_size, divisible, emb_size)
-    if padded_emb_size > vocab_size:
+    if padded_emb_size > emb_size:
         zeros_to_add = torch.zeros(
             padded_emb_size - emb_size,
             embedding.size(1),

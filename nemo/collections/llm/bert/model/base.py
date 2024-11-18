@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
-from megatron.core import InferenceParams, ModelParallelConfig, parallel_state, tensor_parallel
+from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.models.bert import bert_layer_specs
 from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
@@ -26,7 +26,7 @@ from nemo.collections.llm.bert.model.bert_spec import (
     bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import BERTLossReduction, MaskedTokenLossReduction
+from nemo.lightning.megatron_parallel import BERTLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 HAVE_TE = True
@@ -252,9 +252,6 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         if not self.post_process:
             return hidden_states
 
-        if self.add_pooler:
-            pooled_output = self.pooler(hidden_states, 0)
-
         if self.return_embeddings:
             embeddings = torch.transpose(hidden_states, 0, 1)
             masks = torch.sum(attention_mask, dim=1)
@@ -278,6 +275,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
         binary_logits = None
         if self.binary_head is not None and self.add_pooler:
+            pooled_output = self.pooler(hidden_states, 0)
             binary_logits = self.binary_head(pooled_output)
 
         if lm_labels is None:
