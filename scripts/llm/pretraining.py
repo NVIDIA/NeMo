@@ -13,8 +13,8 @@
 # limitations under the License.
 
 # NOTE: This script is only an example of using NeMo with NeMo-Run's APIs and is subject to change without notice.
-# This script is used for pretraining a Llama3 model, specifically for the 8b or 70b model variants, on local and slurm executors.
-# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/llama3_8b.py#L74) and NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
+# This script is used for pretraining on local and slurm executors.
+# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
 from functools import partial
@@ -26,7 +26,7 @@ from nemo.collections import llm
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(description="Llama3 Pretraining")
+    parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
     parser.add_argument(
         "--model",
         type=str,
