@@ -154,7 +154,6 @@ class _MockT5Dataset(Dataset):
             "truncated": 0,
             "enc_mask": self.mask_encoder,
             "dec_mask": self.mask_decoder,
-            # "enc_dec_mask": self.mask_encoder_decoder,
         }
 
         return batch
