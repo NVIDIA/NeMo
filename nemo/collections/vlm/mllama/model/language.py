@@ -603,6 +603,7 @@ class MLlamaCrossAttention(Attention):
         )
 
     def get_key_value_tensors(self, key_value_states):
+        """Get key value tensors."""
         mixed_kv, _ = self.linear_kv(key_value_states)
 
         # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
@@ -619,7 +620,7 @@ class MLlamaCrossAttention(Attention):
         return key, value
 
     def get_query_tensor(self, hidden_states):
-
+        """"Get query tensor."""
         # Attention head [sq, b, h] --> [sq, b, hp]
         query, _ = self.linear_q(hidden_states)
 
@@ -636,6 +637,7 @@ class MLlamaCrossAttention(Attention):
         return query
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states):
+        """Get query key value tensors."""
         query = self.get_query_tensor(hidden_states)
         key, value = self.get_key_value_tensors(key_value_states)
         return query, key, value
@@ -653,6 +655,7 @@ class MLlamaCrossAttention(Attention):
         cross_attention_bias=None,
         packed_seq_params=None,
     ):
+        """Forward."""
         # hidden_states: [sq, b, h]
         if self.config.flash_decode:
             rotary_pos_emb = None
@@ -752,7 +755,8 @@ def apply_rope_scaling(
         Tensor: Scaled inverse frequencies.
     """
     logging.info(
-        f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."
+        f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, "
+        f"high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."
     )
 
     low_freq_wavelen = old_context_len / low_freq_factor
