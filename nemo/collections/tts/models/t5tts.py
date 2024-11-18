@@ -40,6 +40,8 @@ from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 import nemo.collections.asr as nemo_asr
 import soundfile as sf
+from nemo.collections.tts.data import text_to_speech_dataset
+from torch.utils.data import get_worker_info
 
 HAVE_WANDB = True
 try:
@@ -47,6 +49,25 @@ try:
 except ModuleNotFoundError:
     HAVE_WANDB = False
 
+
+def worker_init_fn(worker_id):
+    # Access worker information
+    logging.info(f"Worker {worker_id} initializing...")
+    worker_info = get_worker_info()
+    dataset = worker_info.dataset  # Get the dataset instance in this worker
+
+    # Initialize a non-picklable tokenizer for this worker
+    text_tokenizer_kwargs = {}
+    if "g2p" in dataset.tokenizer_config:
+        # for backward compatibility
+        text_tokenizer_kwargs["g2p"] = instantiate(dataset.tokenizer_config.g2p)
+        logging.info(f"g2p instantiated: {text_tokenizer_kwargs['g2p']}")
+    tokenizer = instantiate(dataset.tokenizer_config, **text_tokenizer_kwargs)
+    if dataset.dataset_type == 'test' and hasattr(tokenizer, "set_phone_prob"):
+        logging.info("Setting phone prob to 1.0 for test dataset")
+        tokenizer.set_phone_prob(1.0)
+    logging.info(f"Tokenizer instantiated: {tokenizer}")
+    dataset.text_tokenizer = tokenizer
 
 class T5TTS_Model(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -57,11 +78,9 @@ class T5TTS_Model(ModelPT):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
-
+        
         # Setup tokenizer
-        self.tokenizer = None
-        self._setup_tokenizer(cfg)
-        assert self.tokenizer is not None
+        self.tokenizer = self._setup_tokenizer(cfg)
 
         num_tokens_tokenizer = len(self.tokenizer.tokens)
         num_tokens = num_tokens_tokenizer + 2 # +2 for BOS and EOS
@@ -117,36 +136,14 @@ class T5TTS_Model(ModelPT):
     #         if any([substring in key for substring in keys_substrings_to_exclude]):
     #             del checkpoint['state_dict'][key]
     
-    def _setup_tokenizer(self, cfg):
+    def _setup_tokenizer(self, cfg, mode='train'):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
-            # for backward compatibility
-            if (
-                self._is_model_being_restored()
-                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
-                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
-            ):
-                cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
-                    cfg.text_tokenizer.g2p["_target_"]
-                )
-
-            g2p_kwargs = {}
-
-            if "phoneme_dict" in cfg.text_tokenizer.g2p:
-                g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict',
-                    cfg.text_tokenizer.g2p.phoneme_dict,
-                )
-
-            if "heteronyms" in cfg.text_tokenizer.g2p:
-                g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms',
-                    cfg.text_tokenizer.g2p.heteronyms,
-                )
-
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
-
-        self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
+            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p)
+        tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
+        if mode == 'test' and hasattr(tokenizer, "set_phone_prob"):
+            tokenizer.set_phone_prob(1.0)
+        return tokenizer
 
     @property
     def tb_logger(self):
@@ -284,7 +281,7 @@ class T5TTS_Model(ModelPT):
 
         return all_preds
 
-    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80):
+    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.5, topk=80):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = []
         for idx in range(self.cfg.num_audio_codebooks):
@@ -554,10 +551,9 @@ class T5TTS_Model(ModelPT):
         self.log("val_alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()  # free memory
 
-    def get_dataset(self, cfg):
+    def get_dataset(self, cfg, dataset_type):
         dataset = instantiate(
             cfg.dataset,
-            text_tokenizer=self.tokenizer,
             bos_id=self.bos_id,
             eos_id=self.eos_id,
             audio_bos_id=self.audio_bos_id,
@@ -565,30 +561,28 @@ class T5TTS_Model(ModelPT):
             codec_model_downsample_factor=self.cfg.codec_model_downsample_factor,
             prior_scaling_factor=self.cfg.prior_scaling_factor,
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
+            dataset_type=dataset_type, # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
         )
-        
+        dataset.tokenizer_config = self.cfg.text_tokenizer # This will be used in worker_init_fn for instantiating tokenizer
         return dataset
 
     def _setup_train_dataloader(self, cfg):
-        phon_mode = contextlib.nullcontext() # From Fastpitch model
-        if hasattr(self.tokenizer, "set_phone_prob"):
-            phon_mode = self.tokenizer.set_phone_prob(self.tokenizer.phoneme_probability)
-        with phon_mode:
-            dataset = self.get_dataset(cfg)
-
+        dataset = self.get_dataset(cfg, dataset_type='train')
         sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
+        if cfg.dataloader_params.num_workers == 0:
+            # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
+            dataset.text_tokenizer = self.tokenizer
         data_loader = torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
+            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn
         )
         return data_loader
 
     def _setup_test_dataloader(self, cfg):
-        phon_mode = contextlib.nullcontext() # From Fastpitch model
-        if hasattr(self.tokenizer, "set_phone_prob"):
-            phon_mode = self.tokenizer.set_phone_prob(0.0)
-        with phon_mode:
-            dataset = self.get_dataset(cfg)
-        data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        dataset = self.get_dataset(cfg, dataset_type='test')
+        if cfg.dataloader_params.num_workers == 0:
+            # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
+            dataset.text_tokenizer = self._setup_tokenizer(self.cfg, mode='test')
+        data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params, worker_init_fn=worker_init_fn)
         return data_loader
 
     def setup_training_data(self, cfg):

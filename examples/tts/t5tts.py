@@ -20,6 +20,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+import torch.multiprocessing as mp
+mp.set_start_method("spawn", force=True)
 
 @hydra_runner(config_path="conf/t5tts", config_name="t5tts")
 def main(cfg):

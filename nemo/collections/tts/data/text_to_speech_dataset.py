@@ -36,7 +36,6 @@ from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-
 @dataclass
 class DatasetMeta:
     manifest_path: Path
@@ -313,7 +312,6 @@ class T5TTSDataset(TextToSpeechDataset):
         self,
         dataset_meta: Dict,
         sample_rate: int,
-        text_tokenizer: BaseTokenizer,
         weighted_sampling_steps_per_epoch: Optional[int] = None,
         speaker_path: Optional[Path] = None,
         featurizers: Optional[Dict[str, Featurizer]] = None,
@@ -329,11 +327,13 @@ class T5TTSDataset(TextToSpeechDataset):
         audio_eos_id: int = None,
         prior_scaling_factor: float = None,
         load_cached_codes_if_available: bool = True,
+        dataset_type: str = 'train',
+        tokenizer_config=None
     ):
         super().__init__(
             dataset_meta=dataset_meta,
             sample_rate=sample_rate,
-            text_tokenizer=text_tokenizer,
+            text_tokenizer=None,
             weighted_sampling_steps_per_epoch=weighted_sampling_steps_per_epoch,
             speaker_path=speaker_path,
             featurizers=featurizers,
@@ -351,7 +351,9 @@ class T5TTSDataset(TextToSpeechDataset):
         self.include_align_prior = prior_scaling_factor is not None
         self.prior_scaling_factor = prior_scaling_factor
         self.load_cached_codes_if_available = load_cached_codes_if_available
-        self.beta_binomial_interpolator = BetaBinomialInterpolator(scaling_factor=prior_scaling_factor)
+        self.dataset_type = dataset_type
+        self.tokenizer_config = tokenizer_config
+        self.text_tokenizer = None
     
     def __getitem__(self, index):
         data = self.data_samples[index]
@@ -379,7 +381,6 @@ class T5TTSDataset(TextToSpeechDataset):
         audio_len_16khz = audio_16khz.shape[0]
         # Pad audio to be multiple of downsample factor
         
-
         tokens = self.text_tokenizer(data.text)
         tokens = tokens + [self.eos_id] # Not adding BOS id
         tokens = torch.tensor(tokens, dtype=torch.int32)
@@ -416,7 +417,8 @@ class T5TTSDataset(TextToSpeechDataset):
             example["speaker_index"] = data.speaker_index
 
         if self.include_align_prior:
-            align_prior = self.beta_binomial_interpolator(spec_len, text_len)
+            # align_prior = self.beta_binomial_interpolator(spec_len, text_len)
+            align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=spec_len, scaling_factor=self.prior_scaling_factor)
             align_prior = torch.tensor(align_prior, dtype=torch.float32)
             example["align_prior"] = align_prior
 
