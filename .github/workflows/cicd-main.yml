@@ -3967,7 +3967,8 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 2
-
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_SFT_TP1PP2_MBS2:
     needs: [cicd-test-container-setup]
@@ -3996,7 +3997,8 @@ jobs:
         --tp_size 1 \
         --pp_size 2 \
         --mbs 2
-
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_SFT_TP2PP1_MBS2:
     needs: [cicd-test-container-setup]
@@ -4025,7 +4027,8 @@ jobs:
         --tp_size 2 \
         --pp_size 1 \
         --mbs 2
-
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED:
     needs: [cicd-test-container-setup]
@@ -4054,7 +4057,8 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
-
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1:
     needs: [cicd-test-container-setup]
@@ -4083,7 +4087,8 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1
-
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2:
     needs: [cicd-test-container-setup]
@@ -4112,7 +4117,8 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 2
-
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2:
     needs: [cicd-test-container-setup]
@@ -4141,7 +4147,8 @@ jobs:
         --tp_size 1 \
         --pp_size 2 \
         --mbs 2
-
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2:
     needs: [cicd-test-container-setup]
@@ -4170,6 +4177,8 @@ jobs:
         --tp_size 2 \
         --pp_size 1 \
         --mbs 2
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED:
     needs: [cicd-test-container-setup]
@@ -4198,6 +4207,8 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_gpt_finetune/${{ github.run_id }}
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     needs: [cicd-test-container-setup]
