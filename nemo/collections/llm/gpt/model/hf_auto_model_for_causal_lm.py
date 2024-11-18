@@ -51,10 +51,13 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.is_hf_model = True
         self.model_transform = model_transform
         self.trust_remote_code = trust_remote_code
+
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            self._tokenizer = HfAutoModelForCausalLM.configure_tokenizer(self.model_name, trust_remote_code=self.trust_remote_code)
+            self._tokenizer = HfAutoModelForCausalLM.configure_tokenizer(
+                self.model_name, trust_remote_code=self.trust_remote_code
+            )
         return self._tokenizer
 
     @tokenizer.setter
@@ -69,7 +72,9 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def configure_model(self):
         # create all your layers here
         if self.load_pretrained_weights:
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code
+            )
         else:
             from transformers import AutoConfig
 
