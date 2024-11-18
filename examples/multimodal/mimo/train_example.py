@@ -11,7 +11,8 @@ from nemo import lightning as nl
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import import_ckpt
 from nemo.collections.multimodal.mimo.data.mock import MockDataModule
-from nemo.collections.multimodal.mimo.model.base import BaseMimoConfig, BaseMimoModel, CustomMimoConfig
+from nemo.collections.multimodal.mimo.model.base import BaseMimoModel
+from nemo.collections.multimodal.mimo.model.config import CustomMimoConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig

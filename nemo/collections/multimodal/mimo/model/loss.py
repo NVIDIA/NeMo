@@ -54,7 +54,10 @@ class MimoLossReduction(MaskedTokenLossReduction):
         output_projection_embeddings = output_dict['output_projection_embeddings']
         image_caption_embeddings = output_dict['image_caption_embeddings']
         # Use the superclass's forward method to calculate token loss
+        current_rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else -1
         token_loss, token_loss_info = super().forward(batch={"loss_mask": new_loss_mask}, forward_out=output)
+        just_token_loss = token_loss_info['avg'].clone().detach()
+        # print(f"Yash loss debug rank {current_rank} just reduced_token_loss {token_loss_info['avg']}")
 
         l2_loss = self._calculate_l2_loss(output_projection_embeddings, image_caption_embeddings)
         l2_loss = self.l2_weight * l2_loss
@@ -63,7 +66,7 @@ class MimoLossReduction(MaskedTokenLossReduction):
         reduced_l2_loss = average_losses_across_data_parallel_group([l2_loss])
 
         total_loss = token_loss + l2_loss
-        logging.info(f"Yash loss debug total_loss {total_loss}")
+        # logging.info(f"Yash loss debug total_loss {total_loss}")
         token_loss_info['avg'] = token_loss_info['avg'] + reduced_l2_loss
         token_loss_info.update({"l2_loss": reduced_l2_loss})
 
@@ -81,10 +84,40 @@ class MimoLossReduction(MaskedTokenLossReduction):
 
         total_loss = total_loss + gen_loss
         token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
+        # print(f"Rank {current_rank}: individiual l2_loss  = {l2_loss}")
+        # print(f"Rank {current_rank}:reduced l2_loss  = {reduced_l2_loss}")
+        # print(f"Rank {current_rank}: gen_loss  = {gen_loss}")
+        # print(f"Rank {current_rank}:reduced denoise  = {reduced_gen_l2_loss}")
 
-        logging.info(
-            f"Yash loss debug full loss {token_loss_info['avg'] } token_loss {token_loss} embedding l2 loss {reduced_l2_loss} denoise l2 loss {reduced_gen_l2_loss}"
-        )
+        # logging.info(
+        #     f"Yash loss debug full loss {token_loss_info['avg'] } token_loss {token_loss} embedding loss {reduced_l2_loss} denoise loss {reduced_gen_l2_loss}"
+        # )
+        if current_rank == 0 or current_rank == 1:
+            print(
+                f"Yash rank {current_rank} avg {token_loss_info['avg'] } token_loss {token_loss} red. {just_token_loss} individual l2 {l2_loss} red. {reduced_l2_loss} denoise {gen_loss} red. {reduced_gen_l2_loss}"
+            )
+            print(
+                f"Yash debug rank {current_rank} image_caption_embeddings mean {image_caption_embeddings.mean()} sum {image_caption_embeddings.sum()} "
+            )
+
+            print(
+                f"Yash debug rank {current_rank} output_projection_embeddings mean {output_projection_embeddings.mean()} sum {output_projection_embeddings.sum()} "
+            )
+            print(
+                f"Yash debug rank {current_rank} output_projection_embeddings first column {output_projection_embeddings[0][:,0]} "
+            )
+            print(
+                f"Yash debug rank {current_rank} image_caption_embeddings first column {image_caption_embeddings[0][:,0]} "
+            )
+        torch.distributed.barrier()
+
+        if torch.distributed.get_rank() == 0:
+            print("******************")
+            breakpoint()
+        torch.distributed.barrier()
+        # logging.info(
+        #     f"Yash loss debug full loss {token_loss_info['avg'] } token_loss {token_loss} embe{reduced_gen_l2_loss}"
+        # )
         # if torch.distributed.get_rank() == 0:
         #     wandb.log(
         #         {
