@@ -4456,6 +4456,7 @@ jobs:
       - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
+      - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
       - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
       - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
