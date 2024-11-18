@@ -244,8 +244,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             backup_path = self._backup_existing_nemo_ckpt(trainer)
             if not self.remove_backup_path:
                 consumed_samples = trainer.fit_loop.epoch_loop.batch_progress.total.processed
-                pl_module.save_to(save_path=app_state.model_restore_path.replace(".nemo", f"_samples-{consumed_samples}.nemo"))
-                logging.info(f"New .nemo model saved to: {app_state.model_restore_path.replace('.nemo', f'_samples-{consumed_samples}.nemo')}")
+                pl_module.save_to(
+                    save_path=app_state.model_restore_path.replace(".nemo", f"_samples-{consumed_samples}.nemo")
+                )
+                logging.info(
+                    f"New .nemo model saved to: {app_state.model_restore_path.replace('.nemo', f'_samples-{consumed_samples}.nemo')}"
+                )
         if self.remove_backup_path:
             if backup_path is not None and is_global_rank_zero():
                 logging.info(f'Removing old .nemo backup {backup_path}')
