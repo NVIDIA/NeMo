@@ -249,7 +249,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch', 'maes_batch']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -494,8 +494,19 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                 blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
             )
+        elif self.cfg.strategy == 'maes_batch':
+            self.decoding = rnnt_beam_decoding.BeamBatchedMAESRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                beam_size=self.cfg.beam.beam_size,
+                preserve_alignments=self.preserve_alignments,
+                maes_num_steps = self.cfg.beam.get('maes_num_steps', 2),
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+            )
         else:
-
             raise ValueError(
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"

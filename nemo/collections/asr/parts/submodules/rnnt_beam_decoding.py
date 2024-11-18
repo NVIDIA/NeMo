@@ -48,6 +48,7 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 try:
@@ -1594,6 +1595,101 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
 
             # Pack the hypotheses results
             # packed_result = pack_hypotheses(hypotheses, logitlen)
+
+        self.decoder.train(decoder_training_state)
+        self.joint.train(joint_training_state)
+
+        return (hyps,)
+
+class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        return {
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
+        }
+
+    def __init__(
+            self,
+            decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+            joint_model: rnnt_abstract.AbstractRNNTJoint,
+            blank_index: int,
+            beam_size: int,
+            maes_num_steps: int,
+            preserve_alignments=False,
+            ngram_lm_model: Optional[str | Path] = None,
+            ngram_lm_alpha: float = 0.0,
+            blank_lm_score_mode: Optional[str | rnnt_utils.BlankLMScoreMode] = None,
+            allow_recombine_hyps: bool = False,
+    ):
+        super().__init__()
+        self.decoder = decoder_model
+        self.joint = joint_model
+
+        self._blank_index = blank_index
+        self._SOS = blank_index  # Start of single index
+        self.beam_size = beam_size
+        
+        self.maes_num_steps = maes_num_steps
+        self.preserve_alignments = preserve_alignments
+        
+        self.allow_recombine_hyps = allow_recombine_hyps
+
+        # Depending on availability of `blank_as_pad` support
+        # switch between more efficient batch decoding technique
+        self._decoding_computer = ModifiedAESBatchedRNNTComputer(
+            decoder=self.decoder,
+            joint=self.joint,
+            beam_size=self.beam_size,
+            blank_index=self._blank_index,
+            maes_num_steps=self.maes_num_steps,
+            preserve_alignments=preserve_alignments,
+            ngram_lm_model=ngram_lm_model,
+            ngram_lm_alpha=ngram_lm_alpha,
+            blank_lm_score_mode=blank_lm_score_mode,
+            allow_recombine_hyps=self.allow_recombine_hyps
+        )
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports."""
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    @typecheck()
+    def forward(
+            self,
+            encoder_output: torch.Tensor,
+            encoded_lengths: torch.Tensor,
+            partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+    ) -> Tuple[list[rnnt_utils.Hypothesis]]:
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-regressively.
+        Args:
+            encoder_output: A tensor of size (batch, features, timesteps).
+            encoded_lengths: list of int representing the length of each sequence
+                output sequence.
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
+        # Preserve decoder and joint training state
+        decoder_training_state = self.decoder.training
+        joint_training_state = self.joint.training
+
+        with torch.inference_mode():
+            # Apply optional preprocessing
+            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
+            logitlen = encoded_lengths
+
+            self.decoder.eval()
+            self.joint.eval()
+
+            inseq = encoder_output  # [B, T, D]
+            hyps = self._decoding_computer(x=inseq, out_len=logitlen)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)

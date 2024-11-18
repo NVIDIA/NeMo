@@ -1021,6 +1021,17 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         return None
 
+    @classmethod
+    def batch_rearrange_states(
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        indices: torch.Tensor,
+    ):
+        dtype = src_states[0].dtype
+        indices = indices.flatten()
+        return (torch.index_select(src_states[0].to(dtype), dim=1, index=indices),
+                torch.index_select(src_states[1].to(dtype), dim=1, index=indices))
+
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
 

@@ -22,7 +22,6 @@ from nemo.collections.asr.parts.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.utils import logging
-from nemo.utils.enum import PrettyStrEnum
 
 MINUS_INF = -float("inf")
 
@@ -212,16 +211,6 @@ class BatchedBeamHyps:
             )
         return hypotheses
 
-
-class BlankLMScoreMode(PrettyStrEnum):
-    NO_SCORE = "no_score"
-    PRESERVE_BLANK = "preserve_blank"
-    LM_WEIGHTED = "lm_weighted"
-    LM_WEIGHTED_FULL = "lm_weighted_full"
-    LM_MAX = "lm_max"
-    LM_TOP_MAX = "lm_top_max"
-
-
 class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
     """
     mALSD decoding: https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9053040
@@ -239,7 +228,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
+        blank_lm_score_mode: Optional[str | rnnt_utils.BlankLMScoreMode] = None,
         allow_recombine_hyps: bool = False,
     ):
         super().__init__()
@@ -259,9 +248,9 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
             if blank_lm_score_mode is None:
-                self.blank_lm_score_mode = BlankLMScoreMode.LM_TOP_MAX
+                self.blank_lm_score_mode = rnnt_utils.BlankLMScoreMode.LM_TOP_MAX
             else:
-                self.blank_lm_score_mode = BlankLMScoreMode(blank_lm_score_mode)
+                self.blank_lm_score_mode = rnnt_utils.BlankLMScoreMode(blank_lm_score_mode)
             if self.allow_recombine_hyps:
                 # TODO: implement separate scores and fix
                 logging.warning("Hyps recombination is not implemented yet with LM, setting to false")
@@ -340,12 +329,12 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             )
             log_probs = F.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
             if self.ngram_lm_batch is not None:
-                if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
+                if self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.NO_SCORE:
                     log_probs[..., :-1] += lm_scores
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.PRESERVE_BLANK:
+                elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.PRESERVE_BLANK:
                     _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
                     log_probs[..., :-1] += lm_scores
                     _, labels_with_lm_nb_top_k = torch.topk(
@@ -360,13 +349,13 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                         labels_top_k[..., -1],
                     )
                     log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED:
+                elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_WEIGHTED:
                     log_probs[..., :-1] += lm_scores
                     log_probs[..., -1] *= 1 + self.ngram_lm_alpha
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+                elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_WEIGHTED_FULL:
                     blank_logprob = log_probs[..., -1]
                     non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0-1e-6))
                     # assert (abs(torch.exp(blank_logprob) + torch.exp(non_blank_logprob) - 1.0) < 1e-5).all()
@@ -375,13 +364,13 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_MAX:
+                elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_MAX:
                     log_probs[..., :-1] += lm_scores
                     log_probs[..., -1] += lm_scores.max(dim=-1, keepdim=False).values
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_TOP_MAX:
+                elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_TOP_MAX:
                     log_probs[..., :-1] += lm_scores
                     _, labels_with_lm_nb_top_k = torch.topk(
                         log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
@@ -498,7 +487,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             decoder_output = torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, decoder_output)
             self.decoder.batch_replace_states_mask(
                 src_states=prev_state, dst_states=state, mask=preserve_state.view(-1)
-            )
+            ) 
             if self.ngram_lm_batch is not None:
                 # batch_lm_states: [(BxBeam)]
                 # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
