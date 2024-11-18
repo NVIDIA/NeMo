@@ -43,12 +43,10 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     return model_cfg
 
 
-def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1):
+def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1, inference_only: bool = True):
     # TODO: setting ddp="pytorch" with manually deleting model.optim is a hackish way to disable DDP initialization. Needs a systematic solution.
-    trainer = nl.Trainer(
-        devices=calib_tp,
-        num_nodes=calib_pp,
-        strategy=nl.MegatronStrategy(
+    if inference_only:
+        strategy = nl.MegatronStrategy(
             tensor_model_parallel_size=calib_tp,
             pipeline_model_parallel_size=calib_pp,
             pipeline_dtype=torch.bfloat16,
@@ -57,20 +55,32 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
             setup_optimizers=False,
             lazy_init=True,
             ddp="pytorch",
-        ),
+        )
+    else:
+        strategy = nl.MegatronStrategy(
+            tensor_model_parallel_size=calib_tp,
+            pipeline_model_parallel_size=calib_pp,
+            pipeline_dtype=torch.bfloat16
+        )
+
+    trainer = nl.Trainer(
+        devices=calib_tp,
+        num_nodes=calib_pp,
+        strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision='bf16', params_dtype=torch.bfloat16, autocast_enabled=True),
     )
     model_path = Path(nemo_checkpoint_path)
-    config = nl.io.load_context(ckpt_to_context_subdir(model_path), subpath="model.config")
-    tokenizer = nl.io.load_context(ckpt_to_context_subdir(model_path), subpath="model.tokenizer")
-    config = quantizable_model_config(config)
-    model = llm.GPTModel(config, tokenizer=tokenizer)
-    del model.optim
+    model = nl.io.load_context(path=ckpt_to_context_subdir(model_path), subpath="model")
+    model.config = quantizable_model_config(model.config)
+
+    if inference_only:
+        del model.optim
+
     _setup_trainer_and_restore_model(nemo_checkpoint_path, trainer, model)
     return model
 
 
-def get_unwrapped_mcore_model(model: llm.GPTModel):
+def get_unwrapped_mcore_model(model):
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     unwrapped_model = model
