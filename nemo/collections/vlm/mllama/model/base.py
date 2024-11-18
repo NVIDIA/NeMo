@@ -46,7 +46,8 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 from nemo.utils import logging
 
 
-def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def mllama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    """Mllama data step."""
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -95,7 +96,8 @@ def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     return output
 
 
-def llama_forward_step(model, batch) -> torch.Tensor:
+def mllama_forward_step(model, batch) -> torch.Tensor:
+    """Mllama model forward step."""
     forward_config = {
         "batch_images": batch["batch_images"],
         "batch_masks": batch["batch_masks"],
@@ -113,13 +115,15 @@ def llama_forward_step(model, batch) -> torch.Tensor:
 
 
 def set_input_tensor(self, tensor):
+    """Placeholder for `set_input_tensor` method for PP implementation."""
     pass
 
 
 @dataclass
 class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
-    # core params
+    """Configuration for llama vision model."""
 
+    # core params
     bias_activation_fusion: bool = True
     bias_dropout_add_fusion: bool = True
 
@@ -149,9 +153,11 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
 
     @property
     def max_aspect_ratio_id(self) -> int:
+        # pylint: disable=C0115,C0116
         return len(self.supported_aspect_ratios)
 
     def configure_model(self) -> "CrossAttentionVisionModel":
+        """Configure mllama vision model."""
         return CrossAttentionVisionModel(
             self,
         )
@@ -159,6 +165,9 @@ class CrossAttentionVisionConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class CrossAttentionTextConfig(Llama31Config):
+    """
+    Configuration for llama model with cross-attention layers to take in multimodal features.
+    """
     rotary_base: int = 500_000
     seq_length: int = 8192
     num_layers: int = 32
@@ -170,12 +179,14 @@ class CrossAttentionTextConfig(Llama31Config):
     apply_rope_fusion: bool = False
 
     def _init_fusion_schedule(self, num_layers: int) -> List[int]:
-        llama_layers = list(range(self.num_layers))
+        """Initialize self-attention layer / cross-attention layer fusion schedule"""
+        mllama_layers = list(range(self.num_layers))
         # uniformly spread the layers
-        k = math.ceil(len(llama_layers) / num_layers)
-        return llama_layers[::-1][::k][:num_layers][::-1]
+        k = math.ceil(len(mllama_layers) / num_layers)
+        return mllama_layers[::-1][::k][:num_layers][::-1]
 
     def configure_model(self, tokenizer, pre_process=True, post_process=True):
+        """Configure mllama text model."""
         self.fusion_schedule = self._init_fusion_schedule(self.num_cross_attention_layers)
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
@@ -224,6 +235,7 @@ class CrossAttentionTextConfig(Llama31Config):
 
 @dataclass
 class MLlamaModelConfig(TransformerConfig, io.IOMixin):
+    """Combined configuration for multimodal vision-language model."""
     language_model_config: Optional[CrossAttentionTextConfig] = None
     vision_model_config: Optional[CrossAttentionVisionConfig] = None
 
@@ -236,8 +248,8 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
     language_model_from_pretrained: Optional[str] = None  # TODO
     vision_model_from_pretrained: Optional[str] = None  # TODO
 
-    forward_step_fn: Callable = llama_forward_step
-    data_step_fn: Callable = llama_data_step
+    forward_step_fn: Callable = mllama_forward_step
+    data_step_fn: Callable = mllama_data_step
 
     def __post_init__(self):
         model_config_attr = [
@@ -272,6 +284,7 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
                 setattr(self, attr, getattr(self.language_model_config, attr))
 
     def configure_model(self, tokenizer) -> "MLlamaBaseModel":
+        """Configure mllama model."""
         from megatron.core import parallel_state as ps
 
         self.language_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -300,6 +313,7 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
 
 
 class CrossAttentionVisionModel(MegatronModule):
+    """Mllama vision model."""
     def __init__(self, config) -> None:
         super().__init__(config=config)
         return_intermediate = "3,7,15,23,30"
@@ -329,6 +343,7 @@ class CrossAttentionVisionModel(MegatronModule):
         self.vision_projection.encoder.skip_bias_add = False  # Temporary fix for a MCore side bug
 
     def forward(self, images: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
+        """Forward."""
         # vision_tokens: (B, T, D)
         # aspect_ratio_ids: (B, 1)
         # h: (B, T, D)
@@ -339,10 +354,12 @@ class CrossAttentionVisionModel(MegatronModule):
         return vision_tokens
 
     def set_input_tensor(self, tensor):
+        # pylint: disable=C0115,C0116
         pass
 
 
 class MLlamaBaseModel(MegatronModule):
+    """Mllama base model combining vision and text models with cross-attention."""
     def __init__(
         self,
         config: MLlamaModelConfig,
@@ -383,9 +400,6 @@ class MLlamaBaseModel(MegatronModule):
         self.image_res = vision_model_config.vision_chunk_size
         self.max_num_chunks = vision_model_config.vision_max_num_chunks
 
-    def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
-        self.language_model.setup_cache(max_batch_size, dtype)
-
     def compute_xattn_caches_masks(
         self,
         vision_tokens: torch.Tensor,
@@ -394,6 +408,7 @@ class MLlamaBaseModel(MegatronModule):
         num_chunks: torch.Tensor,
         total_len: int,
     ) -> Tuple[List, torch.Tensor, torch.Tensor]:
+        """Compute xattn caches masks used in text model."""
         bsz, nimg, nchunk, ntok, image_token_dim = vision_orig_shape
 
         xattn_caches = [
@@ -433,6 +448,7 @@ class MLlamaBaseModel(MegatronModule):
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[List] = None,
     ) -> torch.Tensor:
+        """Forward."""
         if xattn_caches is None:
             bsz, max_num_images = batch_images.size(0), batch_images.size(1)
             vision_orig_shape = (
@@ -514,6 +530,7 @@ class MLlamaBaseModel(MegatronModule):
 
 
 class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    """Lightning Module for the MLlama model."""
     def __init__(
         self,
         config: MLlamaModelConfig,
@@ -531,6 +548,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._validation_loss_reduction = None
 
     def configure_model(self) -> None:
+        """Configure mllama model"""
         if not hasattr(self, "module"):
             self.module: MLlamaBaseModel = self.config.configure_model(self.tokenizer)
 
@@ -547,7 +565,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
+        """Forward."""
         output_tensor = self.module(
             position_ids=position_ids,
             tokens=tokens,
@@ -564,22 +582,26 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return output_tensor
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+        # pylint: disable=C0115,C0116
         return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         return self.config.forward_step_fn(self, batch)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
-
         return self.forward_step(batch)
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
+        # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = MaskedTokenLossReduction()
 
@@ -587,6 +609,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+        # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
@@ -598,8 +621,8 @@ __all__ = [
     "MLlamaModelConfig",
     "CrossAttentionTextConfig",
     "CrossAttentionVisionConfig",
-    "llama_data_step",
-    "llama_forward_step",
+    "mllama_data_step",
+    "mllama_forward_step",
     "transformer_engine_layer_spec",
     "local_layer_spec",
 ]
