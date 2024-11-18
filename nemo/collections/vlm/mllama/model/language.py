@@ -539,6 +539,7 @@ class DummyCrossAttentionTransformerLayer(MegatronModule):
         return hidden_states, None
 
     def compute_xattn_kv_cache(self, xattn_tokens: Tensor) -> Optional[Tensor]:
+        # pylint: disable=C0115,C0116
         return None
 
 
