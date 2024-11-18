@@ -1,9 +1,10 @@
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
-from nemo.collections.llm.bert.model.google_bert import GoogleBERTBaseConfig, GoogleBERTConfig
+from nemo.collections.llm.bert.model.google_bert import GoogleBertBaseConfig, GoogleBertConfig, GoogleBertModel
 
 __all__ = [
     "BertConfig",
     "BertModel",
-    "GoogleBERTBaseConfig",
-    "GoogleBERTConfig",
+    "GoogleBertBaseConfig",
+    "GoogleBertConfig",
+    "GoogleBertModel",
 ]

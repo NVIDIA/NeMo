@@ -1623,7 +1623,6 @@ class BERTLossReduction(MegatronLossReduction):
         if cp_size == 1:
             sop_loss_for_ub = setence_order_prediction_loss(sop_logits, batch["is_random"])
             lm_loss_for_ub = masked_token_with_zero(lm_loss_, batch["loss_mask"])
-            print(sop_loss_for_ub, lm_loss_for_ub)
         else:
             raise NotImplementedError('CP is not supported for SOP loss yet')
 
@@ -1703,6 +1702,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
         return loss_for_ub * cp_size, {"avg": reduced_loss}
+
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""

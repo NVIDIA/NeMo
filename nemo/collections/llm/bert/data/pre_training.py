@@ -1,7 +1,7 @@
 import logging
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
@@ -10,6 +10,7 @@ from torch.utils import data
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 if TYPE_CHECKING:
     from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDatasetConfig
@@ -58,7 +59,7 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     def __init__(
         self,
-        paths: Path | List | Dict[str, List],
+        paths: Union[Path, List, Dict[str, List]],
         seq_length: int = 2048,
         tokenizer: Optional["TokenizerSpec"] = None,
         micro_batch_size: int = 4,
@@ -115,7 +116,6 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "BertWordPieceLowerCase")
-        self.tokenizer.inv_vocab = {v: k for k, v in self.tokenizer.tokenizer.vocab.items()}
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,

@@ -81,17 +81,17 @@ def bert_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) 
 
 
 def default_layer_spec(config: "BertConfig") -> ModuleSpec:
-    transformer_block_type = getattr(config, 'transformer_block_type', 'pre_ln')
+    bert_type = config.bert_type
     assert (
-        transformer_block_type == 'pre_ln' or transformer_block_type == 'post_ln'
-    ), f'Unknown transformer block type {transformer_block_type}, supported type for bert model is: pre_ln, post_ln'
+        bert_type == 'megatron' or bert_type == 'huggingface'
+    ), f'Unknown bert type {bert_type}, supported type for bert model is: megatron, huggingface'
     if HAVE_TE:
-        if transformer_block_type == 'pre_ln':
+        if bert_type == 'megatron':
             return bert_layer_specs.bert_layer_with_transformer_engine_spec
         else:
             return bert_layer_with_transformer_engine_spec_postln
 
-    if transformer_block_type == 'pre_ln':
+    if bert_type == 'megatron':
         return bert_layer_specs.bert_layer_local_spec
     else:
         return bert_layer_local_spec_postln
@@ -107,7 +107,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
     rotary_base: int = 10000
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
-    seq_length: int = 1024
+    seq_length: int = 512
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
     deallocate_pipeline_outputs = True
@@ -117,9 +117,10 @@ class BertConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = bert_forward_step
     data_step_fn: Callable = bert_data_step
 
-    transformer_block_type: Literal["pre-ln", "post-ln"] = "pre-ln"
+    bert_type: Literal["megatron", "huggingface"] = "megatron"
     add_pooler: bool = True
     bert_binary_head: bool = True
+    add_lm_head: bool = True
 
     def configure_model(self, tokenizer) -> "MCoreBertModelWrapperWithPostLNSupport":
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -133,11 +134,17 @@ class BertConfig(TransformerConfig, io.IOMixin):
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
+
+        if self.bert_type == 'megatron':
+            num_tokentypes = 2 if self.bert_binary_head else 0
+        else:
+            # Huggingface implementation always has num_tokentypes set to 2
+            num_tokentypes = 2
         return MCoreBertModelWrapperWithPostLNSupport(
-            transformer_block_type=self.transformer_block_type,
+            bert_type=self.bert_type,
             add_pooler=self.add_pooler,
             config=self,
-            num_tokentypes=2 if self.bert_binary_head else 0,
+            num_tokentypes=num_tokentypes,
             transformer_layer_spec=transformer_layer_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
@@ -159,14 +166,15 @@ class BertConfig(TransformerConfig, io.IOMixin):
 This class is used for working with HF Bert Checkpoints. These checkpoints
 by default have post layer norm, while the vanilla mcore bert model does not support it.
 '''
-
-
 class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
-    def __init__(self, transformer_block_type='pre-ln', add_pooler=True, *args, **kwargs):
+    def __init__(self, bert_type='megatron', add_pooler=True, *args, **kwargs):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
-        self.transformer_block_type = transformer_block_type
+        self.bert_type = bert_type
+
+        assert self.bert_type == 'megatron' or self.bert_type == 'huggingface',\
+            f'bert_type should either be megatron or huggingface, but got {self.bert_type}.'
 
         # Transformer.
         self.encoder = TransformerBlockWithPostLNSupport(
@@ -174,9 +182,12 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             spec=self.transformer_layer_spec,
             pre_process=self.pre_process,
             post_process=self.post_process,
-            transformer_block_type=self.transformer_block_type,
+            post_layer_norm=True if self.bert_type == 'megatron' else False,
+            bert_type=self.bert_type,
         )
 
+        # In Megatron-LM, pooler is added only if add_binary_head=True.
+        # We make it independent to support HF variances.
         if self.add_pooler:
             self.pooler = Pooler(
                 self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
@@ -185,11 +196,12 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         # Output
         if self.post_process:
             # TODO: Make sure you are passing in the mpu_vocab_size properly
-
-            self.lm_head = MCoreBertLMHead(
-                self.config.hidden_size,
-                self.config,
-            )
+            self.lm_head = None
+            if self.config.add_lm_head:
+                self.lm_head = MCoreBertLMHead(
+                    self.config.hidden_size,
+                    self.config,
+                )
 
             self.output_layer = tensor_parallel.ColumnParallelLinear(
                 self.config.hidden_size,
@@ -204,10 +216,12 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
             self.binary_head = None
             if self.add_binary_head:
-                # TODO: Shoudl switch this to TE ?
+                # TODO: Should switch this to TE ?
                 self.binary_head = mcore_get_linear_layer(
                     self.config.hidden_size, 2, self.config.init_method, self.config.perform_initialization
                 )
+        if self.pre_process or self.post_process:
+            self.setup_embeddings_and_output_layer()
 
     def forward(
         self,
@@ -390,11 +404,14 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
 
 
 class TransformerBlockWithPostLNSupport(TransformerBlock):
-    def __init__(self, transformer_block_type='post_ln', *args, **kwargs):
+    def __init__(self, bert_type='megatron', *args, **kwargs):
 
         super(TransformerBlockWithPostLNSupport, self).__init__(*args, **kwargs)
-        self.transformer_block_type = transformer_block_type
-        if self.transformer_block_type == 'post_ln':
+        self.transformer_block_type = bert_type
+        if self.transformer_block_type == 'huggingface':
+            # Initial LayerNorm is needed for converting the LN after the HF's Bert Embedding modules:
+            # https://github.com/huggingface/transformers/tree/main/src/transformers/models/bert/modeling_bert.py#L170
+            # megatron's embedding module does not need the additional LN.
             self.initial_layernorm = FusedLayerNorm(
                 config=self.config, hidden_size=self.config.hidden_size, eps=self.config.layernorm_epsilon
             )
@@ -415,7 +432,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor
-        if self.transformer_block_type == 'post_ln':
+        if self.transformer_block_type == 'huggingface':
             hidden_states = self.initial_layernorm(hidden_states)
         return super(TransformerBlockWithPostLNSupport, self).forward(
             hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params

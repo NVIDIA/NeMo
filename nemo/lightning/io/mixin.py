@@ -444,7 +444,7 @@ class ConnectorMixin:
 
         connector = cls._IMPORTERS.get(str(cls) + ext) if importer else cls._EXPORTERS.get(str(cls) + ext)
         if not connector:
-            raise ValueError(f"No connector found for extension '{ext}'")
+            raise ValueError(f"No connector found for extension '{ext}' for {cls}")
 
         if not _path:
             if not connector.default_path:

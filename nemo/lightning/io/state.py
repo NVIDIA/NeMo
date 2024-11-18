@@ -381,6 +381,9 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
     # Determine the shape of the output array based on the unique matches for each wildcard
     shape = [len(matches) for matches in wildcard_matches]
 
+    if len(wildcard_matches) == 0:
+        # If there is no wildcard matches, assuming it is a single match
+        shape = [1]
     # Initialize an empty array with the determined shape
     output_array = np.empty(shape, dtype=object)
 
