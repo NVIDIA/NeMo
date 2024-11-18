@@ -55,6 +55,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         model_parallel_size: int = None,
         async_save: bool = False,  # controls only finalize callbacks
         save_last_n_optim_states: int = -1,
+        remove_backup_path=False,
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
@@ -62,6 +63,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
         self.save_last_n_optim_states = save_last_n_optim_states
+        self.remove_backup_path = remove_backup_path
         if self.save_best_model and not self.save_nemo_on_train_end:
             logging.warning(
                 (
@@ -240,11 +242,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             backup_path = self._backup_existing_nemo_ckpt(trainer)
-            pl_module.save_to(save_path=app_state.model_restore_path)
-            logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
-        if backup_path is not None and is_global_rank_zero():
-            logging.info(f'Removing old .nemo backup {backup_path}')
-            get_filesystem(backup_path).rm(backup_path)
+            if not self.remove_backup_path:
+                consumed_samples = trainer.fit_loop.epoch_loop.batch_progress.total.processed
+                pl_module.save_to(save_path=app_state.model_restore_path.replace(".nemo", f"_samples-{consumed_samples}.nemo"))
+                logging.info(f"New .nemo model saved to: {app_state.model_restore_path.replace('.nemo', f'_samples-{consumed_samples}.nemo')}")
+        if self.remove_backup_path:
+            if backup_path is not None and is_global_rank_zero():
+                logging.info(f'Removing old .nemo backup {backup_path}')
+                get_filesystem(backup_path).rm(backup_path)
         return output
 
     def on_train_end(self, trainer, pl_module):
