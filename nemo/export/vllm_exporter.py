@@ -222,7 +222,6 @@ class vLLMExporter(ITritonDeployable):
             max_num_seqs=256,
             # Note: max_model_len can be derived by model_config if the input value is None
             max_model_len=model_config.max_model_len,
-            use_v2_block_manager=False,
             num_lookahead_slots=0,
             delay_factor=0.0,
             enable_chunked_prefill=False,
