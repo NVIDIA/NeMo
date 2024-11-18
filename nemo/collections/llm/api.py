@@ -252,58 +252,15 @@ def validate(
     return app_state.exp_dir
 
 
-@run.cli.factory
-@run.autoconvert
-def default_quantization(
-    algorithm: str = "fp8",
-    awq_block_size: int = 128,
-    sq_alpha: float = 0.5,
-    enable_kv_cache: Optional[bool] = None,
-    calibration_dataset: str = "cnn_dailymail",
-    calibration_dataset_size: int = 512,
-    calibration_batch_size: int = 64,
-    calibration_seq_len: int = 128,
-) -> QuantizationConfig:
-    """Default quantization configuration."""
-    return QuantizationConfig(
-        algorithm=algorithm,
-        awq_block_size=awq_block_size,
-        sq_alpha=sq_alpha,
-        enable_kv_cache=enable_kv_cache,
-        calibration_dataset=calibration_dataset,
-        calibration_dataset_size=calibration_dataset_size,
-        calibration_batch_size=calibration_batch_size,
-        calibration_seq_len=calibration_seq_len,
-    )
-
-
-@run.cli.factory
-@run.autoconvert
-def default_export(
-    path: Union[Path, str] = "./qnemo",
-    dtype: Union[str, int] = "bf16",
-    decoder_type: Optional[str] = None,
-    inference_tensor_parallel: int = 1,
-    inference_pipeline_parallel: int = 1,
-) -> ExportConfig:
-    """Default export configuration."""
-    return ExportConfig(
-        path=path,
-        dtype=dtype,
-        decoder_type=decoder_type,
-        inference_tensor_parallel=inference_tensor_parallel,
-        inference_pipeline_parallel=inference_pipeline_parallel,
-    )
-
-
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
     nemo_checkpoint: str,
     calib_tp: int = 1,
     calib_pp: int = 1,
-    quantization_config: QuantizationConfig = default_quantization(),
-    export_config: ExportConfig = default_export(),
+    quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
+    export_config: Optional[Union[ExportConfig, run.Config[ExportConfig]]] = None,
 ) -> Path:
+    # TODO: Fix "nemo_run.cli.cli_parser.CLIException: An unexpected error occurred (Argument: , Context: {})"
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
@@ -347,7 +304,7 @@ def ptq(
 
     model = quantizer.quantize(model)
 
-    quantizer.export(model)
+    quantizer.export(model, nemo_checkpoint)
 
     console = Console()
     console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
