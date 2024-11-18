@@ -168,6 +168,7 @@ class CrossAttentionTextConfig(Llama31Config):
     """
     Configuration for llama model with cross-attention layers to take in multimodal features.
     """
+
     rotary_base: int = 500_000
     seq_length: int = 8192
     num_layers: int = 32
@@ -236,6 +237,7 @@ class CrossAttentionTextConfig(Llama31Config):
 @dataclass
 class MLlamaModelConfig(TransformerConfig, io.IOMixin):
     """Combined configuration for multimodal vision-language model."""
+
     language_model_config: Optional[CrossAttentionTextConfig] = None
     vision_model_config: Optional[CrossAttentionVisionConfig] = None
 
@@ -314,6 +316,7 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
 
 class CrossAttentionVisionModel(MegatronModule):
     """Mllama vision model."""
+
     def __init__(self, config) -> None:
         super().__init__(config=config)
         return_intermediate = "3,7,15,23,30"
@@ -360,6 +363,7 @@ class CrossAttentionVisionModel(MegatronModule):
 
 class MLlamaBaseModel(MegatronModule):
     """Mllama base model combining vision and text models with cross-attention."""
+
     def __init__(
         self,
         config: MLlamaModelConfig,
@@ -531,6 +535,7 @@ class MLlamaBaseModel(MegatronModule):
 
 class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     """Lightning Module for the MLlama model."""
+
     def __init__(
         self,
         config: MLlamaModelConfig,
