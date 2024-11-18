@@ -23,7 +23,7 @@ def download_slimpajama(include_pattern: str = "", exclude_pattern: str = ""):
         include_pattern: Include pattern for HuggingFace CLI.
         exclude_pattern: Exclude pattern for HuggingFace CLI.
     """
-    hf_cli_cmd = "huggingface-cli download cerebras/SlimPajama-627B {include_pattern} {exclude_pattern} --quiet --repo-type dataset --local-dir /data/slimpajama --cache-dir /data/slimpajama" # pylint: disable=line-too-long
+    hf_cli_cmd = "huggingface-cli download cerebras/SlimPajama-627B {include_pattern} {exclude_pattern} --quiet --repo-type dataset --local-dir /data/slimpajama --cache-dir /data/slimpajama"  # pylint: disable=line-too-long
     hf_cli_cmd = hf_cli_cmd.format(include_pattern=include_pattern, exclude_pattern=exclude_pattern)
 
     download_script = """
