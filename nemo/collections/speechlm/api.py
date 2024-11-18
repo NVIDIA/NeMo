@@ -25,13 +25,6 @@ def speech_to_text_llm_train(cfg: DictConfig):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     # 1. build the model
-
-    ## retain common settings in data config
-    data_config = deepcopy(cfg['data'])
-    for key in ['train_ds', 'validation_ds', 'test_ds']:
-        if key in data_config:
-            data_config.pop(key)
-
     tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
     model_config = SpeechToTextLLMConfig(
         language_model_class=cfg['model']['llm']['_target_'],
@@ -42,7 +35,7 @@ def speech_to_text_llm_train(cfg: DictConfig):
         freeze_language_model=cfg['model']['freeze_language_model'],
         freeze_speech_model=cfg['model']['freeze_speech_model'],
         freeze_modality_adapter=cfg['model']['freeze_modality_adapter'],
-        data_config=data_config,
+        data_config=cfg['data']['common'],
     )
 
     model = SpeechToTextLLM(config=model_config, tokenizer=tokenizer)

@@ -3,39 +3,48 @@ name: megatron_audio_gpt_peft
 
 ############ Data ############
 data:
-  end_string: null
-  global_batch_size: 2
-  micro_batch_size: 2
-  max_seq_length: 2048
-  min_seq_length: 1
-  sample_rate: 16000
+  common:
+    end_string: null
+    global_batch_size: 2
+    micro_batch_size: 2
+    max_seq_length: 2048
+    min_seq_length: 1
+    sample_rate: 16000
+    audio_locator: null
+    context_key: 'context'
+    answer_key: 'answer'
+    prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt.
+    separate_prompt_and_response_with_newline: False
+    add_eos: true
+    add_sep: false
+    add_bos: false
 
   test_ds:
     manifest_filepath: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
     name: null # Names of the corresponding datasets used to log metrics.
-    global_batch_size: ${data.global_batch_size}
-    micro_batch_size: ${data.micro_batch_size}
+    global_batch_size: ${data.common.global_batch_size}
+    micro_batch_size: ${data.common.micro_batch_size}
     shuffle: False
     num_workers: 0
     pin_memory: True
     max_seq_length: 2048
     min_seq_length: 1
     drop_last: False
-    end_string: ${data.end_string}  # don't change, let hydra resolve from saved config
-    context_key: ${data.context_key} # don't change, let hydra resolve from saved config
-    answer_key: ${data.answer_key} # don't change, let hydra resolve from saved config
-    add_eos: ${data.add_eos} # don't change, let hydra resolve from saved config
-    add_sep: ${data.add_sep} # don't change, let hydra resolve from saved config
-    add_bos: ${data.add_bos} # don't change, let hydra resolve from saved config
-    separate_prompt_and_response_with_newline: ${data.separate_prompt_and_response_with_newline}
+    end_string: ${data.common.end_string}  # don't change, let hydra resolve from saved config
+    context_key: ${data.common.context_key} # don't change, let hydra resolve from saved config
+    answer_key: ${data.common.answer_key} # don't change, let hydra resolve from saved config
+    add_eos: ${data.common.add_eos} # don't change, let hydra resolve from saved config
+    add_sep: ${data.common.add_sep} # don't change, let hydra resolve from saved config
+    add_bos: ${data.common.add_bos} # don't change, let hydra resolve from saved config
+    separate_prompt_and_response_with_newline: ${data.common.separate_prompt_and_response_with_newline}
     write_predictions_to_file: True
     output_file_path_prefix: "preds" # Prefix of the file to write predictions to.
-    truncation_field: ${data.truncation_field}  # don't change, let hydra resolve from saved config
+    truncation_field: ${data.common.truncation_field}  # don't change, let hydra resolve from saved config
     index_mapping_dir: null # Path to a directory to write index mapping files.
-    prompt_template: ${data.prompt_template} # don't change, let hydra resolve from saved config
+    prompt_template: ${data.common.prompt_template} # don't change, let hydra resolve from saved config
     tokens_to_generate: 512
     log_every_n_steps: 1
-    sample_rate: ${data.sample_rate} # don't change, let hydra resolve from saved config
+    sample_rate: ${data.common.sample_rate} # don't change, let hydra resolve from saved config
     audio_locator: null # set it to allow multiple audios in a sample, e.g. '|audio|', and use it in the context field of manifest to specify the locations of audios (`audio_filepath` is a list of audios).
 
     metric:
