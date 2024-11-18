@@ -44,6 +44,9 @@ jobs:
       conclusion: ${{ steps.main.conclusion }}
       log: ${{ steps.main.outputs.log }}
       potential_infra_failure: ${{ steps.main.outputs.potential_infra_failure }}
+    env:
+      CONTAINER_IMAGE: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+      CONTAINER_NAME: nemo_container_${{ github.run_id }}
     steps:
         - name: Docker system cleanup
           run: |
@@ -53,19 +56,22 @@ jobs:
           run: |
             docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
+        - name: Stop all historic containers
+          run: |
+            docker ps --format '{{.Names}}' | grep -v "${CONTAINER_NAME}" | xargs -I{} docker container stop {}
+
         - name: Start container
-          env:
-            CONTAINER_NAME: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+          
           run: |
             ARG=("")
             if [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
               ARG=("--runtime=nvidia --gpus all")
             fi
 
-            if docker ps --format '{{.Image}}' | grep -q "^${CONTAINER_NAME}$"; then     
+            if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then     
               echo Container $CONTAINER_NAME already running.
             else
-              docker run --rm -d --name nemo_container_${{ github.run_id }} ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData $CONTAINER_NAME bash -c "sleep $(( 60 * 60 * 24 * 7 ))" || true
+              docker run --rm -d --name $CONTAINER_NAME ${ARG[@]} --shm-size=64g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume /mnt/datadrive/TestData:/home/TestData $CONTAINER_IMAGE bash -c "sleep $(( 60 * 60 * 24 * 7 ))" || true
             fi            
 
         - id: main
