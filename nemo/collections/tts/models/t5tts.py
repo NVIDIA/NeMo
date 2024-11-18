@@ -130,12 +130,19 @@ class T5TTS_Model(ModelPT):
         for param in model.parameters():
             param.requires_grad = False
 
-    # def on_save_checkpoint(self, checkpoint):
-    #     keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model']
-    #     for key in list(checkpoint['state_dict'].keys()):
-    #         if any([substring in key for substring in keys_substrings_to_exclude]):
-    #             del checkpoint['state_dict'][key]
+    def state_dict(self):
+        # Don't save the speaker verification and codec model in the state dict
+        state_dict = super().state_dict()
+        keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model']
+        for key in list(state_dict.keys()):
+            if any([substring in key for substring in keys_substrings_to_exclude]):
+                del state_dict[key]
+        return state_dict
     
+    def load_state_dict(self, state_dict, strict=True):
+        # Override to load all the keys except _speaker_verification_model and _codec_model
+        super().load_state_dict(state_dict, strict=False)
+        
     def _setup_tokenizer(self, cfg, mode='train'):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
@@ -241,7 +248,6 @@ class T5TTS_Model(ModelPT):
         return total_codebook_loss
 
     def forward(self, text, text_lens, audio_codes=None, audio_codes_lens=None, attn_prior=None, conditioning_vector=None):
-        # import ipdb; ipdb.set_trace()
         text_embedded = self.text_embedding(text) # (B, T, E)
         text_mask = ~get_mask_from_lengths(text_lens) # (B, T)
         encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output'] # (B, T, E)
@@ -394,7 +400,6 @@ class T5TTS_Model(ModelPT):
             attn_prior=attn_prior,
             conditioning_vector=speaker_embeddings_projected
         )
-        # import ipdb; ipdb.set_trace()
         codebook_loss = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
         self.log('train_codebook_loss', codebook_loss, prog_bar=True, sync_dist=True)
         if self.cfg.alignment_loss_scale > 0.0:
@@ -441,7 +446,6 @@ class T5TTS_Model(ModelPT):
             conditioning_vector=speaker_embeddings_projected
         )
         
-        # import ipdb; ipdb.set_trace()
         codebook_loss = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
         if self.cfg.alignment_loss_scale > 0.0:
             cross_attention_scores = [attn['cross_attn_probabilities'][1] for attn in attn_info]
@@ -571,7 +575,7 @@ class T5TTS_Model(ModelPT):
         sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
         if cfg.dataloader_params.num_workers == 0:
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-            dataset.text_tokenizer = self.tokenizer
+            dataset.text_tokenizer = self._setup_tokenizer(self.cfg)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn
         )
