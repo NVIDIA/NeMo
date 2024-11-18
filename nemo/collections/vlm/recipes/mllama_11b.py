@@ -108,7 +108,7 @@ def finetune_recipe(
         plugins=bf16_mixed(),
         strategy=strategy,
         val_check_interval=100,
-        callbacks=[run.Config(TimingCallback)]
+        callbacks=[run.Config(TimingCallback)],
     )
 
     recipe = run.Partial(
@@ -142,7 +142,10 @@ def finetune_recipe(
                 "linear_q",
                 "linear_kv",
             ],
-            dim=8, alpha=32, dropout=0.05, dropout_position="pre"
+            dim=8,
+            alpha=32,
+            dropout=0.05,
+            dropout_position="pre",
         )
         recipe.optim.config.lr = 1e-4
     else:
