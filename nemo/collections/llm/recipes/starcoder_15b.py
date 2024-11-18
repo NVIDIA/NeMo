@@ -14,10 +14,10 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
-from pytorch_lightning.callbacks.callback import Callback
+from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
@@ -300,7 +300,7 @@ def finetune_recipe(
     """
     recipe = default_finetune_recipe(model(), "bigcode/starcoder", dir, name, num_nodes, num_gpus_per_node)
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 4
+        recipe.trainer.strategy.pipeline_model_parallel_size = 8
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA)

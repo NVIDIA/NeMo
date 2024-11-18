@@ -14,8 +14,8 @@
 
 from typing import Union
 
-from lightning_fabric.plugins.environments import slurm
-from pytorch_lightning import plugins as _pl_plugins
+from lightning.fabric.plugins.environments import slurm
+from lightning.pytorch import plugins as _pl_plugins
 
 # This is here to import it once, which improves the speed of launch when in debug-mode
 from nemo.utils.import_utils import safe_import
@@ -33,7 +33,7 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPre
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
 from nemo.lightning.pytorch.strategies import FSDPStrategy, MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
-from nemo.lightning.pytorch.trainer import Trainer
+from nemo.lightning.pytorch.trainer import Trainer, configure_no_restart_validation_training_loop
 from nemo.lightning.resume import AutoResume
 
 
@@ -66,6 +66,7 @@ __all__ = [
     "ModelCheckpoint",
     "OptimizerModule",
     "Trainer",
+    "configure_no_restart_validation_training_loop",
     "get_vocab_size",
     "teardown",
 ]
