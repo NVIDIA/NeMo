@@ -27,7 +27,7 @@ from nemo.utils.exp_manager import TimingCallback
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 128
+    gbs = 512
     mbs = 1
     seq_length = 576
     decoder_seq_length = 4096
@@ -101,6 +101,7 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
+        virtual_pipeline_model_parallel_size=5,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=True,
         ddp=DistributedDataParallelConfig(
