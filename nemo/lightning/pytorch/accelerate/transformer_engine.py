@@ -18,13 +18,13 @@ import torch
 from transformer_engine import pytorch as te
 
 
-def accelerate(model, fp8_autocast=False):
-    _accelerate(model)
+def te_accelerate(model, fp8_autocast=False):
+    _te_accelerate(model)
     if fp8_autocast:
         apply_fp8_autocast(model)
 
 
-def _accelerate(model):
+def _te_accelerate(model):
     for name, module in model.named_modules():
         if isinstance(module, torch.nn.Linear):
             has_bias = module.bias is not None
@@ -51,7 +51,7 @@ def _accelerate(model):
             setattr(module, name.split(".")[-1], te_module)
 
 
-def te_accelerated(model):
+def is_te_accelerated(model):
     for name, module in model.named_modules():
         if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
             return True

@@ -14,10 +14,7 @@
 
 
 import inspect
-from functools import partial
-from typing import Any, Callable, Dict, Optional
-
-import pytorch_lightning as pl
+from typing import Callable, Optional
 from pytorch_lightning.callbacks import LambdaCallback
 
 
