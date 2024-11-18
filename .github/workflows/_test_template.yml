@@ -46,7 +46,7 @@ jobs:
       potential_infra_failure: ${{ steps.main.outputs.potential_infra_failure }}
     env:
       CONTAINER_IMAGE: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-      CONTAINER_NAME: nemo_container_${{ github.run_id }}
+      CONTAINER_NAME: nemo_container_${{ github.run_id }}_${{ github.attempt_id }}
     steps:
         - name: Docker system cleanup
           run: |
