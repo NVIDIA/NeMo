@@ -17,7 +17,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import AutoModel
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -126,7 +126,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     num_layers = model.cfg.num_layers
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
-    head_size = hidden_size // head_num
+    head_size = model.cfg.get("kv_channels") or (hidden_size // head_num)  # equivalent to hf's head_dim
     heads_per_group = head_num // num_query_groups  # 32 / 2 = 16
     qkv_total_dim = head_num + 2 * num_query_groups  # 32 + 2 * 2 = 36
 
