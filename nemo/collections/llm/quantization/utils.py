@@ -43,7 +43,9 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     return model_cfg
 
 
-def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1, inference_only: bool = True):
+def load_with_modelopt_layer_spec(
+    nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1, inference_only: bool = True
+):
     # TODO: setting ddp="pytorch" with manually deleting model.optim is a hackish way to disable DDP initialization. Needs a systematic solution.
     if inference_only:
         strategy = nl.MegatronStrategy(
@@ -58,9 +60,7 @@ def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, 
         )
     else:
         strategy = nl.MegatronStrategy(
-            tensor_model_parallel_size=calib_tp,
-            pipeline_model_parallel_size=calib_pp,
-            pipeline_dtype=torch.bfloat16
+            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.bfloat16
         )
 
     trainer = nl.Trainer(
