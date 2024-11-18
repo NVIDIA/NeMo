@@ -12,6 +12,7 @@ from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
+
 @dataclass
 class GoogleBertConfig(BertConfig):
     bert_type: str = 'huggingface'
