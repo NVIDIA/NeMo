@@ -75,9 +75,9 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     # bring to device
     for key in _batch.keys():
-        if key == "enc_dec_mask": # because enc_dec_mask is a tuple
+        if key == "enc_dec_mask":  # because enc_dec_mask is a tuple
             _batch[key] = (_batch[key][0].cuda(non_blocking=True), _batch[key][1].cuda(non_blocking=True))
-        elif key == "dec_mask": # because dec_mask is a None since decoder uses AttnMaskType.causal
+        elif key == "dec_mask":  # because dec_mask is a None since decoder uses AttnMaskType.causal
             continue
         else:
             _batch[key] = _batch[key].cuda(non_blocking=True)
