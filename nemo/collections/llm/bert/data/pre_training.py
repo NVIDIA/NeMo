@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 if TYPE_CHECKING:
     from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDatasetConfig

@@ -27,7 +27,6 @@ class GoogleBertConfig(BertConfig):
     position_embedding_type: str = "learned_absolute"
 
 
-
 @dataclass
 class GoogleBertBaseConfig(GoogleBertConfig):
     num_layers: int = 12
@@ -35,12 +34,14 @@ class GoogleBertBaseConfig(GoogleBertConfig):
     ffn_hidden_size: int = 3072
     num_attention_heads: int = 12
 
+
 @dataclass
 class GoogleBertLargeConfig(GoogleBertConfig):
     num_layers: int = 24
     hidden_size: int = 1024
     ffn_hidden_size: int = 4096
     num_attention_heads: int = 16
+
 
 class GoogleBertModel(BertModel):
     def __init__(
@@ -51,6 +52,7 @@ class GoogleBertModel(BertModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or BertConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+
 
 @io.model_importer(GoogleBertModel, "hf")
 class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
@@ -68,7 +70,7 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         return GoogleBertModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import BertForPreTraining, BertModel, BertForMaskedLM, BertForNextSentencePrediction
+        from transformers import BertForMaskedLM, BertForNextSentencePrediction, BertForPreTraining, BertModel
 
         source = BertForPreTraining.from_pretrained(str(self), torch_dtype='auto')
         # Depending on add_lm_head, bert_binary_head, we initialize the bert model differently:
@@ -81,7 +83,9 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         elif self.type == 'classification':
             source = BertForNextSentencePrediction.from_pretrained(str(self), torch_dtype='auto')
 
-        print(f"Initializing Bert Model with lm_head={self.config.add_lm_head} pooler={self.config.add_pooler} binary_head={self.config.bert_binary_head}")
+        print(
+            f"Initializing Bert Model with lm_head={self.config.add_lm_head} pooler={self.config.add_pooler} binary_head={self.config.bert_binary_head}"
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
 
@@ -114,11 +118,12 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             "encoder.layer.*.output.LayerNorm.bias": "encoder.layers.*.post_mlp_layernorm.bias",
         }
         if self.config.add_pooler:
-            mapping.update({
-                "pooler.dense.weight": "pooler.dense.weight",
-                "pooler.dense.bias": "pooler.dense.bias",
-            })
-
+            mapping.update(
+                {
+                    "pooler.dense.weight": "pooler.dense.weight",
+                    "pooler.dense.bias": "pooler.dense.bias",
+                }
+            )
 
         if self.type == 'model':
             transforms = [_import_qkv_2, _import_qkv_bias_2, _import_embedding_2]
@@ -129,17 +134,21 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             mapping = {f'bert.{k}': v for k, v in mapping.items()}
 
         if self.config.add_lm_head:
-            mapping.update({
-                "cls.predictions.transform.dense.weight": "lm_head.dense.weight",
-                "cls.predictions.transform.dense.bias": "lm_head.dense.bias",
-                "cls.predictions.transform.LayerNorm.weight": "lm_head.layer_norm.weight",
-                "cls.predictions.transform.LayerNorm.bias": "lm_head.layer_norm.bias",
-            })
+            mapping.update(
+                {
+                    "cls.predictions.transform.dense.weight": "lm_head.dense.weight",
+                    "cls.predictions.transform.dense.bias": "lm_head.dense.bias",
+                    "cls.predictions.transform.LayerNorm.weight": "lm_head.layer_norm.weight",
+                    "cls.predictions.transform.LayerNorm.bias": "lm_head.layer_norm.bias",
+                }
+            )
         if self.config.bert_binary_head:
-            mapping.update({
-                "cls.seq_relationship.weight": "binary_head.weight",
-                "cls.seq_relationship.bias": "binary_head.bias",
-            })
+            mapping.update(
+                {
+                    "cls.seq_relationship.weight": "binary_head.weight",
+                    "cls.seq_relationship.bias": "binary_head.bias",
+                }
+            )
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
@@ -169,6 +178,7 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         )
         return output
 
+
 @io.state_transform(
     source_key=(
         "bert.encoder.layer.*.attention.self.query.weight",
@@ -194,12 +204,13 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
     for i in range(head_num):
-        qkv_weights = torch.cat((qkv_weights, q[i: i + 1, :, :]))
-        qkv_weights = torch.cat((qkv_weights, k[i: i + 1, :, :]))
-        qkv_weights = torch.cat((qkv_weights, v[i: i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, q[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
     qkv_weights = qkv_weights.reshape([head_size * (3 * head_num), hidden_size])
 
     return qkv_weights
+
 
 @io.state_transform(
     source_key=(
@@ -224,17 +235,16 @@ def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
 
     qkv_biases = torch.empty((0, head_size))
     for i in range(head_num):
-        qkv_biases = torch.cat((qkv_biases, bias_q[i: i + 1]))
-        qkv_biases = torch.cat((qkv_biases, bias_k[i: i + 1]))
-        qkv_biases = torch.cat((qkv_biases, bias_v[i: i + 1]))
+        qkv_biases = torch.cat((qkv_biases, bias_q[i : i + 1]))
+        qkv_biases = torch.cat((qkv_biases, bias_k[i : i + 1]))
+        qkv_biases = torch.cat((qkv_biases, bias_v[i : i + 1]))
     qkv_biases = qkv_biases.reshape([head_size * (3 * head_num)])
 
     return qkv_biases
 
+
 @io.state_transform(
-    source_key=(
-        "bert.embeddings.word_embeddings.weight",
-    ),
+    source_key=("bert.embeddings.word_embeddings.weight",),
     target_key="embedding.word_embeddings.weight",
 )
 def _import_embedding(ctx: io.TransformCTX, embedding):
@@ -254,6 +264,7 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
         print(padded_embedding.size())
         return padded_embedding
     return embedding
+
 
 @io.state_transform(
     source_key=(
@@ -280,12 +291,13 @@ def _import_qkv_2(ctx: io.TransformCTX, q, k, v):
 
     qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
     for i in range(head_num):
-        qkv_weights = torch.cat((qkv_weights, q[i: i + 1, :, :]))
-        qkv_weights = torch.cat((qkv_weights, k[i: i + 1, :, :]))
-        qkv_weights = torch.cat((qkv_weights, v[i: i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, q[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
     qkv_weights = qkv_weights.reshape([head_size * (3 * head_num), hidden_size])
 
     return qkv_weights
+
 
 @io.state_transform(
     source_key=(
@@ -311,17 +323,16 @@ def _import_qkv_bias_2(ctx: io.TransformCTX, qb, kb, vb):
 
     qkv_biases = torch.empty((0, head_size))
     for i in range(head_num):
-        qkv_biases = torch.cat((qkv_biases, bias_q[i: i + 1]))
-        qkv_biases = torch.cat((qkv_biases, bias_k[i: i + 1]))
-        qkv_biases = torch.cat((qkv_biases, bias_v[i: i + 1]))
+        qkv_biases = torch.cat((qkv_biases, bias_q[i : i + 1]))
+        qkv_biases = torch.cat((qkv_biases, bias_k[i : i + 1]))
+        qkv_biases = torch.cat((qkv_biases, bias_v[i : i + 1]))
     qkv_biases = qkv_biases.reshape([head_size * (3 * head_num)])
 
     return qkv_biases
 
+
 @io.state_transform(
-    source_key=(
-        "embeddings.word_embeddings.weight",
-    ),
+    source_key=("embeddings.word_embeddings.weight",),
     target_key="embedding.word_embeddings.weight",
 )
 def _import_embedding_2(ctx: io.TransformCTX, embedding):

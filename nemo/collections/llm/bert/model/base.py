@@ -166,6 +166,8 @@ class BertConfig(TransformerConfig, io.IOMixin):
 This class is used for working with HF Bert Checkpoints. These checkpoints
 by default have post layer norm, while the vanilla mcore bert model does not support it.
 '''
+
+
 class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     def __init__(self, bert_type='megatron', add_pooler=True, *args, **kwargs):
 
@@ -173,8 +175,9 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         self.add_pooler = add_pooler
         self.bert_type = bert_type
 
-        assert self.bert_type == 'megatron' or self.bert_type == 'huggingface',\
-            f'bert_type should either be megatron or huggingface, but got {self.bert_type}.'
+        assert (
+            self.bert_type == 'megatron' or self.bert_type == 'huggingface'
+        ), f'bert_type should either be megatron or huggingface, but got {self.bert_type}.'
 
         # Transformer.
         self.encoder = TransformerBlockWithPostLNSupport(
