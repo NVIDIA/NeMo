@@ -32,12 +32,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
-    AttnMaskType,
     MegatronTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
-    build_attention_mask_3d,
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
