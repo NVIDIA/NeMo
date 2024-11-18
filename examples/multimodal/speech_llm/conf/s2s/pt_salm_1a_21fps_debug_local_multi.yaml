@@ -253,7 +253,7 @@ model:
       #     lang: en
       #     s2s: True
       - type: lhotse_shar
-        shar_path: /data/tmp/msmarco_train_normalized.b.multiturn/shars/
+        shar_path: /data/tmp/msmarco_train_normalized.b.multiturn/shars2/
         weight: 0.5
         tags:
           lang: en
@@ -285,7 +285,7 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       # prompt_template: "{context}\n{answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      prompt_template: "[INST]\n<<SYS>>\nPlease answer the following based on the previous speech feature.\n<</SYS>>\n\n{context}[/INST] {answer}"
+      prompt_template: "[INST]\n{context}[/INST] {answer}"
       speech_pad_id: ${model.speech_pad_id}
       speech_unk_id: ${model.speech_unk_id}
       speech_bos_id: ${model.speech_bos_id}
@@ -327,7 +327,7 @@ model:
             #     lang: en
             #     s2s: True
             - type: lhotse_shar
-              shar_path: /data/tmp/msmarco_train_normalized.b.multiturn/shars/
+              shar_path: /data/tmp/msmarco_train_normalized.b.multiturn/shars2/
               weight: 0.1
               tags:
                 lang: en

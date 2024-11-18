@@ -110,7 +110,6 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
             cut.source_audios.append(Recording.from_file(convs[i]['value']))
             cut.target_audios.append(Recording.from_file(convs[i + 1]['value']))
 
-    breakpoint()
     print("...Making Shars")
     out_shar_dir = Path(out_shar_dir)
     out_shar_dir.mkdir(parents=True, exist_ok=True)
