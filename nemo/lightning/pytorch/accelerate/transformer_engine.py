@@ -30,6 +30,7 @@ def te_accelerate(model, fp8_autocast=False):
             apply_fp8_autocast(model)
 
 
+@torch.no_grad
 def _apply_basic_module_replacement(model):
     for name, module in model.named_modules():
         if isinstance(module, torch.nn.Linear):
@@ -39,10 +40,9 @@ def _apply_basic_module_replacement(model):
             te_module = te.Linear(
                 module.in_features, module.out_features, bias=has_bias, params_dtype=module.weight.dtype
             )
-            with torch.no_grad():
-                te_module.weight.copy_(module.weight)
-                if has_bias:
-                    te_module.bias.copy_(module.bias)
+            te_module.weight.copy_(module.weight)
+            if has_bias:
+                te_module.bias.copy_(module.bias)
 
             setattr(module, name.split(".")[-1], te_module)
         elif isinstance(module, torch.nn.LayerNorm):
