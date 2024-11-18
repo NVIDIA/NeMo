@@ -521,7 +521,7 @@ def evaluate(
         model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos
     )
     results = evaluator.simple_evaluate(
-        model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+        model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters, batch_size=8
     )
 
     print("score", results["results"][eval_task])
