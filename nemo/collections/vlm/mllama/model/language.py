@@ -60,6 +60,9 @@ except ImportError:
 
 @dataclass
 class MLlamaCrossAttentionSubmodules:
+    """
+    Defines the submodules required for cross-attention layers in the Llama architecture.
+    """
     linear_q: Union[ModuleSpec, type] = None
     linear_kv: Union[ModuleSpec, type] = None
     core_attention: Union[ModuleSpec, type] = None
@@ -69,6 +72,9 @@ class MLlamaCrossAttentionSubmodules:
 
 
 class CrossAttentionTextModel(MCoreGPTModel):
+    """
+    GPT-based model with integrated cross-attention layers for multimodal tasks.
+    """
     def __init__(
         self,
         config: TransformerConfig,
@@ -122,6 +128,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
             self._thresh = self.num_frozen_embeddings - 1
 
     def get_partially_trainable_embedding(self, x):
+        """Get word embedding w/ few extra learnable tokens."""
         xz = torch.zeros_like(x, device=x.device)
         oz = torch.ones_like(x, device=x.device)
         x_orig = torch.minimum(x, torch.tensor(self._thresh, device=x.device))
@@ -148,7 +155,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         packed_seq_params: PackedSeqParams = None,
         extra_block_kwargs: dict = None,
     ) -> Tensor:
-
+        """Forward."""
         # Decoder embedding.
         if decoder_input is not None:
             pass
@@ -207,6 +214,9 @@ class CrossAttentionTextModel(MCoreGPTModel):
 
 
 class CrossAttentionTransformerBlock(TransformerBlock):
+    """
+    Transformer block with integrated cross-attention layers for multimodal tasks.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -254,6 +264,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         assert len(self.xattn_layers) == len(self.layers), 'Check PP implementation for cross attention layers!'
 
     def _get_layer_offset(self):
+        """Get correct layer offset when encoder pipeline parallel size > 0."""
         encoder_pipeline_model_parallel_size = getattr(self.config, "encoder_pipeline_model_parallel_size", 0)
         decoder_pipeline_model_parallel_rank = (
             parallel_state.get_pipeline_model_parallel_rank() - encoder_pipeline_model_parallel_size
@@ -273,6 +284,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
     ):
+        """Forward."""
         # hidden_states (float): [s, b, h]
         # attention_mask (bool): [1, 1, s, s]
 
@@ -369,6 +381,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: dict = None
     ) -> ShardedStateDict:
+        """Update shareded state dict for cross-attention layers"""
         sharded_state_dict = {}
 
         layer_prefix = f'{prefix}layers.'
@@ -407,6 +420,9 @@ class CrossAttentionTransformerBlock(TransformerBlock):
 
 
 class CrossAttentionTransformerLayer(TransformerLayer):
+    """
+    Transformer layer with cross-attention for integration.
+    """
     def __init__(
         self,
         config: TransformerConfig,
@@ -425,6 +441,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         self.gate_ffn = nn.Parameter(torch.zeros(1, dtype=self.config.params_dtype))
 
     def compute_xattn_kv_cache(self, xattn_tokens: Tensor) -> Tensor:
+        """Compute cross-attention kv cahce."""
         return self.cross_attention._compute_xattn_kv_cache(xattn_tokens)
 
     def forward(
@@ -438,6 +455,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         inference_params=None,
         packed_seq_params=None,
     ):
+        """Forward."""
         # hidden_states: [s, b, h]
 
         # Residual connection.
@@ -521,7 +539,8 @@ class DummyCrossAttentionTransformerLayer(MegatronModule):
 
 
 class MLlamaCrossAttention(Attention):
-    """Cross-attention layer class for Llama VLM support
+    """
+    Cross-attention layer for Llama multimodal tasks.
 
     Cross-attention layer takes input with size [s, b, h] and context with size
     [s, b, h] and returns output of the same size.
@@ -719,6 +738,19 @@ def apply_rope_scaling(
     high_freq_factor: int = 4,
     old_context_len: int = 8192,
 ):
+    """
+    Apply scaling to rotary embeddings for positional encoding.
+
+    Args:
+        inv_freq (Tensor): Tensor of inverse frequencies.
+        factor (int): Scaling factor for medium-to-high frequencies.
+        low_freq_factor (int): Factor for identifying low frequencies.
+        high_freq_factor (int): Factor for identifying high frequencies.
+        old_context_len (int): Original context length for scaling computation.
+
+    Returns:
+        Tensor: Scaled inverse frequencies.
+    """
     logging.info(
         f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."
     )
