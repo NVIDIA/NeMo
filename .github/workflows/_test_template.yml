@@ -46,7 +46,7 @@ jobs:
       potential_infra_failure: ${{ steps.main.outputs.potential_infra_failure }}
     env:
       CONTAINER_IMAGE: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-      CONTAINER_NAME: nemo_container_${{ github.run_id }}_${{ github.attempt_id }}
+      CONTAINER_NAME: $CONTAINER_NAME_${{ github.attempt_id }}
     steps:
         - name: Docker system cleanup
           run: |
@@ -84,7 +84,7 @@ jobs:
             (  
               set -e
 
-              docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
+              docker exec $CONTAINER_NAME bash -c '${{ inputs.SCRIPT }}'
             ) 2> >(tee err.log)
 
             EXIT_CODE=$?
@@ -101,4 +101,4 @@ jobs:
         - name: after_script
           if: always() && inputs.AFTER_SCRIPT != ':'
           run: |
-            docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
+            docker exec $CONTAINER_NAME bash -c '${{ inputs.AFTER_SCRIPT }}'
