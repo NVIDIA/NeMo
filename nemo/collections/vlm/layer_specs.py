@@ -50,6 +50,7 @@ except ImportError:
 
 
 def get_layer_spec(is_vit, normalization) -> ModuleSpec:
+    """Transformer Layer Spec"""
     attn_mask_type = AttnMaskType.no_mask if is_vit else AttnMaskType.causal
     if normalization == "LayerNorm":
         norm = LNImpl
@@ -84,6 +85,7 @@ def get_layer_spec(is_vit, normalization) -> ModuleSpec:
 
 
 def get_layer_spec_te(is_vit=False) -> ModuleSpec:
+    """Transformer Layer Spec w/ TE Modules"""
     attn_mask_type = AttnMaskType.no_mask if is_vit else AttnMaskType.causal
 
     mlp = get_norm_mlp_module_spec_te()
@@ -110,6 +112,7 @@ def get_layer_spec_te(is_vit=False) -> ModuleSpec:
 
 
 def get_mlp_module_spec(use_te: bool = True) -> ModuleSpec:
+    """MLP Submodule Spec"""
     # Dense MLP w/ or w/o TE modules.
     return ModuleSpec(
         module=MLP,
@@ -121,6 +124,7 @@ def get_mlp_module_spec(use_te: bool = True) -> ModuleSpec:
 
 
 def get_norm_mlp_module_spec_te() -> ModuleSpec:
+    """Norm + MLP Submodule Spec"""
     return ModuleSpec(
         module=MLP,
         submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear),
