@@ -70,7 +70,7 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def configure_model(self):
         # create all your layers here
         if self.load_pretrained_weights:
-            self.model = model = AutoModelForImageTextToText.from_pretrained(
+            self.model = AutoModelForImageTextToText.from_pretrained(
                 self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code
             )
         else:
@@ -83,8 +83,8 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         outputs = self.model(
             **inputs
         )
-        labels = labels.to(self.model.device)
-        if loss_mask is not None:
+        labels = batch['labels'].to(self.model.device)
+        if batch.get('loss_mask', None) is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
         n_cls = outputs.logits.shape[-1]
         outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
