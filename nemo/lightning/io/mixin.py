@@ -62,8 +62,7 @@ def _ordered_arguments_with_default(data: config_lib.Config) -> Dict[Union[int, 
         )
 
     result["_target_"] = (
-        f"{inspect.getmodule(config_lib.get_callable(data)).__name__}"
-        f".{config_lib.get_callable(data).__qualname__}"
+        f"{inspect.getmodule(config_lib.get_callable(data)).__name__}" f".{config_lib.get_callable(data).__qualname__}"
     )
     if isinstance(data, partial.Partial):
         result["_partial_"] = True
