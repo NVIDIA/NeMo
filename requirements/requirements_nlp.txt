@@ -1,5 +1,6 @@
 accelerated-scan
 boto3
+causal_conv1d @ git+https://github.com/Dao-AILab/causal-conv1d.git@v1.2.2.post1
 faiss-cpu
 fasttext
 flask_restful
@@ -8,7 +9,6 @@ gdown
 h5py
 ijson
 jieba
-causal_conv1d @ git+https://github.com/Dao-AILab/causal-conv1d.git@v1.2.2.post1
 mamba_ssm @ git+https://github.com/state-spaces/mamba.git@v2.2.2
 markdown2
 matplotlib>=3.3.2
