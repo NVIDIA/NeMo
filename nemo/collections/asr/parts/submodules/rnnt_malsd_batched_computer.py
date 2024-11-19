@@ -274,6 +274,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         allow_recombine_hyps: bool = True,
         score_norm: bool = True,
+        # score_norm_selection: bool = False,
     ):
         super().__init__()
         self.decoder = decoder
@@ -287,19 +288,18 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.score_norm = score_norm
+        # self.score_norm_selection = score_norm_selection
+        # if score_norm_selection:
+        #     raise NotImplementedError
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
             if blank_lm_score_mode is None:
-                self.blank_lm_score_mode = BlankLMScoreMode.LM_TOP_MAX
+                self.blank_lm_score_mode = BlankLMScoreMode.LM_WEIGHTED_FULL
             else:
                 self.blank_lm_score_mode = BlankLMScoreMode(blank_lm_score_mode)
-            if self.allow_recombine_hyps:
-                # TODO: implement separate scores and fix
-                logging.warning("Hyps recombination is not implemented yet with LM, setting to false")
-                self.allow_recombine_hyps = False
         else:
             self.ngram_lm_batch = None
             self.blank_lm_score_mode = None
