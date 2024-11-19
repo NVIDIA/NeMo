@@ -358,10 +358,10 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         # decoder_output: [(B x Beam), 1, Dim]
 
-        step = -1
+        # step = -1
         while active_mask.any():
-            step += 1
-            logging.warning(f"Step: {step} {batched_hyps.transcript_wb[:, :, batched_hyps.current_lengths_wb[0, 0].item() - 1]} {batched_hyps.scores}")
+            # step += 1
+            # logging.warning(f"Step: {step} {batched_hyps.transcript_wb[:, :, batched_hyps.current_lengths_wb[0, 0].item() - 1]} {batched_hyps.scores}")
             # torch.cuda.set_sync_debug_mode(2)
             # step 1: get joint output + fuse with LM (if present)
             logits = (
