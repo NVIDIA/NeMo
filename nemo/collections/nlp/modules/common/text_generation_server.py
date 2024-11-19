@@ -21,6 +21,7 @@ import uuid
 import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
+from omegaconf import OmegaConf
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
     _get_header_conversation_type_mask_role,
@@ -167,7 +168,18 @@ class MegatronGenerate(Resource):
         data['messages'] = data['messages'] + [
             {'role': 'assistant', 'content': ''}
         ]  # adding trailing assistant message so that prompt ends with Assistant tag.
-        special_tokens = self.model.cfg.data.chat_prompt_tokens
+        if OmegaConf.select(self.model.cfg, "data.chat_prompt_tokens") is not None:
+            special_tokens = self.model.cfg.data.chat_prompt_tokens
+        else:
+            #raise RuntimeError(
+            #    "You don't have a model (model_config.yaml) which has chat_prompt_tokens, are you sure this is a Chat/Instruction model?"
+            #)
+            # (@adithyare) hacking in the special tokens to test non-chat models for debugging
+            special_tokens = {"system_turn_start": "<SPECIAL_10>",
+                              "turn_start": "<SPECIAL_11>",
+                              "label_start": "<SPECIAL_12>",
+                              "end_of_name": "\n",
+                              "end_of_turn": "\n"}
         nemo_source = self.convert_messages(data['messages'])
         header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(
             nemo_source, special_tokens
@@ -208,7 +220,7 @@ class MegatronGenerate(Resource):
                 **extra,
             )
             tdiff = time.perf_counter() - st
-            logging.info(f"Chat server gerneration completed in {tdiff} seconds")
+            logging.info(f"Chat server generation completed in {tdiff} seconds")
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
@@ -413,6 +425,12 @@ class MegatronGenerate(Resource):
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
+
+        # (@adithyare) resolves a json byte conversion issue (taken from chat_completeion)
+        for i in range(len(output['tokens'])):
+            tokens = output['tokens'][i]
+            output['tokens'][i] = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]      
+
         if not all_probs:
             del output['full_logprob']
 
