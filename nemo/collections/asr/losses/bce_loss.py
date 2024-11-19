@@ -98,6 +98,8 @@ class BCELoss(Loss, Typing):
         targets_list = [labels[k, : target_lens[k], :] for k in range(labels.shape[0])]
         probs = torch.cat(probs_list, dim=0)
         labels = torch.cat(targets_list, dim=0)
+        norm_weight = torch.zeros_like(labels).detach().clone()
+        
         if self.class_normalization in ['class', 'class_binary', 'binary']:
             if self.class_normalization in ['class', 'class_binary']:
                 # Normalize loss by number of classes
@@ -122,12 +124,13 @@ class BCELoss(Loss, Typing):
             norm_weight = torch.ones_like(labels).detach().clone()
             
         if self.reduction == 'sum':
-            return self.loss_f(probs, labels)
+            loss = self.loss_f(probs, labels)
         elif self.reduction == 'mean':
-            return self.loss_f(probs, labels).mean()
+            loss = self.loss_f(probs, labels).mean()
         elif self.reduction == 'none':
             if self.class_normalization in ['class', 'class_binary', 'binary']:
-                return (binary_weight * norm_weight * self.loss_f(probs, labels)).sum()
+                loss = (binary_weight * norm_weight * self.loss_f(probs, labels)).sum()
             else:
-                return self.loss_f(probs, labels)
+                loss = self.loss_f(probs, labels)
+        return loss
             
