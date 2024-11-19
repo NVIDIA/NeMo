@@ -171,15 +171,17 @@ class MegatronGenerate(Resource):
         if OmegaConf.select(self.model.cfg, "data.chat_prompt_tokens") is not None:
             special_tokens = self.model.cfg.data.chat_prompt_tokens
         else:
-            #raise RuntimeError(
+            # raise RuntimeError(
             #    "You don't have a model (model_config.yaml) which has chat_prompt_tokens, are you sure this is a Chat/Instruction model?"
-            #)
+            # )
             # (@adithyare) hacking in the special tokens to test non-chat models for debugging
-            special_tokens = {"system_turn_start": "<SPECIAL_10>",
-                              "turn_start": "<SPECIAL_11>",
-                              "label_start": "<SPECIAL_12>",
-                              "end_of_name": "\n",
-                              "end_of_turn": "\n"}
+            special_tokens = {
+                "system_turn_start": "<SPECIAL_10>",
+                "turn_start": "<SPECIAL_11>",
+                "label_start": "<SPECIAL_12>",
+                "end_of_name": "\n",
+                "end_of_turn": "\n",
+            }
         nemo_source = self.convert_messages(data['messages'])
         header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(
             nemo_source, special_tokens
@@ -432,7 +434,7 @@ class MegatronGenerate(Resource):
         # (@adithyare) resolves a json byte conversion issue (taken from chat_completeion)
         for i in range(len(output['tokens'])):
             tokens = output['tokens'][i]
-            output['tokens'][i] = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]      
+            output['tokens'][i] = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
 
         if not all_probs:
             del output['full_logprob']

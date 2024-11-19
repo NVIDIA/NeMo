@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import threading
+import time
 from functools import partial
 
 import torch
@@ -352,11 +353,15 @@ def main(cfg) -> None:
     prompts = load_prompts(cfg)
 
     # First method of running text generation, call model.generate method
-    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
+    for i in range(3):
+        st = time.perf_counter()
+        response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
+        tdiff = time.perf_counter() - st
+        print(f"[Try{i} model.generate took {tdiff} seconds...")
 
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
     bs = 2
@@ -364,11 +369,15 @@ def main(cfg) -> None:
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
-    response = trainer.predict(model, request_dl)
+    for i in range(3):
+        st = time.perf_counter()
+        response = trainer.predict(model, request_dl)
+        tdiff = time.perf_counter() - st
+        print(f"[Try{i} trainer.predict took {tdiff} seconds...")
 
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Third method of running text generation, use inference server
     if cfg.server:
