@@ -161,10 +161,12 @@ def nemo_resume(model_id: str) -> run.Config[nl.AutoResume]:
         restore_config=run.Config(nl.RestoreConfig, path=f"nemo://{model_id}"),
     )
 
+
 @run.cli.factory(name='lora')
-def lora()  -> run.Config[PEFT]:
+def lora() -> run.Config[PEFT]:
     return run.Config(LoRA)
 
+
 @run.cli.factory(name='dora')
-def dora()  -> run.Config[PEFT]:
+def dora() -> run.Config[PEFT]:
     return run.Config(DoRA)

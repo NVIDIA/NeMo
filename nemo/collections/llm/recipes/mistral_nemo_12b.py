@@ -287,7 +287,9 @@ def finetune_recipe(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
-        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()], target_modules=['linear_qkv', 'linear_proj'], dim=32)
+        recipe.peft = run.Config(
+            PEFT_STR2CLS[peft_scheme.lower()], target_modules=['linear_qkv', 'linear_proj'], dim=32
+        )
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

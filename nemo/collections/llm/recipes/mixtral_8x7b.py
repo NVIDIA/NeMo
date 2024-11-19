@@ -282,7 +282,9 @@ def finetune_recipe(
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 8
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
-        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()], target_modules=['linear_qkv', 'linear_proj'], dim=32)
+        recipe.peft = run.Config(
+            PEFT_STR2CLS[peft_scheme.lower()], target_modules=['linear_qkv', 'linear_proj'], dim=32
+        )
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
