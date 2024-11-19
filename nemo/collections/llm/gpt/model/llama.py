@@ -344,7 +344,10 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
         target = target.cpu()
         target.save_pretrained(output_path)
-        self.tokenizer.save_pretrained(output_path)
+        try:
+            self.tokenizer.save_pretrained(output_path)
+        except Exception:
+            logging.warning("Failed to save tokenizer")
 
         return output_path
 
