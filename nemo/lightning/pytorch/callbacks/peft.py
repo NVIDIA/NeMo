@@ -105,7 +105,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         else:
             model.walk(self.transform)
 
-        if hasattr(model, "trainer") and model.trainer.state != TrainerFn.FITTING:
+        if hasattr(model, "trainer") and model.trainer.state.fn != TrainerFn.FITTING:
             self.freeze_model(model)
         return model
 
@@ -128,7 +128,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             model.module.freeze()
         else:
             model.freeze()
-        if hasattr(model, "trainer") and model.trainer.state == TrainerFn.FITTING:
+        if hasattr(model, "trainer") and model.trainer.state.fn == TrainerFn.FITTING:
             model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
