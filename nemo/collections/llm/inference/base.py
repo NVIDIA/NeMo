@@ -16,9 +16,10 @@ import json
 from pathlib import Path
 from typing import Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.distributed
+from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
@@ -31,7 +32,6 @@ from megatron.core.inference.text_generation_controllers.simple_text_generation_
     SimpleTextGenerationController,
 )
 from megatron.core.transformer.module import MegatronModule
-from pytorch_lightning.trainer.states import TrainerFn
 
 import nemo.lightning as nl
 from nemo.collections.llm.peft import LoRA
@@ -242,7 +242,7 @@ def generate(
         text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
     )
 
-    common_inference_params = inference_params or CommonInferenceParams(num_tokens_to_generate=512)
+    common_inference_params = inference_params or CommonInferenceParams(num_tokens_to_generate=512, top_k=1)
 
     results = mcore_engine.generate(
         prompts=prompts,
