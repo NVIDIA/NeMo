@@ -223,7 +223,7 @@ class MegatronGenerate(Resource):
         # remove end_strings
         for e in end_strings:
             if output_sentence.endswith(e):
-                output_sentence = output_sentence[:-len(e)]
+                output_sentence = output_sentence[: -len(e)]
 
         tokens = output['tokens'][0]
         tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
