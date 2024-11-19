@@ -222,8 +222,8 @@ class MegatronGenerate(Resource):
         output_sentence = output['sentences'][0][len(conversation) :]
         # remove end_strings
         for e in end_strings:
-            if output_sentence.endswith(e):
-                output_sentence = output_sentence[: -len(e)]
+            if output_sentence.endswith(special_tokens['end_of_turn'] + e):
+                output_sentence = output_sentence[: -len(special_tokens['end_of_turn'] + e)]
 
         tokens = output['tokens'][0]
         tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
