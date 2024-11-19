@@ -1,29 +1,14 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-import random
-import re
-from collections import defaultdict
-from pathlib import Path
-from typing import NamedTuple, Tuple
-
 import numpy as np
+from typing import Tuple
 import torch
+from collections import defaultdict
+from typing import NamedTuple
 import torch.nn as nn
 from tqdm.auto import tqdm
-
 from nemo.utils import logging
+from pathlib import Path
+import re
+import random
 
 try:
     import kenlm
@@ -35,7 +20,6 @@ except (ModuleNotFoundError, ImportError):
 try:
     import triton
     import triton.language as tl
-
     HAVE_TRITON = True
 except (ModuleNotFoundError, ImportError):
     HAVE_TRITON = False
@@ -44,9 +28,7 @@ except (ModuleNotFoundError, ImportError):
 def _log_e_score(score):
     return score / np.log10(np.e)
 
-
 if HAVE_TRITON:
-
     @triton.jit
     def _ngram_triton_kernel(
         vocab_size: "tl.constexpr",
@@ -95,9 +77,7 @@ if HAVE_TRITON:
             # done |= (cur_state == start_state)
             # backoff
             cur_backoff_weight = tl.load(backoff_weights_ptr + cur_state)
-            not_final_mask = (
-                tl.load(new_states_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask, other=0) == -1
-            )
+            not_final_mask = tl.load(new_states_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask, other=0) == -1
             tl.store(
                 scores_ptr + batch_i * vocab_size + vocab_offsets,
                 tl.load(scores_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask) + cur_backoff_weight,
@@ -176,10 +156,8 @@ class FastNGramLM(nn.Module):
     def __init__(self, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True):
         super().__init__()
         if not use_triton:
-            logging.warning(
-                "Triton is disabled, falling back to PyTorch. "
-                "NB: version without Triton is not compatible with Cuda graphs, decoding can be slow"
-            )
+            logging.warning("Triton is disabled, falling back to PyTorch. "
+                            "NB: version without Triton is not compatible with Cuda graphs, decoding can be slow")
         if not HAVE_TRITON and use_triton:
             logging.warning("Triton not found, falling back to PyTorch")
             use_triton = False
@@ -447,6 +425,8 @@ class FastNGramLM(nn.Module):
     def compute_scores_batch(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.use_triton and states.device.type == "cuda":
             return self._compute_scores_batch_triton(states=states)
+        if self._custom_kernel is not None and states.device.type == "cuda":
+            return self._compute_scores_batch_cuda(states=states)
         return self._compute_scores_batch_pytorch(states=states)
 
     def _compute_scores_batch_triton(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
