@@ -41,7 +41,6 @@ def distributed_fused_adam_with_cosine_annealing(
         fp16=precision == "16-mixed",
         adam_beta1=adam_beta1,
         adam_beta2=adam_beta2,
-        adam_eps=1e-5,
         use_distributed_optimizer=True,
         clip_grad=clip_grad,
     )
