@@ -194,6 +194,7 @@ class MegatronGenerate(Resource):
             random_seed = None
 
             logging.info(f"Log for Timing -- before generate {dm1}")
+            logging.info(f"Log for Timing -- args {conversation}, {data.get('max_tokens', 32)}, {all_probs} {data.get('temperature', 1.0)} {add_BOS} {top_k} {data.get('top_p', 0.95)} {greedy} {end_strings} {logprobs} {random_seed} {extra}")
             output = generate(
                 self.model,
                 [conversation],
