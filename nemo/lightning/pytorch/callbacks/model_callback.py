@@ -15,7 +15,7 @@
 
 import inspect
 from typing import Callable, Optional
-from pytorch_lightning.callbacks import LambdaCallback
+from lightning.pytorch.callbacks import LambdaCallback
 
 
 class ModelCallback(LambdaCallback):
