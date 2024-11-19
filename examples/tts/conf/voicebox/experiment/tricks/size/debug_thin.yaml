@@ -1,0 +1,10 @@
+# @package _global_
+
+model:
+  duration_predictor:
+    depth: 2
+    heads: 1
+
+  voicebox:
+    depth: 2
+    heads: 1

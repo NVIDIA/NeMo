@@ -1,0 +1,8 @@
+# @package model
+
+defaults:
+  - libriheavy
+
+
+train_ds:
+  subset: small

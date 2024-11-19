@@ -1,0 +1,12 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1/thin
+
+defaults:
+  - /experiment@_global_:
+    - local_1
+    - tricks/size/debug_thin
+
+# task name, determines output directory path
+task_name: "local_1-thin"

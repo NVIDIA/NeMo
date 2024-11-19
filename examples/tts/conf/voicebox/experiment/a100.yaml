@@ -1,0 +1,39 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=a100
+
+defaults:
+  - /experiment@_global_:
+    - default
+    - tricks/size/a100
+    - tricks/loss_full
+    - tricks/vb_only
+    # - tricks/adam_warmup
+    - tricks/gradient_clip
+  - /logger:
+    - tensorboard
+    - wandb
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model:
+  cfm_wrapper:
+    sigma: 1e-5
+
+  train_ds:
+    max_duration: 16
+    lhotse:
+      batch_duration: 64
+
+  ds_kwargs:
+    num_workers: 8
+
+exp_manager:
+  checkpoint_callback_params:
+    # save the best checkpoints based on this metric 
+    monitor: val_loss/vb
+
+# task name, determines output directory path
+task_name: "a100"

@@ -1,0 +1,39 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - /experiment@_global_:
+    - default
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model:
+  duration_predictor:
+    depth: 8  # for english
+
+  train_ds:
+    subset: large
+    max_duration: 16 # ~1600 frames of paper settings
+    lhotse:
+      batch_duration: 300
+
+  validation_ds:
+    lhotse:
+      batch_duration: 300
+  
+  test_ds:
+    lhotse:
+      batch_duration: 300
+
+# task name, determines output directory path
+task_name: "paper"
+
+# set False to skip model training
+train: True
+
+# evaluate on test set, using best model weights achieved during training
+# lightning chooses best weights based on the metric specified in checkpoint callback
+test: False

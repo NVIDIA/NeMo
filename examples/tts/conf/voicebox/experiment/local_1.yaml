@@ -1,0 +1,41 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local_1
+
+defaults:
+  - /experiment@_global_:
+    - default
+    - tricks/vb_only
+    - tricks/size/small_model
+  - override /dataset: libriheavy-small
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model:
+  cfm_wrapper:
+    sigma: 1e-5
+
+  train_ds:
+    lhotse:
+      batch_duration: 300
+
+  validation_ds:
+    lhotse:
+      batch_duration: 300
+
+  test_ds:
+    lhotse:
+      batch_duration: 300
+
+  ds_kwargs:
+    num_workers: 8
+
+exp_manager:
+  checkpoint_callback_params:
+    # save the best checkpoints based on this metric 
+    monitor: val_loss/vb
+
+# task name, determines output directory path
+task_name: "local_1"

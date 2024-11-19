@@ -1,0 +1,15 @@
+# @package _global_
+
+# runs 1 train, 1 validation and 1 test step
+
+defaults:
+  - _self_
+
+model:
+  duration_predictor:
+    depth: 2
+    heads: 2
+
+  voicebox:
+    depth: 2
+    heads: 2

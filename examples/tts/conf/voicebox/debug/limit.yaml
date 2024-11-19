@@ -1,0 +1,18 @@
+# @package _global_
+
+# uses only 1% of the training data and 5% of validation/test data
+
+# defaults:
+#   - default
+
+trainer:
+  max_epochs: 3
+  limit_train_batches: ${model.train_ds.num_workers}
+  limit_val_batches: ${model.validation_ds.num_workers}
+  limit_test_batches: ${model.test_ds.num_workers}
+  log_every_n_steps: ${.limit_train_batches}
+
+  devices: 1
+
+exp_manager:
+  resume_if_exists: False
