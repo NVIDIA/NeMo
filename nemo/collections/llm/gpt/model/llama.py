@@ -366,11 +366,11 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
     @property
     def tokenizer(self):
-        return io.load_context(str(self)).model.tokenizer.tokenizer
+        return io.load_context(str(self), subpath="model").tokenizer.tokenizer
 
     @property
     def config(self) -> "HFLlamaConfig":
-        source: LlamaConfig = io.load_context(str(self)).model.config
+        source: LlamaConfig = io.load_context(str(self), subpath="model.config")
 
         from transformers import LlamaConfig as HFLlamaConfig
 
