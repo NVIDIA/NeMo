@@ -125,6 +125,8 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
         )
 
     def setup(self, stage: str = "") -> None:
+        """ Assign Train/Val/Test dataset
+        """
         from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDataset
         from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 
@@ -165,28 +167,6 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
             config=self.bert_dataset_config,
         ).build()
         print('Building Dataset Done.')
-        # from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
-        # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
-        # data_prefix = '/lustre/fsw/coreai_dlalgo_llm/dataset/the_pile/train/my-gpt3_00_text_document'
-        # indexed_dataset = dataset_utils.get_indexed_dataset_(
-        #     data_prefix=data_prefix,
-        #     data_impl='mmap', skip_warmup=True, data_impl_kwargs={},
-        # )
-        # self._train_ds = BertDataset(
-        #     cfg=self.bert_dataset_config,
-        #     name='train',
-        #     indexed_dataset=indexed_dataset,
-        #     data_prefix=data_prefix,
-        #     num_epochs=None,
-        #     max_num_samples=1000,
-        #     masked_lm_prob=0.1,
-        #     short_seq_prob=0.15,
-        #     max_seq_length=1024,
-        #     seed=1234,
-        #     binary_head=True,
-        #     tokenizer=self.tokenizer,
-        # )
-        # print('building dataset done')
 
     # uncomment once fabric API is merged
     # def fabric_setup(
@@ -206,12 +186,15 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
     #     ).build()
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        """ Create Train dataloader"""
         return self._create_dataloader(self._train_ds, mode='train')
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        """ Create Validation dataloader"""
         return self._create_dataloader(self._validation_ds, mode='validation')
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        """ Create Test dataloader"""
         return self._create_dataloader(self._test_ds, mode='test')
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
@@ -230,6 +213,7 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     @property
     def bert_dataset_config(self) -> "BERTMaskedWordPieceDatasetConfig":
+        """Create Bert Dataset Config using Mcore's BERT MaskedWordPieceDatasetConfig"""
         from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDatasetConfig
 
         return BERTMaskedWordPieceDatasetConfig(
@@ -283,16 +267,19 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.data_sampler.if_first_step = 1
 
     def reconfigure_limit_batches(self):
+        """Reconfigure trainer.limit_val_batches for pretraining"""
         # Override limit_train_batches in terms of num of microbatches
         self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds, 'train')
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        # Override limit_val_batches to be a multiple of num microbatches
+        # to prevent val_step from exiting in between a step
         self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_ds, 'val')
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
+        # Override limit_batches in terms of num microbatches
+        # and so there are limit_batches//num_micro_batches num of global batches
         try:
             from megatron.core.num_microbatches_calculator import get_num_microbatches
 

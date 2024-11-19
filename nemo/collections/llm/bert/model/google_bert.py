@@ -14,6 +14,7 @@ from nemo.lightning import OptimizerModule, io, teardown
 
 @dataclass
 class GoogleBertConfig(BertConfig):
+    """Configs for models in https://huggingface.co/google-bert"""
     bert_type: str = 'huggingface'
     add_pooler: bool = True
     init_method_std: float = 0.02
@@ -26,6 +27,7 @@ class GoogleBertConfig(BertConfig):
 
 @dataclass
 class GoogleBertBaseConfig(GoogleBertConfig):
+    """Configs for model in https://huggingface.co/google-bert/bert-base-uncased"""
     num_layers: int = 12
     hidden_size: int = 768
     ffn_hidden_size: int = 3072
@@ -34,6 +36,7 @@ class GoogleBertBaseConfig(GoogleBertConfig):
 
 @dataclass
 class GoogleBertLargeConfig(GoogleBertConfig):
+    """Configs for model in https://huggingface.co/google-bert/bert-large-uncased"""
     num_layers: int = 24
     hidden_size: int = 1024
     ffn_hidden_size: int = 4096
@@ -41,6 +44,7 @@ class GoogleBertLargeConfig(GoogleBertConfig):
 
 
 class GoogleBertModel(BertModel):
+    """Google Bert Model."""
     def __init__(
         self,
         config: Annotated[Optional[BertConfig], Config[BertConfig]] = None,
@@ -53,6 +57,7 @@ class GoogleBertModel(BertModel):
 
 @io.model_importer(GoogleBertModel, "hf")
 class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
+    """Importer Connector for converting HF Google Bert Model to NeMo"""
     def __init__(self, *args, **kwargs):
         if sys.version_info > (3, 11):
             # In Python versions <= 3.11, *Path classes don’t have a __init__ method,
@@ -79,7 +84,8 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             source = BertForNextSentencePrediction.from_pretrained(str(self), torch_dtype='auto')
 
         print(
-            f"Initializing Bert Model with lm_head={self.config.add_lm_head} pooler={self.config.add_pooler} binary_head={self.config.bert_binary_head}"
+            f"Initializing Bert Model with pooler={self.config.add_pooler} "
+            f"lm_head={self.config.add_lm_head}  binary_head={self.config.bert_binary_head}"
         )
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -96,6 +102,7 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         return output_path
 
     def convert_state(self, source, target):
+        """Converting HF state dict to NeMo state dict."""
         mapping = {
             "embeddings.position_embeddings.weight": "embedding.position_embeddings.weight",
             "embeddings.token_type_embeddings.weight": "embedding.tokentype_embeddings.weight",
@@ -148,12 +155,14 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """Retrieve Tokenizer from HF"""
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> BertConfig:
+        """Generate NeMo Config based on HF config"""
         from transformers import BertConfig as HFBertConfig
 
         source = HFBertConfig.from_pretrained(str(self))
@@ -335,7 +344,7 @@ def _import_embedding_2(ctx: io.TransformCTX, embedding):
     emb_size = embedding.size(0)
     padded_emb_size = int(math.ceil(emb_size / divisible) * divisible)
     print(padded_emb_size, divisible, emb_size)
-    if padded_emb_size > vocab_size:
+    if padded_emb_size > emb_size:
         zeros_to_add = torch.zeros(
             padded_emb_size - emb_size,
             embedding.size(1),
