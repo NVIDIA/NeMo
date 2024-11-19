@@ -21,12 +21,12 @@ from megatron.core.utils import make_viewless_tensor
 from torch import Tensor, nn
 
 from nemo.collections.llm import fn
+from nemo.collections.llm.bert.loss import BERTLossReduction
 from nemo.collections.llm.bert.model.bert_spec import (
     bert_layer_local_spec_postln,
     bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.lightning import get_vocab_size, io
-from nemo.collections.llm.bert.loss import BERTLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 HAVE_TE = True

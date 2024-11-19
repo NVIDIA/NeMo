@@ -1595,6 +1595,8 @@ def _make_data_iterator_list(model, data_iterator: Iterator) -> List[Iterator]:
     return iters  # TODO @tmoon: Remove
     # TODO @tmoon: Use once available in Megatron-LM
     # return DataIteratorList(iters)
+
+
 class MaskedTokenLossReduction(MegatronLossReduction):
     def __init__(self, validation_step: bool = False, val_drop_last: bool = True) -> None:
         super().__init__()
@@ -1690,6 +1692,7 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
 
     return loss
+
 
 def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_tokens_in_ub: int):
     """
