@@ -1,9 +1,9 @@
 Llama 3 Supervised Fine-Tuning and Parameter Efficient Fine-Tuning with NeMo 2.0
 ================================================================================
 
-`Llama 3 <https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/>`_ is an open-source large language model by Meta that delivers state-of-the-art performance on popular industry benchmarks. It has been pretrained on over 15 trillion tokens, and supports an 8K token context length. It is available in two sizes, 8B and 70B, and each size has two variants—base pretrained and instruction tuned.
+`Llama 3 <https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/>`_ is an open-source large language model by Meta that delivers state-of-the-art performance on popular industry benchmarks. It has been pretrained on over 15 trillion tokens and supports an 8K token context length. It is available in two sizes, 8B and 70B, and each size has two variants—base pretrained and instruction tuned.
 
-Supervised fine-tuning (SFT) refers to unfreezing all the weights and layers in our model and training on a newly labeled set of examples. We can fine-tune to incorporate new, domain-specific knowledge, or teach the foundation model what type of response to provide.
+Supervised Fine-Tuning (SFT) refers to unfreezing all the weights and layers in our model and training on a newly labeled set of examples. We can fine-tune to incorporate new, domain-specific knowledge, or teach the foundation model what type of response to provide.
 
 `Low-Rank Adaptation (LoRA) <https://arxiv.org/pdf/2106.09685>`__ has emerged as a popular Parameter-Efficient Fine-Tuning (PEFT) technique that tunes a very small number of additional parameters as compared to full fine-tuning, thereby reducing the compute required.
 
@@ -14,16 +14,17 @@ Requirements
 ------------
 
 * System Configuration
-    * For SFT: access to at least 2 NVIDIA GPU with a cumulative memory of at least 80GB, for example: 2 x H100-80GB or 2 x A100-80GB.
-    * For LoRA: access to at least 1 NVIDIA GPU with a cumulative memory of at least 80GB, for example: 1 x H100-80GB or 1 x A100-80GB.
+    * For SFT: access to at least 2 NVIDIA GPUs with a cumulative memory of at least 80GB, for example: 2 x H100-80GB or 2 x A100-80GB.
+    * For LoRA: access to at least 1 NVIDIA GPUs with a cumulative memory of at least 80GB, for example: 1 x H100-80GB or 1 x A100-80GB.
     * A Docker-enabled environment, with `NVIDIA Container Runtime <https://developer.nvidia.com/container-runtime>`_ installed, which will make the container GPU-aware.
    
 * Software Requirements
     * Use the latest [NeMo Framework Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags) . Note that you must be logged in to the container registry to view this page.
     * This notebook uses the container: `nvcr.io/nvidia/nemo:dev`.
+    * Get your Hugging Face [access token](https://huggingface.co/docs/hub/en/security-tokens), which will be used to obtain the tokenizer required during training.
 
 * NeMo 2.0 and NeMo-Run
-    * We will use NeMo 2.0 and NeMo-Run perform SFT and LoRA on Llama 3. Both are already available in the NeMo Framework Container.
+    * We will use NeMo 2.0 and NeMo-Run to perform SFT and LoRA on Llama 3. Both are already available in the NeMo Framework Container.
 
 
 Start the NeMo Framework Container
@@ -44,7 +45,7 @@ Start the NeMo Framework Container
      nvcr.io/nvidia/nemo:dev bash
 
 
-2. You need to request download permission from Meta and Hugging Face. Then from within the container, log in through `huggingface-cli` using your Huggingface token. 
+2. You need to request download permission from Meta and Hugging Face. Then, from within the container, log in through `huggingface-cli` using your Hugging Face token. 
 
 .. code:: bash
 
