@@ -212,23 +212,35 @@ class MegatronGenerate(Resource):
                     output[k] = output[k].tolist()
 
         output_sentence = output['sentences'][0][len(conversation) :]
+        # remove end_strings
+        for e in end_strings:
+            if output_sentence.endswith(special_tokens['end_of_turn'] + e):
+                output_sentence = output_sentence[: -len(special_tokens['end_of_turn'] + e)]
+
         tokens = output['tokens'][0]
+        tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
         logprobs = output['logprob'][0] if output['logprob'] is not None else None
         num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
         num_output_sentence = len(output_sentence.split())
 
+        logging.info(f"type logprobs {type(logprobs)}")
+        logging.info(f"type tokens {type(tokens)}, type tokens[0] {type(tokens[0])}")
+        logging.info(
+            f"type logprobs {type(tokens)}, type output_sentence {type(output_sentence)} type output_sentence[0] {type(output_sentence[0])}"
+        )
+        logging.info(f"Log for Timing -- returning generation {dm1}")
         return jsonify(
             {
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion",
-                "created": int(time.time()),
+                "created": str(int(time.time())),
                 "model": data.get("model", "nemo model"),
                 "choices": [
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": output_sentence},
-                        "logprobs": logprobs,
-                        "tokens": tokens,
+                        "logprobs": None,
+                        "tokens": None,
                         "finish_reason": "",
                     }
                 ],
