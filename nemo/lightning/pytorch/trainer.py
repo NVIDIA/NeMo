@@ -143,4 +143,10 @@ class Trainer(pl.Trainer, IOMixin):
             optimizer_cls = kwargs.pop('optimizer_cls', torch.optim.Adam)
             optimizer_kwargs = kwargs.pop('optimizer_kwargs', {'lr': 1e-3})
             model = GenericLitWrapper(model, criterion, optimizer_cls, optimizer_kwargs)
+        elif isinstance(model, pl.LightningModule):
+            assert not 'criterion' in kwargs, 'Specify criterion in LightningModule'
+            assert not 'optimizer_cls' in kwargs, 'Specify optimizer in LightningModule'
+            assert not 'optimizer_kwargs' in kwargs, "Can't specify optimizer_kwargs with LightningModuel model"
+        else:
+            raise ValueError("Expected model to be of type nn.Module or pl.LightningModule")
         super().fit(model, trainer_dataloaders, *args, **kwargs)
