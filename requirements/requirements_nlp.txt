@@ -8,8 +8,8 @@ gdown
 h5py
 ijson
 jieba
-causal_conv1d @ git+https://github.com/Dao-AILab/causal-conv1d.git@v1.2.2.post1; sys_platform == 'linux'
-mamba_ssm @ git+https://github.com/state-spaces/mamba.git@v2.2.2; sys_platform == 'linux'
+causal_conv1d @ git+https://github.com/Dao-AILab/causal-conv1d.git@v1.2.2.post1
+mamba_ssm @ git+https://github.com/state-spaces/mamba.git@v2.2.2
 markdown2
 matplotlib>=3.3.2
 #megatron_core>0.6.0 # add back once mcore on pypi is compatible again
