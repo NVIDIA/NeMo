@@ -66,7 +66,7 @@ def trainer(
     sequence_parallelism: bool = False,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    max_steps: int = 1000000,
+    max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
@@ -186,7 +186,7 @@ def pretrain_recipe(
     lr_scheduler = WarmupAnnealingScheduler(
         warmup_steps=None,
         warmup_ratio=0.01,
-        max_steps=1000000,
+        max_steps=1168251,
         min_lr=0.00001,
     )
 
