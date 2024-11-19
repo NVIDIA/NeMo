@@ -192,7 +192,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         answer_audios, answer_audio_lens = None, None
         assert self.load_answer_audio
         assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
-        assert self.decoder_reduction_factor == 1, "TODO: add the support in on the fly"
 
         # TODO(subhankarg) load answer audio from cut.target_codes logic
         def load_audio_from_cut(cuts, name):
@@ -218,7 +217,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
                     answer_audios.append(answer_audio)
                     answer_audio_lens.append(answer_audio_len)
-                    features_lens.append(math.ceil(answer_audio_len / self.codec_model_downsampling_factor))
+                    features_lens.append(
+                        math.ceil(
+                            answer_audio_len / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                        )
+                    )
             answer_audios = collate_vectors(
                 [a.squeeze(0) for a in answer_audios], max_length=max(answer_audio_lens), padding_value=0.0
             ).float()
@@ -566,6 +569,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "answer_audio": answer_audios,
             "answer_audio_lens": answer_audio_lens,
             "num_turns": torch.Tensor(num_turns).long(),
+            "answer_features_lens": torch.Tensor(features_lens).long(),
         }
 
         return return_batch

@@ -29,6 +29,7 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_only
+from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.transcription import move_to_device
@@ -353,18 +354,135 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             original_codec_codes = original_codec_codes.transpose(1, 2)
         out_codec_codes = []
         out_codec_lens = []
+        n_speech_codebooks = original_codec_codes.shape[-1]
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
         for sidx in range(audio_signal.shape[0]):
             codec_len = min(
-                torch.ceil(audio_signal_length[sidx] / self.codec_model_downsampling_factor).int().to(self.device),
+                torch.ceil(audio_signal_length[sidx] / self.codec_model_downsampling_factor / decoder_reduction_factor)
+                .int()
+                .to(self.device),
                 original_codec_codes[sidx].shape[0],
             )
-            out_codec_codes.append(original_codec_codes[sidx][:codec_len].to(self.device))
+            out_codec_codes.append(
+                original_codec_codes[sidx]
+                .reshape((-1, n_speech_codebooks * decoder_reduction_factor))[:codec_len]
+                .to(self.device)
+            )
             out_codec_lens.append(codec_len)
 
         return out_codec_codes, out_codec_lens
 
+    def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
+        duplex_inject_silence_second = self.cfg.get('duplex_inject_silence_second', 0.1)
+        silence = self.cfg.data.train_ds.sample_rate * duplex_inject_silence_second
+        user_signal = audio_batch['audio_signal']
+        user_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+        context_lengths = audio_batch['context_lengths']
+
+        assert self.extract_codec_on_the_fly
+        agent_signal = audio_batch['answer_audio']
+        agent_signal_length = audio_batch['answer_audio_lens']
+        target_text_lengths = audio_batch['target_text_lengths']
+
+        new_user_signal = []
+        new_agent_signal = []
+        new_user_signal_length = []
+        new_agent_signal_length = []
+        silence_value = 0
+        shift_text_channel_len = []
+        for user, agent, user_len, agent_len in zip(
+            user_signal, agent_signal, user_signal_length, agent_signal_length
+        ):
+            user = user[:user_len]
+            agent = agent[:agent_len]
+            new_user_signal.append(
+                torch.cat([user, torch.full([silence], silence_value), torch.ones_like(agent) * silence_value], dim=0)
+            )
+            new_agent_signal.append(
+                torch.cat([torch.ones_like(user) * silence_value, torch.full([silence], silence_value), agent], dim=0)
+            )
+            duplex_len = user_len + silence + agent_len
+            new_user_signal_length.append(duplex_len)
+            new_agent_signal_length.append(duplex_len)
+        new_user_signal = pad_sequence(new_user_signal, batch_first=True)
+        new_agent_signal = pad_sequence(new_agent_signal, batch_first=True)
+        new_user_signal_length = torch.Tensor(new_user_signal_length).long()
+        new_agent_signal_length = torch.Tensor(new_agent_signal_length).long()
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=new_user_signal,
+            input_signal_length=new_user_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+
+        answer_codecs, answer_codecs_lens = self._get_codec_embeddings(
+            new_agent_signal, new_agent_signal_length
+        )  # list, list
+
+        assert encoded_len == answer_codecs_lens
+        shift_text_channel_len = answer_codecs_lens - audio_batch['answer_features_lens']
+
+        new_loss_mask = []
+        all_channels = []
+        for i, answer_codec in enumerate(answer_codecs):
+            base_length = target_text_lengths[i] + context_lengths[i]
+            pad_id = self.tokenizer.pad_id
+            text_channel = torch.cat(
+                [torch.full([shift_text_channel_len[i], 1], pad_id), input_ids[:1, :1], labels[base_length:, :1]],
+                dim=0,
+            )
+            all_channels.append(torch.cat([text_channel, answer_codec], dim=-1))
+            new_loss_mask.append(
+                torch.cat(
+                    [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]), loss_mask[i, base_length:]], dim=0
+                )
+            )
+        all_channels = pad_sequence(all_channels, batch_first=True)
+        input_ids = all_channels[:, :-1]
+        labels = all_channels[:, 1:]
+        loss_mask = pad_sequence(new_loss_mask, batch_first=True)
+        assert loss_mask.shape == labels.shape
+        # TODO: inject bos and eos properly to control turn taking in inference
+        assert labels.shape[1] == encoded.shape[1]
+        # lookup input_ids
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        lm_embedding = (
+            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
+        )
+        input_embeds = lm_embedding.word_embeddings(input_ids)
+        # merge with encoded
+        encoder_input = input_embeds + encoded
+        encoder_length = None
+        attention_mask = self._create_attention_mask(encoder_input)
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
+            encoder_input = encoder_input.transpose(0, 1).contiguous()
+
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length
+
+    def prepare_llm_input_duplex(self, audio_batch):
+        duplex_method = self.cfg.duplex_method
+        if duplex_method == 'from_multiturn':
+            return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
+        else:
+            raise ValueError(f"Unsupported duplex method: {duplex_method}")
+
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
+        if self.cfg.get("duplex_method", None) is not None:
+            return self.prepare_llm_input_duplex(audio_batch)
+
         input_signal = audio_batch['audio_signal']
         logging.debug(f'input_signal.shape: {input_signal.shape}')
         input_signal_length = audio_batch['audio_signal_length']
