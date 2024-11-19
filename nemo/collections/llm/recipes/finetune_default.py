@@ -21,9 +21,11 @@ import torch
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+from nemo.collections.llm.peft import DoRA, LoRA
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.lightning.pytorch.callbacks import PEFT
 
 
 def default_finetune_recipe(
@@ -158,3 +160,11 @@ def nemo_resume(model_id: str) -> run.Config[nl.AutoResume]:
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=f"nemo://{model_id}"),
     )
+
+@run.cli.factory(name='lora')
+def lora()  -> run.Config[PEFT]:
+    return run.Config(LoRA)
+
+@run.cli.factory(name='dora')
+def dora()  -> run.Config[PEFT]:
+    return run.Config(DoRA)
