@@ -358,9 +358,9 @@ def main(cfg) -> None:
         tdiff = time.perf_counter() - st
         print(f"[Try{i} model.generate took {tdiff} seconds...")
 
-    #print("***************************")
-    #print(response)
-    #print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
     bs = 2
@@ -374,9 +374,9 @@ def main(cfg) -> None:
         tdiff = time.perf_counter() - st
         print(f"[Try{i} trainer.predict took {tdiff} seconds...")
 
-    #print("***************************")
-    #print(response)
-    #print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Third method of running text generation, use inference server
     if cfg.server:
