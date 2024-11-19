@@ -15,9 +15,7 @@
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from transformers import AutoModelForCausalLM
-
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from transformers import HfAutoModelForImageTextToText,  AutoProcessor
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
@@ -36,7 +34,7 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self,
         model_name='gpt2',
         load_pretrained_weights=True,
-        tokenizer=None,
+        processor=None,
         loss_fn=masked_cross_entropy,
         model_transform=None,
         trust_remote_code=False,
@@ -44,7 +42,7 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = model_name
-        self._tokenizer = None
+        self._processor = None
         self.model = None
         self.loss_fn = loss_fn
         self.load_pretrained_weights = load_pretrained_weights
@@ -53,21 +51,21 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.trust_remote_code = trust_remote_code
 
     @property
-    def tokenizer(self):
-        if self._tokenizer is None:
-            self._tokenizer = HfAutoModelForCausalLM.configure_tokenizer(
+    def processor(self):
+        if self._processor is None:
+            self._processor = AutoProcessor.from_pretrained(
                 self.model_name, trust_remote_code=self.trust_remote_code
             )
-        return self._tokenizer
+        return self._processor
 
-    @tokenizer.setter
-    def tokenizer(self, value):
-        assert self._tokenizer is None
-        self._tokenizer = value
+    @processor.setter
+    def processor(self, value):
+        assert self._processor is None
+        self._processor = value
 
     @staticmethod
-    def configure_tokenizer(model_name):
-        return AutoTokenizer(model_name)
+    def configure_processor(model_name):
+        return AutoProcessor.from_pretrained(model_name)
 
     def configure_model(self):
         # create all your layers here
@@ -122,7 +120,7 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def save_pretrained(self, path):
         assert self.model is not None, "Model has to be created first."
         self.model.save_pretrained(path)
-        if self._tokenizer is not None:
-            self._tokenizer.save_pretrained(path)
+        if self._processor is not None:
+            self._processor.save_pretrained(path)
         else:
-            logging.warning("A tokenizer wasn't created before to save.")
+            logging.warning("A processor wasn't created before to save.")
