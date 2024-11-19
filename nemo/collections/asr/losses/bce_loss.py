@@ -130,10 +130,6 @@ class BCELoss(Loss, Typing):
             if self.class_normalization in ['class', 'class_binary', 'binary']:
                 loss = (binary_weight * norm_weight * self.loss_f(probs, labels)).sum()
             else:
-<<<<<<< HEAD
                 loss = self.loss_f(probs, labels)
         return loss
             
-=======
-                return self.loss_f(probs, labels)
->>>>>>> 681fe3881c7029e104788ef621d020b8f94bd410
