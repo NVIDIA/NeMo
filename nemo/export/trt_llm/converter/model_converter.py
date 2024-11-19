@@ -199,6 +199,7 @@ def model_to_trtllm_ckpt(
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
         'pp_size': pipeline_parallel_size,
+        'norm_type': nemo_model_config.get('normalization', 'layernorm').lower(),
     }
     model_configs = []
     weights_dicts = []
