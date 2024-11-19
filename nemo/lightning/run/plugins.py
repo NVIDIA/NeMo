@@ -20,9 +20,9 @@ from typing import Callable, Optional
 
 import nemo_run as run
 import yaml
+from lightning.pytorch import Callback
+from lightning.pytorch.loggers import WandbLogger
 from nemo_run.core.serialization.yaml import YamlSerializer
-from pytorch_lightning import Callback
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
@@ -260,8 +260,11 @@ class PerfEnvPlugin(run.Plugin):
     enable_layernorm_sm_margin: bool = True
     layernorm_sm_margin: int = 16
     enable_vboost: bool = False
+    nccl_pp_comm_chunksize: int = None
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
+        "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
+
         import shlex
 
         vboost_cmd = " ".join(
@@ -281,18 +284,26 @@ class PerfEnvPlugin(run.Plugin):
         return vboost_cmd
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+        """Enable the performance environment settings"""
 
         if task.trainer.strategy.__fn_or_cls__ == MegatronStrategy:
             # Force program order kernel launch for TP, CP overlap
             tp_size = task.trainer.strategy.tensor_model_parallel_size
             cp_size = task.trainer.strategy.context_parallel_size
-            if tp_size > 1 and cp_size > 1:
+            if tp_size > 1 or cp_size > 1:
                 executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = "1"
 
             # Set LayerNorm SM margin to support the overlap with LayerNorm kernel
             if self.enable_layernorm_sm_margin:
                 executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
                 executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
+
+            # Set the chunk size of P2P communications. Using a large chunk size reduces the
+            # buffering overhead from the communication kernel execution time
+            pp_size = task.trainer.strategy.pipeline_model_parallel_size
+            if pp_size > 1 and self.nccl_pp_comm_chunksize is not None:
+                assert isinstance(self.nccl_pp_comm_chunksize, int) and self.nccl_pp_comm_chunksize > 1
+                executor.env_vars["NCCL_P2P_NET_CHUNKSIZE"] = str(self.nccl_pp_comm_chunksize)
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):

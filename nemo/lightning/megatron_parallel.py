@@ -43,13 +43,12 @@ from typing import (
 import torch
 import torch.distributed
 import torch.nn.functional as F
+from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -59,7 +58,7 @@ T = TypeVar('T')
 STEP_OUTPUT = Optional[Union[Tensor, Mapping[str, Any]]]
 
 if TYPE_CHECKING:
-    import pytorch_lightning as pl
+    import lightning.pytorch as pl
 
 
 @runtime_checkable
@@ -837,7 +836,7 @@ class CallbackConnector:
         """
         _pl_callback = None
         try:
-            import pytorch_lightning as pl
+            import lightning.pytorch as pl
 
             _pl_callback = pl.Callback
         except ImportError:
