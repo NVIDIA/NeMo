@@ -12,7 +12,7 @@ jieba
 mamba_ssm @ git+https://github.com/state-spaces/mamba.git@v2.2.2
 markdown2
 matplotlib>=3.3.2
-#megatron_core>0.6.0 # add back once mcore on pypi is compatible again
+megatron_core @ git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG:-core_r0.9.0}
 nltk>=3.6.5
 numpy<2  # tensorstore has an implicit compiled dependency on numpy<2
 opencc
