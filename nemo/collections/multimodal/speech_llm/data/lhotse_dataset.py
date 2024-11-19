@@ -210,7 +210,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     # TODO: tmp solution for the next two lines
                     from lhotse import Recording
 
-                    audios = Recording.from_file(audios['sources'][0]['source'])
+                    if not isinstance(audios, Recording):
+                        audios = Recording.from_file(audios['sources'][0]['source'])
 
                     answer_audio = torch.tensor(audios.load_audio()).float()
                     answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
