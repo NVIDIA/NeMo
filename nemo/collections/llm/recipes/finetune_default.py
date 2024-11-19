@@ -163,7 +163,7 @@ def nemo_resume(model_id: str) -> run.Config[nl.AutoResume]:
 
 
 @run.cli.factory(name='lora')
-def lora()  -> run.Config[PEFT]:
+def lora() -> run.Config[PEFT]:
     """
     Factory function to create a LoRA configuration.
 
@@ -182,7 +182,7 @@ def lora()  -> run.Config[PEFT]:
 
 
 @run.cli.factory(name='dora')
-def dora()  -> run.Config[PEFT]:
+def dora() -> run.Config[PEFT]:
     """
     Factory function to create a DoRA configuration.
 
