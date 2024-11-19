@@ -15,7 +15,7 @@
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from transformers import HfAutoModelForImageTextToText, AutoConfig, AutoProcessor
+from transformers import AutoModelForImageTextToText, AutoConfig, AutoProcessor
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
