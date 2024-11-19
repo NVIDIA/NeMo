@@ -353,7 +353,7 @@ def main(cfg) -> None:
     prompts = load_prompts(cfg)
 
     # First method of running text generation, call model.generate method
-    for i in range(3):
+    for i in range(1 if cfg.server else 3):
         st = time.perf_counter()
         response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
         tdiff = time.perf_counter() - st
@@ -369,7 +369,7 @@ def main(cfg) -> None:
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
-    for i in range(3):
+    for i in range(1 if cfg.server else 3):
         st = time.perf_counter()
         response = trainer.predict(model, request_dl)
         tdiff = time.perf_counter() - st
