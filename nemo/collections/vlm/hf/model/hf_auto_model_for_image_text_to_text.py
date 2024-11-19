@@ -15,7 +15,7 @@
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from transformers import HfAutoModelForImageTextToText,  AutoProcessor
+from transformers import HfAutoModelForImageTextToText, AutoConfig, AutoProcessor
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
@@ -74,8 +74,6 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code
             )
         else:
-            from transformers import AutoConfig
-
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             self.model = AutoModelForImageTextToText.from_config(config, trust_remote_code=self.trust_remote_code)
         self.model.train()
