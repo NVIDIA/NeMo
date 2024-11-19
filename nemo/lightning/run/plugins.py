@@ -34,7 +34,7 @@ res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
 
 # This file contains plugins based on NeMo-Run's run.Plugin API.
 # Plugins operate both on a configured task and an executor at the same time, and are specific to NeMo-Run.
-# If you are adding functionality that goes directly into the Pytorch Lightning trainer, 
+# If you are adding functionality that goes directly into the Pytorch Lightning trainer,
 # you may consider adding a callback instead of a plugin.
 
 
