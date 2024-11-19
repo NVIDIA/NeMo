@@ -42,7 +42,7 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = model_name
-        self._processor = None
+        self._processor = processor
         self.model = None
         self.loss_fn = loss_fn
         self.load_pretrained_weights = load_pretrained_weights
@@ -80,10 +80,10 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForImageTextToText.from_config(config, trust_remote_code=self.trust_remote_code)
         self.model.train()
 
-    def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
+    def forward(self, batch):
+        inputs = self.processor(**batch, return_tensors='pt').to(self.model.device, self.model.dtype)
         outputs = self.model(
-            input_ids=input_ids.to(self.model.device),
-            attention_mask=attention_mask,
+            **inputs
         )
         labels = labels.to(self.model.device)
         if loss_mask is not None:
@@ -93,26 +93,14 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         return outputs
 
     def training_step(self, batch):
-        tokens = batch['tokens']
-        labels = batch['labels']
-        loss_mask = batch.get('loss_mask', None)
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-            loss_mask=loss_mask,
-        )
+        output = self.forward(batch)
 
         loss = output.loss
         self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens = batch['tokens']
-        labels = batch['labels']
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-        )
+        output = self.forward(batch)
 
         loss = output.loss
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
