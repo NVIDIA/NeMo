@@ -176,11 +176,8 @@ class MegatronGenerate(Resource):
         len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
         conversation = conversation[:-len_strip]
         # Return a response mimicking the OpenAI ChatCompletion API format
-        logging.info(f"Log for Timing -- before lock {dm1}")
         with lock:  # Need to get lock to keep multiple threads from hitting code
-            logging.info(f"Log for Timing -- inside lock {dm1}")
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
-            logging.info(f"Log for Timing -- after send_to_generate {dm1}")
             extra = {}
             if self.inference_strategy is not None:
                 extra['strategy'] = self.inference_strategy
@@ -193,7 +190,6 @@ class MegatronGenerate(Resource):
             end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
             random_seed = None
 
-            logging.info(f"Log for Timing -- before generate {dm1}")
             output = generate(
                 self.model,
                 [conversation],
@@ -211,7 +207,6 @@ class MegatronGenerate(Resource):
                 random_seed=random_seed,
                 **extra,
             )
-            logging.info(f"Log for Timing -- after generate {dm1}")
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
@@ -222,9 +217,6 @@ class MegatronGenerate(Resource):
         num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
         num_output_sentence = len(output_sentence.split())
 
-        logging.info(f"type logprobs {type(logprobs)}")
-        logging.info(f"type logprobs {type(tokens)}")
-        logging.info(f"Log for Timing -- returning generation {dm1}")
         return jsonify(
             {
                 "id": f"chatcmpl-{uuid.uuid4()}",
@@ -256,7 +248,6 @@ class MegatronGenerate(Resource):
         elif request.endpoint == "oai_chat_completions":
             data = request.get_json()
             dm1 = data["messages"][-1]
-            logging.info(f"Log for Timing -- entered post method {dm1}")
             return self.chat_completion(data)
         else:
             raise RuntimeError("Unknown enpoint requested.")
