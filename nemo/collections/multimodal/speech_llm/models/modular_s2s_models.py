@@ -895,6 +895,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         encoder_input, attention_mask, labels, loss_mask, encoder_length = super().prepare_llm_input(audio_batch)
         if all(audio_batch['num_turns'] == 2):
             return encoder_input, attention_mask, labels, loss_mask, encoder_length
+        # use num_turns to recover multiturn format and then merge them back to one sequence as LLM input/output
         new_encoder_input = []
         new_labels = []
         new_loss_mask = []

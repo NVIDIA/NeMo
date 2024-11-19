@@ -151,6 +151,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         for id, cut in enumerate(cuts):
             num_turns.append(len(cut.supervisions))
             metadata.append({'audio_filepath': cut.id + '.wav'})
+            # treat multiturn data as multiple batch each with 2-turn conversation
             for i in range(0, len(cut.supervisions), 2):
                 supervisions = cut.supervisions[i : i + 2]
                 # TODO: the following use of _process_example is not ideal. Should update
@@ -227,6 +228,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             features_lens = torch.tensor(features_lens, dtype=torch.int)
             return answer_audios, answer_audio_lens, features_lens
 
+        # treat multiturn data as multiple batch each with 2-turn conversation
         if hasattr(cuts[0], "target_audios"):  # multi-turn
             all_target_audios, all_target_audio_lens, target_features_lens = load_audio_from_cut(cuts, "target_audios")
             assert hasattr(cuts[0], "source_audios")
@@ -253,7 +255,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         else:
             raise ValueError("cut does not have target_audio or target_audios")
 
-        return self.form_singleturn_batch(
+        return self.form_2turn_batch(
             cuts,
             features_lens,
             target_texts,
@@ -266,10 +268,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             word_lengths,
             start_time_tokens,
             torch.Tensor(instruction_lengths).long(),
-            num_turns,
+            num_turns,  # used to recover multi-turn format in modeling code
         )
 
-    def form_singleturn_batch(
+    def form_2turn_batch(
         self,
         cuts,
         features_lens,
