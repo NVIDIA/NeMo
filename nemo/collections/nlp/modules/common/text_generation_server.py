@@ -405,6 +405,7 @@ class MegatronGenerate(Resource):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
 
+            st = time.perf_counter()
             output = generate(
                 self.model,
                 sentences,
@@ -422,6 +423,8 @@ class MegatronGenerate(Resource):
                 random_seed=random_seed,
                 **extra,
             )
+            tdiff = time.perf_counter() - st
+            logging.info(f"Chat server generation completed in {tdiff} seconds")
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
