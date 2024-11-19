@@ -813,7 +813,9 @@ def _validate_config(
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
-            assert model.config.num_moe_experts is not None, "num_experts must be non None to use expert model parallelism"
+            assert (
+                model.config.num_moe_experts is not None
+            ), "num_experts must be non None to use expert model parallelism"
             assert (
                 model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
             ), "Number of experts should be a multiple of expert model parallel_size."
