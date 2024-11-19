@@ -23,6 +23,14 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.utils import logging
 
+# https://stackoverflow.com/a/77213071
+MULTIPLIER = 6364136223846793005
+INCREMENT = 1
+MODULUS = 2**64
+
+def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
+    return (prev_hash * MULTIPLIER + INCREMENT + add_labels) 
+
 class BeamBatchedHyps:
     """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
 
@@ -35,6 +43,7 @@ class BeamBatchedHyps:
         SOS: int,
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
+        score_norm: Optional[bool] = True
     ):
         """
 
@@ -49,6 +58,7 @@ class BeamBatchedHyps:
         if batch_size <= 0:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
         self._max_length = init_length
+        self.score_norm = score_norm
         
         self.SOS = SOS
         
@@ -70,6 +80,9 @@ class BeamBatchedHyps:
         self.full_transcripts = torch.zeros((batch_size, beam_size, self._max_length), device=device, dtype=torch.long)
         self.full_current_lengths = torch.zeros((batch_size, beam_size), device=device, dtype=torch.long)
         self.current_lengths = torch.zeros((batch_size, beam_size), device=device, dtype=torch.long)
+
+        self.hashes = torch.zeros((batch_size, beam_size), device=device, dtype=torch.long)
+        self.prefix_hashes = torch.zeros((batch_size, beam_size), device=device, dtype=torch.long)
         
         self.max_timesteps = max_timesteps
 
@@ -119,6 +132,9 @@ class BeamBatchedHyps:
         self.current_lengths = torch.where(non_blank_mask, self.current_lengths + 1, self.current_lengths)
         self.full_current_lengths = torch.where(label_mask, self.full_current_lengths + 1, self.full_current_lengths)
         
+        self.prefix_hashes[non_blank_mask] = self.hashes[non_blank_mask]
+        self.hashes[non_blank_mask] = hash_text(self.hashes, labels)[non_blank_mask]
+        
     
     def update_beam(self,
                      labels: torch.Tensor,
@@ -136,7 +152,16 @@ class BeamBatchedHyps:
         self.transcripts = self.transcripts.gather(dim=1, index=beam_idx_unsqueezed)
         self.full_transcripts = self.full_transcripts.gather(dim=1, index=beam_idx_unsqueezed)
         
+        self.prefix_hashes = self.prefix_hashes.gather(dim=1, index=beam_idx)
+        self.hashes = self.hashes.gather(dim=1, index=beam_idx)
+        
         self.append_labels(labels, label_logps)
+        self.recombine_hypotheses()
+        
+    def recombine_hypotheses(self):
+        print("Hey")
+        pass
+        
         
     def get_best_hyps(self):
         result = []
@@ -149,7 +174,11 @@ class BeamBatchedHyps:
                         timestep=self.timesteps[batch_idx, beam_idx, :self.current_lengths[batch_idx, beam_idx]].flatten().tolist()
                     )
                 batch_hyps.append(hyp)
-            result.append(max(batch_hyps, key = lambda hyp: hyp.score))
+                
+            if self.score_norm:
+                result.append(max(batch_hyps, key = lambda hyp: hyp.score / (len(hyp.y_sequence) + 1)))
+            else:
+                result.append(max(batch_hyps, key = lambda hyp: hyp.score))
         return result
 
     def print(self):
@@ -160,6 +189,8 @@ class BeamBatchedHyps:
                 print(f"({batch_idx}, {beam_idx}). transcript: ", self.transcripts[batch_idx, beam_idx, :self.current_lengths[batch_idx, beam_idx]].clone().cpu().numpy())
                 print(f"({batch_idx}, {beam_idx}). totalscore: ", self.scores[batch_idx, beam_idx].clone().cpu().numpy())
                 print(f"({batch_idx}, {beam_idx}). timestepss: ", self.timesteps[batch_idx, beam_idx, :self.current_lengths[batch_idx, beam_idx]].clone().cpu().numpy())
+                print(f"({batch_idx}, {beam_idx}). currenhash: ", self.hashes[batch_idx, beam_idx].clone().cpu().numpy())
+                print(f"({batch_idx}, {beam_idx}). previohash: ", self.prefix_hashes[batch_idx, beam_idx].clone().cpu().numpy())
                 print()
             print("-"*10)
         
@@ -185,6 +216,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         beam_size: int,
         blank_index: int,
         maes_num_steps: int,
+        maes_exansion_gamma: float,
         preserve_alignments=False,
         preserve_frame_confidence = False, 
         confidence_method_cfg: Optional[DictConfig] = None,
@@ -192,7 +224,9 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | rnnt_utils.BlankLMScoreMode] = None,
+        pruning_mode: Optional[str | rnnt_utils.PruningMode] = None,
         allow_recombine_hyps: bool = False,
+        score_norm: bool = True
     ):
         """
         Init method.
@@ -222,15 +256,17 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         self.vocab_size = len(joint.vocabulary)
         self.vocab_with_blank_size = self.vocab_size + 1
         self.beam_size = min(beam_size, self.vocab_size)
+        self.score_norm = score_norm
         
         self.ngram_lm_model = ngram_lm_model
         self.ngram_lm_alpha = ngram_lm_alpha
         self.blank_lm_score_mode = blank_lm_score_mode
+        self.pruning_mode = rnnt_utils.PruningMode(pruning_mode)
         self.allow_recombine_hyps = allow_recombine_hyps
         
+        self.maes_exansion_gamma = maes_exansion_gamma
         self.maes_num_steps = maes_num_steps
         self.max_steps = 5
-        
         
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
@@ -280,11 +316,11 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             init_length=init_length,
             device=device,
             float_dtype=float_dtype,
-            SOS=self._SOS
+            SOS=self._SOS,
+            score_norm=self.score_norm
         )
         
         batch_indices = torch.arange(batch_size, device=device).unsqueeze(-1).repeat(1, self.beam_size)
-        beam_indices = torch.arange(self.beam_size, device=device).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
         expansion_beam_indices = torch.arange(self.beam_size, device=device).unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, self.beam_size)
         
         time_indices = torch.zeros_like(batch_indices)
@@ -292,6 +328,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         last_timesteps = (encoder_output_length - 1).unsqueeze(-1).repeat(1, self.beam_size)
         active_mask = time_indices <= last_timesteps
         
+        lm_scores = None
         if self.ngram_lm_batch is not None:
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(states=batch_lm_states)  # vocab_size_no_blank
@@ -304,87 +341,21 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                                                                  add_sos=False,
                                                                  batch_size=batch_size * self.beam_size)
         decoder_output = self.joint.project_prednet(decoder_output)
+        step=0
         while active_mask.any():
             to_update = active_mask.clone()
             labels = batched_hyps.last_labels
             safe_time_indices = torch.where(active_mask, time_indices, last_timesteps - 1)
-            while to_update.any():
+            
+            step+=1
+            # print("Step: ", step)
+            # print(batched_hyps.print())
+            expansion_steps=0
+            while to_update.any() and expansion_steps < self.maes_num_steps:
                 logits = self.joint.joint_after_projection(encoder_output_projected[batch_indices.flatten(), safe_time_indices.flatten()].unsqueeze(1), decoder_output)
                 logps = torch.log_softmax(logits, dim=-1).squeeze(1).squeeze(1).view(batch_size, self.beam_size, -1)
                 
-                if self.ngram_lm_batch is not None:
-                    if self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.NO_SCORE:
-                        logps[..., :-1] += lm_scores
-                        label_logps, labels = torch.topk(
-                            logps, self.beam_size, dim=-1, largest=True, sorted=True
-                        )
-                    # elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.PRESERVE_BLANK:
-                    #     _, labels_top_k_no_lm = torch.topk(logps, self.beam_size, dim=-1, largest=True, sorted=True)
-                    #     logps[..., :-1] += lm_scores
-                    #     _, labels_with_lm_nb_top_k = torch.topk(
-                    #         logps[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
-                    #     )
-                    #     # [(BxBeam), beam]
-                    #     # if blank was in labels_top_k -> add blank (last in beam)
-                    #     labels_top_k = labels_with_lm_nb_top_k
-                    #     labels_top_k[..., -1] = torch.where(
-                    #         (labels_top_k_no_lm == self._blank_index).any(dim=-1),
-                    #         torch.full_like(labels_top_k[..., -1], fill_value=self._blank_index),
-                    #         labels_top_k[..., -1],
-                    #     )
-                    #     log_probs_top_k = torch.gather(logps, dim=-1, index=labels_top_k)
-                    # elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_WEIGHTED:
-                    #     logps[..., :-1] += lm_scores
-                    #     logps[..., -1] *= 1 + self.ngram_lm_alpha
-                    #     log_probs_top_k, labels_top_k = torch.topk(
-                    #         logps, self.beam_size, dim=-1, largest=True, sorted=True
-                    #     )
-                    # elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_WEIGHTED_FULL:
-                    #     blank_logprob = logps[..., -1]
-                    #     non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0-1e-6))
-                    #     # assert (abs(torch.exp(blank_logprob) + torch.exp(non_blank_logprob) - 1.0) < 1e-5).all()
-                    #     logps[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
-                    #     logps[..., -1] *= 1 + self.ngram_lm_alpha
-                    #     log_probs_top_k, labels_top_k = torch.topk(
-                    #         logps, self.beam_size, dim=-1, largest=True, sorted=True
-                    #     )
-                    # elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_MAX:
-                    #     logps[..., :-1] += lm_scores
-                    #     logps[..., -1] += lm_scores.max(dim=-1, keepdim=False).values
-                    #     log_probs_top_k, labels_top_k = torch.topk(
-                    #         logps, self.beam_size, dim=-1, largest=True, sorted=True
-                    #     )
-                    elif self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.LM_TOP_MAX:
-                        logps[..., :-1] += lm_scores
-                        _, labels_with_lm_nb_top_k = torch.topk(
-                            logps[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
-                        )
-                        # [(BxBeam), beam]
-                        lm_only_scores = torch.gather(
-                            lm_scores,
-                            dim=-1,
-                            index=labels_with_lm_nb_top_k,
-                        )
-                        logps[..., -1] += lm_only_scores.max(dim=-1, keepdim=False).values
-                        label_logps, labels = torch.topk(
-                            logps, self.beam_size, dim=-1, largest=True, sorted=True
-                        )
-                    else:
-                        raise NotImplementedError
-                else:
-                    label_logps, labels = logps.topk(self.beam_size, dim=-1, largest=True, sorted=True)
-                
-                total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
-                
-                # masking inactive hypotheses/hypotheses that already had blank emission with -INF score
-                # adding current hypotheses to the beam
-                total_logps = torch.where(to_update.unsqueeze(-1), total_logps, float('-inf'))
-                labels = torch.where(to_update.unsqueeze(-1), labels, -1)
-                total_logps[..., -1] = torch.where(to_update, total_logps[..., -1], batched_hyps.scores)
-                
-                total_logps, idx = total_logps.view(batch_size, -1).topk(self.beam_size, dim=-1, largest=True, sorted=True)
-                labels = labels.view(batch_size, -1)[batch_indices, idx]
-                beam_idx = expansion_beam_indices.view(batch_size, -1)[batch_indices, idx]
+                labels, total_logps, beam_idx = self.get_topk_expansions(batch_size, batched_hyps, batch_indices, expansion_beam_indices, lm_scores, to_update, logps)
                 
                 batched_hyps.update_beam(labels, total_logps, beam_idx)
                 
@@ -421,12 +392,50 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
                 
                 to_update = torch.logical_and(to_update, labels != self._SOS)
-                    
+                
+                expansion_steps += 1
             time_indices += 1
             active_mask = time_indices <= last_timesteps
             
         return batched_hyps.get_best_hyps()
+
+    def get_topk_expansions(self, batch_size, batched_hyps, batch_indices, expansion_beam_indices, lm_scores, to_update, logps):
+        zeros_column = torch.zeros((batch_size, self.beam_size, 1), device=batched_hyps.device)
+        if self.pruning_mode is rnnt_utils.PruningMode.LATE:
+            if self.ngram_lm_batch is not None:
+                if self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.NO_SCORE:
+                    logps[..., :-1] += lm_scores
+                    label_logps, labels = torch.topk(
+                                logps, self.beam_size, dim=-1, largest=True, sorted=True
+                            )
+                    raise NotImplementedError
+            else:
+                label_logps, labels = logps.topk(self.beam_size, dim=-1, largest=True, sorted=True)
+        else:
+            label_logps, labels = logps.topk(self.beam_size, dim=-1, largest=True, sorted=True)
+            # total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
+            # label_logps[total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_exansion_gamma] = float('-inf')
+            if self.ngram_lm_batch is not None:
+                if self.blank_lm_score_mode is rnnt_utils.BlankLMScoreMode.NO_SCORE:
+                    lm_scores = torch.cat((lm_scores, zeros_column), dim=2)
+                    label_logps += torch.gather(lm_scores, dim=-1, index=labels)
+                else:
+                    raise NotImplementedError
         
+        total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
+                    
+        # masking inactive hypotheses/hypotheses that already had blank emission with -INF score
+        # adding current hypotheses to the beam
+        total_logps = torch.where(to_update.unsqueeze(-1), total_logps, float('-inf'))
+        labels = torch.where(to_update.unsqueeze(-1), labels, -1)
+        total_logps[..., -1] = torch.where(to_update, total_logps[..., -1], batched_hyps.scores)
+                    
+        total_logps, idx = total_logps.view(batch_size, -1).topk(self.beam_size, dim=-1, largest=True, sorted=True)
+        labels = labels.view(batch_size, -1)[batch_indices, idx]
+        beam_idx = expansion_beam_indices.view(batch_size, -1)[batch_indices, idx]
+        
+        return labels,total_logps,beam_idx
+
     def __call__(
         self,
         x: torch.Tensor,

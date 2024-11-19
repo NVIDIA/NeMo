@@ -501,10 +501,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 blank_index=self.blank_id,
                 beam_size=self.cfg.beam.beam_size,
                 preserve_alignments=self.preserve_alignments,
+                maes_exansion_gamma=self.cfg.get('maes_exansion_gamma', 2.3),
                 maes_num_steps = self.cfg.beam.get('maes_num_steps', 2),
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                 blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                pruning_mode=self.cfg.beam.get('pruning_mode', 'early'),
+                score_norm = self.cfg.beam.get('score_norm', True)
             )
         else:
             raise ValueError(

@@ -259,7 +259,7 @@ class BeamRNNTInfer(Typing):
         alsd_max_target_len: Union[int, float] = 1.0,
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
-        maes_num_steps: int = 2,
+        maes_num_steps: int = 10,
         maes_prefix_alpha: int = 1,
         maes_expansion_gamma: float = 2.3,
         maes_expansion_beta: int = 2,
@@ -1178,6 +1178,12 @@ class BeamRNNTInfer(Typing):
                 hyp.alignments = [[]]
 
         for t in range(encoded_lengths):
+            # print("Frame idx: ", t)
+            # for hyp1 in kept_hyps:
+            #     print("Sequence: ", hyp1.y_sequence)
+            #     print("Timesteps: ", hyp1.timestep)
+            #     print("Score: ", hyp1.score)
+            #     print()
             enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
 
             # Perform prefix search to obtain hypothesis
@@ -1618,10 +1624,13 @@ class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
             blank_index: int,
             beam_size: int,
             maes_num_steps: int,
+            maes_exansion_gamma: float,
             preserve_alignments=False,
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
             blank_lm_score_mode: Optional[str | rnnt_utils.BlankLMScoreMode] = None,
+            pruning_mode: Optional[str | rnnt_utils.PruningMode] = None,
+            score_norm: bool = True,
             allow_recombine_hyps: bool = False,
     ):
         super().__init__()
@@ -1631,11 +1640,13 @@ class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
         self.beam_size = beam_size
-        
+
         self.maes_num_steps = maes_num_steps
+        self.maes_exansion_gamma = maes_exansion_gamma
         self.preserve_alignments = preserve_alignments
         
         self.allow_recombine_hyps = allow_recombine_hyps
+        self.score_norm=score_norm
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
@@ -1645,11 +1656,14 @@ class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
             beam_size=self.beam_size,
             blank_index=self._blank_index,
             maes_num_steps=self.maes_num_steps,
+            maes_exansion_gamma=self.maes_exansion_gamma,
             preserve_alignments=preserve_alignments,
             ngram_lm_model=ngram_lm_model,
             ngram_lm_alpha=ngram_lm_alpha,
             blank_lm_score_mode=blank_lm_score_mode,
-            allow_recombine_hyps=self.allow_recombine_hyps
+            pruning_mode=pruning_mode,
+            allow_recombine_hyps=self.allow_recombine_hyps,
+            score_norm = score_norm
         )
 
     @property
@@ -1722,5 +1736,6 @@ class BeamRNNTInferConfig:
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: Optional[float] = 0.0
     blank_lm_score_mode: Optional[str] = None
+    pruning_mode: Optional[str] = None
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0

@@ -698,3 +698,7 @@ class BlankLMScoreMode(PrettyStrEnum):
     LM_MAX = "lm_max"
     LM_TOP_MAX = "lm_top_max"
     LATE_PRUNING = "late_pruning"
+    
+class PruningMode(PrettyStrEnum):
+    EARLY = "early"
+    LATE = "late"
