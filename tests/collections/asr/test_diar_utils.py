@@ -48,7 +48,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_online_subsegments_from_buffer,
     get_speech_labels_for_update,
     get_sub_range_list,
-    get_subsegments,
+    get_subsegments_scriptable,
     get_target_sig,
     int2fl,
     is_overlap,
@@ -110,7 +110,7 @@ def generate_toy_data(
     random_orthogonal_embs = generate_orthogonal_embs(n_spks, perturb_sigma, emb_dim)
     for scale_idx, (window, shift) in enumerate(zip(ms_window, ms_shift)):
         for spk_idx, (offset, dur) in enumerate(spk_timestamps):
-            segments_stt_dur = get_subsegments(offset=offset, window=window, shift=shift, duration=dur)
+            segments_stt_dur = get_subsegments_scriptable(offset=offset, window=window, shift=shift, duration=dur)
             segments = [[x[0], x[0] + x[1]] for x in segments_stt_dur]
             emb_cent = random_orthogonal_embs[spk_idx, :]
             emb = emb_cent.tile((len(segments), 1)) + 0.1 * torch.rand(len(segments), emb_dim)
