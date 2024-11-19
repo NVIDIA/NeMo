@@ -189,7 +189,7 @@ class MegatronGenerate(Resource):
             end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
             random_seed = None
 
-            st  = time.perf_counter()
+            st = time.perf_counter()
             output = generate(
                 self.model,
                 [conversation],
