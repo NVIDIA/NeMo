@@ -29,6 +29,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 @dataclass
 class TransformCTX:
+    """Transform Data class Definition."""
     source: nn.Module
     source_state: dict
     target: nn.Module
@@ -327,6 +328,7 @@ class StateDictTransform(Generic[F]):
         return ctx
 
     def call_transform(self, ctx: TransformCTX, *args, **kwargs):
+        """Perform transform and check if the given args valid."""
         func_params = inspect.signature(self.transform).parameters
         expected_num_args = len([p for p in func_params if p not in ['self', 'ctx']])
         provided_num_args = len(args) + len(kwargs)

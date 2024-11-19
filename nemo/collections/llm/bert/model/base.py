@@ -26,7 +26,7 @@ from nemo.collections.llm.bert.model.bert_spec import (
     bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import BERTLossReduction
+from nemo.collections.llm.bert.loss import BERTLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 HAVE_TE = True
