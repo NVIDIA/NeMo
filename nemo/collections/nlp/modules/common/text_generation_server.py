@@ -223,20 +223,21 @@ class MegatronGenerate(Resource):
         num_output_sentence = len(output_sentence.split())
 
         logging.info(f"type logprobs {type(logprobs)}")
-        logging.info(f"type logprobs {type(tokens)}")
+        logging.info(f"type tokens {type(tokens)}, type tokens[0] {type(tokens[0])}")
+        logging.info(f"type logprobs {type(tokens)}, type output_sentence {type(output_sentence)} type output_sentence[0] {type(output_sentence[0])}")
         logging.info(f"Log for Timing -- returning generation {dm1}")
         return jsonify(
             {
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion",
-                "created": int(time.time()),
+                "created": str(int(time.time())),
                 "model": data.get("model", "nemo model"),
                 "choices": [
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": output_sentence},
-                        "logprobs": logprobs,
-                        "tokens": tokens,
+                        "logprobs": None,
+                        "tokens": None,
                         "finish_reason": "",
                     }
                 ],
