@@ -333,6 +333,7 @@ def build_tokenizer(tokenizer):
                     if isinstance(ids, np.ndarray):
                         ids = ids.tolist()
                     return self.tokenizer.decode(ids)
+
                 encode = tokenizer.tokenizer.encode_as_ids
             else:
                 raise NotImplementedError(f"Patching tokenizer methods for {type(tokenizer)} is not available")
