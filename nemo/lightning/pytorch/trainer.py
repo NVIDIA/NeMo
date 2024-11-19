@@ -142,5 +142,5 @@ class Trainer(pl.Trainer, IOMixin):
             criterion = kwargs.pop('criterion', nn.CrossEntropyLoss())
             optimizer_cls = kwargs.pop('optimizer_cls', torch.optim.Adam)
             optimizer_kwargs = kwargs.pop('optimizer_kwargs', {'lr': 1e-3})
-            model = GenerixLitWrapper(model, criterion, optimizer_cls, optimizer_kwargs)
+            model = GenericLitWrapper(model, criterion, optimizer_cls, optimizer_kwargs)
         super().fit(model, trainer_dataloaders, *args, **kwargs)
