@@ -30,11 +30,13 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     filter_dataset_by_duration,
     get_weighted_sampler,
     load_audio,
+    _read_audio,
     stack_tensors,
 )
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+import os
 
 @dataclass
 class DatasetMeta:
@@ -313,9 +315,6 @@ class T5TTSDataset(TextToSpeechDataset):
         dataset_meta: Dict,
         sample_rate: int,
         weighted_sampling_steps_per_epoch: Optional[int] = None,
-        speaker_path: Optional[Path] = None,
-        featurizers: Optional[Dict[str, Featurizer]] = None,
-        feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
         align_prior_hop_length: Optional[int] = None,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -328,16 +327,17 @@ class T5TTSDataset(TextToSpeechDataset):
         prior_scaling_factor: float = None,
         load_cached_codes_if_available: bool = True,
         dataset_type: str = 'train',
-        tokenizer_config=None
+        tokenizer_config=None,
+        load_16khz_audio: bool = True,
     ):
         super().__init__(
             dataset_meta=dataset_meta,
             sample_rate=sample_rate,
             text_tokenizer=None,
             weighted_sampling_steps_per_epoch=weighted_sampling_steps_per_epoch,
-            speaker_path=speaker_path,
-            featurizers=featurizers,
-            feature_processors=feature_processors,
+            speaker_path=None,
+            featurizers=None,
+            feature_processors=None,
             align_prior_hop_length=align_prior_hop_length,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -354,33 +354,11 @@ class T5TTSDataset(TextToSpeechDataset):
         self.dataset_type = dataset_type
         self.tokenizer_config = tokenizer_config
         self.text_tokenizer = None
+        self.load_16khz_audio = load_16khz_audio
     
     def __getitem__(self, index):
         data = self.data_samples[index]
-        audio_array, _, audio_filepath_rel = load_audio(
-            manifest_entry=data.manifest_entry,
-            audio_dir=data.audio_dir,
-            sample_rate=self.sample_rate,
-            volume_norm=self.volume_norm,
-        )
-        audio = torch.tensor(audio_array, dtype=torch.float32)
-        audio = torch.nn.functional.pad(
-            audio,
-            (0, self.codec_model_downsample_factor - (audio.shape[0] % self.codec_model_downsample_factor)),
-            value=0
-        )
-        audio_len = audio.shape[0]
 
-        audio_array_16khz, _, _ = load_audio(
-            manifest_entry=data.manifest_entry,
-            audio_dir=data.audio_dir,
-            sample_rate=16000,
-            volume_norm=self.volume_norm,
-        )
-        audio_16khz = torch.tensor(audio_array_16khz, dtype=torch.float32)
-        audio_len_16khz = audio_16khz.shape[0]
-        # Pad audio to be multiple of downsample factor
-        
         tokens = self.text_tokenizer(data.text)
         tokens = tokens + [self.eos_id] # Not adding BOS id
         tokens = torch.tensor(tokens, dtype=torch.int32)
@@ -388,11 +366,6 @@ class T5TTSDataset(TextToSpeechDataset):
 
         example = {
             "dataset_name": data.dataset_name,
-            "audio_filepath": audio_filepath_rel,
-            "audio": audio,
-            "audio_len": audio_len,
-            "audio_16khz": audio_16khz,
-            "audio_len_16khz": audio_len_16khz,
             "tokens": tokens,
             "text_len": text_len,
         }
@@ -400,8 +373,6 @@ class T5TTSDataset(TextToSpeechDataset):
         if self.load_cached_codes_if_available and 'target_audio_codes_path' in data.manifest_entry:
             audio_codes_path = data.manifest_entry['target_audio_codes_path']
             audio_codes = torch.load(audio_codes_path).long() # (C, T)
-            # codec_len_from_audio = int(audio_len / self.codec_model_downsample_factor)
-            # assert audio_codes.shape[1] == codec_len_from_audio, f"Audio codes shape {audio_codes.shape} does not match audio len {audio_len} and downsample factor {self.codec_model_downsample_factor}"
             spec_len = audio_codes.shape[1] + 1 # +1 for EOS
             auidio_bos_tensor = torch.full((audio_codes.shape[0], 1), self.audio_bos_id, dtype=audio_codes.dtype)
             audio_eos_tensor = torch.full((audio_codes.shape[0], 1), self.audio_eos_id, dtype=audio_codes.dtype)
@@ -409,27 +380,70 @@ class T5TTSDataset(TextToSpeechDataset):
             audio_codes_len = audio_codes.shape[1]
             example['audio_codes'] = audio_codes
             example['audio_codes_len'] = audio_codes_len
+            example['audio_filepath'] = audio_codes_path
         else:
+            # Only load audio if codes are not available
+            audio_array, _, audio_filepath_rel = load_audio(
+                manifest_entry=data.manifest_entry,
+                audio_dir=data.audio_dir,
+                sample_rate=self.sample_rate,
+                volume_norm=self.volume_norm,
+            )
+            audio = torch.tensor(audio_array, dtype=torch.float32)
+            # Pad audio to be multiple of downsample factor
+            audio = torch.nn.functional.pad(
+                audio,
+                (0, self.codec_model_downsample_factor - (audio.shape[0] % self.codec_model_downsample_factor)),
+                value=0
+            )
+            audio_len = audio.shape[0]
+            example['audio_filepath'] = audio_filepath_rel
+            example['audio'] = audio
+            example['audio_len'] = audio_len
             spec_len = int(audio_len / self.codec_model_downsample_factor) + 1 # +1 for EOS
+        
+        if self.load_cached_codes_if_available and 'context_audio_codes_path' in data.manifest_entry:
+            context_audio_codes_path = data.manifest_entry['context_audio_codes_path']
+            context_audio_codes = torch.load(context_audio_codes_path).long()
+            context_bos_tensor = torch.full((context_audio_codes.shape[0], 1), self.audio_bos_id, dtype=context_audio_codes.dtype)
+            context_eos_tensor = torch.full((context_audio_codes.shape[0], 1), self.audio_eos_id, dtype=context_audio_codes.dtype)
+            context_audio_codes = torch.cat([context_bos_tensor, context_audio_codes, context_eos_tensor], dim=1)
+            context_audio_codes_len = context_audio_codes.shape[1]
+            example['context_audio_codes'] = context_audio_codes
+            example['context_audio_codes_len'] = context_audio_codes_len
+        elif 'context_audio_filepath' in data.manifest_entry:
+            context_audio_filepath = os.path.join(data.audio_dir, data.manifest_entry['context_audio_filepath'])
+            context_duration = data.manifest_entry['context_audio_duration']
+            context_audio_array = _read_audio(audio_filepath=context_audio_filepath, sample_rate=self.sample_rate, offset=0, duration=context_duration)
+            context_audio_array = context_audio_array.samples
+            context_audio = torch.tensor(context_audio_array, dtype=torch.float32)
+            # Pad audio to be multiple of downsample factor
+            context_audio = torch.nn.functional.pad(
+                context_audio,
+                (0, self.codec_model_downsample_factor - (context_audio.shape[0] % self.codec_model_downsample_factor)),
+                value=0
+            )
+            context_audio_len = context_audio.shape[0]
+            example['context_audio'] = context_audio
+            example['context_audio_len'] = context_audio_len
 
-        if data.speaker is not None:
-            example["speaker"] = data.speaker
-            example["speaker_index"] = data.speaker_index
-
+        if self.load_16khz_audio:
+            audio_array_16khz, _, _ = load_audio(
+                manifest_entry=data.manifest_entry,
+                audio_dir=data.audio_dir,
+                sample_rate=16000,
+                volume_norm=self.volume_norm,
+            )
+            audio_16khz = torch.tensor(audio_array_16khz, dtype=torch.float32)
+            audio_len_16khz = audio_16khz.shape[0]
+            example['audio_16khz'] = audio_16khz
+            example['audio_len_16khz'] = audio_len_16khz
+        
         if self.include_align_prior:
             # align_prior = self.beta_binomial_interpolator(spec_len, text_len)
             align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=spec_len, scaling_factor=self.prior_scaling_factor)
             align_prior = torch.tensor(align_prior, dtype=torch.float32)
             example["align_prior"] = align_prior
-
-        for featurizer in self.featurizers:
-            feature_dict = featurizer.load(
-                manifest_entry=data.manifest_entry, audio_dir=data.audio_dir, feature_dir=data.feature_dir
-            )
-            example.update(feature_dict)
-
-        for processor in self.feature_processors:
-            processor.process(example)
 
         return example
     
@@ -442,74 +456,93 @@ class T5TTSDataset(TextToSpeechDataset):
         audio_len_list_16khz = []
         token_list = []
         token_len_list = []
-        speaker_list = []
         prior_list = []
         audio_codes_list = []
         audio_codes_len_list = []
+        context_audio_list = []
+        context_audio_len_list = []
+        context_audio_codes_list = []
+        context_audio_codes_len_list = []
 
         for example in batch:
             dataset_name_list.append(example["dataset_name"])
             audio_filepath_list.append(example["audio_filepath"])
 
-            audio_list.append(example["audio"])
-            audio_len_list.append(example["audio_len"])
-
-            audio_list_16khz.append(example["audio_16khz"])
-            audio_len_list_16khz.append(example["audio_len_16khz"])
-
             token_list.append(example["tokens"])
             token_len_list.append(example["text_len"])
 
-            if self.include_speaker:
-                speaker_list.append(example["speaker_index"])
+            if 'audio' in example:
+                audio_list.append(example["audio"])
+                audio_len_list.append(example["audio_len"])
+
+            if 'audio_16khz' in example:
+                audio_list_16khz.append(example["audio_16khz"])
+                audio_len_list_16khz.append(example["audio_len_16khz"])
+
+            if 'audio_codes' in example:
+                audio_codes_list.append(example['audio_codes'])
+                audio_codes_len_list.append(example['audio_codes_len'])
+            
+            if 'context_audio' in example:
+                context_audio_list.append(example['context_audio'])
+                context_audio_len_list.append(example['context_audio_len'])
+
+            if 'context_audio_codes' in example:
+                context_audio_codes_list.append(example['context_audio_codes'])
+                context_audio_codes_len_list.append(example['context_audio_codes_len'])
 
             if self.include_align_prior:
                 prior_list.append(example["align_prior"])
             
-            if 'audio_codes' in example:
-                audio_codes_list.append(example['audio_codes'])
-                audio_codes_len_list.append(example['audio_codes_len'])
-
-        batch_audio_len = torch.IntTensor(audio_len_list)
-        audio_max_len = int(batch_audio_len.max().item())
-
-        batch_audio_len_16khz = torch.IntTensor(audio_len_list_16khz)
-        audio_max_len_16khz = int(batch_audio_len_16khz.max().item())
-
         batch_token_len = torch.IntTensor(token_len_list)
         token_max_len = int(batch_token_len.max().item())
-
-        batch_audio = stack_tensors(audio_list, max_lens=[audio_max_len])
-        batch_audio_16khz = stack_tensors(audio_list_16khz, max_lens=[audio_max_len_16khz])
         batch_tokens = stack_tensors(token_list, max_lens=[token_max_len], pad_value=self.text_tokenizer.pad)
 
         batch_dict = {
             "dataset_names": dataset_name_list,
             "audio_filepaths": audio_filepath_list,
-            "audio": batch_audio,
-            "audio_lens": batch_audio_len,
-            "audio_16khz": batch_audio_16khz,
-            "audio_lens_16khz": batch_audio_len_16khz,
             "text": batch_tokens,
             "text_lens": batch_token_len,
         }
 
+        if len(audio_list) > 0:
+            batch_audio_len = torch.IntTensor(audio_len_list)
+            audio_max_len = int(batch_audio_len.max().item())
+            batch_audio = stack_tensors(audio_list, max_lens=[audio_max_len])
+            batch_dict['audio'] = batch_audio
+            batch_dict['audio_lens'] = batch_audio_len
+        
+        if len(audio_list_16khz) > 0:
+            batch_audio_len_16khz = torch.IntTensor(audio_len_list_16khz)
+            audio_max_len_16khz = int(batch_audio_len_16khz.max().item())
+            batch_audio_16khz = stack_tensors(audio_list_16khz, max_lens=[audio_max_len_16khz])
+            batch_dict['audio_16khz'] = batch_audio_16khz
+            batch_dict['audio_lens_16khz'] = batch_audio_len_16khz
+        
         if len(audio_codes_list) > 0:
-            audio_codes_max_len = max([audio_codes.shape[1] for audio_codes in audio_codes_list])
+            batch_audio_codes_len = torch.IntTensor(audio_codes_len_list)
+            audio_codes_max_len = int(batch_audio_codes_len.max().item())
             batch_audio_codes = stack_tensors(audio_codes_list, max_lens=[audio_codes_max_len])
             batch_dict['audio_codes'] = batch_audio_codes
-            batch_dict['audio_codes_lens'] = torch.IntTensor(audio_codes_len_list)
-
-        if self.include_speaker:
-            batch_dict["speaker_id"] = torch.IntTensor(speaker_list)
+            batch_dict['audio_codes_lens'] = batch_audio_codes_len
+        
+        if len(context_audio_list) > 0:
+            batch_context_audio_len = torch.IntTensor(context_audio_len_list)
+            context_audio_max_len = int(batch_context_audio_len.max().item())
+            batch_context_audio = stack_tensors(context_audio_list, max_lens=[context_audio_max_len])
+            batch_dict['context_audio'] = batch_context_audio
+            batch_dict['context_audio_lens'] = batch_context_audio_len
+        
+        if len(context_audio_codes_list) > 0:
+            batch_context_audio_codes_len = torch.IntTensor(context_audio_codes_len_list)
+            context_audio_codes_max_len = int(batch_context_audio_codes_len.max().item())
+            batch_context_audio_codes = stack_tensors(context_audio_codes_list, max_lens=[context_audio_codes_max_len])
+            batch_dict['context_audio_codes'] = batch_context_audio_codes
+            batch_dict['context_audio_codes_lens'] = batch_context_audio_codes_len
 
         if self.include_align_prior:
             spec_max_len = max([prior.shape[0] for prior in prior_list])
             text_max_len = max([prior.shape[1] for prior in prior_list])
             batch_dict["align_prior_matrix"] = stack_tensors(prior_list, max_lens=[text_max_len, spec_max_len],)
-
-        for featurizer in self.featurizers:
-            feature_dict = featurizer.collate_fn(batch)
-            batch_dict.update(feature_dict)
 
         return batch_dict

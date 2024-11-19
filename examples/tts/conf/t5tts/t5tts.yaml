@@ -18,7 +18,10 @@ sample_rate: 22050
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
-  speaker_emb_dim: 192
+  model_type: "single_encoder_sv_tts" # single_encoder_sv_tts or multi_encoder_context_tts.
+  transcript_decoder_layers: [3,4,5,6,7,8] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
+  use_perceiver: false # For multi_encoder_context_tts, use perceiver after speaker encoder or not
+  speaker_emb_dim: 192 # Only used for single_encoder_sv_tts, ignored otherwise
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1024
@@ -75,8 +78,27 @@ model:
     dataloader_params:
       batch_size: ${batch_size}
       num_workers: 0
-
+  
   t5_encoder:
+    is_causal: false
+    pos_emb:
+      name: "rope"
+      base: 512
+    use_flash_self_attention: false
+    use_flash_x_attention: false
+    deterministic: false
+    d_model: 768
+    n_layers: 12
+    p_dropout: 0.1
+    n_heads: 12
+    has_xattn: false
+    apply_norm_to_cond: true
+    kernel_size: 3
+    layer_scale_init: 0.1
+    layer_scale_decay: 0.95
+    context_xattn: null
+  
+  context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
     is_causal: false
     pos_emb:
       name: "rope"

@@ -519,20 +519,29 @@ class TransformerStack(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, x, x_mask, cond, cond_mask, dump_attention=False,
-                attn_prior=None):
+                attn_prior=None, multi_encoder_mapping=None):
         """
         x <torch tensor> (B, T1, C):
         x_mask <bool mask> (B, T1): True where ignoring is required
-        cond <dict name, torch tensor> (B, Tc, C):
-        cond_mask <bool mask> (B, T2): True where ignoring is required
+        cond <torch tensor> (B, Tc, C) or list of such tensors (from different encoders)
+        cond_mask <bool mask> (B, T2): True where ignoring is required or list of such tensors (from different encoders)
         output <torch tensor> (B, T1, C)
+        multi_encoder_mapping <list> <int>: None or Same size as n_layers, value indicates which cond input to use for this layer
         """
         attn_probabilities = []
         x = self.dropout(x)
         for idx, layer in enumerate(self.layers):
+            if multi_encoder_mapping is not None:
+                _cond = cond[multi_encoder_mapping[idx]]
+                _cond_mask = cond_mask[multi_encoder_mapping[idx]]
+                _attn_prior = attn_prior[multi_encoder_mapping[idx]]
+            else:
+                _cond = cond
+                _cond_mask = cond_mask
+                _attn_prior = attn_prior
             out_dict = layer(
-                x, x_mask, cond, cond_mask, dump_attention=dump_attention,
-                attn_prior=attn_prior, idx=idx)
+                x, x_mask, _cond, _cond_mask, dump_attention=dump_attention,
+                attn_prior=_attn_prior, idx=idx)
             x = out_dict['output']
             attn_prob = out_dict['attn_probabilities']
             attn_probabilities.append(attn_prob)

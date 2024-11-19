@@ -25,17 +25,13 @@ from torch import nn
 import os
 
 from nemo.collections.tts.parts.utils.helpers import (
-    binarize_attention,
-    g2p_backward_compatible_support,
     get_mask_from_lengths,
     plot_alignment_to_numpy,
 )
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
-from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
-from nemo.collections.tts.modules import t5_transformer
+from nemo.collections.tts.modules import t5tts_transformer, t5tts_perceiver
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 import nemo.collections.asr as nemo_asr
@@ -91,7 +87,8 @@ class T5TTS_Model(ModelPT):
         self.audio_bos_id = cfg.num_audio_tokens_per_codebook - 2
         self.audio_eos_id = cfg.num_audio_tokens_per_codebook - 1
         self._tb_logger = None
-
+        self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
+        
         super().__init__(cfg=cfg, trainer=trainer)
         
         self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
@@ -101,13 +98,11 @@ class T5TTS_Model(ModelPT):
             audio_embeddings.append(nn.Embedding(cfg.num_audio_tokens_per_codebook, cfg.embedding_dim))
         self.audio_embeddings = nn.ModuleList(audio_embeddings)
 
-        self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
-
-        self.t5_encoder = t5_transformer.TransformerStack(dict(cfg.t5_encoder))
+        self.t5_encoder = t5tts_transformer.TransformerStack(dict(cfg.t5_encoder))
         
         decoder_config = dict(cfg.t5_decoder)
         decoder_config['context_xattn'] = {'params': decoder_config['context_xattn']}
-        self.t5_decoder = t5_transformer.TransformerStack(decoder_config)
+        self.t5_decoder = t5tts_transformer.TransformerStack(decoder_config)
 
         self.final_proj = nn.Linear(cfg.t5_decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook)
 
@@ -116,10 +111,33 @@ class T5TTS_Model(ModelPT):
         self.freeze_model(codec_model)
         self._codec_model = codec_model
 
-        speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large') 
-        speaker_verification_model.eval()
-        self.freeze_model(speaker_verification_model)
-        self._speaker_verification_model = speaker_verification_model
+        if self.model_type == 'single_encoder_sv_tts':
+            speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large') 
+            speaker_verification_model.eval()
+            self.freeze_model(speaker_verification_model)
+            self._speaker_verification_model = speaker_verification_model
+            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
+            self.transcript_decoder_layers = [idx for idx in range(cfg.t5_decoder.n_layers)] # All layers are used for text
+        elif self.model_type == 'multi_encoder_context_tts':
+            self.transcript_decoder_layers = cfg.transcript_decoder_layers
+            multi_encoder_mapping = [1 for _ in range(cfg.t5_decoder.n_layers)]
+            for layer in self.transcript_decoder_layers:
+                multi_encoder_mapping[layer] = 0 # 0 means text goes to this layer, 1 means context goes to this layer
+            self.multi_encoder_mapping = multi_encoder_mapping
+            self.context_encoder = t5tts_transformer.TransformerStack(dict(cfg.context_encoder))
+            if cfg.use_perceiver:
+                self.perceiver_resampler = t5tts_perceiver.PerceiverResampler(
+                    dim=cfg.context_encoder.d_model,
+                    depth=2,
+                    dim_context=cfg.context_encoder.d_model,
+                    num_latents=32,
+                    dim_head=64,
+                    heads=8,
+                    ff_mult=4,
+                    use_flash_attn=False,
+                )
+        else:
+            raise ValueError(f"Unknown model type: {cfg.model_type}")
 
         self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
         alignment_loss_scale = cfg.get('alignment_loss_scale', 0.0)
@@ -247,22 +265,34 @@ class T5TTS_Model(ModelPT):
         total_codebook_loss = total_codebook_loss / audio_codes.size(1)
         return total_codebook_loss
 
-    def forward(self, text, text_lens, audio_codes=None, audio_codes_lens=None, attn_prior=None, conditioning_vector=None):
+    def forward(self, text, text_lens, audio_codes=None, audio_codes_lens=None, attn_prior=None, conditioning_vector=None, context_embeddings=None, context_mask=None):
+        # Either conditioning_vector or context_embeddings should be provided
+        assert (conditioning_vector is not None) ^ (context_embeddings is not None)
         text_embedded = self.text_embedding(text) # (B, T, E)
         text_mask = ~get_mask_from_lengths(text_lens) # (B, T)
         encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output'] # (B, T, E)
         if conditioning_vector is not None:
-            # conditioning_vector: (B, E)
+            # conditioning_vector: (B, E) usually speaker embeddings
             encoder_out = encoder_out + conditioning_vector.unsqueeze(1)
-
+            cond = encoder_out
+            cond_mask = text_mask
+            multi_encoder_mapping = None
+            _attn_prior = attn_prior
+        elif context_embeddings is not None:
+            cond = [encoder_out, context_embeddings]
+            cond_mask = [text_mask, context_mask]
+            multi_encoder_mapping = self.multi_encoder_mapping
+            _attn_prior = [attn_prior, None]
+        
         audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens)
         audio_codes_embedded = self.embed_audio_tokens(audio_codes)
         decoder_out = self.t5_decoder(
             audio_codes_embedded,
             audio_codes_mask,
-            cond=encoder_out,
-            cond_mask=text_mask,
-            attn_prior=attn_prior
+            cond=cond,
+            cond_mask=cond_mask,
+            attn_prior=_attn_prior,
+            multi_encoder_mapping=multi_encoder_mapping,
         ) # (B, T', E)
         attn_probabilities = decoder_out['attn_probabilities']
         all_code_logits = self.final_proj(decoder_out['output']) # (B, T', num_codebooks * num_tokens_per_codebook)
@@ -322,10 +352,13 @@ class T5TTS_Model(ModelPT):
                 )
 
 
-    def log_train_val_example(self, logits, target_audio_codes, audio_codes_lens_target):
+    def log_train_val_example(self, logits, target_audio_codes, audio_codes_lens_target, context_audio_codes=None, context_audio_codes_lens=None):
         pred_audio_codes = self.logits_to_audio_codes(logits, audio_codes_lens_target)
         pred_audio, pred_audio_lens = self.codes_to_audio(pred_audio_codes, audio_codes_lens_target)
         target_audio, target_audio_lens = self.codes_to_audio(target_audio_codes, audio_codes_lens_target)
+        context_audio, context_audio_lens = None, None
+        if context_audio_codes is not None:
+            context_audio, context_audio_lens = self.codes_to_audio(context_audio_codes, context_audio_codes_lens)
         for idx in range(min(3, pred_audio.size(0))):
             pred_audio_np = pred_audio[idx].float().detach().cpu().numpy()
             target_audio_np = target_audio[idx].float().detach().cpu().numpy()
@@ -343,6 +376,15 @@ class T5TTS_Model(ModelPT):
                 global_step=self.global_step,
                 sample_rate=self.cfg.sample_rate,
             )
+            if context_audio is not None:
+                context_audio_np = context_audio[idx].float().detach().cpu().numpy()
+                context_audio_np = context_audio_np[:context_audio_lens[idx]]
+                self.tb_logger.add_audio(
+                    f'context_audio_{idx}',
+                    context_audio_np,
+                    global_step=self.global_step,
+                    sample_rate=self.cfg.sample_rate,
+                )
     
     def scale_prior(self, prior, global_step):
         if prior is None:
@@ -369,21 +411,15 @@ class T5TTS_Model(ModelPT):
         )
         return alignment_loss
 
-    def training_step(self, batch, batch_idx):
+    def process_batch(self, batch):
         text = batch['text']
         text_lens = batch['text_lens']
-        target_audio = batch['audio']
-        target_audio_lens = batch['audio_lens']
+        
         attn_prior = batch.get('align_prior_matrix', None)
         attn_prior = self.scale_prior(attn_prior, self.global_step)
 
-        target_audio_16khz = batch['audio_16khz']
-        target_audio_lens_16khz = batch['audio_lens_16khz']
-        
-        speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
-        speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
         if 'audio_codes' not in batch:
-            audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
+            audio_codes, audio_codes_lens = self.audio_to_codes(batch['audio'], batch['audio_lens'])
         else:
             audio_codes = batch['audio_codes']
             audio_codes_lens = batch['audio_codes_lens']
@@ -392,74 +428,98 @@ class T5TTS_Model(ModelPT):
         audio_codes_target = audio_codes[:, :, 1:]
         audio_codes_lens_input = audio_codes_lens_target = audio_codes_lens - 1
         
+        context_audio_codes = None
+        context_audio_codes_lens = None
+        if self.model_type == 'single_encoder_sv_tts':
+            target_audio_16khz = batch['audio_16khz']
+            target_audio_lens_16khz = batch['audio_lens_16khz']
+            
+            speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
+            conditioning_vector = self.speaker_projection_layer(speaker_embeddings)
+            context_embeddings = None
+            context_mask = None
+
+        elif self.model_type == 'multi_encoder_context_tts':
+            if 'context_audio_codes' not in batch:
+                context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'])
+            else:
+                context_audio_codes = batch['context_audio_codes']
+                context_audio_codes_lens = batch['context_audio_codes_lens']
+            context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
+            context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
+            context_embeddings = self.context_encoder(context_audio_embedded, context_mask, cond=None, cond_mask=None)['output']
+            if self.cfg.use_perceiver:
+                # pneekhara: Check if we can pass mask here. Mask of size B, L doesn't work
+                context_embeddings = self.perceiver_resampler(context_embeddings) # B, 32, C
+                context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
+            conditioning_vector = None
+
         logits, attn_info = self.forward(
             text=text,
             text_lens=text_lens,
             audio_codes=audio_codes_input,
             audio_codes_lens=audio_codes_lens_input,
             attn_prior=attn_prior,
-            conditioning_vector=speaker_embeddings_projected
+            conditioning_vector=conditioning_vector,
+            context_embeddings=context_embeddings,
+            context_mask=context_mask
         )
         codebook_loss = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
-        self.log('train_codebook_loss', codebook_loss, prog_bar=True, sync_dist=True)
+        alignment_loss = None
         if self.cfg.alignment_loss_scale > 0.0:
-            cross_attention_scores = [attn['cross_attn_probabilities'][1] for attn in attn_info]
+            cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.transcript_decoder_layers]
             alignment_loss = self.compute_alignment_loss(cross_attention_scores, text_lens, audio_codes_lens_target)
-            self.log('train_alignment_loss', alignment_loss, prog_bar=True, sync_dist=True)
             loss = codebook_loss + alignment_loss
         else:
             loss = codebook_loss
         
+        return {
+            'logits': logits,
+            'attn_info' : attn_info,
+            'loss': loss,
+            'codebook_loss': codebook_loss,
+            'alignment_loss': alignment_loss,
+            'audio_codes_target': audio_codes_target,
+            'audio_codes_lens_target': audio_codes_lens_target,
+            'text': text,
+            'text_lens': text_lens,
+            'context_audio_codes': context_audio_codes,
+            'context_audio_codes_lens': context_audio_codes_lens
+        }
+    
+    def training_step(self, batch, batch_idx):
+        batch_output = self.process_batch(batch)
+        loss = batch_output['loss']
+        codebook_loss = batch_output['codebook_loss']
+        alignment_loss = batch_output['alignment_loss']
+        self.log('train_codebook_loss', codebook_loss, prog_bar=True, sync_dist=True)
+        if alignment_loss is not None:
+            self.log('train_alignment_loss', alignment_loss, prog_bar=True, sync_dist=True)
         self.log('train_loss', loss, prog_bar=True, sync_dist=True)
+        
         return loss
     
     
     def validation_step(self, batch, batch_idx):
-        text = batch['text']
-        text_lens = batch['text_lens']
-        target_audio = batch['audio']
-        target_audio_lens = batch['audio_lens']
-        attn_prior = batch.get('align_prior_matrix', None)
-        attn_prior = self.scale_prior(attn_prior, self.global_step)
-
-        target_audio_16khz = batch['audio_16khz']
-        target_audio_lens_16khz = batch['audio_lens_16khz']
-        speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
-        speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
-
-        if 'audio_codes' not in batch:
-            audio_codes, audio_codes_lens = self.audio_to_codes(target_audio, target_audio_lens)
-        else:
-            audio_codes = batch['audio_codes']
-            audio_codes_lens = batch['audio_codes_lens']
-
-        audio_codes_input = audio_codes[:, :, :-1]
-        audio_codes_target = audio_codes[:, :, 1:]
-        audio_codes_lens_input = audio_codes_lens_target = audio_codes_lens - 1
-
-        logits, attn_info = self.forward(
-            text=text,
-            text_lens=text_lens,
-            audio_codes=audio_codes_input,
-            audio_codes_lens=audio_codes_lens_input,
-            attn_prior=attn_prior,
-            conditioning_vector=speaker_embeddings_projected
-        )
-        
-        codebook_loss = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
-        if self.cfg.alignment_loss_scale > 0.0:
-            cross_attention_scores = [attn['cross_attn_probabilities'][1] for attn in attn_info]
-            alignment_loss = self.compute_alignment_loss(cross_attention_scores, text_lens, audio_codes_lens_target)
-            loss = codebook_loss + alignment_loss
-        else:
-            loss = codebook_loss
+        batch_output = self.process_batch(batch)
+        loss = batch_output['loss']
+        codebook_loss = batch_output['codebook_loss']
+        alignment_loss = batch_output['alignment_loss']
+        logits = batch_output['logits']
+        audio_codes_target = batch_output['audio_codes_target']
+        audio_codes_lens_target = batch_output['audio_codes_lens_target']
+        context_audio_codes = batch_output['context_audio_codes']
+        context_audio_codes_lens = batch_output['context_audio_codes_lens']
+        attn_info = batch_output['attn_info']
+        text_lens = batch_output['text_lens']
+        if alignment_loss is None:
             alignment_loss = torch.tensor(0.0, device=loss.device)
-
+        
         if batch_idx == 0 and self.global_rank == 0:
-            self.log_train_val_example(logits, audio_codes_target, audio_codes_lens_target)
+            self.log_train_val_example(logits, audio_codes_target, audio_codes_lens_target, context_audio_codes, context_audio_codes_lens)
             if len(attn_info[0]['cross_attn_probabilities']) > 1:
                 # cross_attn_probabilities only returned when not using flash attention
-                cross_attention_probs = [attn['cross_attn_probabilities'][0] for attn in attn_info]
+                cross_attention_probs = [attn['cross_attn_probabilities'][0] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.transcript_decoder_layers]
                 self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix="val_")
 
         val_output = {
@@ -484,13 +544,34 @@ class T5TTS_Model(ModelPT):
             text_mask = ~get_mask_from_lengths(text_lens)
             encoder_out = self.t5_encoder(self.text_embedding(text), text_mask, cond=None, cond_mask=None)['output']
 
-            target_audio_16khz = batch['audio_16khz']
-            target_audio_lens_16khz = batch['audio_lens_16khz']
-            speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
-            speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
+            if self.model_type == 'single_encoder_sv_tts':
+                target_audio_16khz = batch['audio_16khz']
+                target_audio_lens_16khz = batch['audio_lens_16khz']
+                
+                speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
+                conditioning_vector = self.speaker_projection_layer(speaker_embeddings)
+                encoder_out = encoder_out + conditioning_vector.unsqueeze(1)
+                cond = encoder_out
+                cond_mask = text_mask
+                multi_encoder_mapping = None
 
-            encoder_out = encoder_out + speaker_embeddings_projected.unsqueeze(1)
+            elif self.model_type == 'multi_encoder_context_tts':
+                if 'context_audio_codes' not in batch:
+                    context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'])
+                else:
+                    context_audio_codes = batch['context_audio_codes']
+                    context_audio_codes_lens = batch['context_audio_codes_lens']
+                context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
+                context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
+                context_embeddings = self.context_encoder(context_audio_embedded, context_mask, cond=None, cond_mask=None)['output']
+                if self.cfg.use_perceiver:
+                    context_embeddings = self.perceiver_resampler(context_embeddings)
+                    context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
 
+                cond = [encoder_out, context_embeddings]
+                cond_mask = [text_mask, context_mask]
+                multi_encoder_mapping = self.multi_encoder_mapping
+            
             all_predictions = []
             end_indices = {}
             for idx in range(self.cfg.max_decoder_steps):
@@ -498,8 +579,9 @@ class T5TTS_Model(ModelPT):
                 decoder_out = self.t5_decoder(
                     audio_codes_embedded,
                     audio_codes_mask,
-                    cond=encoder_out,
-                    cond_mask=text_mask,
+                    cond=cond,
+                    cond_mask=cond_mask,
+                    multi_encoder_mapping=multi_encoder_mapping
                 )
                 all_code_logits = self.final_proj(decoder_out['output']) # (B, T', num_codebooks * num_tokens_per_codebook)
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
@@ -567,6 +649,7 @@ class T5TTS_Model(ModelPT):
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type, # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
         )
+        dataset.load_16khz_audio = self.model_type == 'single_encoder_sv_tts'
         dataset.tokenizer_config = self.cfg.text_tokenizer # This will be used in worker_init_fn for instantiating tokenizer
         return dataset
 
@@ -597,26 +680,6 @@ class T5TTS_Model(ModelPT):
 
     def setup_test_data(self, cfg):
         self._test_dl = self._setup_test_dataloader(cfg)
-
-    @property
-    def max_steps(self):
-        if "max_steps" in self._cfg:
-            return self._cfg.get("max_steps")
-
-        if "max_epochs" not in self._cfg:
-            raise ValueError("Must specify 'max_steps' or 'max_epochs'.")
-
-        if "steps_per_epoch" in self._cfg:
-            return self._cfg.max_epochs * self._cfg.steps_per_epoch
-        return compute_max_steps(
-            max_epochs=self._cfg.max_epochs,
-            accumulate_grad_batches=self.trainer.accumulate_grad_batches,
-            limit_train_batches=self.trainer.limit_train_batches,
-            num_workers=get_num_workers(self.trainer),
-            num_samples=len(self._train_dl.dataset),
-            batch_size=get_batch_size(self._train_dl),
-            drop_last=self._train_dl.drop_last,
-        )
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
