@@ -125,8 +125,7 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
         )
 
     def setup(self, stage: str = "") -> None:
-        """ Assign Train/Val/Test dataset
-        """
+        """Assign Train/Val/Test dataset"""
         from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDataset
         from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 
@@ -186,15 +185,15 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
     #     ).build()
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        """ Create Train dataloader"""
+        """Create Train dataloader"""
         return self._create_dataloader(self._train_ds, mode='train')
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        """ Create Validation dataloader"""
+        """Create Validation dataloader"""
         return self._create_dataloader(self._validation_ds, mode='validation')
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
-        """ Create Test dataloader"""
+        """Create Test dataloader"""
         return self._create_dataloader(self._test_ds, mode='test')
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:

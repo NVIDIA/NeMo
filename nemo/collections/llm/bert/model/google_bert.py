@@ -16,6 +16,7 @@ from nemo.lightning import OptimizerModule, io, teardown
 @dataclass
 class GoogleBertConfig(BertConfig):
     """Configs for models in https://huggingface.co/google-bert"""
+
     bert_type: str = 'huggingface'
     add_pooler: bool = True
     init_method_std: float = 0.02
@@ -29,6 +30,7 @@ class GoogleBertConfig(BertConfig):
 @dataclass
 class GoogleBertBaseConfig(GoogleBertConfig):
     """Configs for model in https://huggingface.co/google-bert/bert-base-uncased"""
+
     num_layers: int = 12
     hidden_size: int = 768
     ffn_hidden_size: int = 3072
@@ -38,6 +40,7 @@ class GoogleBertBaseConfig(GoogleBertConfig):
 @dataclass
 class GoogleBertLargeConfig(GoogleBertConfig):
     """Configs for model in https://huggingface.co/google-bert/bert-large-uncased"""
+
     num_layers: int = 24
     hidden_size: int = 1024
     ffn_hidden_size: int = 4096
@@ -46,6 +49,7 @@ class GoogleBertLargeConfig(GoogleBertConfig):
 
 class GoogleBertModel(BertModel):
     """Google Bert Model."""
+
     def __init__(
         self,
         config: Annotated[Optional[BertConfig], Config[BertConfig]] = None,
@@ -59,6 +63,7 @@ class GoogleBertModel(BertModel):
 @io.model_importer(GoogleBertModel, "hf")
 class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
     """Importer Connector for converting HF Google Bert Model to NeMo"""
+
     def __init__(self, *args, **kwargs):
         if sys.version_info > (3, 11):
             # In Python versions <= 3.11, *Path classes don’t have a __init__ method,
