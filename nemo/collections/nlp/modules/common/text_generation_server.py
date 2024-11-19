@@ -164,7 +164,6 @@ class MegatronGenerate(Resource):
         )
 
     def chat_completion(self, data):
-        dm1 = data["messages"][-1]
         data['messages'] = data['messages'] + [
             {'role': 'assistant', 'content': ''}
         ]  # adding trailing assistant message so that prompt ends with Assistant tag.
@@ -190,6 +189,7 @@ class MegatronGenerate(Resource):
             end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
             random_seed = None
 
+            st  = time.perf_counter()
             output = generate(
                 self.model,
                 [conversation],
@@ -207,6 +207,8 @@ class MegatronGenerate(Resource):
                 random_seed=random_seed,
                 **extra,
             )
+            tdiff = time.perf_counter() - st
+            logging.info(f"Chat server gerneration completed in {tdiff} seconds")
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
@@ -223,12 +225,6 @@ class MegatronGenerate(Resource):
         num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
         num_output_sentence = len(output_sentence.split())
 
-        logging.info(f"type logprobs {type(logprobs)}")
-        logging.info(f"type tokens {type(tokens)}, type tokens[0] {type(tokens[0])}")
-        logging.info(
-            f"type logprobs {type(tokens)}, type output_sentence {type(output_sentence)} type output_sentence[0] {type(output_sentence[0])}"
-        )
-        logging.info(f"Log for Timing -- returning generation {dm1}")
         return jsonify(
             {
                 "id": f"chatcmpl-{uuid.uuid4()}",
@@ -239,8 +235,8 @@ class MegatronGenerate(Resource):
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": output_sentence},
-                        "logprobs": None,
-                        "tokens": None,
+                        "logprobs": logprobs,
+                        "tokens": tokens,
                         "finish_reason": "",
                     }
                 ],
@@ -259,7 +255,6 @@ class MegatronGenerate(Resource):
             return self.completion(data)
         elif request.endpoint == "oai_chat_completions":
             data = request.get_json()
-            dm1 = data["messages"][-1]
             return self.chat_completion(data)
         else:
             raise RuntimeError("Unknown enpoint requested.")
