@@ -211,10 +211,13 @@ class BatchedBeamHyps:
         scores = torch.where(scores_to_copy, hyps_extenstions_probs, scores)
         return scores.view(self.batch_size, self.beam_size, self.beam_size)
 
-    def to_hyps_list(self) -> list[rnnt_utils.Hypothesis]:
+    def to_hyps_list(self, score_norm: bool = True) -> list[rnnt_utils.Hypothesis]:
         transcript = self.transcript_wb.tolist()
         transcript_wb_prev_ptr = self.transcript_wb_prev_ptr.tolist()
-        end_indices = torch.argmax(self.scores, dim=-1).tolist()
+        if score_norm:
+            end_indices = torch.argmax(self.scores / self.current_lengths_nb.to(self.scores.dtype), dim=-1).tolist()
+        else:
+            end_indices = torch.argmax(self.scores, dim=-1).tolist()
         scores = self.scores.tolist()
         batch_size = self.scores.shape[0]
         hyp_length = self.current_lengths_wb[0, 0].cpu().item()
@@ -269,7 +272,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
-        allow_recombine_hyps: bool = False,
+        allow_recombine_hyps: bool = True,
+        score_norm: bool = True,
     ):
         super().__init__()
         self.decoder = decoder
@@ -282,6 +286,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         self.allow_recombine_hyps = allow_recombine_hyps
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
+        self.score_norm = score_norm
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
         if ngram_lm_model is not None:
@@ -353,10 +358,10 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         # decoder_output: [(B x Beam), 1, Dim]
 
-        # step = -1
+        step = -1
         while active_mask.any():
-            # step += 1
-            # logging.warning(f"Step: {step}")
+            step += 1
+            logging.warning(f"Step: {step} {batched_hyps.transcript_wb[:, :, batched_hyps.current_lengths_wb[0, 0].item() - 1]} {batched_hyps.scores}")
             # torch.cuda.set_sync_debug_mode(2)
             # step 1: get joint output + fuse with LM (if present)
             logits = (
@@ -478,8 +483,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             )
 
             # step 2.4: prune and recombine hyps
-            if self.allow_recombine_hyps:
-                hyps_candidates_prob = batched_hyps.recombine_prune_hyps(hyps_candidates_prob, labels_top_k)
+            # if self.allow_recombine_hyps:
+            #     hyps_candidates_prob = batched_hyps.recombine_prune_hyps(hyps_candidates_prob, labels_top_k)
 
             # step 2.5: final pruning - get top-k from (top-k x top-k) hyps
             hyps_indices = torch.arange(self.beam_size, dtype=torch.long, device=device)[None, :, None].expand(
@@ -496,8 +501,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 batched_hyps.add_results_(hyps_indices, next_labels, next_hyps_prob)
             else:
                 batched_hyps.add_results_no_checks_(hyps_indices, next_labels, next_hyps_prob)
-            # if self.allow_recombine_hyps:
-            #     batched_hyps.self_recombine_hyps_()
+            if self.allow_recombine_hyps:
+                batched_hyps.self_recombine_hyps_()
 
             # step 4: update decoder state + decoder output (+ lm state/scores)
             last_labels_wb = torch.where(
@@ -577,7 +582,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             active_mask = time_indices <= last_timesteps
             # torch.cuda.set_sync_debug_mode(0)
 
-        return batched_hyps.to_hyps_list()
+        return batched_hyps.to_hyps_list(score_norm=self.score_norm)
 
     def __call__(
         self,

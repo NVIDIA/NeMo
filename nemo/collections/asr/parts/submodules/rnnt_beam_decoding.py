@@ -1521,7 +1521,8 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
             preserve_alignments: bool = False,
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
-            blank_lm_score_mode: Optional[str] = None
+            blank_lm_score_mode: Optional[str] = None,
+            score_norm: bool = True,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -1548,6 +1549,7 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
             ngram_lm_model=ngram_lm_model,
             ngram_lm_alpha=ngram_lm_alpha,
             blank_lm_score_mode=blank_lm_score_mode,
+            score_norm=score_norm,
         )
 
     @property
