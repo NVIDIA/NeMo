@@ -31,7 +31,7 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 
 HAVE_TE = True
 try:
-    import transformer_engine # pylint: disable=W0611
+    import transformer_engine  # pylint: disable=W0611
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
@@ -106,7 +106,8 @@ def default_layer_spec(config: "BertConfig") -> ModuleSpec:
 
 @dataclass
 class BertConfig(TransformerConfig, io.IOMixin):
-    """"Model config for BERT model. Adpated from megatron.core.models.bert.bert_model.BertModel"""
+    """ "Model config for BERT model. Adpated from megatron.core.models.bert.bert_model.BertModel"""
+
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
     share_embeddings_and_output_weights: bool = False
@@ -130,7 +131,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
     add_lm_head: bool = True
 
     def configure_model(self, tokenizer) -> "MCoreBertModelWrapperWithPostLNSupport":
-        """ Configure the BERT Model.
+        """Configure the BERT Model.
         For bert_type == 'megatron', num_tokentypes in embedding is controlled by whether model has binary head.
         For bert_type == 'huggingface', tokentypes embedding is always added with num_tokentypes = 2.
         """
@@ -179,6 +180,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     by default have post layer norm, while the vanilla mcore bert model does not support it.
     when bert_type is set to 'huggingface', it will initialize post layer norm BERT model.
     """
+
     def __init__(self, bert_type='megatron', add_pooler=True, *args, **kwargs):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
@@ -300,6 +302,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 @dataclass
 class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
     """Wrapper for TransformerLayerSubmodules with additional post-attention LN and post MLP LN"""
+
     def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
         super(TransformerLayerSubmodulesWithPostLNSupport, self).__init__(**kwargs)
         self.post_att_layernorm = post_att_layernorm
@@ -308,6 +311,7 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 
 class TransformerLayerWithPostLNSupport(TransformerLayer):
     """Adapted from mcore's TransformerLayer with additional post-attention LN and post MLP LN support."""
+
     def __init__(self, *args, **kwargs):
         super(TransformerLayerWithPostLNSupport, self).__init__(*args, **kwargs)
         ## [Module add: Post attention LN]
@@ -441,6 +445,7 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
 
 class TransformerBlockWithPostLNSupport(TransformerBlock):
     """Adapted from mcore's TransformerBlock with additional post-attention LN and post MLP LN support."""
+
     def __init__(self, bert_type='megatron', *args, **kwargs):
 
         super(TransformerBlockWithPostLNSupport, self).__init__(*args, **kwargs)
@@ -464,28 +469,28 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         packed_seq_params: PackedSeqParams = None,
     ):
         """
-            Perform the forward pass through the transformer block.
-            Perform additional post-attention LN and post MLP LN support if needed.
+        Perform the forward pass through the transformer block.
+        Perform additional post-attention LN and post MLP LN support if needed.
 
-            This method handles the core computation of the transformer, including
-            self-attention, optional cross-attention, and feed-forward operations.
+        This method handles the core computation of the transformer, including
+        self-attention, optional cross-attention, and feed-forward operations.
 
-            Args:
-                hidden_states (Tensor): Input tensor of shape [s, b, h] where s is the
-                    sequence length, b is the batch size, and h is the hidden size.
-                attention_mask (Tensor): Boolean tensor of shape [1, 1, s, s] for masking
-                    self-attention.
-                context (Tensor, optional): Context tensor for cross-attention.
-                context_mask (Tensor, optional): Mask for cross-attention context
-                rotary_pos_emb (Tensor, optional): Rotary positional embeddings.
-                inference_params (InferenceParams, optional): Parameters for inference-time
-                    optimizations.
-                packed_seq_params (PackedSeqParams, optional): Parameters for packed sequence
-                    processing.
+        Args:
+            hidden_states (Tensor): Input tensor of shape [s, b, h] where s is the
+                sequence length, b is the batch size, and h is the hidden size.
+            attention_mask (Tensor): Boolean tensor of shape [1, 1, s, s] for masking
+                self-attention.
+            context (Tensor, optional): Context tensor for cross-attention.
+            context_mask (Tensor, optional): Mask for cross-attention context
+            rotary_pos_emb (Tensor, optional): Rotary positional embeddings.
+            inference_params (InferenceParams, optional): Parameters for inference-time
+                optimizations.
+            packed_seq_params (PackedSeqParams, optional): Parameters for packed sequence
+                processing.
 
-            Returns:
-                Union[Tensor, Tuple[Tensor, Tensor]]: The output hidden states tensor of shape
-                [s, b, h], and optionally the updated context tensor if cross-attention is used.
+        Returns:
+            Union[Tensor, Tuple[Tensor, Tensor]]: The output hidden states tensor of shape
+            [s, b, h], and optionally the updated context tensor if cross-attention is used.
         """
         # hidden_states (float): [s, b, h]
         # attention_mask (bool): [1, 1, s, s]
@@ -501,6 +506,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
 
 class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     """Bert Lightning Module"""
+
     def __init__(
         self,
         config: BertConfig,
@@ -532,29 +538,29 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         output_tensor = self.module(*args, **kwargs)  # for now just pass through to the underlying model
         return output_tensor
 
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]: # pylint: disable=C0115,C0116
+    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:  # pylint: disable=C0115,C0116
         return self.config.data_step_fn(dataloader_iter)
 
-    def forward_step(self, batch) -> torch.Tensor: # pylint: disable=C0115,C0116
+    def forward_step(self, batch) -> torch.Tensor:  # pylint: disable=C0115,C0116
         return self.config.forward_step_fn(self, batch)
 
-    def training_step(self, batch, batch_idx=None) -> torch.Tensor: # pylint: disable=C0115,C0116
+    def training_step(self, batch, batch_idx=None) -> torch.Tensor:  # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
-    def validation_step(self, batch, batch_idx=None) -> torch.Tensor: # pylint: disable=C0115,C0116
+    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:  # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
     @property
-    def training_loss_reduction(self) -> BERTLossReduction: # pylint: disable=C0115,C0116
+    def training_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = BERTLossReduction()
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> BERTLossReduction: # pylint: disable=C0115,C0116
+    def validation_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = BERTLossReduction(validation_step=True)
 
