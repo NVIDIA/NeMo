@@ -22,6 +22,13 @@ te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 
 def te_accelerate(model, fp8_autocast=False):
+    """
+    Replaces original model layers with TE's accelerated layers
+    Args:
+        model: HF model
+        fp8_autocast (bool): apply autocast or not
+    """
+
     if not HAVE_TE:
         logging.warning("Transformer Engine is not available and the module replacements " "will not be applied.")
     else:
@@ -58,6 +65,12 @@ def _apply_basic_module_replacement(model):
 
 
 def is_te_accelerated(model):
+    """
+    Checks whether model has TE layers or not
+    Args:
+        model: HF model
+    """
+
     if not HAVE_TE:
         logging.warning("Transformer Engine is not available.")
         return False
@@ -70,6 +83,13 @@ def is_te_accelerated(model):
 
 
 def apply_fp8_autocast(model, fp8_recipe_handler=None):
+    """
+    Applies TE's autocast
+    Args:
+        model: HF model
+        fp8_recipe_handler: fpt handler
+    """
+
     if not HAVE_TE:
         logging.warning("Transformer Engine is not available and the FP8 autocast " "will not be applied.")
     else:
