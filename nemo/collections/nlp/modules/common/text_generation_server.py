@@ -225,7 +225,9 @@ class MegatronGenerate(Resource):
 
         logging.info(f"type logprobs {type(logprobs)}")
         logging.info(f"type tokens {type(tokens)}, type tokens[0] {type(tokens[0])}")
-        logging.info(f"type logprobs {type(tokens)}, type output_sentence {type(output_sentence)} type output_sentence[0] {type(output_sentence[0])}")
+        logging.info(
+            f"type logprobs {type(tokens)}, type output_sentence {type(output_sentence)} type output_sentence[0] {type(output_sentence[0])}"
+        )
         logging.info(f"Log for Timing -- returning generation {dm1}")
         return jsonify(
             {
