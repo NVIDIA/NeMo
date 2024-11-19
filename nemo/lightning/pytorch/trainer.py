@@ -59,6 +59,30 @@ def configure_no_restart_validation_training_loop(trainer: pl.Trainer) -> None:
     trainer.fit_loop.epoch_loop = loop
 
 
+class GenericLitWrapper(pl.LightningModule):
+    def __init__(self, model, criterion, optimizer_cls, optimizer_kwargs):
+        super(GenericLitWrapper, self).__init__()
+        self.model = model
+        self.criterion = criterion
+        self.optimizer_cls = optimizer_cls
+        self.optimizer_kwargs = optimizer_kwargs
+
+    def forward(self, x):
+        return self.model(x)
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        loss = self.criterion(y_hat, y)
+        self.log('train_loss', loss)
+        return loss
+
+    def configure_optimizers(self):
+        return self.optimizer_cls(
+            self.parameters(),
+            **self.optimizer_kwargs
+        )
+
 class Trainer(pl.Trainer, IOMixin):
     def add_io(self, obj):
         """Recurse to the leaves of a container and add io functionality to non-serializable leaves"""
@@ -111,3 +135,12 @@ class Trainer(pl.Trainer, IOMixin):
         )
 
         return out
+
+    def fit(self, model, train_dataloaders=None, *args, **kwargs):
+        if isinstance(model, nn.Module) and not isinstance(model, pl.LightningModule):
+            # Extract loss function and optimizer info from kwargs
+            criterion = kwargs.pop('criterion', nn.CrossEntropyLoss())
+            optimizer_cls = kwargs.pop('optimizer_cls', torch.optim.Adam)
+            optimizer_kwargs = kwargs.pop('optimizer_kwargs', {'lr': 1e-3})
+            model = GenerixLitWrapper(model, criterion, optimizer_cls, optimizer_kwargs)
+        super().fit(model, trainer_dataloaders, *args, **kwargs)
