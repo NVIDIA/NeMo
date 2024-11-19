@@ -221,7 +221,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
             run.Config(MegatronTokenDropCallback),
             run.Config(
                 MegatronCommOverlapCallback,
-                overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing.
+                overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to issue with checkpointing.
                 align_param_gather=True,
             ),
         ]

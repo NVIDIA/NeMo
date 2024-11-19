@@ -163,10 +163,38 @@ def nemo_resume(model_id: str) -> run.Config[nl.AutoResume]:
 
 
 @run.cli.factory(name='lora')
-def lora() -> run.Config[PEFT]:
+def lora()  -> run.Config[PEFT]:
+    """
+    Factory function to create a LoRA configuration.
+
+    Returns:
+        run.Config[PEFT]: Configuration for the LoRA class.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune -f llama3_8b peft=lora
+
+        Python API usage:
+            >>> lora_config = lora()
+            >>> print(lora_config)
+    """
     return run.Config(LoRA)
 
 
 @run.cli.factory(name='dora')
-def dora() -> run.Config[PEFT]:
+def dora()  -> run.Config[PEFT]:
+    """
+    Factory function to create a DoRA configuration.
+
+    Returns:
+        run.Config[PEFT]: Configuration for the DoRA class.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune -f llama3_8b peft=dora
+
+        Python API usage:
+            >>> dora_config = dora()
+            >>> print(dora_config)
+    """
     return run.Config(DoRA)
