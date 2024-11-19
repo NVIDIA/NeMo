@@ -14,12 +14,12 @@
 
 import gc
 import json
+import math
 import os
 import shutil
 from copy import deepcopy
 from typing import Dict, List, Tuple, Union
 
-import math
 import numpy as np
 import soundfile as sf
 import torch
@@ -977,12 +977,12 @@ def get_subsegments(
     slice_end = start + duration
     if min_subsegment_duration <= duration <= shift:
         slices = 1
-    elif use_asr_style_frame_count is True:    
-        num_feat_frames = np.ceil((1+duration*sample_rate)/int(sample_rate/feat_per_sec)).astype(int)
-        slices = np.ceil(num_feat_frames/int(feat_per_sec*shift)).astype(int)
+    elif use_asr_style_frame_count is True:
+        num_feat_frames = np.ceil((1 + duration * sample_rate) / int(sample_rate / feat_per_sec)).astype(int)
+        slices = np.ceil(num_feat_frames / int(feat_per_sec * shift)).astype(int)
         slice_end = start + shift * slices
     else:
-        slices = np.ceil(1+ (duration-window)/shift).astype(int)
+        slices = np.ceil(1 + (duration - window) / shift).astype(int)
     if slices == 1:
         if min(duration, window) >= min_subsegment_duration:
             subsegments.append([start, min(duration, window)])
@@ -997,22 +997,35 @@ def get_subsegments(
         subsegments = valid_subsegments.tolist()
     return subsegments
 
+
 def get_subsegments_scriptable(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
     """
+<<<<<<< HEAD
     This function returns subsegments from a segment of an audio file.
     Although this implementation is inefficient due to the use of a for-loop for segmentation, 
     it is designed to be torch-jit-scriptable.
     Use `get_subsegments` for a more efficient implementation.
     
+=======
+    Return subsegments from a segment of audio file.
+    This function is inefficient since the segmentation is based on for-loop,
+    but this implementation makes this function torch-jit-scriptable.
+
+>>>>>>> 681fe3881c7029e104788ef621d020b8f94bd410
     Args:
         offset (float): start time of audio segment
         window (float): window length for segments to subsegments length
         shift (float): hop length for subsegments shift
         duration (float): duration of segment
     Returns:
+<<<<<<< HEAD
         subsegments (List[tuple[float, float]]): subsegments generated for the segments 
                                                  as list of tuple of start and duration of 
                                                  each subsegment
+=======
+        subsegments (List[tuple[float, float]]): subsegments generated for the segments
+                                                 as list of tuple of start and duration of each subsegment
+>>>>>>> 681fe3881c7029e104788ef621d020b8f94bd410
     """
     subsegments: List[List[float]] = []
     start = offset
@@ -1842,7 +1855,7 @@ class OnlineSegmentor:
         segment_indexes: List[int],
         window: float,
         shift: float,
-    )-> Tuple[List[torch.Tensor], List[List[float]], List[int]]:
+    ) -> Tuple[List[torch.Tensor], List[List[float]], List[int]]:
         """
         Remove the old segments that overlap with the new frame (self.frame_start)
         cursor_for_old_segments is pointing at the onset of the t_range popped most recently.
