@@ -218,6 +218,7 @@ class MegatronGenerate(Resource):
 
         output_sentence = output['sentences'][0][len(conversation) :]
         tokens = output['tokens'][0]
+        tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
         logprobs = output['logprob'][0] if output['logprob'] is not None else None
         num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
         num_output_sentence = len(output_sentence.split())
