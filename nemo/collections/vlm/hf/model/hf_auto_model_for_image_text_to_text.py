@@ -15,7 +15,8 @@
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from transformers import AutoModelForImageTextToText, AutoConfig, AutoProcessor
+from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
+
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
@@ -53,9 +54,7 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def processor(self):
         if self._processor is None:
-            self._processor = AutoProcessor.from_pretrained(
-                self.model_name, trust_remote_code=self.trust_remote_code
-            )
+            self._processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
         return self._processor
 
     @processor.setter
@@ -80,9 +79,7 @@ class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def forward(self, batch):
         inputs = self.processor(**batch, return_tensors='pt').to(self.model.device, self.model.dtype)
-        outputs = self.model(
-            **inputs
-        )
+        outputs = self.model(**inputs)
         labels = batch['labels'].to(self.model.device)
         if batch.get('loss_mask', None) is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
