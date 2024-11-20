@@ -36,12 +36,14 @@ if TYPE_CHECKING:
 
 HF_TO_MCORE_REGISTRY = {
     'Phi3ForCausalLM': llm.Phi3Model,
+    'MixtralForCausalLM': llm.MixtralModel,
     'MistralForCausalLM': llm.MistralModel,
     'GemmaForCausalLM': llm.GemmaModel,
     'Gemma2ForCausalLM': llm.Gemma2Model,
     'LlamaForCausalLM': llm.LlamaModel,
     'BaichuanForCausalLM': llm.Baichuan2Model,
     'Qwen2ForCausalLM': llm.Qwen2Model,
+    'StarcoderForCausal': llm.StarcoderModel,
     'Starcoder2ForCausal': llm.Starcoder2Model,
 }
 
