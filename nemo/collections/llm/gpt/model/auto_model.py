@@ -12,12 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
-import torch
-import torch.nn.functional as F
 from torch import nn
 from typing_extensions import Annotated
 from nemo.lightning.pytorch.optim import OptimizerModule
