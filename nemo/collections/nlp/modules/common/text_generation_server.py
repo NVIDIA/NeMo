@@ -171,17 +171,9 @@ class MegatronGenerate(Resource):
         if OmegaConf.select(self.model.cfg, "data.chat_prompt_tokens") is not None:
             special_tokens = self.model.cfg.data.chat_prompt_tokens
         else:
-            # raise RuntimeError(
-            #    "You don't have a model (model_config.yaml) which has chat_prompt_tokens, are you sure this is a Chat/Instruction model?"
-            # )
-            # (@adithyare) hacking in the special tokens to test non-chat models for debugging
-            special_tokens = {
-                "system_turn_start": "<SPECIAL_10>",
-                "turn_start": "<SPECIAL_11>",
-                "label_start": "<SPECIAL_12>",
-                "end_of_name": "\n",
-                "end_of_turn": "\n",
-            }
+             raise RuntimeError(
+                "You don't have a model (model_config.yaml) which has chat_prompt_tokens, are you sure this is a Chat/Instruction model?"
+             )
         nemo_source = self.convert_messages(data['messages'])
         header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(
             nemo_source, special_tokens
@@ -203,7 +195,6 @@ class MegatronGenerate(Resource):
             end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
             random_seed = None
 
-            st = time.perf_counter()
             output = generate(
                 self.model,
                 [conversation],
@@ -221,8 +212,6 @@ class MegatronGenerate(Resource):
                 random_seed=random_seed,
                 **extra,
             )
-            tdiff = time.perf_counter() - st
-            logging.info(f"Chat server generation completed in {tdiff} seconds")
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
@@ -407,7 +396,6 @@ class MegatronGenerate(Resource):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
 
-            st = time.perf_counter()
             output = generate(
                 self.model,
                 sentences,
@@ -425,8 +413,6 @@ class MegatronGenerate(Resource):
                 random_seed=random_seed,
                 **extra,
             )
-            tdiff = time.perf_counter() - st
-            logging.info(f"Chat server generation completed in {tdiff} seconds")
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
