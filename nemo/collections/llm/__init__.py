@@ -17,16 +17,17 @@ from nemo.utils.import_utils import safe_import
 
 safe_import("transformer_engine")
 
-from nemo.collections.llm import peft, tokenizer
-from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
+from nemo.collections.llm import peft
 from nemo.collections.llm.gpt.data import (
+    AlpacaDataModule,
     DollyDataModule,
     FineTuningDataModule,
+    HfDatasetDataModule,
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
 )
-from nemo.collections.llm.gpt.data.api import dolly, mock, squad
+from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (
     Baichuan2Config,
     Baichuan2Config7B,
@@ -46,6 +47,11 @@ from nemo.collections.llm.gpt.model import (
     CodeLlamaConfig13B,
     CodeLlamaConfig34B,
     CodeLlamaConfig70B,
+    Gemma2Config,
+    Gemma2Config2B,
+    Gemma2Config9B,
+    Gemma2Config27B,
+    Gemma2Model,
     GemmaConfig,
     GemmaConfig2B,
     GemmaConfig7B,
@@ -58,6 +64,7 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig126M,
     GPTConfig175B,
     GPTModel,
+    HfAutoModelForCausalLM,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
@@ -71,19 +78,24 @@ from nemo.collections.llm.gpt.model import (
     MaskedTokenLossReduction,
     MistralConfig7B,
     MistralModel,
+    MistralNeMoConfig12B,
+    MixtralConfig,
     MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
     MixtralModel,
     Nemotron3Config4B,
     Nemotron3Config8B,
+    Nemotron3Config22B,
     Nemotron4Config15B,
-    Nemotron4Config22B,
     Nemotron4Config340B,
     NemotronConfig,
     NemotronModel,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
+    Phi3Config,
+    Phi3ConfigMini,
+    Phi3Model,
     Qwen2Config,
     Qwen2Config1P5B,
     Qwen2Config7B,
@@ -102,14 +114,8 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.recipes import *  # noqa
-from nemo.utils import logging
-
-try:
-    from nemo.collections.llm.api import deploy
-except ImportError as error:
-    deploy = None
-    logging.warning(f"The deploy module could not be imported: {error}")
+from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
+from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 
 __all__ = [
     "MockDataModule",
@@ -117,9 +123,15 @@ __all__ = [
     "GPTConfig",
     "gpt_data_step",
     "gpt_forward_step",
+    "T5Model",
+    "T5Config",
+    "t5_data_step",
+    "t5_forward_step",
     "MaskedTokenLossReduction",
     "MistralConfig7B",
+    "MistralNeMoConfig12B",
     "MistralModel",
+    "MixtralConfig",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
@@ -130,10 +142,13 @@ __all__ = [
     "NemotronModel",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
+    "Nemotron3Config22B",
     "Nemotron4Config15B",
-    "Nemotron4Config22B",
     "Nemotron4Config340B",
     "NemotronConfig",
+    "Phi3Config",
+    "Phi3ConfigMini",
+    "Phi3Model",
     "SSMConfig",
     "BaseMambaConfig130M",
     "BaseMambaConfig370M",
@@ -162,6 +177,11 @@ __all__ = [
     "CodeGemmaConfig2B",
     "CodeGemmaConfig7B",
     "GemmaModel",
+    "Gemma2Model",
+    "Gemma2Config9B",
+    "Gemma2Config",
+    "Gemma2Config27B",
+    "Gemma2Config2B",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
@@ -179,19 +199,49 @@ __all__ = [
     "FineTuningDataModule",
     "SquadDataModule",
     "DollyDataModule",
-    "train",
-    "import_ckpt",
-    "export_ckpt",
-    "pretrain",
-    "validate",
-    "finetune",
     "tokenizer",
     "mock",
     "squad",
     "dolly",
     "peft",
+    "hf_dataset",
+    "HfAutoModelForCausalLM",
 ]
 
-# add 'deploy' to __all__ if it was successfully imported
-if deploy is not None:
+
+from nemo.utils import logging
+
+try:
+    import nemo_run as run
+
+    from nemo.collections.llm.api import export_ckpt, finetune, generate, import_ckpt, pretrain, ptq, train, validate
+    from nemo.collections.llm.recipes import *  # noqa
+
+    __all__.extend(
+        [
+            "train",
+            "import_ckpt",
+            "export_ckpt",
+            "pretrain",
+            "validate",
+            "finetune",
+            "generate",
+            "ptq",
+        ]
+    )
+except ImportError as error:
+    logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
+
+try:
+    from nemo.collections.llm.api import deploy
+
     __all__.append("deploy")
+except ImportError as error:
+    logging.warning(f"The deploy module could not be imported: {error}")
+
+try:
+    from nemo.collections.llm.api import evaluate
+
+    __all__.append("evaluate")
+except ImportError as error:
+    logging.warning(f"The evaluate module could not be imported: {error}")

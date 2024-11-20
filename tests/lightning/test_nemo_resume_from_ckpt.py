@@ -11,11 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 
-os.environ['NVTE_FLASH_ATTN'] = '0'
-os.environ['NVTE_FUSED_ATTN'] = '0'
+import pytest
+
+
+def set_env():
+    os.environ['NVTE_FLASH_ATTN'] = '0'
+    os.environ['NVTE_FUSED_ATTN'] = '0'
+    os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '0'
+
 
 import sys
 from pathlib import Path
@@ -58,7 +63,7 @@ def load_dcp(ckpt_dir, torch_tensor=True):
     dcp.load(
         state_dict,
         storage_reader=fs_reader,
-        no_dist=True,
+        # no_dist=True,
     )
     return state_dict
 
@@ -84,7 +89,7 @@ def compare_ckpts(a, b, path=[]):
         raise ValueError("Unexpected value type " + str(type(a)))
 
 
-def setup_data_model_optim(log_dir, n_steps, data_path):
+def setup_data(log_dir, n_steps, data_path, gbs=2, mbs=1):
     seq_length = 2048
     tokenizer = get_nmt_tokenizer(
         "megatron",
@@ -96,13 +101,17 @@ def setup_data_model_optim(log_dir, n_steps, data_path):
     data = PreTrainingDataModule(
         paths=data_path,
         seq_length=2048,
-        micro_batch_size=1,
-        global_batch_size=2,
+        micro_batch_size=mbs,
+        global_batch_size=gbs,
         seed=1234,
         tokenizer=tokenizer,
         split='9999,1,1',
     )
+    return data
 
+
+def setup_model_optim(log_dir, n_steps, tokenizer, gbs=2, mbs=1):
+    seq_length = 2048
     gpt_config = llm.GPTConfig(
         num_layers=2,
         hidden_size=128,
@@ -118,7 +127,7 @@ def setup_data_model_optim(log_dir, n_steps, data_path):
         masked_softmax_fusion=False,
     )
 
-    model = llm.GPTModel(gpt_config, tokenizer=data.tokenizer)
+    model = llm.GPTModel(gpt_config, tokenizer=tokenizer)
 
     opt_config = OptimizerConfig(
         optimizer='adam',
@@ -135,7 +144,7 @@ def setup_data_model_optim(log_dir, n_steps, data_path):
     )
     optim = MegatronOptimizerModule(config=opt_config)
 
-    return gpt_config, data, model, optim
+    return gpt_config, model, optim
 
 
 def setup_trainer_and_logger(log_dir):
@@ -235,18 +244,34 @@ class TestCkptStateRestoration:
             log_dir = f'/tmp/mcore_logs_{n_steps}steps'
             os.makedirs(log_dir, exist_ok=True)
             data_path = [DATA_PATH]
-            gpt_config, data, model, optim = setup_data_model_optim(log_dir, n_steps, data_path)
-            trainer, nemo_logger = setup_trainer_and_logger(log_dir)
-            llm.train(
-                model=model,
-                data=data,
-                trainer=trainer,
-                log=nemo_logger,
-                resume=resume,
-                tokenizer='data',
-                optim=optim,
-            )
-            trainer._teardown()
+            data = setup_data(log_dir, n_steps, data_path, gbs=2, mbs=1)
+            # Other tests might have different configs, so need to configure explicitly.
+            from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
+
+            with reconfigure_num_microbatches_calculator_manager(
+                0,
+                None,
+                2,  # gbs
+                1,  # mbs
+                data_parallel_size=1,
+            ):
+                gpt_config, model, optim = setup_model_optim(log_dir, n_steps, data.tokenizer)
+                trainer, nemo_logger = setup_trainer_and_logger(log_dir)
+                llm.train(
+                    model=model,
+                    data=data,
+                    trainer=trainer,
+                    log=nemo_logger,
+                    resume=resume,
+                    tokenizer='data',
+                    optim=optim,
+                )
+                trainer._teardown()
+
+        set_env()
+        assert os.environ['NVTE_FLASH_ATTN'] == '0'
+        assert os.environ['NVTE_FUSED_ATTN'] == '0'
+        assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '0'
 
         # Train for 40 steps
         train(
@@ -289,3 +314,4 @@ class TestCkptStateRestoration:
 
         # Verify ckpt contents
         compare_ckpts(ckpts[0], ckpts[1])
+        teardown()

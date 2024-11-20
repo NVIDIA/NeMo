@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import LlamaTokenizer, PreTrainedTokenizerFast
 from transformers.convert_slow_tokenizer import LlamaConverter
 
@@ -140,6 +140,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     model_config.pipeline_model_parallel_size = 1
     model_config.sequence_parallel = False
     model_config.transformer_engine = True
+    model_config.name = "te_gpt"
     if cpu_only:
         map_location = torch.device("cpu")
         model_config.use_cpu_initialization = True

@@ -14,28 +14,32 @@
 
 import json
 from abc import ABC, abstractmethod
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
+import torch
 import torch.nn as nn
-from lightning_fabric.utilities.types import _PATH
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
-from pytorch_lightning.trainer.states import TrainerFn
+from lightning.fabric.utilities.types import _PATH
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning.pytorch.trainer.states import TrainerFn
 from typing_extensions import override
 
-from nemo.lightning.io.pl import ckpt_to_dir
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
+from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
+from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 
 
-_ADAPTER_META_FILENAME = "adapter_metadata.json"
-
-
-class PEFT(ABC, ModelTransform):
+class PEFT(IOMixin, ABC, ModelTransform):
     """Abstract base class for Parameter-Efficient Fine-Tuning (PEFT) methods.
 
     This class defines the interface for PEFT methods, which are used to fine-tune
@@ -90,23 +94,76 @@ class PEFT(ABC, ModelTransform):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
+        self.freeze_model(model)
 
-        model.freeze()
-        model.walk(self.transform)
+        # apply walk to model(s)
+        if isinstance(model, MegatronParallel) and len(model) > 1:
+            for model_chunk in model:
+                model_chunk.walk(self.transform)
+        elif isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
+            model.module.walk(self.transform)
+        else:
+            model.walk(self.transform)
 
         return model
 
+    def freeze_model(self, model: nn.Module) -> None:
+        """Apply a default freeze method to the model.
+
+        This method freezes all the model parameters. This method can be overridden by subclasses to
+        implement custom freeze strategies (e.g. freeze only parts of the model)
+
+        Args:
+            model (nn.Module): The model to be fine-tuned.
+
+        Returns:
+            nn.Module: The transformed model with PEFT applied.
+        """
+        if isinstance(model, MegatronParallel) and len(model) > 1:
+            for model_chunk in model:
+                model_chunk.freeze()
+        if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
+            model.module.freeze()
+        else:
+            model.freeze()
+        model.train(mode=True)
+
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+        from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
+
         super().setup(trainer, pl_module, stage=stage)
 
         trainer.strategy.trainer = trainer
-        self.wrapped_io = WrappedAdapterIO(trainer.strategy.checkpoint_io, self)
-        trainer.strategy._checkpoint_io = self.wrapped_io
+        wrapped_io = partial(WrappedAdapterIO, peft=self)
+
+        ckpt_io_kwarg_names = [
+            "save_ckpt_format",
+            "async_save",
+            "torch_dist_multiproc",
+            "assume_constant_structure",
+            "parallel_save",
+            "parallel_save_within_dp",
+            "parallel_load",
+            "load_directly_on_device",
+        ]
+        ckpt_io_kwargs = {
+            arg: getattr(trainer.strategy, arg)
+            for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
+        }
+        trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
+        self.wrapped_io = (
+            trainer.strategy._checkpoint_io._checkpoint_io
+            if getattr(trainer.strategy, 'async_save', False)
+            else trainer.strategy._checkpoint_io
+        )
         trainer.strategy._init_model_parallel = False
         trainer.strategy._setup_optimizers = False
 
     def apply_transform(self, trainer):
         super().apply_transform(trainer)
+        self.trainable_params = set(
+            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
+        )
 
         adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None:
@@ -137,9 +194,15 @@ class PEFT(ABC, ModelTransform):
             if trainer.state.fn == TrainerFn.FITTING:
                 trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
 
-        self.trainable_params = set(
-            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
-        )
+        for cb in trainer.callbacks[::-1]:
+            if isinstance(cb, MegatronOptimizerModule):
+                cb.on_fit_start(trainer, trainer.lightning_module)
+                break
+        else:
+            logging.warning(
+                "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
+                "properly set up for PEFT."
+            )
 
     def adapter_key_filter(self, key: str) -> bool:
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
@@ -258,7 +321,7 @@ class AdapterWrapper(nn.Module):
             self.adapter.load_state_dict(adapter_state_dict, strict)
 
 
-class WrappedAdapterIO(_WrappingCheckpointIO):
+class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     peft: Optional[PEFT] = None
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
@@ -271,18 +334,24 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         assert self.checkpoint_io is not None
 
-        checkpoint['sharded_state_dict'] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint['sharded_state_dict'].items())
+        state_key = 'sharded_state_dict'
+        if not state_key in checkpoint:
+            state_key = 'state_dict'
+        checkpoint[state_key] = dict(
+            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
         )
-        self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
+        request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+            base_dir = ckpt_to_weights_subdir(path, is_saving=True)
+            base_dir.mkdir(parents=True, exist_ok=True)
+            adapter_meta_path = base_dir / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
+        return request
 
     @override
     def load_checkpoint(
@@ -313,7 +382,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
 
         assert self.checkpoint_io is not None
 
-        adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+        adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
         adapter_ckpt = None
         if getattr(path, "base_model_path", None):
             ## PEFT Resume, FIRST TIME

@@ -37,15 +37,22 @@ from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_tr
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
-    get_tokenzier,
+    get_tokenizer,
     is_nemo_file,
     load_nemo_model,
 )
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
-from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
+from nemo.export.trt_llm.qnemo.tokenizer_utils import TOKENIZER_CONFIG_FILE, get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
-from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed, refit
+from nemo.export.trt_llm.tensorrt_llm_run import (
+    generate,
+    generate_streaming,
+    load,
+    load_distributed,
+    refit,
+    unload_engine,
+)
 
 use_deploy = True
 try:
@@ -169,9 +176,12 @@ class TensorRTLLM(ITritonDeployable):
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
+        use_mcore_path: bool = False,
         reduce_fusion: bool = True,
         fp8_quantized: Optional[bool] = None,
         fp8_kvcache: Optional[bool] = None,
+        gather_context_logits: Optional[bool] = False,
+        gather_generation_logits: Optional[bool] = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -206,11 +216,13 @@ class TensorRTLLM(ITritonDeployable):
             multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
             gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
             gemm_plugin (str): enable the gpt plugin. Default = "auto"
+            use_mcore_path (bool) : Use the more recent mcore path for export
             reduce_fusion (bool): enables fusing extra kernels after custom TRT-LLM allReduce
             fp8_quantized (Optional[bool]): enables exporting to FP8 TRT-LLM checkpoints. If not set, autodetects the type.
             fp8_kvcache (Optional[bool]): enables FP8 KV-cache quantization. If not set, autodetects the type.
+            gather_context_logits (Optional[bool]): if True, enables gather_context_logits while building trtllm engine. Default: False
+            gather_generation_logits (Optional[bool]): if True, enables gather_generation_logits while building trtllm engine. Default: False
         """
-
         if n_gpus is not None:
             warnings.warn(
                 "Parameter n_gpus is deprecated and will be removed in the next release. "
@@ -286,8 +298,14 @@ class TensorRTLLM(ITritonDeployable):
                 else:
                     unpack_tarball(nemo_checkpoint_path, tmp_dir.name)
                     nemo_checkpoint_path = tmp_dir.name
-                self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
-                vocab_path = os.path.join(nemo_export_dir, "tokenizer.vocab_file")
+
+                if os.path.exists(os.path.join(nemo_checkpoint_path, TOKENIZER_CONFIG_FILE)):
+                    # Instantiate tokenizer for a legacy "Nemo 1" quantized checkpoint from a tokenizer config.
+                    # Note that using the config is deprecated and it will be removed in future releases.
+                    LOGGER.warning("Detected legacy tokenizer_config.yaml, using it to build tokenizer.")
+                    self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
+                else:
+                    self.tokenizer = get_tokenizer(nemo_checkpoint_path)
 
                 qnemo_to_tensorrt_llm(
                     nemo_checkpoint_path=nemo_checkpoint_path,
@@ -320,60 +338,180 @@ class TensorRTLLM(ITritonDeployable):
                         "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
                     )
 
-                if model_type == "gpt" or model_type == "starcoder":
-                    model_type = "gptnext"
-
-                if model_type == "mixtral":
-                    model_type = "llama"
-
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
-                weights_dicts, model_configs = model_to_trtllm_ckpt(
-                    model=model,
-                    nemo_model_config=model_configs,
-                    nemo_export_dir=nemo_export_dir,
-                    decoder_type=model_type,
-                    dtype=dtype,
-                    tensor_parallel_size=tensor_parallelism_size,
-                    pipeline_parallel_size=pipeline_parallelism_size,
-                    gpus_per_node=gpus_per_node,
-                    use_parallel_embedding=use_parallel_embedding,
-                    use_embedding_sharing=use_embedding_sharing,
-                    fp8_quantized=fp8_quantized,
-                    fp8_kvcache=fp8_kvcache,
-                )
+                if use_mcore_path:
+                    from megatron.core.export.data_type import DataType
+                    from megatron.core.export.export_config import ExportConfig
+                    from megatron.core.export.model_type import ModelType
+                    from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
+                        DEFAULT_CONVERSION_DICT,
+                    )
+                    from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
+                    from megatron.core.transformer.transformer_config import TransformerConfig
+                    from tensorrt_llm.layers import MoeConfig
 
-                vocab_path = os.path.join(nemo_export_dir, "vocab.json")
+                    def get_transformer_config(nemo_model_config):
+                        normalization = nemo_model_config.get('normalization', 'layernorm')
+                        transformer_config_normalization = 'LayerNorm'
+                        layernorm_zero_centered_gamma = False
+                        if normalization == 'layernorm1p':
+                            layernorm_zero_centered_gamma = True
+                        elif normalization == 'rmsnorm':
+                            transformer_config_normalization = 'RMSNorm'
 
-                for weight_dict, model_config in zip(weights_dicts, model_configs):
-                    build_and_save_engine(
-                        max_input_len=max_input_len,
-                        max_output_len=max_output_len,
-                        max_batch_size=max_batch_size,
-                        model_config=model_config,
-                        model_weights=weight_dict,
-                        model_dir=self.model_dir,
-                        model_type=model_type,
-                        lora_ckpt_list=self.lora_ckpt_list,
-                        use_lora_plugin=use_lora_plugin,
-                        max_lora_rank=max_lora_rank,
-                        lora_target_modules=lora_target_modules,
-                        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                        paged_kv_cache=paged_kv_cache,
-                        remove_input_padding=remove_input_padding,
-                        paged_context_fmha=paged_context_fmha,
-                        max_num_tokens=max_num_tokens,
-                        opt_num_tokens=opt_num_tokens,
-                        max_seq_len=max_seq_len,
-                        multiple_profiles=multiple_profiles,
-                        gpt_attention_plugin=gpt_attention_plugin,
-                        gemm_plugin=gemm_plugin,
+                        conf = TransformerConfig(
+                            num_layers=nemo_model_config.get('num_layers'),
+                            moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
+                            num_attention_heads=nemo_model_config.get('num_attention_heads'),
+                            num_query_groups=nemo_model_config.get(
+                                'num_query_groups', nemo_model_config['num_attention_heads']
+                            ),
+                            kv_channels=nemo_model_config.get("kv_channels", None),
+                            hidden_size=nemo_model_config.get('hidden_size'),
+                            ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
+                            layernorm_epsilon=nemo_model_config.get('layernorm_epsilon'),
+                            add_bias_linear=nemo_model_config.get('bias'),
+                            num_moe_experts=nemo_model_config.get('num_moe_experts', None),
+                            normalization=transformer_config_normalization,
+                            layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
+                        )
+
+                        return conf
+
+                    # We build the transformer config using the nemo model config.
+                    transformer_config = get_transformer_config(model_configs)
+                    input_model_type = getattr(ModelType, model_type)
+
+                    # MCore export supports some default conversion dictionaries
+                    mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT[input_model_type]
+                    # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
+                    nemo_model_conversion_dict = {
+                        f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
+                    }
+
+                    trtllm_helper = TRTLLMHelper(
+                        transformer_config=transformer_config,
+                        model_type=input_model_type,
+                        trtllm_conversion_dict=nemo_model_conversion_dict,
+                        position_embedding_type=model_configs.get('position_embedding_type'),
+                        max_position_embeddings=model_configs.get('max_position_embeddings'),
+                        rotary_percentage=model_configs.get('rotary_percentage', 1.0),
+                        rotary_base=model_configs.get('rotary_base', 10000),
+                        moe_tp_mode=model_configs.get('moe_tp_mode', 2),
+                        multi_query_mode=model_configs.get("multi_query_mode", False),
+                        activation=model_configs.get('activation', "gelu"),
+                        seq_len_interpolation_factor=model_configs.get("seq_len_interpolation_factor"),
+                        moe_renorm_mode=model_configs.get(
+                            'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
+                        ),
+                        share_embeddings_and_output_weights=model_configs.get(
+                            "share_embeddings_and_output_weights", False
+                        ),
                     )
 
+                    input_dtype = getattr(DataType, dtype)
+                    export_config = ExportConfig(
+                        tensor_parallelism_size,
+                        pipeline_parallelism_size,
+                        use_parallel_embedding,
+                        use_embedding_sharing,
+                    )
+
+                    trtllm_model_weights_list, trtllm_model_config_list = (
+                        trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
+                            model_state_dict=model,
+                            export_config=export_config,
+                            dtype=input_dtype,
+                            state_dict_split_by_layer_numbers=False,
+                        )
+                    )
+
+                    for trtllm_model_weights, trtllm_model_config in zip(
+                        trtllm_model_weights_list, trtllm_model_config_list
+                    ):
+                        trtllm_helper.build_and_save_engine(
+                            max_input_len=max_input_len,
+                            max_output_len=max_output_len,
+                            max_batch_size=max_batch_size,
+                            engine_dir=self.model_dir,
+                            trtllm_model_weights=trtllm_model_weights,
+                            trtllm_model_config=trtllm_model_config,
+                            lora_ckpt_list=self.lora_ckpt_list,
+                            use_lora_plugin=use_lora_plugin,
+                            max_lora_rank=max_lora_rank,
+                            lora_target_modules=lora_target_modules,
+                            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                            paged_kv_cache=paged_kv_cache,
+                            remove_input_padding=remove_input_padding,
+                            paged_context_fmha=paged_context_fmha,
+                            use_refit=False,
+                            max_num_tokens=max_num_tokens,
+                            max_seq_len=max_seq_len,
+                            opt_num_tokens=opt_num_tokens,
+                            max_beam_width=1,
+                            tokens_per_block=128,
+                            multiple_profiles=multiple_profiles,
+                            gpt_attention_plugin=gpt_attention_plugin,
+                            gemm_plugin=gemm_plugin,
+                        )
+                else:
+                    if model_type == "gpt" or model_type == "starcoder":
+                        model_type = "gptnext"
+
+                    if model_type == "mixtral":
+                        model_type = "llama"
+
+                    weights_dicts, model_configs = model_to_trtllm_ckpt(
+                        model=model,
+                        nemo_model_config=model_configs,
+                        nemo_export_dir=nemo_export_dir,
+                        decoder_type=model_type,
+                        dtype=dtype,
+                        tensor_parallel_size=tensor_parallelism_size,
+                        pipeline_parallel_size=pipeline_parallelism_size,
+                        gpus_per_node=gpus_per_node,
+                        use_parallel_embedding=use_parallel_embedding,
+                        use_embedding_sharing=use_embedding_sharing,
+                        fp8_quantized=fp8_quantized,
+                        fp8_kvcache=fp8_kvcache,
+                    )
+
+                    for weight_dict, model_config in zip(weights_dicts, model_configs):
+                        build_and_save_engine(
+                            max_input_len=max_input_len,
+                            max_output_len=max_output_len,
+                            max_batch_size=max_batch_size,
+                            model_config=model_config,
+                            model_weights=weight_dict,
+                            model_dir=self.model_dir,
+                            model_type=model_type,
+                            lora_ckpt_list=self.lora_ckpt_list,
+                            use_lora_plugin=use_lora_plugin,
+                            max_lora_rank=max_lora_rank,
+                            lora_target_modules=lora_target_modules,
+                            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                            paged_kv_cache=paged_kv_cache,
+                            remove_input_padding=remove_input_padding,
+                            paged_context_fmha=paged_context_fmha,
+                            max_num_tokens=max_num_tokens,
+                            opt_num_tokens=opt_num_tokens,
+                            max_seq_len=max_seq_len,
+                            multiple_profiles=multiple_profiles,
+                            gpt_attention_plugin=gpt_attention_plugin,
+                            gemm_plugin=gemm_plugin,
+                            gather_context_logits=gather_context_logits,
+                            gather_generation_logits=gather_generation_logits,
+                        )
+
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
-            if os.path.exists(vocab_path):
-                shutil.copy(vocab_path, os.path.join(self.model_dir, "vocab.json"))
-            elif os.path.exists(tokenizer_path):
+            tokenizer_path_nemo2 = os.path.join(nemo_export_dir, "nemo_context")
+            vocab_path = os.path.join(nemo_export_dir, "tokenizer.vocab_file")
+            if os.path.exists(tokenizer_path):
                 shutil.copy(tokenizer_path, self.model_dir)
+            elif os.path.exists(tokenizer_path_nemo2):
+                shutil.copytree(tokenizer_path_nemo2, Path(self.model_dir) / "nemo_context")
+            elif os.path.exists(vocab_path):
+                shutil.copy(vocab_path, os.path.join(self.model_dir, "vocab.json"))
             else:
                 self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
 
@@ -449,7 +587,6 @@ class TensorRTLLM(ITritonDeployable):
                     weight_dict[k] = numpy_to_torch(v)
 
                 safetensors.torch.save_file(weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors'))
-
             model_configs[0].to_json_file(os.path.join(self.model_dir, 'config.json'))
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
@@ -510,12 +647,12 @@ class TensorRTLLM(ITritonDeployable):
         engine = build_and_save_engine(
             max_input_len=max_input_len,
             max_output_len=max_output_len,
+            max_seq_len=max_input_len + max_output_len,
             max_batch_size=max_batch_size,
             model_config=model_config[0],
             model_weights=weights[0],
             model_dir=self.model_dir,
             model_type=model_type,
-            custom_all_reduce=False,
             use_refit=use_refit,
         )
         torch.distributed.barrier()
@@ -560,6 +697,7 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_checkpoint_path: str = None,
         streaming: bool = False,
         output_log_probs: bool = False,
+        output_generation_logits: bool = False,
         **sampling_kwargs,
     ):
         """
@@ -578,6 +716,7 @@ class TensorRTLLM(ITritonDeployable):
             task_ids (List(str)): list of the task ids for the prompt tables.
             prompt_embeddings_table (List(float)): prompt embeddings table.
             prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
+            output_generation_logits (bool): if True returns generation_logits in the outout of generate method.
             sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
 
@@ -656,6 +795,7 @@ class TensorRTLLM(ITritonDeployable):
                     no_repeat_ngram_size=no_repeat_ngram_size,
                     output_log_probs=output_log_probs,
                     multiprocessed_env=multiprocessed_env,
+                    output_generation_logits=output_generation_logits,
                     **sampling_kwargs,
                 )
             else:
@@ -734,16 +874,21 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="task_id", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="output_generation_logits", shape=(-1,), dtype=np.bool_, optional=False),
         )
         return inputs
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
+        outputs = (
+            Tensor(name="outputs", shape=(-1,), dtype=bytes),
+            Tensor(name="generation_logits", shape=(-1,), dtype=np.single),
+        )
         return outputs
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
+        output_dict = {}
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
@@ -770,14 +915,20 @@ class TensorRTLLM(ITritonDeployable):
             if "lora_uids" in inputs:
                 lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
                 infer_input["lora_uids"] = lora_uids[0].tolist()
+            if "output_generation_logits" in inputs:
+                infer_input["output_generation_logits"] = inputs.pop("output_generation_logits")[0][0]
 
-            output_texts = self.forward(**infer_input)
-            output = cast_output(output_texts, np.bytes_)
+            if infer_input["output_generation_logits"]:
+                output_texts, generation_logits = self.forward(**infer_input)
+                output_dict["generation_logits"] = np.array(generation_logits.cpu().numpy())
+            else:
+                output_texts = self.forward(**infer_input)
+            output_dict["outputs"] = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output = cast_output([err_msg], np.bytes_)
+            output_dict["outputs"] = cast_output([err_msg], np.bytes_)
 
-        return {"outputs": output}
+        return output_dict
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
@@ -971,7 +1122,7 @@ class TensorRTLLM(ITritonDeployable):
             if len(folders) > 0:
                 try:
                     self._load_config_file()
-                    self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
+                    self.tokenizer = get_tokenizer(self.model_dir)
                     self.model = load(
                         tokenizer=self.tokenizer,
                         engine_dir=self.model_dir,
@@ -988,3 +1139,6 @@ class TensorRTLLM(ITritonDeployable):
                         "model needs to be exported again. "
                         "Error message: " + repr(error)
                     ) from error
+
+    def unload_engine(self):
+        unload_engine()

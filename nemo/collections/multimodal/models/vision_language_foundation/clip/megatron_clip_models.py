@@ -23,10 +23,10 @@ from typing import Any, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.trainer.trainer import Trainer
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.clip.clip_dataset import (
@@ -424,26 +424,24 @@ class MCoreCLIPViTModel(CLIPViTModel):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
         super().__init__(*args, **kwargs)
-        if self.post_process:
-            self.final_layernorm = TENorm(
-                config=self.config,
-                hidden_size=self.config.hidden_size,
-                eps=self.config.layernorm_epsilon,
-            )
-            self.head = torch.nn.Linear(
-                self.config.hidden_size,
-                self.output_dim,
-                bias=False,
-            )
+        self.final_layernorm = TENorm(
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
+        self.head = torch.nn.Linear(
+            self.config.hidden_size,
+            self.output_dim,
+            bias=False,
+        )
 
     def forward(self, x):
         x = super().forward(
             x,
         )
-        if self.post_process:
-            x = self.final_layernorm(x)
-            x = x[:, 0]
-            x = self.head(x)
+        x = self.final_layernorm(x)
+        x = x[:, 0]
+        x = self.head(x)
         return x
 
 
@@ -1339,11 +1337,16 @@ class MegatronCLIPModel(MegatronBaseModel):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def setup(self, stage=None):
-        """PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+
+        We setup datasets here as Megatron datasets require DDP to instantiate.
+        See the PyTorch Lightning documentation for more information:
+        https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup
+
         Args:
-            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+            stage (str, optional):
+                Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
 
         # log number of parameters

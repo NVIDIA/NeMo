@@ -54,7 +54,7 @@ For documentation on fine-tuning this model, please visit:
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 """
 import time
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import ASRModel
@@ -108,6 +108,7 @@ def get_base_model(trainer, cfg):
             # restore model from cached model dir
             asr_model = ASRModel.from_pretrained(model_name=pretrained_name)
 
+    asr_model.set_trainer(trainer)
     return asr_model
 
 

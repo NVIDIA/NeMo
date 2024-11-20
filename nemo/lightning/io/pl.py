@@ -1,14 +1,28 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.types import _PATH
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.types import _PATH
 from megatron.core.dist_checkpointing.serialization import (
     get_default_load_sharded_strategy,
     get_default_save_sharded_strategy,
@@ -23,6 +37,7 @@ from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
 
+from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
 
@@ -61,6 +76,26 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
             extra["datamodule"] = trainer.datamodule.__io__
 
         return extra
+
+
+def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
+    """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
+    filepath = ckpt_to_dir(filepath=filepath)
+    base_dir = filepath
+    assert isinstance(base_dir, Path)
+    if base_dir.parts[-1] != WEIGHTS_PATH:
+        maybe_base_dir = base_dir / WEIGHTS_PATH
+        if maybe_base_dir.is_dir() or is_saving:
+            base_dir = maybe_base_dir
+    ## handle adapter paths
+    if hasattr(base_dir, "base_model_path") and base_dir.base_model_path.parts[-1] != WEIGHTS_PATH:
+        maybe_base_model_path = base_dir.base_model_path / WEIGHTS_PATH
+        if maybe_base_model_path.is_dir() or is_saving:
+            base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
+    if is_saving:
+        assert base_dir.parts[-1] == WEIGHTS_PATH
+        assert base_dir.parent == Path(filepath)
+    return base_dir
 
 
 class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
@@ -117,7 +152,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                 f" storage_options, but {storage_options=} was provided."
                 f" Ignoring given storage_options"
             )
-        checkpoint_dir = ckpt_to_dir(path)
+        checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
+
         fs = get_filesystem(checkpoint_dir)
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
             logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
@@ -127,21 +163,13 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
-        try:
-            return dist_checkpointing.save(
-                sharded_state_dict=checkpoint,
-                checkpoint_dir=checkpoint_dir,
-                sharded_strategy=self.save_sharded_strategy,
-                validate_access_integrity=validate_sharding_integrity,
-                async_sharded_save=self.async_save,
-            )
-        except:
-            logging.error(f"Failed to save checkpoint to {checkpoint_dir}")
-            # Do cleanup.
-            import shutil
-
-            shutil.rmtree(checkpoint_dir)
-            raise
+        return dist_checkpointing.save(
+            sharded_state_dict=checkpoint,
+            checkpoint_dir=checkpoint_dir,
+            sharded_strategy=self.save_sharded_strategy,
+            validate_access_integrity=validate_sharding_integrity,
+            async_sharded_save=self.async_save,
+        )
 
     @override
     def load_checkpoint(
@@ -172,6 +200,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
+
+        # Load from ckpt_path/weights (new format) if it exists
+        path = ckpt_to_weights_subdir(path, is_saving=False)
+        if hasattr(path, "base_model_path") and not path.base_model_path.exists():
+            path.base_model_path = path.base_model_path.parent
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
             from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
@@ -267,24 +300,6 @@ def _fix_tensors_device(ckpt: Dict) -> Dict:
         return t
 
     return dict_list_map_outplace(_fix_device, ckpt)
-
-
-def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
-    """PTL considers checkpoints as .ckpt files.
-    This method removes the extension and returns a path
-    to be used as a directory for distributed checkpoints.
-    """
-    filepath = Path(filepath)
-    if not filepath.suffix == ".ckpt":
-        filepath = filepath.with_suffix(filepath.suffix + ".ckpt")
-
-    # adding this assert because we will later remove directories based on the return value of this method
-    assert filepath.suffix == ".ckpt", f"filepath: {filepath} must have .ckpt extension"
-
-    # create a new path whose name is the original filepath without the .ckpt extension
-    checkpoint_dir = filepath.with_name(filepath.stem)
-
-    return checkpoint_dir
 
 
 def is_distributed_ckpt(path) -> bool:

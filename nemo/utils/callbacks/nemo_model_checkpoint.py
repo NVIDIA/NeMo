@@ -19,13 +19,13 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-import pytorch_lightning
+import lightning.pytorch
 import torch
 from _weakref import proxy
-
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
-from pytorch_lightning.utilities import rank_zero_info
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
+from lightning.pytorch.trainer import call
+from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
@@ -53,12 +53,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         n_resume: bool = False,
         model_parallel_size: int = None,
         async_save: bool = False,  # controls only finalize callbacks
+        save_last_n_optim_states: int = -1,
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
         self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
+        self.save_last_n_optim_states = save_last_n_optim_states
         if self.save_best_model and not self.save_nemo_on_train_end:
             logging.warning(
                 (
@@ -354,12 +356,84 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 except:
                     logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
 
-    def _ema_callback(self, trainer: 'pytorch_lightning.Trainer') -> Optional[EMA]:
+    def _ema_callback(self, trainer: 'lightning.pytorch.Trainer') -> Optional[EMA]:
         ema_callback = None
         for callback in trainer.callbacks:
             if isinstance(callback, EMA):
                 ema_callback = callback
         return ema_callback
+
+    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
+        # Get list of saved checkpoints
+        checkpoints = self._get_checkpoints_list(filepath)
+        suffix = "-no-optim"
+
+        # Drop optimizer states
+        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
+        if len(checkpoints) > self.save_last_n_optim_states:
+            checkpoint_path = checkpoints[checkpoint_index]
+
+            logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
+            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path, load_optimizer_states=False)
+
+            # Load related state dict
+            self._load_current_state_dict(trainer, checkpoint)
+
+            # Save the checkpoint without optimizer states
+            if storage_options is None:
+                storage_options = dict(include_optimizer=False)
+            else:
+                storage_options["include_optimizer"] = False
+
+            trainer.save_checkpoint(
+                f"{checkpoint_path}{suffix}.ckpt", self.save_weights_only, storage_options=storage_options
+            )
+
+            # Remove the checkpoint version with optimizer states
+            if is_global_rank_zero():
+                trainer.strategy.remove_checkpoint(checkpoint_path)
+                shutil.move(f"{checkpoint_path}{suffix}", checkpoint_path)
+
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+
+            # Load the correct state_dict for current checkpoint.
+            # Temporary solution.
+            checkpoint = trainer.strategy.load_checkpoint(
+                checkpoint_path=ckpt_to_dir(filepath), load_optimizer_states=False
+            )
+            self._load_current_state_dict(trainer, checkpoint)
+
+            logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
+
+    def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
+        # Get a checkpoints directory
+        checkpoints_dir = os.path.dirname(filepath)
+
+        # Get a list of saved checkpoints
+        checkpoints = [
+            d
+            for d in os.listdir(checkpoints_dir)
+            if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d
+        ]
+        checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
+        checkpoints = [os.path.join(checkpoints_dir, checkpoint) for checkpoint in checkpoints]
+
+        return checkpoints
+
+    def _load_current_state_dict(self, trainer, checkpoint) -> None:
+        # Temporary solution for loading the correct state dict
+        # when dropping optimizer states "on the fly" during training.
+
+        # TODO @dimapihtar @mikolajblaz: provide a more elegant solution at the mcore level.
+
+        call._call_lightning_module_hook(trainer, "on_load_checkpoint", checkpoint)
+
+        # Load model state_dict
+        trainer.strategy.load_model_state_dict(
+            checkpoint,
+            strict=trainer.lightning_module.strict_loading,
+        )
 
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
@@ -431,12 +505,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         except:
             return
 
-    def file_exists(self, filepath: str, trainer: "pytorch_lightning.Trainer", check_dist_ckpt: bool = True) -> bool:
+    def file_exists(self, filepath: str, trainer: "lightning.pytorch.Trainer", check_dist_ckpt: bool = True) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
         exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
 
-    def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+    def _save_checkpoint(self, trainer: 'lightning.pytorch.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
@@ -473,8 +547,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             else:
                 finalize_fn()
 
+        if self.save_last_n_optim_states >= 0 and '-last' in filepath:
+            self._drop_optimizer_states(trainer, filepath, storage_options)
+
     def _get_finalize_save_checkpoint_callback(
-        self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
+        self, trainer: 'lightning.pytorch.Trainer', filepath: str, global_step: int
     ):
         """Creates a callback that can be used to finalize async (and sync) ckpt saves."""
 
@@ -507,7 +584,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         return _cb
 
-    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, override_async=False) -> None:
+    def _remove_checkpoint(self, trainer: "lightning.pytorch.Trainer", filepath: str, override_async=False) -> None:
         """Performs checkpoint removal or deferred removal.
 
         With async save, `self._remove_checkpoint` is called before the checkpoint

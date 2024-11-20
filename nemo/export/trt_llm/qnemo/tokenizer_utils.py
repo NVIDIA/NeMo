@@ -26,6 +26,7 @@ from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 # from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 TOKENIZER_CONFIG_FILE = "tokenizer_config.yaml"
+TOKENIZER_DIR = "tokenizer"
 
 
 def get_nmt_tokenizer(nemo_checkpoint_path: str):

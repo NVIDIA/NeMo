@@ -1,10 +1,24 @@
-from dataclasses import asdict, dataclass, fields
-import pytorch_lightning as pl
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+from dataclasses import asdict, dataclass, fields
+
+import lightning.pytorch as pl
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core import ModelParallelConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import TransformerLayerTPOverlapCfg
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
@@ -167,7 +181,8 @@ class MegatronCommOverlapCallback(Callback):
             comm_overlap_cfg.overlap_grad_reduce = True
             comm_overlap_cfg.overlap_param_gather = True
             if parallelism_cfg.pipeline_model_parallel_size > 1 and vp_size > 1:
-                comm_overlap_cfg.overlap_param_gather_with_optimizer_step = True
+                # Currently disabled due to an issue with checkpointing
+                # comm_overlap_cfg.overlap_param_gather_with_optimizer_step = True
                 comm_overlap_cfg.align_param_gather = True
 
         comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)

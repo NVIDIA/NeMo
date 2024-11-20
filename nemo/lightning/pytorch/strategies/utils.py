@@ -17,20 +17,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import ClusterEnvironment
+from lightning.fabric.plugins import ClusterEnvironment
+from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
-from pytorch_lightning.callbacks import TQDMProgressBar
-from pytorch_lightning.loops.progress import _BatchProgress
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
-from typing_extensions import override
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.io.pl import MegatronCheckpointIO
@@ -46,14 +43,6 @@ class RestoreConfig:
     load_optim_state: bool = False
     # eg tokenizer, etc.
     load_artifacts: bool = True
-
-
-class _MegatronBatchProgress(_BatchProgress):
-    @override
-    def load_state_dict(self, state_dict: dict) -> None:
-        ## in megatron, we want to start the batch progress over when
-        ## restoring from a checkpoint
-        return
 
 
 def setup_parallel_ranks(strategy: pl.strategies.Strategy):
@@ -127,8 +116,10 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     return filepath
 
 
-def create_checkpoint_io(**kwargs):
+def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
     checkpoint_io = MegatronCheckpointIO(**kwargs)
+    if wrapping_ckpt_io:
+        checkpoint_io = wrapping_ckpt_io(checkpoint_io)
     if kwargs.get("async_save", False):
         checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
 

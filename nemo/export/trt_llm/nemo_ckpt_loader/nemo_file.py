@@ -17,6 +17,8 @@ import functools
 import json
 import logging
 import os
+import re
+import shutil
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -115,6 +117,11 @@ def load_scaling_factors(state_dict: dict, basename: str, size: int) -> Optional
     return load_scales_from_bytes(bytes_list)
 
 
+def filter_experts_extra_states(state_dict: dict):
+    pattern = r'model\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
+    return {k: v for k, v in state_dict.items() if not re.fullmatch(pattern, k)}
+
+
 def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
     while key := get_extra_state_key(state_dict):
         basename, size = unpack_extra_state_key(key)
@@ -145,6 +152,7 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
         storage_reader=fs_reader,
         no_dist=True,
     )
+    state_dict = filter_experts_extra_states(state_dict)
     state_dict = standarize_distributed_scaling_factors(state_dict)
 
     if not torch_tensor:
@@ -279,20 +287,23 @@ def copy_tokenizer_files(config, out_dir):
     return config
 
 
-def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
-    """Loads the tokenizer from the decoded NEMO weights dir."""
-    if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
-        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
+def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenizer:
+    """Loads the tokenizer from the decoded NeMo weights dir."""
+    tokenizer_dir_or_path = Path(tokenizer_dir_or_path)
+    if (tokenizer_dir_or_path / "nemo_context").exists():
+        from nemo.lightning import io
 
-    if os.path.exists(os.path.join(tokenizer_dir_or_path, "tokenizer.model")):
+        tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context"), subpath="model.tokenizer")
+        return build_tokenizer(tokenizer_spec)
+    else:
+        if (tokenizer_dir_or_path / "huggingface_tokenizer").is_dir():
+            return AutoTokenizer.from_pretrained(tokenizer_dir_or_path / "huggingface_tokenizer")
+
         model_path = (
             tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
         )
         tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
-    elif os.path.exists(os.path.join(tokenizer_dir_or_path, "vocab.json")):
-        vocab_path = tokenizer_dir_or_path / "vocab.json" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
-        tokenizer_config = {"library": "tiktoken", "vocab_file": str(vocab_path)}
-    return build_tokenizer(tokenizer_config)
+        return build_tokenizer(tokenizer_config)
 
 
 def build_tokenizer(tokenizer):
@@ -321,6 +332,7 @@ def build_tokenizer(tokenizer):
                 def batch_encode_patch(self, ids):
                     if torch.is_tensor(ids):
                         ids = ids.cpu().numpy()
+                        ids = ids[0] if len(ids.shape) > 1 else ids
                     return self.ids_to_text(ids)
 
                 tokenizer.bos_token_id = tokenizer.bos_id
@@ -343,11 +355,13 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
     else:
         nemo_dir = TarPath(nemo_ckpt)
 
+    tokenizer = None
     try:
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
-        dist_ckpt_folder = nemo_dir / "model_weights"
-        if dist_ckpt_folder.exists():
+        if (nemo_dir / "model_weights").exists():
+            dist_ckpt_folder = nemo_dir / "model_weights"
+
             model = load_sharded_metadata(dist_ckpt_folder)
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
@@ -361,6 +375,51 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 tokenizer_config = copy_tokenizer_files(tokenizer_config, nemo_export_dir)
 
                 tokenizer = build_tokenizer(tokenizer_config)
+        elif (nemo_dir / "weights").exists():
+            dist_ckpt_folder = nemo_dir / "weights"
+            model = load_sharded_metadata(dist_ckpt_folder)
+            io_folder = nemo_dir / "context"
+
+            if (io_folder / "model.yaml").exists():
+                with open(io_folder / "model.yaml", 'r') as stream:
+                    config = yaml.safe_load(stream)
+
+                nemo_model_config = {}
+                for k, v in config["config"].items():
+                    if isinstance(v, (float, int, str, bool)):
+                        nemo_model_config[k] = v
+                    elif k == "activation_func":
+                        nemo_model_config["activation"] = v["_target_"].rsplit('.', 1)[-1]
+            else:
+                from nemo.lightning import io
+
+                config = io.load_context(io_folder, subpath="model.config")
+
+                nemo_model_config = {}
+                for k, v in config.__dict__.items():
+                    if isinstance(v, (float, int, str, bool)):
+                        nemo_model_config[k] = v
+                    elif k == "activation_func":
+                        if isinstance(v, torch.jit.ScriptFunction):
+                            nemo_model_config["activation"] = v.name
+                        else:
+                            nemo_model_config["activation"] = v.__name__
+
+            if nemo_model_config.get("num_moe_experts") is None:
+                nemo_model_config["num_moe_experts"] = 0
+                nemo_model_config["moe_router_topk"] = 0
+            if nemo_model_config["activation"] == "silu":
+                nemo_model_config["activation"] = "fast-swiglu"
+            elif nemo_model_config["activation"] == "openai_gelu":
+                nemo_model_config["activation"] = "openai-gelu"
+            elif nemo_model_config["activation"] == "squared_relu":
+                nemo_model_config["activation"] = "squared-relu"
+
+            nemo_model_config["mcore_gpt"] = True
+            nemo_model_config["max_position_embeddings"] = nemo_model_config.get("seq_length", 4096)
+            nemo_model_config["rotary_percentage"] = nemo_model_config.get("rotary_percent", 1.0)
+
+            shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:
             raise Exception("Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported.")
     finally:

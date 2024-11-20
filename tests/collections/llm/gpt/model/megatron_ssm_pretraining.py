@@ -16,9 +16,11 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
+
 import torch
+from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import train
@@ -33,7 +35,9 @@ def get_args():
     parser = argparse.ArgumentParser(description='Train a Mamba model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
-    parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
+    parser.add_argument(
+        '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
+    )
     parser.add_argument('--data-path', type=str, help="Path to data file")
     parser.add_argument('--tokenizer-path', type=str, default=None, help="Path to tokenizer model")
 

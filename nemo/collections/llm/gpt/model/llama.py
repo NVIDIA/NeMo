@@ -21,12 +21,14 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 if TYPE_CHECKING:
+    from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
 
@@ -48,6 +50,12 @@ class LlamaConfig(GPTConfig):
     attention_dropout: float = 0.0
     hidden_dropout: float = 0.0
     share_embeddings_and_output_weights: bool = False
+    # Fusions
+    bias_activation_fusion: bool = True
+    masked_softmax_fusion: bool = True
+    persist_layer_norm: bool = True
+    bias_dropout_fusion: bool = True
+    apply_rope_fusion: bool = True
 
 
 @dataclass
@@ -221,13 +229,13 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
     def apply(self, output_path: Path) -> Path:
         from transformers import LlamaForCausalLM
 
-        source = LlamaForCausalLM.from_pretrained(str(self))
+        source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llama model to Nemo, model saved to {output_path}")
+        print(f"Converted Llama model to Nemo, model saved to {output_path} in {source.dtype}.")
 
         teardown(trainer, target)
         del trainer, target
@@ -265,7 +273,12 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 base //= 2
             return base
 
-        output = LlamaConfig(
+        if getattr(source, 'rope_scaling', None) is not None and source.rope_scaling.get('rope_type') == 'llama3':
+            # Apply Llama3.1 customize rope scaling
+            cls = Llama31Config
+        else:
+            cls = LlamaConfig
+        output = cls(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
@@ -277,6 +290,9 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             share_embeddings_and_output_weights=False,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
         return output
@@ -284,14 +300,16 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
 
 @io.model_exporter(LlamaModel, "hf")
 class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
-    def init(self) -> "LlamaForCausalLM":
+    def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
         from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
 
-        return AutoModelForCausalLM.from_config(self.config)
+        with no_init_weights(True):
+            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
-        target = self.init()
         source, _ = self.nemo_load(str(self))
+        target = self.init(torch_dtype_from_mcore_config(source.config))
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -302,16 +320,19 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
     def convert_state(self, source, target):
         mapping = {
-            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "model.norm.weight",
-            "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv, _export_linear_fc1, _export_embedding, _export_head],
+        )
 
     @property
     def tokenizer(self):
@@ -352,8 +373,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -394,8 +414,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
@@ -416,11 +435,31 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
 
 @io.state_transform(
+    source_key="embedding.word_embeddings.weight",
+    target_key="model.embed_tokens.weight",
+)
+def _export_embedding(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]
+
+
+@io.state_transform(
+    source_key="output_layer.weight",
+    target_key="lm_head.weight",
+)
+def _export_head(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]
+
+
+@io.state_transform(
     source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0).float()
+    return torch.cat((down, gate), axis=0)
 
 
 @io.state_transform(

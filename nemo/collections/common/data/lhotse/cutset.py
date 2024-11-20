@@ -130,6 +130,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "metadata_only": config.metadata_only,
         "force_finite": config.force_finite,
         "max_open_streams": config.max_open_streams,
+        "tarred_random_access": config.tarred_random_access,
     }
     input_cfg = config.input_cfg
     if isinstance(input_cfg, (str, Path)):
@@ -403,10 +404,11 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                 LazyNeMoTarredIterator(
                     config.manifest_filepath,
                     tar_paths=config.tarred_audio_filepaths,
+                    tarred_random_access=config.tarred_random_access,
                     **common_kwargs,
                 )
             )
-            if not force_finite:
+            if not config.tarred_random_access and not force_finite:
                 cuts = cuts.repeat()
         else:
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
@@ -421,6 +423,9 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         # Format option 2:
         #   Assume it's [[path1, weight1], [path2, weight2], ...] (while tarred_audio_filepaths remain unchanged).
         #   Note: this option allows to manually set the weights for multiple datasets.
+        # Format option 3:
+        #   i.e., NeMo concatenated dataset
+        #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
         logging.info(
             f"Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. "
             f"We found the following sources and weights: "
@@ -429,19 +434,25 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         weights = []
         tar_paths = config.tarred_audio_filepaths if is_tarred else repeat((None,))
         # Create a stream for each dataset.
-        for manifest_info, (tar_path,) in zip(config.manifest_filepath, tar_paths):
+        for manifest_info, tar_path in zip(config.manifest_filepath, tar_paths):
+            if isinstance(tar_path, (list, tuple, ListConfig)):
+                # if it's in option 1 or 2
+                (tar_path,) = tar_path
+                manifest_path = manifest_info[0]
+            else:
+                manifest_path = manifest_info
             # First, convert manifest_path[+tar_path] to an iterator.
-            manifest_path = manifest_info[0]
             if is_tarred and not metadata_only:
                 nemo_iter = LazyNeMoTarredIterator(
                     manifest_path=manifest_path,
                     tar_paths=tar_path,
+                    tarred_random_access=config.tarred_random_access,
                     **common_kwargs,
                 )
             else:
                 nemo_iter = LazyNeMoIterator(manifest_path, **notar_kwargs, **common_kwargs)
             # Then, determine the weight or use one provided
-            if len(manifest_info) == 1:
+            if isinstance(manifest_info, str) or len(manifest_info) == 1:
                 weight = len(nemo_iter)
             else:
                 assert (

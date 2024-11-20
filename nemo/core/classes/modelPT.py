@@ -35,9 +35,9 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch.utilities import model_summary, rank_zero_only
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import model_summary, rank_zero_only
 
 from nemo import package_info
 from nemo.core import optim
@@ -79,7 +79,7 @@ class ModelPT(LightningModule, Model):
         """
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
-                f"trainer constructor argument must be either None or pytorch_lightning.Trainer. But got {type(trainer)} instead."
+                f"trainer constructor argument must be either None or lightning.pytorch.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
 
@@ -1638,6 +1638,24 @@ class ModelPT(LightningModule, Model):
         # TODO: Remove in NeMo 1.7 (or when PTL fixes this on their end)
         if hasattr(self, '_hparams_initial') and 'cfg' in self._hparams_initial:
             self._hparams_initial['cfg'] = OmegaConf.to_object(self._cfg)
+
+    @property
+    def hparams(self):
+        """
+        Overwrite default hparams property to return the lastest model config.
+        Without this change, the hparams property would return the old config if there was a direct change to
+        self._cfg (e.g., in self.setup_optimization()) that was not done via `self.cfg = new_cfg`.
+        """
+        self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
+
+        if (
+            hasattr(self, '_hparams_initial')
+            and 'cfg' in self._hparams_initial
+            and isinstance(self._hparams_initial['cfg'], DictConfig)
+        ):
+            self._hparams_initial['cfg'] = OmegaConf.to_object(self._hparams_initial['cfg'])
+
+        return super().hparams
 
     @property
     def validation_step_outputs(self):

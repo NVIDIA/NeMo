@@ -13,13 +13,13 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
@@ -27,6 +27,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
@@ -115,6 +116,7 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
+            average_in_collective=True,
         ),
     )
 
@@ -140,7 +142,12 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 8,
+    num_gpus_per_node: int = 8,
+    performance_mode: bool = False,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mixtral 8x7B model.
@@ -153,6 +160,7 @@ def pretrain_recipe(
         name (str): Name of the pre-training run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
+        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -167,103 +175,87 @@ def pretrain_recipe(
             >>> recipe = pretrain_recipe(name="mixtral_8x7b_pretrain", num_nodes=8)
             >>> print(recipe)
     """
-    return run.Partial(
+    recipe = run.Partial(
         fn,
         model=model(),
         trainer=trainer(
             num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
-
-@run.cli.factory(target=pretrain, name=NAME + "_performance")
-def pretrain_recipe_performance(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
-) -> run.Partial:
-    """
-    Create a performance-optimized pre-training recipe for Mixtral 8x7B model.
-
-    This recipe enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
-
-    Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
-
-    Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
-
-    Examples:
-        CLI usage:
-            $ nemo llm pretrain --factory "mixtral_8x3b.pretrain_recipe_performance(num_nodes=8, name='perf_pretrain')"
-
-        Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="mixtral_8x3b_perf", num_nodes=8)
-            >>> print(recipe)
-
-    Note:
-        Use this recipe with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
-    """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-    recipe.trainer.callbacks.extend(
-        [
-            run.Config(MegatronTokenDropCallback),
-            run.Config(MegatronCommOverlapCallback),
-        ]
-    )
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
 
     return recipe
 
 
-def hf_resume() -> run.Config[nl.AutoResume]:
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
-    Configure automatic resumption from a Hugging Face checkpoint for Mixtral 8x7B model.
+    Create a performance-optimized pre-training recipe for Mixtral 8x7B model.
 
-    This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint.
+    This method enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
 
-    More info about the model can be found at: https://huggingface.co/mistralai/Mixtral-8x7B-v0.1
+    Args:
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
 
     Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
+        run.Partial: Partial configuration for performance-optimized pre-training.
 
     Note:
-        This is particularly useful for fine-tuning scenarios where you want to
-        start from the pre-trained Mixtral 8x7B model.
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
     """
-    return run.Config(
-        nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
+
+    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
+    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
+    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
+    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
+    # each PP stage launches independently as needed.
+
+    recipe.trainer.callbacks.extend(
+        [
+            run.Config(MegatronTokenDropCallback),
+            run.Config(
+                MegatronCommOverlapCallback,
+                overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing.
+                align_param_gather=True,
+            ),
+        ]
     )
+    recipe.trainer.strategy.expert_model_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 8
+    recipe.trainer.strategy.sequence_parallel = True
+    return recipe
 
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 2,
+    num_nodes: int = 1,
     num_gpus_per_node: int = 8,
+    peft_scheme: Optional[str] = 'lora',
+    packed_sequence: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Mixtral 8x7B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
-    It uses LoRA (Low-Rank Adaptation) for efficient fine-tuning.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        packed_sequence (Optional[bool]): Packing multiple training sequences into one long sequence for training efficiency. Default sequence length is 2048.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -280,8 +272,17 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
-    recipe.resume = hf_resume()
-    recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
-    recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    recipe = default_finetune_recipe(
+        model(), "mistralai/Mixtral-8x7B-v0.1", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+    )
+    recipe.trainer.strategy.expert_model_parallel_size = 8
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 8
+        recipe.optim.config.lr = 5e-6
+    elif peft_scheme.lower() == 'lora':
+        recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
+        recipe.optim.config.lr = 1e-4
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe

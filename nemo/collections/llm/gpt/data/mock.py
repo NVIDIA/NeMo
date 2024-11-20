@@ -14,10 +14,10 @@
 
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+import lightning.pytorch as pl
 import numpy as np
-import pytorch_lightning as pl
 import torch
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
@@ -56,9 +56,13 @@ class MockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.create_attention_mask = create_attention_mask or not HAVE_TE
 
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        if tokenizer is None:
+            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
+            self.tokenizer = get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
+        else:
+            self.tokenizer = tokenizer
+
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,

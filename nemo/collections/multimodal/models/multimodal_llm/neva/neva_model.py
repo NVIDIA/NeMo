@@ -18,12 +18,12 @@ from itertools import chain
 from typing import Any, Optional
 
 import numpy as np
+import packaging
 import torch
 import torch.nn.functional as F
 from einops import rearrange, reduce, repeat
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pkg_resources import packaging
-from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel, SiglipVisionModel
 
 from nemo.collections.common.parts.utils import extend_instance
@@ -1194,11 +1194,16 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         return loss
 
     def setup(self, stage=None):
-        """PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+
+        We setup datasets here as Megatron datasets require DDP to instantiate.
+        See the PyTorch Lightning documentation for more information:
+        https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup
+
         Args:
-            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+            stage (str, optional):
+                Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
         num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert()
 

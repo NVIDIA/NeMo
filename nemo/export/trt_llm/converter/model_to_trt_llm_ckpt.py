@@ -41,7 +41,7 @@ layer_names = {
 def extract_layers_with_prefix(model_, prefix):
     length_to_trim = len(prefix)
     model_state = model_.get("state_dict", model_)
-    return {key[length_to_trim:]: model_state[key] for key in model_state.keys() if prefix in key}
+    return {key[length_to_trim:]: model_state[key] for key in model_state.keys() if key.startswith(prefix)}
 
 
 def get_layer_name(layer_type: str, prefix: str):
@@ -56,7 +56,7 @@ def get_layer_prefix(layer_names, is_mcore):
     transformer_layer_prefix = None
 
     for layer_name in layer_names:
-        if 'self_attention' in layer_name:
+        if not layer_name.startswith('optimizer') and 'self_attention' in layer_name:
             transformer_layer_prefix = layer_name.split('layers')[0]
             break
     assert transformer_layer_prefix is not None, f"Cannot extract transformer layer prefix from {layer_name}"
@@ -157,10 +157,11 @@ def convert_model_to_trt_llm_ckpt(
             num_kv_heads = num_attention_heads
 
     export_config = {
-        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p"
+        or nemo_model_config.get("layernorm_zero_centered_gamma", False),
         "tp_size": training_tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
+        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu", "openai-gelu"]
         and (decoder_type == "gptnext" or is_mcore),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
@@ -195,7 +196,7 @@ def convert_model_to_trt_llm_ckpt(
 
             val = val.to(storage_type).cpu()
             model_level_weights["transformer.vocab_embedding.weight"].append(val)
-        if has_lm_head and pp_idx == training_pp_size - 1:
+        if has_lm_head and pp_idx == training_pp_size - 1 and decoder_type != "gemma":
             val = model.get("state_dict", model)[get_layer_name("output_layer", prefix)]
             val = val.to(storage_type).cpu()
             model_level_weights["lm_head.weight"].append(val)
@@ -335,7 +336,7 @@ def dist_model_to_trt_llm_ckpt(
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"],
+        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu", "openai-gelu"],
         "num_attention_heads": nemo_model_config["num_attention_heads"],
         "num_kv_heads": nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
         "convert_on_device": True,
