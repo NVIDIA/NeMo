@@ -14,9 +14,10 @@
 
 import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
+from transformers import AutoModelForCausalLM
+
 from nemo import lightning as nl
 from nemo.collections import llm
-from transformers import AutoModelForCausalLM
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
@@ -87,11 +88,7 @@ if __name__ == '__main__':
     #     trust_remote_code=True
     # )
 
-    model = fdl.Config(
-        AutoModelForCausalLM.from_pretrained,
-        args.model,
-        trust_remote_code=True
-    )
+    model = fdl.Config(AutoModelForCausalLM.from_pretrained, args.model, trust_remote_code=True)
     tokenizer = AutoTokenizer(args.model)
 
     llm.api.finetune(

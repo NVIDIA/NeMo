@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm import fn
-from nemo.lightning import io
-import torch.nn as nn
-import torch.optim
 import fiddle as fdl
 import lightning.pytorch as pl
+import torch.nn as nn
+import torch.optim
+
+from nemo.collections.llm import fn
+from nemo.lightning import io
+
 
 class GenericLitWrapper(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(self, model, criterion, model_transform=None):
@@ -47,6 +49,7 @@ class GenericLitWrapper(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
+
 def extract_logits_from_output(x):
     if isinstance(x, torch.Tensor):
         return x
@@ -54,6 +57,7 @@ def extract_logits_from_output(x):
         return x.logits
     else:
         raise ValueError("Unable to extract model's logits; looked for .logits attr")
+
 
 def wrap_module_with_lit(model, criterion_fn):
     if isinstance(model, nn.Module) and isinstance(model, pl.LightningModule):
