@@ -65,7 +65,10 @@ class AutoModel(GPTModel):
             raise ValueError("Architecture " + str(architectures) + " not supported")
         model_cls = HF_TO_MCORE_REGISTRY[model]
         self.__class__ = model_cls
-        config = model_cls.importer(f'hf://{path}').config
+        import_path = model
+        if import_path.starts_with('hf://'):
+            import_path = f'hf://{import_path}'
+        config = model_cls.importer(import_path).config
         super().__init__(
             config, optim=optim, tokenizer=tokenizer, model_transform=model_transform
         )
