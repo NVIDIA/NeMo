@@ -105,10 +105,10 @@ flux_key_mapping = {
     'single_blocks': {
         'norm.linear.weight': 'adaln.adaLN_modulation.1.weight',
         'norm.linear.bias': 'adaln.adaLN_modulation.1.bias',
-        'proj_mlp.weight': 'proj_in.weight',
-        'proj_mlp.bias': 'proj_in.bias',
-        'proj_out.weight': 'proj_out.weight',
-        'proj_out.bias': 'proj_out.bias',
+        'proj_mlp.weight': 'mlp.linear_fc1.weight',
+        'proj_mlp.bias': 'mlp.linear_fc1.bias',
+        # 'proj_out.weight': 'proj_out.weight',
+        # 'proj_out.bias': 'proj_out.bias',
         'attn.norm_q.weight': 'self_attention.q_layernorm.weight',
         'attn.norm_k.weight': 'self_attention.k_layernorm.weight',
     },
@@ -161,14 +161,16 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
             num_double_blocks = max(int(idx), num_double_blocks)
             new_key = '.'.join(['double_blocks', idx, flux_key_mapping['double_blocks'][k]])
         elif key.startswith('single_transformer_blocks'):
+            if 'proj_out' in key:
+                continue
             temp = key.split('.')
             idx, k = temp[1], '.'.join(temp[2:])
             num_single_blocks = max(int(idx), num_single_blocks)
             new_key = '.'.join(['single_blocks', idx, flux_key_mapping['single_blocks'][k]])
         elif key.startswith('controlnet_blocks'):
             new_key = 'controlnet_double_blocks' + key.split('.')[1:]
-        elif key.startswith('x_embedder'):
-            new_key = 'controlnet_x_embedder' + key.split('.')[1:]
+        # elif key.startswith('x_embedder'):
+        #     new_key = 'controlnet_x_embedder' + key.split('.')[1:]
         else:
             new_key = flux_key_mapping[key]
         new_state_dict[new_key] = value
@@ -206,6 +208,12 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
         new_state_dict[new_key] = _import_qkv_bias(
             transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
         )
+
+        new_state_dict[f'single_blocks.{str(i)}.mlp.linear_fc2.weight'], new_state_dict[f'single_blocks.{str(i)}.self_attention.linear_proj.weight'] = \
+            diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.weight'].detach()[:, 3072:].clone(), diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.weight'].detach()[:, :3072].clone()
+
+        new_state_dict[f'single_blocks.{str(i)}.mlp.linear_fc2.bias'] = diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
+        new_state_dict[f'single_blocks.{str(i)}.self_attention.linear_proj.bias'] = diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
 
     return new_state_dict
 
