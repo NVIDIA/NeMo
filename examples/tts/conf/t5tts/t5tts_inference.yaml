@@ -19,6 +19,7 @@ phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
   model_type: "single_encoder_sv_tts" # single_encoder_sv_tts or multi_encoder_context_tts.
+  use_text_conditioning_encoder: false
   transcript_decoder_layers: [3,4,5,6,7,8] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
   use_perceiver: false # For multi_encoder_context_tts, use perceiver after speaker encoder or not
   speaker_emb_dim: 192

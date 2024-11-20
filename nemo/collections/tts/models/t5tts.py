@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import contextlib
 from typing import List
 from math import ceil
 import numpy as np
@@ -36,8 +35,8 @@ from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 import nemo.collections.asr as nemo_asr
 import soundfile as sf
-from nemo.collections.tts.data import text_to_speech_dataset
 from torch.utils.data import get_worker_info
+from transformers import DistilBertTokenizer, DistilBertModel
 
 HAVE_WANDB = True
 try:
@@ -63,7 +62,9 @@ def worker_init_fn(worker_id):
         logging.info("Setting phone prob to 1.0 for test dataset")
         tokenizer.set_phone_prob(1.0)
     logging.info(f"Tokenizer instantiated: {tokenizer}")
-    dataset.text_tokenizer = tokenizer
+    dataset.text_tokenizer = tokenizer # Use for transcripts
+    if dataset.use_text_conditioning_tokenizer:
+        dataset.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased') # Used for text conditioning
 
 class T5TTS_Model(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -88,6 +89,7 @@ class T5TTS_Model(ModelPT):
         self.audio_eos_id = cfg.num_audio_tokens_per_codebook - 1
         self._tb_logger = None
         self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
+        self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
         
         super().__init__(cfg=cfg, trainer=trainer)
         
@@ -138,6 +140,11 @@ class T5TTS_Model(ModelPT):
                 )
         else:
             raise ValueError(f"Unknown model type: {cfg.model_type}")
+        
+        if self.use_text_conditioning_encoder:
+            self.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+            self.text_conditioning_encoder = DistilBertModel.from_pretrained('distilbert-base-uncased')
+            self.text_conditioning_encoder.train()
 
         self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
         alignment_loss_scale = cfg.get('alignment_loss_scale', 0.0)
@@ -317,7 +324,7 @@ class T5TTS_Model(ModelPT):
 
         return all_preds
 
-    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.5, topk=80):
+    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = []
         for idx in range(self.cfg.num_audio_codebooks):
@@ -430,21 +437,34 @@ class T5TTS_Model(ModelPT):
         
         context_audio_codes = None
         context_audio_codes_lens = None
+        
+        if self.use_text_conditioning_encoder:
+            context_text_tokens = batch['context_text_tokens']
+            context_text_lens = batch['context_text_tokens_lens']
+            context_text_mask = get_mask_from_lengths(context_text_lens)
+            context_text_encoded = self.text_conditioning_encoder(input_ids=context_text_tokens, attention_mask=context_text_mask)['last_hidden_state'] # (B, L, E)
+            # Hidden dim of distilbert is same as embedding dim = 768, so no projection needed
+
         if self.model_type == 'single_encoder_sv_tts':
             target_audio_16khz = batch['audio_16khz']
             target_audio_lens_16khz = batch['audio_lens_16khz']
-            
             speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
-            conditioning_vector = self.speaker_projection_layer(speaker_embeddings)
+            speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
+            if self.use_text_conditioning_encoder:
+                # In single_encoder_sv_tts either speaker embeddings or context text embeddings are used, not both!
+                has_text_context = batch['has_text_context'].unsqueeze(-1).float()
+                conditioning_vector = has_text_context * context_text_encoded[:,0] + (1 - has_text_context) * speaker_embeddings_projected
+            else:
+                conditioning_vector = speaker_embeddings_projected
             context_embeddings = None
             context_mask = None
 
         elif self.model_type == 'multi_encoder_context_tts':
-            if 'context_audio_codes' not in batch:
-                context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'])
-            else:
+            if 'context_audio_codes' in batch:
                 context_audio_codes = batch['context_audio_codes']
                 context_audio_codes_lens = batch['context_audio_codes_lens']
+            else:
+                context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'])
             context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
             context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
             context_embeddings = self.context_encoder(context_audio_embedded, context_mask, cond=None, cond_mask=None)['output']
@@ -452,6 +472,13 @@ class T5TTS_Model(ModelPT):
                 # pneekhara: Check if we can pass mask here. Mask of size B, L doesn't work
                 context_embeddings = self.perceiver_resampler(context_embeddings) # B, 32, C
                 context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
+            
+            if self.use_text_conditioning_encoder:
+                # Concatenate the context text embeddings to the context audio embeddings
+                # If context text is not provided in the manifest, context_text_encoded is just the encoding of "[NO TEXT CONTEXT]"
+                context_embeddings = torch.cat([context_embeddings, context_text_encoded], dim=1) # (B, T, C)
+                context_mask = torch.cat([context_mask, ~context_text_mask], dim=1) # (B, T)
+                
             conditioning_vector = None
 
         logits, attn_info = self.forward(
@@ -544,30 +571,47 @@ class T5TTS_Model(ModelPT):
             text_mask = ~get_mask_from_lengths(text_lens)
             encoder_out = self.t5_encoder(self.text_embedding(text), text_mask, cond=None, cond_mask=None)['output']
 
+            if self.use_text_conditioning_encoder:
+                context_text_tokens = batch['context_text_tokens']
+                context_text_lens = batch['context_text_tokens_lens']
+                context_text_mask = get_mask_from_lengths(context_text_lens)
+                context_text_encoded = self.text_conditioning_encoder(input_ids=context_text_tokens, attention_mask=context_text_mask)['last_hidden_state'] # (B, L, E)
+
             if self.model_type == 'single_encoder_sv_tts':
                 target_audio_16khz = batch['audio_16khz']
                 target_audio_lens_16khz = batch['audio_lens_16khz']
                 
                 speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
-                conditioning_vector = self.speaker_projection_layer(speaker_embeddings)
+                speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
+                if self.use_text_conditioning_encoder:
+                    has_text_context = batch['has_text_context'].unsqueeze(-1).float()
+                    conditioning_vector = has_text_context * context_text_encoded[:,0] + (1 - has_text_context) * speaker_embeddings_projected
+                else:
+                    conditioning_vector = speaker_embeddings_projected
+
                 encoder_out = encoder_out + conditioning_vector.unsqueeze(1)
                 cond = encoder_out
                 cond_mask = text_mask
                 multi_encoder_mapping = None
 
             elif self.model_type == 'multi_encoder_context_tts':
-                if 'context_audio_codes' not in batch:
-                    context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'])
-                else:
+                if 'context_audio_codes' in batch:
                     context_audio_codes = batch['context_audio_codes']
                     context_audio_codes_lens = batch['context_audio_codes_lens']
+                else:
+                    context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'])
+
                 context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
                 context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
                 context_embeddings = self.context_encoder(context_audio_embedded, context_mask, cond=None, cond_mask=None)['output']
                 if self.cfg.use_perceiver:
                     context_embeddings = self.perceiver_resampler(context_embeddings)
                     context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
-
+                
+                if self.use_text_conditioning_encoder:
+                    context_embeddings = torch.cat([context_embeddings, context_text_encoded], dim=1)
+                    context_mask = torch.cat([context_mask, ~context_text_mask], dim=1)
+                
                 cond = [encoder_out, context_embeddings]
                 cond_mask = [text_mask, context_mask]
                 multi_encoder_mapping = self.multi_encoder_mapping
@@ -644,10 +688,12 @@ class T5TTS_Model(ModelPT):
             eos_id=self.eos_id,
             audio_bos_id=self.audio_bos_id,
             audio_eos_id=self.audio_eos_id,
+            num_audio_codebooks=self.cfg.num_audio_codebooks,
             codec_model_downsample_factor=self.cfg.codec_model_downsample_factor,
             prior_scaling_factor=self.cfg.prior_scaling_factor,
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type, # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
+            use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
         )
         dataset.load_16khz_audio = self.model_type == 'single_encoder_sv_tts'
         dataset.tokenizer_config = self.cfg.text_tokenizer # This will be used in worker_init_fn for instantiating tokenizer
@@ -659,6 +705,9 @@ class T5TTS_Model(ModelPT):
         if cfg.dataloader_params.num_workers == 0:
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg)
+            if self.cfg.use_text_conditioning_encoder:
+                dataset.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn
         )
@@ -669,6 +718,9 @@ class T5TTS_Model(ModelPT):
         if cfg.dataloader_params.num_workers == 0:
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg, mode='test')
+            if self.cfg.use_text_conditioning_encoder:
+                dataset.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params, worker_init_fn=worker_init_fn)
         return data_loader
 

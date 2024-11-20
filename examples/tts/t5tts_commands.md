@@ -15,14 +15,42 @@ docker run --runtime=nvidia -it --rm -v --shm-size=16g --ipc=host --ulimit memlo
 cd /home/pneekhara/2023/SimpleT5NeMo/NeMo; export PYTHONPATH="/home/pneekhara/2023/SimpleT5NeMo/NeMo.:${PYTHONPATH}" ; pip install ipdb ;
 ```
 
+## Code
+* Model `nemo/collections/tts/models/t5tts.py`
+* Transformer Module `nemo/collections/tts/modules/t5tts_transformer.py`
+* Config Yaml `examples/tts/conf/t5tts/t5tts.yaml`
+* Training/Inference Script `examples/tts/t5tts.py`
+
+## Model Types
+
+Currently supports two model types `single_encoder_sv_tts` and `multi_encoder_context_tts` (`cfg.model.model_type` in t5tts.yaml)
+
+1. `single_encoder_sv_tts` is a simple T5 model: Text goes into the encoder and target audio goes to the decoder.
+   Additionally, speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder output (all timesteps).
+   When using text context, the DistilBert embedding of the text will be added instead of the speaker_embedding.
+
+2. `multi_encoder_context_tts` is a multi-encoder T5 model: Transcript and context audio go to different encoders.
+   Transcript encoding feeds to layers given by `cfg.model.transcript_decoder_layers` and the context encoding feeds into the remaining layers.
+   Also supports text context - The context text is encoded by DistilBert and is either concatenated after the context audio encoding (along time dimension)
+   or used by itself if context audio is not available.
+
+   NOTE: `multi_encoder_context_tts` can support both audio and text context in a single example,
+   while `single_encoder_sv_tts` exclusively supports audio or text context in a single example.
+   If both are provided, text context takes precedence.
+
 ## Training Command
 
-The manifest json files should contain the following keys: `audio_filepath, duration, text, speaker` . `speaker` is not currently being used so can be anything.
+### Data structure
+For `single_encoder_sv_tts`, the manifest json files should contain the following keys: `audio_filepath, duration, text, speaker` . `speaker` is not currently being used so can be anything.
 If we have already extracted the audio codes then they can also contain the key `target_audio_codes_path` pointing to the absolute path to the codes .pt file of shape (8, T).
 Note: `target_audio_codes_path` should either be present in ALL training manifests or absent in ALL training manifest. Train set cannot be a mix of both. Same goes for val set.
 If `target_audio_codes_path` is not present, codes are extracted on the fly (and training will be slower).
 
+For `multi_encoder_context_tts`, in addition to the above, the manifest should contain `context_audio_filepath` and `context_duration`. If we have codes already extracted, we can have `context_audio_codes_path` (abosolute path) instead of `context_audio_filepath`. 
 
+Additionally, we can have `context_text` key for text context training. If both, `context_audio_codes_path` and `context_text` are provided, in multi_encoder_context_tts, both information will be used for conditioning, but in single_encoder_sv_tts only context_text will be used.
+
+### Command
 ```
 python examples/tts/t5tts.py \
 max_epochs=1000 \
@@ -47,6 +75,8 @@ exp_manager.exp_dir="/datap/misc/Experiments/SimpleT5Explore/LocalTraining_LRH/"
 +val_ds_meta.librival.manifest_path="/datap/misc/LibriTTSfromNemo/LibriTTS/devclean_small.json" \
 +val_ds_meta.librival.audio_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
 +val_ds_meta.librival.feature_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
+model.model_type="single_encoder_sv_tts" \
+model.use_text_conditioning_encoder=false \
 model.codecmodel_path="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
 model.alignment_loss_scale=0.01 \
 model.prior_scaling_factor=0.5 \
@@ -63,6 +93,8 @@ trainer.devices=1 \
 ~model.optim.sched ;
 ```
 
+Set `model.model_type=multi_encoder_context_tts` for Multi Encoder T5TTS and `model.use_text_conditioning_encoder=true` if you are doing text context training.
+
 If you change the codec model, make sure to adjust these model config params in `t5tts.yaml`:
 
 ```
@@ -78,6 +110,7 @@ To train then model without CTC loss and prior, set the below params:
 model.alignment_loss_scale=0.0 \
 model.prior_scaling_factor=null \
 ```
+
 
 ### Training sub file for cluster.
 

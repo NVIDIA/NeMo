@@ -324,11 +324,13 @@ class T5TTSDataset(TextToSpeechDataset):
         eos_id: int = None,
         audio_bos_id: int = None,
         audio_eos_id: int = None,
+        num_audio_codebooks: int = None,
         prior_scaling_factor: float = None,
         load_cached_codes_if_available: bool = True,
         dataset_type: str = 'train',
         tokenizer_config=None,
         load_16khz_audio: bool = True,
+        use_text_conditioning_tokenizer: bool = False,
     ):
         super().__init__(
             dataset_meta=dataset_meta,
@@ -347,14 +349,17 @@ class T5TTSDataset(TextToSpeechDataset):
         self.eos_id = eos_id
         self.audio_bos_id = audio_bos_id
         self.audio_eos_id = audio_eos_id
+        self.num_audio_codebooks = num_audio_codebooks
         self.codec_model_downsample_factor = codec_model_downsample_factor
         self.include_align_prior = prior_scaling_factor is not None
         self.prior_scaling_factor = prior_scaling_factor
         self.load_cached_codes_if_available = load_cached_codes_if_available
         self.dataset_type = dataset_type
         self.tokenizer_config = tokenizer_config
-        self.text_tokenizer = None
+        self.text_tokenizer = None # Assigned in worker_init_fn in model file
         self.load_16khz_audio = load_16khz_audio
+        self.use_text_conditioning_tokenizer = use_text_conditioning_tokenizer
+        self.text_conditioning_tokenizer = None # Assigned in worker_init_fn in model file if use_text_conditioning_tokenizer is True
     
     def __getitem__(self, index):
         data = self.data_samples[index]
@@ -426,19 +431,49 @@ class T5TTSDataset(TextToSpeechDataset):
             context_audio_len = context_audio.shape[0]
             example['context_audio'] = context_audio
             example['context_audio_len'] = context_audio_len
+        else:
+            # We always want to have context_audio_codes if available for multi-encoder model. These are ignored for singlencoder model.
+            # If context audio is not available, just use a dummy context_audio_codes
+            # (Will be used in text context scenario)
+            context_bos_tensor = torch.full((self.num_audio_codebooks, 1), self.audio_bos_id, dtype=torch.int32)
+            context_eos_tensor = torch.full((self.num_audio_codebooks, 1), self.audio_eos_id, dtype=torch.int32)
+            context_audio_codes = torch.cat([context_bos_tensor, context_eos_tensor], dim=1)
+            context_audio_codes_len = context_audio_codes.shape[1]
+            example['context_audio_codes'] = context_audio_codes
+            example['context_audio_codes_len'] = context_audio_codes_len
 
         if self.load_16khz_audio:
-            audio_array_16khz, _, _ = load_audio(
-                manifest_entry=data.manifest_entry,
-                audio_dir=data.audio_dir,
-                sample_rate=16000,
-                volume_norm=self.volume_norm,
-            )
+            if 'context_audio_filepath' in data.manifest_entry:
+                # If context_audio_filepath is available, then use that for 16khz audio for SV model
+                context_audio_filepath = os.path.join(data.audio_dir, data.manifest_entry['context_audio_filepath'])
+                context_duration = data.manifest_entry['context_audio_duration']
+                audio_array_16khz = _read_audio(audio_filepath=context_audio_filepath, sample_rate=16000, offset=0, duration=context_duration).samples
+            else:
+                # Otherwise, load the target audio file.
+                audio_array_16khz, _, _ = load_audio(
+                    manifest_entry=data.manifest_entry,
+                    audio_dir=data.audio_dir,
+                    sample_rate=16000,
+                    volume_norm=self.volume_norm,
+                )
             audio_16khz = torch.tensor(audio_array_16khz, dtype=torch.float32)
             audio_len_16khz = audio_16khz.shape[0]
             example['audio_16khz'] = audio_16khz
             example['audio_len_16khz'] = audio_len_16khz
         
+        if self.use_text_conditioning_tokenizer:
+            if 'context_text' in data.manifest_entry:
+                context_tokens = self.text_conditioning_tokenizer(data.manifest_entry['context_text'])['input_ids']
+                example['has_text_context'] = True
+            else:
+                context_tokens = self.text_conditioning_tokenizer("[NO TEXT CONTEXT]")['input_ids']
+                example['has_text_context'] = False
+            context_tokens = torch.tensor(context_tokens, dtype=torch.int32)
+            context_text_len = context_tokens.shape[0]
+            example['context_text_tokens'] = context_tokens
+            example['context_text_len'] = context_text_len
+            
+
         if self.include_align_prior:
             # align_prior = self.beta_binomial_interpolator(spec_len, text_len)
             align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=spec_len, scaling_factor=self.prior_scaling_factor)
@@ -463,7 +498,9 @@ class T5TTSDataset(TextToSpeechDataset):
         context_audio_len_list = []
         context_audio_codes_list = []
         context_audio_codes_len_list = []
-
+        context_text_tokens_list = []
+        context_text_tokens_len_list = []
+        context_has_text_context_list = []
         for example in batch:
             dataset_name_list.append(example["dataset_name"])
             audio_filepath_list.append(example["audio_filepath"])
@@ -490,6 +527,11 @@ class T5TTSDataset(TextToSpeechDataset):
             if 'context_audio_codes' in example:
                 context_audio_codes_list.append(example['context_audio_codes'])
                 context_audio_codes_len_list.append(example['context_audio_codes_len'])
+
+            if 'context_text_tokens' in example:
+                context_text_tokens_list.append(example['context_text_tokens'])
+                context_text_tokens_len_list.append(example['context_text_len'])
+                context_has_text_context_list.append(example['has_text_context'])
 
             if self.include_align_prior:
                 prior_list.append(example["align_prior"])
@@ -539,6 +581,14 @@ class T5TTSDataset(TextToSpeechDataset):
             batch_context_audio_codes = stack_tensors(context_audio_codes_list, max_lens=[context_audio_codes_max_len])
             batch_dict['context_audio_codes'] = batch_context_audio_codes
             batch_dict['context_audio_codes_lens'] = batch_context_audio_codes_len
+        
+        if self.use_text_conditioning_tokenizer:
+            batch_context_text_tokens_len = torch.IntTensor(context_text_tokens_len_list)
+            context_text_tokens_max_len = int(batch_context_text_tokens_len.max().item())
+            batch_context_text_tokens = stack_tensors(context_text_tokens_list, max_lens=[context_text_tokens_max_len])
+            batch_dict['context_text_tokens'] = batch_context_text_tokens
+            batch_dict['context_text_tokens_lens'] = batch_context_text_tokens_len
+            batch_dict['has_text_context'] = torch.BoolTensor(context_has_text_context_list)
 
         if self.include_align_prior:
             spec_max_len = max([prior.shape[0] for prior in prior_list])

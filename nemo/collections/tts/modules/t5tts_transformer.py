@@ -534,7 +534,7 @@ class TransformerStack(nn.Module):
             if multi_encoder_mapping is not None:
                 _cond = cond[multi_encoder_mapping[idx]]
                 _cond_mask = cond_mask[multi_encoder_mapping[idx]]
-                _attn_prior = attn_prior[multi_encoder_mapping[idx]]
+                _attn_prior = None if attn_prior is None else attn_prior[multi_encoder_mapping[idx]]
             else:
                 _cond = cond
                 _cond_mask = cond_mask
