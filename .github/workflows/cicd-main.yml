@@ -2116,7 +2116,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun --nproc_per_node=1 /opt/megatron-lm/pretrain_gpt.py \
+        CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun --nproc_per_node=1 /opt/Megatron-LM/pretrain_gpt.py \
           --mock-data \
           --distributed-timeout-minutes 60 \
           --use-mcore-models \
