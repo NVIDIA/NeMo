@@ -23,6 +23,45 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 
 
+def get_modelopt_decoder_type(model: llm.GPTModel):
+    """Infers the modelopt decoder type from GPTModel subclass.
+        Based on: https://github.com/NVIDIA/TensorRT-Model-Optimizer/blob/main/llm_ptq/example_utils.py
+    """
+    MODEL_NAME_PATTERN_MAP = {
+        "GPT2": "gpt2",
+        "Llama": "llama",
+        "Mistral": "llama",
+        "GPTJ": "gptj",
+        "FalconForCausalLM": "falcon",
+        "RWForCausalLM": "falcon",
+        "baichuan": "baichuan",
+        "MPT": "mpt",
+        "Bloom": "bloom",
+        "ChatGLM": "chatglm",
+        "QWen": "qwen",
+        "RecurrentGemma": "recurrentgemma",
+        "Gemma2": "gemma2",
+        "Gemma": "gemma",
+        "phi3small": "phi3small",
+        "phi3": "phi3",
+        "phi": "phi",
+        "TLGv4ForCausalLM": "phi",
+        "MixtralForCausalLM": "llama",
+        "ArcticForCausalLM": "llama",
+        "StarCoder": "gptnext",
+        "Dbrx": "dbrx",
+        "T5": "t5",
+        "GLM": "glm",
+        "InternLM2ForCausalLM": "internlm",
+        "ExaoneForCausalLM": "exaone",
+    }
+
+    for k, v in MODEL_NAME_PATTERN_MAP.items():
+        if k.lower() in type(model).__name__.lower():
+            return v
+    return None
+
+
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT Model Optimizer"""
 
