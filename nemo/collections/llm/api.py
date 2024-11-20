@@ -24,9 +24,10 @@ from megatron.core import parallel_state
 from rich.console import Console
 from torch.distributed import all_gather_object
 from typing_extensions import Annotated
-
+import torch.nn as nn
 import nemo.lightning as nl
 from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
+from nemo.collections.llm.lit_wrapper import wrap_module_with_lit
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -51,7 +52,7 @@ TokenizerType = Any
 
 @run.cli.entrypoint(namespace="llm")
 def train(
-    model: pl.LightningModule,
+    model: Union[pl.LightningModule, 'nn.Module', run.Config['nn.Module']],
     data: pl.LightningDataModule,
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
@@ -92,6 +93,9 @@ def train(
         >>> llm.train(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
+    # If type(model) != pl.LightningModule will wrap it into a pl.LightningModule
+    model = wrap_module_with_lit(model, criterion_fn=nn.CrossEntropyLoss)
+
     app_state = _setup(
         model=model,
         data=data,
@@ -110,7 +114,7 @@ def train(
 
 @run.cli.entrypoint(namespace="llm")
 def pretrain(
-    model: pl.LightningModule,
+    model: Union[pl.LightningModule, 'nn.Module', run.Config['nn.Module']],
     data: pl.LightningDataModule,
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
@@ -158,7 +162,7 @@ def pretrain(
 
 @run.cli.entrypoint(namespace="llm")
 def finetune(
-    model: pl.LightningModule,
+    model: Union[pl.LightningModule, 'nn.Module', run.Config['nn.Module']],
     data: pl.LightningDataModule,
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,

@@ -16,6 +16,8 @@ import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm
+from transformers import AutoModelForCausalLM
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 def mk_hf_dataset(tokenizer):
@@ -41,14 +43,15 @@ def mk_hf_dataset(tokenizer):
         ans = tokenizer(text)
         tokens = ans['input_ids']
         return {
-            'tokens': tokens,
+            'input_ids': tokens,
             'labels': tokens[1:] + [tokens[-1]],
         }
 
     from datasets import load_dataset
 
     dataset = load_dataset("rajpurkar/squad", split="train")
-    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2)
+    columns_to_remove = list(filter(lambda x: x not in ['input_ids', 'labels'], dataset.features.keys()))
+    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2, remove_columns=columns_to_remove)
     return dataset
 
 
@@ -76,10 +79,23 @@ if __name__ == '__main__':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
-    tokenizer = llm.HfAutoModelForCausalLM.configure_tokenizer(args.model)
+
+    # Load model directly
+    # You can either initialize the model here or use a fdl.Config
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     args.model,
+    #     trust_remote_code=True
+    # )
+
+    model = fdl.Config(
+        AutoModelForCausalLM.from_pretrained,
+        args.model,
+        trust_remote_code=True
+    )
+    tokenizer = AutoTokenizer(args.model)
 
     llm.api.finetune(
-        model=llm.HfAutoModelForCausalLM(args.model),
+        model=model,
         data=llm.HfDatasetDataModule(
             mk_hf_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
         ),

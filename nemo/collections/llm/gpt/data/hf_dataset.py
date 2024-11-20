@@ -48,7 +48,7 @@ class HfDatasetDataModule(pl.LightningDataModule):
         self.mcore_dataloader_type = mcore_dataloader_type
 
     @staticmethod
-    def collate_fn(batch, pad_token_id=0):
+    def collate_fn(batch, pad_token_id=0, keys=None):
         def batchify(tensor):
             if tensor.ndim == 1:
                 return tensor.unsqueeze_(0)
@@ -61,7 +61,13 @@ class HfDatasetDataModule(pl.LightningDataModule):
             max_len = max(map(len, batch))
             return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
-        keys = list(filter(lambda x: x in batch[0], ['tokens', 'labels', 'position_ids', 'loss_mask']))
+        assert isinstance(batch, list), "Expected batch to be of type list"
+        assert len(batch) > 0, "Expected batch to be of non-empty list"
+        assert all(map(lambda x: isinstance(x, dict), batch)), "Expected all batch items to be of type dict"
+
+        if keys is None:
+            keys = batch[0].keys()
+
         return {
             key: batchify(
                 torch.LongTensor(
