@@ -54,19 +54,19 @@ class AutoModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-    from transformers import AutoConfig
-    architectures = AutoConfig.from_pretrained(model, trust_remote_code=True).architectures
-    assert isinstance(architectures, list), "Expected architectures to be a list"
-    assert len(architectures) == 1, "Expected architectures to contain one item"
+        from transformers import AutoConfig
+        architectures = AutoConfig.from_pretrained(model, trust_remote_code=True).architectures
+        assert isinstance(architectures, list), "Expected architectures to be a list"
+        assert len(architectures) == 1, "Expected architectures to contain one item"
 
-    if not model in HF_TO_MCORE_REGISTRY:
-        raise ValueError("Architecture " + str(architectures) + " not supported")
-    model_cls = HF_TO_MCORE_REGISTRY[model]
-    self.__class__ = model_cls
-    config = model_cls.importer(f'hf://{path}').config
-    super().__init__(
-        config, optim=optim, tokenizer=tokenizer, model_transform=model_transform
-    )
+        if not model in HF_TO_MCORE_REGISTRY:
+            raise ValueError("Architecture " + str(architectures) + " not supported")
+        model_cls = HF_TO_MCORE_REGISTRY[model]
+        self.__class__ = model_cls
+        config = model_cls.importer(f'hf://{path}').config
+        super().__init__(
+            config, optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 __all__ = [
     "AutoModel",
