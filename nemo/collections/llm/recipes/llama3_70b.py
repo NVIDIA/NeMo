@@ -15,11 +15,11 @@
 
 from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
@@ -263,9 +263,10 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for finetuning. Allowed values: 'lora'/'none'/None.
         seq_length (int): Maximum number of tokens per microbatch.
-        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given maximum seq_length for better efficiency. By default, this value equals performance_mode.
+        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
+            maximum seq_length for better efficiency. By default, this value equals performance_mode.
         performance_mode (bool): If true, enables optimizations for maximum performance.
 
     Returns:
@@ -310,7 +311,6 @@ def finetune_recipe(
         recipe.peft = run.Config(LoRA)
         recipe.peft.dim = 16
         recipe.peft.alpha = 32
-        recipe.peft.target_modules = ['linear_qkv']
         recipe.optim.config.use_distributed_optimizer = False
 
         # some settings currently do not function correctly with LoRA
@@ -325,7 +325,7 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        recipe.data.pad_to_max_length = True
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
         recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
     if performance_mode:
@@ -384,6 +384,7 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
+        recipe.peft.target_modules = ['linear_qkv']
 
     recipe.trainer.strategy.sequence_parallel = True
 
