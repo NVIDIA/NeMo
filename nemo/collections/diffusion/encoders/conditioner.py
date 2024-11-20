@@ -31,8 +31,6 @@ class AbstractEmbModel(nn.Module):
         self._ucg_rate = None
         self._input_key = None
 
-        self.TARGET_BLOCK = target_block
-        self.TARGET_MODULE = target_module
         self.TARGET_BLOCK = target_block or []
         self.TARGET_MODULE = target_module or []
         if enable_lora_finetune:
