@@ -263,6 +263,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         blank_lm_score_mode: Optional[str | rnnt_utils.BlankLMScoreMode] = None,
         allow_recombine_hyps: bool = True,
         score_norm: bool = True,
+        # score_norm_selection: bool = False,
     ):
         super().__init__()
         self.decoder = decoder
@@ -276,6 +277,9 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.score_norm = score_norm
+        # self.score_norm_selection = score_norm_selection
+        # if score_norm_selection:
+        #     raise NotImplementedError
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
         if ngram_lm_model is not None:
