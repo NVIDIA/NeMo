@@ -133,12 +133,15 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
                 }
             )
 
+        # When instantiated HF's BertModel, or BertModelForPretraining, BertForMaskedLM, BertForNextSentencePrediction
+        # The prefix for state dict is slightly different, therefore we need different transforms to take care of.
         if self.type == 'model':
             transforms = [_import_qkv_2, _import_qkv_bias_2, _import_embedding_2]
         else:
             transforms = [_import_qkv, _import_qkv_bias, _import_embedding]
 
         if self.type != 'model':
+            # adding the 'bert.' prefix so that the state dict matches.
             mapping = {f'bert.{k}': v for k, v in mapping.items()}
 
         if self.config.add_lm_head:
@@ -322,7 +325,6 @@ def _import_qkv_bias_2(ctx: io.TransformCTX, qb, kb, vb):
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
-    hidden_size = megatron_config.hidden_size
     head_size = megatron_config.kv_channels
 
     new_q_tensor_shape_bias = (head_num, head_size)
