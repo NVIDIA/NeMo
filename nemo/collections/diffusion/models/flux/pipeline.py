@@ -59,10 +59,11 @@ class FluxInferencePipeline(nn.Module):
         missing, unexpected = self.transformer.load_state_dict(ckpt, strict=False)
         missing = [
             k for k in missing if not k.endswith('_extra_state')
-        ]  # These keys are mcore specific and should not affect the model performance
+        ]
+        # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
-                f"The folloing keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+                f"The following keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
 

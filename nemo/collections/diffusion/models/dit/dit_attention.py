@@ -425,4 +425,6 @@ class FluxSingleAttention(SelfAttention):
             # note that batch is a dummy dimension in the packed case
             core_attn_out = core_attn_out.reshape(core_attn_out.size(0), 1, -1)
 
-        return core_attn_out
+        output, _ = self.linear_proj(attention_output)
+
+        return output

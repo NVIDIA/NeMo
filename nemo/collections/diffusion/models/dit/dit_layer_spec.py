@@ -631,14 +631,10 @@ class FluxSingleTransformerBlock(TransformerLayer):
         modulation_bias: bool = True,
     ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
-        hidden_size = config.hidden_size
         self.adaln = AdaLN(
             config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
         )
-        self.mlp_hidden_dim = int(hidden_size * mlp_ratio)
-        self.proj_in = nn.Linear(hidden_size, self.mlp_hidden_dim)
-        self.activation = nn.GELU(approximate="tanh")
-        self.proj_out = nn.Linear(hidden_size + self.mlp_hidden_dim, hidden_size)
+
 
     def forward(
         self,
@@ -657,15 +653,13 @@ class FluxSingleTransformerBlock(TransformerLayer):
 
         norm_hidden_states = self.adaln.modulated_layernorm(hidden_states, shift=shift, scale=scale)
 
-        mlp_hidden_states = self.activation(self.proj_in(norm_hidden_states))
+        mlp_hidden_states, mlp_bias = self.mlp(norm_hidden_states)
 
         attention_output = self.self_attention(
             norm_hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb
         )
 
-        hidden_states = torch.cat((attention_output, mlp_hidden_states), dim=2)
-
-        hidden_states = self.proj_out(hidden_states)
+        hidden_states = mlp_hidden_states + mlp_bias + attention_output
 
         hidden_states = self.adaln.scale_add(residual, x=hidden_states, gate=gate)
 
@@ -835,7 +829,14 @@ def get_flux_single_transformer_engine_spec() -> ModuleSpec:
                     core_attention=TEDotProductAttention,
                     q_layernorm=RMSNorm,
                     k_layernorm=RMSNorm,
-                    linear_proj=IdentityOp,
+                    linear_proj=TERowParallelLinear,
+                ),
+            ),
+            mlp=ModuleSpec(
+                module=MLP,
+                submodules=MLPSubmodules(
+                    linear_fc1=TEColumnParallelLinear,
+                    linear_fc2=TERowParallelLinear,
                 ),
             ),
         ),
