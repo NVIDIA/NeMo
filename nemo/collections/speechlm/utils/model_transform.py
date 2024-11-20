@@ -13,20 +13,25 @@
 # limitations under the License.
 
 import json
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.utilities.types import _PATH
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
-from pytorch_lightning.utilities import model_summary
+from lightning.fabric.utilities.types import _PATH
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning.pytorch.trainer.states import TrainerFn
+from lightning.pytorch.utilities import model_summary
 from typing_extensions import override
 
 from nemo.collections.llm.fn import base as fn
-from nemo.lightning.io.pl import ckpt_to_dir
-from nemo.lightning.pytorch.callbacks.peft import _ADAPTER_META_FILENAME, PEFT
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
+from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.megatron_parallel import MegatronParallel
+from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.utils import logging
+from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
 
 class SpeechToTextLLMPEFT(PEFT):
@@ -36,11 +41,34 @@ class SpeechToTextLLMPEFT(PEFT):
 
     @override
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+        """PTL callback setup function."""
+        from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
+
         super(PEFT, self).setup(trainer, pl_module, stage=stage)
 
         trainer.strategy.trainer = trainer
-        self.wrapped_io = WrappedAdapterIO(trainer.strategy.checkpoint_io, self)
-        trainer.strategy._checkpoint_io = self.wrapped_io
+        wrapped_io = partial(WrappedAdapterIO, peft=self)
+
+        ckpt_io_kwarg_names = [
+            "save_ckpt_format",
+            "async_save",
+            "torch_dist_multiproc",
+            "assume_constant_structure",
+            "parallel_save",
+            "parallel_save_within_dp",
+            "parallel_load",
+            "load_directly_on_device",
+        ]
+        ckpt_io_kwargs = {
+            arg: getattr(trainer.strategy, arg)
+            for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
+        }
+        trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
+        self.wrapped_io = (
+            trainer.strategy._checkpoint_io._checkpoint_io
+            if getattr(trainer.strategy, 'async_save', False)
+            else trainer.strategy._checkpoint_io
+        )
         trainer.strategy._init_model_parallel = False
         trainer.strategy._setup_optimizers = False
 
@@ -62,18 +90,31 @@ class SpeechToTextLLMPEFT(PEFT):
         model.freeze_llm()
         module = model.module
         logging.info(f"Applying PEFT to language model with: {self.peft}")
-        while not hasattr(module, "language_model"):
-            module = module.module
-        fn.walk(module.language_model, self.transform, _skip_map=True)
+
+        # If using megatron virtual pipeline parallelism, model is a list of
+        # model chunks so iterate over model
+        if isinstance(model, MegatronParallel) and len(model) > 1:
+            for model_chunk in model:
+                self._transform_module(model_chunk)
+        else:
+            self._transform_module(module)
+
+        if hasattr(model, "trainer") and model.trainer.state.fn != TrainerFn.FITTING:
+            self.freeze_model(model)
 
         logging.info(f"\n{model_summary.summarize(model, max_depth=3)}")
         return model
+
+    def _transform_module(self, module):
+        while not hasattr(module, "language_model"):
+            module = module.module
+        fn.walk(module.language_model, self.transform, _skip_map=True)
 
     def transform(self, module, name=None, prefix=None):
         return self.peft.transform(module, name=name, prefix=prefix)
 
 
-class WrappedAdapterIO(_WrappingCheckpointIO):
+class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     peft: Optional[PEFT] = None
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
@@ -85,18 +126,25 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         assert self.checkpoint_io is not None
-        checkpoint['sharded_state_dict'] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint['sharded_state_dict'].items())
+
+        state_key = 'sharded_state_dict'
+        if not state_key in checkpoint:
+            state_key = 'state_dict'
+        checkpoint[state_key] = dict(
+            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
         )
-        self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
+        request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+            base_dir = ckpt_to_weights_subdir(path, is_saving=True)
+            base_dir.mkdir(parents=True, exist_ok=True)
+            adapter_meta_path = base_dir / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
+        return request
 
     @override
     def load_checkpoint(
@@ -127,7 +175,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
 
         assert self.checkpoint_io is not None
 
-        adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
+        adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
         adapter_ckpt = None
         load_base = False
 
@@ -170,9 +218,12 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
                     "sharded_state_dict": dict(sharded_state_dict['state_dict']),
                 }
                 # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
+                async_save = getattr(self.checkpoint_io, "async_save", False)
+                self.checkpoint_io.async_save = False
                 self.checkpoint_io.save_checkpoint(base_sharded_state_dict, tempdir)
                 model_ckpt = self.checkpoint_io.load_checkpoint(tempdir, sharded_state_dict, map_location)
                 model_ckpt = self._fix_ckpt_device(model_ckpt)
+                self.checkpoint_io.async_save = async_save
                 torch.cuda.empty_cache()
             return model_ckpt
         else:

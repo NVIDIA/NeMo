@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from types import MethodType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as L
 import torch
 import torch.nn as nn
 from megatron.core import dist_checkpointing, parallel_state, tensor_parallel
@@ -67,7 +67,7 @@ from nemo.collections.speechlm.utils.text_generation.audio_text_generation_utils
     get_computeprob_response,
 )
 from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ckpt_to_weights_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import AppState, logging, model_utils
 
@@ -132,7 +132,7 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
     return output
 
 
-def speech_to_text_llm_forward_step(model: pl.LightningModule, batch: Dict[str, Any]) -> torch.Tensor:
+def speech_to_text_llm_forward_step(model: L.LightningModule, batch: Dict[str, Any]) -> torch.Tensor:
     forward_args = {
         "input_ids": batch.get("tokens", None),
         "input_length": batch.get("tokens_length", None),
@@ -188,10 +188,10 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         module.eval()
 
     def configure_model(self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None) -> "SpeechToTextLLM":
-        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: pl.LightningModule
+        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: L.LightningModule
 
         if speech_model is None:
-            speech_model = self.speech_model_config.configure_model()  # type: pl.LightningModule
+            speech_model = self.speech_model_config.configure_model()  # type: L.LightningModule
         speech_model.set_input_tensor = MethodType(set_input_tensor, speech_model)
 
         self.modality_adapter_config.output_dim = self.language_model_config.hidden_size
@@ -202,7 +202,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             elif hasattr(speech_model.encoder, input_key):
                 self.modality_adapter_config.input_dim = getattr(speech_model.encoder, input_key)
 
-        modality_adapter = self.modality_adapter_config.configure_model()  # type: pl.LightningModule
+        modality_adapter = self.modality_adapter_config.configure_model()  # type: L.LightningModule
         modality_adapter.set_input_tensor = MethodType(set_input_tensor, modality_adapter)
 
         if self.language_model_from_pretrained is not None:
@@ -214,7 +214,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
                 ckpt_path = llm_model_cls.import_ckpt(
                     f"{self.language_model_hub}{self.language_model_from_pretrained}"
                 )
-                ckpt_path = ckpt_to_weights_subdir(ckpt_path)
+                ckpt_path = ckpt_to_weights_subdir(ckpt_path, is_saving=False)
 
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
 
@@ -531,6 +531,7 @@ class SpeechToTextLLM(SpeechLanguageModel):
             self.module.language_model = self.module.language_model.to(self.device)
             self.module.speech_model = self.module.speech_model.to(self.device)
             self.module.modality_adapter = self.module.modality_adapter.to(self.device)
+            del self._speech_model
 
     def setup(self, stage: str):
         super().setup(stage)

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 from nemo.lightning import io
+from nemo.lightning.pytorch.callbacks.peft import ADAPTER_META_FILENAME
 from nemo.lightning.resume import AdapterPath, AutoResume
 from nemo.utils.app_state import AppState
 
@@ -46,9 +47,7 @@ class SLMAutoResume(AutoResume):
             if self.adapter_path:
                 return AdapterPath(Path(self.adapter_path), base_model_path=checkpoint)
             else:
-                from nemo.lightning.pytorch.callbacks.peft import _ADAPTER_META_FILENAME
-
-                adapter_meta_path = checkpoint / _ADAPTER_META_FILENAME
+                adapter_meta_path = checkpoint / ADAPTER_META_FILENAME
                 if adapter_meta_path.exists():
                     return AdapterPath(checkpoint, base_model_path=checkpoint)
                 else:

@@ -16,7 +16,7 @@
 import uuid
 from typing import Dict, List, Optional, Tuple, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as L
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -31,7 +31,7 @@ from nemo.utils.get_rank import get_rank, is_global_rank_zero
 __all__ = ['SpeechLanguageModel']
 
 
-class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(self):
         super().__init__()
         app_state = AppState()
@@ -94,7 +94,7 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
         Propagates the model GUID to all submodules, recursively.
         """
 
-        def recursively_propagate_guid(module: pl.LightningModule):
+        def recursively_propagate_guid(module: L.LightningModule):
             module.model_guid = self.model_guid
             for child in module.children():
                 recursively_propagate_guid(child)

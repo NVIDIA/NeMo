@@ -281,7 +281,7 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
         context_lengths: torch.Tensor,
         audio_signal: torch.Tensor,
         audio_length: torch.Tensor,
-        compute_attention_mask: bool,
+        compute_attention_mask: bool = True,
         num_audios: Optional[torch.Tensor] = None,
         context_start_idx: Optional[List[List[int]]] = None,
     ):
@@ -340,14 +340,12 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
     ) -> Dict[str, torch.Tensor]:
         """Prepare batch for each of the inference steps"""
         if step == 0:
-            # Allocate memory for the entire context.
             tokens2use = tokens[:, :curr_context_length].contiguous()
             positions2use = self.position_ids[:, :curr_context_length].contiguous()
             embeddings2use = input_embeddings[:curr_context_length].contiguous()
             # Prepare KV cache for the entire context at first step, and reuse afterwards.
             self.inference_params = InferenceParams(max_batch_size=tokens2use.size(0), max_sequence_length=maxlen)
         else:
-            # Set this to false so the memory is not reallocated.
             tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1).contiguous()
             positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1).contiguous()
             embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use).contiguous()
@@ -355,10 +353,11 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
             embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
             embeddings2use = embeddings2use.contiguous()
 
+        attention_mask = self.attention_mask if compute_attention_mask else None
         batch = {
             "input_ids": None,
             "position_ids": None,
-            "attention_mask": self.attention_mask,
+            "attention_mask": attention_mask,
             "decoder_input": embeddings2use,
             "inference_params": self.inference_params,
         }

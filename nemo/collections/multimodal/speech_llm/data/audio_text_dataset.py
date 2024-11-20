@@ -282,6 +282,9 @@ class AudioTextDataset(TextProcessing, Dataset):
         context_file: Optional[Union[List[str], str]] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        add_boa_eoa: Optional[bool] = False,
+        boa_string: Optional[str] = "<BOA>",
+        eoa_string: Optional[str] = "<EOA>",
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -304,6 +307,9 @@ class AudioTextDataset(TextProcessing, Dataset):
             end_string=end_string,
             sample_alpha=sample_alpha,
             audio_locator=audio_locator,
+            add_boa_eoa=add_boa_eoa,
+            boa_string=boa_string,
+            eoa_string=eoa_string,
         )
 
         if isinstance(manifest_filepath, str):
@@ -1073,6 +1079,7 @@ def get_audio_text_dataset_from_config(
         manifest_filepath = config.manifest_filepath
 
     data_cls = MultiAudioTextDataset if config.get('audio_locator', None) else AudioTextDataset
+    logging.info(f"Using `{data_cls.__name__}` for dataset")
     datasets = []
     if is_train:
         # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
@@ -1137,6 +1144,9 @@ def get_audio_text_dataset_from_config(
             sample_alpha=config.get('sample_alpha', None),
             context_file=context_file,
             audio_locator=config.get('audio_locator', None),
+            add_boa_eoa=config.get('add_boa_eoa', False),
+            boa_string=config.get('boa_string', None),
+            eoa_string=config.get('eoa_string', None),
         )
         datasets.append(dataset)
 
