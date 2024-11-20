@@ -43,16 +43,15 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import (
-    BackwardPrefetch,
-    FullStateDictConfig,
     MixedPrecision,
     OptimStateKeyType,
     ShardedStateDictConfig,
     ShardingStrategy,
     StateDictType,
 )
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
