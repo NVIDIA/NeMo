@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.llm.gpt.model.auto_model import AutoModel
 from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
@@ -110,6 +111,7 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 )
 
 __all__ = [
+    "AutoModel",
     "GPTConfig",
     "GPTModel",
     "MistralConfig7B",
