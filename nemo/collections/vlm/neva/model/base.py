@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -45,8 +46,9 @@ from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+from nemo.collections.vlm.neva.model.utils import merge_input_ids_with_image_features
 from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ckpt_to_weights_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
@@ -60,6 +62,121 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     return num_patches + (class_token_len if add_class_token else 0)
 
 
+'Borrowed from https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py#L113C1-L150C27'
+
+
+def unpad_image(tensor, original_size):
+    """
+    Unpads a PyTorch tensor of a padded and resized image.
+
+    Args:
+        tensor (`torch.Tensor`):
+            The image tensor, assumed to be of shape (num_channels, height, width).
+        original_size (`tuple`):
+            The original size of the image (height, width).
+
+    Returns:
+        `torch.Tensor`: The unpadded image tensor.
+    """
+    import numpy as np
+
+    if not isinstance(original_size, (list, tuple)):
+        if not isinstance(original_size, (torch.Tensor, np.ndarray)):
+            raise TypeError(
+                f"image_size invalid type: {type(original_size)} not valid, should be either list, tuple, np.ndarray or tensor"
+            )
+        original_size = original_size.tolist()
+    original_height, original_width = original_size
+    current_height, current_width = tensor.shape[1:]
+
+    original_aspect_ratio = original_width / original_height
+    current_aspect_ratio = current_width / current_height
+
+    if original_aspect_ratio > current_aspect_ratio:
+        scale_factor = current_width / original_width
+        new_height = int(original_height * scale_factor)
+        padding = (current_height - new_height) // 2
+        unpadded_tensor = tensor[:, padding : current_height - padding, :]
+    else:
+        scale_factor = current_height / original_height
+        new_width = int(original_width * scale_factor)
+        padding = (current_width - new_width) // 2
+        unpadded_tensor = tensor[:, :, padding : current_width - padding]
+
+    return unpadded_tensor
+
+
+def select_best_resolution(original_size: tuple, possible_resolutions: list) -> tuple:
+    """
+    Selects the best resolution from a list of possible resolutions based on the original size.
+
+    This is done by calculating the effective and wasted resolution for each possible resolution.
+
+    The best fit resolution is the one that maximizes the effective resolution and minimizes the wasted resolution.
+
+    Args:
+        original_size (tuple):
+            The original size of the image in the format (height, width).
+        possible_resolutions (list):
+            A list of possible resolutions in the format [(height1, width1), (height2, width2), ...].
+
+    Returns:
+        tuple: The best fit resolution in the format (height, width).
+    """
+    original_height, original_width = original_size
+    best_fit = None
+    max_effective_resolution = 0
+    min_wasted_resolution = float("inf")
+
+    for height, width in possible_resolutions:
+        scale = min(width / original_width, height / original_height)
+        downscaled_width, downscaled_height = int(original_width * scale), int(original_height * scale)
+        effective_resolution = min(downscaled_width * downscaled_height, original_width * original_height)
+        wasted_resolution = (width * height) - effective_resolution
+
+        if effective_resolution > max_effective_resolution or (
+            effective_resolution == max_effective_resolution and wasted_resolution < min_wasted_resolution
+        ):
+            max_effective_resolution = effective_resolution
+            min_wasted_resolution = wasted_resolution
+            best_fit = (height, width)
+
+    return best_fit
+
+
+def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
+    """
+    Calculate the shape of the image patch grid after the preprocessing for images of any resolution.
+
+    Args:
+        image_size (`tuple`):
+            The size of the input image in the format (width, height).
+        grid_pinpoints (`List`):
+            A list containing possible resolutions. Each item in the list should be a tuple or list
+            of the form `(height, width)`.
+        patch_size (`int`):
+            The size of each image patch.
+
+    Returns:
+        tuple: The shape of the image patch grid in the format (width, height).
+    """
+    import numpy as np
+
+    if not isinstance(grid_pinpoints, list):
+        raise TypeError("grid_pinpoints should be a list of tuples or lists")
+
+    # ! VERY IMPORTANT if image_size is tensor, must convert to into tuple, otherwise it will cause wrong calculate
+    if not isinstance(image_size, (list, tuple)):
+        if not isinstance(image_size, (torch.Tensor, np.ndarray)):
+            raise TypeError(
+                f"image_size invalid type: {type(image_size)} not valid, should be either list, tuple, np.ndarray or tensor"
+            )
+        image_size = image_size.tolist()
+
+    height, width = select_best_resolution(image_size, grid_pinpoints)
+    return height // patch_size, width // patch_size
+
+
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
@@ -71,12 +188,12 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch[0]
     else:
         _batch = batch
-
     required_keys = set()
     required_keys.add("attention_mask")
     required_keys.add("num_media_tiles")
+    required_keys.add("image_sizes")
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("media", "tokens", "position_ids"))
+        required_keys.update(("media", "tokens", "position_ids", "image_sizes", "attention_mask"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
@@ -99,12 +216,12 @@ def neva_forward_step(model, batch) -> torch.Tensor:
         "attention_mask": batch.get("attention_mask", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
+        "image_sizes": batch.get("image_sizes", None),
         "num_media_tiles": batch.get("num_media_tiles", None),
     }
 
     if 'cu_seqlens' in batch:
         forward_args['packed_seq_params'] = get_packed_seq_params(batch)
-
     return model(**forward_args)
 
 
@@ -232,6 +349,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
     vision_feature_layer: int = -2
+    is_llava_next: bool = False
 
     language_model_from_pretrained: Optional[str] = None
     vision_model_from_pretrained: Optional[str] = None  # TODO
@@ -251,7 +369,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
-            path = ckpt_to_weights_subdir(self.language_model_from_pretrained)
+            path = ckpt_to_weights_subdir(self.language_model_from_pretrained, is_saving=False)
             loaded_state_dict = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=path)
 
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
@@ -297,6 +415,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.vision_projection = vision_projection
         self.language_model = language_model
         self.model_type = ModelType.encoder_or_decoder
+        if transformer_config.is_llava_next:
+            embed_std = 1 / math.sqrt(transformer_config.vision_projection_config.hidden_size)
+            self.image_newline = nn.Parameter(
+                torch.randn(transformer_config.vision_projection_config.hidden_size) * embed_std
+            )
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
         self.share_embeddings_and_output_weights = False
@@ -336,6 +459,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         use_inference_kv_cache,
         image_token_index,
         num_image_tiles,
+        feature_lens=None,
     ):
         # TODO (yuya): remove this and use the mcore method
         """Preprocess input data before input to language model.
@@ -398,8 +522,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
             # Sequence length for each sample is the image sequence length multiplied by the number of tiles for that image, minus image token indices,
             # plus text sequence length.
-            seq_lens = num_image_tiles_batch * img_seq_len - num_image_tokens + text_seq_len
-            max_seq_len = seq_lens.max()
+            if feature_lens is not None:
+                seq_lens = num_image_tiles_batch * img_seq_len - num_image_tokens + text_seq_len
+                max_seq_len = seq_lens.max()
+            else:
+                seq_lens = num_image_tiles_batch * img_seq_len - num_image_tokens + text_seq_len
+                max_seq_len = seq_lens.max()
             batch_indices, non_image_indices = torch.where(input_ids != image_token_index)
 
             # New position ids for the text tokens, shifted by the image sequence length.
@@ -508,10 +636,79 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask
 
+    'Implementation borrowed from - "https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py#L655"'
+
+    def pack_image_features(self, image_features, image_sizes, vision_feature_select_strategy, image_newline=None):
+        """
+        Reshape, unpad and then pack each image_feature into a single image_features tensor containing all visual vectors.
+
+        Args:
+            image_features (`List[torch.Tensor]` of length num_images, each of shape `(num_patches, image_length, embed_dim)`)
+                List of image feature tensor, each contains all the visual feature of all patches.
+            image_sizes (`torch.Tensor` of shape `(num_images, 2)`)
+                Actual image size of each images (H, W).
+            vision_feature_select_strategy (`str`)
+                The feature selection strategy used to select the vision feature from the vision backbone.
+            image_newline (`torch.Tensor` of shape `(embed_dim)`)
+                New line embedding vector.
+        Returns:
+            image_features (`torch.Tensor` of shape `(all_feat_len, embed_dim)`)
+            feature_lens (`List[int]`)
+                token length of each image in image_features
+        """
+        from transformers import LlavaNextConfig
+
+        config = LlavaNextConfig()
+        new_image_features = []
+        feature_lens = []
+
+        for image_idx, image_feature in enumerate(image_features):
+            if image_feature.shape[0] > 1:
+                base_image_feature = image_feature[0]
+                image_feature = image_feature[1:]
+                height = width = config.vision_config.image_size // config.vision_config.patch_size
+
+                if vision_feature_select_strategy == "default":
+                    expected_num_patches = height * width
+                elif vision_feature_select_strategy == "full":
+                    expected_num_patches = height * width + 1
+                if expected_num_patches != base_image_feature.shape[0]:
+                    raise ValueError("The number of patches is not consistent with the image size.")
+
+                num_patch_height, num_patch_width = get_anyres_image_grid_shape(
+                    image_sizes[image_idx],
+                    config.image_grid_pinpoints,
+                    config.vision_config.image_size,
+                )
+                image_feature = image_feature.view(num_patch_height, num_patch_width, height, width, -1)
+                image_feature = image_feature.permute(4, 0, 2, 1, 3).contiguous()
+                image_feature = image_feature.flatten(1, 2).flatten(2, 3)
+                image_feature = unpad_image(image_feature, image_sizes[image_idx])
+                if image_newline is not None:
+                    image_feature = torch.cat(
+                        (
+                            image_feature,
+                            image_newline[:, None, None].expand(*image_feature.shape[:-1], 1).to(image_feature.dtype),
+                        ),
+                        dim=-1,
+                    )
+                image_feature = image_feature.flatten(1, 2).transpose(0, 1)
+                image_feature = torch.cat((base_image_feature, image_feature), dim=0)
+            else:
+                image_feature = image_feature[0]
+                if image_newline is not None:
+                    image_feature = torch.cat((image_feature, image_newline[None].to(image_feature)), dim=0)
+            new_image_features.append(image_feature)
+            feature_lens.append(image_feature.size(0))
+        image_features = torch.cat(new_image_features, dim=0)
+        feature_lens = torch.tensor(feature_lens, dtype=torch.long, device=image_features.device)
+        return image_features, feature_lens
+
     def forward(
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
+        image_sizes: List[torch.Tensor] = None,
         loss_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         media: Optional[torch.Tensor] = None,
@@ -537,7 +734,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             output (torch.Tensor): Loss of shape [b, s] if labels are provided, otherwise logits of shape [b, s, vocab_size].
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
-
         use_inference_kv_cache = (
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
@@ -598,18 +794,44 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
             elif isinstance(num_media_tiles, list):
                 num_media_tiles = torch.tensor(num_media_tiles, dtype=torch.int, device=input_ids.device)
-            # Preprocess input, labels and loss mask.
-            combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
-                media_embeddings,
-                language_embeddings,
-                input_ids,
-                loss_mask,
-                labels,
-                use_inference_kv_cache,
-                media_token_index,
-                num_media_tiles,
-            )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
+            if self.config.is_llava_next:
+                media_embeddings = torch.split(media_embeddings, num_media_tiles.tolist(), dim=0)
+                media_embeddings, feature_lens = self.pack_image_features(
+                    media_embeddings,
+                    image_sizes,
+                    vision_feature_select_strategy='default',
+                    image_newline=self.image_newline,
+                )
+                combined_embeddings, attention_mask, position_ids, final_labels, final_input_ids, final_loss_mask = (
+                    merge_input_ids_with_image_features(
+                        media_embeddings,
+                        feature_lens,
+                        language_embeddings,
+                        input_ids,
+                        attention_mask,
+                        position_ids,
+                        labels=labels,
+                        image_token_index=media_token_index,
+                    )
+                )
+                # if torch.distributed.get_rank() == 0:
+                #     breakpoint()
+                # torch.distributed.barrier()
+
+                combined_embeddings = combined_embeddings.permute(1, 0, 2)
+                combined_embeddings = combined_embeddings.contiguous()
+            else:
+                combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
+                    media_embeddings,
+                    language_embeddings,
+                    input_ids,
+                    loss_mask,
+                    labels,
+                    use_inference_kv_cache,
+                    media_token_index,
+                    num_media_tiles,
+                )
         output = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -618,7 +840,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             labels=final_labels,
             inference_params=inference_params,
         )
-
         if labels is None or loss_mask is None:
             return output
 
@@ -650,6 +871,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
+        image_sizes: torch.Tensor,
         loss_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         media: Optional[torch.Tensor] = None,
@@ -661,6 +883,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             media=media,
             input_ids=input_ids,
             position_ids=position_ids,
+            image_sizes=image_sizes,
             loss_mask=loss_mask,
             attention_mask=attention_mask,
             labels=labels,

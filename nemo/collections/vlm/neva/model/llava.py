@@ -27,7 +27,7 @@ from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
     from transformers import LlavaConfig as HFLlavaConfig
-    from transformers import LlavaForConditionalGeneration
+    from transformers import LlavaForConditionalGeneration, LlavaNextForConditionalGeneration
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 @dataclass
 class LlavaConfig(NevaConfig):
     drop_vision_class_token: bool = True
+    is_llava_next: bool = False
 
 
 @dataclass
@@ -79,6 +80,22 @@ class LlavaModel(NevaModel):
         super().__init__(config or LlavaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
+class LlavaNextModel(NevaModel):
+    def __init__(
+        self,
+        config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+    ):
+        super().__init__(
+            config or LlavaConfig(is_llava_next=True),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
+
+
 @io.model_importer(LlavaModel, "hf")
 class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaModel]):
     def init(self) -> LlavaModel:
@@ -114,6 +131,10 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
             "language_model.lm_head.weight": "language_model.output_layer.weight",
             "vision_tower.vision_model.**": "vision_model.vision_model.**",
         }
+        if self.config.is_llava_next:
+            mapping.update({"image_newline": "image_newline"})
+            # handle the image_newline parameter
+
         if "vision_projection.encoder.linear_fc1.weight" in target.module.state_dict().keys():
             mapping.update(
                 {
@@ -339,3 +360,71 @@ def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
+
+
+@io.model_importer(LlavaNextModel, "hf")
+class HFLlavaNextImporter(
+    HFLlavaImporter,
+    io.ModelConnector["LlavaNextForConditionalGeneration", LlavaNextModel],
+):
+    def init(self) -> LlavaNextModel:
+        return LlavaNextModel(self.config, tokenizer=self.tokenizer)
+
+    def apply(self, output_path: Path) -> Path:
+        from transformers import LlavaNextForConditionalGeneration
+
+        source = LlavaNextForConditionalGeneration.from_pretrained(str(self))
+        target = self.init()
+        trainer = self.nemo_setup(target)
+        self.convert_state(source, target)
+        print(f"Converted Llava model to Nemo, saving to {output_path}")
+
+        self.nemo_save(output_path, trainer)
+
+        print(f"Converted Llava model saved to {output_path}")
+
+        teardown(trainer, target)
+        del trainer, target
+
+        return output_path
+
+    @property
+    def config(self) -> LlavaConfig:
+        from transformers import LlavaConfig as HFLlavaConfig
+
+        source = HFLlavaConfig.from_pretrained(str(self))
+        text_conifg = source.text_config
+
+        def make_vocab_size_divisible_by(vocab_size):
+            base = 128
+            while vocab_size % base != 0:
+                base //= 2
+            return base
+
+        language_transformer_config = LlamaConfig(
+            num_layers=text_conifg.num_hidden_layers,
+            hidden_size=text_conifg.hidden_size,
+            ffn_hidden_size=text_conifg.intermediate_size,
+            num_attention_heads=text_conifg.num_attention_heads,
+            init_method_std=text_conifg.initializer_range,
+            layernorm_epsilon=text_conifg.rms_norm_eps,
+            num_query_groups=text_conifg.num_key_value_heads,
+            rotary_base=text_conifg.rope_theta,
+            gated_linear_unit=True,
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
+            share_embeddings_and_output_weights=False,
+        )
+        vision_transformer_config = HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
+        vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+
+        output = LlavaConfig(
+            is_llava_next=True,
+            language_transformer_config=language_transformer_config,
+            vision_transformer_config=vision_transformer_config,
+            vision_projection_config=vision_projection_config,
+            vision_feature_layer=source.vision_feature_layer,
+        )
+
+        return output

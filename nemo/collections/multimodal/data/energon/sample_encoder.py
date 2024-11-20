@@ -278,6 +278,7 @@ class VQASampleEncoder(BaseSampleEncoder):
 
             # Find the start and end indices of the answer tokens in the prompt
             answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens, search_start_index)
+            assert answer_start > 0, "Not found valid answer in conversation."
 
             # Label the answer tokens
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]

@@ -19,7 +19,13 @@ from nemo.collections.vlm.neva.model.base import (
     NevaConfig,
     NevaModel,
 )
-from nemo.collections.vlm.neva.model.llava import Llava1_5Config7B, Llava1_5Config13B, LlavaConfig, LlavaModel
+from nemo.collections.vlm.neva.model.llava import (
+    Llava1_5Config7B,
+    Llava1_5Config13B,
+    LlavaConfig,
+    LlavaModel,
+    LlavaNextModel,
+)
 
 __all__ = [
     "CLIPViTConfig",
@@ -31,4 +37,5 @@ __all__ = [
     "Llava1_5Config7B",
     "Llava1_5Config13B",
     "LlavaModel",
+    "LlavaNextModel",
 ]

@@ -173,5 +173,6 @@ class MultiModalTaskEncoder(
         position_ids = torch.arange(seq_length, dtype=torch.long)
         position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
         batch_dict['position_ids'] = position_ids
-        batch_dict['attention_mask'] = None
+        if 'attention_mask' not in batch_dict:
+            batch_dict['attention_mask'] = None
         return batch_dict
