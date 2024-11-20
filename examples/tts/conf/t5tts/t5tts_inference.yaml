@@ -70,7 +70,7 @@ model:
     is_causal: false
     pos_emb:
       name: "rope"
-      base: 512
+      base: 10000
     use_flash_self_attention: false
     use_flash_x_attention: false
     deterministic: false
@@ -89,7 +89,7 @@ model:
     is_causal: false
     pos_emb:
       name: "rope"
-      base: 512
+      base: 10000
     use_flash_self_attention: false
     use_flash_x_attention: false
     deterministic: false
@@ -108,7 +108,7 @@ model:
     is_causal: true
     pos_emb:
       name: "rope"
-      base: 512
+      base: 10000
     use_flash_self_attention: false
     use_flash_x_attention: false
     deterministic: false
