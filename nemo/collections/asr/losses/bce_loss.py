@@ -98,6 +98,7 @@ class BCELoss(Loss, Typing):
         probs = torch.cat(probs_list, dim=0)
         labels = torch.cat(targets_list, dim=0)
         norm_weight = torch.zeros_like(labels).detach().clone()
+        loss = torch.tensor(0.0).to(labels.device)
 
         if self.class_normalization in ['class', 'class_binary', 'binary']:
             if self.class_normalization in ['class', 'class_binary']:
