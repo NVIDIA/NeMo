@@ -24,11 +24,11 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from nemo.collections import llm
+from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
-from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 
-from .utils import get_unwrapped_mcore_model, get_modelopt_decoder_type
+from .utils import get_modelopt_decoder_type, get_unwrapped_mcore_model
 
 try:
     import modelopt.torch.quantization as mtq
@@ -275,7 +275,6 @@ class Quantizer:
         if not export_successful:
             logging.error("Failed to export the quantized model.")
         return export_successful
-
 
     def export(self, model: llm.GPTModel, model_dir: str) -> None:
         """Export model to a TensorRT-LLM checkpoint."""

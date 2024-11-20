@@ -58,7 +58,9 @@ def get_args():
         type=str,
         help='Calibration dataset to be used. Should be \"wikitext\", \"cnn_dailymail\" or path to a local .json file',
     )
-    parser.add_argument('--generate_sample', help='Generate sample model output after performing PTQ', action='store_true')
+    parser.add_argument(
+        '--generate_sample', help='Generate sample model output after performing PTQ', action='store_true'
+    )
     parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()

@@ -25,7 +25,7 @@ from nemo.utils import logging
 
 def get_modelopt_decoder_type(model: llm.GPTModel):
     """Infers the modelopt decoder type from GPTModel subclass.
-        Based on: https://github.com/NVIDIA/TensorRT-Model-Optimizer/blob/main/llm_ptq/example_utils.py
+    Based on: https://github.com/NVIDIA/TensorRT-Model-Optimizer/blob/main/llm_ptq/example_utils.py
     """
     MODEL_NAME_PATTERN_MAP = {
         "GPT2": "gpt2",
