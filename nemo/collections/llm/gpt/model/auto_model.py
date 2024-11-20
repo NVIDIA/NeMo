@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import Callable, Optional
 
 from torch import nn
-from typing_extensions import Annotated
 from nemo.lightning.pytorch.optim import OptimizerModule
 from pathlib import Path
 
