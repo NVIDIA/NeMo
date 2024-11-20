@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import fiddle as fdl
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
+import lightning.pytorch as pl
+from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
@@ -22,7 +22,7 @@ from nemo.collections import llm
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
-    def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
