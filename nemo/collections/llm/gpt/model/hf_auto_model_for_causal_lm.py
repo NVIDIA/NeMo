@@ -88,7 +88,7 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             attention_mask: Optional[torch.Tensor] = None,
             position_ids: torch.Tensor = None,
             labels: Optional[torch.Tensor] = None,
-            **kwargs = {},
+            **kwargs,
         ):
         outputs = self.model(
             input_ids=input_ids.to(self.model.device),
