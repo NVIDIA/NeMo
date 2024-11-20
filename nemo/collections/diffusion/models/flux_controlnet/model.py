@@ -220,11 +220,9 @@ class FluxControlnetForwardWrapper(VisionModule):
         self.flux_controlnet = FluxControlNet(flux_controlnet_config)
         if flux_controlnet_config.load_from_flux_transformer:
             self.flux_controlnet.load_from_flux_transformer(self.flux)
-        if flux_controlnet_config.num_single_layers == 0:
-            ## when there is no single layer, encoder_hidden_states related params are not included in computation graph
-            for name, param in self.module.named_parameters():
-                if 'context' in name or 'added' in name:
-                    param.requires_grad = False
+
+
+
 
 
 
@@ -243,6 +241,16 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.configure_vae(self.vae_params)
             self.configure_scheduler(self.scheduler_params)
             self.configure_text_encoders(self.clip_params, self.t5_params)
+            ## Have to disable requiring grads for those params not getting one, otherwise custom fsdp fails at assert
+            ## when there is no single layer, encoder_hidden_states related params are not included in computation graph
+            for name, param in self.module.named_parameters():
+                if self.flux_controlnet_config.num_single_layers == 0:
+                    if 'context' in name or 'added' in name:
+                        param.requires_grad = False
+                # When getting rid of concat, the projection bias in attention and mlp bias are identical
+                # So this bias is skipped and not included in the computation graph
+                if 'single_blocks' in name and 'self_attention.linear_proj.bias' in name:
+                    param.requires_grad = False
 
 
 
