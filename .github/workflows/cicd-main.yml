@@ -38,6 +38,7 @@ jobs:
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
       all: ${{ steps.all.outputs.main }}
+      event_name: ${{ steps.github-event.outputs.main }}
     steps:
       - name: Parse test_to_run
         id: test_to_run
@@ -47,11 +48,16 @@ jobs:
       - name: Parse all
         id: all
         run: |
-          echo "main=${{ contains(fromJSON(steps.test_to_run.outputs.main), 'all') }}" | tee -a "$GITHUB_OUTPUT" 
+          echo "main=${{ contains(fromJSON(steps.test_to_run.outputs.main), 'all') }}" | tee -a "$GITHUB_OUTPUT"
+      - name: Infer github event
+        id: github-event
+        run: |
+          echo "main=${{ github.event_name }}" | tee -a "$GITHUB_OUTPUT"
   
   cicd-test-container-build:
-    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.1.0
+    if: ${{ github.event.label.name == 'Run CICD' || needs.pre-flight.outputs.event_name == 'workflow_dispatch' }}
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.14.0
+    needs: pre-flight
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
@@ -2943,7 +2949,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.max_epochs=null \
@@ -2975,7 +2981,7 @@ jobs:
         +model.data.data_impl_kwargs.workers=null \
         +model.data.data_impl_kwargs.sort_dataset_paths=False
 
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.max_epochs=null \
@@ -3398,8 +3404,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 python examples/nlp/language_modeling/megatron_t5_eval.py \
-            --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+        python examples/nlp/language_modeling/megatron_t5_eval.py \
+            --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
             --prompt "How do I fix my GPU memory issue? I am seeing <mask> out of memory." \
             --tensor_model_parallel_size 1
 
@@ -3410,7 +3416,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/tuning/megatron_t5_finetuning.py \
+        python examples/nlp/language_modeling/tuning/megatron_t5_finetuning.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.max_epochs=9999 \
@@ -3421,7 +3427,7 @@ jobs:
         exp_manager.exp_dir=/tmp/nlp_mcore_t5_lora_tuning_tp2 \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
-        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
         model.peft.peft_scheme=lora \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
@@ -3433,8 +3439,8 @@ jobs:
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]
 
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
-        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+        python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
+        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
         model.peft.restore_from_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/megatron_t5_peft_lora_tuning/checkpoints/megatron_t5_peft_lora_tuning.nemo \
         model.peft.restore_from_ckpt_name=null \
         model.peft.restore_from_hparams_path=null \
@@ -3852,14 +3858,14 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_pretraining.py \
+        python tests/collections/llm/megatron_t5_pretraining.py \
         --devices=2 \
         --max-steps=3 \
         --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
         --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
         --index-mapping-dir=tests/collections/llm/t5_index_mappings/${{ github.run_id }}
 
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_pretraining.py \
+        python tests/collections/llm/megatron_t5_pretraining.py \
         --devices=2 \
         --max-steps=6 \
         --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
@@ -3876,11 +3882,11 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_finetuning.py \
+        python tests/collections/llm/megatron_t5_finetuning.py \
         --devices=2 \
         --max-steps=250 \
         --experiment-dir=tests/collections/llm/t5_finetune_results/${{ github.run_id }} \
-        --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_150steps
+        --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_padding_attnmasktype_150steps
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
 
@@ -3891,12 +3897,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python tests/collections/llm/megatron_t5_finetuning.py \
+        python tests/collections/llm/megatron_t5_finetuning.py \
         --devices=2 \
         --max-steps=250 \
         --peft=lora \
         --experiment-dir=tests/collections/llm/t5_peft_results/${{ github.run_id }} \
-        --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_150steps
+        --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_padding_attnmasktype_150steps
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_peft_results/${{ github.run_id }}
 
@@ -4199,6 +4205,34 @@ jobs:
         --pp_size 1 \
         --mbs 1 --packed
 
+  L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/gpt_finetuning.py \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --devices 2 \
+        --max_steps 3 \
+        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
+        --peft dora \
+        --tp_size 1 \
+        --pp_size 1 \
+        --mbs 1 --packed
+        
+        python tests/collections/llm/gpt_finetuning.py \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --devices 2 \
+        --max_steps 6 \
+        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
+        --peft dora \
+        --tp_size 1 \
+        --pp_size 1 \
+        --mbs 1 --packed
+
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4428,6 +4462,7 @@ jobs:
       - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
+      - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
       - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
       - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
