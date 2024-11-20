@@ -10,11 +10,12 @@ You can convert your GPT-style model checkpoints trained with Megatron-LM into t
 
 .. code-block:: bash
 
-   <NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
+   python -m torch.distributed.launch --nproc_per_node=4 <NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py \
      --checkpoint_folder <path_to_PTL_checkpoints_folder> \
      --checkpoint_name megatron_gpt--val_loss=99.99-step={steps}-consumed_samples={consumed}.0 \
      --nemo_file_path <path_to_output_nemo_file> \
      --model_type <megatron_model_type> \
+     --hparams_file <path_to_hparams_yaml_file> \
      --tensor_model_parallel_size <tensor_model_parallel_size> \
      --pipeline_model_parallel_size <pipeline_model_parallel_size> \
      --gpus_per_node <gpus_per_node>
