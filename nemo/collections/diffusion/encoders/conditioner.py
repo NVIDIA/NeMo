@@ -20,7 +20,12 @@ from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokeniz
 
 
 class AbstractEmbModel(nn.Module):
-    def __init__(self, enable_lora_finetune: bool = False, target_block: Optional[List[str]] = None, target_module: Optional[List[str]] = None) -> None:
+    def __init__(
+        self,
+        enable_lora_finetune: bool = False,
+        target_block: Optional[List[str]] = None,
+        target_module: Optional[List[str]] = None,
+    ) -> None:
         super().__init__()
         self._is_trainable = None
         self._ucg_rate = None
