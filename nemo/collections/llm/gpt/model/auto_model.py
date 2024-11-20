@@ -18,7 +18,6 @@ from torch import nn
 from nemo.lightning.pytorch.optim import OptimizerModule
 from pathlib import Path
 
-# import nemo.collections.llm.gpt.model as llm
 from nemo.collections.llm.gpt.model.base import GPTModel
 from nemo.collections.llm.gpt.model.chatglm import ChatGLMModel
 from nemo.collections.llm.gpt.model.phi3mini import Phi3Model
