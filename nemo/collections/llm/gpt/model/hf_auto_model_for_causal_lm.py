@@ -82,41 +82,31 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForCausalLM.from_config(config, trust_remote_code=self.trust_remote_code)
         self.model.train()
 
-    def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
+
+    def forward(self,
+            input_ids: torch.Tensor,
+            attention_mask: Optional[torch.Tensor] = None,
+            position_ids: torch.Tensor = None,
+            labels: Optional[torch.Tensor] = None,
+            **kwargs = {},
+        ):
         outputs = self.model(
             input_ids=input_ids.to(self.model.device),
-            attention_mask=attention_mask,
+            attention_mask=attention_mask.to(self.model.device) if attention_mask is not None else attention_mask,
         )
         labels = labels.to(self.model.device)
         if loss_mask is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
         n_cls = outputs.logits.shape[-1]
-        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
-        return outputs
+        return self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
 
     def training_step(self, batch):
-        tokens = batch['tokens']
-        labels = batch['labels']
-        loss_mask = batch.get('loss_mask', None)
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-            loss_mask=loss_mask,
-        )
-
-        loss = output.loss
+        loss = self.forward(**batch)
         self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens = batch['tokens']
-        labels = batch['labels']
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-        )
-
-        loss = output.loss
+        loss = self.forward(**batch)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path):
