@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 HF_TO_MCORE_REGISTRY = {
+    'ChatGLMForCausalLM': llm.ChatGLMModel,
     'Phi3ForCausalLM': llm.Phi3Model,
     'MixtralForCausalLM': llm.MixtralModel,
     'MistralForCausalLM': llm.MistralModel,
