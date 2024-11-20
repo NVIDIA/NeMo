@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 HF_TO_MCORE_REGISTRY = {
     'Phi3ForCausalLM': llm.Phi3Model,
-    'MistralForCausalLM' llm.MistralModel,
+    'MistralForCausalLM': llm.MistralModel,
     'GemmaForCausalLM': llm.GemmaModel,
     'Gemma2ForCausalLM': llm.Gemma2Model,
     'LlamaForCausalLM': llm.LlamaModel,
