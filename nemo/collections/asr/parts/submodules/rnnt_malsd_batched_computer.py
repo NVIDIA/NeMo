@@ -250,6 +250,7 @@ class BlankLMScoreMode(PrettyStrEnum):
     PRESERVE_BLANK = "preserve_blank"
     LM_WEIGHTED = "lm_weighted"
     LM_WEIGHTED_FULL = "lm_weighted_full"
+    LM_WEIGHTED_FULL_FIXED_BLANK = "lm_weighted_full_fixed_blank"
     LM_MAX = "lm_max"
     LM_TOP_MAX = "lm_top_max"
 
@@ -406,6 +407,14 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     # assert (abs(torch.exp(blank_logprob) + torch.exp(non_blank_logprob) - 1.0) < 1e-5).all()
                     log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
                     log_probs[..., -1] *= 1 + self.ngram_lm_alpha
+                    log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL_FIXED_BLANK:
+                    blank_logprob = log_probs[..., -1]
+                    non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                    log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) + lm_scores
+                    # blank prob - the same
                     log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
