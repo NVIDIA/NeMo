@@ -28,7 +28,10 @@ class TestNeuralDiarizerInference:
             torch.device("cpu"),
             pytest.param(
                 torch.device("cuda"),
-                marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA required for test.',),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
             ),
         ],
     )
@@ -69,6 +72,6 @@ class TestNeuralDiarizerInference:
             # assert only 1 speaker & segment
             assert len(annotation.labels()) == 1
             assert len(list(annotation.itersegments())) == 1
-            
+
     # class TestSortformerDiarizerInference:
-        # TODO: This test can only be implemented once SortformerDiarizer model is uploaded.
+    # TODO: This test can only be implemented once SortformerDiarizer model is uploaded.

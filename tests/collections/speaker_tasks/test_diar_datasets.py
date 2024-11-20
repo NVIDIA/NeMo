@@ -28,10 +28,15 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.utils.speaker_utils import read_rttm_lines, get_offset_and_duration, get_vad_out_from_rttm_line
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    get_offset_and_duration,
+    get_vad_out_from_rttm_line,
+    read_rttm_lines,
+)
 
-def is_rttm_length_too_long(rttm_file_path, wav_len_in_sec): 
-    """ 
+
+def is_rttm_length_too_long(rttm_file_path, wav_len_in_sec):
+    """
     Check if the maximum RTTM duration exceeds the length of the provided audio file.
 
     Args:
@@ -48,6 +53,7 @@ def is_rttm_length_too_long(rttm_file_path, wav_len_in_sec):
         max_rttm_sec = max(max_rttm_sec, start + dur)
     return max_rttm_sec <= wav_len_in_sec
 
+
 class TestAudioToSpeechE2ESpkDiarDataset:
 
     @pytest.mark.unit
@@ -56,7 +62,7 @@ class TestAudioToSpeechE2ESpkDiarDataset:
 
         batch_size = 4
         num_samples = 8
-    
+
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
         data_dict_list = []
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
@@ -82,8 +88,8 @@ class TestAudioToSpeechE2ESpkDiarDataset:
                 window_stride=0.01,
                 global_rank=0,
                 soft_targets=False,
-                )
-            
+            )
+
             dataloader_instance = torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=batch_size,
@@ -95,7 +101,7 @@ class TestAudioToSpeechE2ESpkDiarDataset:
             )
             assert len(dataloader_instance) == (num_samples / batch_size)  # Check if the number of batches is correct
             batch_counts = len(dataloader_instance)
-            
+
             deviation_thres_rate = 0.01  # 1% deviation allowed
             for batch_index, batch in enumerate(dataloader_instance):
                 if batch_index != batch_counts - 1:
@@ -103,10 +109,14 @@ class TestAudioToSpeechE2ESpkDiarDataset:
                 audio_signals, audio_signal_len, targets, target_lens = batch
                 for sample_index in range(audio_signals.shape[0]):
                     dataloader_audio_in_sec = audio_signal_len[sample_index].item()
-                    data_dur_in_sec = abs(data_dict_list[batch_size*batch_index + sample_index]['duration'] * featurizer.sample_rate - dataloader_audio_in_sec) 
-                    assert data_dur_in_sec <= deviation_thres_rate * dataloader_audio_in_sec, "Duration deviation exceeds 1%"
+                    data_dur_in_sec = abs(
+                        data_dict_list[batch_size * batch_index + sample_index]['duration'] * featurizer.sample_rate
+                        - dataloader_audio_in_sec
+                    )
+                    assert (
+                        data_dur_in_sec <= deviation_thres_rate * dataloader_audio_in_sec
+                    ), "Duration deviation exceeds 1%"
                 assert not torch.isnan(audio_signals).any(), "audio_signals tensor contains NaN values"
                 assert not torch.isnan(audio_signal_len).any(), "audio_signal_len tensor contains NaN values"
                 assert not torch.isnan(targets).any(), "targets tensor contains NaN values"
                 assert not torch.isnan(target_lens).any(), "target_lens tensor contains NaN values"
-            

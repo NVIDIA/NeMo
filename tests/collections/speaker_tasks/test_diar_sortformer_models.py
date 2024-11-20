@@ -32,8 +32,7 @@ def sortformer_model():
         'max_num_of_spks': 4,
         'session_len_sec': 90,
     }
-    
-    
+
     preprocessor = {
         '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
         'normalize': 'per_feature',
@@ -104,27 +103,27 @@ def sortformer_model():
         'weight': None,
         'reduction': 'mean',
     }
-    
 
     modelConfig = DictConfig(
-        {'pil_weight': 0.5,
-        'ats_weight': 0.5,
-        'num_workers': 1,
-        'fc_d_model': 512,
-        'tf_d_model': 192,
-        'max_num_of_spks': 4,
-        'session_len_sec': 90,
-        'encoder': DictConfig(encoder),
-        'transformer_encoder': DictConfig(transformer_encoder),
-        'sortformer_modules': DictConfig(sortformer_modules),
-        'preprocessor': DictConfig(preprocessor),
-        'loss': DictConfig(loss),
-        'optim': {
-            'optimizer': 'Adam',
-            'lr': 0.001,
-            'betas': (0.9, 0.98),
+        {
+            'pil_weight': 0.5,
+            'ats_weight': 0.5,
+            'num_workers': 1,
+            'fc_d_model': 512,
+            'tf_d_model': 192,
+            'max_num_of_spks': 4,
+            'session_len_sec': 90,
+            'encoder': DictConfig(encoder),
+            'transformer_encoder': DictConfig(transformer_encoder),
+            'sortformer_modules': DictConfig(sortformer_modules),
+            'preprocessor': DictConfig(preprocessor),
+            'loss': DictConfig(loss),
+            'optim': {
+                'optimizer': 'Adam',
+                'lr': 0.001,
+                'betas': (0.9, 0.98),
+            },
         }
-    }
     )
     model = SortformerEncLabelModel(cfg=modelConfig)
     return model
@@ -140,13 +139,13 @@ class TestSortformerEncLabelModel:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-    "batch_size, frame_length, sample_len",
-    [
-        (4, 0.08, 16),  # Example 1
-        (2, 0.02, 32),  # Example 2
-        (1, 0.1, 20),   # Example 3
-    ]
-)
+        "batch_size, frame_length, sample_len",
+        [
+            (4, 0.08, 16),  # Example 1
+            (2, 0.02, 32),  # Example 2
+            (1, 0.1, 20),  # Example 3
+        ],
+    )
     def test_forward_infer(self, sortformer_model, batch_size, frame_length, sample_len, num_spks=4):
         sortformer_diar_model = sortformer_model.eval()
         confdict = sortformer_diar_model.to_config_dict()
@@ -161,7 +160,7 @@ class TestSortformerEncLabelModel:
             # batch size 1
             preds_list = []
             for i in range(input_signal.size(0)):
-                preds= sortformer_diar_model.forward(input_signal[i : i + 1], input_signal_length[i : i + 1])
+                preds = sortformer_diar_model.forward(input_signal[i : i + 1], input_signal_length[i : i + 1])
                 preds_list.append(preds)
             preds_instance = torch.cat(preds_list, 0)
 

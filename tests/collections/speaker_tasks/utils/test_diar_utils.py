@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import os
+from typing import List, Tuple
 
 import numpy as np
 import pytest
 import torch
 from scipy.optimize import linear_sum_assignment as scipy_linear_sum_assignment
-from typing import List, Tuple
-import math
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
@@ -83,6 +83,7 @@ def matrix(mat, use_tensor=True, dtype=torch.long):
         mat = np.array(mat)
     return mat
 
+
 def __get_subsegments(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
     """
     Return subsegments from a segment of audio file
@@ -109,8 +110,7 @@ def __get_subsegments(offset: float, window: float, shift: float, duration: floa
 
 
 def generate_orthogonal_embs(total_spks, perturb_sigma, emb_dim):
-    """Generate a set of artificial orthogonal embedding vectors from random numbers
-    """
+    """Generate a set of artificial orthogonal embedding vectors from random numbers"""
     gaus = torch.randn(emb_dim, emb_dim)
     _svd = torch.linalg.svd(gaus)
     orth = _svd[0] @ _svd[2]
@@ -144,7 +144,9 @@ def generate_toy_data(
             seg_list.extend(segments)
             emb_list.append(emb)
             if emb.shape[0] == 0:
-                import ipdb; ipdb.set_trace()
+                import ipdb
+
+                ipdb.set_trace()
             multiscale_segment_counts[scale_idx] += emb.shape[0]
 
             if scale_idx == len(multiscale_segment_counts) - 1:
@@ -159,8 +161,7 @@ def generate_toy_data(
 
 
 class TestDiarizationSequneceUtilFunctions:
-    """Tests diarization and speaker-task related utils.
-    """
+    """Tests diarization and speaker-task related utils."""
 
     @pytest.mark.unit
     @pytest.mark.parametrize("Y", [[3, 3, 3, 4, 4, 5], [100, 100, 100, 104, 104, 1005]])
@@ -307,7 +308,10 @@ class TestDiarizationSequneceUtilFunctions:
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=10)
         em_s, ts_s = split_input_data(em, ts, mc)
         merged_embs, merged_clus_labels, _ = run_reducer(
-            pre_embs=em_s[-1], target_spk_idx=target_speaker_index, merge_quantity=merge_quantity, pre_clus_labels=gt,
+            pre_embs=em_s[-1],
+            target_spk_idx=target_speaker_index,
+            merge_quantity=merge_quantity,
+            pre_clus_labels=gt,
         )
         assert (torch.sum(gt == target_speaker_index).item() - merge_quantity) == merged_clus_labels.shape[0]
 
@@ -316,7 +320,11 @@ class TestDiarizationSequneceUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 70 + [1] * 32)])
     @pytest.mark.parametrize("mspb", [25])
     def test_merge_scheduler_2clus(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([3, 0]))
 
     @pytest.mark.unit
@@ -324,7 +332,11 @@ class TestDiarizationSequneceUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 80 + [1] * 35 + [2] * 32)])
     @pytest.mark.parametrize("mspb", [0, 25])
     def test_merge_scheduler_3clus(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([3, 0, 0]))
 
     @pytest.mark.unit
@@ -332,7 +344,11 @@ class TestDiarizationSequneceUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([2] * 70 + [0] * 32 + [1] * 27 + [3] * 3)])
     @pytest.mark.parametrize("mspb", [3, 10])
     def test_merge_scheduler_4clus_shuff(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([18, 13, 56, 0]))
 
     @pytest.mark.unit
@@ -340,7 +356,11 @@ class TestDiarizationSequneceUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 5 + [1] * 4 + [2] * 3)])
     @pytest.mark.parametrize("mspb", [0, 2])
     def test_merge_scheduler_3clus(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([2, 1, 0]))
 
     @pytest.mark.unit
@@ -348,7 +368,11 @@ class TestDiarizationSequneceUtilFunctions:
     @pytest.mark.parametrize("pcl", [torch.tensor([0] * 7 + [1] * 5 + [2] * 3 + [3] * 5)])
     @pytest.mark.parametrize("mspb", [2])
     def test_merge_scheduler_3clus_repeat(self, ntbr, pcl, mspb):
-        class_target_vol = get_merge_quantity(num_to_be_removed=ntbr, pre_clus_labels=pcl, min_count_per_cluster=mspb,)
+        class_target_vol = get_merge_quantity(
+            num_to_be_removed=ntbr,
+            pre_clus_labels=pcl,
+            min_count_per_cluster=mspb,
+        )
         assert all(class_target_vol == torch.tensor([2, 0, 0, 0]))
 
 
@@ -384,6 +408,7 @@ class TestClassExport:
         offline_speaker_clustering = torch.jit.script(offline_speaker_clustering)
         isinstance(offline_speaker_clustering, torch.jit._script.RecursiveScriptClass)
 
+
 class TestGetSubsegments:
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -392,7 +417,18 @@ class TestGetSubsegments:
             (12.05, 1.5, 0.75, 2.4, 0.01, 2, False, 16000, 100, [[12.05, 1.5], [12.8, 1.5], [13.55, 0.9]]),
             (0, 1.0, 0.5, 0.4, 0.01, 2, False, 16000, 100, [[0, 0.4]]),
             (0, 2.0, 1.0, 1.5, 0.5, 2, False, 16000, 100, [[0, 1.5]]),
-            (10, 1.5, 0.75, 4.5, 0.5, 2, False, 16000, 100, [[10, 1.5], [10.75, 1.5], [11.5, 1.5], [12.25, 1.5], [13.0, 1.5]]),
+            (
+                10,
+                1.5,
+                0.75,
+                4.5,
+                0.5,
+                2,
+                False,
+                16000,
+                100,
+                [[10, 1.5], [10.75, 1.5], [11.5, 1.5], [12.25, 1.5], [13.0, 1.5]],
+            ),
             (0, 1.5, 0.5, 0.3, 0.01, 2, True, 16000, 100, [[0, 0.3]]),
         ],
     )
@@ -409,7 +445,7 @@ class TestGetSubsegments:
         feat_per_sec,
         expected,
     ):
-        
+
         for is_scriptable in [True, False]:
             if is_scriptable:
                 result = get_subsegments_scriptable(
@@ -534,13 +570,21 @@ class TestDiarizationSegmentationUtils:
     @pytest.mark.parametrize("x", [1.0, 2.3456])
     @pytest.mark.parametrize("decimals", [1, 2, 3, 4])
     def test_fl2int(self, x, decimals):
-        assert fl2int(x, decimals) == round(x * 10 ** decimals, 0)
+        assert fl2int(x, decimals) == round(x * 10**decimals, 0)
 
     @pytest.mark.unit
     @pytest.mark.parametrize("x", [1234])
-    @pytest.mark.parametrize("decimals", [1, 2, 3, 4,])
+    @pytest.mark.parametrize(
+        "decimals",
+        [
+            1,
+            2,
+            3,
+            4,
+        ],
+    )
     def test_int2fl(self, x, decimals):
-        assert abs(int2fl(x, decimals) - round(x / (10 ** decimals), decimals)) < (10 ** -(decimals + 1))
+        assert abs(int2fl(x, decimals) - round(x / (10**decimals), decimals)) < (10 ** -(decimals + 1))
 
     @pytest.mark.unit
     def test_merge_float_intervals_edge_margin_test(self):
@@ -582,7 +626,11 @@ class TestDiarizationSegmentationUtils:
         vad_timestamps = torch.tensor([[0.9600, 4.8400]])
         cursor_for_old_segments = 1.0
         speech_labels_for_update, cumulative_speech_labels = get_speech_labels_for_update(
-            frame_start, buffer_end, cumulative_speech_labels, vad_timestamps, cursor_for_old_segments,
+            frame_start,
+            buffer_end,
+            cumulative_speech_labels,
+            vad_timestamps,
+            cursor_for_old_segments,
         )
         assert (speech_labels_for_update - torch.tensor([[1.0000, 3.7600]])).sum() < 1e-8
         assert (cumulative_speech_labels - torch.tensor([[0.9600, 4.8400]])).sum() < 1e-8
@@ -652,7 +700,10 @@ class TestDiarizationSegmentationUtils:
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate",
-        [(0.0, 2.0, [[0.5, 1.0], [1.5, 2.0]], 0, 0.1, 16000), (0.0, 5.0, [[0.5, 2.5], [2.7, 5.0]], 0, 1.0, 16000),],
+        [
+            (0.0, 2.0, [[0.5, 1.0], [1.5, 2.0]], 0, 0.1, 16000),
+            (0.0, 5.0, [[0.5, 2.5], [2.7, 5.0]], 0, 1.0, 16000),
+        ],
     )
     def test_get_online_segments_from_slices(
         self, buffer_start, buffer_end, subsegments, ind_offset, window, sample_rate
@@ -785,7 +836,13 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("SSV, enhanced_count_thres, min_samples_for_nmesc", [(5, 40, 6)])
     @pytest.mark.parametrize("seed", [0])
     def test_offline_speaker_clustering_very_short_cpu(
-        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed,
+        self,
+        n_spks,
+        spk_dur,
+        SSV,
+        enhanced_count_thres,
+        min_samples_for_nmesc,
+        seed,
     ):
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
@@ -817,7 +874,13 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("n_spks, SSV, enhanced_count_thres, min_samples_for_nmesc", [(1, 5, 40, 6)])
     @pytest.mark.parametrize("seed", [0])
     def test_offline_speaker_clustering_very_short_gpu(
-        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed,
+        self,
+        n_spks,
+        spk_dur,
+        SSV,
+        enhanced_count_thres,
+        min_samples_for_nmesc,
+        seed,
     ):
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
@@ -1028,7 +1091,7 @@ class TestLinearSumAssignmentAlgorithm:
         Test the linear sum assignment algorithm with a cost matrix
 
         Compare with the scipy implementation and make sure the final cost is the same.
-        NOTE: There could be multiple solutions with the same cost in linear sum assignment problem. 
+        NOTE: There could be multiple solutions with the same cost in linear sum assignment problem.
               This test only checks if the cost is the same.
         """
         row_ind_nm, col_ind_nm = nemo_linear_sum_assignment(cost_matrix)
