@@ -15,6 +15,7 @@
 import itertools
 import json
 import logging
+import math
 import os
 from functools import partial
 from typing import List, Optional, Union
@@ -22,6 +23,7 @@ from typing import List, Optional, Union
 import hydra
 import sacrebleu
 import torch
+import torchaudio
 from hydra.utils import get_class
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
@@ -356,16 +358,25 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         out_codec_lens = []
         n_speech_codebooks = original_codec_codes.shape[-1]
         decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        speech_pad_id = self.cfg.data.train_ds.speech_pad_id
+        padded_original_codec_codes = torch.cat(
+            [
+                original_codec_codes,
+                torch.ones([original_codec_codes.shape[0], decoder_reduction_factor, n_speech_codebooks]).cuda()
+                * speech_pad_id,
+            ],
+            axis=1,
+        )
         for sidx in range(audio_signal.shape[0]):
             codec_len = min(
                 torch.ceil(audio_signal_length[sidx] / self.codec_model_downsampling_factor / decoder_reduction_factor)
                 .int()
                 .to(self.device),
-                original_codec_codes[sidx].shape[0],
+                math.ceil(original_codec_codes[sidx].shape[0] / decoder_reduction_factor),
             )
             out_codec_codes.append(
-                original_codec_codes[sidx]
-                .reshape((-1, n_speech_codebooks * decoder_reduction_factor))[:codec_len]
+                padded_original_codec_codes[sidx, : codec_len * decoder_reduction_factor]
+                .reshape((-1, n_speech_codebooks * decoder_reduction_factor))
                 .to(self.device)
             )
             out_codec_lens.append(codec_len)
@@ -374,7 +385,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
         duplex_inject_silence_second = self.cfg.get('duplex_inject_silence_second', 0.1)
-        silence = self.cfg.data.train_ds.sample_rate * duplex_inject_silence_second
+        silence = int(self.cfg.data.train_ds.codec_sample_rate * duplex_inject_silence_second)
         user_signal = audio_batch['audio_signal']
         user_signal_length = audio_batch['audio_signal_length']
 
@@ -391,6 +402,21 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         agent_signal_length = audio_batch['answer_audio_lens']
         target_text_lengths = audio_batch['target_text_lengths']
 
+        def resample(audio, audio_lens, orig_sample_rate, target_sample_rate):
+            audio = [
+                torchaudio.functional.resample(a, orig_sample_rate, target_sample_rate).squeeze(0) for a in zip(audio)
+            ]
+            audio_lens = (audio_lens * (target_sample_rate / orig_sample_rate)).int()
+            return audio, audio_lens
+
+        if self.perception.preprocessor.sample_rate != self.cfg.data.train_ds.codec_sample_rate:
+            user_signal, user_signal_length = resample(
+                user_signal,
+                user_signal_length,
+                self.perception.preprocessor.sample_rate,
+                self.cfg.data.train_ds.codec_sample_rate,
+            )
+
         new_user_signal = []
         new_agent_signal = []
         new_user_signal_length = []
@@ -403,18 +429,29 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             user = user[:user_len]
             agent = agent[:agent_len]
             new_user_signal.append(
-                torch.cat([user, torch.full([silence], silence_value), torch.ones_like(agent) * silence_value], dim=0)
+                torch.cat(
+                    [user, torch.full([silence], silence_value).cuda(), torch.ones_like(agent) * silence_value], dim=0
+                )
             )
             new_agent_signal.append(
-                torch.cat([torch.ones_like(user) * silence_value, torch.full([silence], silence_value), agent], dim=0)
+                torch.cat(
+                    [torch.ones_like(user) * silence_value, torch.full([silence], silence_value).cuda(), agent], dim=0
+                )
             )
             duplex_len = user_len + silence + agent_len
             new_user_signal_length.append(duplex_len)
             new_agent_signal_length.append(duplex_len)
         new_user_signal = pad_sequence(new_user_signal, batch_first=True)
         new_agent_signal = pad_sequence(new_agent_signal, batch_first=True)
-        new_user_signal_length = torch.Tensor(new_user_signal_length).long()
-        new_agent_signal_length = torch.Tensor(new_agent_signal_length).long()
+        new_user_signal_length = torch.Tensor(new_user_signal_length).long().cuda()
+        new_agent_signal_length = torch.Tensor(new_agent_signal_length).long().cuda()
+        if self.perception.preprocessor.sample_rate != self.cfg.data.train_ds.codec_sample_rate:
+            new_user_signal, new_user_signal_length = resample(
+                new_user_signal,
+                new_user_signal_length,
+                self.cfg.data.train_ds.codec_sample_rate,
+                self.perception.preprocessor.sample_rate,
+            )
 
         # [b, t, c]
         encoded, encoded_len = self.perception(
@@ -480,6 +517,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
+        assert self.perception.preprocessor.sample_rate == self.cfg.data.train_ds.sample_rate
         if self.cfg.get("duplex_method", None) is not None:
             return self.prepare_llm_input_duplex(audio_batch)
 

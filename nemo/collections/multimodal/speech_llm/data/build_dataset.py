@@ -87,6 +87,7 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             default_context_key=data_cfg.get('default_context_key', "default_context"),
             vocab_sizes=model_instance.cfg.get('proj_head_dims', [-1]),
             decoder_reduction_factor=model_instance.cfg.get('decoder_reduction_factor', 1),
+            sample_rate=data_cfg.sample_rate,
             speech_pad_id=data_cfg.get('speech_pad_id', 1001),
             speech_unk_id=data_cfg.get('speech_unk_id', 1002),
             speech_bos_id=data_cfg.get('speech_bos_id', 1003),
@@ -95,7 +96,6 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             source_target_text_ratio_limit=data_cfg.get('source_target_text_ratio_limit', 1.0),
             load_answer_audio=data_cfg.get('load_answer_audio', False),
             codec_model_downsampling_factor=data_cfg.get('codec_model_downsampling_factor', 1024),
-            
         )
 
     # Notably, the data weights are controlled by either bucketing_weights

@@ -65,7 +65,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         speech_eos_id: int = 1004,
         filter_by_source_target_text_ratio: bool = False,
         source_target_text_ratio_limit: float = 1.0,
-        sample_rate: int = 22050,
+        codec_sample_rate: int = 22050,
+        sample_rate: int = 16000,
         t5_style: bool = False,
         load_answer_audio: bool = False,
         codec_model_downsampling_factor: float = 1023.5,
@@ -92,6 +93,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.speech_eos_id = speech_eos_id
         self.filter_by_source_target_text_ratio = filter_by_source_target_text_ratio
         self.source_target_text_ratio_limit = source_target_text_ratio_limit
+        self.codec_sample_rate = codec_sample_rate
         self.sample_rate = sample_rate
         self.load_answer_audio = load_answer_audio
         self.codec_model_downsampling_factor = codec_model_downsampling_factor
@@ -102,6 +104,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             4096  # Set this to a large number for since the speech sequence can be long
         )
         self.t5_style = t5_style
+        if self.codec_sample_rate != self.sample_rate:
+            logging.info(f'{self.codec_sample_rate} {self.sample_rate} are different')
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         import re
@@ -206,20 +210,25 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     audios_list = [field]
                 assert num_turns[i] / 2 == len(audios_list)
                 for audios in audios_list:
-                    # TODO: resample?
-                    # TODO: tmp solution for the next two lines
                     from lhotse import Recording
 
                     if not isinstance(audios, Recording):
+                        # TODO: tmp solution for multiturn
                         audios = Recording.from_file(audios['sources'][0]['source'])
+                        # TODO: resample?
 
+                    # resampled to sample_rate in dataloader config
                     answer_audio = torch.tensor(audios.load_audio()).float()
                     answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
                     answer_audios.append(answer_audio)
                     answer_audio_lens.append(answer_audio_len)
                     features_lens.append(
                         math.ceil(
-                            answer_audio_len / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                            answer_audio_len
+                            / self.codec_model_downsampling_factor
+                            / self.decoder_reduction_factor
+                            * self.codec_sample_rate
+                            / self.sample_rate
                         )
                     )
             answer_audios = collate_vectors(
@@ -245,8 +254,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             audio_lens = all_source_audio_lens
             features_lens = target_features_lens
         elif hasattr(cuts[0], "target_audio"):  # single-turn
+            # resample to 16k by dataloader
             answer_audios, answer_audio_lens, features_lens = load_audio_from_cut(cuts, "target_audio")
-            audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
+            # 22k
+            audio = [cut.resample(self.codec_sample_rate).load_audio() for cut in cuts]
             audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
             # Resample audio waveform here since cuts.resample causes core dump sometimes
             # cuts_sample_rates = [c.recording.sampling_rate for c in cuts]
@@ -270,7 +281,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             metadata,
             word_lengths,
             start_time_tokens,
-            torch.Tensor(instruction_lengths).long(),
             num_turns,  # used to recover multi-turn format in modeling code
         )
 
@@ -287,7 +297,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         metadata,
         word_lengths,
         start_time_tokens,
-        instruction_length,
         num_turns,
     ):
 
@@ -470,7 +479,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 word_lengths,
                 start_time_tokens,
                 features_lens + 1,
-                self.codec_model_downsampling_factor / self.sample_rate,
+                self.codec_model_downsampling_factor / self.codec_sample_rate,
                 pad_id=text_unk_id,
             )
             # import pdb; pdb.set_trace()
@@ -498,7 +507,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     loss_mask[:, :itl, :] = False
             # loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
             # full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_length
-            full_lengths = features_lens + 1 + instruction_length
+            full_lengths = features_lens + 1 + instruction_lengths
             target_text_lengths = -1 * torch.ones_like(target_text_lengths)  # bos_tensor
         elif getattr(cuts[0], "direct_s2s", False):
             # Add 1 for eos token
@@ -521,7 +530,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     speech_loss_mask[:, :itl, :] = False
                     text_loss_mask[:, :itl, :] = False
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
-            full_lengths = 1 + features_lens + 1 + instruction_length
+            full_lengths = 1 + features_lens + 1 + instruction_lengths
         elif getattr(cuts[0], "s2t", False):
             # Add 1 for eos token
             token_list = [tt[: ttl + 1] for tt, ttl in zip(target_texts_expanded, target_text_lengths)]
@@ -539,7 +548,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     speech_loss_mask[:, :itl, :] = False
                     text_loss_mask[:, :itl, :] = False
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
-            full_lengths = target_text_lengths + 1 + instruction_length
+            full_lengths = target_text_lengths + 1 + instruction_lengths
         full_lengths = torch.clamp(full_lengths, max=tokens.shape[1])
         # simplify above code
         # Start from index 1 since the first token will not be used as a label
