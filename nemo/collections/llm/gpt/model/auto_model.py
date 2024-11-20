@@ -20,59 +20,82 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from typing_extensions import Annotated
-
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
-from nemo.collections.llm.gpt.model.llama import _export_embedding, _export_head
-from nemo.collections.llm.utils import Config
-from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import OptimizerModule
-from nemo.lightning.pytorch.utils import dtype_from_hf
+from pathlib import Path
 
-if TYPE_CHECKING:
-    from transformers import MistralConfig, MistralForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+# import nemo.collections.llm.gpt.model as llm
+from nemo.collections.llm.gpt.model.base import GPTModel
+from nemo.collections.llm.gpt.model.chatglm import ChatGLMModel
+from nemo.collections.llm.gpt.model.phi3mini import Phi3Model
+from nemo.collections.llm.gpt.model.mixtral import MixtralModel
+from nemo.collections.llm.gpt.model.mistral import MistralModel
+from nemo.collections.llm.gpt.model.gemma import GemmaModel
+from nemo.collections.llm.gpt.model.gemma2 import Gemma2Model
+from nemo.collections.llm.gpt.model.llama import LlamaModel
+from nemo.collections.llm.gpt.model.baichuan import Baichuan2Model
+from nemo.collections.llm.gpt.model.qwen2 import Qwen2Model
+from nemo.collections.llm.gpt.model.starcoder import StarcoderModel
+from nemo.collections.llm.gpt.model.starcoder2 import Starcoder2Model
 
 HF_TO_MCORE_REGISTRY = {
-    'ChatGLMForCausalLM': llm.ChatGLMModel,
-    'Phi3ForCausalLM': llm.Phi3Model,
-    'MixtralForCausalLM': llm.MixtralModel,
-    'MistralForCausalLM': llm.MistralModel,
-    'GemmaForCausalLM': llm.GemmaModel,
-    'Gemma2ForCausalLM': llm.Gemma2Model,
-    'LlamaForCausalLM': llm.LlamaModel,
-    'BaichuanForCausalLM': llm.Baichuan2Model,
-    'Qwen2ForCausalLM': llm.Qwen2Model,
-    'StarcoderForCausal': llm.StarcoderModel,
-    'Starcoder2ForCausal': llm.Starcoder2Model,
+    'ChatGLMForCausalLM': ChatGLMModel,
+    'Phi3ForCausalLM': Phi3Model,
+    'MixtralForCausalLM': MixtralModel,
+    'MistralForCausalLM': MistralModel,
+    'GemmaForCausalLM': GemmaModel,
+    'Gemma2ForCausalLM': Gemma2Model,
+    'LlamaForCausalLM': LlamaModel,
+    'BaichuanForCausalLM': Baichuan2Model,
+    'Qwen2ForCausalLM': Qwen2Model,
+    'StarcoderForCausal': StarcoderModel,
+    'Starcoder2ForCausal': Starcoder2Model,
 }
 
 
 class AutoModel(GPTModel):
     def __init__(
         self,
-        model: str,
+        model_name_or_path: str,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        """
+        An auto-model class which uses an HF model identifier (or model snapshot path) to resolve
+        which NeMo class it corresponds to, initializes that class and returns the object, e.g.
+        > import nemo.collections.llm as llm
+        > m = llm.AutoModel("microsoft/Phi-3-mini-128k-instruct")
+        > print(m)
+        >> Phi3Model()
+
+        Type of m is not AutoModel but instead Phi3Model.
+        """
+
+        # Get model class from registry
         from transformers import AutoConfig
-        architectures = AutoConfig.from_pretrained(model, trust_remote_code=True).architectures
+        architectures = AutoConfig.from_pretrained(model_name_or_path, trust_remote_code=True).architectures
         assert isinstance(architectures, list), "Expected architectures to be a list"
         assert len(architectures) == 1, "Expected architectures to contain one item"
-
-        if not model in HF_TO_MCORE_REGISTRY:
+        if not architectures[0] in HF_TO_MCORE_REGISTRY:
             raise ValueError("Architecture " + str(architectures) + " not supported")
-        model_cls = HF_TO_MCORE_REGISTRY[model]
-        self.__class__ = model_cls
-        import_path = model
-        if import_path.starts_with('hf://'):
+        model_cls = HF_TO_MCORE_REGISTRY[architectures[0]]
+
+        # Get model config using model_cls + corresponding importer
+        import_path = model_name_or_path
+        if Path(import_path).exists():
+            import_path = str(Path(import_path).absolute())
+            import_path = f'hf://{import_path}'
+        elif not import_path.startswith('hf://'):
             import_path = f'hf://{import_path}'
         config = model_cls.importer(import_path).config
+
+        # Init class
         super().__init__(
             config, optim=optim, tokenizer=tokenizer, model_transform=model_transform
         )
+
+        # Change self's class to model_cls
+        self.__class__ = model_cls
 
 __all__ = [
     "AutoModel",
