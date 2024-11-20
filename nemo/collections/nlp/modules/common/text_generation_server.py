@@ -171,9 +171,9 @@ class MegatronGenerate(Resource):
         if OmegaConf.select(self.model.cfg, "data.chat_prompt_tokens") is not None:
             special_tokens = self.model.cfg.data.chat_prompt_tokens
         else:
-             raise RuntimeError(
+            raise RuntimeError(
                 "You don't have a model (model_config.yaml) which has chat_prompt_tokens, are you sure this is a Chat/Instruction model?"
-             )
+            )
         nemo_source = self.convert_messages(data['messages'])
         header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(
             nemo_source, special_tokens
