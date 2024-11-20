@@ -340,15 +340,12 @@ def extract_nemotron_tokenizer(nemo_file, model_config, output_hf_path, nemo_tok
     elif tokenizer_cfg.library == "tiktoken":
         tokenizer_fn = tokenizer_cfg.model[5:]
         special_tokens = ["<unk>", "<s>", "</s>"]
-        if nemo_file.endswith(".nemo"):
-            import tarfile
+        import tarfile
 
-            archive = tarfile.open(nemo_file, "r")
-            tokenizer_filename = "./" + tokenizer_fn  # exclude 'nemo:' prefix
-            archive.extract(tokenizer_filename, output_hf_path)
-            archive.close()
-        elif os.path.isdir(nemo_file):
-            shutil.copy(f"{nemo_file}/{tokenizer_fn}", output_tokenizer)
+        archive = tarfile.open(nemo_file, "r")
+        tokenizer_filename = "./" + tokenizer_fn  # exclude 'nemo:' prefix
+        archive.extract(tokenizer_filename, output_hf_path)
+        archive.close()
         vocab_file = os.path.join(output_hf_path, tokenizer_fn)
         convert_tiktoken(vocab_file)
         converted_tokenizer = TikTokenConverter(
