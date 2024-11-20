@@ -269,7 +269,6 @@ class Quantizer:
         saved_config = (checkpoint_dir / 'config.json').exists()
         saved_weights = True
         for i in range(tensor_parallelism_size):
-            print(i, (checkpoint_dir / f'rank{i}.safetensors').exists())
             saved_weights &= (checkpoint_dir / f'rank{i}.safetensors').exists()
 
         export_successful = saved_config and saved_weights
