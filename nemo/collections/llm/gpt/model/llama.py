@@ -182,6 +182,7 @@ class Llama31Config405B(Llama31Config):
     num_attention_heads: int = 128
     make_vocab_size_divisible_by: int = 128
 
+
 @dataclass
 class Llama32Config1B(Llama31Config):
     scale_factor: int = 32
@@ -194,6 +195,7 @@ class Llama32Config1B(Llama31Config):
     num_query_groups: int = 8
     make_vocab_size_divisible_by: int = 128
 
+
 @dataclass
 class Llama32Config3B(Llama31Config):
     scale_factor: int = 32
@@ -205,6 +207,7 @@ class Llama32Config3B(Llama31Config):
     num_attention_heads: int = 24
     num_query_groups: int = 8
     make_vocab_size_divisible_by: int = 128
+
 
 @dataclass
 class CodeLlamaConfig7B(Llama2Config7B):
