@@ -198,7 +198,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
 
         # TODO(subhankarg) load answer audio from cut.target_codes logic
-        def load_audio_from_cut(cuts, name):
+        def load_audio_from_cut(cuts, name, sample_rate):
             answer_audio_lens = []
             answer_audios = []  # b*N
             features_lens = []
@@ -215,20 +215,14 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     if not isinstance(audios, Recording):
                         # TODO: tmp solution for multiturn
                         audios = Recording.from_file(audios['sources'][0]['source'])
-                        # TODO: resample?
 
-                    # resampled to sample_rate in dataloader config
-                    answer_audio = torch.tensor(audios.load_audio()).float()
+                    answer_audio = torch.tensor(audios.resample(sample_rate).load_audio()).float()
                     answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
                     answer_audios.append(answer_audio)
                     answer_audio_lens.append(answer_audio_len)
                     features_lens.append(
                         math.ceil(
-                            answer_audio_len
-                            / self.codec_model_downsampling_factor
-                            / self.decoder_reduction_factor
-                            * self.codec_sample_rate
-                            / self.sample_rate
+                            answer_audio_len / self.codec_model_downsampling_factor / self.decoder_reduction_factor
                         )
                     )
             answer_audios = collate_vectors(
@@ -242,9 +236,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         # treat multiturn data as multiple batch each with 2-turn conversation
         if hasattr(cuts[0], "target_audios"):  # multi-turn
-            all_target_audios, all_target_audio_lens, target_features_lens = load_audio_from_cut(cuts, "target_audios")
+            all_target_audios, all_target_audio_lens, target_features_lens = load_audio_from_cut(
+                cuts, "target_audios", self.codec_sample_rate
+            )
             assert hasattr(cuts[0], "source_audios")
-            all_source_audios, all_source_audio_lens, source_features_lens = load_audio_from_cut(cuts, "source_audios")
+            all_source_audios, all_source_audio_lens, source_features_lens = load_audio_from_cut(
+                cuts, "source_audios", self.sample_rate
+            )
             assert all_target_audios.shape[0] == all_source_audios.shape[0]
             assert all_target_audios.shape[0] == len(instructions)
             assert all_target_audios.shape[0] == len(target_texts)
@@ -254,10 +252,12 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             audio_lens = all_source_audio_lens
             features_lens = target_features_lens
         elif hasattr(cuts[0], "target_audio"):  # single-turn
-            # resample to 16k by dataloader
-            answer_audios, answer_audio_lens, features_lens = load_audio_from_cut(cuts, "target_audio")
-            # 22k
-            audio = [cut.resample(self.codec_sample_rate).load_audio() for cut in cuts]
+            # 22k target audio
+            answer_audios, answer_audio_lens, features_lens = load_audio_from_cut(
+                cuts, "target_audio", self.codec_sample_rate
+            )
+            # 16k source audio
+            audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
             audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
             # Resample audio waveform here since cuts.resample causes core dump sometimes
             # cuts_sample_rates = [c.recording.sampling_rate for c in cuts]

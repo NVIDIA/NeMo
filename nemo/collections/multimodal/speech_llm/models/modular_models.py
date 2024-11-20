@@ -385,7 +385,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
         duplex_inject_silence_second = self.cfg.get('duplex_inject_silence_second', 0.1)
-        silence = int(self.cfg.data.train_ds.codec_sample_rate * duplex_inject_silence_second)
+        codec_sample_rate = self.cfg.data.train_ds.get("codec_sample_rate", 22050)
+        silence = int(codec_sample_rate * duplex_inject_silence_second)
         user_signal = audio_batch['audio_signal']
         user_signal_length = audio_batch['audio_signal_length']
 
@@ -403,18 +404,16 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         target_text_lengths = audio_batch['target_text_lengths']
 
         def resample(audio, audio_lens, orig_sample_rate, target_sample_rate):
-            audio = [
-                torchaudio.functional.resample(a, orig_sample_rate, target_sample_rate).squeeze(0) for a in zip(audio)
-            ]
+            audio = torchaudio.functional.resample(audio, orig_sample_rate, target_sample_rate)
             audio_lens = (audio_lens * (target_sample_rate / orig_sample_rate)).int()
             return audio, audio_lens
 
-        if self.perception.preprocessor.sample_rate != self.cfg.data.train_ds.codec_sample_rate:
+        if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
             user_signal, user_signal_length = resample(
                 user_signal,
                 user_signal_length,
-                self.perception.preprocessor.sample_rate,
-                self.cfg.data.train_ds.codec_sample_rate,
+                self.perception.cfg.preprocessor.sample_rate,
+                codec_sample_rate,
             )
 
         new_user_signal = []
@@ -445,12 +444,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         new_agent_signal = pad_sequence(new_agent_signal, batch_first=True)
         new_user_signal_length = torch.Tensor(new_user_signal_length).long().cuda()
         new_agent_signal_length = torch.Tensor(new_agent_signal_length).long().cuda()
-        if self.perception.preprocessor.sample_rate != self.cfg.data.train_ds.codec_sample_rate:
+        if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
             new_user_signal, new_user_signal_length = resample(
                 new_user_signal,
                 new_user_signal_length,
-                self.cfg.data.train_ds.codec_sample_rate,
-                self.perception.preprocessor.sample_rate,
+                codec_sample_rate,
+                self.perception.cfg.preprocessor.sample_rate,
             )
 
         # [b, t, c]
@@ -465,16 +464,21 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             new_agent_signal, new_agent_signal_length
         )  # list, list
 
-        assert encoded_len == answer_codecs_lens
+        answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
+        assert all(answer_codecs_lens == encoded_len)
         shift_text_channel_len = answer_codecs_lens - audio_batch['answer_features_lens']
 
         new_loss_mask = []
         all_channels = []
         for i, answer_codec in enumerate(answer_codecs):
             base_length = target_text_lengths[i] + context_lengths[i]
-            pad_id = self.tokenizer.pad_id
+            pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.eos_id
             text_channel = torch.cat(
-                [torch.full([shift_text_channel_len[i], 1], pad_id), input_ids[:1, :1], labels[base_length:, :1]],
+                [
+                    torch.full([shift_text_channel_len[i], 1], pad_id).cuda(),
+                    input_ids[i, :1, :1],
+                    labels[i, base_length:, :1],
+                ],
                 dim=0,
             )
             all_channels.append(torch.cat([text_channel, answer_codec], dim=-1))
@@ -484,8 +488,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 )
             )
         all_channels = pad_sequence(all_channels, batch_first=True)
-        input_ids = all_channels[:, :-1]
-        labels = all_channels[:, 1:]
+        input_ids = all_channels[:, :, :-1]
+        labels = all_channels[:, :, 1:]
         loss_mask = pad_sequence(new_loss_mask, batch_first=True)
         assert loss_mask.shape == labels.shape
         # TODO: inject bos and eos properly to control turn taking in inference
@@ -517,7 +521,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
-        assert self.perception.preprocessor.sample_rate == self.cfg.data.train_ds.sample_rate
+        assert self.perception.cfg.preprocessor.sample_rate == self.cfg.data.train_ds.sample_rate
         if self.cfg.get("duplex_method", None) is not None:
             return self.prepare_llm_input_duplex(audio_batch)
 
