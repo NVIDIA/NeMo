@@ -44,7 +44,7 @@ class GenericLitWrapper(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits = extract_logits_from_output(y_hat)
         n = logits.shape[-1]
         loss = self.criterion(logits.view(-1, n), y.view(-1))
-        self.log('train_loss', loss)
+        self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
 def extract_logits_from_output(x):
