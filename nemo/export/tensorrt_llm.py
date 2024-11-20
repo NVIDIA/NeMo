@@ -764,7 +764,7 @@ class TensorRTLLM(ITritonDeployable):
                 nemo_model_conversion_dict[f'{model_prefix}.{key}'] = value
             else:
                 nemo_model_conversion_dict[key] = value
-        return DEFAULT_CONVERSION_DICT
+        return nemo_model_conversion_dict
 
     def build(
         self,
