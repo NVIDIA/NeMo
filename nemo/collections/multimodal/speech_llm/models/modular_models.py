@@ -362,7 +362,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         padded_original_codec_codes = torch.cat(
             [
                 original_codec_codes,
-                torch.ones([original_codec_codes.shape[0], decoder_reduction_factor, n_speech_codebooks]).cuda()
+                torch.ones([original_codec_codes.shape[0], decoder_reduction_factor, n_speech_codebooks]).long().cuda()
                 * speech_pad_id,
             ],
             axis=1,
@@ -384,8 +384,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         return out_codec_codes, out_codec_lens
 
     def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
-        duplex_inject_silence_second = self.cfg.get('duplex_inject_silence_second', 0.1)
         codec_sample_rate = self.cfg.data.train_ds.get("codec_sample_rate", 22050)
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        # make the following to be one decoding step so as to easier replace with speech bos token and eos token
+        duplex_inject_silence_second = (
+            self.codec_model_downsampling_factor / codec_sample_rate * decoder_reduction_factor
+        )
         silence = int(codec_sample_rate * duplex_inject_silence_second)
         user_signal = audio_batch['audio_signal']
         user_signal_length = audio_batch['audio_signal_length']
@@ -416,28 +420,35 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 codec_sample_rate,
             )
 
+        def get_step_from_audio_len(audio_len):
+            return torch.ceil(audio_len / self.codec_model_downsampling_factor / decoder_reduction_factor).int() - 1
+
         new_user_signal = []
         new_agent_signal = []
         new_user_signal_length = []
         new_agent_signal_length = []
         silence_value = 0
         shift_text_channel_len = []
+        agent_bos_eos_step = []
         for user, agent, user_len, agent_len in zip(
             user_signal, agent_signal, user_signal_length, agent_signal_length
         ):
             user = user[:user_len]
             agent = agent[:agent_len]
+            # user, silence, agent, silence -> user, bos, agent, eos
+            # TODO: above design means that in real/synthetic data, we need to mark bos and eos timestamp of agent responses
+            silence_piece = torch.full([silence], silence_value).cuda()
             new_user_signal.append(
-                torch.cat(
-                    [user, torch.full([silence], silence_value).cuda(), torch.ones_like(agent) * silence_value], dim=0
-                )
+                torch.cat([user, silence_piece, torch.ones_like(agent) * silence_value, silence_piece], dim=0)
             )
             new_agent_signal.append(
-                torch.cat(
-                    [torch.ones_like(user) * silence_value, torch.full([silence], silence_value).cuda(), agent], dim=0
-                )
+                torch.cat([torch.ones_like(user) * silence_value, silence_piece, agent, silence_piece], dim=0)
             )
-            duplex_len = user_len + silence + agent_len
+            duplex_len = user_len + silence + agent_len + silence
+            # make bos step -1 to be safe for silence+speech boundary
+            agent_bos_eos_step.append(
+                [get_step_from_audio_len(user_len + silence) - 1, get_step_from_audio_len(duplex_len)]
+            )
             new_user_signal_length.append(duplex_len)
             new_agent_signal_length.append(duplex_len)
         new_user_signal = pad_sequence(new_user_signal, batch_first=True)
@@ -466,11 +477,14 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
         assert all(answer_codecs_lens == encoded_len)
-        shift_text_channel_len = answer_codecs_lens - audio_batch['answer_features_lens']
+        shift_text_channel_len = answer_codecs_lens - audio_batch['answer_features_lens'] - 2  # 2 is for bos and eos
 
         new_loss_mask = []
         all_channels = []
         for i, answer_codec in enumerate(answer_codecs):
+            # mask bos and eos following timestamp or synthetic data mark
+            answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
+            answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
             base_length = target_text_lengths[i] + context_lengths[i]
             pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.eos_id
             text_channel = torch.cat(
@@ -481,18 +495,20 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 ],
                 dim=0,
             )
-            all_channels.append(torch.cat([text_channel, answer_codec], dim=-1))
-            new_loss_mask.append(
-                torch.cat(
-                    [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]), loss_mask[i, base_length:]], dim=0
-                )
+            sliced_text_channel = text_channel[: answer_codec.shape[0]]
+            # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
+            all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
+            cur_loss_mask = torch.cat(
+                [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
+                dim=0,
             )
+            new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
-        input_ids = all_channels[:, :, :-1]
-        labels = all_channels[:, :, 1:]
+        input_ids = all_channels[:, :-1]
+        encoded = encoded[:, :-1]
+        labels = all_channels[:, 1:]
         loss_mask = pad_sequence(new_loss_mask, batch_first=True)
         assert loss_mask.shape == labels.shape
-        # TODO: inject bos and eos properly to control turn taking in inference
         assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):

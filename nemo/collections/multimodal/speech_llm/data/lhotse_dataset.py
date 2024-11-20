@@ -383,7 +383,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             # Iterate over each batch
             for batch_idx in range(batch_size):
-                batch_max_length = features_lens[batch_idx]
+                batch_max_length = features_lens[batch_idx] - 1
                 word_start_idx = 0  # Start index to keep track of the position within the concatenated word tokens
 
                 # Iterate over the words in the current batch
