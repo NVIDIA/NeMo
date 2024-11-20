@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 
-from typing import Optional
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
