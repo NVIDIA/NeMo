@@ -7,6 +7,7 @@ from typing import Any, Sequence
 from lhotse.cut import Cut
 from lhotse.dataset import SamplingConstraint, TokenConstraint
 from lhotse.dataset.sampling.dynamic_bucketing import FixedBucketBatchSizeConstraint
+from lhotse.utils import ifnone
 
 from nemo.collections.common.data.lhotse.text_adapters import Formattable
 
@@ -193,9 +194,9 @@ class DurationFilter:
     Acts as a pass-through for objects of other type than Cut.
     """
 
-    def __init__(self, d_min: float, d_max: float) -> None:
-        self.d_min = d_min
-        self.d_max = d_max
+    def __init__(self, d_min: float | None, d_max: float | None) -> None:
+        self.d_min = ifnone(d_min, -1)
+        self.d_max = ifnone(d_max, float("inf"))
 
     def __call__(self, example) -> bool:
         if isinstance(example, Cut):
@@ -221,14 +222,12 @@ class TokenCountFilter:
     and enable ``TokenPerTokenFilter`` for additional filtering on the output sequence length.
     """
 
-    def __init__(self, t_min: float, t_max: float, measure_total_length: bool) -> None:
-        self.t_min = t_min
-        self.t_max = t_max
+    def __init__(self, t_min: float | None, t_max: float | None, measure_total_length: bool) -> None:
+        self.t_min = ifnone(t_min, -1)
+        self.t_max = ifnone(t_max, float("inf"))
         self.measure_total_length = measure_total_length
 
     def __call__(self, example) -> bool:
-        if self.t_min is None and self.t_max is None:
-            return True  # disabled
         if isinstance(example, Cut):
             return True  # does not apply to Cuts
         assert isinstance(example, Formattable), (
@@ -254,10 +253,10 @@ class TokenPerSecondFilter:
     Acts as a pass-through for objects of other type than Cut.
     """
 
-    def __init__(self, tps_min: float, tps_max: float) -> None:
-        assert tps_min <= tps_max
-        self.tps_min = tps_min
-        self.tps_max = tps_max
+    def __init__(self, tps_min: float | None, tps_max: float | None) -> None:
+        self.tps_min = ifnone(tps_min, -1)
+        self.tps_max = ifnone(tps_max, float("inf"))
+        assert tps_min <= tps_max, f"{tps_min=} {tps_max=}"
         self.enabled = tps_min > 0 or tps_max < float("inf")
 
     def __call__(self, example) -> bool:
@@ -274,10 +273,10 @@ class TokenPerTokenFilter:
     Acts as a pass-through for audio examples (Cuts).
     """
 
-    def __init__(self, tpt_min: float, tpt_max: float) -> None:
-        assert tpt_min <= tpt_max
-        self.tpt_min = tpt_min
-        self.tpt_max = tpt_max
+    def __init__(self, tpt_min: float | None, tpt_max: float | None) -> None:
+        self.tpt_min = ifnone(tpt_min, -1)
+        self.tpt_max = ifnone(tpt_max, float("inf"))
+        assert tpt_min <= tpt_max, f"{tpt_min=} {tpt_max=}"
         self.enabled = tpt_min > 0 or tpt_max < float("inf")
 
     def __call__(self, example) -> bool:
