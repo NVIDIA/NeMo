@@ -520,13 +520,11 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
     ## convert from StrictHandling to bool for PTL
     if strict is not None and not isinstance(strict, bool):
         strict_options = [
+            StrictHandling.ASSUME_OK_UNEXPECTED,
             StrictHandling.RAISE_UNEXPECTED,
             StrictHandling.RAISE_ALL,
         ]
-        if strict in strict_options:
-            strict = True
-        else:
-            strict = False
+        strict = strict in strict_options
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
