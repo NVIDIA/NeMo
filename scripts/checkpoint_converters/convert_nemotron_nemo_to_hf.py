@@ -129,6 +129,7 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         hf_config["head_dim"] = nemo_config.kv_channels
     json.dump(hf_config, open(f"{hf_output_path}/config.json", "w"), indent=2)
 
+
 def convert_tiktoken(vocab_file) -> None:
     with open(vocab_file, 'r') as f:
         vocab = json.load(f)
@@ -141,6 +142,7 @@ def convert_tiktoken(vocab_file) -> None:
     for line in lines:
         with open(vocab_file, 'a') as f:
             f.write(line + '\n')
+
 
 def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> None:
     """
@@ -349,9 +351,16 @@ def extract_nemotron_tokenizer(nemo_file, model_config, output_hf_path, nemo_tok
             shutil.copy(f"{nemo_file}/{tokenizer_fn}", output_tokenizer)
         vocab_file = os.path.join(output_hf_path, tokenizer_fn)
         convert_tiktoken(vocab_file)
-        converted_tokenizer = TikTokenConverter(vocab_file=vocab_file, additional_special_tokens=special_tokens).converted()
+        converted_tokenizer = TikTokenConverter(
+            vocab_file=vocab_file, additional_special_tokens=special_tokens
+        ).converted()
         os.remove(vocab_file)
-        tokenizer = PreTrainedTokenizerFast(tokenizer_object=converted_tokenizer, model_input_names=["input_ids", "attention_mask"], bos_token="<s>", eos_token="</s>")
+        tokenizer = PreTrainedTokenizerFast(
+            tokenizer_object=converted_tokenizer,
+            model_input_names=["input_ids", "attention_mask"],
+            bos_token="<s>",
+            eos_token="</s>",
+        )
         tokenizer.save_pretrained(output_hf_path)
     elif isinstance(nemo_tokenizer, AutoTokenizer):
         nemo_tokenizer.tokenizer.save_pretrained(output_hf_path)
