@@ -41,16 +41,16 @@ def mk_hf_dataset(tokenizer):
         ans = tokenizer(text)
         tokens = ans['input_ids']
         return {
-            'tokens': tokens,
+            'input_ids': tokens,
             'labels': tokens[1:] + [tokens[-1]],
         }
 
     from datasets import load_dataset
 
     dataset = load_dataset("rajpurkar/squad", split="train")
-    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2)
+    columns_to_remove = list(filter(lambda x: x not in ['input_ids', 'labels'], dataset.features.keys()))
+    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2, remove_columns=columns_to_remove)
     return dataset
-
 
 if __name__ == '__main__':
     import argparse
