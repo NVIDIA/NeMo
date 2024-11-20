@@ -407,6 +407,7 @@ class TensorRTLLM(ITritonDeployable):
                         share_embeddings_and_output_weights=model_configs.get(
                             "share_embeddings_and_output_weights", False
                         ),
+                        hybrid_override_pattern=model_configs.get("hybrid_override_pattern")
                     )
 
                     input_dtype = getattr(DataType, dtype)
@@ -422,7 +423,7 @@ class TensorRTLLM(ITritonDeployable):
                             model_state_dict=model,
                             export_config=export_config,
                             dtype=input_dtype,
-                            state_dict_split_by_layer_numbers=False,
+                            state_dict_split_by_layer_numbers=False if model_type != 'mamba_hybrid' else True,
                         )
                     )
 
@@ -848,7 +849,7 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_supported_models_list(self):
         # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
-        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral", "gemma"]
+        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral", "gemma", "mamba_hybrid"]
 
     @property
     def get_hidden_size(self):

@@ -103,6 +103,8 @@ def retrieve_scale(bytes: BytesIO) -> Optional[torch.Tensor]:
 def load_scales_from_bytes(bytes_list: List[BytesIO]) -> Optional[torch.Tensor]:
     scales = []
     for bytes in bytes_list:
+        if bytes is None:
+            return None
         scale = retrieve_scale(bytes)
         if scale is None:
             return None
