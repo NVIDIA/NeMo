@@ -36,7 +36,7 @@ class MCoreASRModule(MegatronModule):
         preprocessor: Optional[nn.Module] = None,
         spec_augment: Optional[nn.Module] = None,
     ):
-        super().__init__(config=TransformerConfig(num_layers=1, hidden_size=1, num_attention_heads=1))
+        super().__init__(config=TransformerConfig(num_layers=1, hidden_size=1, num_attention_heads=16))
         self.encoder = encoder
         self.preprocessor = preprocessor
         self.spec_augmentation = spec_augment

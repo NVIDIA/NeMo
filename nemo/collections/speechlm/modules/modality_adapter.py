@@ -30,7 +30,7 @@ class MCoreModalityAdapterModule(MegatronModule):
         self,
         module: NeuralModule,
     ):
-        super().__init__(config=TransformerConfig(num_layers=1, hidden_size=1, num_attention_heads=1))
+        super().__init__(config=TransformerConfig(num_layers=1, hidden_size=1, num_attention_heads=16))
         self.module = module
 
     def forward(self, encoded, encoded_len):

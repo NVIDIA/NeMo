@@ -159,7 +159,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
     num_layers: int = 1  # added to avoid init error, not used!!!
     hidden_size: int = 1  # added to avoid init error, not used!!!
-    num_attention_heads: int = 1  # added to avoid init error, not used!!!
+    num_attention_heads: int = 16  # added to avoid init error, not used!!!
 
     language_model_config: Optional[GPTConfig] = None
     language_model_class: Optional[str] = None

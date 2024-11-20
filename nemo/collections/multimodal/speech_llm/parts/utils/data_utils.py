@@ -257,9 +257,11 @@ class TextProcessing:
             if self.audio_locator is None:
                 raise ValueError("`audio_locator` must be provided when `add_boa_eoa` is True.")
             if self.boa_string is None or self.eoa_string is None:
-                raise ValueError(
-                    f"`boa_string` ({boa_string}) and `eoa_string` ({eoa_string}) must be not None when `add_boa_eoa` is True."
+                logging.warning(
+                    f"`boa_string` ({boa_string}) or `eoa_string` ({eoa_string}) is None when `add_boa_eoa` is True, using default `<BOA>` and `<EOA>`."
                 )
+                self.boa_string = "<BOA>"
+                self.eoa_string = "<EOA>"
 
         if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id:
             self.bos_id = tokenizer.bos_id
@@ -282,6 +284,9 @@ class TextProcessing:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
+
+    def __call__(self, *args, **kwds):
+        return self._process_example(*args, **kwds)
 
     def _process_example(self, context: str, output: str):
         """
