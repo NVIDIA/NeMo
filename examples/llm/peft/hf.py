@@ -52,6 +52,7 @@ def mk_hf_dataset(tokenizer):
     dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2, remove_columns=columns_to_remove)
     return dataset
 
+
 if __name__ == '__main__':
     import argparse
 

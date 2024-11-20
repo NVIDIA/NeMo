@@ -82,14 +82,14 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForCausalLM.from_config(config, trust_remote_code=self.trust_remote_code)
         self.model.train()
 
-
-    def forward(self,
-            input_ids: torch.Tensor,
-            attention_mask: Optional[torch.Tensor] = None,
-            position_ids: torch.Tensor = None,
-            labels: Optional[torch.Tensor] = None,
-            **kwargs,
-        ):
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: torch.Tensor = None,
+        labels: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
         outputs = self.model(
             input_ids=input_ids.to(self.model.device),
             attention_mask=attention_mask.to(self.model.device) if attention_mask is not None else attention_mask,
