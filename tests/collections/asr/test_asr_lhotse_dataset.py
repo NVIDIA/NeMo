@@ -71,9 +71,6 @@ def test_lhotse_asr_dataset_metadata(tokenizer):
     cuts = DummyManifest(CutSet, begin_id=0, end_id=2, with_data=True)
 
     cuts[0].id = "cuts0"
-    cuts[0].duration = 0.5
-    cuts[0].start = 0.2
-
     cuts[1].id = "cuts1"
     cuts[0].supervisions = [
         SupervisionSegment(id="cuts0-sup0", recording_id=cuts[0].recording_id, start=0.2, duration=0.5, text="first"),
