@@ -232,6 +232,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=self.tokenizer,
+                    return_cuts=config.get("do_transcribe", False),
                 ),
                 tokenizer=self.tokenizer,
             )

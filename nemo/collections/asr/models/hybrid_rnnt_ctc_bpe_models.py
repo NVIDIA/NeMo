@@ -147,7 +147,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=self.tokenizer,
-                    do_transcribe=config.get("do_transcribe", False),
+                    return_cuts=config.get("do_transcribe", False),
                 ),
                 tokenizer=self.tokenizer,
             )

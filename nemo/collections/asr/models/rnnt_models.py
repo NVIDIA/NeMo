@@ -482,6 +482,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                         blank_id=config.get('blank_index', -1),
                         do_normalize=config.get('normalize_transcripts', False),
                     ),
+                    return_cuts=config.get("do_transcribe", False),
                 ),
             )
 
