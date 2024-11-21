@@ -32,6 +32,9 @@ def te_accelerate(model, fp8_autocast=False):
     if not HAVE_TE:
         logging.warning("Transformer Engine is not available and the module replacements " "will not be applied.")
     else:
+        # if not _apply_transformer_layer_replacement(model):
+        #    _apply_basic_module_replacement(model)
+
         _apply_basic_module_replacement(model)
         if fp8_autocast:
             apply_fp8_autocast(model)
@@ -39,6 +42,35 @@ def te_accelerate(model, fp8_autocast=False):
 
 @torch.no_grad
 def _apply_basic_module_replacement(model):
+    for name, module in model.named_children():
+        if isinstance(module, torch.nn.Linear):
+            has_bias = module.bias is not None
+            if any(p % 16 != 0 for p in module.weight.shape):
+                continue
+            te_module = te.Linear(
+                module.in_features, module.out_features, bias=has_bias, params_dtype=module.weight.dtype
+            )
+            te_module.weight.copy_(module.weight)
+            if has_bias:
+                te_module.bias.copy_(module.bias)
+
+            setattr(model, name.split(".")[-1], te_module)
+        elif isinstance(module, torch.nn.LayerNorm):
+            te_module = te.LayerNorm(module.normalized_shape[0], eps=module.eps, params_dtype=module.weight.dtype)
+            te_module.weight.copy_(module.weight)
+            te_module.bias.copy_(module.bias)
+            setattr(model, name.split(".")[-1], te_module)
+        elif isinstance(module, torch.nn.RMSNorm):
+            te_module = te.RMSNorm(module.normalized_shape[0], eps=module.eps, dtype=module.weight.dtype)
+            te_module.weight.copy_(module.weight)
+            te_module.bias.copy_(module.bias)
+            setattr(model, name.split(".")[-1], te_module)
+        else:
+            _apply_basic_module_replacement(module)
+
+
+@torch.no_grad
+def _apply_basic_module_replacement_old(model):
     for name, module in model.named_modules():
         if isinstance(module, torch.nn.Linear):
             has_bias = module.bias is not None
@@ -62,6 +94,37 @@ def _apply_basic_module_replacement(model):
             te_module.weight.copy_(module.weight)
             te_module.bias.copy_(module.bias)
             setattr(module, name.split(".")[-1], te_module)
+
+
+@torch.no_grad
+def _apply_transformer_layer_replacement(model):
+    config = model.model.config.__dict__
+    hidden_layer_names = ["model.model.layers." + str(i) for i in range(config["num_hidden_layers"])]
+    te_layers = []
+
+    for name, module in model.named_modules():
+        if name in hidden_layer_names:
+            te_transformer_module = te.TransformerLayer(
+                hidden_size=config["hidden_size"],
+                ffn_hidden_size=config["intermediate_size"],
+                num_attention_heads=config["num_attention_heads"],
+                bias=config["attention_bias"],
+                layernorm_epsilon=config["rms_norm_eps"],
+                hidden_dropout=0,
+                attention_dropout=0,
+                fuse_qkv_params=False,
+                normalization="RMSNorm",
+                activation=config["hidden_act"],
+                attn_input_format="bshd",
+                num_gqa_groups=config["num_key_value_heads"],
+            )
+            te_layers.append(te_transformer_module)
+
+    if len(te_layers) > 0:
+        setattr(model.model.model, "layers", torch.nn.ModuleList(te_layers))
+        return True
+    else:
+        return False
 
 
 def is_te_accelerated(model):
