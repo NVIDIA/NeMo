@@ -11,21 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import lightning.pytorch as pl
-
-from nemo.collections.vlm.neva.model import Llava15Config7B, Llava15Config13B, LlavaModel
-
-
-def llava15_7b() -> pl.LightningModule:
-    return LlavaModel(Llava15Config7B())
-
-
-def llava15_13b() -> pl.LightningModule:
-    return LlavaModel(Llava15Config13B())
-
-
-__all__ = [
-    "llava15_7b",
-    "llava15_13b",
-]
