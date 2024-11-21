@@ -53,7 +53,7 @@ class LhotseAudioToSpeechE2ESpkDiarDataset(torch.utils.data.Dataset):
         self.num_speakers = self.cfg.get('num_speakers', 4)
         self.num_sample_per_mel_frame = int(
             self.cfg.get('window_stride', 0.01) * self.cfg.get('sample_rate', 16000)
-        ) # 160 samples for every 1ms by default
+        )  # 160 samples for every 1ms by default
         self.num_mel_frame_per_target_frame = int(self.cfg.get('subsampling_factor', 8))
         self.spk_tar_all_zero = self.cfg.get('spk_tar_all_zero', False)
 

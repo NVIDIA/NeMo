@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import math
-import torch
 from typing import Optional, Union
+
+import torch
 from lhotse import SupervisionSet
 from lhotse.cut import MixedCut, MonoCut
 
@@ -266,7 +267,7 @@ def get_soft_mask(feat_level_target, num_frames, stride):
             Dimension: (num_frames, num_speakers)
         num_sample (int): The total number of samples.
         stride (int): The stride for the mask.
-        
+
     Returns:
         mask: The soft mask of shape (num_frames, num_speakers).
             Dimension: (num_frames, num_speakers)

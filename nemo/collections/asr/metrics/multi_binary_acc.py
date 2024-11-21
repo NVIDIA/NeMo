@@ -122,7 +122,7 @@ class MultiBinaryAccuracy(Metric):
     def compute(self):
         """
         Compute F1 score from the accumulated values. Return -1 if the F1 score is NaN.
-        
+
         Returns:
             f1_score (torch.Tensor): F1 score calculated from the accumulated values.
             precision (torch.Tensor): Precision calculated from the accumulated values.
