@@ -139,10 +139,7 @@ def main():
     # Uses configs from NeMo directly
     assert hasattr(llm, args.recipe), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequenth_length> or other special settings)"
     pretrain_recipe = getattr(llm, args.recipe).pretrain_recipe
-    pretrain = partial(pretrain_recipe, num_nodes=pretrain_recipe.trainer.num_nodes, num_gpus_per_node=pretrain_recipe.trainer.num_gpus_per_node)(
-        name=exp_name,
-        dir="/nemo_run/checkpoints",
-    )
+    pretrain = partial(pretrain_recipe)(name=exp_name, dir="/nemo_run/checkpoints")
 
     # Overwrite the dataloader in the recipe to use your custom dataloader.
     # dataloader = set_your_custom_dataloader
