@@ -63,7 +63,7 @@ def get_modelopt_decoder_type(model: llm.GPTModel):
 
 
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Modify model config for TensorRT-Model-Optimizer quantization """
+    """Modify model config for TensorRT-Model-Optimizer quantization"""
 
     from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
         get_gpt_layer_modelopt_spec,

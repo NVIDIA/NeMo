@@ -23,10 +23,10 @@ import torch.distributed as dist
 from datasets import load_dataset
 from tqdm import tqdm
 
-from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.utils import logging
 
 from .utils import get_modelopt_decoder_type, get_unwrapped_mcore_model
