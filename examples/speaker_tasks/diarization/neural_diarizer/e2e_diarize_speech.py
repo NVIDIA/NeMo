@@ -200,7 +200,7 @@ def diarization_objective(
         infer_audio_rttm_dict (Dict[str, Dict[str, str]]): Dictionary containing audio file paths,
             offsets, durations, and RTTM file paths.
         diar_model_preds_total_list (List[torch.Tensor]): List of prediction matrices containing
-            sigmoid values for each speaker. 
+            sigmoid values for each speaker.
             Dimension: [(1, num_frames, num_speakers), ..., (1, num_frames, num_speakers)]
         collar (float, optional): Collar in seconds for DER calculation. Defaults to 0.25.
         ignore_overlap (bool, optional): If True, DER will be calculated only for non-overlapping segments.
