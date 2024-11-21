@@ -132,21 +132,29 @@ class Quantizer:
         model.config.vocab_size = model.tokenizer.vocab_size
         model.freeze()
 
-    def _get_decoder_type(self, config: llm.GPTConfig):
-        return self.export_config.decoder_type or get_modelopt_decoder_type(config)
+    def _get_decoder_type(self, model: MegatronParallel):
+        if self.export_config.decoder_type is not None:
+            return self.export_config.decoder_type
+        unwrapped_model = model
+        while not isinstance(unwrapped_model, llm.GPTModel):
+            unwrapped_model = unwrapped_model.module
+
+        return get_modelopt_decoder_type(unwrapped_model)
 
     @staticmethod
     def _generate_sample(model: MegatronParallel):
         prompts = ["Born in north-east France, Soyer trained as a", "Born in California, Soyer trained as a"]
 
         mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
-        mcore_inference = model.get_inference_wrapper(torch.bfloat16, 30)
+        mcore_inference = model.get_inference_wrapper(
+            params_dtype=torch.bfloat16,
+            inference_batch_times_seqlen_threshold=30
+            )
 
         generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
         outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
 
-        logging.info(f'Prompts for sample generation: {prompts}')
-        logging.info(f'Sample generation after PTQ: {outputs}')
+        logging.info(f'Sample generation after PTQ (with prompts): {outputs}')
 
     def quantize(self, model: MegatronParallel, forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
@@ -178,7 +186,7 @@ class Quantizer:
 
         self._setup(model)
         unwrapped_model = get_unwrapped_mcore_model(model)
-        decoder_type = self._get_decoder_type(unwrapped_model)
+        decoder_type = self._get_decoder_type(model)
         quant_cfg = QUANT_CFG_CHOICES[algorithm]
         if "awq" in algorithm:
             weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
@@ -297,7 +305,8 @@ class Quantizer:
 
         # Save the model context in order to restore its tokenizer later. The destination
         # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-        if dist.get_rank() == 0 and self._validate_quantized_checkpoint(export_dir, inference_tp):
+        if dist.get_rank() == 0:
+            assert self._validate_quantized_checkpoint(export_dir, inference_tp)
             shutil.copytree(
                 ckpt_to_context_subdir(model_dir),
                 os.path.join(export_dir, "nemo_context"),
