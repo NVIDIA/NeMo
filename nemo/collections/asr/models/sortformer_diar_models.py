@@ -91,8 +91,12 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             self.spec_augmentation = None
 
         self.encoder = SortformerEncLabelModel.from_config_dict(self._cfg.encoder).to(self.device)
-        self.sortformer_modules = SortformerEncLabelModel.from_config_dict(self._cfg.sortformer_modules).to(self.device)
-        self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder).to(self.device)
+        self.sortformer_modules = SortformerEncLabelModel.from_config_dict(self._cfg.sortformer_modules).to(
+            self.device
+        )
+        self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder).to(
+            self.device
+        )
         if self._cfg.encoder.d_model != self._cfg.tf_d_model:
             self.sortformer_modules.encoder_proj = self.sortformer_modules.encoder_proj.to(self.device)
         else:
