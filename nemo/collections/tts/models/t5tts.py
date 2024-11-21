@@ -558,9 +558,8 @@ class T5TTS_Model(ModelPT):
 
         return val_output
     
-    def test_step(self, batch, batch_idx):
+    def infer_batch(self, batch, max_decoder_steps=500):
         with torch.no_grad():
-            test_dl_batch_size = self._test_dl.batch_size
             text = batch['text']
             text_lens = batch['text_lens']
             audio_codes_bos = torch.full((text.size(0), self.cfg.num_audio_codebooks, 1), self.audio_bos_id, device=text.device).long()
@@ -618,7 +617,7 @@ class T5TTS_Model(ModelPT):
             
             all_predictions = []
             end_indices = {}
-            for idx in range(self.cfg.max_decoder_steps):
+            for idx in range(max_decoder_steps):
                 audio_codes_embedded = self.embed_audio_tokens(audio_codes_input)
                 decoder_out = self.t5_decoder(
                     audio_codes_embedded,
@@ -648,10 +647,17 @@ class T5TTS_Model(ModelPT):
                     break
             
             predicted_codes = torch.stack(all_predictions, dim=-1) # (B, num_codebooks, T')
-            predicted_lens = [end_indices.get(idx, self.cfg.max_decoder_steps) for idx in range(text.size(0))]
+            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))]
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
+            
+            return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens
+
+    def test_step(self, batch, batch_idx):
+        with torch.no_grad():
+            test_dl_batch_size = self._test_dl.batch_size
+            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(batch, max_decoder_steps=self.cfg.max_decoder_steps)
             for idx in range(predicted_audio.size(0)):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
