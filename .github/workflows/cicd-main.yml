@@ -2116,7 +2116,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun --nproc_per_node=1 /opt/Megatron-LM/pretrain_gpt.py \
+        CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun --nproc_per_node=1 Megatron-LM/pretrain_gpt.py \
           --mock-data \
           --distributed-timeout-minutes 60 \
           --use-mcore-models \
@@ -2158,7 +2158,7 @@ jobs:
           --tokenizer-model /home/TestData/nlp/gpt2_tokenizer \
           --vocab-file /home/TestData/nlp/gpt2_tokenizer/vocab.json \
           --merge-file /home/TestData/nlp/gpt2_tokenizer/merges.txt \
-          --save /opt/NeMo/examples/nlp/language_modeling/mlm_ci \
+          --save examples/nlp/language_modeling/mlm_ci \
           --save-interval 10 \
           --ckpt-format torch_dist \
           --ckpt-fully-parallel-save \
@@ -2178,7 +2178,7 @@ jobs:
           --manual-gc \
           --num-workers 2
         
-        python /opt/NeMo/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
           model.data.data_impl=mock \
           model.data.data_prefix=[] \
           model.skip_train=True \
@@ -2211,23 +2211,23 @@ jobs:
           ++model.position_embedding_type=rope \
           ++model.add_position_embedding=True \
           trainer.limit_val_batches=1 \
-          exp_manager.exp_dir=/opt/NeMo/examples/nlp/language_modeling/nemo_test
+          exp_manager.exp_dir=examples/nlp/language_modeling/nemo_test
 
-        python -m torch.distributed.launch --nproc_per_node=1 /opt/NeMo/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py \
-          --checkpoint_folder /opt/NeMo/examples/nlp/language_modeling/mlm_ci \
+        python -m torch.distributed.launch --nproc_per_node=1 examples/nlp/language_modeling/megatron_ckpt_to_nemo.py \
+          --checkpoint_folder examples/nlp/language_modeling/mlm_ci \
           --checkpoint_name iter_0000010 \
-          --nemo_file_path /opt/NeMo/examples/nlp/language_modeling/test.nemo \
+          --nemo_file_path examples/nlp/language_modeling/test.nemo \
           --tensor_model_parallel_size 1 \
           --pipeline_model_parallel_size 1 \
           --gpus_per_node 1 \
           --model_type gpt \
-          --hparams_file /opt/NeMo/examples/nlp/language_modeling/nemo_test/megatron_gpt/version_0/hparams.yaml \
+          --hparams_file examples/nlp/language_modeling/nemo_test/megatron_gpt/version_0/hparams.yaml \
           --convert_mlm
 
       AFTER_SCRIPT: |
-        rm -rf /opt/NeMo/examples/nlp/language_modeling/nemo_test/
-        rm -rf /opt/NeMo/examples/nlp/language_modeling/mlm_ci/
-        rm -rf /opt/NeMo/examples/nlp/language_modeling/test.nemo
+        rm -rf examples/nlp/language_modeling/nemo_test/
+        rm -rf examples/nlp/language_modeling/mlm_ci/
+        rm -rf examples/nlp/language_modeling/test.nemo
 
   L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
