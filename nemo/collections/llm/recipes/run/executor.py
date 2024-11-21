@@ -15,7 +15,7 @@ import nemo_run as run
 
 
 @run.cli.factory
-def torchrun(devices: int = 8) -> run.LocalExecutor:
+def torchrun(devices: int = 8) -> run.Config[run.LocalExecutor]:
     """Local executor using torchrun."""
     env_vars = {
         "TRANSFORMERS_OFFLINE": "1",
@@ -25,6 +25,11 @@ def torchrun(devices: int = 8) -> run.LocalExecutor:
         "NVTE_ASYNC_AMAX_REDUCTION": "1",
     }
 
-    executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
+    executor = run.Config(
+        run.LocalExecutor,
+        ntasks_per_node=devices,
+        launcher="torchrun",
+        env_vars=env_vars,
+    )
 
     return executor
