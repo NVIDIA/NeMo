@@ -116,6 +116,7 @@ def _setup_trainer_and_restore_model_and_adapter(
     trainer.state.fn = TrainerFn.TESTING
     trainer.strategy.setup_megatron_parallel(trainer=trainer)
     trainer.strategy.trainer = trainer
+    model.trainer = trainer
 
     model = lora(model)
     adapter_sharded_state_dict = {
