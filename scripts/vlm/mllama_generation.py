@@ -61,6 +61,7 @@ def generate(model, processor, image, text):
     generated_ids = input_ids.clone()
 
     from tqdm import tqdm
+
     for cur_pos in tqdm(range(min_prompt_len, min_prompt_len + 100)):
         with torch.no_grad():
             position_ids = torch.arange(0, cur_pos, dtype=torch.long, device="cuda").reshape(1, -1)
@@ -129,6 +130,7 @@ def main(args) -> None:
         return  # Exit if the image can't be loaded
 
     generate(model, processor, image=raw_image, text="<|image|>\nDescribe the image.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
