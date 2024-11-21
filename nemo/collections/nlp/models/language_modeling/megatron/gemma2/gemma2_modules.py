@@ -127,7 +127,7 @@ class Gemma2DotProductAttention(MegatronModule):
         attention_mask: Tensor,
         attn_mask_type: AttnMaskType = None,
         packed_seq_params: PackedSeqParams = None,
-
+        **kwargs,
     ):
         """ Forward.
         Modified from mcore.transformer.dot_product_attention to support Gemma2-specific
