@@ -602,8 +602,8 @@ class DurationFilter:
     """Callable, returns ``True`` if a cut's duration is in range [d_min, d_max] and ``False`` otherwise."""
 
     def __init__(self, d_min: float, d_max: float) -> None:
-        self.d_min = d_min
-        self.d_max = d_max
+        self.d_min = d_min if d_min is not None else -1.0
+        self.d_max = d_max if d_max is not None else float("inf")
 
     def __call__(self, example) -> bool:
         if isinstance(example, Cut):
