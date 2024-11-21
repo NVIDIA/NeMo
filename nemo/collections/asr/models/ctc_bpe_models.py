@@ -102,7 +102,8 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 # these values must be passed from the configuration.
                 global_rank=self.global_rank if not config.get("do_transcribe", False) else config.get("global_rank"),
                 world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
-                dataset=LhotseSpeechToTextBpeDataset(tokenizer=self.tokenizer),
+                dataset=LhotseSpeechToTextBpeDataset(tokenizer=self.tokenizer, 
+                                                     return_cuts=config.get("do_transcribe", False),),
                 tokenizer=self.tokenizer,
             )
 
