@@ -19,8 +19,10 @@ import torch
 from lightning.pytorch.callbacks import Callback
 
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
+@deprecated(explanation="nemo.utils.callbacks.preemption.PreemptionCallback is deprecated in favor of nemo.lightning.pytorch.callbacks.preemption.PreemptionCallback")
 class PreemptionCallback(Callback):
     """
     PreemptionCallback class creates a callback that checks for preemption during training at the end of every step.
