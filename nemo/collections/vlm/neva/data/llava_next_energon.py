@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import torch
+import torch.nn.functional as F
 from megatron.energon import VQASample, batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
 
@@ -23,6 +24,18 @@ from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, I
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.utils import logging
+
+
+def pad_or_truncate(sequence_batch, seq_length: int, padding_value: int):
+    # Pad the sequence if it's shorter than seq_length
+    if sequence_batch.size(1) < seq_length:
+        pad_size = seq_length - sequence_batch.size(1)
+        sequence_batch = F.pad(sequence_batch, (0, pad_size), value=padding_value)
+    else:
+        # Truncate the sequence if it's longer than seq_length
+        sequence_batch = sequence_batch[:, :seq_length]
+
+    return sequence_batch
 
 
 class LlavaNextTextSample(ImageTextSample):
@@ -85,15 +98,14 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
             images, loss masks, and metadata.
         """
         conversation_prompt = self.apply_prompt_template(input_sample)
-        logging.debug(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
+        logging.info(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
-
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
-        logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
+        logging.info(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.info(f"[Energon] task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
         processed_image = self.process_image(input_sample.image)
         output_sample.__key__ = input_sample.__key__
@@ -110,7 +122,7 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
 
 
 class LlavaNextTaskEncoder(MultiModalTaskEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config, seq_length):
         """
         Initialize the LlavaNextTaskEncoder.
 
@@ -126,6 +138,8 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: LlavaNextSampleEncoder(tokenizer, image_processor, multimodal_sample_config)
         }
+        self.seq_length = seq_length
+        self.ignore_index = multimodal_sample_config.ignore_place_holder
 
     def batch(self, samples: List[LlavaNextTextSample]) -> LlavaNextTextRawBatch:
         """
@@ -170,6 +184,10 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         image_sizes = torch.cat(image_sizes, dim=0)
         batch_loss_mask = batch_pad_stack(loss_mask)
         batch_attention_mask = batch_pad_stack(attention_mask)
+        # batch_tokens = pad_or_truncate(batch_tokens, self.seq_length, self.tokenizer.pad_token_id)
+        # batch_labels = pad_or_truncate(batch_labels, self.seq_length, self.ignore_index)
+        # batch_loss_mask = pad_or_truncate(batch_loss_mask, self.seq_length, 0)
+        # batch_attention_mask = pad_or_truncate(batch_attention_mask, self.seq_length, 0)
         batch_num_media_tiles = torch.tensor(batch_list(num_media_tiles), dtype=torch.int)
         return LlavaNextTextRawBatch(
             __keys__=batch_keys,

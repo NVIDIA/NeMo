@@ -177,17 +177,38 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     return height // patch_size, width // patch_size
 
 
+cached_batch = None
+
+
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
-    batch = next(dataloader_iter)
-    _batch: dict
-    if isinstance(batch, tuple) and len(batch) == 3:
-        _batch = batch[0]
+    # batch = next(dataloader_iter)
+    # _batch: dict
+    # if isinstance(batch, tuple) and len(batch) == 3:
+    #     _batch = batch[0]
+    # else:
+    #     _batch = batch
+
+    global cached_batch  # Use the cached batch if already available
+
+    if cached_batch is None:
+        # Fetch a new batch if the cache is empty
+        batch = next(dataloader_iter)
+        _batch: dict
+        if isinstance(batch, tuple) and len(batch) == 3:
+            _batch = batch[0]
+        else:
+            _batch = batch
+
+        # Cache the processed batch
+        cached_batch = _batch
     else:
-        _batch = batch
+        # Use the cached batch
+        _batch = cached_batch
+
     required_keys = set()
     required_keys.add("attention_mask")
     required_keys.add("num_media_tiles")
@@ -803,6 +824,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     vision_feature_select_strategy='default',
                     image_newline=self.image_newline,
                 )
+                # if torch.distributed.get_rank() == 0:
+                #     breakpoint()
+                # torch.distributed.barrier()
                 combined_embeddings, attention_mask, position_ids, final_labels, final_input_ids, final_loss_mask = (
                     merge_input_ids_with_image_features(
                         media_embeddings,
@@ -815,9 +839,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                         image_token_index=media_token_index,
                     )
                 )
-                # if torch.distributed.get_rank() == 0:
-                #     breakpoint()
-                # torch.distributed.barrier()
 
                 combined_embeddings = combined_embeddings.permute(1, 0, 2)
                 combined_embeddings = combined_embeddings.contiguous()
@@ -840,6 +861,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             labels=final_labels,
             inference_params=inference_params,
         )
+        # if torch.distributed.get_rank() == 0:
+        #     breakpoint()
+        # torch.distributed.barrier()
         if labels is None or loss_mask is None:
             return output
 
