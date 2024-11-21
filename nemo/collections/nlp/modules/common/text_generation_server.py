@@ -59,6 +59,8 @@ API_ALLOWED_KEYS = set(
 
 
 class MegatronGenerate(Resource):
+    inputs = []
+    outputs = []
     def __init__(self, model, inference_strategy=None):
         self.model = model
         self.inference_strategy = inference_strategy
@@ -180,51 +182,67 @@ class MegatronGenerate(Resource):
         )
         len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
         conversation = conversation[:-len_strip]
+
+        batching = (data.get('max_tokens', 32) > 64)
+        if batching:
+            with lock:
+                queryid = len(MegatronGenerate.inputs)
+                MegatronGenerate.inputs.append(conversation)
+            time.sleep(1)
+        else:
+            queryid = 0
+        end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
+
         # Return a response mimicking the OpenAI ChatCompletion API format
         with lock:  # Need to get lock to keep multiple threads from hitting code
-            MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
-            extra = {}
-            if self.inference_strategy is not None:
-                extra['strategy'] = self.inference_strategy
+            if queryid == 0:
+                MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
+                extra = {}
+                if self.inference_strategy is not None:
+                    extra['strategy'] = self.inference_strategy
 
-            all_probs = False
-            add_BOS = False
-            top_k = 0
-            greedy = data['temperature'] == 0.0
-            logprobs = data.get("logprobs", False)
-            end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
-            random_seed = None
+                all_probs = False
+                add_BOS = False
+                top_k = 0
+                greedy = data['temperature'] == 0.0
+                logprobs = data.get("logprobs", False)
+                random_seed = None
 
-            output = generate(
-                self.model,
-                [conversation],
-                data.get('max_tokens', 32),
-                all_probs=all_probs,
-                temperature=data.get('temperature', 1.0),
-                add_BOS=add_BOS,
-                top_k=top_k,
-                top_p=data.get("top_p", 0.95),
-                greedy=greedy,
-                repetition_penalty=1.0,
-                end_strings=end_strings,
-                min_tokens_to_generate=0,
-                compute_logprob=logprobs,
-                random_seed=random_seed,
-                **extra,
-            )
-            for k in output:
-                if isinstance(output[k], torch.Tensor):
-                    output[k] = output[k].tolist()
+                output = generate(
+                    self.model,
+                    MegatronGenerate.inputs if batching else [conversation],
+                    data.get('max_tokens', 32),
+                    all_probs=all_probs,
+                    temperature=data.get('temperature', 1.0),
+                    add_BOS=add_BOS,
+                    top_k=top_k,
+                    top_p=data.get("top_p", 0.95),
+                    greedy=greedy,
+                    repetition_penalty=1.0,
+                    end_strings=end_strings,
+                    min_tokens_to_generate=0,
+                    compute_logprob=logprobs,
+                    random_seed=random_seed,
+                    **extra,
+                )
+                for k in output:
+                    if isinstance(output[k], torch.Tensor):
+                        output[k] = output[k].tolist()
+                if batching:
+                    MegatronGenerate.inputs = []
+                    MegatronGenerate.outputs = output
 
-        output_sentence = output['sentences'][0][len(conversation) :]
+        if batching:
+            output = MegatronGenerate.outputs
+        output_sentence = output['sentences'][queryid][len(conversation) :]
         # remove end_strings
         for e in end_strings:
             if output_sentence.endswith(special_tokens['end_of_turn'] + e):
                 output_sentence = output_sentence[: -len(special_tokens['end_of_turn'] + e)]
 
-        tokens = output['tokens'][0]
+        tokens = output['tokens'][queryid]
         tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
-        logprobs = output['logprob'][0] if output['logprob'] is not None else None
+        logprobs = output['logprob'][queryid] if output['logprob'] is not None else None
         num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
         num_output_sentence = len(output_sentence.split())
 
