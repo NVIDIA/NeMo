@@ -498,17 +498,19 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             sliced_text_channel = text_channel[: answer_codec.shape[0]]
             # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
             all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
-            cur_loss_mask = torch.cat(
-                [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
-                dim=0,
-            )
-            new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
+            if loss_mask is not None:
+                cur_loss_mask = torch.cat(
+                    [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
+                    dim=0,
+                )
+                new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
         encoded = encoded[:, :-1]
         labels = all_channels[:, 1:]
-        loss_mask = pad_sequence(new_loss_mask, batch_first=True)
-        assert loss_mask.shape == labels.shape
+        if loss_mask is not None:
+            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
+            assert loss_mask.shape == labels.shape
         assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):

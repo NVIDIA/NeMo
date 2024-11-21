@@ -330,10 +330,64 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
             [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
         )
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+        duplex_method = self.model.cfg.get("duplex_method", None)
+        if duplex_method is None:
+            pass
+        elif duplex_method == "from_multiturn":
+
+            new_user_signal_length = (
+                torch.full([micro_batch_size], self.model.perception.cfg.preprocessor.sample_rate).cuda().long()
+            )
+            new_user_signal = torch.zeros(micro_batch_size, new_user_signal_length).cuda()
+            encoded, _ = self.model.perception(
+                input_signal=new_user_signal,
+                input_signal_length=new_user_signal_length,
+                processed_signal=None,
+                processed_signal_length=None,
+            )
+            encoded = encoded[:, :1]
+            embeddings2use = embeddings2use + encoded
+        else:
+            raise ValueError(f"duplex_method {duplex_method} not supported")
 
         batch = [tokens2use, embeddings2use, self.attention_mask, positions2use, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
+
+    def init_batch_duplex_from_multiturn(self, context_tokens, context_lengths, audio_signal, audio_length):
+        batch = {
+            'audio_signal': audio_signal,
+            'audio_signal_length': audio_length,
+            'tokens': context_tokens,
+            'tokens_length': context_lengths,
+            'labels': context_tokens,
+            'loss_mask': None,
+        }
+        encoder_input, _, labels, _, encoder_length = self.model.prepare_llm_input_duplex_from_multiturn(batch)
+        return labels, encoder_input, encoder_length
+
+    def init_batch(
+        self,
+        context_tokens: torch.Tensor,
+        context_lengths: torch.Tensor,
+        audio_signal: torch.Tensor,
+        audio_length: torch.Tensor,
+        compute_attention_mask: bool,
+        num_audios: Optional[torch.Tensor] = None,
+        context_start_idx: Optional[List[List[int]]] = None,
+    ):
+        """initialize the batch data before the inference steps."""
+        duplex_method = self.model.cfg.get("duplex_method", None)
+        if duplex_method is None:
+            return super().init_batch(
+                context_tokens, context_lengths, audio_signal, audio_length, compute_attention_mask, num_audios
+            )
+        elif duplex_method == "from_multiturn":
+            return self.init_batch_duplex_from_multiturn(
+                context_tokens, context_lengths, audio_signal, audio_length, compute_attention_mask
+            )
+        else:
+            raise ValueError(f"duplex_method {duplex_method} not supported")
 
 
 def model_inference_strategy_dispatcher(model, **args):
