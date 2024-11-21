@@ -15,15 +15,13 @@
 import json
 import os
 import tempfile
+
 import pytest
 import torch.cuda
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_vad_out_from_rttm_line,
-    read_rttm_lines,
-)
+from nemo.collections.asr.parts.utils.speaker_utils import get_vad_out_from_rttm_line, read_rttm_lines
 
 
 def is_rttm_length_too_long(rttm_file_path, wav_len_in_sec):
@@ -82,7 +80,7 @@ class TestAudioToSpeechE2ESpkDiarDataset:
             )
 
             dataset = dataset.to(device)
-            
+
             dataloader_instance = torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=batch_size,
