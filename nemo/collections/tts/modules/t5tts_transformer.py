@@ -181,6 +181,8 @@ class Attention(nn.Module):
                 self.d_head, base=pos_emb['base'])
         elif self.pos_emb_name == 'alibi':
             self.register_buffer("m", get_alibi_slope(self.n_heads))
+        elif self.pos_emb_name == 'learnable':
+            self.position_embeddings = nn.Embedding(max_length_causal_mask, d_model)
 
         if is_causal and is_self_attention:
             # ~ 45 seconds mask, 4096 mel frames, 86 frames per second
@@ -200,9 +202,21 @@ class Attention(nn.Module):
             self.o_net = nn.Linear(n_heads * self.d_head, d_model, bias=False)
         self.dropout = nn.Dropout(p_dropout)
 
+    def add_positional_embeddings(self, x):
+        # Used for learnable positional embeddings
+        positions = torch.arange(0, x.size(1), device=x.device).unsqueeze(0)
+        pos_emb = self.position_embeddings(positions)
+        return x + pos_emb
+    
     def attn_flash(self, query, query_mask, memory=None, memory_mask=None,
                    idx=None):
         alibi_slopes = None
+
+        if self.pos_emb_name == 'learnable':
+            query = self.add_positional_embeddings(query)
+            if memory is not None:
+                memory = self.add_positional_embeddings(memory)
+
         if self.is_self_attention:
             B, T, D = query.shape
             d_head = D // self.n_heads
@@ -253,6 +267,12 @@ class Attention(nn.Module):
         B, T, _ = query.shape
         Tkv = T if memory is None else memory.shape[1]
         mask = None
+
+        if self.pos_emb_name == 'learnable':
+            query = self.add_positional_embeddings(query)
+            if memory is not None:
+                memory = self.add_positional_embeddings(memory)
+
         if self.is_self_attention:
             qkv = self.qkv_net(query).reshape(B, T, 3, self.n_heads, self.d_head)
             qkv = self.rope(qkv) if self.pos_emb_name == 'rope' else qkv
