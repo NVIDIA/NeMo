@@ -122,10 +122,15 @@ class T5TTS_Model(ModelPT):
             self.transcript_decoder_layers = [idx for idx in range(cfg.t5_decoder.n_layers)] # All layers are used for text
         elif self.model_type == 'multi_encoder_context_tts':
             self.transcript_decoder_layers = cfg.transcript_decoder_layers
-            multi_encoder_mapping = [1 for _ in range(cfg.t5_decoder.n_layers)]
+            self.context_decoder_layers = cfg.context_decoder_layers
+            multi_encoder_mapping = [None for _ in range(cfg.t5_decoder.n_layers)]
             for layer in self.transcript_decoder_layers:
                 multi_encoder_mapping[layer] = 0 # 0 means text goes to this layer, 1 means context goes to this layer
+            for layer in self.context_decoder_layers:
+                multi_encoder_mapping[layer] = 1
             self.multi_encoder_mapping = multi_encoder_mapping
+            import ipdb; ipdb.set_trace()
+
             self.context_encoder = t5tts_transformer.TransformerStack(dict(cfg.context_encoder))
             if cfg.use_perceiver:
                 self.perceiver_resampler = t5tts_perceiver.PerceiverResampler(
@@ -544,7 +549,7 @@ class T5TTS_Model(ModelPT):
         
         if batch_idx == 0 and self.global_rank == 0:
             self.log_train_val_example(logits, audio_codes_target, audio_codes_lens_target, context_audio_codes, context_audio_codes_lens)
-            if len(attn_info[0]['cross_attn_probabilities']) > 1:
+            if len(attn_info[self.transcript_decoder_layers[0]]['cross_attn_probabilities']) > 1:
                 # cross_attn_probabilities only returned when not using flash attention
                 cross_attention_probs = [attn['cross_attn_probabilities'][0] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.transcript_decoder_layers]
                 self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix="val_")

@@ -532,9 +532,13 @@ class TransformerStack(nn.Module):
         x = self.dropout(x)
         for idx, layer in enumerate(self.layers):
             if multi_encoder_mapping is not None:
-                _cond = cond[multi_encoder_mapping[idx]]
-                _cond_mask = cond_mask[multi_encoder_mapping[idx]]
-                _attn_prior = None if attn_prior is None else attn_prior[multi_encoder_mapping[idx]]
+                if multi_encoder_mapping[idx] is None:
+                    # No conditioning for this layer
+                    _cond, _cond_mask, _attn_prior = None, None, None
+                else:
+                    _cond = cond[multi_encoder_mapping[idx]]
+                    _cond_mask = cond_mask[multi_encoder_mapping[idx]]
+                    _attn_prior = None if attn_prior is None else attn_prior[multi_encoder_mapping[idx]]
             else:
                 _cond = cond
                 _cond_mask = cond_mask
