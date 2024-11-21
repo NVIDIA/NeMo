@@ -27,6 +27,7 @@ model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
 
 def load_image(image_url: str) -> Image.Image:
+    # pylint: disable=C0115,C0116
     try:
         response = requests.get(image_url, stream=True)
         response.raise_for_status()
@@ -38,6 +39,7 @@ def load_image(image_url: str) -> Image.Image:
 
 
 def generate(model, processor, image, text):
+    # pylint: disable=C0115,C0116
     tokenizer = processor.tokenizer
 
     messages = [
@@ -94,6 +96,7 @@ def generate(model, processor, image, text):
 
 
 def main(args) -> None:
+    # pylint: disable=C0115,C0116
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         ckpt_load_optimizer=False,
@@ -148,6 +151,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--image_url",
         type=str,
+        # pylint: disable=line-too-long
         default="https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg",
         help="URL of the image to use for inference.",
     )
