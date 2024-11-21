@@ -405,7 +405,8 @@ class NLPModel(ModelPT, Exportable):
 
                         # Update the key attribute of the ShardedTensor value
                         new_value = v
-                        new_value.key = v.key.replace('model.', '', 1) if hasattr(v, 'key') else v.key
+                        if hasattr(v, 'key'):
+                            new_value.key = v.key.replace('model.', '', 1)
 
                         # Add the updated key-value pair to the new dictionary
                         mlm_sharded_state_dict[new_key] = new_value
