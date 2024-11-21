@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
-import pytorch_lightning as L
+import lightning.pytorch as L
 import torch
 import torch.distributed
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
@@ -110,7 +110,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
 
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
-    share_embeddings_and_output_weights: bool = False
+    share_embeddings_and_output_weights: bool = True
     position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
     rotary_base: int = 10000
     rotary_percent: float = 1.0
@@ -147,6 +147,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
+        breakpoint()
         if self.bert_type == 'megatron':
             num_tokentypes = 2 if self.bert_binary_head else 0
         else:
@@ -278,6 +279,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             return output
 
         # logits and loss
+        breakpoint()
         output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
@@ -305,7 +307,8 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 
     def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
         super(TransformerLayerSubmodulesWithPostLNSupport, self).__init__(**kwargs)
-        self.post_att_layernorm = post_att_layernorm
+        self.post_att_layernorm =cccccbkvgelhlvcvdljvuddcnbhdubtnfdherfubhncr
+        post_att_layernorm
         self.post_mlp_layernorm = post_mlp_layernorm
 
 

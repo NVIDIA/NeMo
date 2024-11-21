@@ -188,6 +188,7 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             add_lm_head=self.type == 'pretraining' or self.type == 'masked',
             bert_binary_head=self.type == 'pretraining' or self.type == 'classification',
             add_pooler=self.type != 'masked',
+            share_embeddings_and_output_weights=True,
         )
         return output
 
