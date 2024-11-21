@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
@@ -20,9 +21,9 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.collections.vlm import ImageDataConfig
 from nemo.collections.vlm.mllama.data.lazy import MLlamaLazyDataModule
+from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
