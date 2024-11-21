@@ -118,7 +118,7 @@ def _setup_trainer_and_restore_model_and_adapter(
     trainer.strategy.trainer = trainer
     model.trainer = trainer
 
-    model = lora(model)
+    lora(model)
     adapter_sharded_state_dict = {
         k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items() if ".adapter." in k
     }
