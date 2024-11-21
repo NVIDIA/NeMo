@@ -39,12 +39,15 @@ def main(args):
     Args:
         args (argparse.Namespace): The command-line arguments passed to the script.
     """
-    gbs = 64
-    mbs = 2
+    # Setting gbs, mbs, and max_steps from arguments
+    gbs = args.gbs
+    mbs = args.mbs
+    max_steps = args.max_steps
+
     # encoder (vision) seq length
     # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
     seq_length = 6404
-    decoder_seq_length = 768  # decoder (llm) seq length
+    decoder_seq_length = 1024  # decoder (llm) seq length
 
     if args.restore_path is not None and args.restore_path.startswith("nemo://"):
         model_id = args.restore_path[len("nemo://") :]
@@ -106,7 +109,7 @@ def main(args):
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,
         devices=args.devices,
-        max_steps=800,
+        max_steps=max_steps,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
@@ -135,7 +138,7 @@ def main(args):
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
         optimizer='adam',
-        lr=2.0e-06,
+        lr=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.95,
         use_distributed_optimizer=True,
@@ -145,7 +148,7 @@ def main(args):
         max_steps=trainer.max_steps,
         warmup_steps=100,
         constant_steps=0,
-        min_lr=2.0e-06,
+        min_lr=args.lr,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
 
@@ -187,7 +190,7 @@ if __name__ == "__main__":
         "--log_dir",
         type=str,
         required=False,
-        default="./nemo_experiments",
+        default="/results",
         help="Directory for logging and checkpoints",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
@@ -197,8 +200,11 @@ if __name__ == "__main__":
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
-    parser.add_argument('--peft', type=str, default='none', help="none | lora")
+    parser.add_argument("--peft", type=str, default='none', help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
+    parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
+    parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
+    parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
 
     args = parser.parse_args()
     main(args)
