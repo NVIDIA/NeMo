@@ -152,7 +152,6 @@ class TestSortformerEncLabelModel:
         target_frame_count = int(sample_len // frame_length)
         input_signal = torch.randn(size=(batch_size, sample_len * sampling_rate))
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
-        targets = torch.randint(2, size=(batch_size, target_frame_count, num_spks), dtype=torch.int)
 
         with torch.no_grad():
             # batch size 1
