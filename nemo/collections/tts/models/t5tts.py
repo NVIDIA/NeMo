@@ -121,15 +121,14 @@ class T5TTS_Model(ModelPT):
             self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
             self.transcript_decoder_layers = [idx for idx in range(cfg.t5_decoder.n_layers)] # All layers are used for text
         elif self.model_type == 'multi_encoder_context_tts':
-            self.transcript_decoder_layers = cfg.transcript_decoder_layers
-            self.context_decoder_layers = cfg.context_decoder_layers
+            self.transcript_decoder_layers = cfg.get('transcript_decoder_layers', [3,4,5,6,7,8])
+            self.context_decoder_layers = cfg.get('context_decoder_layers', [0,1,2,9,10,11]) # For backward compatibility
             multi_encoder_mapping = [None for _ in range(cfg.t5_decoder.n_layers)]
             for layer in self.transcript_decoder_layers:
                 multi_encoder_mapping[layer] = 0 # 0 means text goes to this layer, 1 means context goes to this layer
             for layer in self.context_decoder_layers:
                 multi_encoder_mapping[layer] = 1
             self.multi_encoder_mapping = multi_encoder_mapping
-            import ipdb; ipdb.set_trace()
 
             self.context_encoder = t5tts_transformer.TransformerStack(dict(cfg.context_encoder))
             if cfg.use_perceiver:
