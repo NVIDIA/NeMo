@@ -28,10 +28,9 @@ model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
 def load_image(image_url: str) -> Image.Image:
     try:
-        # response = requests.get(image_url, stream=True)
-        # response.raise_for_status()
-        # image = Image.open(response.raw)
-        image = Image.open("/lustre/fsw/coreai_dlalgo_llm/dchichkov/chess/chessentials_15k/steinitz_best_games_9_35.jpg").convert('RGB')
+        response = requests.get(image_url, stream=True)
+        response.raise_for_status()
+        image = Image.open(response.raw)
         return image
     except requests.exceptions.RequestException as e:
         print(f"Error loading image from {image_url}: {e}")
