@@ -54,6 +54,8 @@ class MockDataModule(pl.LightningDataModule):
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
+        tokenizer: Optional = None,
+        image_processor: Optional = None,
         num_train_samples: int = 10_000,
         num_val_samples: int = 10_000,
         num_test_samples: int = 10_000,
@@ -72,6 +74,8 @@ class MockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.vocab_size = vocab_size
         self.crop_size = crop_size
+        self.tokenizer = tokenizer
+        self.image_processor = image_processor
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
