@@ -17,6 +17,8 @@ from nemo.collections.llm import quantization
 
 
 def get_args():
+    """Parses PTQ arguments"""
+
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="NeMo PTQ argument parser",
@@ -72,6 +74,8 @@ def get_args():
 
 
 def main():
+    """Example NeMo 2.0 Post Training Quantization workflow"""
+
     args = get_args()
 
     quantization_config = quantization.QuantizationConfig(

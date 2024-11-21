@@ -63,7 +63,7 @@ def get_modelopt_decoder_type(model: llm.GPTModel):
 
 
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Modify model config for TensorRT Model Optimizer"""
+    """Modify model config for TensorRT-Model-Optimizer quantization """
 
     from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
         get_gpt_layer_modelopt_spec,
@@ -85,7 +85,9 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
 def load_with_modelopt_layer_spec(
     nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1, inference_only: bool = True
 ):
-    # TODO: setting ddp="pytorch" with manually deleting model.optim is a hackish way to disable DDP initialization. Needs a systematic solution.
+    """Loads a model from a NeMo 2.0 checkpoint using modelopt layer spec."""
+    # TODO: setting ddp="pytorch" and deleting model.optim is a hackish way to disable DDP initialization.
+    # Needs a systematic solution.
     if inference_only:
         strategy = nl.MegatronStrategy(
             tensor_model_parallel_size=calib_tp,
@@ -120,6 +122,7 @@ def load_with_modelopt_layer_spec(
 
 
 def get_unwrapped_mcore_model(model):
+    """Unwraps NeMo 2.0 to base MCore model."""
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     unwrapped_model = model

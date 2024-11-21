@@ -23,6 +23,7 @@ import torch.distributed as dist
 from datasets import load_dataset
 from tqdm import tqdm
 
+from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
@@ -125,7 +126,7 @@ class Quantizer:
         self.torch_dtype = torch_dtype_from_precision(dtype)
 
     @staticmethod
-    def _setup(model: llm.GPTModel) -> None:
+    def _setup(model: MegatronParallel) -> None:
         """Setup model for quantization."""
         # TODO: disable activation checkpointing
         model.config.vocab_size = model.tokenizer.vocab_size
@@ -135,7 +136,7 @@ class Quantizer:
         return self.export_config.decoder_type or get_modelopt_decoder_type(config)
 
     @staticmethod
-    def _generate_sample(model):
+    def _generate_sample(model: MegatronParallel):
         prompts = ["Born in north-east France, Soyer trained as a", "Born in California, Soyer trained as a"]
 
         mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
@@ -147,7 +148,7 @@ class Quantizer:
         logging.info(f'Prompts for sample generation: {prompts}')
         logging.info(f'Sample generation after PTQ: {outputs}')
 
-    def quantize(self, model: llm.GPTModel, forward_loop=None):
+    def quantize(self, model: MegatronParallel, forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
         if forward_loop is None:
             get_dataloader = create_data_iterator_getter(
@@ -276,7 +277,7 @@ class Quantizer:
             logging.error("Failed to export the quantized model.")
         return export_successful
 
-    def export(self, model: llm.GPTModel, model_dir: str) -> None:
+    def export(self, model: MegatronParallel, model_dir: str) -> None:
         """Export model to a TensorRT-LLM checkpoint."""
         export_dir = self.export_config.path
         inference_tp = self.export_config.inference_tensor_parallel
