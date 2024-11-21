@@ -137,7 +137,9 @@ def main():
     exp_name = args.recipe
 
     # Uses configs from NeMo directly
-    assert hasattr(llm, args.recipe), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequenth_length> or other special settings)"
+    assert hasattr(
+        llm, args.recipe
+    ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequenth_length> or other special settings)"
     pretrain_recipe = getattr(llm, args.recipe).pretrain_recipe
     pretrain = partial(pretrain_recipe)(name=exp_name, dir="/nemo_run/checkpoints")
 
