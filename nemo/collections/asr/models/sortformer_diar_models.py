@@ -90,9 +90,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         else:
             self.spec_augmentation = None
 
-        self.encoder = SortformerEncLabelModel.from_config_dict(self._cfg.encoder)
-        self.sortformer_modules = SortformerEncLabelModel.from_config_dict(self._cfg.sortformer_modules)
-        self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
+        self.encoder = SortformerEncLabelModel.from_config_dict(self._cfg.encoder).to(self.device)
+        self.sortformer_modules = SortformerEncLabelModel.from_config_dict(self._cfg.sortformer_modules).to(self.device)
+        self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder).to(self.device)
+        if self._cfg.encoder.d_model != self._cfg.tf_d_model:
+            self.sortformer_modules.encoder_proj = self.sortformer_modules.encoder_proj.to(self.device)
+        else:
+            self.sortformer_modules.encoder_proj = None
         self._init_loss_weights()
 
         self.eps = 1e-3
@@ -158,8 +162,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             global_rank = self._trainer.global_rank
         else:
             global_rank = 0
-        time_flag = time.time()
-        logging.info("AAB: Starting Dataloader Instance loading... Step A")
 
         dataset = AudioToSpeechE2ESpkDiarDataset(
             manifest_filepath=config.manifest_filepath,
@@ -170,10 +172,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             window_stride=self._cfg.preprocessor.window_stride,
             global_rank=global_rank,
             soft_targets=config.soft_targets if 'soft_targets' in config else False,
-        )
-        logging.info(
-            f"AAB: Dataloader dataset is created, starting torch.utils.data.Dataloader"
-            f"step B: {time.time() - time_flag}"
         )
 
         self.data_collection = dataset.collection
@@ -188,7 +186,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             num_workers=config.get('num_workers', 1),
             pin_memory=config.get('pin_memory', False),
         )
-        logging.info(f"AAC: Dataloader Instance loading is done ETA Step B done: {time.time() - time_flag}")
         return dataloader_instance
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
@@ -245,11 +242,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-        self.encoder = self.encoder.to(self.device)
         emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         emb_seq = emb_seq.transpose(1, 2)
-        if self._cfg.encoder.d_model != self._cfg.tf_d_model:
-            self.sortformer_modules.encoder_proj = self.sortformer_modules.encoder_proj.to(self.device)
+        if self.sortformer_modules.encoder_proj is not None:
             emb_seq = self.sortformer_modules.encoder_proj(emb_seq)
         return emb_seq, emb_seq_length
 

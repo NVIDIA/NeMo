@@ -14,17 +14,26 @@
 
 
 """
-Usage:
-End-to-end speaker diarization model can be specified by either "model_path" or "pretrained_name".
-Data for diarization is fed through "dataset_manifest".
-By default, post-processing is bypassed and only binarization is performed.
-If you want to reproduce DER scores, you need to apply post-processing steps.
+This script provides an inference and evaluation script for end-to-end speaker diarization models.
+The performance of the diarization model is measured using the Diarization Error Rate (DER).
+If you want to evaluate its performance, the manifest JSON file should contain the corresponding RTTM
+(Rich Transcription Time Marked) file.
+Please refer to the NeMo Library Documentation for more details on data preparation for diarization inference:
+https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit
+/asr/speaker_diarization/datasets.html#data-preparation-for-inference
+
+Usage for diarization inference:
+
+The end-to-end speaker diarization model can be specified by either "model_path" or "pretrained_name".
+Data for diarization is fed through the "dataset_manifest".
+By default, post-processing is bypassed, and only binarization is performed.
+If you want to reproduce DER scores reported on NeMo model cards, you need to apply post-processing steps.
 Use batch_size = 1 to have the longest inference window and the highest possible accuracy.
 
 python $BASEPATH/neural_diarizer/e2e_diarize_speech.py \
-    model_path=/path/to/diar_sortformer_<N>spk_v<K>.nemo \
+    model_path=/path/to/diar_sortformer_4spk_v1.nemo \
     batch_size=1 \
-    dataset_manifest=/path/to/diarization_path_to_manifest.json
+    dataset_manifest=/path/to/diarization_manifest.json
 
 """
 import logging
@@ -34,7 +43,7 @@ from dataclasses import dataclass, is_dataclass
 from typing import Dict, List, Optional, Union
 
 import optuna
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import yaml
 from omegaconf import OmegaConf
@@ -105,7 +114,7 @@ class DiarizationConfig:
     optuna_n_trials: int = 100000
 
 
-def load_postprocessing_from_yaml(postprocessing_yaml):
+def load_postprocessing_from_yaml(postprocessing_yaml: PostProcessingParams=None) -> PostProcessingParams:
     """
     Load postprocessing parameters from a YAML file.
 

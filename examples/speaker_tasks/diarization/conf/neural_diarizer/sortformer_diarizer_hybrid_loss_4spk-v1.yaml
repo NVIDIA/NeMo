@@ -12,17 +12,15 @@ batch_size: 8
 model: 
   pil_weight: 0.5 # Weight for Permutation Invariant Loss (PIL) used in training the Sortformer diarizer model
   ats_weight: 0.5 # Weight for Arrival Time Sort (ATS) loss in training the Sortformer diarizer model
-  num_workers: ${num_workers} # Number of workers for data loading
   fc_d_model: 512 # Hidden dimension size of the Fast-conformer Encoder
   tf_d_model: 192 # Hidden dimension size of the Transformer Encoder
   max_num_of_spks: 4 # Maximum number of speakers per model; currently set to 4
-  session_len_sec: 90 # Maximum session length in seconds
 
   train_ds:
     manifest_filepath: ???
     sample_rate: ${sample_rate}
     num_spks: ${model.max_num_of_spks}
-    session_len_sec: ${model.session_len_sec}
+    session_len_sec: 90 # Maximum session length in seconds
     soft_label_thres: 0.5 # Threshold for binarizing target values; higher values make the model more conservative in predicting speaker activity.
     soft_targets: False # If True, use continuous values as target values when calculating cross-entropy loss
     labels: null
@@ -36,7 +34,7 @@ model:
     num_buckets: 10
     bucket_duration_bins: [10, 20, 30, 40, 50, 60, 70, 80, 90]
     pin_memory: True
-    min_duration: 80
+    min_duration: 10
     max_duration: 90
     batch_duration: 400
     quadratic_duration: 1200
@@ -51,7 +49,7 @@ model:
     tarred_audio_filepaths: null
     sample_rate: ${sample_rate}
     num_spks: ${model.max_num_of_spks}
-    session_len_sec: ${model.session_len_sec}
+    session_len_sec: 90 # Maximum session length in seconds
     soft_label_thres: 0.5 # A threshold value for setting up the binarized labels. The higher the more conservative the model becomes. 
     soft_targets: False
     labels: null
@@ -73,7 +71,7 @@ model:
     tarred_audio_filepaths: null
     sample_rate: 16000
     num_spks: ${model.max_num_of_spks}
-    session_len_sec: ${model.session_len_sec}
+    session_len_sec: 90 # Maximum session length in seconds
     soft_label_thres: 0.5
     soft_targets: False
     labels: null

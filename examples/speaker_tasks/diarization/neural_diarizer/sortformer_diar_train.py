@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
@@ -46,6 +46,9 @@ def main(cfg):
     sortformer_model.maybe_init_from_pretrained_checkpoint(cfg)
     trainer.fit(sortformer_model)
 
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        if sortformer_model.prepare_test(trainer):
+            trainer.test(sortformer_model)
 
 if __name__ == '__main__':
     main()
