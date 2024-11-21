@@ -105,9 +105,9 @@ class BCELoss(Loss, Typing):
                 # Normalize loss by number of classes
                 norm_weight = 1 / (labels.sum(dim=0) + self.eps)
                 norm_weight_norm = norm_weight / norm_weight.sum()
-                norm_weight_norm2 = torch.clamp(norm_weight_norm, min=0.05, max=1.0)
-                norm_weight_norm2 = norm_weight_norm2 / norm_weight_norm2.max()
-                norm_weight = norm_weight_norm2[None, :].expand_as(labels).detach().clone()
+                norm_weight_norm = torch.clamp(norm_weight_norm, min=0.05, max=1.0)
+                norm_weight_norm = norm_weight_norm / norm_weight_norm.max()
+                norm_weight = norm_weight_norm[None, :].expand_as(labels).detach().clone()
             else:
                 norm_weight = torch.ones_like(labels).detach().clone()
 

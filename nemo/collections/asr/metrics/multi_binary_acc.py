@@ -92,9 +92,6 @@ class MultiBinaryAccuracy(Metric):
             targets (torch.Tensor): Target values.
             signal_lengths (torch.Tensor): Length of each sequence in the batch input.
             cumulative (bool): Whether to accumulate the values over time.
-
-        Returns:
-            f1_score (torch.Tensor): F1 score calculated from the predicted value and binarized target values.
         """
         with torch.no_grad():
             preds_list = [preds[k, : signal_lengths[k], :] for k in range(preds.shape[0])]
@@ -125,6 +122,11 @@ class MultiBinaryAccuracy(Metric):
     def compute(self):
         """
         Compute F1 score from the accumulated values. Return -1 if the F1 score is NaN.
+
+        Returns:
+            f1_score (torch.Tensor): F1 score calculated from the accumulated values.
+            precision (torch.Tensor): Precision calculated from the accumulated values.
+            recall (torch.Tensor): Recall calculated from the accumulated values.
         """
         precision = self.true_positive_count / (self.true_positive_count + self.false_positive_count + self.eps)
         recall = self.true_positive_count / (self.true_positive_count + self.false_negative_count + self.eps)

@@ -1219,7 +1219,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
         manifests_files: Union[str, List[str]],
         emb_dict: Dict,
         clus_label_dict: Dict,
-        round_digit=2,
+        round_digits: int = 2,
         seq_eval_mode=False,
         pairwise_infer=False,
         *args,
@@ -1249,7 +1249,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
-        self.round_digit = round_digit
+        self.round_digits = round_digits
         self.emb_dict = emb_dict
         self.clus_label_dict = clus_label_dict
         self.seq_eval_mode = seq_eval_mode
@@ -1479,7 +1479,7 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
     def __init__(
         self,
         manifests_files: Union[str, List[str]],
-        round_digits=2,
+        round_digits: int = 2,
         *args,
         **kwargs,
     ):

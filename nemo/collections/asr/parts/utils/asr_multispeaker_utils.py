@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import math
+from typing import Optional, Union
+
 import torch
 from lhotse import SupervisionSet
 from lhotse.cut import MixedCut, MonoCut
@@ -176,7 +178,7 @@ def get_pil_targets(labels: torch.Tensor, preds: torch.Tensor, speaker_permutati
 
 def find_segments_from_rttm(
     recording_id: str,
-    rttms,
+    rttms: SupervisionSet,
     start_after: float,
     end_before: float,
     adjust_offset: bool = True,
@@ -214,7 +216,7 @@ def find_segments_from_rttm(
 
 def get_mask_from_segments(
     segments: list,
-    a_cut,
+    a_cut: Optional[Union[MonoCut, MixedCut]],
     speaker_to_idx_map: torch.Tensor,
     num_speakers: int = 4,
     feat_per_sec: int = 100,
@@ -255,7 +257,7 @@ def get_mask_from_segments(
     return mask
 
 
-def get_soft_mask(feat_level_target, num_samples, stride):
+def get_soft_mask(feat_level_target, num_frames, stride):
     """
     Get soft mask from feat_level_target with stride.
     This function is needed for speaker diarization with ASR model trainings.
@@ -265,17 +267,21 @@ def get_soft_mask(feat_level_target, num_samples, stride):
             Dimension: (num_frames, num_speakers)
         num_sample (int): The total number of samples.
         stride (int): The stride for the mask.
+
+    Returns:
+        mask: The soft mask of shape (num_frames, num_speakers).
+            Dimension: (num_frames, num_speakers)
     """
 
     num_speakers = feat_level_target.shape[1]
-    mask = torch.zeros(num_samples, num_speakers)
+    mask = torch.zeros(num_frames, num_speakers)
 
-    for index in range(num_samples):
+    for index in range(num_frames):
         if index == 0:
             seg_stt_feat = 0
         else:
             seg_stt_feat = stride * index - 1 - int(stride / 2)
-        if index == num_samples - 1:
+        if index == num_frames - 1:
             seg_end_feat = feat_level_target.shape[0]
         else:
             seg_end_feat = stride * index - 1 + int(stride / 2)

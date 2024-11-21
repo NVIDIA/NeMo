@@ -235,7 +235,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         Generate encoder outputs from frontend encoder.
 
         Args:
-            process_signal (torch.Tensor): tensor containing audio-feature (mel spectrogram, mfcc, etc.)
+            processed_signal (torch.Tensor): tensor containing audio-feature (mel spectrogram, mfcc, etc.)
             processed_signal_length (torch.Tensor): tensor containing lengths of audio signal in integers
 
         Returns:
@@ -264,8 +264,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         Returns:
             preds (torch.Tensor): Sorted tensor containing Sigmoid values for predicted speaker labels.
                 Dimension: (batch_size, diar_frame_count, num_speakers)
-            encoder_states_list (list): List containing total speaker memory for each step for debugging purposes
-                Dimension: [(batch_size, diar_frame_count, inner dim), ... ]
         """
         encoder_mask = self.sortformer_modules.length_to_mask(emb_seq)
         trans_emb_seq = self.transformer_encoder(encoder_states=emb_seq, encoder_mask=encoder_mask)
@@ -318,8 +316,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         Returns:
             preds (torch.Tensor): Sorted tensor containing predicted speaker labels
                 Dimension: (batch_size, diar_frame_count, num_speakers)
-            encoder_states_list (list): List containing total speaker memory for each step for debugging purposes
-                Dimension: [(batch_size, diar_frame_count, inner dim), ]
         """
         processed_signal, processed_signal_length = self.process_signal(
             audio_signal=audio_signal, audio_signal_length=audio_signal_length
@@ -387,7 +383,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 - audio_signal_length (torch.Tensor): The length of each audio signal in the batch.
                 - targets (torch.Tensor): The target labels for the batch.
                 - target_lens (torch.Tensor): The length of each target sequence in the batch.
-            batch_idx (int): The index of the current batch.
 
         Returns:
             (dict): A dictionary containing the 'loss' key with the calculated loss value.
@@ -517,9 +512,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 Shape: (batch_size, diar_frame_count, num_speakers)
             target_lens (torch.Tensor): Lengths of target sequences.
                 Shape: (batch_size,)
-
-        Returns:
-            dict: A dictionary containing the following validation metrics
         """
         targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
