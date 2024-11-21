@@ -307,7 +307,7 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 
     def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
         super(TransformerLayerSubmodulesWithPostLNSupport, self).__init__(**kwargs)
-        self.post_att_layernorm =cccccbkvgelhlvcvdljvuddcnbhdubtnfdherfubhncr
+        self.post_att_layernorm = cccccbkvgelhlvcvdljvuddcnbhdubtnfdherfubhncr
         post_att_layernorm
         self.post_mlp_layernorm = post_mlp_layernorm
 
