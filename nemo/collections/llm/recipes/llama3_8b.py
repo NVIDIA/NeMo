@@ -120,6 +120,7 @@ def trainer(
             overlap_param_gather=True,
             average_in_collective=True,
         ),
+        fsdp=True,
     )
 
     trainer = run.Config(

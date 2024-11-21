@@ -265,9 +265,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self._ddp = ddp
         self._fsdp = False
         if fsdp:
-            if version.parse(torch.__version__) >= version.parse("2.4.0"):
+            if version.parse(torch.__version__) >= version.parse("2.4.0a"):
                 # FSDP 2 is only supported after torch 2.4
                 self._fsdp = fsdp
+                logging.info("FSDP option is set to True. Using FSDP2 for DP.")
             else:
                 logging.warning("Setting FSDP2 to False. FSDP2 require torch version >= 2.4.")
 
