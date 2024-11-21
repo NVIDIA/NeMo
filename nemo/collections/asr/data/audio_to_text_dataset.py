@@ -342,8 +342,8 @@ def get_tarred_dataset(
     if 'labels' not in config:
         logging.warning(f"dataset does not have explicitly defined labels")
 
-    if 'max_utts' in config:
-        raise ValueError('"max_utts" parameter is not supported for tarred datasets')
+    #if 'max_utts' in config:
+    #    raise ValueError('"max_utts" parameter is not supported for tarred datasets')
 
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)

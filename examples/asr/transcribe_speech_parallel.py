@@ -164,8 +164,6 @@ def main(cfg: ParallelTranscriptionConfig):
     cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
 
     if cfg.predict_ds.use_lhotse:
-        if cfg.predict_ds.min_duration is None or cfg.predict_ds.max_duration is None:
-            raise ValueError("min_duration and max_duration should be provided for lhotse dataloaders")
         OmegaConf.set_struct(cfg.predict_ds, False)
         cfg.trainer.use_distributed_sampler = False
         cfg.predict_ds.force_finite = True

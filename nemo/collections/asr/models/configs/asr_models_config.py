@@ -43,7 +43,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
 
     # lhotse support
     use_lhotse: bool = False
-    tarred_random_access: bool = True
+    tarred_random_access: bool = False
     use_bucketing: bool = False
     batch_duration: Optional[int] = None
     quadratic_duration: Optional[int] = None
