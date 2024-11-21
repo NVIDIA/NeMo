@@ -147,9 +147,8 @@ class Quantizer:
 
         mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
         mcore_inference = model.get_inference_wrapper(
-            params_dtype=torch.bfloat16,
-            inference_batch_times_seqlen_threshold=30
-            )
+            params_dtype=torch.bfloat16, inference_batch_times_seqlen_threshold=30
+        )
 
         generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
         outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]

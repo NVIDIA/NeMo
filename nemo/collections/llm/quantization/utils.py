@@ -23,7 +23,6 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 
 
-
 def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
     """Infers the modelopt decoder type from GPTModel subclass."""
     mapping = [
@@ -36,7 +35,7 @@ def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
         (llm.MixtralModel, "llama"),
         (llm.NemotronModel, "gptnext"),
         (llm.Qwen2Model, "qwen"),
-        (llm.StarcoderModel,   "gptnext"),
+        (llm.StarcoderModel, "gptnext"),
         (llm.Starcoder2Model, "gptnext"),
         (llm.Phi3Model, "phi3"),
     ]
