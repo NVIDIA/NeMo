@@ -67,7 +67,8 @@ __all__ = ['EncDecMultiTaskModel']
 
 def lens_to_mask(lens, max_length):
     batch_size = lens.shape[0]
-    mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
+    arange = torch.arange(max_length, device=lens.device)
+    mask = arange.expand(batch_size, max_length) < lens.unsqueeze(1)
     return mask
 
 
@@ -674,6 +675,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         input_ids, labels = batch.get_decoder_inputs_outputs()
 
+        num_frames = batch.audio_lens.sum().float()
+        num_tokens = batch.prompted_transcript_lens.sum().float()
+        tot_frames = torch.as_tensor(batch.audio.numel(), device=num_frames.device, dtype=torch.float)
+        tot_tokens = torch.as_tensor(batch.prompted_transcript.numel(), device=num_frames.device, dtype=torch.float)
+
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch.audio,
             input_signal_length=batch.audio_lens,
@@ -683,14 +689,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
 
-        num_frames = batch.audio_lens.sum()
-        num_tokens = batch.prompted_transcript_lens.sum()
-        tot_frames = batch.audio.numel()
-        tot_tokens = batch.prompted_transcript.numel()
         tensorboard_logs = {
             'train_loss': audio_loss,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'batch_size': batch.audio.shape[0],
+            'learning_rate': torch.as_tensor(self._optimizer.param_groups[0]['lr']),
+            'batch_size': torch.as_tensor(batch.audio.shape[0]),
             'num_frames': num_frames,
             'num_tokens': num_tokens,
             'input_to_padding_ratio': num_frames / tot_frames,
