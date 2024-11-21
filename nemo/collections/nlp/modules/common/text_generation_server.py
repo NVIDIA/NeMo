@@ -60,6 +60,7 @@ API_ALLOWED_KEYS = set(
 class MegatronGenerate(Resource):
     inputs = []
     outputs = []
+
     def __init__(self, model, inference_strategy=None):
         self.model = model
         self.inference_strategy = inference_strategy
@@ -177,7 +178,7 @@ class MegatronGenerate(Resource):
         len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
         conversation = conversation[:-len_strip]
 
-        batching = (data.get('max_tokens', 32) > 64)
+        batching = data.get('max_tokens', 32) > 64
         if batching:
             with lock:
                 queryid = len(MegatronGenerate.inputs)
