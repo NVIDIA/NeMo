@@ -19,6 +19,7 @@ def get_args():
     parser.add_argument('--output_path', type=str, help="Path to save merged checkpoint")
     return parser.parse_args()
 
+
 if __name__ == '__main__':
     args = get_args()
 
