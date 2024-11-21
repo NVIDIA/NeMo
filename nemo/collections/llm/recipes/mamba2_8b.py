@@ -66,6 +66,7 @@ def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
         llm.GPTModel, config=run.Config(llm.NVIDIAMambaConfig8B), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
     )
 
+
 @run.cli.factory(name=NAME)
 def trainer(
     tensor_parallelism: int = 8,
@@ -164,7 +165,7 @@ def pretrain_recipe(
     num_gpus_per_node: int = 8,
     tensor_parallelism: int = 8,
     pipeline_parallelism: int = 1,
-    max_steps: int = 100, 
+    max_steps: int = 100,
     val_check_interval: int = 100,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
@@ -242,7 +243,7 @@ def finetune_recipe(
     tensor_model_parallel_size: int = 8,
     pipeline_model_parallel_size: int = 1,
     seq_length: int = 4096,
-    max_steps: int = 100, 
+    max_steps: int = 100,
     val_check_interval: int = 100,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
@@ -312,7 +313,7 @@ def finetune_recipe(
         accelerator="gpu",
         accumulate_grad_batches=1,
         devices=num_gpus_per_node,
-        max_steps=max_steps, 
+        max_steps=max_steps,
         val_check_interval=val_check_interval,
         limit_test_batches=limit_test_batches,
         limit_val_batches=limit_val_batches,
