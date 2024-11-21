@@ -129,7 +129,7 @@ class Gemma2DotProductAttention(MegatronModule):
         packed_seq_params: PackedSeqParams = None,
         **kwargs,
     ):
-        """ Forward.
+        """Forward.
         Modified from mcore.transformer.dot_product_attention to support Gemma2-specific
         final_logit_softcapping.
         """
@@ -250,6 +250,7 @@ class Gemma2DotProductAttention(MegatronModule):
 
 class TERowParallelLinearLayerNorm(TERowParallelLinear):
     """Modified From TERowParallelLinear with an additional Post-LN."""
+
     def __init__(
         self,
         input_size: int,
@@ -284,6 +285,7 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
 
 class Gemma2OutputLayer(ColumnParallelLinear):
     """Extends from ColumnParallelLinear with logit soft capping."""
+
     def forward(self, *args, **kwargs):
         """Forward with logit soft capping."""
         output, bias = super().forward(*args, **kwargs)
