@@ -55,7 +55,7 @@ __all__ = [
 ]
 
 
-default_inference_config = {'tokens_to_generate': 128}
+default_inference_config = {'tokens_to_generate': 64}
 
 
 def clean_end_string(text: list[str], tokenizer, end_string: Optional[str] = None):
@@ -598,16 +598,15 @@ def sample_sequence_batch(
                 context_length,
                 compute_attention_mask,
             )
-            output = inference_strategy.forward_step(batch)
+            output = inference_strategy.forward_step(batch)  # logits output from the model
             if parallel_state.is_pipeline_last_stage():
                 if compute_logprob:
-                    output = output[0]['logits']
                     output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                     assert output is not None
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 else:
-                    logits = output[0]['logits'][:, -1].contiguous()
+                    logits = output[:, -1].contiguous()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
                     assert logits is not None
                     logits = logits.view(batch_size, -1)

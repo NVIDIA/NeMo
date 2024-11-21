@@ -414,6 +414,30 @@ class ConnectorMixin:
         return ckpt_path
 
     @classmethod
+    def import_ckpt(cls, path: str, overwrite: bool = False, base_path: Optional[Path] = None, **kwargs) -> Path:
+        """
+        Imports a checkpoint from a specified path, potentially overwriting existing files.
+
+        Args:
+            path (str): The path to the checkpoint file to be imported.
+            overwrite (bool): Flag to determine if existing files should be overwritten (default is False).
+            base_path (Optional[Path]): The base path where the checkpoint file is located; used to resolve
+                                        relative paths.
+
+        Returns
+        -------
+            Path: The path to the imported checkpoint.
+
+        Raises
+        ------
+            FileNotFoundError: If the checkpoint file does not exist at the specified path.
+        """
+        connector = cls._get_connector(path, **kwargs)
+        ckpt_path: Path = connector.local_path(base_path=base_path)
+        ckpt_path = connector(ckpt_path, overwrite=overwrite)
+        return ckpt_path
+
+    @classmethod
     def _get_connector(
         cls, ext: Union[str, Path], path: Optional[Union[str, Path]] = None, importer: bool = True, **kwargs
     ) -> ModelConnector:

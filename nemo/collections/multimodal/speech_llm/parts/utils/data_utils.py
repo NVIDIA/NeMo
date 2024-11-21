@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 from typing import List, Optional
 
 import numpy as np
@@ -84,7 +85,10 @@ def get_nested_dict_value(d, key, sep="."):
         key: str
     """
     for k in key.split(sep):
-        d = d[k]
+        if k in d:
+            d = d[k]
+        else:
+            return None
     return d
 
 
@@ -222,6 +226,9 @@ class TextProcessing:
         end_string: Optional[str] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        add_boa_eoa: Optional[bool] = False,
+        boa_string: Optional[str] = "<BOA>",
+        eoa_string: Optional[str] = "<EOA>",
     ):
         self.context_key = context_key
         self.answer_key = answer_key
@@ -242,18 +249,31 @@ class TextProcessing:
         self.end_string = end_string
         self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
+        self.add_boa_eoa = add_boa_eoa
+        self.boa_string = boa_string
+        self.eoa_string = eoa_string
 
-        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if self.add_boa_eoa:
+            if self.audio_locator is None:
+                raise ValueError("`audio_locator` must be provided when `add_boa_eoa` is True.")
+            if self.boa_string is None or self.eoa_string is None:
+                logging.warning(
+                    f"`boa_string` ({boa_string}) or `eoa_string` ({eoa_string}) is None when `add_boa_eoa` is True, using default `<BOA>` and `<EOA>`."
+                )
+                self.boa_string = "<BOA>"
+                self.eoa_string = "<EOA>"
+
+        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id:
             self.bos_id = tokenizer.bos_id
         else:
             self.bos_id = None
 
-        if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id:
             self.eos_id = tokenizer.eos_id
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
@@ -264,6 +284,9 @@ class TextProcessing:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
+
+    def __call__(self, *args, **kwds):
+        return self._process_example(*args, **kwds)
 
     def _process_example(self, context: str, output: str):
         """
@@ -312,7 +335,11 @@ class TextProcessing:
         else:
             pre_pad = []
         answer_text = text[len(context) :]
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+
+        if inspect.signature(self.tokenizer.text_to_ids).parameters.get('sample_alpha', None) is not None:
+            answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        else:
+            answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text)
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 
@@ -324,8 +351,13 @@ class TextProcessing:
             # multiple audio case
             context_ids = []
             context_start_idx = []
-            for context_seg in context.split(self.audio_locator):
+            all_segments = context.split(self.audio_locator)
+            for i, context_seg in enumerate(all_segments):
                 context_start_idx.append(len(context_ids))
+                if self.add_boa_eoa and i < len(all_segments) - 1:
+                    context_seg += self.boa_string
+                if self.add_boa_eoa and i > 0:
+                    context_seg = self.eoa_string + context_seg
                 context_ids.extend(self.tokenizer.text_to_ids(context_seg))
         context_ids = pre_pad + context_ids
         context_start_idx = [x + len(pre_pad) for x in context_start_idx]

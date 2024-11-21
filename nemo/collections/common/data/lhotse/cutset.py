@@ -435,11 +435,12 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         tar_paths = config.tarred_audio_filepaths if is_tarred else repeat((None,))
         # Create a stream for each dataset.
         for manifest_info, tar_path in zip(config.manifest_filepath, tar_paths):
-            if isinstance(tar_path, (list, tuple, ListConfig)):
+            if is_tarred and isinstance(tar_path, (list, tuple, ListConfig)):
                 # if it's in option 1 or 2
                 (tar_path,) = tar_path
                 manifest_path = manifest_info[0]
             else:
+                # if it's in option 3
                 manifest_path = manifest_info
             # First, convert manifest_path[+tar_path] to an iterator.
             if is_tarred and not metadata_only:
@@ -478,14 +479,18 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
             else:
                 cutsets.append(CutSet(nemo_iter))
                 weights.append(weight)
-        # Finally, we multiplex the dataset streams to mix the data.
-        cuts = mux(
-            *cutsets,
-            weights=weights,
-            max_open_streams=config.max_open_streams,
-            seed=config.shard_seed,
-            force_finite=force_finite or metadata_only,
-        )
+
+        if len(cutsets) == 1:
+            cuts = cutsets[0]
+        else:
+            # Finally, we multiplex the dataset streams to mix the data.
+            cuts = mux(
+                *cutsets,
+                weights=weights,
+                max_open_streams=config.max_open_streams,
+                seed=config.shard_seed,
+                force_finite=force_finite or metadata_only,
+            )
     return cuts
 
 

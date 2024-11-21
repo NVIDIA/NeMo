@@ -177,7 +177,9 @@ class AsyncFinalizerCallback(Callback):
     def _get_checkpoint_io(self, trainer) -> AsyncFinalizableCheckpointIO:
         checkpoint_io = trainer.strategy.checkpoint_io
         if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
-            raise ValueError(f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io}')
+            raise ValueError(
+                f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io.__class__}'
+            )
         return checkpoint_io
 
 

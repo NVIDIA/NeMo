@@ -16,6 +16,7 @@ import abc
 import collections.abc
 import functools
 import inspect
+import itertools
 import queue
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
@@ -552,7 +553,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     logging.info(
                         f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
                     )
-
         if self.convert_module_fn:
             self.apply_convert_module_fn()
 
@@ -1289,12 +1289,19 @@ class MegatronStep(Generic[ModelT, DataT]):
             List[Iterator[DataT]]: A list of iterators created from the input data.
         """
         if self.has_global_batch_sampler:
-            batch = next(self.data)
-            if isinstance(batch, tuple) and len(batch) == 3:
-                batch = batch[0]
+            batch_data = next(self.data)
+            if isinstance(batch_data, tuple) and len(batch_data) == 3:
+                batch, batch_idx, dataloader_idx = batch_data
+            else:
+                batch, batch_idx, dataloader_idx = batch_data, None, None
+
             from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
             data = get_iterator_k_split(batch, self.num_microbatches, True)
+
+            if batch_idx is not None and dataloader_idx is not None:
+                packed_data = [(d, batch_idx, dataloader_idx) for d in data]
+                return itertools.chain(packed_data)
         else:
             data = self.data
         return self.to_data_iterator_list(data)
