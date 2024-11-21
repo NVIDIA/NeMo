@@ -42,8 +42,8 @@ import tempfile
 from dataclasses import dataclass, is_dataclass
 from typing import Dict, List, Optional, Union
 
-import optuna
 import lightning.pytorch as pl
+import optuna
 import torch
 import yaml
 from omegaconf import OmegaConf
@@ -114,7 +114,7 @@ class DiarizationConfig:
     optuna_n_trials: int = 100000
 
 
-def load_postprocessing_from_yaml(postprocessing_yaml: PostProcessingParams=None) -> PostProcessingParams:
+def load_postprocessing_from_yaml(postprocessing_yaml: PostProcessingParams = None) -> PostProcessingParams:
     """
     Load postprocessing parameters from a YAML file.
 

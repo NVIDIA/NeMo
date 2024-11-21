@@ -50,5 +50,6 @@ def main(cfg):
         if sortformer_model.prepare_test(trainer):
             trainer.test(sortformer_model)
 
+
 if __name__ == '__main__':
     main()
