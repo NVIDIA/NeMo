@@ -394,7 +394,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         diar_model.test_batch()
         diar_model_preds_total_list = diar_model.preds_total_list
         torch.save(diar_model.preds_total_list, tensor_path)
-    
+
     if cfg.launch_pp_optim:
         # Launch a hyperparameter optimization process if launch_pp_optim is True
         run_optuna_hyperparam_search(
