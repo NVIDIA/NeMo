@@ -388,7 +388,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         codec_sample_rate = self.cfg.data.train_ds.get("codec_sample_rate", 22050)
         decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
         seconds = steps * codec_model_downsampling_factor / codec_sample_rate * decoder_reduction_factor
-        return seconds, seconds * codec_sample_rate
+        return seconds, int(seconds * codec_sample_rate)
 
     def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
         codec_sample_rate = self.cfg.data.train_ds.get("codec_sample_rate", 22050)
@@ -482,8 +482,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
         assert all(answer_codecs_lens == encoded_len)
         prev_answer_features_lens = (
-            agent_signal_length / self.codec_model_downsampling_factor / decoder_reduction_factor
-        )
+            torch.ceil(agent_signal_length / self.codec_model_downsampling_factor / decoder_reduction_factor).long()
+            + 1
+        )  # bos
         if 'answer_features_lens' in audio_batch:
             assert all(prev_answer_features_lens == audio_batch['answer_features_lens'])
         shift_text_channel_len = answer_codecs_lens - prev_answer_features_lens - 2  # 2 is for bos and eos
@@ -521,6 +522,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if loss_mask is not None:
             loss_mask = pad_sequence(new_loss_mask, batch_first=True)
             assert loss_mask.shape == labels.shape
+            loss_mask = torch.ones_like(loss_mask)
         assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):

@@ -344,14 +344,14 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
 
     def init_batch_duplex_from_multiturn(self, context_tokens, context_lengths, audio_signal, audio_length):
         tokens_to_generate = self.model.get_inference_config()['tokens_to_generate']
-        answer_audio_lens = self.model.get_duration_by_steps(tokens_to_generate)
+        _, answer_audio_lens = self.model.get_duration_by_steps(tokens_to_generate)
         batch = {
             'audio_signal': audio_signal,
             'audio_signal_length': audio_length,
             'context_lengths': context_lengths,
             'labels': context_tokens,
-            'answer_audio_lens': answer_audio_lens,
-            'answer_audio': torch.zeros([audio_signal.shape[0], answer_audio_lens.max().item()]).cuda(),
+            'answer_audio_lens': torch.full([audio_signal.shape[0]], answer_audio_lens).cuda(),
+            'answer_audio': torch.zeros([audio_signal.shape[0], answer_audio_lens]).cuda(),
             'loss_mask': None,
         }
         # pad user signal with silence of the length of answer_audio_lens and store the encoded for prepare_batch_at_step
@@ -359,7 +359,7 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
         encoder_input, _, labels, _, (self.encoded, _) = self.model.prepare_llm_input_duplex_from_multiturn(batch)
         self.attention_mask = self.model._create_attention_mask(encoder_input.transpose(0, 1))
         self.position_ids = build_position_ids(encoder_input.transpose(0, 1)[:, :, 0])
-        return labels, encoder_input, -context_lengths
+        return labels, encoder_input, -context_lengths + 1
 
     def init_batch(
         self,
