@@ -66,6 +66,7 @@ def test_lhotse_asr_dataset(tokenizer):
 
     assert token_lens.tolist() == [11, 11, 13]
 
+
 def test_lhotse_asr_dataset_metadata(tokenizer):
 
     cuts = DummyManifest(CutSet, begin_id=0, end_id=2, with_data=True)
@@ -77,7 +78,6 @@ def test_lhotse_asr_dataset_metadata(tokenizer):
     ]
     cuts[1].supervisions = [
         SupervisionSegment(id="cuts1-sup0", recording_id=cuts[1].recording_id, start=0, duration=1, text=""),
-
     ]
 
     datasets_metadata = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer, return_cuts=True)
