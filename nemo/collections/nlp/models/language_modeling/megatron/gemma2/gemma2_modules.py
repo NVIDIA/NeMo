@@ -126,6 +126,7 @@ class Gemma2DotProductAttention(MegatronModule):
         attention_mask: Tensor,
         attn_mask_type: AttnMaskType = None,
         packed_seq_params: PackedSeqParams = None,
+        **kwargs,
     ):
         assert packed_seq_params is None, (
             "Packed sequence is not supported by DotProductAttention." "Please use TEDotProductAttention instead."
