@@ -15,11 +15,11 @@
 
 from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
@@ -291,7 +291,6 @@ def finetune_recipe(
         recipe.peft = run.Config(LoRA)
         recipe.peft.dim = 8
         recipe.peft.alpha = 16
-        recipe.peft.target_modules = ['linear_qkv']
         recipe.optim.config.use_distributed_optimizer = False
 
         # some settings currently do not function correctly with LoRA
@@ -356,6 +355,8 @@ def finetune_performance_optimizations(
                 tp_comm_overlap=False,
             )
         )
+    else:
+        recipe.peft.target_modules = ['linear_qkv']
 
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(

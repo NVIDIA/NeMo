@@ -17,13 +17,16 @@ from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from megatron.core import parallel_state
 from rich.console import Console
+from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -35,6 +38,8 @@ from nemo.lightning import (
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
+
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -67,7 +72,8 @@ def train(
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
             from the model will be used.
-        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model' or an instance of TokenizerSpec.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
         export (Optional[str]): Filename to save the exported checkpoint after training.
         model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
 
@@ -83,7 +89,7 @@ def train(
         >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
         >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
-        >>> train(model, data, trainer, tokenizer="data")
+        >>> llm.train(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
     app_state = _setup(
@@ -185,7 +191,7 @@ def finetune(
         >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
         >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
-        >>> finetune(model, data, trainer, peft=llm.peft.LoRA()])
+        >>> llm.finetune(model, data, trainer, peft=llm.peft.LoRA()])
         PosixPath('/path/to/log_dir')
     """
 
@@ -223,7 +229,8 @@ def validate(
         resume (Optional[AutoResume]): Resume from a checkpoint for validation.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
             from the model will be used.
-        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model' or an instance of TokenizerSpec.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
         model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
 
     Returns:
@@ -236,7 +243,7 @@ def validate(
         >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
         >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
-        >>> validate(model, data, trainer, tokenizer="data")
+        >>> llm.validate(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
     app_state = _setup(
@@ -253,6 +260,60 @@ def validate(
     trainer.validate(model, data)
 
     return app_state.exp_dir
+
+
+@run.cli.entrypoint(name="ptq", namespace="llm")
+def ptq(
+    nemo_checkpoint: str,
+    calib_tp: int = 1,
+    calib_pp: int = 1,
+    quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
+    export_config: Optional[Union[ExportConfig, run.Config[ExportConfig]]] = None,
+) -> Path:
+    # TODO: Fix "nemo_run.cli.cli_parser.CLIException: An unexpected error occurred (Argument: , Context: {})"
+    """
+    Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
+    calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
+    This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
+    or direcly using TensorRT-LLM library.
+    The function can be used through the NeMo CLI in the following way:
+    ```bash
+    # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-70B \
+        export_config.path=/models/Llama-3-70B-FP8 \
+        calib_tp=8 \
+        export_config.inference_tensor_parallel=2
+    # Choose different quantization method, for example, INT8 SmoothQuant
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+        export_config.path=/models/Llama-3-8B-INT8_SQ \
+        quantization_config.algorithm=int8_sq
+    ```
+    Args:
+        nemo_checkpoint (str): The path to model to be quantized.
+        calib_tp (int): Calibration tensor parallelism.
+        calib_pp (int): Calibration pipeline parallelism.
+        quantization_config (QuantizationConfig): Configuration for quantization algorithm.
+        export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+    Returns:
+        Path: The path where the quantized checkpoint has been saved after calibration.
+    """
+    if export_config.path is None:
+        raise ValueError("The export_config.path needs to be specified, got None.")
+
+    from nemo.collections.llm import quantization
+
+    quantizer = quantization.Quantizer(quantization_config, export_config)
+
+    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calib_tp, calib_pp)
+
+    model = quantizer.quantize(model)
+
+    quantizer.export(model, nemo_checkpoint)
+
+    console = Console()
+    console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
+
+    return export_config.path
 
 
 @run.cli.entrypoint(namespace="llm")
@@ -605,9 +666,10 @@ def export_ckpt(
 @run.cli.entrypoint(name="generate", namespace="llm")
 def generate(
     path: Union[Path, str],
-    prompts: list[str],
     trainer: nl.Trainer,
+    prompts: Optional[list[str]] = None,
     encoder_prompts: Optional[list[str]] = None,
+    input_dataset: Optional[Union[pl.LightningDataModule, str]] = None,
     params_dtype: torch.dtype = torch.bfloat16,
     add_BOS: bool = False,
     max_batch_size: int = 4,
@@ -615,6 +677,7 @@ def generate(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
+    output_path: Optional[Union[Path, str]] = None,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -668,6 +731,8 @@ def generate(
         prompts (list[str]): The list of prompts to generate text for.
         trainer (nl.Trainer): The trainer object.
         encoder_prompts (Optional[list[str]], optional): The list of encoder prompts. Defaults to None.
+        input_dataset (Optional[Union[pl.LightningDataModule, str]], optional): The input data module or jsonl file.
+            Test set will be used for generation for data modules. Defaults to None.
         params_dtype (torch.dtype, optional): The data type of the model parameters. Defaults to torch.bfloat16.
         add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
@@ -677,6 +742,8 @@ def generate(
         inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
             Mcore's CommonInferenceParams. Defaults to None.
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
+        output_path (Optional[Union[Path, str]], optional): The path to save the generated text or test dataset
+            predictions. Defaults to None.
 
     Returns:
         list[Union["InferenceRequest", str]]: A list of generated text,
@@ -684,24 +751,63 @@ def generate(
     """
     from nemo.collections.llm import inference
 
+    if input_dataset is not None:
+        input_path = input_dataset if isinstance(input_dataset, str) else input_dataset.test_path
+        with open(input_path) as f:
+            dataset = [json.loads(sample) for sample in f.readlines()]
+            inputs = [sample["input"] for sample in dataset]
+    elif prompts is not None:
+        inputs = prompts
+    else:
+        raise ValueError("Either prompts or input_dataset must be provided.")
+
     inference_wrapped_model, mcore_tokenizer = inference.setup_model_and_tokenizer(
         path=path,
         trainer=trainer,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
-    results = inference.generate(
+
+    dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
+    dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
+    chunk_size = (len(inputs) + dp_size - 1) // dp_size
+    start_idx = dp_rank * chunk_size
+    end_idx = min(start_idx + chunk_size, len(inputs))
+    inputs_on_this_dp_rank = inputs[start_idx:end_idx]
+
+    results_on_this_dp_rank = inference.generate(
         model=inference_wrapped_model,
         tokenizer=mcore_tokenizer,
-        prompts=prompts,
+        prompts=inputs_on_this_dp_rank,
         encoder_prompts=encoder_prompts,
         add_BOS=add_BOS,
         max_batch_size=max_batch_size,
         random_seed=random_seed,
         inference_params=inference_params,
     )
+    gathered_results = [None] * dp_size
 
-    return [r.generated_text if text_only else r for r in results]
+    all_gather_object(
+        gathered_results,
+        [r.generated_text if text_only else r for r in results_on_this_dp_rank],
+        group=parallel_state.get_data_parallel_group(),
+    )
+    gathered_results = [result for sublist in gathered_results for result in sublist]
+
+    assert len(gathered_results) == len(inputs)
+
+    if output_path is not None and is_global_rank_zero():
+        with open(output_path, "w") as f:
+            for sample, pred in zip(dataset if input_dataset else inputs, gathered_results):
+                if type(sample) == dict:
+                    sample["label"] = sample.pop("output", None)
+                    sample["prediction"] = pred if text_only else pred.generated_text
+                elif type(sample) == str:
+                    sample = {"input": sample, "prediction": pred if text_only else pred.generated_text}
+                f.write(json.dumps(sample) + "\n")
+        logging.info(f"Predictions written to {output_path}")
+
+    return gathered_results
 
 
 def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:
