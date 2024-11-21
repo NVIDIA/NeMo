@@ -11,25 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
-import filecmp
+
 import json
 import os
-import shutil
 import tempfile
-from unittest import mock
-
-import numpy as np
 import pytest
-import soundfile as sf
 import torch.cuda
-from omegaconf import DictConfig, OmegaConf
-from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_offset_and_duration,
     get_vad_out_from_rttm_line,
     read_rttm_lines,
 )
@@ -90,6 +81,8 @@ class TestAudioToSpeechE2ESpkDiarDataset:
                 soft_targets=False,
             )
 
+            dataset = dataset.to(device)
+            
             dataloader_instance = torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=batch_size,

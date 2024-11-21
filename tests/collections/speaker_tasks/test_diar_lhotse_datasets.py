@@ -140,6 +140,7 @@ class TestLhotseAudioToSpeechE2ESpkDiarDataset:
                     data_dict_list.append(data_dict)
 
             f.seek(0)
+            config = None
             if split == 'train':
                 config = get_train_ds_config(manifest_filepath=f.name, batch_size=batch_size, num_workers=num_workers)
             elif split == 'validation':
@@ -153,7 +154,8 @@ class TestLhotseAudioToSpeechE2ESpkDiarDataset:
                 world_size=1,
                 dataset=LhotseAudioToSpeechE2ESpkDiarDataset(cfg=config),
             )
-
+            dataloader_instance = dataloader_instance.to(device)
+            
             deviation_thres_rate = 0.01  # 1% deviation allowed
             for batch_index, batch in enumerate(dataloader_instance):
                 audio_signals, audio_signal_len, targets, target_lens = batch

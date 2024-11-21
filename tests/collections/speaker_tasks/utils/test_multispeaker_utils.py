@@ -13,12 +13,8 @@
 # limitations under the License.
 
 import itertools
-import os
-
-import numpy as np
 import pytest
 import torch
-from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
     find_best_permutation,

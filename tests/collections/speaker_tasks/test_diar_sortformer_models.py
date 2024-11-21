@@ -22,7 +22,6 @@ from nemo.collections.asr.models import SortformerEncLabelModel
 @pytest.fixture()
 def sortformer_model():
 
-    batch_size = 4
     model = {
         'pil_weight': 0.5,
         'ats_weight': 0.5,
@@ -154,7 +153,6 @@ class TestSortformerEncLabelModel:
         input_signal = torch.randn(size=(batch_size, sample_len * sampling_rate))
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
         targets = torch.randint(2, size=(batch_size, target_frame_count, num_spks), dtype=torch.int)
-        target_len = target_frame_count * torch.ones(batch_size, dtype=torch.int)
 
         with torch.no_grad():
             # batch size 1
