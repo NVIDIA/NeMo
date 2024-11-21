@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated, te_accelerate
+from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
 from nemo.lightning.pytorch.callbacks import ModelCallback
 
 
@@ -75,16 +75,8 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
-    model = llm.HfAutoModelForCausalLM(args.model)
+    model = llm.HfAutoModelForCausalLM(model_name=args.model, model_accelerator=args.model_accelerator)
     tokenizer = model.tokenizer
-
-    callbacks = []
-    if args.model_accelerator:
-        if args.model_accelerator == "te":
-            model_transform = ModelCallback(
-                on_train_start=lambda model: te_accelerate(model, fp8_autocast=args.fp8_autocast)
-            )
-            callbacks.append(model_transform)
 
     llm.api.finetune(
         model=model,
@@ -100,7 +92,7 @@ if __name__ == '__main__':
             accumulate_grad_batches=10,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
-            callbacks=callbacks,
+            callbacks=[],
             logger=wandb,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
