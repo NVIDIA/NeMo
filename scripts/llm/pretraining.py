@@ -28,16 +28,10 @@ from nemo.collections import llm
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
     parser.add_argument(
-        "--model",
+        "--recipe",
         type=str,
-        default="llama3",
-        help="Choose llm models from llama3/mixtral/nemotron",
-    )
-    parser.add_argument(
-        "--size",
-        type=str,
-        default="8b",
-        help="Choose model size from llama3/mixtral/nemotron accordingly",
+        default="llama3_8b",
+        help="Choose NeMo 2.0 recipe. Recipes are named in the format of <model_name>_<model_size>(_<long_sequenth_length> or other special settings)",
     )
     parser.add_argument(
         "--tag",
@@ -315,10 +309,12 @@ def main():
         },
     }
 
-    exp_name = MODEL_SIZE_MAPPING[args.model][args.size]["exp_name"]
+    exp_name = MODEL_SIZE_MAPPING[args.recipe]
 
     # Uses configs from NeMo directly
-    pretrain = MODEL_SIZE_MAPPING[args.model][args.size]["nemo"]["pretrain"](
+    assert hasattr(llm, args.recipe), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequenth_length> or other special settings)"
+    pretrain_recipe = getattr(llm, args.recipe).pretrain_recipe
+    pretrain = partial(pretrain_recipe, num_nodes=pretrain_recipe.trainer.num_nodes, num_gpus_per_node=pretrain_recipe.trainer.num_gpus_per_node)(
         name=exp_name,
         dir="/nemo_run/checkpoints",
     )
