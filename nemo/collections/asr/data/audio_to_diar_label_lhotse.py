@@ -27,7 +27,7 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 
 class LhotseAudioToSpeechE2ESpkDiarDataset(torch.utils.data.Dataset):
     """
-    This dataset is based on diarization datasets from audio_to_eesd_label.py.
+    This dataset is a Lhotse version of diarization dataset in audio_to_diar_label.py.
     Unlike native NeMo datasets, Lhotse dataset defines only the mapping from
     a CutSet (meta-data) to a mini-batch with PyTorch tensors.
     Specifically, it performs tokenization, I/O, augmentation, and feature extraction (if any).
@@ -53,7 +53,7 @@ class LhotseAudioToSpeechE2ESpkDiarDataset(torch.utils.data.Dataset):
         self.num_speakers = self.cfg.get('num_speakers', 4)
         self.num_sample_per_mel_frame = int(
             self.cfg.get('window_stride', 0.01) * self.cfg.get('sample_rate', 16000)
-        )  # 160
+        ) # 160 samples for every 1ms by default
         self.num_mel_frame_per_target_frame = int(self.cfg.get('subsampling_factor', 8))
         self.spk_tar_all_zero = self.cfg.get('spk_tar_all_zero', False)
 

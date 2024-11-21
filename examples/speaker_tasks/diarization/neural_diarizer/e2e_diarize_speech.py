@@ -11,11 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
 
-python $BASEPATH/neural_diarizer/sortformer_diarization.py \
-    model_path=/path/to/sortformer_model.nemo \
-    batch_size=4 \
+
+"""
+Usage:
+End-to-end speaker diarization model can be specified by either "model_path" or "pretrained_name".
+Data for diarization is fed through "dataset_manifest".
+By default, post-processing is bypassed and only binarization is performed.
+If you want to reproduce DER scores, you need to apply post-processing steps.
+Use batch_size = 1 to have the longest inference window and the highest possible accuracy.
+
+python $BASEPATH/neural_diarizer/e2e_diarize_speech.py \
+    model_path=/path/to/diar_sortformer_<N>spk_v<K>.nemo \
+    batch_size=1 \
     dataset_manifest=/path/to/diarization_path_to_manifest.json
 
 """
@@ -192,7 +200,7 @@ def diarization_objective(
         infer_audio_rttm_dict (Dict[str, Dict[str, str]]): Dictionary containing audio file paths,
             offsets, durations, and RTTM file paths.
         diar_model_preds_total_list (List[torch.Tensor]): List of prediction matrices containing
-            sigmoid values for each speaker. Dimension: [(1, frames, num_speakers), ..., (1, frames, num_speakers)]
+            sigmoid values for each speaker. Dimension: [(1, num_frames, num_speakers), ..., (1, num_frames, num_speakers)]
         collar (float, optional): Collar in seconds for DER calculation. Defaults to 0.25.
         ignore_overlap (bool, optional): If True, DER will be calculated only for non-overlapping segments.
             Defaults to False.
@@ -237,7 +245,7 @@ def run_optuna_hyperparam_search(
         postprocessing_cfg (PostProcessingParams): The current postprocessing configuration.
         infer_audio_rttm_dict (dict): dictionary of audio file path, offset, duration and RTTM filepath.
         preds_list (List[torch.Tensor]): list of prediction matrices containing sigmoid values for each speaker.
-            Dimension: [(1, frames, num_speakers), ..., (1, frames, num_speakers)]
+            Dimension: [(1, num_frames, num_speakers), ..., (1, num_frames, num_speakers)]
         temp_out_dir (str): temporary directory for storing intermediate outputs.
     """
     worker_function = lambda trial: diarization_objective(
@@ -274,7 +282,7 @@ def convert_pred_mat_to_segments(
     Args:
         audio_rttm_map_dict (dict): dictionary of audio file path, offset, duration and RTTM filepath.
         batch_preds_list (List[torch.Tensor]): list of prediction matrices containing sigmoid values for each speaker.
-            Dimension: [(1, frames, num_speakers), ..., (1, frames, num_speakers)]
+            Dimension: [(1, num_frames, num_speakers), ..., (1, num_frames, num_speakers)]
         unit_10ms_frame_count (int, optional): number of 10ms segments in a frame. Defaults to 8.
         bypass_postprocessing (bool, optional): if True, postprocessing will be bypassed. Defaults to False.
 
@@ -285,8 +293,9 @@ def convert_pred_mat_to_segments(
     """
     batch_pred_ts_segs, all_hypothesis, all_reference, all_uems = [], [], [], []
     cfg_vad_params = OmegaConf.structured(postprocessing_cfg)
+    pp_message = "Bypass PP, Running Binarization" if bypass_postprocessing else "Running post-processing"
     for sample_idx, (uniq_id, audio_rttm_values) in tqdm(
-        enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc="Running post-processing"
+        enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc=pp_message
     ):
         spk_ts = []
         offset, duration = audio_rttm_values['offset'], audio_rttm_values['duration']
@@ -385,7 +394,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         diar_model.test_batch()
         diar_model_preds_total_list = diar_model.preds_total_list
         torch.save(diar_model.preds_total_list, tensor_path)
-
+    
     if cfg.launch_pp_optim:
         # Launch a hyperparameter optimization process if launch_pp_optim is True
         run_optuna_hyperparam_search(

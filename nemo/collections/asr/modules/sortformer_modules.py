@@ -98,7 +98,7 @@ class SortformerModules(NeuralModule, Exportable):
             hidden_out (torch.Tensor): tensor of shape (batch_size, seq_len, hidden_size)
 
         Returns:
-            preds (torch.Tensor): tensor of shape (batch_size, num_spks) containing speaker probabilities
+            preds (torch.Tensor): tensor of shape (batch_size, seq_len, num_spks) containing speaker probabilities
         """
         hidden_out = self.dropout(F.relu(hidden_out))
         hidden_out = self.first_hidden_to_hidden(hidden_out)

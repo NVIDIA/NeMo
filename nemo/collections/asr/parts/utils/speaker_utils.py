@@ -970,7 +970,7 @@ def get_subsegments(
 
     Returns:
         subsegments (List[tuple[float, float]]): subsegments generated for the segments as
-        list of tuple of start and duration of each subsegment
+                                                 list of tuple of start and duration of each subsegment
     """
     subsegments: List[List[float]] = []
     start = offset
@@ -1000,32 +1000,20 @@ def get_subsegments(
 
 def get_subsegments_scriptable(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
     """
-    <<<<<<< HEAD
-        This function returns subsegments from a segment of an audio file.
-        Although this implementation is inefficient due to the use of a for-loop for segmentation,
-        it is designed to be torch-jit-scriptable.
-        Use `get_subsegments` for a more efficient implementation.
-
-    =======
-        Return subsegments from a segment of audio file.
-        This function is inefficient since the segmentation is based on for-loop,
-        but this implementation makes this function torch-jit-scriptable.
-
-    >>>>>>> 681fe3881c7029e104788ef621d020b8f94bd410
-        Args:
-            offset (float): start time of audio segment
-            window (float): window length for segments to subsegments length
-            shift (float): hop length for subsegments shift
-            duration (float): duration of segment
-        Returns:
-    <<<<<<< HEAD
-            subsegments (List[tuple[float, float]]): subsegments generated for the segments
-                                                     as list of tuple of start and duration of
-                                                     each subsegment
-    =======
-            subsegments (List[tuple[float, float]]): subsegments generated for the segments
-                                                     as list of tuple of start and duration of each subsegment
-    >>>>>>> 681fe3881c7029e104788ef621d020b8f94bd410
+    This function returns subsegments from a segment of an audio file.
+    Although this implementation is inefficient due to the use of a for-loop for segmentation, 
+    it is designed to be torch-jit-scriptable.
+    Use `get_subsegments` for a more efficient implementation.
+    
+    Args:
+        offset (float): start time of audio segment
+        window (float): window length for segments to subsegments length
+        shift (float): hop length for subsegments shift
+        duration (float): duration of segment
+    Returns:
+        subsegments (List[tuple[float, float]]): subsegments generated for the segments 
+                                                 as list of tuple of start and duration of 
+                                                 each subsegment
     """
     subsegments: List[List[float]] = []
     start = offset
