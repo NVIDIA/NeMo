@@ -394,9 +394,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         user_signal = audio_batch['audio_signal']
         user_signal_length = audio_batch['audio_signal_length']
 
-        input_ids, input_length, labels, loss_mask = (
-            audio_batch['tokens'],
-            audio_batch['tokens_length'],
+        labels, loss_mask = (
             audio_batch['labels'],
             audio_batch['loss_mask'],
         )
@@ -405,7 +403,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         assert self.extract_codec_on_the_fly
         agent_signal = audio_batch['answer_audio']
         agent_signal_length = audio_batch['answer_audio_lens']
-        target_text_lengths = audio_batch['target_text_lengths']
 
         def resample(audio, audio_lens, orig_sample_rate, target_sample_rate):
             audio = torchaudio.functional.resample(audio, orig_sample_rate, target_sample_rate)
@@ -485,12 +482,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             # mask bos and eos following timestamp or synthetic data mark
             answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
             answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
-            base_length = target_text_lengths[i] + context_lengths[i]
+            base_length = -1 + context_lengths[i]
             pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.eos_id
             text_channel = torch.cat(
                 [
                     torch.full([shift_text_channel_len[i], 1], pad_id).cuda(),
-                    input_ids[i, :1, :1],
+                    torch.full([1, 1], self.tokenizer.bos_id).cuda(),
                     labels[i, base_length:, :1],
                 ],
                 dim=0,
@@ -523,7 +520,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         input_embeds = lm_embedding.word_embeddings(input_ids)
         # merge with encoded
         encoder_input = input_embeds + encoded
-        encoder_length = None
+        encoder_length = encoded_len - 1
         attention_mask = self._create_attention_mask(encoder_input)
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()

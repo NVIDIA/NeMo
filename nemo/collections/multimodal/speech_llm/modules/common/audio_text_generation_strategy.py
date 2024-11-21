@@ -325,31 +325,32 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
             embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
             started = context_lengths <= curr_context_length
             embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
+            duplex_method = self.model.cfg.get("duplex_method", None)
+            if duplex_method is None:
+                pass
+            elif duplex_method == "from_multiturn":
+
+                new_user_signal_length = (
+                    torch.full([micro_batch_size], self.model.perception.cfg.preprocessor.sample_rate).cuda().long()
+                )
+                new_user_signal = torch.zeros(
+                    [micro_batch_size, self.model.perception.cfg.preprocessor.sample_rate]
+                ).cuda()
+                encoded, _ = self.model.perception(
+                    input_signal=new_user_signal,
+                    input_signal_length=new_user_signal_length,
+                    processed_signal=None,
+                    processed_signal_length=None,
+                )
+                encoded = encoded[:, :1]
+                embeddings2use = embeddings2use + encoded.transpose(0, 1).contiguous()
+            else:
+                raise ValueError(f"duplex_method {duplex_method} not supported")
 
         setkey_value_array = torch.tensor(
             [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
         )
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
-        duplex_method = self.model.cfg.get("duplex_method", None)
-        if duplex_method is None:
-            pass
-        elif duplex_method == "from_multiturn":
-
-            new_user_signal_length = (
-                torch.full([micro_batch_size], self.model.perception.cfg.preprocessor.sample_rate).cuda().long()
-            )
-            new_user_signal = torch.zeros(micro_batch_size, new_user_signal_length).cuda()
-            encoded, _ = self.model.perception(
-                input_signal=new_user_signal,
-                input_signal_length=new_user_signal_length,
-                processed_signal=None,
-                processed_signal_length=None,
-            )
-            encoded = encoded[:, :1]
-            embeddings2use = embeddings2use + encoded
-        else:
-            raise ValueError(f"duplex_method {duplex_method} not supported")
-
         batch = [tokens2use, embeddings2use, self.attention_mask, positions2use, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
@@ -358,13 +359,28 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
         batch = {
             'audio_signal': audio_signal,
             'audio_signal_length': audio_length,
-            'tokens': context_tokens,
-            'tokens_length': context_lengths,
+            'context_lengths': context_lengths,
             'labels': context_tokens,
+            'answer_features_lens': 0 * audio_length,
+            'answer_audio_lens': 0 * audio_length,
+            'answer_audio': 0 * audio_signal,
             'loss_mask': None,
         }
         encoder_input, _, labels, _, encoder_length = self.model.prepare_llm_input_duplex_from_multiturn(batch)
-        return labels, encoder_input, encoder_length
+        tokens_to_generate = self.model.get_inference_config()['tokens_to_generate']
+        labels = torch.cat(
+            [labels, torch.zeros([labels.shape[0], tokens_to_generate, labels.shape[2]]).cuda().long()], axis=1
+        )
+        encoder_input = torch.cat(
+            [
+                encoder_input,
+                torch.zeros([tokens_to_generate, encoder_input.shape[1], encoder_input.shape[2]]).cuda().long(),
+            ],
+            axis=0,
+        )
+        self.attention_mask = self.model._create_attention_mask(encoder_input.transpose(0, 1))
+        self.position_ids = build_position_ids(encoder_input.transpose(0, 1)[:, :, 0])
+        return labels, encoder_input, encoder_length - context_lengths
 
     def init_batch(
         self,
@@ -383,9 +399,7 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
                 context_tokens, context_lengths, audio_signal, audio_length, compute_attention_mask, num_audios
             )
         elif duplex_method == "from_multiturn":
-            return self.init_batch_duplex_from_multiturn(
-                context_tokens, context_lengths, audio_signal, audio_length, compute_attention_mask
-            )
+            return self.init_batch_duplex_from_multiturn(context_tokens, context_lengths, audio_signal, audio_length)
         else:
             raise ValueError(f"duplex_method {duplex_method} not supported")
 
