@@ -173,14 +173,16 @@ def main(args):
     # PEFT setup
     if args.peft == 'lora':
         peft = vlm.peft.LoRA(
+            freeze_vision_model=True,
             target_modules=[
-                "*.language_model.*.linear_qkv",
-                "*.language_model.*.linear_q",
-                "*.language_model.*.linear_kv",
-                "*.language_model.*.linear_proj",
-                "*.language_model.*.linear_fc1",
-                "*.language_model.*.linear_fc2",
-            ]
+                "linear_qkv",
+                "linear_q",
+                "linear_kv",
+            ],
+            dim=8,
+            alpha=32,
+            dropout=0.05,
+            dropout_position="pre",
         )
     else:
         peft = None
