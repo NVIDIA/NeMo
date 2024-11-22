@@ -14,6 +14,7 @@
 """Utilities for generating text."""
 
 import json
+import queue
 import threading
 import time
 import uuid
@@ -58,8 +59,10 @@ API_ALLOWED_KEYS = set(
 
 
 class MegatronGenerate(Resource):
+    tasks = queue.Queue()
     inputs = []
     outputs = []
+    batch_done = threading.Event()
 
     def __init__(self, model, inference_strategy=None):
         self.model = model
@@ -182,15 +185,22 @@ class MegatronGenerate(Resource):
         if batching:
             with lock:
                 queryid = len(MegatronGenerate.inputs)
+
+                if queryid == 0:
+                    # Wait for the previous batch to be fully processed.
+                    MegatronGenerate.tasks.join()
+                    MegatronGenerate.batch_done.clear()
+
                 MegatronGenerate.inputs.append(conversation)
+                MegatronGenerate.tasks.put(None)  # The tasks queue is only used as a "counter"
             time.sleep(1)
         else:
             queryid = 0
         end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
 
         # Return a response mimicking the OpenAI ChatCompletion API format
-        with lock:  # Need to get lock to keep multiple threads from hitting code
-            if queryid == 0:
+        if queryid == 0:
+            with lock:  # Ensure a single batch is processed at a time
                 MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
                 extra = {}
                 if self.inference_strategy is not None:
@@ -226,9 +236,15 @@ class MegatronGenerate(Resource):
                 if batching:
                     MegatronGenerate.inputs = []
                     MegatronGenerate.outputs = output
+                    MegatronGenerate.batch_done.set()
 
         if batching:
+            MegatronGenerate.batch_done.wait()
             output = MegatronGenerate.outputs
+            # Indicate that we are done processing the current query.
+            MegatronGenerate.tasks.get()
+            MegatronGenerate.tasks.task_done()
+
         output_sentence = output['sentences'][queryid][len(conversation) :]
         # remove end_strings
         for e in end_strings:
