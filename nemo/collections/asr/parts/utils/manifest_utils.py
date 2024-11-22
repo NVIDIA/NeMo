@@ -67,11 +67,11 @@ def get_ctm_line(
 ) -> str:
     """
     Get a line in Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
-    
-    CTM Format: 
+
+    CTM Format:
         <SOURCE><SP><CHANNEL><SP><BEG-TIME><SP><DURATION><SP><TOKEN><SP><CONF><SP><TYPE><SP><SPEAKER><NEWLINE>
-    
-    Reference: 
+
+    Reference:
         https://web.archive.org/web/20170119114252/http://www.itl.nist.gov/iad/mig/tests/rt/2009/docs/rt09-meeting-eval-plan-v2.pdf
 
     Args:
@@ -80,11 +80,11 @@ def get_ctm_line(
         start_time (float): <BEG_TIME> is the begin time of the word, which we refer to as `start_time` in NeMo.
         duration (float): <DURATION> is duration of the word
         token (str): <TOKEN> Token or word for the current entry
-        conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty). A value of “NA” is used (in CTM format data) 
-                      when no confidence is computed and in the reference data. 
+        conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty). A value of “NA” is used (in CTM format data)
+                      when no confidence is computed and in the reference data.
         type_of_token (str): <TYPE> is the token type. The legal values of <TYPE> are “lex”, “frag”, “fp”, “un-lex”, “for-lex”, “non-lex”, “misc”, or “noscore”
         speaker (str): <SPEAKER> is a string identifier for the speaker who uttered the token. This should be “null” for non-speech tokens and “unknown” when
-                       the speaker has not been determined. 
+                       the speaker has not been determined.
         NA_token (str, optional): A token for  . Defaults to '<NA>'.
         output_precision (int, optional): The precision of the output floating point number. Defaults to 3.
 
@@ -368,7 +368,11 @@ def create_segment_manifest(
     segments_manifest_file = write_rttm2manifest(AUDIO_RTTM_MAP, segment_manifest_path, deci)
     subsegments_manifest_file = subsegment_manifest_path
     segments_manifest_to_subsegments_manifest(
-        segments_manifest_file, subsegments_manifest_file, window, shift, min_subsegment_duration,
+        segments_manifest_file,
+        subsegments_manifest_file,
+        window,
+        shift,
+        min_subsegment_duration,
     )
     subsegments_dict = get_subsegment_dict(subsegments_manifest_file, window, shift, deci)
     write_truncated_subsegments(input_manifest_dict, subsegments_dict, output_manifest_path, step_count, deci)
