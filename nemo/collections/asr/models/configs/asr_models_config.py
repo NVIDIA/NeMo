@@ -51,7 +51,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     bucket_duration_bins: Optional[list] = None
     num_buckets: Optional[int] = 0
     pin_memory: bool = False
-    
+
     # Optional
     int_values: Optional[int] = None
     augmentor: Optional[Dict[str, Any]] = None
@@ -76,6 +76,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
 
     # Optional callable function to parse manifest file
     manifest_parse_func: Optional[Any] = (None,)
+
 
 @dataclass
 class EncDecCTCConfig(model_cfg.ModelConfig):

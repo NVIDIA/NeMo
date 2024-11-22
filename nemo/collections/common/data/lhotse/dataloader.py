@@ -162,12 +162,14 @@ class LhotseDataLoadingConfig:
     force_map_dataset: bool = False
     force_iterable_dataset: bool = False
 
+
 def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
     assert not (
         config.force_map_dataset and config.force_iterable_dataset
     ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
     use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
     return use_iterable_dataset
+
 
 def get_lhotse_dataloader_from_config(
     config: DictConfig,
@@ -336,7 +338,7 @@ def get_lhotse_dataloader_from_config(
             duration_bins=determine_bucket_duration_bins(config),
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
-            rank=0 if use_iterable_dataset  else global_rank,
+            rank=0 if use_iterable_dataset else global_rank,
             world_size=1 if use_iterable_dataset else world_size,
         )
     else:
@@ -354,8 +356,8 @@ def get_lhotse_dataloader_from_config(
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
             seed=config.shard_seed,
-            rank=0 if use_iterable_dataset  else global_rank,
-            world_size=1 if use_iterable_dataset  else world_size,
+            rank=0 if use_iterable_dataset else global_rank,
+            world_size=1 if use_iterable_dataset else world_size,
         )
 
     if config.concatenate_samples:
