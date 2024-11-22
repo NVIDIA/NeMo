@@ -281,6 +281,7 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
         return padded_embedding
     return embedding
 
+
 @io.state_transform(
     source_key=("cls.predictions.decoder.bias",),
     target_key="output_layer.bias",
@@ -299,6 +300,7 @@ def _import_output_bias(ctx: io.TransformCTX, bias):
         padded_embedding = torch.cat((bias, zeros_to_add), dim=0)
         return padded_embedding
     return bias
+
 
 @io.state_transform(
     source_key=(
