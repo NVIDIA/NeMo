@@ -167,6 +167,7 @@ def main(cfg: ParallelTranscriptionConfig):
         OmegaConf.set_struct(cfg.predict_ds, False)
         cfg.trainer.use_distributed_sampler = False
         cfg.predict_ds.force_finite = True
+        cfg.predict_ds.force_map_dataset = True
         cfg.predict_ds.do_transcribe = True
         OmegaConf.set_struct(cfg.predict_ds, True)
 
