@@ -176,9 +176,14 @@ def init_model_parallel(
             app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
             app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
-            # create MPI process group for UCX-based communication APIs
             if app_state.init_mpi_proc_group:
-                torch.distributed.new_group(backend='mpi')
+                import packaging
+
+                te_version = packaging.version.Version(version('transformer_engine'))
+                if te_version < packaging.version.Version("1.9"):
+                    # Create MPI process group for bootstrapping at old TE versions.
+                    # From TE version v1.9, the process group is initialized in TE.
+                    torch.distributed.new_group(backend='mpi')
 
 
 class NLPDDPStrategy(DDPStrategy):
@@ -377,7 +382,7 @@ class NLPDDPStrategy(DDPStrategy):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
-        """ PTL method which we override to accomodate distributed checkpoints and 
+        """ PTL method which we override to accomodate distributed checkpoints and
             the legacy model parallel checkpoints.
 
             When using megatron core, the distributed checkpointing library expects save functions to be
@@ -1270,6 +1275,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return_config: bool = False,
         trainer: Trainer = None,
         validate_access_integrity: bool = True,
+        replace_sharded_tensor_key: Optional[str] = None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -1357,6 +1363,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 checkpoint = {}
                 sharded_state_dict = instance.sharded_state_dict()
                 checkpoint['state_dict'] = sharded_state_dict
+                if replace_sharded_tensor_key:
+                    for v in checkpoint["state_dict"].values():
+                        v.key = v.key.replace("model", replace_sharded_tensor_key)
 
                 checkpoint_io = DistributedCheckpointIO.from_config(conf)
                 checkpoint = checkpoint_io.load_checkpoint(
