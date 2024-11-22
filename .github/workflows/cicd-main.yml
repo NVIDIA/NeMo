@@ -3929,9 +3929,7 @@ jobs:
         python tests/collections/vlm/neva_train.py \
         --devices=1 \
         --max-steps=5 \
-        --experiment-dir=tests/collections/vlm/neva_results/${{ github.run_id }} \
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/vlm/neva_results/${{ github.run_id }}
+        --experiment-dir=/tmp/nemo2_neva_results/${{ github.run_id }}
 
   L2_NeMo_2_MLLAMA_MOCK_TRAINING:
     needs: [cicd-test-container-setup]
@@ -3943,9 +3941,7 @@ jobs:
         python tests/collections/vlm/mllama_train.py \
         --devices=1 \
         --max-steps=5 \
-        --experiment-dir=tests/collections/vlm/mllama_results/${{ github.run_id }} \
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/vlm/mllama_results/${{ github.run_id }}
+        --experiment-dir=/tmp/nemo2_mllama_results/${{ github.run_id }}
 
   L2_NeMo_2_Mixtral_Pretraining:
       needs: [cicd-test-container-setup]
