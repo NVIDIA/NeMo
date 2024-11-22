@@ -89,7 +89,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
     # are identical to normal SFT training
     data_cfg = cfg.model.data.train_ds
     pad_seq_length_to_mult = 16
-    cp_size = cfg.model.context_parallel_size
+    cp_size = cfg.model.get("context_parallel_size", 1)
 
     # if context parallel is used, each individual data length in one packed dataset sample
     # needs to be a multiple of (cp_size * 2): https://github.com/NVIDIA/TransformerEngine/pull/641
