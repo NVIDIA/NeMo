@@ -72,7 +72,9 @@ def main(args):
         raise ValueError(f"Data type {args.data_type} not supported")
 
     # Submodules configurations
-    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length,)
+    language_transformer_config = llm.Llama2Config7B(
+        seq_length=decoder_seq_length,
+    )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )

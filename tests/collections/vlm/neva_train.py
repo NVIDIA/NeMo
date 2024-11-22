@@ -34,7 +34,9 @@ def get_args():
     parser = argparse.ArgumentParser(description='Train a small NEVA model using NeMo 2.0')
     parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, default=5, help="Number of steps to train for")
-    parser.add_argument('--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to")
+    parser.add_argument(
+        '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
+    )
 
     return parser.parse_args()
 

@@ -16,19 +16,17 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 
-
 import argparse
-from transformers import AutoProcessor
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
+from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.llm.api import train
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
+from nemo.collections.llm.api import train
 from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint, ParameterDebugger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -38,7 +36,9 @@ def get_args():
     parser = argparse.ArgumentParser(description='Train a small MLLAMA model using NeMo 2.0')
     parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, default=5, help="Number of steps to train for")
-    parser.add_argument('--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to")
+    parser.add_argument(
+        '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
+    )
 
     return parser.parse_args()
 
