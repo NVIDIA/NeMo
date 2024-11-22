@@ -67,6 +67,7 @@ To use MQA or GQA in the NeMo Framework, adjust the ``num_query_groups`` paramet
        recipe.model.config.num_query_groups = 1  # Enables Multi-query Attention
 
 2. **For Grouped-query Attention (GQA)**:
+
    - Set ``num_query_groups`` to a number that is a divisor of the total number of attention heads (more than one but less than the total heads).
 
    .. code-block:: python
