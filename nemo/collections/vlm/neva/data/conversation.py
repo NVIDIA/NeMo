@@ -34,6 +34,7 @@ class SeparatorStyle(Enum):
     CHATML = auto()
     LLAMA_2 = auto()
     LLAMA_3 = auto()
+    MLLAMA = auto()
     MISTRAL = auto()
     NVGPT = auto()
     QWEN = auto()
@@ -76,7 +77,6 @@ class Conversation:
 
     def get_prompt(self):
         messages = self.messages
-        messages = self.process_prompt_with_images(messages)
 
         if self.sep_style == SeparatorStyle.SINGLE:
             ret = self.system + self.sep
@@ -99,6 +99,8 @@ class Conversation:
                     if type(message) is tuple:
                         message, _, _ = message
                     ret += role + ": " + message + seps[i % 2]
+                    # Add space to make sure the labels can be correctly generated.
+                    self.messages[i][1] = " " + self.messages[i][1]
                 else:
                     ret += role + ":"
 
@@ -151,6 +153,10 @@ class Conversation:
             {{ user_message_2 }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             """
             tokenizer_name_or_path = self.tokenizer_name_or_path or "meta-llama/Meta-Llama-3-8B-Instruct"
+            ret = self.process_chat_template(tokenizer_name_or_path, messages)
+
+        elif self.sep_style == SeparatorStyle.MLLAMA:
+            tokenizer_name_or_path = self.tokenizer_name_or_path or "meta-llama/Llama-3.2-11B-Vision-Instruct"
             ret = self.process_chat_template(tokenizer_name_or_path, messages)
 
         elif self.sep_style == SeparatorStyle.NVGPT:
@@ -458,6 +464,18 @@ conv_llava_llama_3 = Conversation(
     stop_str="<|eot_id|>",
 )
 
+conv_mllama = Conversation(
+    system="",
+    roles=("user", "assistant"),
+    version="llama_v3_2",
+    messages=[],
+    offset=0,
+    sep="<|eot_id|>",
+    sep_style=SeparatorStyle.MLLAMA,
+    tokenizer_name_or_path="meta-llama/Llama-3.2-11B-Vision-Instruct",
+    stop_str="<|eot_id|>",
+)
+
 conv_mistral_instruct = Conversation(
     system="",
     roles=("USER", "ASSISTANT"),
@@ -648,6 +666,7 @@ conv_templates = {
     "v1": conv_vicuna_v1,
     "vicuna_v1": conv_vicuna_v1,
     "llama_2": conv_llama_2,
+    "mllama": conv_mllama,
     "mistral_instruct": conv_mistral_instruct,
     "mistral_orca": conv_mistral_orca,
     "mistral_zephyr": conv_mistral_zephyr,

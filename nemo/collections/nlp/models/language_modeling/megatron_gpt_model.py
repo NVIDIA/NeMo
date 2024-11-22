@@ -24,11 +24,11 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import packaging
 import torch
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.loops.fetchers import _DataFetcherWrapper
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.utils import apply_rope_scaling, extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -803,6 +803,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             tp_size=self.cfg.get('tensor_model_parallel_size'),
             use_fp8=self.cfg.get('fp8'),
             ub_cfgs=ub_cfgs,
+            bootstrap_backend=self.cfg.get('ub_tp_comm_bootstrap_backend', 'nccl'),
         )
         self.initialize_ub = False
 
