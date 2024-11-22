@@ -23,7 +23,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
-from nemo.collections import llm, vlm
+from nemo.collections import vlm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.api import train
 from nemo.lightning import AutoResume, NeMoLogger
