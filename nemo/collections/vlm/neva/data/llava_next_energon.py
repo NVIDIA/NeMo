@@ -98,14 +98,14 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
             images, loss masks, and metadata.
         """
         conversation_prompt = self.apply_prompt_template(input_sample)
-        logging.info(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
+        logging.debug(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        logging.info(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
-        logging.info(f"[Energon] task encoder encode_sample lables {labels}")
+        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
         processed_image = self.process_image(input_sample.image)
         output_sample.__key__ = input_sample.__key__

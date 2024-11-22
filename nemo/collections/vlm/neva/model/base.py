@@ -229,7 +229,6 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
-    breakpoint()
     forward_args = {
         "media": batch["media"],
         "input_ids": batch["tokens"],
@@ -925,7 +924,24 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
-        return self.forward_step(batch)
+        # return self.forward_step(batch)
+        # for optimizer in self.trainer.optimizers:
+        #     self.reset_optimizer_states(optimizer)
+        # if torch.distributed.get_rank() == 0:
+        #     breakpoint()
+        # torch.distributed.barrier()
+        loss = self.forward_step(batch)
+        # param_name = 'module.module.module.vision_projection.0.weight'
+        # self.monitor_parameter(param_name)
+
+        return loss
+
+    def reset_optimizer_states(self, optimizer):
+        """Reset all states in the optimizer to zero."""
+        for param, state in optimizer.state.items():
+            for key, value in state.items():
+                if isinstance(value, torch.Tensor):  # Ensure it's a tensor
+                    value.zero_()
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
@@ -945,6 +961,55 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
 
         return self._validation_loss_reduction
+
+    def monitor_parameter(self, param_name):
+        """Monitor values for a specific parameter."""
+        print(f"**** Monitoring param {param_name} ********")
+        # Find the parameter by name
+        param = dict(self.named_parameters()).get(param_name, None)
+
+        if param is None:
+            print(f"Parameter {param_name} not found.")
+            return
+
+        # Access the optimizer state (assuming one optimizer)
+        optimizer = self.trainer.optimizers[0]
+        optimizer_state = optimizer.state.get(param, {})
+
+        # Retrieve learning rate and weight decay
+        # for param_group in optimizer.param_groups:
+        #     if param in param_group['params']:
+        #         learning_rate = param_group.get('lr', 'None')
+        #         weight_decay = param_group.get('weight_decay', 'None')
+        #         break
+        # else:
+        #     learning_rate = None
+        #     weight_decay = None
+
+        # Log parameter details
+        print(f"Monitoring {param_name}:")
+        print(f"  - Parameter Mean: {param.data.mean().item():.6f}")
+        if param.grad is not None:
+            print(f"  - Gradient Mean: {param.grad.mean().item():.6f}")
+            print(f"Grad Param first 100 values {param.grad[0,:100]}")
+        else:
+            print(f"param.grad is None")
+        if 'exp_avg' in optimizer_state:
+            print(f"  - Momentum (exp_avg) Mean: {optimizer_state['exp_avg'].mean().item():.6f}")
+            print(f"exp_avg Param first 100 values {optimizer_state['exp_avg'][0,:100]}")
+        else:
+            print(f"exp_avg is None")
+        if 'exp_avg_sq' in optimizer_state:
+            print(f"  - Variance (exp_avg_sq) Mean: {optimizer_state['exp_avg_sq'].mean().item():.6f}")
+            print(f"exp_avg Param first 100 values {optimizer_state['exp_avg_sq'][0,:100]}")
+        else:
+            print(f"exp_avg_sq is None")
+        # print(f"  - Learning Rate: {learning_rate:.6f}")
+        # print(f"  - Weight Decay: {weight_decay:.6f}")
+        if torch.distributed.get_rank() == 0:
+            breakpoint()
+        torch.distributed.barrier()
+        print(f"**** **** ********")
 
 
 __all__ = [

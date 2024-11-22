@@ -88,7 +88,7 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         pipeline_dtype=torch.bfloat16,
-        ckpt_load_optimizer=True,
+        ckpt_load_optimizer=False,
     )
 
     # Checkpoint callback setup
@@ -124,7 +124,7 @@ def main(args):
     )
     nemo_logger.setup(
         trainer,
-        resume_if_exists=True,
+        resume_if_exists=False,
     )
 
     # Auto resume setup
