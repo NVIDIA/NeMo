@@ -115,8 +115,8 @@ class Llama31Config(Llama3Config):
     old_context_len: int = 8192
     init_method_std: float = 0.02
 
-    def configure_model(self, tokenizer) -> "MCoreGPTModel":
-        model = super().configure_model(tokenizer)
+    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+        model = super().configure_model(tokenizer, pre_process, post_process)
         # Apply rope scaling for Llama3.1 model
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
             model.rotary_pos_emb.inv_freq,
@@ -273,7 +273,12 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 base //= 2
             return base
 
-        output = LlamaConfig(
+        if getattr(source, 'rope_scaling', None) is not None and source.rope_scaling.get('rope_type') == 'llama3':
+            # Apply Llama3.1 customize rope scaling
+            cls = Llama31Config
+        else:
+            cls = LlamaConfig
+        output = cls(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,

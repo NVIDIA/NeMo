@@ -48,25 +48,8 @@ class AdapterParallelAdd(AdapterWrapper):
     """
 
     def forward(self, x):
-        linear_output = self.to_wrap(x)
-        assert isinstance(
-            linear_output, tuple
-        ), f"{self.to_wrap} should return a tuple but instead returns {linear_output}"
-        """ Four cases for the wrapped module's return values
-        1. nothing: (out, None)
-        2. return_bias: (out, bias)
-        2. return_layernorm_output: ((out, ln_out), None)
-        3. both: (out, bias, ln_out)
-        """
-        if len(linear_output) == 2:
-            linear_output, bias = linear_output
-            if isinstance(linear_output, tuple) and len(linear_output) == 2:
-                linear_output, layernorm_output = linear_output
-                x = layernorm_output
-        elif len(linear_output) == 3:
-            linear_output, bias, layernorm_output = linear_output
-            x = layernorm_output
-        adapter_output = self.adapter(x.contiguous())
+        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
 
 
@@ -129,8 +112,8 @@ class LoRA(PEFT):
         target_modules (List[str], optional): A list of module names to apply LoRA to.
             Defaults to all linear layers ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'].
                 - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
-                                in self-attention modules.
-                - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention modules.
+                                in self-attention.
+                - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention.
                 - 'linear_fc1': Apply LoRA to the first fully-connected layer in MLP.
                 - 'linear_fc2': Apply LoRA to the second fully-connected layer in MLP.
             Target modules can also contain wildcards. For example, you can specify
@@ -243,4 +226,44 @@ class LoRA(PEFT):
                 is_expert=is_expert_linear(full_name),
             )
             return AdapterParallelAdd(m, adapter)
+        return m
+
+
+class LoRAMerge(PEFT):
+    """
+    Implements the LoRA weight merge for parameter-efficient fine-tuning.
+
+    Example:
+    --------
+        >>> from nemo.collections.llm.peft.lora import LoRAMerge
+        >>> lora_merge = LoRAMerge()
+        >>> merged_model = lora_merge(trainer.strategy.megatron_parallel)
+    """
+
+    @torch.no_grad()
+    def transform(self, m: nn.Module, name=None, prefix=None):
+        """
+        Merges the LoRA adapter with the base model weights.
+
+        Args:
+            m (nn.Module): The module to apply LoRA merge to.
+            name (str, optional): Name of the module to merge. Defaults to None.
+            prefix (str, optional): Prefix for the module name. Defaults to None.
+
+        Returns:
+            nn.Module: The modified module with the LoRA adapter merged into the base model weights.
+        """
+
+        if not isinstance(m, AdapterParallelAdd):
+            return m
+        logging.info(f'merging {(prefix if prefix else "") + "." + (name if name else "")}')
+        base_weight = m.to_wrap.weight
+        lora_weight = (
+            m.adapter.alpha
+            / m.adapter.dim
+            * m.adapter.linear_out.weight.to(base_weight.device)
+            @ m.adapter.linear_in.weight.to(base_weight.device)
+        )
+        merged_weight = base_weight + lora_weight
+        m.to_wrap.weight.data = merged_weight
         return m
