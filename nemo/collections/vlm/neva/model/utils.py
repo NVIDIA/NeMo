@@ -1,5 +1,15 @@
 import torch
 
+'These functions implementation is adapted from https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py'
+
+
+def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_token_len):
+    """Get image sequence length given image size, patch size, and class token."""
+    num_patches_per_dim_h = img_h // patch_dim
+    num_patches_per_dim_w = img_w // patch_dim
+    num_patches = num_patches_per_dim_h * num_patches_per_dim_w
+    return num_patches + (class_token_len if add_class_token else 0)
+
 
 def merge_input_ids_with_image_features(
     image_features,
@@ -226,3 +236,115 @@ def merge_input_ids_with_image_features(
         final_loss_mask = (final_labels != ignore_index).long()
 
     return final_embedding, final_attention_mask, position_ids, final_labels, final_input_ids, final_loss_mask
+
+
+def unpad_image(tensor, original_size):
+    """
+    Unpads a PyTorch tensor of a padded and resized image.
+
+    Args:
+        tensor (`torch.Tensor`):
+            The image tensor, assumed to be of shape (num_channels, height, width).
+        original_size (`tuple`):
+            The original size of the image (height, width).
+
+    Returns:
+        `torch.Tensor`: The unpadded image tensor.
+    """
+    import numpy as np
+
+    if not isinstance(original_size, (list, tuple)):
+        if not isinstance(original_size, (torch.Tensor, np.ndarray)):
+            raise TypeError(
+                f"image_size invalid type: {type(original_size)} not valid, should be either list, tuple, np.ndarray or tensor"
+            )
+        original_size = original_size.tolist()
+    original_height, original_width = original_size
+    current_height, current_width = tensor.shape[1:]
+
+    original_aspect_ratio = original_width / original_height
+    current_aspect_ratio = current_width / current_height
+
+    if original_aspect_ratio > current_aspect_ratio:
+        scale_factor = current_width / original_width
+        new_height = int(original_height * scale_factor)
+        padding = (current_height - new_height) // 2
+        unpadded_tensor = tensor[:, padding : current_height - padding, :]
+    else:
+        scale_factor = current_height / original_height
+        new_width = int(original_width * scale_factor)
+        padding = (current_width - new_width) // 2
+        unpadded_tensor = tensor[:, :, padding : current_width - padding]
+
+    return unpadded_tensor
+
+
+def select_best_resolution(original_size: tuple, possible_resolutions: list) -> tuple:
+    """
+    Selects the best resolution from a list of possible resolutions based on the original size.
+
+    This is done by calculating the effective and wasted resolution for each possible resolution.
+
+    The best fit resolution is the one that maximizes the effective resolution and minimizes the wasted resolution.
+
+    Args:
+        original_size (tuple):
+            The original size of the image in the format (height, width).
+        possible_resolutions (list):
+            A list of possible resolutions in the format [(height1, width1), (height2, width2), ...].
+
+    Returns:
+        tuple: The best fit resolution in the format (height, width).
+    """
+    original_height, original_width = original_size
+    best_fit = None
+    max_effective_resolution = 0
+    min_wasted_resolution = float("inf")
+
+    for height, width in possible_resolutions:
+        scale = min(width / original_width, height / original_height)
+        downscaled_width, downscaled_height = int(original_width * scale), int(original_height * scale)
+        effective_resolution = min(downscaled_width * downscaled_height, original_width * original_height)
+        wasted_resolution = (width * height) - effective_resolution
+
+        if effective_resolution > max_effective_resolution or (
+            effective_resolution == max_effective_resolution and wasted_resolution < min_wasted_resolution
+        ):
+            max_effective_resolution = effective_resolution
+            min_wasted_resolution = wasted_resolution
+            best_fit = (height, width)
+
+    return best_fit
+
+
+def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
+    """
+    Calculate the shape of the image patch grid after the preprocessing for images of any resolution.
+
+    Args:
+        image_size (`tuple`):
+            The size of the input image in the format (width, height).
+        grid_pinpoints (`List`):
+            A list containing possible resolutions. Each item in the list should be a tuple or list
+            of the form `(height, width)`.
+        patch_size (`int`):
+            The size of each image patch.
+
+    Returns:
+        tuple: The shape of the image patch grid in the format (width, height).
+    """
+    import numpy as np
+
+    if not isinstance(grid_pinpoints, list):
+        raise TypeError("grid_pinpoints should be a list of tuples or lists")
+
+    # ! VERY IMPORTANT if image_size is tensor, must convert to into tuple, otherwise it will cause wrong calculate
+    if not isinstance(image_size, (list, tuple)):
+        if not isinstance(image_size, (torch.Tensor, np.ndarray)):
+            raise TypeError(
+                f"image_size invalid type: {type(image_size)} not valid, should be either list, tuple, np.ndarray or tensor"
+            )
+        image_size = image_size.tolist()
+
+    height, width = select_best_resolution(image_size, grid_pinpoints)
+    return height // patch_size, width // patch_size

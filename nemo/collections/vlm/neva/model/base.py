@@ -46,7 +46,12 @@ from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
-from nemo.collections.vlm.neva.model.utils import merge_input_ids_with_image_features
+from nemo.collections.vlm.neva.model.utils import (
+    get_anyres_image_grid_shape,
+    get_image_sequence_length,
+    merge_input_ids_with_image_features,
+    unpad_image,
+)
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -54,160 +59,17 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 from nemo.utils import logging
 
 
-def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_token_len):
-    """Get image sequence length given image size, patch size, and class token."""
-    num_patches_per_dim_h = img_h // patch_dim
-    num_patches_per_dim_w = img_w // patch_dim
-    num_patches = num_patches_per_dim_h * num_patches_per_dim_w
-    return num_patches + (class_token_len if add_class_token else 0)
-
-
-'Borrowed from https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py#L113C1-L150C27'
-
-
-def unpad_image(tensor, original_size):
-    """
-    Unpads a PyTorch tensor of a padded and resized image.
-
-    Args:
-        tensor (`torch.Tensor`):
-            The image tensor, assumed to be of shape (num_channels, height, width).
-        original_size (`tuple`):
-            The original size of the image (height, width).
-
-    Returns:
-        `torch.Tensor`: The unpadded image tensor.
-    """
-    import numpy as np
-
-    if not isinstance(original_size, (list, tuple)):
-        if not isinstance(original_size, (torch.Tensor, np.ndarray)):
-            raise TypeError(
-                f"image_size invalid type: {type(original_size)} not valid, should be either list, tuple, np.ndarray or tensor"
-            )
-        original_size = original_size.tolist()
-    original_height, original_width = original_size
-    current_height, current_width = tensor.shape[1:]
-
-    original_aspect_ratio = original_width / original_height
-    current_aspect_ratio = current_width / current_height
-
-    if original_aspect_ratio > current_aspect_ratio:
-        scale_factor = current_width / original_width
-        new_height = int(original_height * scale_factor)
-        padding = (current_height - new_height) // 2
-        unpadded_tensor = tensor[:, padding : current_height - padding, :]
-    else:
-        scale_factor = current_height / original_height
-        new_width = int(original_width * scale_factor)
-        padding = (current_width - new_width) // 2
-        unpadded_tensor = tensor[:, :, padding : current_width - padding]
-
-    return unpadded_tensor
-
-
-def select_best_resolution(original_size: tuple, possible_resolutions: list) -> tuple:
-    """
-    Selects the best resolution from a list of possible resolutions based on the original size.
-
-    This is done by calculating the effective and wasted resolution for each possible resolution.
-
-    The best fit resolution is the one that maximizes the effective resolution and minimizes the wasted resolution.
-
-    Args:
-        original_size (tuple):
-            The original size of the image in the format (height, width).
-        possible_resolutions (list):
-            A list of possible resolutions in the format [(height1, width1), (height2, width2), ...].
-
-    Returns:
-        tuple: The best fit resolution in the format (height, width).
-    """
-    original_height, original_width = original_size
-    best_fit = None
-    max_effective_resolution = 0
-    min_wasted_resolution = float("inf")
-
-    for height, width in possible_resolutions:
-        scale = min(width / original_width, height / original_height)
-        downscaled_width, downscaled_height = int(original_width * scale), int(original_height * scale)
-        effective_resolution = min(downscaled_width * downscaled_height, original_width * original_height)
-        wasted_resolution = (width * height) - effective_resolution
-
-        if effective_resolution > max_effective_resolution or (
-            effective_resolution == max_effective_resolution and wasted_resolution < min_wasted_resolution
-        ):
-            max_effective_resolution = effective_resolution
-            min_wasted_resolution = wasted_resolution
-            best_fit = (height, width)
-
-    return best_fit
-
-
-def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
-    """
-    Calculate the shape of the image patch grid after the preprocessing for images of any resolution.
-
-    Args:
-        image_size (`tuple`):
-            The size of the input image in the format (width, height).
-        grid_pinpoints (`List`):
-            A list containing possible resolutions. Each item in the list should be a tuple or list
-            of the form `(height, width)`.
-        patch_size (`int`):
-            The size of each image patch.
-
-    Returns:
-        tuple: The shape of the image patch grid in the format (width, height).
-    """
-    import numpy as np
-
-    if not isinstance(grid_pinpoints, list):
-        raise TypeError("grid_pinpoints should be a list of tuples or lists")
-
-    # ! VERY IMPORTANT if image_size is tensor, must convert to into tuple, otherwise it will cause wrong calculate
-    if not isinstance(image_size, (list, tuple)):
-        if not isinstance(image_size, (torch.Tensor, np.ndarray)):
-            raise TypeError(
-                f"image_size invalid type: {type(image_size)} not valid, should be either list, tuple, np.ndarray or tensor"
-            )
-        image_size = image_size.tolist()
-
-    height, width = select_best_resolution(image_size, grid_pinpoints)
-    return height // patch_size, width // patch_size
-
-
-cached_batch = None
-
-
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
-    # batch = next(dataloader_iter)
-    # _batch: dict
-    # if isinstance(batch, tuple) and len(batch) == 3:
-    #     _batch = batch[0]
-    # else:
-    #     _batch = batch
-
-    global cached_batch  # Use the cached batch if already available
-
-    if cached_batch is None:
-        # Fetch a new batch if the cache is empty
-        batch = next(dataloader_iter)
-        _batch: dict
-        if isinstance(batch, tuple) and len(batch) == 3:
-            _batch = batch[0]
-        else:
-            _batch = batch
-
-        # Cache the processed batch
-        cached_batch = _batch
+    batch = next(dataloader_iter)
+    _batch: dict
+    if isinstance(batch, tuple) and len(batch) == 3:
+        _batch = batch[0]
     else:
-        # Use the cached batch
-        _batch = cached_batch
+        _batch = batch
 
     required_keys = set()
     required_keys.add("attention_mask")
@@ -656,7 +518,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask
 
-    'Implementation borrowed from - "https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py#L655"'
+    'These functions implementation is adapted from : https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py#L655'
 
     def pack_image_features(self, image_features, image_sizes, vision_feature_select_strategy, image_newline=None):
         """
@@ -823,9 +685,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     vision_feature_select_strategy='default',
                     image_newline=self.image_newline,
                 )
-                # if torch.distributed.get_rank() == 0:
-                #     breakpoint()
-                # torch.distributed.barrier()
+
                 combined_embeddings, attention_mask, position_ids, final_labels, final_input_ids, final_loss_mask = (
                     merge_input_ids_with_image_features(
                         media_embeddings,
@@ -860,9 +720,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             labels=final_labels,
             inference_params=inference_params,
         )
-        if torch.distributed.get_rank() == 0:
-            breakpoint()
-        torch.distributed.barrier()
         if labels is None or loss_mask is None:
             return output
 
@@ -924,17 +781,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
-        # return self.forward_step(batch)
-        # for optimizer in self.trainer.optimizers:
-        #     self.reset_optimizer_states(optimizer)
-        # if torch.distributed.get_rank() == 0:
-        #     breakpoint()
-        # torch.distributed.barrier()
-        loss = self.forward_step(batch)
-        # param_name = 'module.module.module.vision_projection.0.weight'
-        # self.monitor_parameter(param_name)
-
-        return loss
+        return self.forward_step(batch)
 
     def reset_optimizer_states(self, optimizer):
         """Reset all states in the optimizer to zero."""
@@ -961,55 +808,6 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
 
         return self._validation_loss_reduction
-
-    def monitor_parameter(self, param_name):
-        """Monitor values for a specific parameter."""
-        print(f"**** Monitoring param {param_name} ********")
-        # Find the parameter by name
-        param = dict(self.named_parameters()).get(param_name, None)
-
-        if param is None:
-            print(f"Parameter {param_name} not found.")
-            return
-
-        # Access the optimizer state (assuming one optimizer)
-        optimizer = self.trainer.optimizers[0]
-        optimizer_state = optimizer.state.get(param, {})
-
-        # Retrieve learning rate and weight decay
-        # for param_group in optimizer.param_groups:
-        #     if param in param_group['params']:
-        #         learning_rate = param_group.get('lr', 'None')
-        #         weight_decay = param_group.get('weight_decay', 'None')
-        #         break
-        # else:
-        #     learning_rate = None
-        #     weight_decay = None
-
-        # Log parameter details
-        print(f"Monitoring {param_name}:")
-        print(f"  - Parameter Mean: {param.data.mean().item():.6f}")
-        if param.grad is not None:
-            print(f"  - Gradient Mean: {param.grad.mean().item():.6f}")
-            print(f"Grad Param first 100 values {param.grad[0,:100]}")
-        else:
-            print(f"param.grad is None")
-        if 'exp_avg' in optimizer_state:
-            print(f"  - Momentum (exp_avg) Mean: {optimizer_state['exp_avg'].mean().item():.6f}")
-            print(f"exp_avg Param first 100 values {optimizer_state['exp_avg'][0,:100]}")
-        else:
-            print(f"exp_avg is None")
-        if 'exp_avg_sq' in optimizer_state:
-            print(f"  - Variance (exp_avg_sq) Mean: {optimizer_state['exp_avg_sq'].mean().item():.6f}")
-            print(f"exp_avg Param first 100 values {optimizer_state['exp_avg_sq'][0,:100]}")
-        else:
-            print(f"exp_avg_sq is None")
-        # print(f"  - Learning Rate: {learning_rate:.6f}")
-        # print(f"  - Weight Decay: {weight_decay:.6f}")
-        if torch.distributed.get_rank() == 0:
-            breakpoint()
-        torch.distributed.barrier()
-        print(f"**** **** ********")
 
 
 __all__ = [
