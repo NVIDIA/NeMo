@@ -319,6 +319,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
 
+        assert "NEVA `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
         if self.encoder_pipeline_model_parallel_size > 0:
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
             self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
@@ -333,8 +334,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         model = MCoreNevaModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage()
-            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            pre_process=ps.is_pipeline_first_stage(),
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
