@@ -1178,12 +1178,12 @@ class BeamRNNTInfer(Typing):
                 hyp.alignments = [[]]
 
         for t in range(encoded_lengths):
-            # print("Frame idx: ", t)
-            # for hyp1 in kept_hyps:
-            #     print("Sequence: ", hyp1.y_sequence)
-            #     print("Timesteps: ", hyp1.timestep)
-            #     print("Score: ", hyp1.score)
-            #     print()
+            print("Frame idx: ", t)
+            for hyp1 in kept_hyps:
+                print("Sequence: ", hyp1.y_sequence)
+                print("Timesteps: ", hyp1.timestep)
+                print("Score: ", hyp1.score)
+                print()
             enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
 
             # Perform prefix search to obtain hypothesis
@@ -1626,7 +1626,8 @@ class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
             blank_index: int,
             beam_size: int,
             maes_num_steps: int,
-            maes_exansion_gamma: float,
+            maes_expansion_gamma: float,
+            maes_expansion_beta: float,
             preserve_alignments=False,
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
@@ -1644,7 +1645,8 @@ class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
         self.beam_size = beam_size
 
         self.maes_num_steps = maes_num_steps
-        self.maes_exansion_gamma = maes_exansion_gamma
+        self.maes_expansion_gamma = maes_expansion_gamma
+        self.maes_expansion_beta = maes_expansion_beta
         self.preserve_alignments = preserve_alignments
         
         self.allow_recombine_hyps = allow_recombine_hyps
@@ -1658,7 +1660,8 @@ class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
             beam_size=self.beam_size,
             blank_index=self._blank_index,
             maes_num_steps=self.maes_num_steps,
-            maes_exansion_gamma=self.maes_exansion_gamma,
+            maes_expansion_gamma=self.maes_expansion_gamma,
+            maes_expansion_beta=self.maes_expansion_beta,
             preserve_alignments=preserve_alignments,
             ngram_lm_model=ngram_lm_model,
             ngram_lm_alpha=ngram_lm_alpha,
