@@ -42,28 +42,62 @@ In NeMo Framework, DDP is the default parallel deployment method.
 This means that the total number of GPUs corresponds to the size of the DP group, and training an LLM with model parallelism decreases the size of the DP group.
 
 Currently, NeMo Framework supports optimizer distribution only for Megatron-Core adam distributed optimizer.
-To enable the distributed adam optimizer, set up ``distributed_fused_adam_with_cosine_annealing`` optimizer recipe from ``nemo.collections.llm.recipes.optim.adam``.
+To enable the distributed adam optimizer, set up ``distributed_fused_adam_with_cosine_annealing`` optimizer recipe from ``nemo.collections.llm.recipes.optim.adam`` or you can create your own optimizer recipe.
 
 .. code-block:: python
-
+    
+    # Use optimizer recipe created by NeMo team
     from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 
     optim = distributed_fused_adam_with_cosine_annealing(max_lr=3e-4)
     optim.config.bf16 = True
 
-For more optimzier options, please visit `this page <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_.
+    # Create your own optimizer recipe with cosine annealing scheduler
+    import nemo_run as run
+    from megatron.core.optimizer import OptimizerConfig
 
-Implement Data Parallelism
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+    from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, PytorchOptimizerModule
 
-DDP in NeMo Framework uses either PyTorch
-`DistributedDataParallel <https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html>`_
-(default) or a custom implementation (if custom multi-precision
-training is enabled with ``megatron_amp_O2``).
+    @run.cli.factory
+    def distributed_optimizer_recipe(
+        precision: str = "bf16-mixed",  # or "16-mixed"
+        warmup_steps: int = 1000,
+        constant_steps: int = 1000,
+        adam_beta1: float = 0.9,
+        adam_beta2: float = 0.95,
+        max_lr: float = 1e-4,
+        min_lr: float = 1e-5,
+        clip_grad: float = 1.0,
+    ) -> run.Config[PytorchOptimizerModule]:
 
-The distributed optimizer in NeMo Framework is built on top of
-`DistributedFusedAdam <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_
-from Apex.
+        opt_cfg = run.Config(
+            OptimizerConfig,
+            optimizer="adam",
+            lr=max_lr,
+            weight_decay=0.1,
+            bf16=precision == "bf16-mixed",
+            fp16=precision == "16-mixed",
+            adam_beta1=adam_beta1,
+            adam_beta2=adam_beta2,
+            adam_eps=1e-5,
+            use_distributed_optimizer=True,
+            clip_grad=clip_grad,
+        )
+
+        sched = run.Config(
+            CosineAnnealingScheduler,
+            warmup_steps=warmup_steps,
+            constant_steps=constant_steps,
+            min_lr=min_lr,
+        )
+
+        return run.Config(
+            MegatronOptimizerModule,
+            config=opt_cfg,
+            lr_scheduler=sched,
+        )
+
+For more optimzier options, please visit `this page <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/optimizer/optimizer_config.py>`_.
 
 ..
     FSDP is not supported in NeMo 2.0 yet.
@@ -122,6 +156,12 @@ Set ``tensor_model_parallel_size`` to greater than ``1`` to enable intra-layer m
        # Set tensor model parallel size
        recipe.trainer.strategy.tensor_model_parallel_size = 2
 
+Set tensor parallelism directly from CLI:
+
+    .. code-block:: bash
+      
+      nemo llm pretrain --factory llama3_8b trainer.strategy.tensor_model_parallel_size=2
+
 Implement Tensor Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -171,6 +211,12 @@ Set ``pipeline_model_parallel_size`` to a value greater than ``1`` to enable int
        # Set pipeline model parallel size
        recipe.trainer.strategy.pipeline_model_parallel_size = 2
 
+Set pipeline parallelism directly from CLI:
+
+    .. code-block:: bash
+      
+      nemo llm pretrain --factory llama3_8b trainer.strategy.pipeline_model_parallel_size=2
+
 Interleaved Pipeline Parallel Schedule
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -187,6 +233,12 @@ To minimize the pipeline bubble, the computation on each GPU can be divided into
        # Set pipeline model parallel size > 1 and enable interleaved pipeline
        recipe.trainer.strategy.pipeline_model_parallel_size = 2
        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 2
+
+Enable interleaved pipeline directly from CLI:
+
+    .. code-block:: bash
+      
+      nemo llm pretrain --factory llama3_8b trainer.strategy.pipeline_model_parallel_size=2 trainer.strategy.virtual_pipeline_model_parallel_size=2
 
 For more insights into this approach, see our detailed blog: `Scaling Language Model Training <https://developer.nvidia.com/blog/scaling-language-model-training-to-a-trillion-parameters-using-megatron/#pipeline_parallelism>`_.
 
@@ -222,6 +274,12 @@ To enable EP, set ``model.expert_model_parallel_size`` to the expert parallel si
 
        # Set expert model parallel size
        recipe.trainer.strategy.expert_model_parallel_size = 4
+
+Set expert parallelism directly from CLI:
+
+    .. code-block:: bash
+      
+      nemo llm pretrain --factory mixtral_8x7b trainer.strategy.expert_model_parallel_size=4
 
 For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68>`__.
 
@@ -265,6 +323,12 @@ To utilize SP in NeMo Framework, set the ``sequence_parallel`` parameter to ``Tr
        recipe.trainer.strategy.tensor_model_parallel_size = 2
        recipe.trainer.strategy.sequence_parallelism = True
 
+Enable sequence parallelism directly from CLI:
+
+    .. code-block:: bash
+      
+      nemo llm pretrain --factory llama3_8b trainer.strategy.tensor_model_parallel_size=2 trainer.strategy.sequence_parallelism=True
+
 Implement Sequence Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -293,6 +357,12 @@ Set ``context_parallel_size`` to a value greater than ``1`` to enable sequence-w
 
        # Set context parallel size
        recipe.trainer.strategy.context_parallel_size = 2
+
+Set ``context_parallel_size`` directly from CLI:
+
+    .. code-block:: bash
+      
+      nemo llm pretrain --factory llama3_8b model.config.context_parallel_size=2
 
 The configuration can be found and modified here: `NeMo Megatron Core Context Config <https://docs.nvidia.com/Megatron-Core/developer-guide/latest/api-guide/context_parallel.html>`_.
 

@@ -42,6 +42,21 @@ Usage
     **trainer_args,
   )
 
+It's also possible to change precision for a specific recipe:
+
+.. code-block:: python
+
+  from functools import partial
+
+  from nemo.collections import llm
+  from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
+
+  # Load recipe
+  recipe = partial(llm.llama3_8b.pretrain_recipe)()
+
+  # Change precision
+  recipe.trainer.plugins = fp16_mixed()
+
 FP8 Training
 ============
 

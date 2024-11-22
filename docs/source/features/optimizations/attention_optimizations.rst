@@ -56,22 +56,34 @@ To use MQA or GQA in the NeMo Framework, adjust the ``num_query_groups`` paramet
 1. **For Multi-query Attention (MQA)**:
    - Set ``num_query_groups`` to `1` to treat all attention heads as a single group.
 
-   .. code-block:: yaml
+   .. code-block:: python
+
+       from nemo.collections import llm
+       from functools import partial
+       
+       # Load train recipe
+       recipe = partial(llm.llama3_8b.pretrain_recipe)()
 
        recipe.model.config.num_query_groups = 1  # Enables Multi-query Attention
 
 2. **For Grouped-query Attention (GQA)**:
    - Set ``num_query_groups`` to a number that is a divisor of the total number of attention heads (more than one but less than the total heads).
 
-   .. code-block:: yaml
+   .. code-block:: python
 
        recipe.model.config.num_query_groups = <number_of_groups>  # Enables Grouped-query Attention
 
    - For regular attention, set this parameter to `None` or match it with the number of heads.
 
-   .. code-block:: yaml
+   .. code-block:: python
 
        recipe.model.config.num_query_groups = None  # Default setting for regular multihead attention
+
+It's also possible to set ``num_query_groups`` directly from CLI:
+
+   .. code-block:: bash
+      
+      nemo llm pretrain --factory llama3_8b model.config.num_query_groups=8
 
 Adjust the ``num_query_groups`` to explore different attention mechanisms and optimize your model's performance based on specific needs.
 

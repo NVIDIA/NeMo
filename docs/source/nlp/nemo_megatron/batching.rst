@@ -18,17 +18,24 @@ Gradient Accumulation        Supports training with large batch sizes with fixed
 Usage
 ^^^^^
 
-.. code-block:: python
+       .. code-block:: python
 
-       from nemo.collections import llm
-       from functools import partial
+              from nemo.collections import llm
+              from functools import partial
 
-       # Load train recipe
-       recipe = partial(llm.llama3_8b.pretrain_recipe)()
-       
-       # Set micro and global batch size
-       recipe.data.micro_batch_size = 4
-       recipe.data.global_batch_size = 16
-       
-       # Set accumulate_grad_batches
-       recipe.trainer.accumulate_grad_batches = 1
+              # Load train recipe
+              recipe = partial(llm.llama3_8b.pretrain_recipe)()
+              
+              # Set micro and global batch size
+              recipe.data.micro_batch_size = 4
+              recipe.data.global_batch_size = 16
+              
+              # Set accumulate_grad_batches
+              recipe.trainer.accumulate_grad_batches = 1
+
+Set batching parameters directly from CLI:
+
+       .. code-block:: bash
+
+              nemo llm pretrain --factory llama3_8b data.micro_batch_size=4 data.global_batch_size=16 trainer.accumulate_grad_batches=1
+
