@@ -520,9 +520,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
         if loss_mask is not None:
-            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
             assert loss_mask.shape == labels.shape
-            loss_mask = torch.ones_like(loss_mask)
+            loss_mask = torch.ones_like(labels)  # include loss on silence too
         assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):
@@ -534,7 +533,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         )
         input_embeds = lm_embedding.word_embeddings(input_ids)
         # merge with encoded
-        encoder_input = input_embeds + encoded
+        encoder_input = input_embeds + encoded * self.cfg.get("duplex_user_channel_weight", 0.3)
         attention_mask = self._create_attention_mask(encoder_input)
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
@@ -977,8 +976,11 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         with open_dict(gpt_cfg):
             use_multi_encoder = gpt_cfg.perception.get("encoders", None) is not None
             if not use_multi_encoder:
+                encoder = gpt_cfg.perception.get("encoder", {})
                 gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
                 gpt_cfg.perception.encoder = audio_cfg.encoder
+                for k, v in encoder.items():
+                    gpt_cfg.perception.encoder[k] = v
             else:
                 for key in gpt_cfg.perception.encoders:
                     model_key = gpt_cfg.perception.encoders[key].get("model_key", "encoder")
