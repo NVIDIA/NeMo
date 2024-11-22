@@ -242,7 +242,7 @@ class MegatronGenerate(Resource):
                 output_sentence = output_sentence[: -len(special_tokens['end_of_turn'] + e)]
             # todo: don't need this if it respects end_strings
             while output_sentence.endswith(e):
-                    output_sentence = output_sentence.removesuffix(e)
+                output_sentence = output_sentence.removesuffix(e)
 
         tokens = output['tokens'][queryid]
         tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
