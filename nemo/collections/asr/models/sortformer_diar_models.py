@@ -395,7 +395,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     def _get_aux_validation_evaluations(self, preds, targets, target_lens) -> dict:
         """
         Compute auxiliary validation evaluations including losses and metrics.
-        
+
         This function calculates various losses and metrics for the training process,
         including Arrival Time Sort (ATS) Loss and Permutation Invariant Loss (PIL)
         based evaluations.
@@ -499,7 +499,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     def _get_aux_test_batch_evaluations(self, batch_idx: int, preds, targets, target_lens):
         """
         Compute auxiliary validation evaluations including losses and metrics.
-        
+
         This function calculates various losses and metrics for the training process,
         including Arrival Time Sort (ATS) Loss and Permutation Invariant Loss (PIL)
         based evaluations.
@@ -574,6 +574,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self,
     ):
         """One-clieck runner function for diarization."""
-        # TODO: A direct one-click runner function that generates 
+        # TODO: A direct one-click runner function that generates
         # speaker labels from audio file path lists.
         raise NotImplementedError
