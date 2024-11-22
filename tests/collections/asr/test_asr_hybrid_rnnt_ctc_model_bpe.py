@@ -18,8 +18,11 @@ import tempfile
 
 import pytest
 import torch
+from lhotse import CutSet, MonoCut
+from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig
 
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
@@ -27,9 +30,6 @@ from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, C
 from nemo.collections.common import tokenizers
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
-from lhotse.testing.dummies import DummyManifest
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-from lhotse import CutSet, MonoCut
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
@@ -168,12 +168,12 @@ class TestEncDecHybridRNNTCTCBPEModel:
         assert diff <= 1e-6
         diff = torch.max(torch.abs(logits_instance - logprobs_batch))
         assert diff <= 1e-6
-    
+
     @pytest.mark.unit
     def test_predict_step(self, hybrid_asr_model):
         hybrid_asr_model = hybrid_asr_model.eval()
         cuts = DummyManifest(CutSet, begin_id=0, end_id=1, with_data=True)
-        dataset = LhotseSpeechToTextBpeDataset(tokenizer=hybrid_asr_model.tokenizer,return_cuts=True)
+        dataset = LhotseSpeechToTextBpeDataset(tokenizer=hybrid_asr_model.tokenizer, return_cuts=True)
         batch = dataset[cuts]
         outputs = hybrid_asr_model.predict_step(batch, 0)
         assert len(outputs) == 1
