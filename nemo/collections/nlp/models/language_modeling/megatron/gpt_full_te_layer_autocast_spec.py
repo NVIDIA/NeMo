@@ -27,9 +27,10 @@ if not HAVE_TE:
 
     TransformerLayer = ApexGuardDefaults
 
+### TODO: safe import
 try:
     from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+    from megatron.core.extensions.transformer_engine import TENorm
     from megatron.core.transformer.cuda_graphs import CudaGraphManager
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
@@ -337,5 +338,5 @@ def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
     assert HAVE_MEGATRON_CORE and HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
     num_layers = get_num_layers_to_build(transformer_config)
     return TransformerBlockSubmodules(
-        layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=FusedLayerNorm
+        layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=TENorm
     )

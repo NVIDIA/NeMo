@@ -237,6 +237,7 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
 
 apex_available = True
 
+## TODO: break this into the apex and non-apex parts
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
     from apex.normalization import MixedFusedRMSNorm

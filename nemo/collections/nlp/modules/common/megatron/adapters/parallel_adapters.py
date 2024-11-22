@@ -17,6 +17,7 @@ import enum
 import logging
 import math
 import re
+import warnings
 from dataclasses import dataclass
 from typing import Optional
 
@@ -37,14 +38,15 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
+## TODO: use safe_import and safe_import_from
 try:
-    from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
+    import transformer_engine as te
 
-    HAVE_APEX = True
+    HAVE_TE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_APEX = False
+    HAVE_TE = False
 
 try:
     from megatron.core import ModelParallelConfig
@@ -164,7 +166,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         dim: int,
         activation: str = 'swish',
         norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
+        norm_type: Optional[str] = 'te_norm',
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
@@ -245,13 +247,15 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.norm_position in ["pre", "post"]:
             ln_features = in_features if self.norm_position == "pre" else out_features
-            if norm_type == 'mixedfusedlayernorm':
-                assert HAVE_APEX, "Apex is required to use MixedFusedLayerNorm"
-                self.layer_norm = MixedFusedLayerNorm(ln_features, 1e-5, sequence_parallel_enbaled=False)
+            if norm_type == 'te_norm' or 'mixedfusedlayernorm':
+                if norm_type == 'mixedfusedlayernorm':
+                    warnings.warn('Apex MixedFusedLayerNorm is deprecated. Using TE LayerNorm instead.')
+                assert HAVE_TE, "Transformer Engine is required to use TENorm"
+                self.layer_norm = te.pytorch.LayerNorm(ln_features, 1e-5, sequence_parallel=False)
             elif norm_type == 'layernorm':
                 self.layer_norm = nn.LayerNorm(ln_features)
             else:
-                raise NotImplementedError("norm_type should be either mixedfusedlayernorm or layernorm")
+                raise NotImplementedError("norm_type should be either te_norm or layernorm")
         else:
             self.layer_norm = None
 
@@ -415,7 +419,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     dim: int
     activation: str = 'swish'
     norm_position: Optional[str] = 'post'
-    norm_type: Optional[str] = 'mixedfusedlayernorm'
+    norm_type: Optional[str] = 'te_norm'
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     gather_output: bool = True
@@ -573,7 +577,7 @@ class LoraUnfusedHto4HAdapter(nn.Module, AdapterModuleUtil):
         dim: int,
         activation: str = 'swish',
         norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
+        norm_type: Optional[str] = 'te_norm',
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
@@ -642,7 +646,7 @@ class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
         kv_channels: int,
         activation: str = 'swish',
         norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
+        norm_type: Optional[str] = 'te_norm',
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
@@ -702,7 +706,7 @@ class LoraUnfusedKQVAdapterConfig(AdapterConfig):
     kv_channels: int
     activation: str = 'swish'
     norm_position: Optional[str] = 'post'
-    norm_type: Optional[str] = 'mixedfusedlayernorm'
+    norm_type: Optional[str] = 'te_norm'
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     gather_output: bool = True
@@ -935,7 +939,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         dim: int,
         activation: str = 'swish',
         norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
+        norm_type: Optional[str] = 'te_norm',
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
@@ -1051,7 +1055,7 @@ class ParallelLinearAdapterWeightTyingConfig:
     dim: int
     activation: str = 'swish'
     norm_position: Optional[str] = 'post'
-    norm_type: Optional[str] = 'mixedfusedlayernorm'
+    norm_type: Optional[str] = 'te_norm'
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     gather_output: bool = True

@@ -32,21 +32,16 @@ try:
     )
 
     HAVE_TE = True
+    LNImpl = TENorm
 except ImportError:
     HAVE_TE = False
 
-try:
-    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-
-    HAVE_APEX = True
-    LNImpl = FusedLayerNorm
-except ImportError:
     import warnings
 
-    from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+    from megatron.core.transformer.torch_layer_norm import WrappedTorchNorm
 
-    warnings.warn(f'Apex is not installed. Falling back to Torch LayerNorm')
-    LNImpl = WrappedTorchLayerNorm
+    warnings.warn(f'Transformer Engine is not installed. Falling back to Torch LayerNorm')
+    LNImpl = WrappedTorchNorm
 
 
 def get_layer_spec(is_vit, normalization) -> ModuleSpec:

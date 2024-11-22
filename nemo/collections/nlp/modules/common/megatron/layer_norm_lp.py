@@ -16,40 +16,6 @@
 import torch
 from nemo.collections.nlp.modules.common.megatron.utils import _cast_if_autocast_enabled
 
-try:
-    from apex.contrib.layer_norm.layer_norm import FastLayerNorm as OrigFastLayerNorm
-    from apex.contrib.layer_norm.layer_norm import _fast_layer_norm
-    from apex.transformer.layers.layer_norm import FastLayerNorm
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-
-if HAVE_APEX:
-    # TODO: use Apex implementation
-    class LayerNorm1P(FastLayerNorm):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            assert isinstance(
-                self, OrigFastLayerNorm
-            ), 'LayerNorm1P implemented only as an apex.contrib.layer_norm.FastLayerNorm extension'
-
-        def reset_parameters(self):
-            torch.nn.init.zeros_(self.weight)
-            torch.nn.init.zeros_(self.bias)
-
-        def forward(self, x):
-            return _fast_layer_norm(x, self.weight + 1, self.bias, self.epsilon, memory_efficient=False)
-
-
-else:
-
-    class LayerNorm1P(torch.nn.Module):
-        def __init__(self, *args, **kwargs):
-            raise NotImplementedError('LayerNorm1P available only with apex installed')
-
-
 class LPLayerNorm(torch.nn.LayerNorm):
     def __init__(self, normalized_shape, eps=1e-05, elementwise_affine=True, device=None, dtype=None):
         super().__init__(

@@ -34,28 +34,24 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.utils.decorators import deprecated_warning
 
+## TODO: safe imports
 try:
-    from apex.transformer.enums import AttnMaskType
-    from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
-
-    HAVE_APEX = True
+    from megatron.core.extensions.transformer_engine import TENorm
+    HAVE_TE = True
 except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-    # fake missing classes with None attributes
-    AttnMaskType = ApexGuardDefaults()
+    HAVE_TE = False
 
 try:
     from megatron.core import InferenceParams, ModelParallelConfig, parallel_state, tensor_parallel
-    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
     from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
     from megatron.core.models.bert.bert_model import BertModel as MCoreBert
     from megatron.core.models.bert.pooler import Pooler
     from megatron.core.packed_seq_params import PackedSeqParams
+    from megatron.core.transformer.enums import AttnMaskType
     from megatron.core.transformer.spec_utils import build_module
     from megatron.core.transformer.transformer_block import TransformerBlock
     from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+    from megatron.core.transformer.tensor_parallel import set_tensor_model_parallel_attributes
     from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
     from megatron.core.utils import make_viewless_tensor
 
@@ -64,6 +60,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     ModelParallelConfig = ApexGuardDefaults
+    AttnMaskType = ApexGuardDefaults()
     HAVE_MEGATRON_CORE = False
 
 
@@ -299,7 +296,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         super(TransformerBlockWithPostLNSupport, self).__init__(*args, **kwargs)
         self.transformer_block_type = transformer_block_type
         if self.transformer_block_type == 'post_ln':
-            self.initial_layernorm = FusedLayerNorm(
+            self.initial_layernorm = TENorm(
                 config=self.config, hidden_size=self.config.hidden_size, eps=self.config.layernorm_epsilon
             )
 
