@@ -75,7 +75,14 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
-    model = llm.HfAutoModelForCausalLM(model_name=args.model, model_accelerator=args.model_accelerator)
+    model_accelerator = None
+    if args.model_accelerator == "te":
+        from functools import partial
+        from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+        model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
+
+    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+    model = llm.HfAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     tokenizer = model.tokenizer
 
     llm.api.finetune(

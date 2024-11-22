@@ -82,10 +82,7 @@ class HfAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForCausalLM.from_config(config, trust_remote_code=self.trust_remote_code)
 
         if self.model_accelerator is not None:
-            if self.model_accelerator == "te":
-                from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
-
-                te_accelerate(self.model, fp8_autocast=False)
+            self.model_accelerator(self.model)
 
         self.model.train()
 
