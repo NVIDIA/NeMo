@@ -2158,7 +2158,7 @@ jobs:
           --tokenizer-model /home/TestData/nlp/gpt2_tokenizer \
           --vocab-file /home/TestData/nlp/gpt2_tokenizer/vocab.json \
           --merge-file /home/TestData/nlp/gpt2_tokenizer/merges.txt \
-          --save examples/nlp/language_modeling/mlm_ci \
+          --save /tmp/mlm_conversion_ckpt \
           --save-interval 10 \
           --ckpt-format torch_dist \
           --ckpt-fully-parallel-save \
@@ -2211,23 +2211,23 @@ jobs:
           ++model.position_embedding_type=rope \
           ++model.add_position_embedding=True \
           trainer.limit_val_batches=1 \
-          exp_manager.exp_dir=examples/nlp/language_modeling/nemo_test
+          exp_manager.exp_dir=/tmp/nemo_conversion_ckpt
 
         python -m torch.distributed.launch --nproc_per_node=1 examples/nlp/language_modeling/megatron_ckpt_to_nemo.py \
-          --checkpoint_folder examples/nlp/language_modeling/mlm_ci \
+          --checkpoint_folder /tmp/mlm_conversion_ckpt \
           --checkpoint_name iter_0000010 \
-          --nemo_file_path examples/nlp/language_modeling/test.nemo \
+          --nemo_file_path /tmp/mlm_to_nemo_test.nemo \
           --tensor_model_parallel_size 1 \
           --pipeline_model_parallel_size 1 \
           --gpus_per_node 1 \
           --model_type gpt \
-          --hparams_file examples/nlp/language_modeling/nemo_test/megatron_gpt/version_0/hparams.yaml \
+          --hparams_file /tmp/nemo_conversion_ckpt/megatron_gpt/version_0/hparams.yaml \
           --convert_mlm
 
       AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/nemo_test/
-        rm -rf examples/nlp/language_modeling/mlm_ci/
-        rm -rf examples/nlp/language_modeling/test.nemo
+        rm -rf /tmp/nemo_conversion_ckpt
+        rm -rf /tmp/mlm_conversion_ckpt
+        rm -rf /tmp/mlm_to_nemo_test.nemo
 
   L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
