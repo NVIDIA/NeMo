@@ -69,6 +69,9 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
+        import torch.distributed
+        if torch.distributed.get_rank() == 0:
+            breakpoint()
         # return unused update_successful, grad_norm, num_zeros_in_grad
         _, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
 
