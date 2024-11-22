@@ -15,11 +15,11 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -39,7 +39,7 @@ def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
 
     return run.Config(
         get_nmt_tokenizer,
-        library='megatronNVIDIAMambaConfig8B',
+        library='megatron',
         model_name="GPTSentencePieceTokenizer",
         tokenizer_model=tokenizer_model,
         use_fast=True,

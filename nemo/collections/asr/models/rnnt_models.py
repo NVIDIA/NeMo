@@ -19,8 +19,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -285,7 +285,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
-
+        timestamps = timestamps or override_config.timestamps if override_config is not None else None
         if timestamps is not None:
             if timestamps or (override_config is not None and override_config.timestamps):
                 logging.info(
