@@ -129,6 +129,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
     add_pooler: bool = True
     bert_binary_head: bool = True
     add_lm_head: bool = True
+    num_tokentypes: float = None
 
     def configure_model(self, tokenizer) -> "MCoreBertModelWrapperWithPostLNSupport":
         """Configure the BERT Model.
@@ -147,16 +148,13 @@ class BertConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
-        if self.bert_type == 'megatron':
-            num_tokentypes = 2 if self.bert_binary_head else 0
-        else:
-            # Huggingface implementation always has num_tokentypes set to 2
-            num_tokentypes = 2
+        if self.num_tokentypes is None:
+            self.num_tokentypes = 2 if self.bert_binary_head else 0
         return MCoreBertModelWrapperWithPostLNSupport(
             bert_type=self.bert_type,
             add_pooler=self.add_pooler,
             config=self,
-            num_tokentypes=num_tokentypes,
+            num_tokentypes=self.num_tokentypes,
             transformer_layer_spec=transformer_layer_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,

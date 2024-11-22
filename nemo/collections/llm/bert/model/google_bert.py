@@ -193,6 +193,7 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             bert_binary_head=self.type == 'pretraining' or self.type == 'classification',
             add_pooler=self.type != 'masked',
             share_embeddings_and_output_weights=True,
+            num_tokentypes=2,
         )
         return output
 
