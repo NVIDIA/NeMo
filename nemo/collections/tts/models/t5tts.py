@@ -562,7 +562,7 @@ class T5TTS_Model(ModelPT):
 
         return val_output
     
-    def infer_batch(self, batch, max_decoder_steps=500):
+    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80):
         with torch.no_grad():
             text = batch['text']
             text_lens = batch['text_lens']
@@ -632,7 +632,7 @@ class T5TTS_Model(ModelPT):
                 )
                 all_code_logits = self.final_proj(decoder_out['output']) # (B, T', num_codebooks * num_tokens_per_codebook)
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
-                audio_codes_next = self.sample_codes_from_logits(all_code_logits_t) # (B, num_codebooks)
+                audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk) # (B, num_codebooks)
                 all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01) # (B, num_codebooks)
                 
                 for item_idx in range(all_codes_next_argmax.size(0)):
@@ -704,6 +704,8 @@ class T5TTS_Model(ModelPT):
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type, # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
             use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            context_duration_min=self.cfg.context_duration_min,
+            context_duration_max=self.cfg.context_duration_max,
         )
         dataset.load_16khz_audio = self.model_type == 'single_encoder_sv_tts'
         dataset.tokenizer_config = self.cfg.text_tokenizer # This will be used in worker_init_fn for instantiating tokenizer

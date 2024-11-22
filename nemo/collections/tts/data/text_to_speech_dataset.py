@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -331,6 +332,8 @@ class T5TTSDataset(TextToSpeechDataset):
         tokenizer_config=None,
         load_16khz_audio: bool = True,
         use_text_conditioning_tokenizer: bool = False,
+        context_duration_min: float = 3.0,
+        context_duration_max: float = 10.0
     ):
         super().__init__(
             dataset_meta=dataset_meta,
@@ -360,6 +363,8 @@ class T5TTSDataset(TextToSpeechDataset):
         self.load_16khz_audio = load_16khz_audio
         self.use_text_conditioning_tokenizer = use_text_conditioning_tokenizer
         self.text_conditioning_tokenizer = None # Assigned in worker_init_fn in model file if use_text_conditioning_tokenizer is True
+        self.context_duration_min = context_duration_min
+        self.context_duration_max = context_duration_max
     
     def __getitem__(self, index):
         data = self.data_samples[index]
@@ -409,7 +414,14 @@ class T5TTSDataset(TextToSpeechDataset):
         
         if self.load_cached_codes_if_available and 'context_audio_codes_path' in data.manifest_entry:
             context_audio_codes_path = data.manifest_entry['context_audio_codes_path']
-            context_audio_codes = torch.load(context_audio_codes_path).long()
+            context_audio_codes = torch.load(context_audio_codes_path).long() # (8, T)
+            # Sample random duration between self.context_duration_min and self.context_duration_max
+            _context_duration_to_slice = random.uniform(self.context_duration_min, self.context_duration_max)
+            _num_frames_to_slice = int(_context_duration_to_slice * self.sample_rate / self.codec_model_downsample_factor)
+            if _num_frames_to_slice < context_audio_codes.shape[1]:
+                start_idx = random.randint(0, context_audio_codes.shape[1] - _num_frames_to_slice)
+                context_audio_codes = context_audio_codes[:, start_idx:start_idx+_num_frames_to_slice]
+
             context_bos_tensor = torch.full((context_audio_codes.shape[0], 1), self.audio_bos_id, dtype=context_audio_codes.dtype)
             context_eos_tensor = torch.full((context_audio_codes.shape[0], 1), self.audio_eos_id, dtype=context_audio_codes.dtype)
             context_audio_codes = torch.cat([context_bos_tensor, context_audio_codes, context_eos_tensor], dim=1)
@@ -421,6 +433,11 @@ class T5TTSDataset(TextToSpeechDataset):
             context_duration = data.manifest_entry['context_audio_duration']
             context_audio_array = _read_audio(audio_filepath=context_audio_filepath, sample_rate=self.sample_rate, offset=0, duration=context_duration)
             context_audio_array = context_audio_array.samples
+            _context_duration_to_slice = random.uniform(self.context_duration_min, self.context_duration_max)
+            _num_samples_to_slice = int(_context_duration_to_slice * self.sample_rate)
+            if _num_samples_to_slice < len(context_audio_array):
+                start_idx = random.randint(0, len(context_audio_array) - _num_samples_to_slice)
+                context_audio_array = context_audio_array[start_idx:start_idx+_num_samples_to_slice]
             context_audio = torch.tensor(context_audio_array, dtype=torch.float32)
             # Pad audio to be multiple of downsample factor
             context_audio = torch.nn.functional.pad(
