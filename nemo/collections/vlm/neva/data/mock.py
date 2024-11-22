@@ -55,8 +55,15 @@ class MockDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             from transformers import AutoProcessor
 
-            processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or processor.tokenizer
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+            if is_llava_next:
+                model_name = "llava-hf/llava-v1.6-vicuna-7b-hf"
+            else:
+                model_name = "llava-hf/llava-1.5-7b-hf"
+
+            processor = AutoProcessor.from_pretrained(model_name)
+            self.tokenizer = tokenizer or AutoTokenizer(model_name)
             self.image_processor = image_processor or processor.image_processor
         else:
             self.tokenizer = tokenizer

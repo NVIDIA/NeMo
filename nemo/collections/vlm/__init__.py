@@ -46,6 +46,7 @@ from nemo.collections.vlm.neva.model.base import (
 from nemo.collections.vlm.neva.model.llava import (
     Llava1_5Config7B,
     Llava1_5Config13B,
+    Llava16Config7B,
     LlavaConfig,
     LlavaModel,
     LlavaNextModel,
@@ -72,6 +73,7 @@ __all__ = [
     "LlavaConfig",
     "Llava1_5Config7B",
     "Llava1_5Config13B",
+    "Llava16Config7B",
     "LlavaModel",
     "LlavaNextModel",
     "MLlamaModel",
@@ -84,5 +86,6 @@ __all__ = [
     "MLlamaConfig90BInstruct",
     "mllama_11b",
     "mllama_90b",
+    "llava16_7B",
     "LlavaNextTaskEncoder",
 ]

@@ -47,7 +47,7 @@ if __name__ == '__main__':
     args = get_args()
 
     gbs = 2
-    mbs = 1
+    mbs = 2
     seq_length = 576
     decoder_seq_length = 1024
     processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")

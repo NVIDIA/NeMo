@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-from nemo.collections.vlm.recipes import mllama_11b, mllama_90b
+from nemo.collections.vlm.recipes import llava16_7b, mllama_11b, mllama_90b
 
 __all__ = [
     "mllama_11b",
     "mllama_90b",
+    "llava16_7b",
 ]

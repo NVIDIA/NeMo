@@ -57,6 +57,11 @@ class Llava1_5Config7B(LlavaConfig):
 
 
 @dataclass
+class Llava16Config7B(Llava1_5Config7B):
+    is_llava_next: bool = field(default=True)
+
+
+@dataclass
 class Llava1_5Config13B(LlavaConfig):
     from transformers import PretrainedConfig
 

@@ -22,6 +22,7 @@ from nemo.collections.vlm.neva.model.base import (
 from nemo.collections.vlm.neva.model.llava import (
     Llava1_5Config7B,
     Llava1_5Config13B,
+    Llava16Config7B,
     LlavaConfig,
     LlavaModel,
     LlavaNextModel,
@@ -38,4 +39,5 @@ __all__ = [
     "Llava1_5Config13B",
     "LlavaModel",
     "LlavaNextModel",
+    "Llava16Config7B",
 ]
