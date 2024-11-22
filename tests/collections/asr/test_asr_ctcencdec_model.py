@@ -22,7 +22,10 @@ from nemo.collections.asr.data import audio_to_text
 from nemo.collections.asr.models import EncDecCTCModel, configs
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.utils.config_utils import assert_dataclass_signature_match, update_model_config
-
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
+from lhotse.testing.dummies import DummyManifest
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from lhotse import CutSet, MonoCut
 
 @pytest.fixture()
 def asr_model():
@@ -130,6 +133,20 @@ class TestEncDecCTCModel:
         assert diff <= 1e-6
         diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
         assert diff <= 1e-6
+
+    @pytest.mark.unit
+    def test_predict_step(self, asr_model):
+        token_list = [" ", "a", "b", "c"]
+        asr_model = asr_model.eval()
+        cuts = DummyManifest(CutSet, begin_id=0, end_id=1, with_data=True)
+        dataset = LhotseSpeechToTextBpeDataset(
+                    tokenizer=make_parser(labels=token_list),return_cuts=True)
+        batch = dataset[cuts]
+        outputs = asr_model.predict_step(batch, 0)
+        assert len(outputs) == 1
+        assert len(outputs[0]) == 2
+        assert isinstance(outputs[0][0], MonoCut)
+        assert isinstance(outputs[0][1], str)
 
     @pytest.mark.unit
     def test_vocab_change(self, asr_model):
