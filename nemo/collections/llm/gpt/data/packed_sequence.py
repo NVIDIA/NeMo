@@ -117,11 +117,15 @@ class PackedSequenceSpecs:
             assert (
                 self.packed_train_data_path.suffix == ".npy"
             ), f"packed training data file must be a .npy file: {self.packed_train_data_path}"
-            assert self.packed_train_data_path.exists(), f"packed training data file does not exist: {self.packed_train_data_path}"
+            assert (
+                self.packed_train_data_path.exists()
+            ), f"packed training data file does not exist: {self.packed_train_data_path}"
 
         if self.packed_val_data_path is not None:
             self.packed_val_data_path = Path(self.packed_val_data_path)
             assert (
                 self.packed_val_data_path.suffix == ".npy"
             ), f"packed validation data file must be a .npy file: {self.packed_val_data_path}"
-            assert self.packed_val_data_path.exists(), f"packed validation data file does not exist: {self.packed_val_data_path}"
+            assert (
+                self.packed_val_data_path.exists()
+            ), f"packed validation data file does not exist: {self.packed_val_data_path}"
