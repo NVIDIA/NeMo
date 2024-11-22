@@ -199,7 +199,7 @@ class MegatronGenerate(Resource):
 
                 MegatronGenerate.inputs.append(conversation)
                 MegatronGenerate.tasks.put(None)  # The tasks queue is only used as a "counter"
-            time.sleep(1)
+            time.sleep(0.5)  # process one batch every 0.5s
         else:
             queryid = 0
         end_strings = ['<|endoftext|>', '</s>', special_tokens['turn_start'], special_tokens['label_start']]
