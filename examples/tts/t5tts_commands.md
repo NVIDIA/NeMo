@@ -23,7 +23,7 @@ cd /home/pneekhara/2023/SimpleT5NeMo/NeMo; export PYTHONPATH="/home/pneekhara/20
 
 ## Model Types
 
-Currently supports two model types `single_encoder_sv_tts` and `multi_encoder_context_tts` (`cfg.model.model_type` in t5tts.yaml)
+Currently supports three model types `single_encoder_sv_tts` , `multi_encoder_context_tts` and `decoder_context_tts` (`cfg.model.model_type` in t5tts.yaml)
 
 1. `single_encoder_sv_tts` is a simple T5 model: Text goes into the encoder and target audio goes to the decoder.
    Additionally, speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder output (all timesteps).
@@ -31,6 +31,11 @@ Currently supports two model types `single_encoder_sv_tts` and `multi_encoder_co
 
 2. `multi_encoder_context_tts` is a multi-encoder T5 model: Transcript and context audio go to different encoders.
    Transcript encoding feeds to layers given by `cfg.model.transcript_decoder_layers` and the context encoding feeds into the remaining layers.
+   Also supports text context - The context text is encoded by DistilBert and is either concatenated after the context audio encoding (along time dimension)
+   or used by itself if context audio is not available.
+
+1. `decoder_context_tts` : Text goes into the encoder; context & target audio go to the decoder.
+   When using text context, the DistilBert embedding of the text will be added instead of the speaker_embedding.
    Also supports text context - The context text is encoded by DistilBert and is either concatenated after the context audio encoding (along time dimension)
    or used by itself if context audio is not available.
 
@@ -46,9 +51,9 @@ If we have already extracted the audio codes then they can also contain the key 
 Note: `target_audio_codes_path` should either be present in ALL training manifests or absent in ALL training manifest. Train set cannot be a mix of both. Same goes for val set.
 If `target_audio_codes_path` is not present, codes are extracted on the fly (and training will be slower).
 
-For `multi_encoder_context_tts`, in addition to the above, the manifest should contain `context_audio_filepath` and `context_duration`. If we have codes already extracted, we can have `context_audio_codes_path` (abosolute path) instead of `context_audio_filepath`. 
+For `multi_encoder_context_tts`, `decoder_context_tts` in addition to the above, the manifest should contain `context_audio_filepath` and `context_duration`. If we have codes already extracted, we can have `context_audio_codes_path` (abosolute path) instead of `context_audio_filepath`. 
 
-Additionally, we can have `context_text` key for text context training. If both, `context_audio_codes_path` and `context_text` are provided, in multi_encoder_context_tts, both information will be used for conditioning, but in single_encoder_sv_tts only context_text will be used.
+Additionally, we can have `context_text` key for text context training. If both, `context_audio_codes_path` and `context_text` are provided, in multi_encoder_context_tts or decoder_context_tts, both information will be used for conditioning, but in single_encoder_sv_tts only context_text will be used.
 
 ### Command
 ```
