@@ -6,13 +6,12 @@ from lhotse import CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
-from nemo.utils import logging
-
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
     build_loss_mask,
     ceil_to_nearest,
 )
+from nemo.utils import logging
 
 
 def collate_vectors(items, max_length: int, padding_value):
@@ -390,7 +389,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 texts_expanded = texts_expanded[:, :-1]
             return texts, text_lengths, texts_expanded
 
-        # import pdb; pdb.set_trace()    
+        # import pdb; pdb.set_trace()
 
         unpadded_target_texts = target_texts
         target_texts, target_text_lengths, target_texts_expanded = _convert_text_to_3d_tensor(target_texts)
