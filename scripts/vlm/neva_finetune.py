@@ -33,6 +33,8 @@ from nemo.utils.exp_manager import TimingCallback
 
 
 def main(args):
+    # pylint: disable=C0115,C0116
+
     # Global and micro batch sizes
     gbs = args.gbs
     mbs = args.mbs

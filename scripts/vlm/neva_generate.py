@@ -30,6 +30,7 @@ from nemo.utils import logging
 
 
 def load_image(image_url: str) -> Image.Image:
+    # pylint: disable=C0115,C0116
     try:
         response = requests.get(image_url, stream=True)
         response.raise_for_status()
@@ -41,6 +42,7 @@ def load_image(image_url: str) -> Image.Image:
 
 
 def main(args) -> None:
+    # pylint: disable=C0115,C0116
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
         ckpt_include_optimizer=False,

@@ -15,7 +15,6 @@
 ## NOTE: This script is present for github-actions testing only.
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
-
 import argparse
 
 import torch
