@@ -489,6 +489,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             assert all(prev_answer_features_lens == audio_batch['answer_features_lens'])
         shift_text_channel_len = answer_codecs_lens - prev_answer_features_lens - 2  # 2 is for bos and eos
 
+        new_loss_mask = []
         all_channels = []
         for i, answer_codec in enumerate(answer_codecs):
             # mask bos and eos following timestamp or synthetic data mark
@@ -507,13 +508,22 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             sliced_text_channel = text_channel[: answer_codec.shape[0]]
             # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
             all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
+            if loss_mask is not None:
+                cur_loss_mask = torch.cat(
+                    [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
+                    dim=0,
+                )
+                new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
         encoded = encoded[:, :-1]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
         if loss_mask is not None:
-            loss_mask = torch.ones_like(labels)  # include loss on silence too
+            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
+            assert loss_mask.shape == labels.shape
+            if self.cfg.get('duplex_loss_on_all_steps', False):
+                loss_mask = torch.ones_like(labels)  # include loss on silence too
         assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):
