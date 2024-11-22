@@ -147,14 +147,14 @@ def score_labels(
         AUDIO_RTTM_MAP (dict): Dictionary containing information provided from manifestpath
         all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
         all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
-        all_uem (list[list[float]]): List of UEM segments for each audio file. If UEM file is not provided, 
+        all_uem (list[list[float]]): List of UEM segments for each audio file. If UEM file is not provided,
                                      it will be read from manifestpath
         collar (float): Length of collar (in seconds) for diarization error rate calculation
         ignore_overlap (bool): If True, overlapping segments in reference and hypothesis will be ignored
         verbose (bool): If True, warning messages will be printed
 
     Returns:
-        metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object. 
+        metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object.
                                                 This object contains detailed scores of each audiofile.
         mapping (dict): Mapping dict containing the mapping speaker label for each audio input
         itemized_errors (tuple): Tuple containing (DER, CER, FA, MISS) for each audio file.
