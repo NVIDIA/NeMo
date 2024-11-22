@@ -134,6 +134,8 @@ def finetune_recipe(
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 2e-05
     elif peft_scheme.lower() == 'lora':
+        # pylint: disable=line-too-long
+        """Adapted from https://github.com/meta-llama/llama-recipes/blob/main/src/llama_recipes/configs/peft.py"""
         recipe.peft = run.Config(
             vlm.LoRA,
             freeze_vision_model=True,

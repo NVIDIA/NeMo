@@ -131,17 +131,20 @@ def finetune_recipe(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         raise ValueError("Full finetuning recipe for Llama-3.2-90B model will be supported soon.")
     elif peft_scheme.lower() == 'lora':
+        # pylint: disable=line-too-long
+        """Adapted from https://github.com/meta-llama/llama-recipes/blob/main/src/llama_recipes/configs/peft.py"""
         recipe.peft = run.Config(
             vlm.LoRA,
-            freeze_vision_model=False,
+            freeze_vision_model=True,
             target_modules=[
-                "*.language_model.*.linear_qkv",
-                "*.language_model.*.linear_q",
-                "*.language_model.*.linear_kv",
-                "*.language_model.*.linear_proj",
-                "*.language_model.*.linear_fc1",
-                "*.language_model.*.linear_fc2",
+                "linear_qkv",
+                "linear_q",
+                "linear_kv",
             ],
+            dim=8,
+            alpha=32,
+            dropout=0.05,
+            dropout_position="pre",
         )
         recipe.optim.config.lr = 1e-4
     else:
