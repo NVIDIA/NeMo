@@ -52,10 +52,10 @@ try:
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
-    from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+    from megatron.core.transformer.torch_layer_norm import WrappedTorchNorm
 
     HAVE_TE = False
-    LayerNormImpl = WrappedTorchLayerNorm
+    LayerNormImpl = WrappedTorchNorm
 
 
 @dataclass
