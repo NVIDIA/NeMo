@@ -56,9 +56,9 @@ from typing_extensions import override
 try:
     from megatron.core.distributed import TorchFullyShardedDataParallel as McoreTorchFSDP
 
-    HAVE_MCORE_FSDP2 = True
+    HAVE_MCORE_TORCH_FSDP2 = True
 except:
-    HAVE_MCORE_FSDP2 = False
+    HAVE_MCORE_TORCH_FSDP2 = False
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
@@ -151,7 +151,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         vp_size (Optional[int]): Virtual pipeline parallel size.
         ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
             DistributedDataParallelConfig which controls the Megatron DDP configuration.
-        fsdp (bool, optional): Whether model should run Torch FSDP2 instead of DDP.
+        fsdp (Optional[str]): Whether model should run Torch FSDP2 instead of DDP, select from ["torch"]. Defaults to None.
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
@@ -186,7 +186,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
-        fsdp: bool = False,
+        fsdp: Optional[str] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
@@ -580,7 +580,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         from megatron.core import parallel_state
 
-        if self.fsdp and HAVE_MCORE_FSDP2:
+        if self.fsdp == "torch" and HAVE_MCORE_TORCH_FSDP2:
             DP = TorchFSDP
         else:
             DP = DDP
@@ -806,7 +806,7 @@ class DDP(McoreDDP):
         return getattr_proxy(self, item)
 
 
-if HAVE_MCORE_FSDP2:
+if HAVE_MCORE_TORCH_FSDP2:
     # remove later
     class TorchFSDP(McoreTorchFSDP):
         def __init__(

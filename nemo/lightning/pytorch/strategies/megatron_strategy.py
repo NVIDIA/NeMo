@@ -135,7 +135,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
-        fsdp (bool, optional): Option of using torch FSDP2. Defaults to False
+        fsdp (Optional[string]): Option of using torch FSDP2, select from ["torch"]. Defaults to None.
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
@@ -195,7 +195,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
-        fsdp: bool = False,
+        fsdp: Optional[str] = None,
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         save_ckpt_format: str = "torch_dist",
@@ -263,12 +263,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.restore_config = restore_config
 
         self._ddp = ddp
-        self._fsdp = False
-        if fsdp:
+        self._fsdp = None
+        if fsdp == "torch":
             if version.parse(torch.__version__) >= version.parse("2.4.0a"):
                 # FSDP 2 is only supported after torch 2.4
                 self._fsdp = fsdp
-                logging.info("FSDP option is set to True. Using FSDP2 for DP.")
+                logging.info("FSDP option is set to Torch. Using MCore's Torch FSDP2 for DP.")
             else:
                 logging.warning("Setting FSDP2 to False. FSDP2 require torch version >= 2.4.")
 
@@ -277,7 +277,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
-            if self._fsdp:
+            if self._fsdp is not None:
                 raise ValueError("Please set ddp to megatron to run Torch FSDP2.")
             self.ddp_config = None
             self.no_ddp_communication_hook = False
@@ -788,7 +788,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         optimizer_states = checkpoint["optimizer"]
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
-            if self._fsdp:
+            if self._fsdp is not None:
                 opt_state['fp32_from_fp16_params'] = OrderedDict()
                 for opt_param in opt_state['optimizer']['state'].values():
                     if isinstance(opt_param, Dict):
@@ -813,7 +813,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         """loads model state dict"""
-        if self._fsdp:
+        if self._fsdp is not None:
             return
 
         assert self.megatron_parallel is not None
