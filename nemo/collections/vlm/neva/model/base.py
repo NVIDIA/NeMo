@@ -70,7 +70,6 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch[0]
     else:
         _batch = batch
-
     required_keys = set()
     required_keys.add("attention_mask")
     required_keys.add("num_media_tiles")

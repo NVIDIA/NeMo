@@ -122,7 +122,7 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
 
 
 class LlavaNextTaskEncoder(MultiModalTaskEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config, seq_length):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config):
         """
         Initialize the LlavaNextTaskEncoder.
 
@@ -138,8 +138,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: LlavaNextSampleEncoder(tokenizer, image_processor, multimodal_sample_config)
         }
-        self.seq_length = seq_length
-        self.ignore_index = multimodal_sample_config.ignore_place_holder
 
     def batch(self, samples: List[LlavaNextTextSample]) -> LlavaNextTextRawBatch:
         """
@@ -184,10 +182,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         image_sizes = torch.cat(image_sizes, dim=0)
         batch_loss_mask = batch_pad_stack(loss_mask)
         batch_attention_mask = batch_pad_stack(attention_mask)
-        # batch_tokens = pad_or_truncate(batch_tokens, self.seq_length, self.tokenizer.pad_token_id)
-        # batch_labels = pad_or_truncate(batch_labels, self.seq_length, self.ignore_index)
-        # batch_loss_mask = pad_or_truncate(batch_loss_mask, self.seq_length, 0)
-        # batch_attention_mask = pad_or_truncate(batch_attention_mask, self.seq_length, 0)
         batch_num_media_tiles = torch.tensor(batch_list(num_media_tiles), dtype=torch.int)
         return LlavaNextTextRawBatch(
             __keys__=batch_keys,
