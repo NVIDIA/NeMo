@@ -38,16 +38,15 @@ else:
 
 def _try_restore_tokenizer(model, ckpt_path):
     from nemo.lightning.io import load_context
+    from nemo.collections.common.tokenizers import TokenizerSpec
 
-    try:
-        tokenizer = load_context(ckpt_path, "model.tokenizer")
+    tokenizer = load_context(ckpt_path, "model.tokenizer")
+    if isinstance(tokenizer, TokenizerSpec):
+        # Ignore if the ckpt doesn't have a tokenizer. type(tokenizer)==TrainerContext in that case.
         model.tokenizer = tokenizer
         model.__io__.tokenizer = tokenizer.__io__
-    except:
-        # Ignore if the ckpt doesn't have a tokenizer.
-        pass
-    finally:
-        return model
+
+    return model
 
 
 @dataclass(kw_only=True)
