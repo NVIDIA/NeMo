@@ -11,21 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import lightning.pytorch as pl
-
-from nemo.collections.vlm.neva.model import Llava15Config7B, Llava15Config13B, LlavaModel
+import nemo_run as run
 
 
-def llava15_7b() -> pl.LightningModule:
-    return LlavaModel(Llava15Config7B())
+@run.cli.factory
+def torchrun(devices: int = 8) -> run.Config[run.LocalExecutor]:
+    """Local executor using torchrun."""
+    env_vars = {
+        "TRANSFORMERS_OFFLINE": "1",
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
+        "NCCL_NVLS_ENABLE": "0",
+        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
+        "NVTE_ASYNC_AMAX_REDUCTION": "1",
+    }
 
+    executor = run.Config(
+        run.LocalExecutor,
+        ntasks_per_node=devices,
+        launcher="torchrun",
+        env_vars=env_vars,
+    )
 
-def llava15_13b() -> pl.LightningModule:
-    return LlavaModel(Llava15Config13B())
-
-
-__all__ = [
-    "llava15_7b",
-    "llava15_13b",
-]
+    return executor
