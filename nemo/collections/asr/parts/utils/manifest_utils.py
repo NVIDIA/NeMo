@@ -66,13 +66,15 @@ def get_ctm_line(
     output_precision: int = 2,
 ) -> str:
     """
-    Get a line in Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
+    Get a line in Conversation Time Mark (CTM) format. Following CTM format appeared in 
+    `Rich Transcription Meeting Eval Plan: RT09` document.
     
     CTM Format: 
         <SOURCE><SP><CHANNEL><SP><BEG-TIME><SP><DURATION><SP><TOKEN><SP><CONF><SP><TYPE><SP><SPEAKER><NEWLINE>
     
     Reference: 
-        https://web.archive.org/web/20170119114252/http://www.itl.nist.gov/iad/mig/tests/rt/2009/docs/rt09-meeting-eval-plan-v2.pdf
+        https://web.archive.org/web/20170119114252/
+        http://www.itl.nist.gov/iad/mig/tests/rt/2009/docs/rt09-meeting-eval-plan-v2.pdf
 
     Args:
         source (str): <SOURCE> is name of the source file, session name or utterance ID
@@ -80,11 +82,14 @@ def get_ctm_line(
         start_time (float): <BEG_TIME> is the begin time of the word, which we refer to as `start_time` in NeMo.
         duration (float): <DURATION> is duration of the word
         token (str): <TOKEN> Token or word for the current entry
-        conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty). A value of “NA” is used (in CTM format data) 
+        conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty). 
+                      A value of “NA” is used (in CTM format data)
                       when no confidence is computed and in the reference data. 
-        type_of_token (str): <TYPE> is the token type. The legal values of <TYPE> are “lex”, “frag”, “fp”, “un-lex”, “for-lex”, “non-lex”, “misc”, or “noscore”
-        speaker (str): <SPEAKER> is a string identifier for the speaker who uttered the token. This should be “null” for non-speech tokens and “unknown” when
-                       the speaker has not been determined. 
+        type_of_token (str): <TYPE> is the token type. The legal values of <TYPE> are 
+                      “lex”, “frag”, “fp”, “un-lex”, “for-lex”, “non-lex”, “misc”, or “noscore”
+        speaker (str): <SPEAKER> is a string identifier for the speaker who uttered the token. 
+                      This should be “null” for non-speech tokens and “unknown” when
+                      the speaker has not been determined. 
         NA_token (str, optional): A token for  . Defaults to '<NA>'.
         output_precision (int, optional): The precision of the output floating point number. Defaults to 3.
 
@@ -505,7 +510,9 @@ def write_manifest(output_path: Union[Path, str], target_manifest: List[dict], e
     Args:
         output_path (str or Path): Path to output manifest file
         target_manifest (list): List of manifest file entries
-        ensure_ascii (bool): default is True, meaning the output is guaranteed to have all incoming non-ASCII characters escaped. If ensure_ascii is false, these characters will be output as-is.
+        ensure_ascii (bool): default is True, meaning the output is guaranteed to have all incoming 
+                             non-ASCII characters escaped. If ensure_ascii is false, these characters 
+                             will be output as-is.
     """
     with open(output_path, "w", encoding="utf-8") as outfile:
         for tgt in target_manifest:
