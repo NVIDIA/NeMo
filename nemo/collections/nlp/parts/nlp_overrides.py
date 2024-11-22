@@ -221,6 +221,7 @@ class NLPDDPStrategy(DDPStrategy):
         self.nccl_communicator_config_path = nccl_communicator_config_path
         self.sharp = sharp
         self._dist_ckpt_parallel_save = dist_ckpt_parallel_save
+        self.save_top_k = False
 
     def setup(self, trainer: "pl.Trainer") -> None:
         """
@@ -387,29 +388,33 @@ class NLPDDPStrategy(DDPStrategy):
             assert (
                 len(checkpoint['optimizer_states']) == 1
             ), "Currently only support checkpointing 1 distributed optimizer per time!"
-            # converts the optimizer states to their sharded equivalents
-            sharded_optim_state = self.optimizer_sharded_state_dict(
-                unsharded_optim_state=checkpoint['optimizer_states'][0]
-            )
-
-            # Check whether to save optim states
-            include_optimizer = True if not storage_options else storage_options.get('include_optimizer', True)
-            if include_optimizer:
-                checkpoint['optimizer_states'] = [sharded_optim_state]
+            if self.save_top_k:
+                nemo_save_dir = Path(ckpt_to_dir(filepath)) / "checkpoint.nemo"
+                self.model.save_to(nemo_save_dir)
             else:
-                checkpoint['optimizer_states'] = None
-            # remove device state_dict
-            checkpoint['state_dict'] = OrderedDict([])
-
-            self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
-
-            if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
-                save_sharded_modelopt_state(
-                    self.lightning_module.get_model_module_list(),
-                    ckpt_to_dir(filepath),
-                    self.unwrapped_checkpoint_io.save_sharded_strategy,
-                    prefix="model.",
+                # converts the optimizer states to their sharded equivalents
+                sharded_optim_state = self.optimizer_sharded_state_dict(
+                    unsharded_optim_state=checkpoint['optimizer_states'][0]
                 )
+
+                # Check whether to save optim states
+                include_optimizer = True if not storage_options else storage_options.get('include_optimizer', True)
+                if include_optimizer:
+                    checkpoint['optimizer_states'] = [sharded_optim_state]
+                else:
+                    checkpoint['optimizer_states'] = None
+                # remove device state_dict
+                checkpoint['state_dict'] = OrderedDict([])
+
+                self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
+
+                if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
+                    save_sharded_modelopt_state(
+                        self.lightning_module.get_model_module_list(),
+                        ckpt_to_dir(filepath),
+                        self.unwrapped_checkpoint_io.save_sharded_strategy,
+                        prefix="model.",
+                    )
         else:
             # PTL override to accomodate model parallel checkpoints
             filepath = inject_model_parallel_rank(filepath)

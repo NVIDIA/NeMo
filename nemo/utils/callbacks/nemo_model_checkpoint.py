@@ -95,6 +95,16 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
+    def _save_topk_checkpoint(self, *args, **kwargs):
+        trainer = args[0]
+        prev_save_top_k = trainer.strategy.save_top_k
+
+        trainer.strategy.save_top_k = True
+        output = super()._save_topk_checkpoint(*args, **kwargs)
+        trainer.strategy.save_top_k = prev_save_top_k
+
+        return output
+
     def nemo_topk_check_previous_run(self):
         try:
             self.best_k_models
