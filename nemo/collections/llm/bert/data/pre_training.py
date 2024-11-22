@@ -158,14 +158,12 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
             num_val_samples = None
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
-        print('Building dataset')
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
             BERTMaskedWordPieceDataset,
             train_valid_test_num_samples,
             is_built_on_rank=lambda: True,
             config=self.bert_dataset_config,
         ).build()
-        print('Building Dataset Done.')
 
     # uncomment once fabric API is merged
     # def fabric_setup(

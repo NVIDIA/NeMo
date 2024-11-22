@@ -11,6 +11,7 @@ from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.utils import logging
 
 
 @dataclass
@@ -89,18 +90,17 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         elif self.type == 'classification':
             source = BertForNextSentencePrediction.from_pretrained(str(self), torch_dtype='auto')
 
-        print(
+        logging.info(
             f"Initializing Bert Model with pooler={self.config.add_pooler} "
             f"lm_head={self.config.add_lm_head}  binary_head={self.config.bert_binary_head}"
         )
         target = self.init()
         trainer = self.nemo_setup(target)
 
-        breakpoint()
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Bert model to Nemo, model saved to {output_path}")
+        logging.info(f"Converted Bert model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -265,7 +265,6 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
     divisible = ctx.target.config.make_vocab_size_divisible_by
     emb_size = embedding.size(0)
     padded_emb_size = int(math.ceil(emb_size / divisible) * divisible)
-    print(padded_emb_size, divisible, emb_size)
     if padded_emb_size > emb_size:
         zeros_to_add = torch.zeros(
             padded_emb_size - emb_size,
@@ -275,7 +274,6 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
         )
         # Concatenate the two tensors along rows
         padded_embedding = torch.cat((embedding, zeros_to_add), dim=0)
-        print(padded_embedding.size())
         return padded_embedding
     return embedding
 
@@ -352,7 +350,6 @@ def _import_embedding_2(ctx: io.TransformCTX, embedding):
     divisible = ctx.target.config.make_vocab_size_divisible_by
     emb_size = embedding.size(0)
     padded_emb_size = int(math.ceil(emb_size / divisible) * divisible)
-    print(padded_emb_size, divisible, emb_size)
     if padded_emb_size > emb_size:
         zeros_to_add = torch.zeros(
             padded_emb_size - emb_size,
@@ -362,6 +359,5 @@ def _import_embedding_2(ctx: io.TransformCTX, embedding):
         )
         # Concatenate the two tensors along rows
         padded_embedding = torch.cat((embedding, zeros_to_add), dim=0)
-        print(padded_embedding.size())
         return padded_embedding
     return embedding
