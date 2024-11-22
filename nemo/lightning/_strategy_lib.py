@@ -516,9 +516,9 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
     from megatron.core import parallel_state
     from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
 
-    strict = parse_strict_flag(strict)
     ## convert from StrictHandling to bool for PTL
     if strict is not None and not isinstance(strict, bool):
+        strict = parse_strict_flag(strict)
         strict_options = [
             StrictHandling.ASSUME_OK_UNEXPECTED,
             StrictHandling.RAISE_UNEXPECTED,
