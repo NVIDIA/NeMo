@@ -293,7 +293,7 @@ class Quantizer:
         use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
         export_tensorrt_llm_checkpoint(
             model=get_unwrapped_mcore_model(model),
-            decoder_type=self._get_decoder_type(model.config),
+            decoder_type=self._get_decoder_type(model),
             dtype=self.torch_dtype,
             export_dir=export_dir,
             inference_tensor_parallel=inference_tp,
