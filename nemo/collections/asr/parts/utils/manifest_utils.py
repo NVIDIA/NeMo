@@ -24,7 +24,7 @@ import numpy as np
 
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
-    get_subsegments,
+    get_subsegments_scriptable,
     get_uniqname_from_filepath,
     rttm_to_labels,
     segments_manifest_to_subsegments_manifest,
@@ -179,7 +179,7 @@ def get_subsegment_dict(subsegments_manifest_file: str, window: float, shift: fl
             segment = segment.strip()
             dic = json.loads(segment)
             audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
-            subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
+            subsegments = get_subsegments_scriptable(offset=offset, window=window, shift=shift, duration=duration)
             if dic['uniq_id'] is not None:
                 uniq_id = dic['uniq_id']
             else:
