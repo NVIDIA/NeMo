@@ -192,7 +192,7 @@ class MegatronGenerate(Resource):
             time.sleep(1)
         else:
             queryid = 0
-        end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
+        end_strings = ['<|endoftext|>', '</s>', special_tokens['turn_start'], special_tokens['label_start']]
 
         # Return a response mimicking the OpenAI ChatCompletion API format
         with lock:  # Need to get lock to keep multiple threads from hitting code
@@ -240,6 +240,9 @@ class MegatronGenerate(Resource):
         for e in end_strings:
             if output_sentence.endswith(special_tokens['end_of_turn'] + e):
                 output_sentence = output_sentence[: -len(special_tokens['end_of_turn'] + e)]
+            # todo: don't need this if it respects end_strings
+            while output_sentence.endswith(e):
+                    output_sentence = output_sentence.removesuffix(e)
 
         tokens = output['tokens'][queryid]
         tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
