@@ -373,7 +373,11 @@ def create_segment_manifest(
     segments_manifest_file = write_rttm2manifest(AUDIO_RTTM_MAP, segment_manifest_path, deci)
     subsegments_manifest_file = subsegment_manifest_path
     segments_manifest_to_subsegments_manifest(
-        segments_manifest_file, subsegments_manifest_file, window, shift, min_subsegment_duration,
+        segments_manifest_file,
+        subsegments_manifest_file,
+        window,
+        shift,
+        min_subsegment_duration,
     )
     subsegments_dict = get_subsegment_dict(subsegments_manifest_file, window, shift, deci)
     write_truncated_subsegments(input_manifest_dict, subsegments_dict, output_manifest_path, step_count, deci)
