@@ -272,6 +272,9 @@ class VQASampleEncoder(BaseSampleEncoder):
         # Iterate through the answers and compute labels for each answer
         for answer in answers:
             # Encode the answer with the stop string
+            # Stripping extra space either on the left or right to the answer. This causes the answer tokens not to match the input tokens
+            answer = answer.lstrip()
+            answer = answer.rstrip()
             answer_tokens = self.tokenizer.encode(
                 answer + ("" if stop_str is None else stop_str), add_special_tokens=False, return_tensors="pt"
             )[0]
