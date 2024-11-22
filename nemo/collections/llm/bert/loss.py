@@ -34,7 +34,6 @@ class BERTLossReduction(MegatronLossReduction):
         if cp_size == 1:
             sop_loss_for_ub = sentence_order_prediction_loss(sop_logits, batch["is_random"])
             lm_loss_for_ub = masked_token_with_zero(lm_loss_, batch["loss_mask"])
-            print(lm_loss_for_ub, sop_loss_for_ub)
         else:
             raise NotImplementedError('CP is not supported for SOP loss yet')
 
@@ -74,7 +73,6 @@ def masked_token_with_zero(tensor: Tensor, mask: Tensor):
     In that case loss mask is all zeros i.e Happens when the entire batch is masked out
     (Practically when MBS=1 or 2, and the number of tokens in each batch is < 7 )
     """
-    breakpoint()
     losses = tensor.float()
     loss_mask = mask.float()
     if loss_mask.sum() == 0:

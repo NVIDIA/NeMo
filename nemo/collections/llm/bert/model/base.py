@@ -147,7 +147,6 @@ class BertConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
-        breakpoint()
         if self.bert_type == 'megatron':
             num_tokentypes = 2 if self.bert_binary_head else 0
         else:
@@ -225,7 +224,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 config=self.config,
                 init_method=self.config.init_method,
                 bias=True,
-                skip_bias_add=False,
+                skip_bias_add=True,
                 gather_output=not self.parallel_output,
                 skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
@@ -279,7 +278,6 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             return output
 
         # logits and loss
-        breakpoint()
         output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()

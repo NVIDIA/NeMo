@@ -140,6 +140,10 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         else:
             transforms = [_import_qkv, _import_qkv_bias, _import_embedding]
 
+        if self.type == 'pretraining' or self.type == 'masked':
+            # For models with output layers, we need to convert the bias weights
+            transforms.append(_import_output_bias)
+
         if self.type != 'model':
             # adding the 'bert.' prefix so that the state dict matches.
             mapping = {f'bert.{k}': v for k, v in mapping.items()}
@@ -277,6 +281,24 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
         return padded_embedding
     return embedding
 
+@io.state_transform(
+    source_key=("cls.predictions.decoder.bias",),
+    target_key="output_layer.bias",
+)
+def _import_output_bias(ctx: io.TransformCTX, bias):
+    divisible = ctx.target.config.make_vocab_size_divisible_by
+    bias_size = bias.size(0)
+    padded_bias_size = int(math.ceil(bias_size / divisible) * divisible)
+    if padded_bias_size > bias_size:
+        zeros_to_add = torch.zeros(
+            padded_bias_size - bias_size,
+            dtype=bias.dtype,
+            device=bias.device,
+        )
+        # Concatenate the two tensors along rows
+        padded_embedding = torch.cat((bias, zeros_to_add), dim=0)
+        return padded_embedding
+    return bias
 
 @io.state_transform(
     source_key=(
