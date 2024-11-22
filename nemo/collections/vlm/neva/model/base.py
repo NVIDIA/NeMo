@@ -860,9 +860,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             labels=final_labels,
             inference_params=inference_params,
         )
-        # if torch.distributed.get_rank() == 0:
-        #     breakpoint()
-        # torch.distributed.barrier()
+        if torch.distributed.get_rank() == 0:
+            breakpoint()
+        torch.distributed.barrier()
         if labels is None or loss_mask is None:
             return output
 
