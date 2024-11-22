@@ -1,24 +1,26 @@
 # Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
-# Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<speaker count limit>_<version>.yaml
+# Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<speaker count limit>-<version>.yaml
 # (Example) `sortformer_diarizer_hybrid_loss_4spk-v1.yaml`.
 # Sortformer Diarizer model checkpoint (.ckpt) and NeMo file (.nemo) contain Fast Conformer Encoder model (NEST Encoder) and the pre-trained NEST model is loaded along with the Transformer Encoder layers.
 # Example: a manifest line for training 
 # {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 90.00, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
 name: "SortFormerDiarizer"
-sample_rate: 16000
 num_workers: 18
 batch_size: 8
 
 model: 
+  sample_rate: 16000
   pil_weight: 0.5 # Weight for Permutation Invariant Loss (PIL) used in training the Sortformer diarizer model
   ats_weight: 0.5 # Weight for Arrival Time Sort (ATS) loss in training the Sortformer diarizer model
-  fc_d_model: 512 # Hidden dimension size of the Fast-conformer Encoder
-  tf_d_model: 192 # Hidden dimension size of the Transformer Encoder
   max_num_of_spks: 4 # Maximum number of speakers per model; currently set to 4
+
+  model_defaults:
+    fc_d_model: 512 # Hidden dimension size of the Fast-conformer Encoder
+    tf_d_model: 192 # Hidden dimension size of the Transformer Encoder
 
   train_ds:
     manifest_filepath: ???
-    sample_rate: ${sample_rate}
+    sample_rate: ${model.sample_rate}
     num_spks: ${model.max_num_of_spks}
     session_len_sec: 90 # Maximum session length in seconds
     soft_label_thres: 0.5 # Threshold for binarizing target values; higher values make the model more conservative in predicting speaker activity.
@@ -47,7 +49,7 @@ model:
     manifest_filepath: ???
     is_tarred: False
     tarred_audio_filepaths: null
-    sample_rate: ${sample_rate}
+    sample_rate: ${model.sample_rate}
     num_spks: ${model.max_num_of_spks}
     session_len_sec: 90 # Maximum session length in seconds
     soft_label_thres: 0.5 # A threshold value for setting up the binarized labels. The higher the more conservative the model becomes. 
@@ -92,7 +94,7 @@ model:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     normalize: "per_feature"
     window_size: 0.025
-    sample_rate: ${sample_rate}
+    sample_rate: ${model.sample_rate}
     window_stride: 0.01
     window: "hann"
     features: 80
@@ -104,15 +106,15 @@ model:
     _target_: nemo.collections.asr.modules.sortformer_modules.SortformerModules
     num_spks: ${model.max_num_of_spks} # Number of speakers per model. This is currently fixed at 4.
     dropout_rate: 0.5 # Dropout rate
-    fc_d_model: ${model.fc_d_model}
-    tf_d_model: ${model.tf_d_model} # Hidden layer size for linear layers in Sortformer Diarizer module
+    fc_d_model: ${model.model_defaults.fc_d_model}
+    tf_d_model: ${model.model_defaults.tf_d_model} # Hidden layer size for linear layers in Sortformer Diarizer module
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
     feat_out: -1
     n_layers: 18
-    d_model: ${model.fc_d_model}
+    d_model: ${model.model_defaults.fc_d_model}
 
     # Sub-sampling parameters
     subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
@@ -147,7 +149,7 @@ model:
   transformer_encoder:
     _target_: nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoder
     num_layers: 18
-    hidden_size: ${model.tf_d_model} # Needs to be multiple of num_attention_heads
+    hidden_size: ${model.model_defaults.tf_d_model} # Needs to be multiple of num_attention_heads
     inner_size: 768
     num_attention_heads: 8
     attn_score_dropout: 0.5
