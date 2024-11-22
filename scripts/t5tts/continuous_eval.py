@@ -20,11 +20,16 @@ dataset_meta_info = {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json',
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
+    },
+    'libri_val': {
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
+        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
+        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
     }
 }
 
 
-def run_inference(hparams_file, checkpoint_file, datasets, out_dir):
+def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk):
     model_cfg = OmegaConf.load(hparams_file).cfg
 
     with open_dict(model_cfg):
@@ -62,6 +67,8 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir):
             codec_model_downsample_factor=model_cfg.codec_model_downsample_factor,
             bos_id=model.bos_id,
             eos_id=model.eos_id,
+            context_audio_bos_id=model.context_audio_bos_id,
+            context_audio_eos_id=model.context_audio_eos_id,
             audio_bos_id=model.audio_bos_id,
             audio_eos_id=model.audio_eos_id,
             num_audio_codebooks=model_cfg.num_audio_codebooks,
@@ -70,7 +77,9 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir):
             dataset_type='test',
             tokenizer_config=None,
             load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
-            use_text_conditioning_tokenizer=model.use_text_conditioning_encoder
+            use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
+            context_duration_min=5.0,
+            context_duration_max=5.0,
         )
         test_dataset.text_tokenizer = model.tokenizer
         if model.use_text_conditioning_encoder:
@@ -95,7 +104,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir):
                 else:
                     batch_cuda[key] = batch[key]
             
-            predicted_audio, predicted_audio_lens, _, _ = model.infer_batch(batch_cuda, max_decoder_steps=500)
+            predicted_audio, predicted_audio_lens, _, _ = model.infer_batch(batch_cuda, max_decoder_steps=500, temperature=temperature, topk=topk)
             for idx in range(predicted_audio.size(0)):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
@@ -133,16 +142,21 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir):
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/SingleEncoder_WithPriorCTC0.002_Rope10k_hparams.yaml")
-    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/SingleEncoder_WithPriorCTC0.002_Rope10k_epoch_9.ckpt")
-    parser.add_argument('--datasets', type=str, default="riva_challenging,vctk")
+    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/SingleEncoder_WithPriorCTC0.002_Rope10k_epoch_11.ckpt")
+    parser.add_argument('--datasets', type=str, default="vctk,libri_val,riva_challenging")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/dracomount")
     parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh")
-    parser.add_argument('--exp_names', type=str, default="SingleEncoder_WithPriorCTC0.002_Rope10k,SingleEncoderTextContext_WithPriorCTC0.002_Rope10k,MultiEncoderTextContext_WithPriorCTC_Rope10k_NoPerceiverCTC0.002_10kall,MultiEncoder_WithPriorCTC_Rope10k_WithPerceiverCTC0.002")
+    # parser.add_argument('--exp_names', type=str, default="SingleEncoder_WithPriorCTC0.002_Rope10k,SingleEncoderTextContext_WithPriorCTC0.002_Rope10k,MultiEncoderTextContext_WithPriorCTC_Rope10k_NoPerceiverCTC0.002_10kall,MultiEncoder_WithPriorCTC_Rope10k_WithPerceiverCTC0.002")
+    # parser.add_argument('--exp_names', type=str, default="MultiEncoder_WithPriorCTC_Rope10k_WithPerceiver,MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver")
+    # parser.add_argument('--exp_names', type=str, default="MultiEncoderTextContext_WithPriorCTC_Rope1k_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_WithPerceiverCTC0.002,SingleEncoderTextContext_WithPriorCTC0.002_Alibi")
+    parser.add_argument('--exp_names', type=str, default="MultiEncoderTextContext_OrigConfig_LearnableEmbeddings_randomContext")
     parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5")
+    parser.add_argument('--temperature', type=float, default=0.7)
+    parser.add_argument('--topk', type=int, default=80)
     args = parser.parse_args()
 
     if (args.hparams_file is not None) and (args.checkpoint_file is not None) and (args.hparams_file != "null"):
-        run_inference(args.hparams_file, args.checkpoint_file, args.datasets.split(","), args.out_dir)
+        run_inference(args.hparams_file, args.checkpoint_file, args.datasets.split(","), args.out_dir, args.temperature, args.topk)
         return
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -183,7 +197,7 @@ def main():
             print("Checkpoint file path: ", checkpoint_copy_path)
 
             
-            run_inference(hparams_copy_path, checkpoint_copy_path, args.datasets.split(","), args.out_dir)
+            run_inference(hparams_copy_path, checkpoint_copy_path, args.datasets.split(","), args.out_dir, args.temperature, args.topk)
             
 
 if __name__ == '__main__':

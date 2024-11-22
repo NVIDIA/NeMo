@@ -316,7 +316,6 @@ class T5TTSDataset(TextToSpeechDataset):
         dataset_meta: Dict,
         sample_rate: int,
         weighted_sampling_steps_per_epoch: Optional[int] = None,
-        align_prior_hop_length: Optional[int] = None,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
         volume_norm: bool = True,
@@ -325,6 +324,8 @@ class T5TTSDataset(TextToSpeechDataset):
         eos_id: int = None,
         audio_bos_id: int = None,
         audio_eos_id: int = None,
+        context_audio_bos_id: int = None,
+        context_audio_eos_id: int = None,
         num_audio_codebooks: int = None,
         prior_scaling_factor: float = None,
         load_cached_codes_if_available: bool = True,
@@ -343,7 +344,7 @@ class T5TTSDataset(TextToSpeechDataset):
             speaker_path=None,
             featurizers=None,
             feature_processors=None,
-            align_prior_hop_length=align_prior_hop_length,
+            align_prior_hop_length=None,
             min_duration=min_duration,
             max_duration=max_duration,
             volume_norm=volume_norm,
@@ -365,6 +366,8 @@ class T5TTSDataset(TextToSpeechDataset):
         self.text_conditioning_tokenizer = None # Assigned in worker_init_fn in model file if use_text_conditioning_tokenizer is True
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
+        self.context_audio_bos_id = context_audio_bos_id
+        self.context_audio_eos_id = context_audio_eos_id
     
     def __getitem__(self, index):
         data = self.data_samples[index]
@@ -422,8 +425,8 @@ class T5TTSDataset(TextToSpeechDataset):
                 start_idx = random.randint(0, context_audio_codes.shape[1] - _num_frames_to_slice)
                 context_audio_codes = context_audio_codes[:, start_idx:start_idx+_num_frames_to_slice]
 
-            context_bos_tensor = torch.full((context_audio_codes.shape[0], 1), self.audio_bos_id, dtype=context_audio_codes.dtype)
-            context_eos_tensor = torch.full((context_audio_codes.shape[0], 1), self.audio_eos_id, dtype=context_audio_codes.dtype)
+            context_bos_tensor = torch.full((context_audio_codes.shape[0], 1), self.context_audio_bos_id, dtype=context_audio_codes.dtype)
+            context_eos_tensor = torch.full((context_audio_codes.shape[0], 1), self.context_audio_eos_id, dtype=context_audio_codes.dtype)
             context_audio_codes = torch.cat([context_bos_tensor, context_audio_codes, context_eos_tensor], dim=1)
             context_audio_codes_len = context_audio_codes.shape[1]
             example['context_audio_codes'] = context_audio_codes
@@ -473,6 +476,11 @@ class T5TTSDataset(TextToSpeechDataset):
                     sample_rate=16000,
                     volume_norm=self.volume_norm,
                 )
+            _context_duration_to_slice = random.uniform(self.context_duration_min, self.context_duration_max)
+            _num_samples_to_slice = int(_context_duration_to_slice * 16000)
+            if _num_samples_to_slice < len(audio_array_16khz):
+                start_idx = random.randint(0, len(audio_array_16khz) - _num_samples_to_slice)
+                audio_array_16khz = audio_array_16khz[start_idx:start_idx+_num_samples_to_slice]
             audio_16khz = torch.tensor(audio_array_16khz, dtype=torch.float32)
             audio_len_16khz = audio_16khz.shape[0]
             example['audio_16khz'] = audio_16khz
