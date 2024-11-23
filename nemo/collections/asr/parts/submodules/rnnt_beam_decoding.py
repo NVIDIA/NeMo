@@ -259,7 +259,7 @@ class BeamRNNTInfer(Typing):
         alsd_max_target_len: Union[int, float] = 1.0,
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
-        maes_num_steps: int = 10,
+        maes_num_steps: int = 2,
         maes_prefix_alpha: int = 1,
         maes_expansion_gamma: float = 2.3,
         maes_expansion_beta: int = 2,
@@ -1178,12 +1178,12 @@ class BeamRNNTInfer(Typing):
                 hyp.alignments = [[]]
 
         for t in range(encoded_lengths):
-            print("Frame idx: ", t)
-            for hyp1 in kept_hyps:
-                print("Sequence: ", hyp1.y_sequence)
-                print("Timesteps: ", hyp1.timestep)
-                print("Score: ", hyp1.score)
-                print()
+            # print("Frame idx: ", t)
+            # for hyp1 in kept_hyps:
+            #     print("Sequence: ", hyp1.y_sequence)
+            #     print("Timesteps: ", hyp1.timestep)
+            #     print("Score: ", hyp1.score)
+            #     print()
             enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
 
             # Perform prefix search to obtain hypothesis

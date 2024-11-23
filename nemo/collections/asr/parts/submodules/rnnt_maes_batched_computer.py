@@ -205,25 +205,38 @@ class BeamBatchedHyps:
         recombined_logps = torch.where(scores_to_keep, new_scores, float('-inf'))
 
         return recombined_logps.view(self.batch_size, self.beam_size, -1)
-        
-        # # TODO: separate lm scores
-        # hyps_equal = (
-        #     (self.hashes[:, :, None] == self.hashes[:, None, :])
-        #     & (self.last_labels[:, :, None] == self.last_labels[:, None, :])
-        #     & (self.current_lengths[:, :, None] == self.current_lengths[:, None, :])
-        # )
+    
+    def recombine_hyps_new(self, labels, label_logps):
+            if self.beam_size <= 1:
+                return
+            non_blanks_mask = labels != self.SOS
+            zero_length_transcriptions = self.full_current_lengths == 0
+            expansion_number = labels.view(self.batch_size, -1).shape[-1]
+            
+            # expansions
+            expansion_hashes = hash_text(self.hashes.unsqueeze(-1), labels)
+            expansion_hashes = torch.where(non_blanks_mask, expansion_hashes, self.hashes.unsqueeze(-1))
+            expansions_equal = expansion_hashes.view(self.batch_size, -1)[:, :, None] == expansion_hashes.view(self.batch_size, -1)[:, None, :]
+            expansion_scores = (self.scores.unsqueeze(-1) + label_logps).view(self.batch_size, -1)
+            expansion_scores = expansion_scores[:, None, :].expand((self.batch_size, expansion_number, expansion_number))
+            
+            # masked_curr_hashes = torch.where(zero_length_transcriptions, -1, self.hashes)
+            # curr_hashes = masked_curr_hashes.unsqueeze(-1).expand(expansion_hashes.shape).reshape(self.batch_size, -1)
+            # curr_scores = self.scores.unsqueeze(-1).expand(expansion_hashes.shape).reshape(self.batch_size, -1)[:, None, :].expand((self.batch_size, expansion_number, expansion_number))
+            # curr_expansions_equal = curr_hashes[:, :, None] == expansion_hashes.view(self.batch_size, -1)[:, None, :]
+            # curr_scores = torch.where(curr_expansions_equal, curr_scores, float('-inf'))
+            # expansion_scores = torch.logaddexp(expansion_scores, curr_scores)
+            
+            expansion_scores = torch.where(expansions_equal, expansion_scores, float('-inf'))
+            expansion_scores_argmax = expansion_scores.argmax(-1, keepdim=False)
+            scores_to_keep = (
+                torch.arange(expansion_number, device=expansion_scores_argmax.device, dtype=torch.long)[None, :] == expansion_scores_argmax
+            )
+            
+            new_scores = torch.logsumexp(expansion_scores, dim=-1, keepdim=False)
+            recombined_logps = torch.where(scores_to_keep, new_scores, float('-inf'))
 
-        # scores_matrix = torch.where(
-        #     hyps_equal,
-        #     self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
-        #     torch.full_like(self.scores, fill_value=float('-inf'))[:, :, None],
-        # )
-        # scores_argmax = scores_matrix.argmax(-1, keepdim=False)
-        # scores_to_keep = (
-        #     torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
-        # )
-        # new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        # torch.where(scores_to_keep, new_scores, torch.full_like(new_scores, fill_value=float('-inf')), out=self.scores)
+            return recombined_logps.view(self.batch_size, self.beam_size, -1)
     
     def get_best_hyps(self):
         result = []
@@ -409,8 +422,8 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         while active_mask.any():
             step+=1
             
-            print("Step: ", step)
-            batched_hyps.print()
+            # print("Step: ", step)
+            # batched_hyps.print()git
             
             labels = batched_hyps.last_labels 
             to_update = active_mask.clone()
@@ -488,12 +501,13 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                 else:
                     raise NotImplementedError
         
-        total_logps = batched_hyps.recombine_hyps(labels, label_logps)
+        label_logps = torch.where(to_update.unsqueeze(-1), label_logps, float('-inf'))
+        total_logps = batched_hyps.recombine_hyps_new(labels, label_logps)
         # total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
                     
         # masking inactive hypotheses/hypotheses that already had blank emission with -INF score
         # adding current hypotheses to the beam
-        total_logps = torch.where(to_update.unsqueeze(-1), total_logps, float('-inf'))
+        # total_logps = torch.where(to_update.unsqueeze(-1), total_logps, float('-inf'))
         labels = torch.where(to_update.unsqueeze(-1), labels, -1)
         total_logps[..., -1] = torch.where(to_update, total_logps[..., -1], batched_hyps.scores)
                     
