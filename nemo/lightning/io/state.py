@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import inspect
 import re
 from dataclasses import dataclass
@@ -161,7 +175,11 @@ def apply_transforms(
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
 
-    assert target_orig_dtypes == extract_dtypes(_target.named_parameters())
+    assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
+        f"dtype mismatch between source and target state dicts. "
+        f"Left side is { {k: v for k, v in target_orig_dtypes.items() if v!=torch.bfloat16} }, "
+        f"Right side is { {k: v for k, v in extract_dtypes(_target.named_parameters()).items() if v!=torch.bfloat16} }"
+    )
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         target.module = _target
 
@@ -224,7 +242,12 @@ class StateDictTransform(Generic[F]):
             source_matches_dict = {k: _match_keys(list(source_dict.keys()), v) for k, v in source_key_dict.items()}
             target_matches = _match_keys(list(target_dict.keys()), target_key)
             param_names = list(filter(lambda x: x in source_matches_dict, fn_params))
-            for layer_names_group in zip(*([source_matches_dict[v] for v in param_names] + [target_matches])):
+            source_matches = [
+                source_matches_dict[v] if source_matches_dict[v].ndim > 0 else [source_matches_dict[v].item()]
+                for v in param_names
+            ]
+            target_matches = [target_matches if target_matches.ndim > 0 else [target_matches.item()]]
+            for layer_names_group in zip(*(source_matches + target_matches)):
                 # Wrap in a list if it's a single layer (ie non-expert)
                 if isinstance(layer_names_group[0], str):
                     layer_names_group = [[x] for x in layer_names_group]
@@ -242,7 +265,7 @@ class StateDictTransform(Generic[F]):
 
             if isinstance(target_key, str):
                 target_matches = _match_keys(target_keys, target_key)
-                if target_matches.size < 1:
+                if target_matches.size == 1 and target_matches == np.array(None):
                     raise ValueError(f"No matches found for target key: {target_key}")
             else:
                 if isinstance(target_key, dict):

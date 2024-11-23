@@ -80,7 +80,18 @@ class MultiBinaryAccuracy(Metric):
         self.add_state("positive_count", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.eps = 1e-6
 
-    def update(self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor, cumulative=False) -> torch.Tensor:
+    def update(
+        self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor, cumulative=False
+    ) -> torch.Tensor:
+        """
+        Update the metric with the given predictions, targets, and signal lengths to the metric instance.
+
+        Args:
+            preds (torch.Tensor): Predicted values.
+            targets (torch.Tensor): Target values.
+            signal_lengths (torch.Tensor): Length of each sequence in the batch input.
+            cumulative (bool): Whether to accumulate the values over time.
+        """
         with torch.no_grad():
             preds_list = [preds[k, : signal_lengths[k], :] for k in range(preds.shape[0])]
             targets_list = [targets[k, : signal_lengths[k], :] for k in range(targets.shape[0])]
@@ -99,7 +110,7 @@ class MultiBinaryAccuracy(Metric):
                 self.false_negative_count += torch.sum(torch.logical_and(self.false, self.negative))
                 self.total_correct_counts += torch.sum(self.preds.round().bool() == self.targets.round().bool())
                 self.total_sample_counts += torch.prod(torch.tensor(self.targets.shape))
-            else: 
+            else:
                 self.positive_count = torch.sum(self.preds.round().bool() == True)
                 self.true_positive_count = torch.sum(torch.logical_and(self.true, self.positive))
                 self.false_positive_count = torch.sum(torch.logical_and(self.false, self.positive))
@@ -110,6 +121,11 @@ class MultiBinaryAccuracy(Metric):
     def compute(self):
         """
         Compute F1 score from the accumulated values. Return -1 if the F1 score is NaN.
+
+        Returns:
+            f1_score (torch.Tensor): F1 score calculated from the accumulated values.
+            precision (torch.Tensor): Precision calculated from the accumulated values.
+            recall (torch.Tensor): Recall calculated from the accumulated values.
         """
         precision = self.true_positive_count / (self.true_positive_count + self.false_positive_count + self.eps)
         recall = self.true_positive_count / (self.true_positive_count + self.false_negative_count + self.eps)

@@ -23,16 +23,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, TypedDict, TypeVar, Union
 
+import lightning.pytorch as pl
 import megatron.core.num_microbatches_calculator
 import pytest
-import pytorch_lightning as pl
 import torch
 import torch.distributed
+from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import MegatronModule
-from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -501,6 +501,7 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
                 monitor="val_loss",
                 save_top_k=1,
                 every_n_train_steps=5,
+                filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
                 # Enables the .nemo file-like checkpointing where all IOMixins are under SerDe
                 always_save_context=True,
             )

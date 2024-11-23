@@ -1,22 +1,44 @@
-from pathlib import Path
-from typing import Any, Callable, Optional, Type, TypeVar
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+from pathlib import Path
+from typing import Callable, Optional, Type, overload
 import fiddle as fdl
-import pytorch_lightning as pl
-from fiddle._src.experimental import serialization
+
+import lightning.pytorch as pl
 
 from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load
 from nemo.lightning.io.pl import TrainerContext
 
 
-def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
+@overload
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = True) -> TrainerContext: ...
+
+
+@overload
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = False) -> fdl.Config[TrainerContext]: ...
+
+
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = True):
     """
     Loads a TrainerContext from a json-file or directory.
 
     Args:
         path (Path): The path to the json-file or directory containing 'io.json'.
         subpath (Optional[str]): Subpath to selectively load only specific objects inside the TrainerContext. Defaults to None.
-
+        build (bool): Whether to build the TrainerContext. Defaults to True.
+            Otherwise, the TrainerContext is returned as a Config[TrainerContext] object.
     Returns
     -------
         TrainerContext: The loaded TrainerContext instance.
@@ -29,7 +51,17 @@ def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
         checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint", subpath="model.config")
 
     """
-    return load(path, output_type=TrainerContext, subpath=subpath)
+    if not isinstance(path, Path):
+        path = Path(path)
+    try:
+        return load(path, output_type=TrainerContext, subpath=subpath, build=build)
+    except FileNotFoundError:
+        # Maintain backwards compatibility with checkpoints that don't have '/context' dir.
+        if path.parts[-1] == 'context':
+            path = path.parent
+        else:
+            path = path / 'context'
+        return load(path, output_type=TrainerContext, subpath=subpath, build=build)
 
 
 def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:

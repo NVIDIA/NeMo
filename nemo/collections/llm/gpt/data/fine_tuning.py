@@ -15,39 +15,48 @@
 import math
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
+from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
+from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
 class FineTuningDataModule(pl.LightningDataModule):
     """Base class for fine-tuning an LLM.
 
     This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models. It inherits from
-    `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading, preprocessing, and batch creation
-    for training, validation, and testing.
+    `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading, preprocessing, and batch
+    creation for training, validation, and testing.
 
     Args:
         dataset_root (Union[str, Path]): The root directory containing the training, validation, and test data.
         seq_length (int, optional): The maximum sequence length for the input and output text. Defaults to 2048.
-        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text. Defaults to None.
+        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text.
             If not provided, a Megatron GPT2 BPE tokenizer will be used.
         micro_batch_size (int, optional): The micro batch size for training. Defaults to 4.
         global_batch_size (int, optional): The global batch size for training. Defaults to 8.
-        rampup_batch_size (Optional[List[int]], optional): A list of batch sizes for ramping up during training. Defaults to None.
+        rampup_batch_size (Optional[List[int]], optional): A list of batch sizes for ramping up during training.
+            Defaults to None.
         seed (int, optional): The random seed for data shuffling. Defaults to 1234.
-        memmap_workers (int, optional): The number of worker processes for loading data using TextMemMapDataset. Defaults to 1.
+        memmap_workers (int, optional): The number of worker processes for loading data using TextMemMapDataset.
+            Defaults to 1.
         num_workers (int, optional): The number of worker processes for data loading. Defaults to 8.
-        pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training. Defaults to True.
-        persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
-        max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping for the mmap dataset
+        pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training.
+            Defaults to True.
+        persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs.
+            Defaults to False.
+        packed_sequence_specs (PackedSequenceSpecs, optional): See PackedSequenceSpecs for details
+        dataset_kwargs (Optional[Dict[str, Any]], optional): Keyword arguments to pass into the GPTSFTDataset class
     """
 
     def __init__(
@@ -63,7 +72,8 @@ class FineTuningDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
-        pad_to_max_length: bool = False,
+        packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
+        dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -79,9 +89,50 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.rampup_batch_size = rampup_batch_size
         self.data_sampler = None
         self.max_train_samples = None
-        self.pad_to_max_length = pad_to_max_length
+        self.packed_sequence_specs = packed_sequence_specs
+        self.packed_sequence_size = -1 if not packed_sequence_specs else packed_sequence_specs.packed_sequence_size
+        self.validate_batch_size_for_packed_sequence()
+        self.dataset_kwargs = dataset_kwargs or {}
+
+    def validate_batch_size_for_packed_sequence(self):
+        """
+        Validate that micro batch size must be 1 when using packed sequence.
+        """
+        if self.packed_sequence_size > 0 and self.micro_batch_size > 1:
+            raise ValueError(
+                "Micro batch size should be 1 when training with packed sequence, but your micro batch size "
+                f"is {self.micro_batch_size}. \nThe following config is equivalent to your current setting for "
+                f"a packed dataset. Please update your config to the following: \n"
+                f"Set micro batch size to 1 (currently {self.micro_batch_size})\n"
+                f"Set global batch size to {self.global_batch_size // self.micro_batch_size} "
+                f"(currently {self.global_batch_size}) \n"
+                f"Set packed sequence length to {self.packed_sequence_size*self.micro_batch_size} "
+                f"(currently {self.packed_sequence_size}) \n"
+                f"For details please visit "
+                f"https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/optimizations/"
+                f"sequence_packing.html"
+            )
+
+    def prepare_data(self) -> None:
+        """
+        Prepare packed sequence data
+        """
+        if self.packed_sequence_size > 0 and not self.train_path_packed.is_file():
+            from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+
+            prepare_packed_sequence_data(
+                input_path=self.train_path,
+                output_path=self.train_path_packed,
+                packed_sequence_size=self.packed_sequence_size,
+                tokenizer=self.tokenizer,
+                max_seq_length=self.seq_length,
+                seed=self.seed,
+            )
 
     def setup(self, stage: str):
+        """Called by pytorch lightning in datamodule setup"""
+
+        # data_sampler is used in `setup_data_sampler` in MegatronStrategy.setup
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=self.micro_batch_size,
@@ -94,48 +145,93 @@ class FineTuningDataModule(pl.LightningDataModule):
         # base_dataset_utils.get_datasets_weights_and_num_samples
         self.max_train_samples = int(math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005))
 
+    def state_dict(self) -> Dict[str, Any]:
+        """Called when saving a checkpoint, implement to generate and save datamodule state.
+
+        Returns:
+            A dictionary containing datamodule state.
+
+        """
+        consumed_samples = self.data_sampler.compute_consumed_samples(
+            self.trainer.global_step - self.data_sampler.init_global_step
+        )
+        return {"consumed_samples": consumed_samples}
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
+
+        Args:
+            state_dict: the datamodule state returned by ``state_dict``.
+
+        """
+        try:
+            from megatron.core.num_microbatches_calculator import update_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+        consumed_samples = state_dict["consumed_samples"]
+        self.data_sampler.init_consumed_samples = consumed_samples
+        self.data_sampler.prev_consumed_samples = consumed_samples
+
+        update_num_microbatches(
+            consumed_samples=consumed_samples,
+            consistency_check=False,
+        )
+        self.data_sampler.if_first_step = 1
+
     def train_dataloader(self) -> DataLoader:
+        # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                str(self.train_path),
+                self.train_path if self.packed_sequence_size <= 0 else self.train_path_packed,
                 max_num_samples=self.max_train_samples,
-                pad_to_max_length=self.pad_to_max_length,
-            )
+                **self.dataset_kwargs,
+            ),
+            mode="train",
         )
 
     def val_dataloader(self) -> DataLoader:
+        # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                str(self.validation_path),
+                self.validation_path,
                 is_test=True,
-                pad_to_max_length=self.pad_to_max_length,
+                **self.dataset_kwargs,
             ),
+            mode="validation",
         )
 
     def test_dataloader(self) -> DataLoader:
+        # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                str(self.test_path),
+                self.test_path,
                 tokens_to_generate=32,
                 is_test=True,
-                pad_to_max_length=self.pad_to_max_length,
-            )
+                **self.dataset_kwargs,
+            ),
+            mode="test",
         )
 
     @lru_cache
-    def _create_dataset(self, path, **kwargs):
+    def _create_dataset(self, path, is_test=False, **kwargs):
+        # pylint: disable=C0115,C0116
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
-            seq_length=self.seq_length,
+            seq_length=(self.seq_length if is_test or self.packed_sequence_size <= 0 else self.packed_sequence_size),
             memmap_workers=self.memmap_workers,
             seed=self.seed,
+            is_test=is_test,
             **kwargs,
         )
 
-    def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
-        return DataLoader(
-            dataset,
+    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
+        # pylint: disable=C0115,C0116
+        return WrappedDataLoader(
+            mode=mode,
+            dataset=dataset,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
@@ -145,12 +241,48 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     @property
     def train_path(self) -> Path:
+        """Path to training dataset file"""
         return self.dataset_root / "training.jsonl"
 
     @property
+    def train_path_packed(self) -> Path:
+        """Path to training dataset file for packed sequence. The file path contains a reference to the
+        tokenizer/model name since packed sequence dataset consists of tokenized indices."""
+        if self.packed_sequence_size > 0:
+            if self.packed_sequence_specs.packed_data_path is not None:
+                return self.packed_sequence_specs.packed_data_path
+            tokenizer_model_name = self._extract_tokenizer_model_name()
+            folder_name = self.dataset_root / "packed" / tokenizer_model_name
+            folder_name.mkdir(parents=True, exist_ok=True)
+            return folder_name / f"training_{self.packed_sequence_size}.npy"
+        else:
+            raise ValueError("`train_path_packed` invalid since packed sequence size is not specified.")
+
+    @property
     def validation_path(self) -> Path:
+        """Path to validation dataset file"""
         return self.dataset_root / "validation.jsonl"
 
     @property
     def test_path(self) -> Path:
+        """Path to test dataset file"""
         return self.dataset_root / "test.jsonl"
+
+    def _extract_tokenizer_model_name(self) -> str:
+        """Automatically get the model name from model path."""
+        if self.packed_sequence_specs.tokenizer_model_name is not None:
+            tokenizer_model_name = self.packed_sequence_specs.tokenizer_model_name
+        elif isinstance(self.tokenizer, AutoTokenizer):
+            name = self.tokenizer.tokenizer.name_or_path
+            if name.endswith("context/nemo_tokenizer"):
+                # NEMO_HOME/hf_org/hf_model/context/nemo_tokenizer => hf_org--hf_model
+                tokenizer_model_name = '--'.join(name.split("/")[-4:-2])
+            elif name.endswith("nemo_tokenizer"):
+                # NEMO_HOME/hf_org/hf_model/nemo_tokenizer => hf_org--hf_model
+                tokenizer_model_name = '--'.join(name.split("/")[-3:-1])
+            else:
+                # hf_org/hf_model => hf_org--hf_model
+                tokenizer_model_name = name.replace("/", "--")
+        else:
+            tokenizer_model_name = f"unknown_tokenizer_{hash(self.tokenizer)}"
+        return tokenizer_model_name

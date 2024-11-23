@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import shutil
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from datasets import DatasetDict, load_dataset
 
@@ -24,6 +24,7 @@ from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
 class SquadDataModule(FineTuningDataModule, IOMixin):
@@ -53,7 +54,8 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
-        pad_to_max_length: bool = False,
+        packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
+        dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
@@ -70,16 +72,16 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             num_workers=num_workers,
             pin_memory=pin_memory,
             persistent_workers=persistent_workers,
-            pad_to_max_length=pad_to_max_length,
+            packed_sequence_specs=packed_sequence_specs,
+            dataset_kwargs=dataset_kwargs,
         )
 
     def prepare_data(self) -> None:
         # if train file is specified, no need to do anything
-        if self.train_path.exists() and not self.force_redownload:
-            return
-
-        dset = self._download_data()
-        self._preprocess_and_split_data(dset)
+        if not self.train_path.exists() or self.force_redownload:
+            dset = self._download_data()
+            self._preprocess_and_split_data(dset)
+        super().prepare_data()
 
     def _download_data(self):
         logging.info(f"Downloading {self.__class__.__name__}...")

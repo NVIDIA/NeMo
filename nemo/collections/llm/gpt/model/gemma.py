@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
+from megatron.core import parallel_state
 from torch import nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
@@ -95,7 +96,8 @@ class GemmaModel(GPTModel):
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
 
         super().configure_model()
-        extend_instance(self.module.embedding, EmbeddingScalingMixin)
+        if parallel_state.is_pipeline_first_stage():
+            extend_instance(self.module.embedding, EmbeddingScalingMixin)
 
 
 @io.model_importer(GemmaModel, "hf")
@@ -160,7 +162,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            share_embeddings_and_output_weights=False,
+            share_embeddings_and_output_weights=True,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -239,8 +241,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -281,8 +282,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
@@ -307,7 +307,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0).float()
+    return torch.cat((down, gate), axis=0)
 
 
 @io.state_transform(

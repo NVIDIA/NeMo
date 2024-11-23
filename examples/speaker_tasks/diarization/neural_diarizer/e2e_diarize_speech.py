@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,21 +58,25 @@ torch.backends.cudnn.deterministic = True
 
 @dataclass
 class PostProcessingParams:
-    window_length_in_sec: float = 0.15
-    shift_length_in_sec: float = 0.01
-    smoothing: bool = False
-    overlap: float = 0.5
-    onset: float = 0.5
-    offset: float = 0.5
-    pad_onset: float = 0.0
-    pad_offset: float = 0.0
-    min_duration_on: float = 0.0
-    min_duration_off: float = 0.0
-    filter_speech_first: bool = True
+    """
+    Postprocessing parameters for end-to-end speaker diarization models.
+    These parameters can significantly affect DER performance depending on the evaluation style and the dataset.
+    It is recommended to tune these parameters based on the evaluation style and the dataset
+    to achieve the desired DER performance.
+    """
+
+    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
+    offset: float = 0.5  # Offset threshold for detecting the end of a speech
+    pad_onset: float = 0.0  # Adding durations before each speech segment
+    pad_offset: float = 0.0  # Adding durations after each speech segment
+    min_duration_on: float = 0.0  # Threshold for small non-speech deletion
+    min_duration_off: float = 0.0  # Threshold for short speech segment deletion
+
 
 @dataclass
 class DiarizationConfig:
-    # Required configs
+    """Diarization configuration parameters for inference."""
+
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
@@ -161,7 +165,7 @@ def convert_pred_mat_to_segments(
     Args:
         audio_rttm_map_dict (dict): dictionary of audio file path, offset, duration and RTTM filepath.
         batch_preds_list (List[torch.Tensor]): list of prediction matrices containing sigmoid values for each speaker.
-            Dimension: [(1, frames, num_speakers), ..., (1, frames, num_speakers)]
+            Dimension: [(1, num_frames, num_speakers), ..., (1, num_frames, num_speakers)]
         unit_10ms_frame_count (int, optional): number of 10ms segments in a frame. Defaults to 8.
         bypass_postprocessing (bool, optional): if True, postprocessing will be bypassed. Defaults to False.
 
@@ -263,7 +267,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
 
     if cfg.random_seed:
         pl.seed_everything(cfg.random_seed)
-        
     if cfg.model_path is None and cfg.pretrained_name is None:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
     if cfg.audio_dir is None and cfg.dataset_manifest is None:

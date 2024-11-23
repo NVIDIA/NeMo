@@ -15,7 +15,7 @@
 r"""
 Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
-    python convert_llama_hf_to_nemo.py \
+    python convert_llama_hf_to_nemo_load.py \
      --input_name_or_path <path_to_hf_checkpoints_folder> \
      --input_state_dict <path_to_saved_state_dict> \
      --output_path <path_to_output_nemo_file> \
@@ -28,8 +28,8 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
 from transformers import AutoTokenizer, LlamaForCausalLM, LlamaTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel

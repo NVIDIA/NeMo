@@ -1,10 +1,27 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
-import pytorch_lightning as L
+import lightning.pytorch as L
 import torch
 import torch.distributed
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.model_inference_wrappers.t5.t5_inference_wrapper import T5InferenceWrapper
+from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -22,13 +39,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 if TYPE_CHECKING:
-    from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
-
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
+
+    from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
+    from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
 
     batch = next(dataloader_iter)
 
@@ -39,11 +57,32 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     else:
         _batch = batch
 
-    # convert attention mask values from int to True/False
-    _batch['enc_mask'] = _batch['enc_mask'] < 0.5
-    _batch['dec_mask'] = _batch['dec_mask'] < 0.5
-    _batch['enc_dec_mask'] = _batch['enc_dec_mask'] < 0.5
+    # work for both mcore's T5 pre-train dataset object, and NeMo's T5SFTDataset dataset
+    enc_mask = _batch['enc_mask'] < 0.5
+    dec_mask = _batch['dec_mask'] < 0.5
+    # process for Flash/Fused
+    enc_mask = enc_mask.unsqueeze(1).unsqueeze(1)
+    dec_mask = dec_mask.unsqueeze(1).unsqueeze(1)
+    enc_dec_mask = (
+        dec_mask,
+        enc_mask,
+    )
+    # set dec_mask to None because decoder uses AttnMaskType.causal
+    dec_mask = None
+    _batch['enc_mask'] = enc_mask
+    _batch['dec_mask'] = dec_mask
+    _batch['enc_dec_mask'] = enc_dec_mask
 
+    # bring to device
+    for key in _batch.keys():
+        if key == "enc_dec_mask":  # because enc_dec_mask is a tuple
+            _batch[key] = (_batch[key][0].cuda(non_blocking=True), _batch[key][1].cuda(non_blocking=True))
+        elif key == "dec_mask":  # because dec_mask is a None since decoder uses AttnMaskType.causal
+            continue
+        else:
+            _batch[key] = _batch[key].cuda(non_blocking=True)
+
+    # set up forward arguments for pipeline parallelism
     required_keys = set()
     required_keys.update(["enc_mask", "dec_mask", "enc_dec_mask"])
     if parallel_state.is_pipeline_first_stage():
@@ -51,7 +90,7 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
-    output = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    output = {key: val if key in required_keys else None for key, val in _batch.items()}
 
     return output
 
@@ -109,9 +148,12 @@ class T5Config(TransformerConfig, io.IOMixin):
     share_embeddings_and_output_weights: bool = True
     make_vocab_size_divisible_by: int = 128
     position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
+    apply_rope_fusion: bool = True
     max_position_embeddings: int = 512
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
+    seq_length: int = 512
+    seq_length_dec: int = 128
     encoder_pipeline_model_parallel_size: int = 0
     attention_softmax_in_fp32: float = False
     bias_activation_fusion: bool = True
@@ -138,7 +180,6 @@ class T5Config(TransformerConfig, io.IOMixin):
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
         from megatron.core import parallel_state
-        from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 
         encoder_config = copy.deepcopy(self)
         encoder_config.num_layers = self.encoder_num_layers
@@ -168,6 +209,38 @@ class T5Config(TransformerConfig, io.IOMixin):
         )
 
         return model
+
+
+@dataclass
+class T5Config220M(T5Config):
+    """
+    NeMo's T5 model variant
+    https://github.com/NVIDIA/NeMo-Framework-Launcher/blob/main/launcher_scripts/conf/training/t5/220m.yaml
+    """
+
+    num_layers: int = 12
+    encoder_num_layers: int = 12
+    hidden_size: int = 768
+    ffn_hidden_size: int = 3072
+    num_attention_heads: int = 12
+
+
+@dataclass
+class T5Config3B(T5Config):
+    num_layers: int = 24
+    encoder_num_layers: int = 24
+    hidden_size: int = 2048
+    ffn_hidden_size: int = 5120
+    num_attention_heads: int = 32
+
+
+@dataclass
+class T5Config11B(T5Config):
+    num_layers: int = 24
+    encoder_num_layers: int = 24
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 10240
+    num_attention_heads: int = 64
 
 
 class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
@@ -229,6 +302,26 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
+
+    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+        # This is to get the MCore model required in T5InferenceWrapper.
+        mcore_model = self.module
+        while mcore_model:
+            if type(mcore_model) is MCoreT5Model:
+                break
+            mcore_model = getattr(mcore_model, "module", None)
+        if mcore_model is None or type(mcore_model) is not MCoreT5Model:
+            raise ValueError("Exact MCoreT5Model instance not found in the model structure.")
+
+        inference_wrapper_config = InferenceWrapperConfig(
+            hidden_size=mcore_model.config.hidden_size,
+            params_dtype=params_dtype,
+            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+            padded_vocab_size=self.tokenizer.vocab_size,
+        )
+
+        model_inference_wrapper = T5InferenceWrapper(mcore_model, inference_wrapper_config)
+        return model_inference_wrapper
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:

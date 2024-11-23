@@ -1,10 +1,24 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+import lightning.pytorch as pl
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
@@ -127,12 +141,18 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.index_mapping_dir = index_mapping_dir
         self.init_global_step = 0
 
-        # add additional tokens for T5 tokenizer
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        # create tokenizer if tokenizer is None
+        if tokenizer is None:
+            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "BertWordPieceCase")
-        additional_tokens = {'additional_special_tokens': [f'<extra_id_{i}>' for i in range(100)]}
-        self.tokenizer.add_special_tokens(additional_tokens)
+            special_tokens = {}
+            special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
+            tokenizer = get_nmt_tokenizer(
+                "megatron",
+                "BertWordPieceCase",
+                special_tokens=special_tokens,
+            )
+        self.tokenizer = tokenizer
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,

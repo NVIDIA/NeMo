@@ -17,14 +17,14 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
+from lightning.pytorch.trainer.states import TrainerFn
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.transformer.transformer_layer import TransformerLayer
-from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
-from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
     StateDictOptions,
     get_optimizer_state_dict,
@@ -35,7 +35,6 @@ from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
-    _MegatronBatchProgress,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -74,7 +73,6 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         data_sampler=None,
-        overwrite_batch_progress: bool = True,
         **kwargs,
     ):
         super().__init__(auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
@@ -82,7 +80,6 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
-        self.overwrite_batch_progress = overwrite_batch_progress
 
     @override
     def setup_environment(self) -> None:
@@ -95,11 +92,6 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self.trainer = trainer
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
-
-        trainer_fn = trainer.state.fn
-        if trainer_fn == TrainerFn.FITTING and self.overwrite_batch_progress:
-            trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
-
         super().setup(trainer)
 
     def _get_loss_reduction(self, step_type: str):

@@ -194,7 +194,6 @@ class MultiSpeakerASRstreamer:
        self._initial_steps = cfg.ignored_initial_frame_steps
        
     def _update_speaker_vote(self, original_words, bsd_words):
-        # import ipdb; ipdb.set_trace()
         start = bsd_words[0]["word_index"]
         updated_words = []
         for list_idx, word_idx in enumerate(range(start, start+len(bsd_words))):
@@ -217,7 +216,10 @@ class MultiSpeakerASRstreamer:
             org_len = len(word_and_ts_seq["words"])
             extra_len = len(word_and_ts_seq["words"]) - self.cfg.word_window
             truncated_words = word_and_ts_seq["words"][extra_len:]
+            # try:
             bsd_truncated_words = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=truncated_words, speaker_count=word_and_ts_seq["speaker_count"])
+            # except:
+                # import ipdb; ipdb.set_trace()
             if self.cfg.bsd_maj_voting:
                 word_and_ts_seq["words"] = self._update_speaker_vote(word_and_ts_seq['words'], bsd_truncated_words)
             else:
@@ -295,6 +297,7 @@ class MultiSpeakerASRstreamer:
             left_offset=left_offset,
             right_offset=right_offset,
         )
+        transcribed_speaker_texts=None
         if len( previous_hypotheses[0].text) == 0 and step_num <= self._initial_steps:
             transcribed_speaker_texts = None
         else:
@@ -304,6 +307,7 @@ class MultiSpeakerASRstreamer:
                                                 tokenizer=self.asr_model.tokenizer,
                                                 step_num=step_num, 
                                                 diar_pred_out_stream=diar_pred_out_stream,
+                                                fifo_preds=fifo_preds, 
                                                 previous_hypotheses=previous_hypotheses, 
                                                 word_and_ts_seq=word_and_ts_seq) 
             if len(word_and_ts_seq["words"]) > 0:
@@ -403,7 +407,7 @@ class DiarizationConfig:
     use_spk_turn_bsd: bool = False
     left_frame_shift: int = -1
     right_frame_shift: int = -1
-    min_sigmoid_val: float = 1e-4
+    min_sigmoid_val: float = 1e-2
     port: List[int] = field(default_factory=list)
     parallel_chunk_word_len: int = 250
     use_ngram: bool = True
@@ -411,7 +415,7 @@ class DiarizationConfig:
     finetune_realtime_ratio: float = 1.03
     discarded_frames: int = 8
     feat_len_sec: float = 0.01
-    limit_max_spks: int = 4
+    limit_max_spks: int = 2
     alpha: float = 0.2
     beta: float = 0.02
     beam_width: int = 16
@@ -559,13 +563,16 @@ def get_word_dict_content(cfg, word, word_index, diar_pred_out_stream, token_gro
             frame_stt, frame_end = (diar_pred_out_stream.shape[1] - 1, diar_pred_out_stream.shape[1])
         else:
             frame_end = frame_stt + 1
+    # Get the speaker based on the frame-wise softmax probabilities.
     speaker_sigmoid = diar_pred_out_stream[0, max((frame_stt + cfg.left_frame_shift), 0):(frame_end + cfg.right_frame_shift), :].mean(dim=0)
     speaker_sigmoid = torch.clamp(speaker_sigmoid, min=cfg.min_sigmoid_val, max=1) 
     speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
+    # _speaker_softmax = torch.softmax(speaker_sigmoid, dim=0)
     speaker_softmax = speaker_softmax.cpu()
     stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
+    speaker_softmax[cfg.limit_max_spks:] = 0.0
     spk_id = speaker_softmax.argmax().item()
-    speaker_votes = torch.zeros(cfg.limit_max_spks).to(torch.int)
+    speaker_votes = torch.zeros(speaker_softmax.shape[0]).to(torch.int)
     speaker_votes[spk_id] += 1
     word_dict = {"word": word,
                  "word_index": word_index,
@@ -605,11 +612,41 @@ def get_truncated_word_window(cfg, step_num, word_and_ts_seq, search_range_ratio
     logging.info(f"Maximum speaker probabilities in the word window: {len(word_and_ts_seq['buffered_words'])}")
     
     if len(word_and_ts_seq["buffered_words"]) != len(speaker_count_buffer):
-        print(f"Length missmatch in word window sequence.")
+        raise ValueError("Length missmatch in word window sequence")
     assert len(word_window_seq) == len(speaker_count_buffer)
     return word_and_ts_seq, word_idx_offset
-        
-def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
+
+def get_multitoken_words(cfg, word_and_ts_seq,  word_seq, new_words, fix_prev_words_count=5):
+    # Fix the multi-token words which are not fully captured by the previous chunk window. 
+    prev_start, prev_end = max(0, len(word_seq)-fix_prev_words_count-len(new_words)), max(0, len(word_seq)-len(new_words))
+    for ct, prev_word in enumerate(word_seq[prev_start: prev_end]):
+        if len(word_and_ts_seq["words"]) > fix_prev_words_count - ct:
+            saved_word = word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"]
+            if len(prev_word) > len(saved_word):
+                if cfg.verbose:
+                    logging.info(f"[Replacing Multi-token Word]: {word_and_ts_seq['words'][-fix_prev_words_count + ct]['word']} with {prev_word}")
+                word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"] = prev_word
+    return word_and_ts_seq
+    
+def get_fifo_queue_preds(cfg, fifo_preds, word_and_ts_seq, diar_pred_out_stream, previous_hypotheses, frame_len: float= 0.08):
+    chunk_preds_len = previous_hypotheses[0].length.item()
+    fifo_start = diar_pred_out_stream.shape[1] - chunk_preds_len - fifo_preds.shape[1]
+    for word_dict in word_and_ts_seq["words"]: 
+        if fifo_start <= word_dict["frame_stt"] and word_dict["frame_end"] < fifo_start + fifo_preds.shape[1]:
+            f_start = word_dict['frame_stt'] - fifo_start + cfg.left_frame_shift
+            f_end = word_dict['frame_end'] - fifo_start + cfg.right_frame_shift
+            # print(f"fifo_start: {fifo_start}, word_dict['frame_stt']: {word_dict['frame_stt']}, word_dict['frame_end']: {word_dict['frame_end']}, f_start: {f_start}, f_end: {f_end}")
+            speaker_sigmoid = fifo_preds[0, max(f_start, 0):f_end, :].mean(dim=0)
+            speaker_sigmoid = torch.clamp(speaker_sigmoid, min=cfg.min_sigmoid_val, max=1) 
+            speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
+            speaker_softmax = speaker_softmax.cpu()
+            spk_id = speaker_softmax.argmax().item()
+            word_dict['speaker'] = f"speaker_{spk_id}"
+            word_dict['speaker_softmax'] = speaker_softmax
+    return word_and_ts_seq 
+
+
+def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, fifo_preds, previous_hypotheses, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
     current_frame_range = [step_num * previous_hypotheses[0].length.item(), (step_num + 1) * previous_hypotheses[0].length.item()]
     offset = current_frame_range[0]
     word_seq = previous_hypotheses[0].text.split()
@@ -619,27 +656,19 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous
     new_tokens = list(itertools.chain(*new_token_group))
     frame_inds_seq = fix_frame_time_step(new_tokens, new_words, frame_inds_seq)
     min_len = min(len(new_words), len(frame_inds_seq))
-    
-    prev_start, prev_end = max(0, len(word_seq)-fix_prev_words_count-len(new_words)), max(0, len(word_seq)-len(new_words))
-    for ct, prev_word in enumerate(word_seq[prev_start: prev_end]):
-        if len(word_and_ts_seq["words"]) > fix_prev_words_count - ct:
-            saved_word = word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"]
-            print(f"prev_word: {prev_word}, saved_word: {saved_word}")
-            if len(prev_word) > len(saved_word):
-                if cfg.verbose:
-                    logging.info(f"[Replacing Multi-token Word]: {word_and_ts_seq['words'][-fix_prev_words_count + ct]['word']} with {prev_word}")
-                word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"] = prev_word
-    
+   
+
     for idx in range(min_len):
         word_and_ts_seq["token_frame_index"].append((new_tokens[idx], frame_inds_seq[idx]))
         word_and_ts_seq["offset_count"] += 1
     
     time_step_local_offset, word_idx_offset = 0, 0
     word_count_offset = len(word_and_ts_seq["words"]) 
+    word_and_ts_seq = get_multitoken_words(cfg, word_and_ts_seq, word_seq, new_words, fix_prev_words_count=fix_prev_words_count)
     
+    ### Get the FIFO queue preds to word_and_ts_seq 
+    # word_and_ts_seq = get_fifo_queue_preds(cfg, fifo_preds, word_and_ts_seq, diar_pred_out_stream, previous_hypotheses)
     for local_idx, (token_group, word) in enumerate(zip(new_token_group, new_words)):
-        print(f"previous_hypotheses[0].text : {previous_hypotheses[0].text}")
-        print(f"local_idx: {local_idx}, token_group: {token_group}, word: {word}, new_words {new_words}")
         word_dict = get_word_dict_content(cfg=cfg, 
                                           word=word,
                                           word_index= (word_count_offset + local_idx),
@@ -725,7 +754,6 @@ def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, deb
             logging.info(f"[   REAL TIME MODE   ] min:sec - {eta_min_sec} Time difference for real-time mode: {time_diff:.4f} seconds")
             time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))
     final_streaming_tran = extract_transcriptions(transcribed_texts)
-    logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
     return final_streaming_tran, final_offline_tran
 
 
@@ -898,7 +926,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                sample['audio_filepath'], offset=sample['offset'], stream_id=-1
+                sample['audio_filepath'], offset=sample['offset'], duration=sample['duration'], stream_id=-1
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])

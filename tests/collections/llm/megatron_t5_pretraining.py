@@ -1,11 +1,25 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 ## NOTE: This script is present for github-actions testing only.
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
 
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -36,10 +50,13 @@ if __name__ == '__main__':
 
     args = get_args()
 
+    special_tokens = {}
+    special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
         vocab_file=args.vocab_path,
+        special_tokens=special_tokens,
     )
     data = PreTrainingDataModule(
         paths=args.data_path,

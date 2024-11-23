@@ -20,7 +20,7 @@ from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
@@ -159,8 +159,8 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
     audio_to_audio_model.set_trainer(trainer)
     audio_to_audio_model = audio_to_audio_model.eval()
 
-    # override sampler
-    if cfg.sampler is not None:
+    # override sampler if necessary
+    if cfg.sampler:
         logging.info('Overriding sampler with %s', cfg.sampler)
 
         if hasattr(audio_to_audio_model, 'sampler'):
