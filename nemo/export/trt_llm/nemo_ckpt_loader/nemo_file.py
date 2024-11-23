@@ -117,7 +117,7 @@ def load_scaling_factors(state_dict: dict, basename: str, size: int) -> Optional
 
 
 def filter_experts_extra_states(state_dict: dict):
-    pattern = r'module\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
+    pattern = r'model\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
     return {k: v for k, v in state_dict.items() if not re.fullmatch(pattern, k)}
 
 
@@ -283,16 +283,17 @@ def copy_tokenizer_files(config, out_dir):
                 outfile.write(infile.read())
 
 
-def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
-    """Loads the tokenizer from the decoded NEMO weights dir."""
+def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenizer:
+    """Loads the tokenizer from the decoded NeMo weights dir."""
+    tokenizer_dir_or_path = Path(tokenizer_dir_or_path)
     if (tokenizer_dir_or_path / "nemo_context").exists():
         from nemo.lightning import io
 
         tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context"), subpath="model.tokenizer")
         return build_tokenizer(tokenizer_spec)
     else:
-        if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
-            return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
+        if (tokenizer_dir_or_path / "huggingface_tokenizer").is_dir():
+            return AutoTokenizer.from_pretrained(tokenizer_dir_or_path / "huggingface_tokenizer")
 
         model_path = (
             tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
@@ -316,24 +317,31 @@ def build_tokenizer(tokenizer):
         if tokenizer.eos_token_id is None:
             tokenizer.add_special_tokens({"eos_token": "</s>"})
     else:
-        try:
-            # If NeMo tokenizer, monkey patch interface
-            from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+        # For NeMo tokenizers, monkey patch encode & batch_decode methods for unified interface
+        import nemo.collections.common.tokenizers as nemo_tokenizers
 
-            if isinstance(tokenizer, TokenizerSpec):
-
-                def batch_encode_patch(self, ids):
+        if isinstance(tokenizer, nemo_tokenizers.TokenizerSpec):
+            if isinstance(tokenizer, nemo_tokenizers.AutoTokenizer):
+                # Unwrap the original methods of HF tokenizer
+                batch_decode = tokenizer.tokenizer.batch_decode
+                encode = tokenizer.tokenizer.encode
+            elif isinstance(tokenizer, nemo_tokenizers.SentencePieceTokenizer):
+                # Define HF equivalents based on available SP methods
+                def batch_decode(self, ids):
                     if torch.is_tensor(ids):
                         ids = ids.cpu().numpy()
-                        ids = ids[0] if len(ids.shape) > 1 else ids
-                    return self.ids_to_text(ids)
+                    if isinstance(ids, np.ndarray):
+                        ids = ids.tolist()
+                    return self.tokenizer.decode(ids)
 
-                tokenizer.bos_token_id = tokenizer.bos_id
-                tokenizer.eos_token_id = tokenizer.eos_id
-                tokenizer.encode = tokenizer.text_to_ids
-                TokenizerSpec.batch_decode = batch_encode_patch
-        except:
-            raise TypeError(f'Unsupported tokenizer build input: {type(tokenizer)}')
+                encode = tokenizer.tokenizer.encode_as_ids
+            else:
+                raise NotImplementedError(f"Patching tokenizer methods for {type(tokenizer)} is not available")
+
+            tokenizer.bos_token_id = tokenizer.bos_id
+            tokenizer.eos_token_id = tokenizer.eos_id
+            nemo_tokenizers.TokenizerSpec.encode = encode
+            nemo_tokenizers.TokenizerSpec.batch_decode = batch_decode
 
     return tokenizer
 
@@ -394,7 +402,10 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                     if isinstance(v, (float, int, str, bool)):
                         nemo_model_config[k] = v
                     elif k == "activation_func":
-                        nemo_model_config["activation"] = v.__name__
+                        if isinstance(v, torch.jit.ScriptFunction):
+                            nemo_model_config["activation"] = v.name
+                        else:
+                            nemo_model_config["activation"] = v.__name__
 
             if nemo_model_config.get("num_moe_experts") is None:
                 nemo_model_config["num_moe_experts"] = 0
@@ -402,10 +413,13 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             if nemo_model_config["activation"] == "silu":
                 nemo_model_config["activation"] = "fast-swiglu"
             elif nemo_model_config["activation"] == "openai_gelu":
-                nemo_model_config["activation"] = "geglu"
+                nemo_model_config["activation"] = "openai-gelu"
+            elif nemo_model_config["activation"] == "squared_relu":
+                nemo_model_config["activation"] = "squared-relu"
 
             nemo_model_config["mcore_gpt"] = True
             nemo_model_config["max_position_embeddings"] = nemo_model_config.get("seq_length", 4096)
+            nemo_model_config["rotary_percentage"] = nemo_model_config.get("rotary_percent", 1.0)
 
             shutil.copytree(io_folder, nemo_export_dir / "nemo_context")
         else:

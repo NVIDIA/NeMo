@@ -15,18 +15,18 @@
 
 from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.llama import Llama3Config70B, LlamaModel
-from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
@@ -232,7 +232,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
             tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=22,
-            overlap_param_gather_with_optimizer_step=True,
+            overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing.
             align_param_gather=True,
         )
     )
@@ -244,7 +244,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = None,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
     seq_length: Optional[int] = None,
@@ -263,9 +263,11 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
         seq_length (int): Maximum number of tokens per microbatch.
-        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given maximum seq_length for better efficiency. By default, this value equals performance_mode.
+        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
+            maximum seq_length for better efficiency. By default, this value equals performance_mode.
         performance_mode (bool): If true, enables optimizations for maximum performance.
 
     Returns:
@@ -293,19 +295,23 @@ def finetune_recipe(
     if seq_length is None:
         seq_length = 4096 if packed_sequence else 2048
 
+    if num_nodes is None:
+        if peft_scheme is None or peft_scheme.lower() == 'none':
+            num_nodes = 4
+        elif peft_scheme.lower() in ['lora', 'dora']:
+            num_nodes = 1
+
     recipe = default_finetune_recipe(
         model(), "meta-llama/Meta-Llama-3-70B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        assert num_nodes >= 4
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA)
+    elif peft_scheme.lower() in ['lora', 'dora']:
+        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.dim = 16
         recipe.peft.alpha = 32
-        recipe.peft.target_modules = ['linear_qkv']
         recipe.optim.config.use_distributed_optimizer = False
 
         # some settings currently do not function correctly with LoRA
@@ -320,7 +326,7 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        recipe.data.pad_to_max_length = True
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
         recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
     if performance_mode:
@@ -341,7 +347,8 @@ def finetune_performance_optimizations(
 
     Args:
         recipe (run.Partial): Base fine-tuning recipe to which performance optimizations will be added
-        peft_scheme (str): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
 
     Returns:
         run.Partial: Partial configuration for performance-optimized fine-tuning.
@@ -379,6 +386,7 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
+        recipe.peft.target_modules = ['linear_qkv']
 
     recipe.trainer.strategy.sequence_parallel = True
 

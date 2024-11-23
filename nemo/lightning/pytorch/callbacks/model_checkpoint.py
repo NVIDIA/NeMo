@@ -17,14 +17,14 @@ import re
 import shutil
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 
-import pytorch_lightning
+import lightning.pytorch
 import torch
 from _weakref import proxy
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
-from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
-from pytorch_lightning.utilities import rank_zero_info
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
+from lightning.pytorch.callbacks.model_checkpoint import _is_local_file_protocol
+from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
@@ -58,13 +58,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
     """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
-    WEIGHTS_PATH = "weights"
 
     def __init__(
         self,
         monitor: Optional[str] = "val_loss",
         verbose: bool = True,
-        save_last: Optional[bool] = True,
+        save_last: Optional[Union[bool, Literal["link"]]] = True,
         save_top_k: int = 3,
         save_weights_only: bool = False,  ## TODO: check support
         mode: str = "min",
@@ -196,7 +195,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 match = re.search('[A-z]', checkpoint[index:])
                 if match:
                     value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hyphen
-                    self.best_k_models[checkpoint] = float(value)
+                else:
+                    value = checkpoint[index:]
+                self.best_k_models[checkpoint] = float(value)
         if len(self.best_k_models) < 1:
             return  # No saved checkpoints yet
 
@@ -311,7 +312,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-    def _ema_callback(self, trainer: 'pytorch_lightning.Trainer'):
+    def _ema_callback(self, trainer: 'lightning.pytorch.Trainer'):
         from nemo.collections.common.callbacks import EMA
 
         ema_callback = None
@@ -392,7 +393,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         except:
             return
 
-    def file_exists(self, filepath: str, trainer: "pytorch_lightning.Trainer", check_dist_ckpt: bool = True) -> bool:
+    def file_exists(self, filepath: str, trainer: "lightning.pytorch.Trainer", check_dist_ckpt: bool = True) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
         exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
@@ -431,12 +432,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
         linkpath = ckpt_to_dir(linkpath)
         super()._link_checkpoint(trainer, filepath, linkpath)
 
-    def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+    def _save_checkpoint(self, trainer: 'lightning.pytorch.Trainer', filepath: str) -> None:
         from nemo.utils.get_rank import is_global_rank_zero
 
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
-        ckpt_filepath = ckpt_to_dir(filepath) / ModelCheckpoint.WEIGHTS_PATH
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
 
@@ -453,15 +453,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if self.async_save:
                 raise ValueError('async_save with EMA not supported')
             with ema_callback.save_original_optimizer_state(trainer):
-                super()._save_checkpoint(trainer, ckpt_filepath)
+                super()._save_checkpoint(trainer, filepath)
 
             # save EMA copy of the model as well.
             with ema_callback.save_ema_model(trainer):
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
-                ckpt_filepath = self._ema_format_filepath(ckpt_filepath)
+                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                filepath = self._ema_format_filepath(filepath)
                 if self.verbose:
-                    rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
-                super()._save_checkpoint(trainer, ckpt_filepath)
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
             ## Determine whether to include optimizer states in the checkpoint
@@ -487,7 +487,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 self.deferred_ckpts_to_remove.append([])
             else:
                 storage_options = None
-            trainer.save_checkpoint(ckpt_filepath, save_weights_only, storage_options=storage_options)
+            trainer.save_checkpoint(filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context", yaml_attrs=["model"])
@@ -499,7 +499,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 finalize_fn()
 
     def _get_finalize_save_checkpoint_callback(
-        self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
+        self, trainer: 'lightning.pytorch.Trainer', filepath: str, global_step: int
     ):
         """Creates a callback that can be used to finalize async (and sync) ckpt saves."""
 
@@ -534,7 +534,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         return _cb
 
-    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, override_async=False) -> None:
+    def _remove_checkpoint(self, trainer: "lightning.pytorch.Trainer", filepath: str, override_async=False) -> None:
         """Performs checkpoint removal.
 
         With async save, `self._remove_checkpoint` is called before the checkpoint
@@ -596,11 +596,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
         }
 
         checkpoint_filepaths = {f.resolve() for f in checkpoint_dir.rglob("*.ckpt")}
-        for ckpt_filepath in checkpoint_filepaths:
-            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(ckpt_filepath)
+        for filepath in checkpoint_filepaths:
+            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(filepath)
             if possible_marker_path in existing_marker_filepaths:
-                logging.warning(f'Removing unfinished checkpoint: {ckpt_filepath}')
-                os.remove(ckpt_filepath)
+                logging.warning(f'Removing unfinished checkpoint: {filepath}')
+                os.remove(filepath)
 
         # some directories might be distributed checkpoints, we remove these if they have a unfinished marker
         all_dirpaths = {d.resolve() for d in checkpoint_dir.glob("*") if d.is_dir()}

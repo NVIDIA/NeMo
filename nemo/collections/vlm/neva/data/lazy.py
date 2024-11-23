@@ -12,37 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Optional
-
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torch.utils import data
-from torch.utils.data import DataLoader
-
-from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
-from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-if TYPE_CHECKING:
-    pass
-
 import json
 import logging
 import os
 import re
 import tarfile
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import decord
+import lightning.pytorch as pl
 import numpy as np
 import torch
 import torch.nn.functional as F
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from PIL import Image
-from torch.utils.data import Dataset, default_collate
+from torch.utils import data
+from torch.utils.data import DataLoader, Dataset, default_collate
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
+from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
 class TarOrFolderImageLoader:
@@ -259,6 +251,7 @@ class LazySupervisedDataset(Dataset):
         data_config,
         tokenizer,
         image_processor,
+        sequence_length=None,
     ):
         super().__init__()
         if data_path is not None:
@@ -270,7 +263,13 @@ class LazySupervisedDataset(Dataset):
         logging.warning("Formatting inputs...Skip in lazy mode")
         self.data_config = data_config
         self.tokenizer = tokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        if isinstance(self.tokenizer, AutoTokenizer):
+            self.tokenizer = self.tokenizer.tokenizer
+
         self.image_processor = image_processor
+        self.sequence_length = sequence_length
 
         self.conv_template = data_config.conv_template
         self.conv = supported_conv_templates[self.conv_template]
@@ -323,8 +322,13 @@ class LazySupervisedDataset(Dataset):
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         source = source['conversations']
-        if roles[source[0]["from"]] != conv.roles[0]:
-            source = source[1:]
+
+        def _fix_roles(roles):
+            if len(source) < 2:
+                return roles
+            return {source[0]["from"]: conv.roles[0], source[1]["from"]: conv.roles[1]}
+
+        roles = _fix_roles(roles)
 
         conv.messages = []
         for j, sentence in enumerate(source):
@@ -354,6 +358,7 @@ class LazySupervisedDataset(Dataset):
                 return_tensors="pt",
             )[0]
             answer_start, answer_end = find_pattern_indices(tokens, answer_tokens, search_start_index)
+            assert answer_start > 0, "Not found valid answer in conversation."
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
             search_start_index = answer_end
         tokens = tokens[:-1]
@@ -492,6 +497,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         weights: Optional[List[float]] = None,
         data_config: Optional[DataConfig] = ImageDataConfig,
         seq_length: int = 2048,
+        decoder_seq_length: Optional[int] = None,
         tokenizer: Optional = None,
         image_processor: Optional = None,
         micro_batch_size: int = 4,
@@ -518,6 +524,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         self.weights = weights
         self.data_config = data_config
         self.seq_length = seq_length
+        self.decoder_seq_length = decoder_seq_length
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.num_train_samples = num_train_samples
@@ -533,13 +540,15 @@ class NevaLazyDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or processor.tokenizer
+            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
             self.image_processor = image_processor or processor.image_processor
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
+            decoder_seq_len=self.decoder_seq_length,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             dataloader_type="cyclic",
