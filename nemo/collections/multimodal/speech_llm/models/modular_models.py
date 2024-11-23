@@ -401,72 +401,77 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         user_signal = audio_batch['audio_signal']
         user_signal_length = audio_batch['audio_signal_length']
 
-        if 'target_texts_merge' not in audio_batch:
+        def resample(audio, audio_lens, orig_sample_rate, target_sample_rate):
+            audio = torchaudio.functional.resample(audio, orig_sample_rate, target_sample_rate)
+            audio_lens = (audio_lens * (target_sample_rate / orig_sample_rate)).int()
+            return audio, audio_lens
+
+        def get_step_from_audio_len(audio_len):
+            return torch.ceil(audio_len / self.codec_model_downsampling_factor / decoder_reduction_factor).int() - 1
+
+        if 'target_texts_merge' not in audio_batch:  # create duplex data from single turn
             labels, loss_mask = (
                 audio_batch['labels'],
                 audio_batch['loss_mask'],
             )
             context_lengths = audio_batch['context_lengths']
 
-        assert self.extract_codec_on_the_fly
-        agent_signal = audio_batch['answer_audio']
-        agent_signal_length = audio_batch['answer_audio_lens']
+            assert self.extract_codec_on_the_fly
+            agent_signal = audio_batch['answer_audio']
+            agent_signal_length = audio_batch['answer_audio_lens']
 
-        def resample(audio, audio_lens, orig_sample_rate, target_sample_rate):
-            audio = torchaudio.functional.resample(audio, orig_sample_rate, target_sample_rate)
-            audio_lens = (audio_lens * (target_sample_rate / orig_sample_rate)).int()
-            return audio, audio_lens
+            if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
+                user_signal, user_signal_length = resample(
+                    user_signal,
+                    user_signal_length,
+                    self.perception.cfg.preprocessor.sample_rate,
+                    codec_sample_rate,
+                )
 
-        if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
-            user_signal, user_signal_length = resample(
-                user_signal,
-                user_signal_length,
-                self.perception.cfg.preprocessor.sample_rate,
-                codec_sample_rate,
-            )
-
-        def get_step_from_audio_len(audio_len):
-            return torch.ceil(audio_len / self.codec_model_downsampling_factor / decoder_reduction_factor).int() - 1
-
-        new_user_signal = []
-        new_agent_signal = []
-        new_user_signal_length = []
-        new_agent_signal_length = []
-        silence_value = 0
-        shift_text_channel_len = []
-        agent_bos_eos_step = []
-        for user, agent, user_len, agent_len in zip(
-            user_signal, agent_signal, user_signal_length, agent_signal_length
-        ):
-            user = user[:user_len]
-            agent = agent[:agent_len]
-            # user, silence, agent, silence -> user, bos, agent, eos
-            # TODO: above design means that in real/synthetic data, we need to mark bos and eos timestamp of agent responses
-            silence_piece = torch.full([silence], silence_value).cuda()
-            new_user_signal.append(
-                torch.cat([user, silence_piece, torch.ones_like(agent) * silence_value, silence_piece], dim=0)
-            )
-            new_agent_signal.append(
-                torch.cat([torch.ones_like(user) * silence_value, silence_piece, agent, silence_piece], dim=0)
-            )
-            duplex_len = user_len + silence + agent_len + silence
-            # make bos step -1 to be safe for silence+speech boundary
-            agent_bos_eos_step.append(
-                [get_step_from_audio_len(user_len + silence) - 1, get_step_from_audio_len(duplex_len)]
-            )
-            new_user_signal_length.append(duplex_len)
-            new_agent_signal_length.append(duplex_len)
-        new_user_signal = pad_sequence(new_user_signal, batch_first=True)
-        new_agent_signal = pad_sequence(new_agent_signal, batch_first=True)
-        new_user_signal_length = torch.Tensor(new_user_signal_length).long().cuda()
-        new_agent_signal_length = torch.Tensor(new_agent_signal_length).long().cuda()
-        if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
-            new_user_signal, new_user_signal_length = resample(
-                new_user_signal,
-                new_user_signal_length,
-                codec_sample_rate,
-                self.perception.cfg.preprocessor.sample_rate,
-            )
+            new_user_signal = []
+            new_agent_signal = []
+            new_user_signal_length = []
+            new_agent_signal_length = []
+            silence_value = 0
+            shift_text_channel_len = []
+            agent_bos_eos_step = []
+            for user, agent, user_len, agent_len in zip(
+                user_signal, agent_signal, user_signal_length, agent_signal_length
+            ):
+                user = user[:user_len]
+                agent = agent[:agent_len]
+                # user, silence, agent, silence -> user, bos, agent, eos
+                # TODO: above design means that in real/synthetic data, we need to mark bos and eos timestamp of agent responses
+                silence_piece = torch.full([silence], silence_value).cuda()
+                new_user_signal.append(
+                    torch.cat([user, silence_piece, torch.ones_like(agent) * silence_value, silence_piece], dim=0)
+                )
+                new_agent_signal.append(
+                    torch.cat([torch.ones_like(user) * silence_value, silence_piece, agent, silence_piece], dim=0)
+                )
+                duplex_len = user_len + silence + agent_len + silence
+                # make bos step -1 to be safe for silence+speech boundary
+                agent_bos_eos_step.append(
+                    [get_step_from_audio_len(user_len + silence) - 1, get_step_from_audio_len(duplex_len)]
+                )
+                new_user_signal_length.append(duplex_len)
+                new_agent_signal_length.append(duplex_len)
+            new_user_signal = pad_sequence(new_user_signal, batch_first=True)
+            new_agent_signal = pad_sequence(new_agent_signal, batch_first=True)
+            new_user_signal_length = torch.Tensor(new_user_signal_length).long().cuda()
+            new_agent_signal_length = torch.Tensor(new_agent_signal_length).long().cuda()
+            if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
+                new_user_signal, new_user_signal_length = resample(
+                    new_user_signal,
+                    new_user_signal_length,
+                    codec_sample_rate,
+                    self.perception.cfg.preprocessor.sample_rate,
+                )
+        else:  # real duplex data read from dataloader
+            new_user_signal = audio_batch['audio_signal']
+            new_user_signal_length = audio_batch['audio_signal_length']
+            new_agent_signal = audio_batch['answer_audio']
+            new_agent_signal_length = audio_batch['answer_audio_lens']
 
         # [b, t, c]
         encoded, encoded_len = self.perception(
@@ -550,7 +555,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """Prepare input for the LLM."""
         assert self.perception.cfg.preprocessor.sample_rate == self.cfg.data.train_ds.sample_rate
         duplex_method = self.cfg.duplex_method
-        if 'target_texts_merge' in audio_batch:
+
+        if duplex_method == 'from_duplex':
+            assert 'target_texts_merge' in audio_batch
             return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
         elif duplex_method == 'from_multiturn':
             return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
