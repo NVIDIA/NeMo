@@ -401,11 +401,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         user_signal = audio_batch['audio_signal']
         user_signal_length = audio_batch['audio_signal_length']
 
-        labels, loss_mask = (
-            audio_batch['labels'],
-            audio_batch['loss_mask'],
-        )
-        context_lengths = audio_batch['context_lengths']
+        if 'target_texts_merge' not in audio_batch:
+            labels, loss_mask = (
+                audio_batch['labels'],
+                audio_batch['loss_mask'],
+            )
+            context_lengths = audio_batch['context_lengths']
 
         assert self.extract_codec_on_the_fly
         agent_signal = audio_batch['answer_audio']
@@ -495,16 +496,19 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             # mask bos and eos following timestamp or synthetic data mark
             answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
             answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
-            base_length = -1 + context_lengths[i]
             pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.eos_id
-            text_channel = torch.cat(
-                [
-                    torch.full([shift_text_channel_len[i], 1], pad_id).cuda(),
-                    torch.full([1, 1], self.tokenizer.bos_id).cuda(),
-                    labels[i, base_length:, :1],
-                ],
-                dim=0,
-            )
+            if 'target_texts_merge' in audio_batch:
+                text_channel = audio_batch['target_texts_merge'][i]
+            else:
+                base_length = -1 + context_lengths[i]
+                text_channel = torch.cat(
+                    [
+                        torch.full([shift_text_channel_len[i], 1], pad_id).cuda(),
+                        torch.full([1, 1], self.tokenizer.bos_id).cuda(),
+                        labels[i, base_length:, :1],
+                    ],
+                    dim=0,
+                )
             sliced_text_channel = text_channel[: answer_codec.shape[0]]
             # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
             all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
@@ -542,18 +546,18 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
 
-    def prepare_llm_input_duplex(self, audio_batch):
-        duplex_method = self.cfg.duplex_method
-        if duplex_method == 'from_multiturn':
-            return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
-        else:
-            raise ValueError(f"Unsupported duplex method: {duplex_method}")
-
     def prepare_llm_input(self, audio_batch):
         """Prepare input for the LLM."""
         assert self.perception.cfg.preprocessor.sample_rate == self.cfg.data.train_ds.sample_rate
-        if self.cfg.get("duplex_method", None) is not None:
-            return self.prepare_llm_input_duplex(audio_batch)
+        duplex_method = self.cfg.duplex_method
+        if 'target_texts_merge' in audio_batch:
+            return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
+        elif duplex_method == 'from_multiturn':
+            return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
+        elif duplex_method == None:
+            pass
+        else:
+            raise ValueError(f"Unknown duplex method: {duplex_method}")
 
         input_signal = audio_batch['audio_signal']
         logging.debug(f'input_signal.shape: {input_signal.shape}')

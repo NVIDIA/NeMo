@@ -107,8 +107,193 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         if self.codec_sample_rate != self.sample_rate:
             logging.info(f'{self.codec_sample_rate} {self.sample_rate} are different')
 
+    def __getitem__duplex_(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
+        import re
+
+        cuts = cuts.sort_by_duration()
+
+        metadata = []
+        instructions, instruction_lengths = [], []
+        target_texts, target_text_lengths = [], []
+        remove_ids = []
+        start_time_tokens, word_lengths = [], []
+        num_turns = []
+        text_start_time = []
+        for id, cut in enumerate(cuts):
+            num_turns.append(len(cut.supervisions))
+            metadata.append({'audio_filepath': cut.id + '.wav'})
+            text_start_time.append([])
+            # treat multiturn data as multiple batch each with 2-turn conversation
+            for i in range(0, len(cut.supervisions), 2):
+                supervisions = cut.supervisions[i : i + 2]
+                # TODO: the following use of _process_example is not ideal. Should update
+                if supervisions[0].speaker == "user":
+                    instruction = self.text_processor._process_example(context=supervisions[0].text, output="")
+                    instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
+                        len(instruction["input_ids"]) - 1
+                    )
+                else:
+                    raise Exception("First speaker should be user")
+
+                if supervisions[1].speaker == "agent":
+                    pattern = r"<\|\d+\|>"
+                    output_text = re.sub(pattern, "", text)
+                    output_text = re.sub(r'\s+', ' ', output_text).strip()
+                    target_text = self.text_processor._process_example(context="", output=output_text)
+                    # -1 to remove the eos token added by the text processor
+                    target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
+                        len(target_text["answer_ids"]) - 1
+                    )
+                else:
+                    raise Exception("Second speaker should be agent")
+
+                instructions.append(instruction)
+                instruction_lengths.append(instruction_length)
+                target_texts.append(target_text)
+                target_text_lengths.append(target_text_length)
+                text_start_time[-1].append(supervisions[1].start)
+
+        answer_audios, answer_audio_lens = None, None
+        assert self.load_answer_audio
+        assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
+
+        # TODO(subhankarg) load answer audio from cut.target_codes logic
+        def load_audio_from_cut(cuts, name, sample_rate):
+            answer_audio_lens = []
+            answer_audios = []  # b*N
+            features_lens = []
+            for i, cut in enumerate(cuts):
+                field = getattr(cut, name)
+                if isinstance(field, list):
+                    audios_list = field
+                else:
+                    audios_list = [field]
+                assert num_turns[i] / 2 == len(audios_list)
+                for audios in audios_list:
+                    from lhotse import Recording
+
+                    if not isinstance(audios, Recording):
+                        # TODO: tmp solution for multiturn
+                        audios = Recording.from_file(audios['sources'][0]['source'])
+
+                    answer_audio = torch.tensor(audios.resample(sample_rate).load_audio()).float()
+                    answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
+                    answer_audios.append(answer_audio)
+                    answer_audio_lens.append(answer_audio_len)
+                    features_lens.append(
+                        math.ceil(
+                            answer_audio_len / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                        )
+                    )
+            answer_audios = collate_vectors(
+                [a.squeeze(0) for a in answer_audios], max_length=max(answer_audio_lens), padding_value=0.0
+            ).float()
+            answer_audio_lens = torch.tensor(answer_audio_lens).long()
+            # Prepare dummy target_codec with speech_pad_id and eos_tensor, the dummy values will be filled in training_step or validation_step
+            # once the audio codecs are extracted from the audio.
+            features_lens = torch.tensor(features_lens, dtype=torch.int)
+            return answer_audios, answer_audio_lens, features_lens
+
+        # treat multiturn data as multiple batch each with 2-turn conversation
+        if hasattr(cuts[0], "target_audio"):  # single-turn
+            # 22k target audio
+            answer_audios, answer_audio_lens, features_lens = load_audio_from_cut(
+                cuts, "target_audio", self.codec_sample_rate
+            )
+            # 16k source audio
+            audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
+            audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
+            # Resample audio waveform here since cuts.resample causes core dump sometimes
+            # cuts_sample_rates = [c.recording.sampling_rate for c in cuts]
+            # import torchaudio
+            # audio = [torchaudio.functional.resample(a, orig_sample_rate, self.sample_rate).squeeze(0) for a, orig_sample_rate in zip(audio, cuts_sample_rates)]
+            # audio_lens = (torch.IntTensor(audio_lens) * (self.sample_rate / torch.IntTensor(cuts_sample_rates))).int()
+            audio = collate_vectors([a.squeeze(0) for a in audio], max_length=max(audio_lens), padding_value=0.0)
+            audio_lens = torch.tensor(audio_lens).long()
+        else:
+            raise ValueError("cut does not have target_audio or target_audios")
+
+        text_pad_id = self.text_processor.pad_id
+
+        def get_3d_empty_tensor(batch_size, length, text_fill_id, speech_fill_id):
+            return torch.cat(
+                [
+                    torch.full((batch_size, length, 1), text_fill_id),
+                    torch.full(
+                        (batch_size, length, self.n_speech_codebooks * self.decoder_reduction_factor), speech_fill_id
+                    ),
+                ],
+                axis=2,
+            )
+
+        def collate_and_pad(inputs):
+            token_lengths = [len(seq) for seq in inputs]
+            max_length = max(token_lengths)
+            assert len(inputs[0].shape) < 3
+            if len(inputs[0].shape) < 2:
+                if self.pad_to_max_length:
+                    max_length = self.max_seq_length
+                else:
+                    max_length = min(self.max_seq_length, ceil_to_nearest(max_length, 8))
+
+                tokens = collate_vectors(inputs, max_length=max_length, padding_value=text_pad_id)
+            else:
+                tokens = get_3d_empty_tensor(len(inputs), max_length, text_pad_id, self.speech_pad_id)
+                for i in range(len(tokens)):
+                    tokens[i, : token_lengths[i], :] = inputs[i]
+            return tokens, torch.LongTensor(token_lengths)
+
+        cnt = 0
+        new_target_texts = []
+        target_text_lengths = []
+        for i in range(len(num_turns)):
+            each_target_texts = []
+            for j in range(num_turns[i] // 2):
+                text_start_step = (
+                    text_start_time[cnt]
+                    * self.codec_sample_rate
+                    / self.codec_model_downsampling_factor
+                    // self.decoder_reduction_factor
+                )
+                each_target_texts.append([self.text_processor.eos_id] * text_start_step)
+                each_target_texts.append([self.text_processor.bos_id])
+                each_target_texts.append(target_texts[cnt][:, 0])
+                each_target_texts.append([self.text_processor.eos_id])
+            new_target_texts.append(torch.cat(each_target_texts, axis=0))
+            target_text_lengths.append(new_target_texts[-1].shape[0])
+        target_texts_merge = collate_and_pad(new_target_texts)
+        assert cnt == len(text_start_time)
+        assert cnt == len(target_texts)
+        assert target_texts_merge.shape[0] == len(num_turns)
+
+        # Merge batch
+        # note: the codec id in labels and contexts and others do not consider the offset e.g. speech_eos is 1002
+        # the offset is all considered by SumVocabParallelEmbedding
+        return_batch = {
+            "sample_ids": list(cuts.ids),
+            "audio_signal": audio,
+            "audio_signal_length": audio_lens,
+            "metadata": metadata,
+            # For forward
+            "instructions": None,
+            "target_texts_merge": target_texts_merge,  # used in prepare_llm_input
+            "contexts": target_texts_merge,  # used in inference
+            "context_lengths": target_text_lengths,
+            "target_texts": target_texts,
+            "target_text_lengths": target_text_lengths,
+            "answers": target_texts,
+            "answer_audio": answer_audios,
+            "answer_audio_lens": answer_audio_lens,
+            "num_turns": torch.Tensor(num_turns).long(),
+        }
+
+        return return_batch
+
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         import re
+
+        if getattr(cuts[0], "s2s_duplex"):
+            return self.__getitem__duplex_(cuts)
 
         def extract_text_and_time_tokens(input_sequence):
             # Regular expression to match time tokens (e.g., <|x|> where x is an integer)
@@ -488,7 +673,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             logging.debug(f'target_tokens: {unpadded_target_texts[0]}')
             logging.debug(f'target_texts_expanded: {target_texts_expanded[0,:]}')
             # [batch, max_feat_len, 1+V], where V = #codebooks * reduction_factor
-            target_codec[:, :, 0] = target_texts_expanded
+            if target_texts_expanded.shape[0] == target_codec.shape[0]:
+                target_codec[:, :, 0] = target_texts_expanded
+            else:
+                raise ValueError("target_texts_expanded and target_codec have different batch size")
             token_list = torch.concat([bos_tensor, target_codec], 1)
             features_lens += 1
 
