@@ -92,6 +92,7 @@ class T5TTS_Model(ModelPT):
         self._tb_logger = None
         self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
+        self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
         
         super().__init__(cfg=cfg, trainer=trainer)
         
@@ -766,6 +767,7 @@ class T5TTS_Model(ModelPT):
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type, # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
             use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            pad_context_text_to_max_duration=self.pad_context_text_to_max_duration,
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
         )

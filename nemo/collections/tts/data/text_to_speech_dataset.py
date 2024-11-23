@@ -38,6 +38,7 @@ from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 import os
+import numpy as np
 
 @dataclass
 class DatasetMeta:
@@ -333,6 +334,7 @@ class T5TTSDataset(TextToSpeechDataset):
         tokenizer_config=None,
         load_16khz_audio: bool = True,
         use_text_conditioning_tokenizer: bool = False,
+        pad_context_text_to_max_duration: bool = False,
         context_duration_min: float = 3.0,
         context_duration_max: float = 10.0
     ):
@@ -353,6 +355,8 @@ class T5TTSDataset(TextToSpeechDataset):
         self.eos_id = eos_id
         self.audio_bos_id = audio_bos_id
         self.audio_eos_id = audio_eos_id
+        self.context_audio_bos_id = context_audio_bos_id
+        self.context_audio_eos_id = context_audio_eos_id
         self.num_audio_codebooks = num_audio_codebooks
         self.codec_model_downsample_factor = codec_model_downsample_factor
         self.include_align_prior = prior_scaling_factor is not None
@@ -364,10 +368,14 @@ class T5TTSDataset(TextToSpeechDataset):
         self.load_16khz_audio = load_16khz_audio
         self.use_text_conditioning_tokenizer = use_text_conditioning_tokenizer
         self.text_conditioning_tokenizer = None # Assigned in worker_init_fn in model file if use_text_conditioning_tokenizer is True
+        self.pad_context_text_to_max_duration = pad_context_text_to_max_duration
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
-        self.context_audio_bos_id = context_audio_bos_id
-        self.context_audio_eos_id = context_audio_eos_id
+    
+    def get_num_audio_samples_to_slice(self, duration, sample_rate):
+        num_codec_frames = int(duration * sample_rate / self.codec_model_downsample_factor)
+        num_audio_samples = num_codec_frames * self.codec_model_downsample_factor
+        return num_audio_samples
     
     def __getitem__(self, index):
         data = self.data_samples[index]
@@ -424,7 +432,13 @@ class T5TTSDataset(TextToSpeechDataset):
             if _num_frames_to_slice < context_audio_codes.shape[1]:
                 start_idx = random.randint(0, context_audio_codes.shape[1] - _num_frames_to_slice)
                 context_audio_codes = context_audio_codes[:, start_idx:start_idx+_num_frames_to_slice]
-
+            else:
+                # Repeaet the audio if it is shorter than the desired duration
+                _num_repeats = int(np.ceil(_num_frames_to_slice / context_audio_codes.shape[1]))
+                # context_audio_codes is a tensor of shape (num_codebooks, T)
+                context_audio_codes_repeated = context_audio_codes.repeat(1, _num_repeats)
+                context_audio_codes = context_audio_codes_repeated[:, :_num_frames_to_slice]
+            
             context_bos_tensor = torch.full((context_audio_codes.shape[0], 1), self.context_audio_bos_id, dtype=context_audio_codes.dtype)
             context_eos_tensor = torch.full((context_audio_codes.shape[0], 1), self.context_audio_eos_id, dtype=context_audio_codes.dtype)
             context_audio_codes = torch.cat([context_bos_tensor, context_audio_codes, context_eos_tensor], dim=1)
@@ -437,17 +451,16 @@ class T5TTSDataset(TextToSpeechDataset):
             context_audio_array = _read_audio(audio_filepath=context_audio_filepath, sample_rate=self.sample_rate, offset=0, duration=context_duration)
             context_audio_array = context_audio_array.samples
             _context_duration_to_slice = random.uniform(self.context_duration_min, self.context_duration_max)
-            _num_samples_to_slice = int(_context_duration_to_slice * self.sample_rate)
+            _num_samples_to_slice = self.get_num_audio_samples_to_slice(_context_duration_to_slice, self.sample_rate)
             if _num_samples_to_slice < len(context_audio_array):
                 start_idx = random.randint(0, len(context_audio_array) - _num_samples_to_slice)
                 context_audio_array = context_audio_array[start_idx:start_idx+_num_samples_to_slice]
+            else:
+                # Repeaet the audio if it is shorter than the desired duration
+                _num_repeats = int(np.ceil(_num_samples_to_slice / len(context_audio_array)))
+                context_audio_array = np.tile(context_audio_array, _num_repeats)
+                context_audio_array = context_audio_array[:_num_samples_to_slice]
             context_audio = torch.tensor(context_audio_array, dtype=torch.float32)
-            # Pad audio to be multiple of downsample factor
-            context_audio = torch.nn.functional.pad(
-                context_audio,
-                (0, self.codec_model_downsample_factor - (context_audio.shape[0] % self.codec_model_downsample_factor)),
-                value=0
-            )
             context_audio_len = context_audio.shape[0]
             example['context_audio'] = context_audio
             example['context_audio_len'] = context_audio_len
@@ -493,6 +506,14 @@ class T5TTSDataset(TextToSpeechDataset):
             else:
                 context_tokens = self.text_conditioning_tokenizer("[NO TEXT CONTEXT]")['input_ids']
                 example['has_text_context'] = False
+            if self.pad_context_text_to_max_duration:
+                _required_len = int(self.context_duration_max * self.sample_rate / self.codec_model_downsample_factor)
+                if len(context_tokens) < _required_len:
+                    _pad_id = self.text_conditioning_tokenizer.pad_token_id
+                    context_tokens += [_pad_id] * (_required_len - len(context_tokens))
+                else:
+                    context_tokens = context_tokens[:_required_len]
+
             context_tokens = torch.tensor(context_tokens, dtype=torch.int32)
             context_text_len = context_tokens.shape[0]
             example['context_text_tokens'] = context_tokens

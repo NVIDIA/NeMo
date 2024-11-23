@@ -78,8 +78,9 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
             tokenizer_config=None,
             load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
             use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
-            context_duration_min=5.0,
-            context_duration_max=5.0,
+            pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
+            context_duration_min=model.cfg.context_duration_min,
+            context_duration_max=model.cfg.context_duration_max,
         )
         test_dataset.text_tokenizer = model.tokenizer
         if model.use_text_conditioning_encoder:
@@ -149,7 +150,7 @@ def main():
     # parser.add_argument('--exp_names', type=str, default="SingleEncoder_WithPriorCTC0.002_Rope10k,SingleEncoderTextContext_WithPriorCTC0.002_Rope10k,MultiEncoderTextContext_WithPriorCTC_Rope10k_NoPerceiverCTC0.002_10kall,MultiEncoder_WithPriorCTC_Rope10k_WithPerceiverCTC0.002")
     # parser.add_argument('--exp_names', type=str, default="MultiEncoder_WithPriorCTC_Rope10k_WithPerceiver,MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver")
     # parser.add_argument('--exp_names', type=str, default="MultiEncoderTextContext_WithPriorCTC_Rope1k_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_WithPerceiverCTC0.002,SingleEncoderTextContext_WithPriorCTC0.002_Alibi")
-    parser.add_argument('--exp_names', type=str, default="MultiEncoderTextContext_OrigConfig_LearnableEmbeddings_randomContext")
+    parser.add_argument('--exp_names', type=str, default="fresht5_single_decoder_textcontext_kernel3")
     parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5")
     parser.add_argument('--temperature', type=float, default=0.7)
     parser.add_argument('--topk', type=int, default=80)
