@@ -1083,53 +1083,14 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 )
 
             if should_move_data:
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    if dist_ckpt:
-                        shutil.move(str(dist_ckpt_dir), tmpdir)
-                    elif app_state.pipeline_model_parallel_size == 1:
-                        # move weights to the tmpdir
-                        for tp_rank in range(app_state.tensor_model_parallel_size):
-                            os.makedirs(os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}'))
-                            mp_model_weights = os.path.join(
-                                dir_name, f'mp_rank_{tp_rank:02d}_' + self.model_weights_ckpt
-                            )
-                            shutil.move(
-                                mp_model_weights,
-                                os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt),
-                            )
-                    else:
-                        # move weights to the tmpdir
-                        for tp_rank, pp_rank in itertools.product(
-                            range(app_state.tensor_model_parallel_size),
-                            range(app_state.pipeline_model_parallel_size),
-                        ):
-                            os.makedirs(os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}'))
-                            mp_model_weights = os.path.join(
-                                dir_name, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}_' + self.model_weights_ckpt
-                            )
-                            shutil.move(
-                                mp_model_weights,
-                                os.path.join(
-                                    tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
-                                ),
-                            )
+                tmpdir = dist_ckpt_dir.parent
 
-                    # create config and artifacts in tmpdir
-                    config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-                    model.to_config_file(path2yaml_file=config_yaml)
-                    if hasattr(model, 'artifacts') and model.artifacts is not None:
-                        self._handle_artifacts(model, nemo_file_folder=tmpdir)
-                        self._update_artifact_paths(model, path2yaml_file=config_yaml)
-
-                    # create tar file
-                    if self.pack_nemo_file:
-                        self._make_nemo_file_from_folder(save_path, tmpdir)
-                    else:
-                        # Get the folder path from the save_path and move all values inside the tmpdir to the folder
-                        folder_path = os.path.dirname(save_path)
-
-                        for file in os.listdir(tmpdir):
-                            shutil.move(os.path.join(tmpdir, file), folder_path)
+                # create config and artifacts in tmpdir
+                config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+                model.to_config_file(path2yaml_file=config_yaml)
+                if hasattr(model, 'artifacts') and model.artifacts is not None:
+                    self._handle_artifacts(model, nemo_file_folder=tmpdir)
+                    self._update_artifact_paths(model, path2yaml_file=config_yaml)
 
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
