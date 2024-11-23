@@ -36,7 +36,7 @@ from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 import nemo.collections.asr as nemo_asr
 import soundfile as sf
 from torch.utils.data import get_worker_info
-from transformers import DistilBertTokenizer, DistilBertModel
+from transformers import T5Tokenizer
 
 HAVE_WANDB = True
 try:
@@ -64,7 +64,7 @@ def worker_init_fn(worker_id):
     logging.info(f"Tokenizer instantiated: {tokenizer}")
     dataset.text_tokenizer = tokenizer # Use for transcripts
     if dataset.use_text_conditioning_tokenizer:
-        dataset.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased') # Used for text conditioning
+        dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small") # Used for text conditioning
 
 class T5TTS_Model(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -152,9 +152,8 @@ class T5TTS_Model(ModelPT):
             raise ValueError(f"Unsupported model type {self.model_type}")
         
         if self.use_text_conditioning_encoder:
-            self.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-            self.text_conditioning_encoder = DistilBertModel.from_pretrained('distilbert-base-uncased')
-            self.text_conditioning_encoder.train()
+            self.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+            self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
 
         self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
         alignment_loss_scale = cfg.get('alignment_loss_scale', 0.0)
@@ -463,13 +462,7 @@ class T5TTS_Model(ModelPT):
         context_audio_codes = None
         context_audio_codes_lens = None
         
-        if self.use_text_conditioning_encoder:
-            context_text_tokens = batch['context_text_tokens']
-            context_text_lens = batch['context_text_tokens_lens']
-            context_text_mask = get_mask_from_lengths(context_text_lens)
-            context_text_encoded = self.text_conditioning_encoder(input_ids=context_text_tokens, attention_mask=context_text_mask)['last_hidden_state'] # (B, L, E)
-            # Hidden dim of distilbert is same as embedding dim = 768, so no projection needed
-
+        
         context_input_type = "encoder"
         dec_context_size = 0
         if self.model_type == 'single_encoder_sv_tts':
@@ -477,56 +470,54 @@ class T5TTS_Model(ModelPT):
             target_audio_lens_16khz = batch['audio_lens_16khz']
             speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
             speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
-            if self.use_text_conditioning_encoder:
-                # In single_encoder_sv_tts either speaker embeddings or context text embeddings are used, not both!
-                has_text_context = batch['has_text_context'].unsqueeze(-1).float()
-                conditioning_vector = has_text_context * context_text_encoded[:,0] + (1 - has_text_context) * speaker_embeddings_projected
-            else:
-                conditioning_vector = speaker_embeddings_projected
+            conditioning_vector = speaker_embeddings_projected
             context_embeddings = None
             context_mask = None
 
-        elif self.model_type == 'multi_encoder_context_tts':
+        elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts']:
             if 'context_audio_codes' in batch:
                 context_audio_codes = batch['context_audio_codes']
                 context_audio_codes_lens = batch['context_audio_codes_lens']
             else:
                 context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'], audio_type='context')
-            context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
-            context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
-            context_embeddings = self.context_encoder(context_audio_embedded, context_mask, cond=None, cond_mask=None)['output']
-            if self.cfg.use_perceiver:
-                # pneekhara: Check if we can pass mask here. Mask of size B, L doesn't work
-                context_embeddings = self.perceiver_resampler(context_embeddings) # B, 32, C
-                context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
-            
+            context_audio_embedded = self.embed_audio_tokens(context_audio_codes) # (B, T', E)
+
             if self.use_text_conditioning_encoder:
-                # Concatenate the context text embeddings to the context audio embeddings
-                # If context text is not provided in the manifest, context_text_encoded is just the encoding of "[NO TEXT CONTEXT]"
-                context_embeddings = torch.cat([context_embeddings, context_text_encoded], dim=1) # (B, T, C)
-                context_mask = torch.cat([context_mask, ~context_text_mask], dim=1) # (B, T)
+                context_text_tokens = batch['context_text_tokens']
+                context_text_lens = batch['context_text_tokens_lens']
+                context_text_embedded = self.context_text_embedding(context_text_tokens) # (B, L, E)
+                # Pad context_audio_embedded or context_text_embedded so that they have same number of timesteps
+                if context_audio_embedded.size(1) < context_text_embedded.size(1):
+                    padding = torch.zeros(context_audio_embedded.size(0), context_text_embedded.size(1) - context_audio_embedded.size(1), context_audio_embedded.size(2), device=context_audio_embedded.device)
+                    context_audio_embedded = torch.cat([context_audio_embedded, padding], dim=1)
+                elif context_audio_embedded.size(1) > context_text_embedded.size(1):
+                    padding = torch.zeros(context_text_embedded.size(0), context_audio_embedded.size(1) - context_text_embedded.size(1), context_text_embedded.size(2), device=context_text_embedded.device)
+                    context_text_embedded = torch.cat([context_text_embedded, padding], dim=1) # (B, T, E)
+                has_text_context = batch['has_text_context'].unsqueeze(-1).unsqueeze(-1).float() # (B, 1, 1)
+                context_input_embedded = has_text_context * context_text_embedded + (1 - has_text_context) * context_audio_embedded
+                context_input_lens = batch['has_text_context'].float() * context_text_lens + (1 - batch['has_text_context'].float()) * context_audio_codes_lens # (B,)
+            else:
+                context_input_embedded = context_audio_embedded
+                context_input_lens = context_audio_codes_lens
+            
+            context_mask = ~get_mask_from_lengths(context_input_lens)
             conditioning_vector = None
 
-        elif self.model_type == 'decoder_context_tts':
-            if 'context_audio_codes' in batch:
-                context_audio_codes = batch['context_audio_codes']
-                context_audio_codes_lens = batch['context_audio_codes_lens']
-            else:
-                context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'], audio_type='context')
-            context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
-            context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
-            if self.use_text_conditioning_encoder:
-                # Concatenate the context text embeddings to the context audio embeddings
-                # If context text is not provided in the manifest, context_text_encoded is just the encoding of "[NO TEXT CONTEXT]"
-                context_embeddings = torch.cat([context_audio_embedded, context_text_encoded], dim=1) # (B, T, C)
-                context_mask = torch.cat([context_mask, ~context_text_mask], dim=1) # (B, T)
-            conditioning_vector = None
-            context_input_type = "decoder"
-            dec_context_size = context_mask.size(1)
-            if attn_prior is not None:
-                # B, audio_timesteps, text_timesteps
-                padding_zeros = torch.zeros(attn_prior.size(0), dec_context_size, attn_prior.size(2), device=attn_prior.device)
-                attn_prior = torch.cat([padding_zeros, attn_prior], dim=1)
+            if self.model_type == 'multi_encoder_context_tts':
+                context_embeddings = self.context_encoder(context_input_embedded, context_mask, cond=None, cond_mask=None)['output']
+                if self.cfg.use_perceiver:
+                    # pneekhara: Check if we can pass mask here. Mask of size B, L doesn't work
+                    context_embeddings = self.perceiver_resampler(context_embeddings) # B, 32, C
+                    context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
+                
+            elif self.model_type == 'decoder_context_tts':
+                context_input_type = "decoder"
+                dec_context_size = context_mask.size(1)
+                context_embeddings = context_input_embedded
+                if attn_prior is not None:
+                    # B, audio_timesteps, text_timesteps
+                    padding_zeros = torch.zeros(attn_prior.size(0), dec_context_size, attn_prior.size(2), device=attn_prior.device)
+                    attn_prior = torch.cat([padding_zeros, attn_prior], dim=1)
                 
 
         logits, attn_info = self.forward(
@@ -624,66 +615,63 @@ class T5TTS_Model(ModelPT):
             text_mask = ~get_mask_from_lengths(text_lens)
             encoder_out = self.t5_encoder(self.text_embedding(text), text_mask, cond=None, cond_mask=None)['output']
 
-            if self.use_text_conditioning_encoder:
-                context_text_tokens = batch['context_text_tokens']
-                context_text_lens = batch['context_text_tokens_lens']
-                context_text_mask = get_mask_from_lengths(context_text_lens)
-                context_text_encoded = self.text_conditioning_encoder(input_ids=context_text_tokens, attention_mask=context_text_mask)['last_hidden_state'] # (B, L, E)
-
             if self.model_type == 'single_encoder_sv_tts':
                 target_audio_16khz = batch['audio_16khz']
                 target_audio_lens_16khz = batch['audio_lens_16khz']
-                
                 speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
                 speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
-                if self.use_text_conditioning_encoder:
-                    has_text_context = batch['has_text_context'].unsqueeze(-1).float()
-                    conditioning_vector = has_text_context * context_text_encoded[:,0] + (1 - has_text_context) * speaker_embeddings_projected
-                else:
-                    conditioning_vector = speaker_embeddings_projected
-
+                conditioning_vector = speaker_embeddings_projected
                 encoder_out = encoder_out + conditioning_vector.unsqueeze(1)
                 cond = encoder_out
                 cond_mask = text_mask
                 multi_encoder_mapping = None
 
-            elif self.model_type == 'multi_encoder_context_tts':
+            elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts']:
                 if 'context_audio_codes' in batch:
                     context_audio_codes = batch['context_audio_codes']
                     context_audio_codes_lens = batch['context_audio_codes_lens']
                 else:
                     context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'], audio_type='context')
+                context_audio_embedded = self.embed_audio_tokens(context_audio_codes) # (B, T', E)
 
-                context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
-                context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
-                context_embeddings = self.context_encoder(context_audio_embedded, context_mask, cond=None, cond_mask=None)['output']
-                if self.cfg.use_perceiver:
-                    context_embeddings = self.perceiver_resampler(context_embeddings)
-                    context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
-                
                 if self.use_text_conditioning_encoder:
-                    context_embeddings = torch.cat([context_embeddings, context_text_encoded], dim=1)
-                    context_mask = torch.cat([context_mask, ~context_text_mask], dim=1)
-                
-                cond = [encoder_out, context_embeddings]
-                cond_mask = [text_mask, context_mask]
-                multi_encoder_mapping = self.multi_encoder_mapping
-            
-            elif self.model_type == 'decoder_context_tts':
-                if 'context_audio_codes' in batch:
-                    context_audio_codes = batch['context_audio_codes']
-                    context_audio_codes_lens = batch['context_audio_codes_lens']
+                    context_text_tokens = batch['context_text_tokens']
+                    context_text_lens = batch['context_text_tokens_lens']
+                    context_text_embedded = self.context_text_embedding(context_text_tokens) # (B, L, E)
+                    # Pad context_audio_embedded or context_text_embedded so that they have same number of timesteps
+                    if context_audio_embedded.size(1) < context_text_embedded.size(1):
+                        padding = torch.zeros(context_audio_embedded.size(0), context_text_embedded.size(1) - context_audio_embedded.size(1), context_audio_embedded.size(2), device=context_audio_embedded.device)
+                        context_audio_embedded = torch.cat([context_audio_embedded, padding], dim=1)
+                    elif context_audio_embedded.size(1) > context_text_embedded.size(1):
+                        padding = torch.zeros(context_text_embedded.size(0), context_audio_embedded.size(1) - context_text_embedded.size(1), context_text_embedded.size(2), device=context_text_embedded.device)
+                        context_text_embedded = torch.cat([context_text_embedded, padding], dim=1) # (B, T, E)
+                    has_text_context = batch['has_text_context'].unsqueeze(-1).unsqueeze(-1).float() # (B, 1, 1)
+                    context_input_embedded = has_text_context * context_text_embedded + (1 - has_text_context) * context_audio_embedded
+                    context_input_lens = batch['has_text_context'].float() * context_text_lens + (1 - batch['has_text_context'].float()) * context_audio_codes_lens # (B,)
                 else:
-                    context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'], audio_type='context')
-                context_audio_embedded = self.embed_audio_tokens(context_audio_codes)
-                context_mask = ~get_mask_from_lengths(context_audio_codes_lens)
-                if self.use_text_conditioning_encoder:
-                    context_embeddings = torch.cat([context_audio_embedded, context_text_encoded], dim=1)
-                    context_mask = torch.cat([context_mask, ~context_text_mask], dim=1)
-                cond = encoder_out
-                cond_mask = text_mask
-                multi_encoder_mapping = None
-            
+                    context_input_embedded = context_audio_embedded
+                    context_input_lens = context_audio_codes_lens
+                
+                context_mask = ~get_mask_from_lengths(context_input_lens)
+                conditioning_vector = None
+
+                if self.model_type == 'multi_encoder_context_tts':
+                    context_embeddings = self.context_encoder(context_input_embedded, context_mask, cond=None, cond_mask=None)['output']
+                    if self.cfg.use_perceiver:
+                        # pneekhara: Check if we can pass mask here. Mask of size B, L doesn't work
+                        context_embeddings = self.perceiver_resampler(context_embeddings) # B, 32, C
+                        context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
+                    
+                    cond = [encoder_out, context_embeddings]
+                    cond_mask = [text_mask, context_mask]
+                    multi_encoder_mapping = self.multi_encoder_mapping
+                    
+                elif self.model_type == 'decoder_context_tts':
+                    context_embeddings = context_input_embedded
+                    cond = encoder_out
+                    cond_mask = text_mask
+                    multi_encoder_mapping = None
+
             all_predictions = []
             end_indices = {}
             for idx in range(max_decoder_steps):
@@ -792,7 +780,7 @@ class T5TTS_Model(ModelPT):
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg)
             if self.cfg.use_text_conditioning_encoder:
-                dataset.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+                dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
 
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn
@@ -805,7 +793,7 @@ class T5TTS_Model(ModelPT):
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg, mode='test')
             if self.cfg.use_text_conditioning_encoder:
-                dataset.text_conditioning_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+                dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
 
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params, worker_init_fn=worker_init_fn)
         return data_loader
