@@ -48,9 +48,7 @@ def get_nmt_tokenizer(nemo_checkpoint_path: str):
         )
     elif library == "tiktoken":
         print(f"Getting TiktokenTokenizer with file: {tokenizer_cfg.vocab_file}")
-        tokenizer = TiktokenTokenizer(
-            vocab_file=os.path.join(nemo_checkpoint_path, tokenizer_cfg.vocab_file)
-        )
+        tokenizer = TiktokenTokenizer(vocab_file=os.path.join(nemo_checkpoint_path, tokenizer_cfg.vocab_file))
     else:
         raise NotImplementedError("Currently we only support 'huggingface' and 'sentencepiece' tokenizer libraries.")
 
