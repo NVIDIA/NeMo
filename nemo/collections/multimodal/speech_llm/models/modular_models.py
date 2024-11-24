@@ -498,13 +498,20 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         new_loss_mask = []
         all_channels = []
         for i, answer_codec in enumerate(answer_codecs):
-            # mask bos and eos following timestamp or synthetic data mark
-            answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
-            answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
-            pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.eos_id
             if 'target_texts_merge' in audio_batch:
                 text_channel = audio_batch['target_texts_merge'][i]
+                sliced_text_channel = text_channel[: answer_codec.shape[0]]
+                answer_codec = torch.where(
+                    sliced_text_channel == self.tokenizer.bos_id, self.cfg.data.train_ds.speech_bos_id, answer_codec
+                )
+                answer_codec = torch.where(
+                    sliced_text_channel == self.tokenizer.eos_id, self.cfg.data.train_ds.speech_eos_id, answer_codec
+                )
             else:
+                # mask bos and eos following timestamp or synthetic data mark
+                answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
+                answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
+                pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.eos_id
                 base_length = -1 + context_lengths[i]
                 text_channel = torch.cat(
                     [
@@ -514,7 +521,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                     ],
                     dim=0,
                 )
-            sliced_text_channel = text_channel[: answer_codec.shape[0]]
+                sliced_text_channel = text_channel[: answer_codec.shape[0]]
             # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
             all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
             if loss_mask is not None:

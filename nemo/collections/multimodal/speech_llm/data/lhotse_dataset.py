@@ -119,10 +119,12 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         start_time_tokens, word_lengths = [], []
         num_turns = []
         text_start_time = []
+        text_end_time = []
         for id, cut in enumerate(cuts):
             num_turns.append(len(cut.supervisions))
             metadata.append({'audio_filepath': cut.id + '.wav'})
             text_start_time.append([])
+            text_end_time.append([])
             # treat multiturn data as multiple batch each with 2-turn conversation
             for i in range(0, len(cut.supervisions), 2):
                 supervisions = cut.supervisions[i : i + 2]
@@ -152,6 +154,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 target_texts.append(target_text)
                 target_text_lengths.append(target_text_length)
                 text_start_time[-1].append(supervisions[1].start)
+                text_end_time[-1].append(supervisions[1].start + supervisions[1].duration)
 
         answer_audios, answer_audio_lens = None, None
         assert self.load_answer_audio
@@ -243,23 +246,31 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     tokens[i, : token_lengths[i], :] = inputs[i]
             return tokens, torch.LongTensor(token_lengths)
 
+        def get_step_by_time(text_start_time):
+            text_start_step = (
+                text_start_time
+                * self.codec_sample_rate
+                / self.codec_model_downsampling_factor
+                // self.decoder_reduction_factor
+            )
+            return text_start_step - 1
+
         cnt = 0
         new_target_texts = []
         target_text_lengths = []
         for i in range(len(num_turns)):
             each_target_texts = []
+            total_steps = answer_audio_lens[i] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+            cur_target_text = torch.full((total_steps), self.text_processor.pad_id)
             for j in range(num_turns[i] // 2):
-                text_start_step = (
-                    text_start_time[cnt]
-                    * self.codec_sample_rate
-                    / self.codec_model_downsampling_factor
-                    // self.decoder_reduction_factor
-                )
-                each_target_texts.append([self.text_processor.eos_id] * text_start_step)
-                each_target_texts.append([self.text_processor.bos_id])
-                each_target_texts.append(target_texts[cnt][:, 0])
-                each_target_texts.append([self.text_processor.eos_id])
-            new_target_texts.append(torch.cat(each_target_texts, axis=0))
+                text_start_step = get_step_by_time(text_start_time[cnt])
+                text_end_step = get_step_by_time(text_end_time[cnt])
+                cur_target_text[text_start_step] = self.text_processor.bos_id
+                cur_target_text[text_start_step + 1 : text_end_step] = target_text[cnt][
+                    : text_end_step - text_start_step - 1, 0
+                ]
+                cur_target_text[text_end_step] = self.text_processor.bos_id
+            new_target_texts.append(cur_target_text)
             target_text_lengths.append(new_target_texts[-1].shape[0])
         target_texts_merge = collate_and_pad(new_target_texts)
         assert cnt == len(text_start_time)
