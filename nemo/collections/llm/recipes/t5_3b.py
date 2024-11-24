@@ -175,7 +175,7 @@ def pretrain_recipe(
         guide in the `examples/llm/pretrain/` directory.
     """
 
-      opt_config = run.Config(
+    opt_config = run.Config(
         OptimizerConfig,
         optimizer='adam',
         lr=0.0001,
@@ -250,7 +250,7 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
-      opt_config = run.Config(
+    opt_config = run.Config(
         OptimizerConfig,
         optimizer='adam',
         lr=0.0001,
