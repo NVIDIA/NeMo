@@ -40,8 +40,10 @@ class BERTLossReduction(MegatronLossReduction):
         from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
         lm_loss_, sop_logits = forward_out['lm_loss'], forward_out['binary_logits']
-        assert sop_logits is not None, ('Attempting to calculate Sentence Order Prediction Loss but SOP logits '
-                                        'are not provideds, Please Make sure you have added binary head.')
+        assert sop_logits is not None, (
+            'Attempting to calculate Sentence Order Prediction Loss but SOP logits '
+            'are not provideds, Please Make sure you have added binary head.'
+        )
 
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:

@@ -574,7 +574,9 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     @property
     def validation_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = BERTLossReduction(validation_step=True, add_sop_loss=self.config.bert_binary_head)
+            self._validation_loss_reduction = BERTLossReduction(
+                validation_step=True, add_sop_loss=self.config.bert_binary_head
+            )
 
         return self._validation_loss_reduction
 
