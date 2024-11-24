@@ -13,6 +13,28 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.utils import logging
 
+@dataclass
+class MegatronBertConfig(BertConfig):
+    """Configs for training megatron-style Bert Model."""
+
+    bert_type: str = 'megatron'
+    add_pooler: bool = False
+    init_method_std: float = 0.02
+    hidden_dropout: float = 0.1
+    normalization: float = 'LayerNorm'
+    layernorm_epsilon: float = 1e-5
+    apply_query_key_layer_scaling: bool = False
+    position_embedding_type: str = "learned_absolute"
+    bert_binary_head: bool = False
+
+@dataclass
+class MegatronBertLargeConfig(MegatronBertConfig):
+    """Configs for Bert-Large in megatron style."""
+
+    num_layers: int = 24
+    hidden_size: int = 1024
+    ffn_hidden_size: int = 4096
+    num_attention_heads: int = 16
 
 @dataclass
 class GoogleBertConfig(BertConfig):

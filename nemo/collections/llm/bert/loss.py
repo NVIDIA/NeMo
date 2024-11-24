@@ -27,14 +27,22 @@ class BERTLossReduction(MegatronLossReduction):
         """Perform Loss calculation on batch.
         Currently, Context parallelism is not supported for SOP loss.
         """
+
+        # Update loss_mask to batch.
+        # Model forward did no update to loss_mask, but for unknown reason loss_mask can get lost (to None)
+        # in 'batch' during update. We use the original loss_mask in the dataloader as the ground truth.
+        batch['loss_mask'] = forward_out['loss_mask']
         if not self.add_sop_loss:
-            return self.mlm.forward(batch, forward_out)
+            return self.mlm.forward(batch, forward_out['lm_loss'])
 
         from megatron.core import parallel_state
 
         from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
-        lm_loss_, sop_logits = forward_out
+        lm_loss_, sop_logits = forward_out['lm_loss'], forward_out['binary_logits']
+        assert sop_logits is not None, ('Attempting to calculate Sentence Order Prediction Loss but SOP logits '
+                                        'are not provideds, Please Make sure you have added binary head.')
+
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:
             sop_loss_for_ub = sentence_order_prediction_loss(sop_logits, batch["is_random"])

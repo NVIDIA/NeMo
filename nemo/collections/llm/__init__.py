@@ -25,6 +25,8 @@ from nemo.collections.llm.bert.model import (
     GoogleBertBaseConfig,
     GoogleBertConfig,
     GoogleBertModel,
+    MegatronBertConfig,
+    MegatronBertLargeConfig,
 )
 from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,

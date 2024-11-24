@@ -73,8 +73,11 @@ def bert_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) 
         "input_ids": batch["text"],
         "attention_mask": batch["padding_mask"],
         "lm_labels": batch["labels"],
-        "tokentype_ids": batch["types"],
+        "loss_mask": batch["loss_mask"],
     }
+
+    if model.config.num_tokentypes != 0:
+        forward_args["tokentype_ids"] = batch["types"]
 
     if "cu_seqlens" in batch:
         forward_args["packed_seq_params"] = get_packed_seq_params(batch)
@@ -150,6 +153,8 @@ class BertConfig(TransformerConfig, io.IOMixin):
 
         if self.num_tokentypes is None:
             self.num_tokentypes = 2 if self.bert_binary_head else 0
+
+        print(self.num_tokentypes)
         return MCoreBertModelWrapperWithPostLNSupport(
             bert_type=self.bert_type,
             add_pooler=self.add_pooler,
@@ -242,6 +247,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         attention_mask: Tensor,
         tokentype_ids: Tensor = None,
         lm_labels: Tensor = None,
+        loss_mask: Tensor = None,
         inference_params=None,
     ):
         """Forward function of BERT model
@@ -289,12 +295,20 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             binary_logits = self.binary_head(pooled_output)
 
         if lm_labels is None:
-            # [s b h] => [b s h]
-            return logits.transpose(0, 1).contiguous(), binary_logits
+            # [s b h] => [b s h]0
+            return {
+                'logits': logits.transpose(0, 1).contiguous(),
+                'binary_logits': binary_logits,
+                'loss_mask': loss_mask,
+            }
 
         loss = self.compute_language_model_loss(lm_labels, logits)
 
-        return loss, binary_logits
+        return {
+            'lm_loss': loss,
+            'binary_logits': binary_logits,
+            'loss_mask': loss_mask,
+        }
 
 
 @dataclass
@@ -303,8 +317,7 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 
     def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
         super(TransformerLayerSubmodulesWithPostLNSupport, self).__init__(**kwargs)
-        self.post_att_layernorm = cccccbkvgelhlvcvdljvuddcnbhdubtnfdherfubhncr
-        post_att_layernorm
+        self.post_att_layernorm = post_att_layernorm
         self.post_mlp_layernorm = post_mlp_layernorm
 
 
@@ -554,14 +567,14 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     @property
     def training_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
-            self._training_loss_reduction = BERTLossReduction()
+            self._training_loss_reduction = BERTLossReduction(add_sop_loss=self.config.bert_binary_head)
 
         return self._training_loss_reduction
 
     @property
     def validation_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = BERTLossReduction(validation_step=True)
+            self._validation_loss_reduction = BERTLossReduction(validation_step=True, add_sop_loss=self.config.bert_binary_head)
 
         return self._validation_loss_reduction
 
