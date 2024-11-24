@@ -731,10 +731,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             and self.trainer.state.fn == TrainerFn.FITTING
         ):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
-                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=False)]
+                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
         checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
-
         if selective_restore:
             final_checkpoint = {}
             for key in sharded_state_dict.keys():
@@ -773,6 +772,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             return
 
         optimizer_states = checkpoint["optimizer"]
+
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
             optimizer.load_state_dict(opt_state)
             _optimizer_to_device(optimizer, self.root_device)

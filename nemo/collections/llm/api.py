@@ -40,7 +40,6 @@ from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
     from megatron.core.inference.inference_request import InferenceRequest
@@ -838,7 +837,7 @@ def _setup(
     tokenizer: Optional[TokenizerType],
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]],
 ) -> Any:  # Return type is Any because app_state's type is not specified
-    configure_no_restart_validation_training_loop(trainer)
+    # configure_no_restart_validation_training_loop(trainer)
     _log = log or NeMoLogger()
     if resume and isinstance(model_transform, PEFT) and _log.ckpt:
         logging.info("Disabling try_restore_best_ckpt restoration for adapters")
