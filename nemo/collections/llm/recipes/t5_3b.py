@@ -253,7 +253,7 @@ def finetune_recipe(
       opt_config = run.Config(
         OptimizerConfig,
         optimizer='adam',
-        lr=1e-4,
+        lr=0.0001,
         use_distributed_optimizer=True,
         bf16=True,
         weight_decay=0.01,
