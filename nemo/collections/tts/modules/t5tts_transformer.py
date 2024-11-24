@@ -201,17 +201,28 @@ class Attention(nn.Module):
             self.kv_net = nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
             self.o_net = nn.Linear(n_heads * self.d_head, d_model, bias=False)
         self.dropout = nn.Dropout(p_dropout)
+        self.use_cache = False
+    
+    def reset_cache(self, use_cache=False):
+        self.use_cache = use_cache
+        self.cache = {
+            'is_initialized': False,
+            'self_k': None,
+            'self_v': None,
+            'cross_kv' : None,
+            'cross_k': None,
+            'cross_v': None
+        }
 
-    def add_positional_embeddings(self, x):
+    def add_positional_embeddings(self, x, start_step=0):
         # Used for learnable positional embeddings
-        positions = torch.arange(0, x.size(1), device=x.device).unsqueeze(0)
+        positions = torch.arange(start_step, start_step+x.size(1), device=x.device).unsqueeze(0)
         pos_emb = self.position_embeddings(positions)
         return x + pos_emb
     
     def attn_flash(self, query, query_mask, memory=None, memory_mask=None,
                    idx=None):
         alibi_slopes = None
-
         if self.pos_emb_name == 'learnable':
             query = self.add_positional_embeddings(query)
             if memory is not None:
@@ -264,12 +275,22 @@ class Attention(nn.Module):
 
     def attn_naive(self, query, query_mask, memory=None, memory_mask=None,
                    attn_prior=None, dump_attention=False, idx=0):
+        
+        pos_start_time_step = 0
+        if self.use_cache:
+            if self.cache['is_initialized']:
+                pos_start_time_step = query.size(1) - 1
+                query = query[:, -1:, :]
+                query_mask = query_mask[:, -1:]
+            else:
+                self.cache['is_initialized'] = True
+
         B, T, _ = query.shape
         Tkv = T if memory is None else memory.shape[1]
         mask = None
-
+        
         if self.pos_emb_name == 'learnable':
-            query = self.add_positional_embeddings(query)
+            query = self.add_positional_embeddings(query, pos_start_time_step)
             if memory is not None:
                 memory = self.add_positional_embeddings(memory)
 
@@ -278,14 +299,31 @@ class Attention(nn.Module):
             qkv = self.rope(qkv) if self.pos_emb_name == 'rope' else qkv
             q, k, v = qkv.chunk(3, dim=2)
             q, k, v = q.squeeze(2), k.squeeze(2), v.squeeze(2)
+            if self.use_cache:
+                if self.cache['self_k'] is not None:
+                    k = torch.cat([self.cache['self_k'], k], dim=1)
+                    v = torch.cat([self.cache['self_v'], v], dim=1)
+                self.cache['self_k'] = k
+                self.cache['self_v'] = v
         else:
             Bq, Tq, _ = query.shape
             Bkv, Tkv, _ = memory.shape
             q = self.q_net(query).reshape(Bq, Tq, self.n_heads, self.d_head)
-            kv = self.kv_net(memory).reshape(Bkv, Tkv, 2, self.n_heads, self.d_head)
+            if self.use_cache and self.cache['cross_kv'] is not None:
+                kv = self.cache['cross_kv']
+            else:
+                kv = self.kv_net(memory).reshape(Bkv, Tkv, 2, self.n_heads, self.d_head)
             q, kv = self.rope(q, kv) if self.pos_emb_name == 'rope' else q, kv
-            k, v = kv.chunk(2, dim=2)
-            k, v = k.squeeze(2), v.squeeze(2)
+            if self.use_cache and self.cache['cross_k'] is not None:
+                k = self.cache['cross_k']
+                v = self.cache['cross_v']
+            else:
+                k, v = kv.chunk(2, dim=2)
+                k, v = k.squeeze(2), v.squeeze(2)
+                if self.use_cache:
+                    self.cache['cross_kv'] = kv
+                    self.cache['cross_k'] = k
+                    self.cache['cross_v'] = v
 
         # (B, T, nh * dh) -> (B, nh, T, dh)
         q = q.transpose(1, 2)
@@ -335,6 +373,7 @@ class Attention(nn.Module):
 
         y = torch.matmul(attn_prob, v)
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
+
         return y, [attn_prob, _attn_score]
 
     def forward(self, query, query_mask=None, memory=None, memory_mask=None,
@@ -426,6 +465,19 @@ class TransformerBlock(nn.Module):
             self.layer_scale_ff = LayerScale(d_model, init=layer_scale_init)
         else:
             self.layer_scale_ff = nn.Identity()
+        
+        self.use_cache = False
+
+    def reset_cache(self, use_cache=False):
+        self.use_cache = use_cache
+        self.cache = {
+            'self_attn_output': None,
+            'cross_attn_output': None,
+            'memory': None,
+        }
+        self.self_attention.reset_cache(use_cache)
+        if self.has_xattn:
+            self.cross_attention.reset_cache(use_cache)
 
     def forward(self, x, x_mask, cond, cond_mask, dump_attention=False,
                 attn_prior=None, idx=None):
@@ -439,12 +491,21 @@ class TransformerBlock(nn.Module):
                 query=self.norm_self(x),
                 query_mask=x_mask,
                 dump_attention=dump_attention, idx=idx)
+            if self.use_cache:
+                if self.cache['self_attn_output'] is not None:
+                    x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
+                self.cache['self_attn_output'] = x_
+
             x = (x + self.layer_scale_self_attn(x_)) * x_mask_inv_float
         elif self.layer_norm_method == 'post':
             x_, s_attn_prob = self.self_attention(
                 query=x,
                 query_mask=x_mask,
                 dump_attention=dump_attention)
+            if self.use_cache:
+                if self.cache['self_attn_output'] is not None:
+                    x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
+                self.cache['self_attn_output'] = x_
             x = x + self.layer_scale_self_attn(x_)
             x = self.norm_self(x) * x_mask_inv_float
 
@@ -452,8 +513,14 @@ class TransformerBlock(nn.Module):
         if self.has_xattn and cond is not None:
             if self.layer_norm_method == 'pre':
                 x_normed = self.norm_xattn_query(x)
-                memory = (self.norm_xattn_memory(cond)
-                          if self.apply_norm_to_cond else cond)
+                if self.use_cache and self.cache['memory'] is not None:
+                    memory = self.cache['memory']
+                else:
+                    memory = (self.norm_xattn_memory(cond)
+                            if self.apply_norm_to_cond else cond)
+                    if self.use_cache:
+                        self.cache['memory'] = memory
+
                 x_res, x_attn_prob = self.cross_attention(
                     query=x_normed,
                     query_mask=x_mask,
@@ -462,6 +529,10 @@ class TransformerBlock(nn.Module):
                     attn_prior=attn_prior,
                     dump_attention=dump_attention,
                     idx=idx)
+                if self.use_cache:
+                    if self.cache['cross_attn_output'] is not None:
+                        x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
+                    self.cache['cross_attn_output'] = x_res
                 x = x + self.layer_scale_cross_attn(x_res)  # unbounded
                 x = x * x_mask_inv_float
             elif self.layer_norm_method == 'post':
@@ -472,9 +543,13 @@ class TransformerBlock(nn.Module):
                     memory_mask=cond_mask,
                     attn_prior=attn_prior,
                     dump_attention=dump_attention)
+                if self.use_cache:
+                    if self.cache['cross_attn_output'] is not None:
+                        x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
+                    self.cache['cross_attn_output'] = x_res
+                    
                 x = (x + self.layer_scale_cross_attn(x_res)) * x_mask_inv_float
                 x = self.norm_xattn_query(x)
-
 
         # mlp final projection
         if self.layer_norm_method == 'pre':
@@ -529,6 +604,10 @@ class TransformerStack(nn.Module):
                 if 'o_net' in pn and pn.endswith('weight'):
                     torch.nn.init.normal_(
                         p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+
+    def reset_cache(self, use_cache=False):
+        for layer in self.layers:
+            layer.reset_cache(use_cache)
 
     def _init_weights_gpt2(self, module):
         if isinstance(module, nn.Linear):

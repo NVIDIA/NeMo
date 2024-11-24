@@ -42,6 +42,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 
     model = T5TTS_Model(cfg=model_cfg)
+    model.use_kv_cache_for_inference = True
 
     # Load weights from checkpoint file
     print("Loading weights from checkpoint")
@@ -79,8 +80,8 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
             load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
             use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
             pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
-            context_duration_min=model.cfg.context_duration_min,
-            context_duration_max=model.cfg.context_duration_max,
+            context_duration_min=model.cfg.get('context_duration_min', 5.0),
+            context_duration_max=model.cfg.get('context_duration_max', 5.0),
         )
         test_dataset.text_tokenizer = model.tokenizer
         if model.use_text_conditioning_encoder:
@@ -142,15 +143,17 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/SingleEncoder_WithPriorCTC0.002_Rope10k_hparams.yaml")
-    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/SingleEncoder_WithPriorCTC0.002_Rope10k_epoch_11.ckpt")
-    parser.add_argument('--datasets', type=str, default="vctk,libri_val,riva_challenging")
+    # parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver_hparams.yaml")
+    # parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver_epoch_10.ckpt")
+    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/fresht5_MultiEncoder_textcontext_kernel3_hparams.yaml")
+    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/fresht5_MultiEncoder_textcontext_kernel3_epoch_4.ckpt")
+    parser.add_argument('--datasets', type=str, default="libri_val,vctk,riva_challenging")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/dracomount")
     parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh")
     # parser.add_argument('--exp_names', type=str, default="SingleEncoder_WithPriorCTC0.002_Rope10k,SingleEncoderTextContext_WithPriorCTC0.002_Rope10k,MultiEncoderTextContext_WithPriorCTC_Rope10k_NoPerceiverCTC0.002_10kall,MultiEncoder_WithPriorCTC_Rope10k_WithPerceiverCTC0.002")
     # parser.add_argument('--exp_names', type=str, default="MultiEncoder_WithPriorCTC_Rope10k_WithPerceiver,MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver")
     # parser.add_argument('--exp_names', type=str, default="MultiEncoderTextContext_WithPriorCTC_Rope1k_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_WithPerceiverCTC0.002,SingleEncoderTextContext_WithPriorCTC0.002_Alibi")
-    parser.add_argument('--exp_names', type=str, default="fresht5_single_decoder_textcontext_kernel3")
+    parser.add_argument('--exp_names', type=str, default="fresht5_single_encoder_kernel3,fresht5_MultiEncoder_textcontext_kernel1")
     parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5")
     parser.add_argument('--temperature', type=float, default=0.7)
     parser.add_argument('--topk', type=int, default=80)

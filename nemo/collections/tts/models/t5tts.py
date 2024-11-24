@@ -93,6 +93,8 @@ class T5TTS_Model(ModelPT):
         self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
         self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
+        self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
+        # use_kv_cache_for_inference True works for native attention and tested only with learnable position embeddings for now.
         
         super().__init__(cfg=cfg, trainer=trainer)
         
@@ -606,6 +608,12 @@ class T5TTS_Model(ModelPT):
     
     def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80):
         with torch.no_grad():
+            if self.use_kv_cache_for_inference:
+                assert self.cfg.t5_decoder.use_flash_self_attention is False, "KV cache is not supported with flash self attention"
+                assert self.cfg.t5_decoder.use_flash_x_attention is False, "KV cache is not supported with flash cross attention"
+                assert self.cfg.t5_decoder.pos_emb.name == "learnable", "KV cache is not tested with Rope, Alibi yet. Disable this assert, if you still want to use it."
+
+            self.t5_decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
             text = batch['text']
             text_lens = batch['text_lens']
             audio_codes_bos = torch.full((text.size(0), self.cfg.num_audio_codebooks, 1), self.audio_bos_id, device=text.device).long()
@@ -675,7 +683,10 @@ class T5TTS_Model(ModelPT):
 
             all_predictions = []
             end_indices = {}
+            
             for idx in range(max_decoder_steps):
+                if idx % 20 == 0:
+                    print(f"Decoding timestep {idx}")
                 audio_codes_embedded = self.embed_audio_tokens(audio_codes_input)
                 if self.model_type == 'decoder_context_tts':
                     _audio_codes_embedded = torch.cat([context_embeddings, audio_codes_embedded], dim=1)
@@ -722,7 +733,7 @@ class T5TTS_Model(ModelPT):
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
             test_dl_batch_size = self._test_dl.batch_size
-            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(batch, max_decoder_steps=self.cfg.max_decoder_steps)
+            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(batch, max_decoder_steps=self.cfg.get('max_decoder_steps', 500))
             for idx in range(predicted_audio.size(0)):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
@@ -738,7 +749,7 @@ class T5TTS_Model(ModelPT):
                 audio_dir = os.path.join(log_dir, 'audios')
                 if not os.path.exists(audio_dir):
                     os.makedirs(audio_dir)
-                audio_path = os.path.join(audio_dir, f'predicted_audio_{item_idx}.wav')
+                audio_path = os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}.wav')
                 sf.write(audio_path, predicted_audio_np, self.cfg.sample_rate)
 
 
