@@ -40,7 +40,7 @@ class MegatronBertLargeConfig(MegatronBertConfig):
 
 
 @dataclass
-class GoogleBertConfig(BertConfig):
+class HuggingFaceBertConfig(BertConfig):
     """Configs for models in https://huggingface.co/google-bert"""
 
     bert_type: str = 'huggingface'
@@ -54,7 +54,7 @@ class GoogleBertConfig(BertConfig):
 
 
 @dataclass
-class GoogleBertBaseConfig(GoogleBertConfig):
+class HuggingFaceBertBaseConfig(HuggingFaceBertConfig):
     """Configs for model in https://huggingface.co/google-bert/bert-base-uncased"""
 
     num_layers: int = 12
@@ -64,7 +64,7 @@ class GoogleBertBaseConfig(GoogleBertConfig):
 
 
 @dataclass
-class GoogleBertLargeConfig(GoogleBertConfig):
+class HuggingFaceBertLargeConfig(HuggingFaceBertConfig):
     """Configs for model in https://huggingface.co/google-bert/bert-large-uncased"""
 
     num_layers: int = 24
@@ -73,7 +73,7 @@ class GoogleBertLargeConfig(GoogleBertConfig):
     num_attention_heads: int = 16
 
 
-class GoogleBertModel(BertModel):
+class HuggingFaceBertModel(BertModel):
     """Google Bert Model."""
 
     def __init__(
@@ -86,8 +86,8 @@ class GoogleBertModel(BertModel):
         super().__init__(config or BertConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
-@io.model_importer(GoogleBertModel, "hf")
-class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
+@io.model_importer(HuggingFaceBertModel, "hf")
+class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
     """Importer Connector for converting HF Google Bert Model to NeMo"""
 
     def __init__(self, *args, **kwargs):
@@ -98,8 +98,8 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             super().__init__(*args)
         self.type = kwargs.get('type', 'model')
 
-    def init(self) -> GoogleBertModel:
-        return GoogleBertModel(self.config, tokenizer=self.tokenizer)
+    def init(self) -> HuggingFaceBertModel:
+        return HuggingFaceBertModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         from transformers import BertForMaskedLM, BertForNextSentencePrediction, BertForPreTraining, BertModel
@@ -205,7 +205,7 @@ class HFGoogleBERTImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
 
         source = HFBertConfig.from_pretrained(str(self))
 
-        output = GoogleBertConfig(
+        output = HuggingFaceBertConfig(
             bert_type='huggingface',
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,

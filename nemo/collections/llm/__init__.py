@@ -22,9 +22,9 @@ from nemo.collections.llm.bert.data import BERTPreTrainingDataModule
 from nemo.collections.llm.bert.model import (
     BertConfig,
     BertModel,
-    GoogleBertBaseConfig,
-    GoogleBertConfig,
-    GoogleBertModel,
+    HuggingFaceBertBaseConfig,
+    HuggingFaceBertConfig,
+    HuggingFaceBertModel,
     MegatronBertConfig,
     MegatronBertLargeConfig,
 )
