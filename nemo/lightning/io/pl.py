@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
@@ -160,12 +159,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
-
-        consistency_check = (
-            _skip_optimizer_states_before_consistancy_check
-            if validate_sharding_integrity
-            else _noop_preprocess_common_before_consistancy_check
-        )
 
         return dist_checkpointing.save(
             sharded_state_dict=checkpoint,
