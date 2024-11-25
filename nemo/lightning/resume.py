@@ -63,8 +63,10 @@ class AutoResume:
     checkpoints in NeMo.
 
     Attributes:
-        restore_config (Optional[RestoreConfig]): Optional config for selectively restoring specific parts like model weights, optimizer states, etc.
-            If the config contains a path from HF or another non-NeMo checkpoint format, the checkpoint will be automatically converted to a NeMo compatible format.
+        restore_config (Optional[RestoreConfig]): Optional config for selectively restoring specific parts like model
+            weights, optimizer states, etc.
+            If the config contains a path from HF or another non-NeMo checkpoint format, the checkpoint will be
+            automatically converted to a NeMo compatible format.
             resume_from_folder or the run's log_dir takes precedence over restore_config.
         resume_from_directory (str): Path to the checkpointing directory to restore from.
         resume_from_path (str): Path to a specific checkpoint to restore from.
@@ -216,17 +218,20 @@ class AutoResume:
 
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if self.resume_ignore_no_checkpoint:
-                warn = f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. "
+                warn = (f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir "
+                        f":{checkpoint_dir}. ")
                 if checkpoint is None:
                     warn += "Training from scratch."
                 logging.warning(warn)
             else:
                 if self.restore_config:
-                    # resume_if_exists is True but run is not resumable. Do not fail and try to do selective restore later instead.
+                    # resume_if_exists is True but run is not resumable. Do not fail and try to do selective restore
+                    # later instead.
                     return None
                 else:
                     raise NotFoundError(
-                        f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume."
+                        f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir "
+                        f":{checkpoint_dir}. Cannot resume."
                     )
         elif len(end_checkpoints) > 0:
             if not self.resume_past_end:
@@ -247,7 +252,8 @@ class AutoResume:
                 # Select the checkpoint with the latest modified time
                 checkpoint = sorted(last_checkpoints, key=lambda pth: pth.lstat().st_mtime, reverse=True)[0]
                 logging.warning(
-                    f"Multiple checkpoints {last_checkpoints} matches *last.ckpt. Selecting one with the latest modified time."
+                    f"Multiple checkpoints {last_checkpoints} matches *last.ckpt. Selecting one with the latest "
+                    f"modified time."
                 )
         else:
             checkpoint = last_checkpoints[0]
