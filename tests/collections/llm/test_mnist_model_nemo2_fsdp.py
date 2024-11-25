@@ -573,7 +573,7 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
                     global_batch_size=2,
                     output_log=False,  # Disable logs to support predict_step
                 ),
-                ckpt_load_optimizer=False
+                ckpt_load_optimizer=False,
             )
             predict_trainer = nl.Trainer(
                 accelerator="gpu",
