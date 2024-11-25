@@ -161,7 +161,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
-        consistency_check = _skip_optimizer_states_before_consistancy_check if validate_sharding_integrity else _noop_preprocess_common_before_consistancy_check
+        consistency_check = (
+            _skip_optimizer_states_before_consistancy_check
+            if validate_sharding_integrity
+            else _noop_preprocess_common_before_consistancy_check
+        )
 
         return dist_checkpointing.save(
             sharded_state_dict=checkpoint,
@@ -379,6 +383,7 @@ def _skip_optimizer_states_before_consistancy_check(state_dict: Dict[str, Any]) 
     sd = deepcopy(state_dict)
     sd.pop("optimizer_states", None)
     return sd
+
 
 def _noop_preprocess_common_before_consistancy_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     return state_dict
