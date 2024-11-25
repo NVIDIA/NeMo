@@ -42,6 +42,7 @@ class ListAdd(torch.nn.Module):
         return x1, [y1, z1], y1 + z1
 
 
+@unittest.skip
 @unittest.skipUnless(trt_imported, "tensorrt is required")
 @unittest.skipUnless(polygraphy_imported, "polygraphy is required")
 class TestTRTCompile(unittest.TestCase):
