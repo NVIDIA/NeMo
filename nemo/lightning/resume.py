@@ -43,8 +43,9 @@ def _try_restore_tokenizer(model, ckpt_path):
     try:
         tokenizer = load_context(ckpt_path, "model.tokenizer")
     except ValueError as e:
-        logging.warning(f"Encountered error while trying to restore tokenizer. Tokenizer is not restored. "
-                        f"Original error: {e}")
+        logging.warning(
+            f"Encountered error while trying to restore tokenizer. Tokenizer is not restored. " f"Original error: {e}"
+        )
         return model
 
     if isinstance(tokenizer, TokenizerSpec):
