@@ -33,6 +33,7 @@ Example:
   --devices=8 --tp=4 --data_type=mock
 """
 
+
 def main(args):
     """
     Main function for setting up and training the MLLama model.
