@@ -131,8 +131,8 @@ def uem_timeline_from_file(uem_file, uniq_name=''):
 
 def score_labels(
     AUDIO_RTTM_MAP,
-    all_reference,
-    all_hypothesis,
+    all_reference: list,
+    all_hypothesis: list,
     all_uem: List[List[float]] = None,
     collar: float = 0.25,
     ignore_overlap: bool = True,
@@ -143,23 +143,25 @@ def score_labels(
     coming from Pyannote-formatted speaker diarization results and References are coming from
     Pyannote-formatted RTTM data.
 
-
     Args:
-        AUDIO_RTTM_MAP (dict):
-            Dictionary containing information provided from manifestpath
-        all_reference (list[uniq_name,Annotation]):
-            Reference annotations for score calculation
-        all_hypothesis (list[uniq_name,Annotation]):
-            Hypothesis annotations for score calculation
-        verbose (bool):
-            Warns if RTTM file is not found.
+        AUDIO_RTTM_MAP (dict): Dictionary containing information provided from manifestpath
+        all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
+        all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
+        all_uem (list[list[float]]): List of UEM segments for each audio file. If UEM file is not provided,
+                                     it will be read from manifestpath
+        collar (float): Length of collar (in seconds) for diarization error rate calculation
+        ignore_overlap (bool): If True, overlapping segments in reference and hypothesis will be ignored
+        verbose (bool): If True, warning messages will be printed
 
     Returns:
-        metric (pyannote.DiarizationErrorRate):
-            Pyannote Diarization Error Rate metric object.
-            This object contains detailed scores of each audiofile.
-        mapping (dict):
-            Mapping dict containing the mapping speaker label for each audio input
+        metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object.
+                                                This object contains detailed scores of each audiofile.
+        mapping (dict): Mapping dict containing the mapping speaker label for each audio input
+        itemized_errors (tuple): Tuple containing (DER, CER, FA, MISS) for each audio file.
+            - DER: Diarization Error Rate, which is sum of all three errors, CER + FA + MISS.
+            - CER: Confusion Error Rate, which is sum of all errors
+            - FA: False Alarm Rate, which is the number of false alarm segments
+            - MISS: Missed Detection Rate, which is the number of missed detection segments
 
     < Caveat >
     Unlike md-eval.pl, "no score" collar in pyannote.metrics is the maximum length of

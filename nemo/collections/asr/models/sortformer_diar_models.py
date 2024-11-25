@@ -96,7 +96,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder).to(
             self.device
         )
-        if self._cfg.encoder.d_model != self._cfg.tf_d_model:
+        if self._cfg.encoder.d_model != self._cfg.model_defaults.tf_d_model:
             self.sortformer_modules.encoder_proj = self.sortformer_modules.encoder_proj.to(self.device)
         else:
             self.sortformer_modules.encoder_proj = None
@@ -328,12 +328,12 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             preds = self.forward_infer(emb_seq)
         return preds
 
-    def _get_aux_train_evaluations(self, preds, targets, target_lens):
+    def _get_aux_train_evaluations(self, preds, targets, target_lens) -> dict:
         """
         Compute auxiliary training evaluations including losses and metrics.
 
         This function calculates various losses and metrics for the training process,
-        including ATS (Anchored Temporal Segmentation) and PIL (Permutation Invariant Loss)
+        including Arrival Time Sort (ATS) Loss and Permutation Invariant Loss (PIL)
         based evaluations.
 
         Args:
@@ -392,11 +392,12 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.log_dict(train_metrics, sync_dist=True, on_step=True, on_epoch=False, logger=True)
         return {'loss': train_metrics['loss']}
 
-    def _get_aux_validation_evaluations(self, preds, targets, target_lens):
+    def _get_aux_validation_evaluations(self, preds, targets, target_lens) -> dict:
         """
         Compute auxiliary validation evaluations including losses and metrics.
-        This function calculates various losses and metrics for the validation process,
-        including ATS (Anchored Temporal Segmentation) and PIL (Permutation Invariant Loss)
+
+        This function calculates various losses and metrics for the training process,
+        including Arrival Time Sort (ATS) Loss and Permutation Invariant Loss (PIL)
         based evaluations.
 
         Args:
@@ -408,7 +409,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
                 Shape: (batch_size,)
 
         Returns:
-            dict: A dictionary containing the following validation metrics
+            val_metrics (dict): A dictionary containing the following validation metrics
         """
         targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
@@ -499,8 +500,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         """
         Compute auxiliary validation evaluations including losses and metrics.
 
-        This function calculates various losses and metrics for the validation process,
-        including ATS (Anchored Temporal Segmentation) and PIL (Permutation Invariant Loss)
+        This function calculates various losses and metrics for the training process,
+        including Arrival Time Sort (ATS) Loss and Permutation Invariant Loss (PIL)
         based evaluations.
 
         Args:
@@ -573,4 +574,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self,
     ):
         """One-clieck runner function for diarization."""
+        # TODO: A direct one-click runner function that generates
+        # speaker labels from audio file path lists.
         raise NotImplementedError
