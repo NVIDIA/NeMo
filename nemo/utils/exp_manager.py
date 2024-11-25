@@ -43,7 +43,8 @@ from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
-from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
+from nemo.utils.callbacks import NeMoModelCheckpoint
+from nemo.lightning.pytorch.callbacks import PreemptionCallback
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -1217,8 +1218,8 @@ def configure_checkpointing(
         # Check if cuda is avialable as preemption is supported only on GPUs
         if torch.cuda.is_available():
             ## By default PreemptionCallback handles SIGTERM. To handle other signals pass the signal in the call as below:
-            ## PreemptionCallback(checkpoint_callback, signal.SIGCHLD)
-            preemption_callback = PreemptionCallback(checkpoint_callback)
+            ## PreemptionCallback(signal.SIGCHLD)
+            preemption_callback = PreemptionCallback()
             trainer.callbacks.append(preemption_callback)
         else:
             logging.info("Preemption is supported only on GPUs, disabling preemption")
