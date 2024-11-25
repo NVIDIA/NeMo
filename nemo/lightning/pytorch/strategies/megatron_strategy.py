@@ -722,9 +722,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         logging.info(f"Doing selective restore from {self.restore_config}")
 
-        strict = True if self.ckpt_load_strictness is None else self.ckpt_load_strictness
         checkpoint = self.load_checkpoint(
-            checkpoint_path=self.restore_config.path, selective_restore=True, strict=strict
+            checkpoint_path=self.restore_config.path, selective_restore=True
         )
 
         if self.restore_config.load_model_state:
