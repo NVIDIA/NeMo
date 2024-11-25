@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.vlm.llavanext.model.llavanext import Llava16Config7B, Llava16Config13B, LlavanextModel
 from nemo.collections.vlm.mllama.data import MLlamaLazyDataModule, MLlamaMockDataModule
 from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
@@ -81,4 +82,7 @@ __all__ = [
     "MLlamaConfig90BInstruct",
     "mllama_11b",
     "mllama_90b",
+    "Llava16Config7B",
+    "Llava16Config13B",
+    "LlavanextModel",
 ]
