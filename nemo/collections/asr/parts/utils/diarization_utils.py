@@ -19,7 +19,7 @@ import os
 from itertools import groupby
 from collections import defaultdict, OrderedDict as od
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 from pyannote.metrics.diarization import DiarizationErrorRate
@@ -449,7 +449,7 @@ def print_sentences(sentences: List[Dict[str, float]],
 
     return string_out
 
-def read_seglst(seglst_filepath, round_digits=3, return_rttm=False, sort_by_start_time=False):
+def read_seglst(seglst_filepath, round_digits=3, return_rttm=False, sort_by_start_time=False, sort_by_end_time=False):
     """
     Read a seglst file and return the speaker & text information dictionary.
 
@@ -496,8 +496,12 @@ def read_seglst(seglst_filepath, round_digits=3, return_rttm=False, sort_by_star
                     'duration': dur,
                 }
             )   
+    if sort_by_start_time and sort_by_end_time:
+        raise ValueError("Cannot sort by both start and end time")
     if sort_by_start_time:
         seglst = sorted(seglst, key=lambda x: (x['start_time'], x['end_time']))
+    if sort_by_end_time:
+        seglst = sorted(seglst, key=lambda x: (x['end_time'], x['start_time']))
     if return_rttm:
         return seglst, rttm_lines
     return seglst
@@ -582,19 +586,24 @@ def chunk_seglst(
             speakers.add(segment['speaker'])
             session_ids.add(session_id)
 
-    assert len(session_ids) == 1, "All segments should belong to the same session"
+    assert len(session_ids) <= 1, "All segments should belong to the same session"
+
+    if len(session_ids) == 0:
+        session_id = None
+    else:
+        session_id = session_ids.pop()
     
-    return chunk_id2timestamps, speakers, session_ids.pop()
+    return chunk_id2timestamps, speakers, session_id
 
 def streaming_evaluation(
     ref_seglst: List[Dict],
     hyp_seglst: List[Dict],
-    collar=0.25, 
-    ignore_overlap=False, 
+    collar: float = 0.25, 
+    ignore_overlap: bool = False, 
     verbose: bool = True, 
     chunk_size: float = 10.0,
 ):
-    '''
+    """
     Perform streaming evaluation of diarization and ASR for one session
 
     Args:
@@ -604,12 +613,15 @@ def streaming_evaluation(
         ignore_overlap (bool): whether to ignore overlapping segments
         verbose (bool): whether to print verbose output
         chunk_size (float): how frequently to chunk and evaluate the session
-    '''
+    """
     max_duration = max([seg['end_time'] for seg in ref_seglst + hyp_seglst])
     max_idx = int(max_duration // chunk_size) + 1
 
     chunked_ref_seglst, ref_speakers, ref_session_id = chunk_seglst(ref_seglst, chunk_size=chunk_size)
     chunked_hyp_seglst, hyp_speakers, hyp_session_id = chunk_seglst(hyp_seglst, chunk_size=chunk_size)
+
+    if ref_session_id is None:
+        ref_session_id = hyp_session_id
 
     assert ref_session_id == hyp_session_id, "Session IDs of reference and hypothesis should match"
     
@@ -653,6 +665,123 @@ def streaming_evaluation(
         cpwer_list.append(cpWER)
         
     return der_list, cpwer_list
+
+class OnlineEvaluation:
+    """
+    A class designed for performing online evaluation of diarization and ASR.
+
+    Attributes:
+        ref_seglst (list):
+            List of reference seglst dictionaries
+        hyp_seglst (list):
+            List of hypothesis seglst dictionaries
+        collar (float):
+            Collar for DER calculation
+        ignore_overlap (bool):
+            Whether to ignore overlapping segments
+        verbose (bool):
+            Whether to print verbose output            
+    """
+
+    def __init__(self, 
+        ref_seglst: List[Dict],
+        hyp_seglst: Optional[List[Dict]] = None,
+        collar: float = 0.25, 
+        ignore_overlap: bool = False, 
+        verbose: bool = True, 
+    ):
+        self.ref_seglst = ref_seglst
+        self.hyp_seglst = hyp_seglst
+        self.collar = collar
+        self.ignore_overlap = ignore_overlap
+        self.verbose = verbose
+
+        # current index of the reference seglst
+        self.current_idx = 0
+
+    def evaluate_inloop(self, hyp_seglst, end_step_time=0.0):
+        """
+        Evaluate the diarization and ASR performance at each step.
+
+        Args:
+            hyp_seglst (list): list of hypothesis seglst dictionaries from start to end_step_time
+            end_step_time (float): end time of the current step
+        """
+        if end_step_time > self.ref_seglst[self.current_idx]['end_time']:
+            self.current_idx += 1
+            ref_seglst = self.ref_seglst[:self.current_idx]
+            der_list, cpwer_list = self.evaluate(ref_seglst, hyp_seglst, chunk_size=-1, verbose=False)
+            if self.verbose:
+                logging.info(f"Session ID: {self.ref_seglst[0]['session_id']} from 0.0s to {end_step_time:.3f}s")
+                logging.info(f"DER: {der_list[-1]:.2f}%, cpWER: {cpwer_list[-1]:.2f}%")
+
+            return der_list[-1], cpwer_list[-1]
+        return None, None
+
+    def evaluate_outofloop(self, chunk_size=10.0):
+        """
+        Evaluate the diarization and ASR performance for the entire session.
+
+        Args:
+            chunk_size (float): chunk size in seconds, will report DER and cpWER from start and end of each chunk
+        """
+        return self.evaluate(self.ref_seglst, self.hyp_seglst, chunk_size=chunk_size)
+
+    def evaluate(self, ref_seglst, hyp_seglst, chunk_size=10.0, verbose=True):
+        max_duration = max([seg['end_time'] for seg in ref_seglst + hyp_seglst])
+        if chunk_size == -1:
+            chunk_size = max_duration + 1
+        max_idx = int(max_duration // chunk_size) + 1
+
+        chunked_ref_seglst, ref_speakers, ref_session_id = chunk_seglst(ref_seglst, chunk_size=chunk_size)
+        chunked_hyp_seglst, hyp_speakers, hyp_session_id = chunk_seglst(hyp_seglst, chunk_size=chunk_size)
+
+        if hyp_session_id is None:
+            hyp_session_id = ref_session_id
+
+        assert ref_session_id == hyp_session_id, "Session IDs of reference and hypothesis should match"
+        
+        # Only care about the sessions in reference only
+        session_id = ref_session_id
+        ref_speaker_words = defaultdict(list)
+        hyp_speaker_words = defaultdict(list)
+
+        der_metric = DiarizationErrorRate(collar=2 * self.collar, skip_overlap=self.ignore_overlap)
+        cpwer_metric = calculate_session_cpWER
+        der_list, cpwer_list = [], []
+        for chunk_idx in range(max_idx):
+            ref_seglst = chunked_ref_seglst[chunk_idx]
+            hyp_seglst = chunked_hyp_seglst[chunk_idx]
+
+            if len(ref_speaker_words) == 0:
+                ref_speaker_words = ['' for _ in ref_speakers]
+            if len(hyp_speaker_words) == 0:
+                hyp_speaker_words = ['' for _ in hyp_speakers]
+            ref_speaker_timestamps, ref_speaker_word = convert_seglst(ref_seglst, ref_speakers)
+            hyp_speaker_timestamps, hyp_speaker_word = convert_seglst(hyp_seglst, hyp_speakers)
+
+            ref_labels = generate_diarization_output_lines(speaker_timestamps=ref_speaker_timestamps, model_spk_num=len(ref_speakers))
+            hyp_labels = generate_diarization_output_lines(speaker_timestamps=hyp_speaker_timestamps, model_spk_num=len(hyp_speakers))
+            reference = labels_to_pyannote_object(ref_labels, uniq_name=session_id)
+            hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=session_id)
+            
+            for idx, speaker in enumerate(ref_speakers):
+                ref_speaker_words[idx] += ref_speaker_word[idx]
+            for idx, speaker in enumerate(hyp_speakers):
+                hyp_speaker_words[idx] += hyp_speaker_word[idx]
+
+            der_metric(reference, hypothesis)
+            cpWER, min_perm_hyp_trans, ref_trans = cpwer_metric(ref_speaker_words, hyp_speaker_words)
+
+            if verbose:
+                logging.info(f"Session ID: {session_id} Chunk ID: {chunk_idx} from 0.0s to {(chunk_idx+1)*chunk_size}s")
+                logging.info(f"DER: {abs(der_metric)*100:.2f}%, cpWER: {cpWER*100:.2f}%")
+
+            der_list.append(abs(der_metric) * 100)
+            cpwer_list.append(cpWER * 100)
+
+        return der_list, cpwer_list
+    
 class OfflineDiarWithASR:
     """
     A class designed for performing ASR and diarization together.
