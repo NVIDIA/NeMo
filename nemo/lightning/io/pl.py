@@ -173,7 +173,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
-            preprocess_common_before_consistancy_check=consistency_check,
         )
 
     @override
@@ -375,15 +374,3 @@ def is_distributed_ckpt(path) -> bool:
         return True
 
     return False
-
-
-def _skip_optimizer_states_before_consistancy_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
-    # This is a workaround to avoid OOMs with megatron-core dist checkpointing
-    # Where optimizer states are all-gathered when validating access integrity
-    sd = deepcopy(state_dict)
-    sd.pop("optimizer_states", None)
-    return sd
-
-
-def _noop_preprocess_common_before_consistancy_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
-    return state_dict
