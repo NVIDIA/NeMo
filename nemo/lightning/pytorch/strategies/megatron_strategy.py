@@ -698,10 +698,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if "sharded_state_dict" not in checkpoint:
             checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        if (
-            "optimizer_states" in checkpoint
-            and self.trainer.state.fn == TrainerFn.FITTING
-        ):
+        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
             # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
             # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}

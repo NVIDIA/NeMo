@@ -213,10 +213,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"))
         checkpoint["state_dict"] = OrderedDict([])
 
-        if (
-            "optimizer_states" in checkpoint
-            and self.trainer.state.fn == TrainerFn.FITTING
-        ):
+        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
             # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
             # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
