@@ -1,7 +1,8 @@
 import torch
 
 # 'These functions implementation is adapted from
-# https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py'
+# https://github.com/huggingface/transformers/blob/
+# 53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py'
 
 
 def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_token_len):
@@ -83,8 +84,12 @@ def merge_input_ids_with_image_features(
         Edge cases:
             * If tokens are same but image token sizes are different, then cannot infer left or right padding
             ```python
-            cat_img = Image.open(requests.get("http://images.cocodataset.org/val2017/000000039769.jpg", stream=True).raw)
-            chart_img = Image.open(requests.get("https://github.com/haotian-liu/LLaVA/blob/1a91fc274d7c35a9b50b3cb29c4247ae5837ce39/images/llava_v1_5_radar.jpg?raw=true", stream=True).raw)
+            cat_img = Image.open(requests.get(
+                "http://images.cocodataset.org/val2017/000000039769.jpg", stream=True).raw)
+            chart_img = Image.open(requests.get(
+                "https://github.com/haotian-liu/LLaVA/blob/"
+                "1a91fc274d7c35a9b50b3cb29c4247ae5837ce39/images/llava_v1_5_radar.jpg?raw=true"
+                , stream=True).raw)
             prompts = [
                 "[INST] <image>\nWhat is shown in this image? [/INST]",
                 "[INST] <image>\nWhat is shown in this image? [/INST]",
@@ -139,7 +144,8 @@ def merge_input_ids_with_image_features(
         total_num_special_image_tokens = torch.sum(special_image_token_mask)
         if total_num_special_image_tokens != num_images:
             raise ValueError(
-                f"Number of image tokens in input_ids ({total_num_special_image_tokens}) different from num_images ({num_images})."
+                f"Number of image tokens in input_ids ({total_num_special_image_tokens})
+                different from num_images ({num_images})."
             )
         # Compute the maximum embed dimension
         # max_image_feature_lens is max_feature_lens per batch
@@ -154,7 +160,8 @@ def merge_input_ids_with_image_features(
         # batch_indices, non_image_indices = torch.where((input_ids != image_token_index) )
         # 2. Compute the positions where text should be written
         # Calculate new positions for text tokens in merged image-text sequence.
-        # `special_image_token_mask` identifies image tokens. Each image token will be replaced by `nb_text_tokens_per_images` text tokens.
+        # `special_image_token_mask` identifies image tokens.
+        # Each image token will be replaced by `nb_text_tokens_per_images` text tokens.
         # `torch.cumsum` computes how each image token shifts subsequent text token positions.
         # - 1 to adjust for zero-based indexing, as `cumsum` inherently increases indices by one.
         # ! instead of special_image_token_mask * (num_image_patches - 1)
@@ -164,7 +171,8 @@ def merge_input_ids_with_image_features(
         new_token_positions = torch.cumsum((special_image_token_mask + 1), -1) - 1
         if left_padding:
             # shift right token positions so that they are ending at the same number
-            # the below here was incorrect? new_token_positions += new_token_positions[:, -1].max() - new_token_positions[:, -1:]
+            # the below here was incorrect?
+            # new_token_positions += new_token_positions[:, -1].max() - new_token_positions[:, -1:]
             new_token_positions += max_embed_dim - 1 - new_token_positions[:, -1:]
 
         text_to_overwrite = new_token_positions[batch_indices, non_image_indices]
@@ -252,7 +260,8 @@ def unpad_image(tensor, original_size):
     if not isinstance(original_size, (list, tuple)):
         if not isinstance(original_size, (torch.Tensor, np.ndarray)):
             raise TypeError(
-                f"image_size invalid type: {type(original_size)} not valid, should be either list, tuple, np.ndarray or tensor"
+                f"image_size invalid type: {type(original_size)} not valid,
+                should be either list, tuple, np.ndarray or tensor"
             )
         original_size = original_size.tolist()
     original_height, original_width = original_size
@@ -332,7 +341,8 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     if not isinstance(image_size, (list, tuple)):
         if not isinstance(image_size, (torch.Tensor, np.ndarray)):
             raise TypeError(
-                f"image_size invalid type: {type(image_size)} not valid, should be either list, tuple, np.ndarray or tensor"
+                f"image_size invalid type: {type(image_size)} not valid,
+                should be either list, tuple, np.ndarray or tensor"
             )
         image_size = image_size.tolist()
 
@@ -340,14 +350,17 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     return height // patch_size, width // patch_size
 
 
-'These functions implementation is adapted from : https://github.com/huggingface/transformers/blob/53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py#L655'
+# These functions implementation is adapted from
+# https://github.com/huggingface/transformers/blob/
+# 53fad641cfdb5105e2470bcf3ef17ea8e25cc300/src/transformers/models/llava_next/modeling_llava_next.py#L655'
 
 
 def pack_image_features(image_features, image_sizes, vision_feature_select_strategy, image_newline=None):
     """
     Reshape, unpad and then pack each image_feature into a single image_features tensor containing all visual vectors.
     Args:
-        image_features (`List[torch.Tensor]` of length num_images, each of shape `(num_patches, image_length, embed_dim)`)
+        image_features (`List[torch.Tensor]` of length num_images,
+        each of shape `(num_patches, image_length, embed_dim)`)
             List of image feature tensor, each contains all the visual feature of all patches.
         image_sizes (`torch.Tensor` of shape `(num_images, 2)`)
             Actual image size of each images (H, W).

@@ -357,5 +357,5 @@ class MCoreLlavaNextModel(MCoreNevaModel):
 
 
 __all__ = [
-    "LLavaNextConfig",
+    "LlavaNextConfig",
 ]
