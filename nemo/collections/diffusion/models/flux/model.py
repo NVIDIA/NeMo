@@ -92,6 +92,7 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0
+    use_cpu_initialization: bool = True
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step

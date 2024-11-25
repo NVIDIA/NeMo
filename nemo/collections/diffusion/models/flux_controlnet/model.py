@@ -56,6 +56,7 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
     hidden_dropout: float = 0
     attention_dropout: float = 0
     add_qkv_bias: bool = True
+    use_cpu_initialization: bool = True
 
 
     load_from_flux_transformer:bool = True
