@@ -40,11 +40,19 @@ def _try_restore_tokenizer(model, ckpt_path):
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.lightning.io import load_context
 
-    tokenizer = load_context(ckpt_path, "model.tokenizer")
+    try:
+        tokenizer = load_context(ckpt_path, "model.tokenizer")
+    except ValueError as e:
+        logging.warning(f"Encountered error while trying to restore tokenizer. Tokenizer is not restored. "
+                        f"Original error: {e}")
+        return model
+
     if isinstance(tokenizer, TokenizerSpec):
-        # Ignore if the ckpt doesn't have a tokenizer. type(tokenizer)==TrainerContext in that case.
         model.tokenizer = tokenizer
         model.__io__.tokenizer = tokenizer.__io__
+    else:
+        # Ignore if the ckpt doesn't have a tokenizer. type(tokenizer)==TrainerContext in this case.
+        logging.warning("Checkpoint does not have model.tokenizer field. Tokenizer is not restored.")
 
     return model
 
