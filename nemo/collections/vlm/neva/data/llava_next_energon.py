@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import torch
 from megatron.energon import VQASample, batch_list, batch_pad_stack
@@ -25,13 +25,18 @@ from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTask
 from nemo.utils import logging
 
 
+@dataclass
 class LlavaNextTextSample(ImageTextSample):
     num_media_tiles: int = 0
+    image_sizes: torch.tensor = field(default_factory=lambda: torch.tensor([]))
+    attention_mask: Optional[torch.tensor] = None
 
 
 @dataclass
 class LlavaNextTextRawBatch(ImageTextRawBatch):
     num_media_tiles: List[int] = field(default_factory=list)
+    image_sizes: torch.tensor = field(default_factory=lambda: torch.tensor([]))
+    attention_mask: Optional[torch.tensor] = None
 
 
 class LlavaNextSampleEncoder(VQASampleEncoder):
@@ -81,15 +86,14 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
             images, loss masks, and metadata.
         """
         conversation_prompt = self.apply_prompt_template(input_sample)
-        logging.debug(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
+        logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
-
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        logging.debug(f"task encoder encode_sample after tokenize prompt tokens {tokens}")
-        logging.debug(f"task encoder encode_sample lables {labels}")
+        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
         processed_image = self.process_image(input_sample.image)
         output_sample.__key__ = input_sample.__key__
@@ -98,6 +102,10 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
         output_sample.num_media_tiles = processed_image.shape[0]
+        output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
+        height = input_sample.image.shape[1]
+        width = input_sample.image.shape[2]
+        output_sample.image_sizes = torch.tensor([[height, width]], dtype=torch.long)
         return output_sample
 
 
@@ -133,7 +141,16 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         LlavaNextTextRawBatch: A batch containing all input samples' images, tokens, labels,
             loss masks, and other metadata prepared for model processing.
         """
-        keys, images, tokens, labels, loss_mask, num_media_tiles = [], [], [], [], [], []
+        keys, images, tokens, labels, loss_mask, num_media_tiles, image_sizes, attention_mask = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
         for sample in samples:
             keys.append(sample.__key__)
             images.append(sample.images)
@@ -141,6 +158,8 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             labels.append(sample.labels)
             loss_mask.append(sample.loss_mask)
             num_media_tiles.append(sample.num_media_tiles)
+            image_sizes.append(sample.image_sizes)
+            attention_mask.append(sample.attention_mask)
 
         batch_keys = batch_list(keys)
 
@@ -148,8 +167,9 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
 
         batch_tokens = pad_sequence(tokens, batch_first=True)
         batch_labels = pad_sequence(labels, batch_first=True)
-
+        image_sizes = torch.cat(image_sizes, dim=0)
         batch_loss_mask = batch_pad_stack(loss_mask)
+        batch_attention_mask = batch_pad_stack(attention_mask)
         batch_num_media_tiles = torch.tensor(batch_list(num_media_tiles), dtype=torch.int)
         return LlavaNextTextRawBatch(
             __keys__=batch_keys,
@@ -158,4 +178,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             labels=batch_labels,
             loss_mask=batch_loss_mask,
             num_media_tiles=batch_num_media_tiles,
+            image_sizes=image_sizes,
+            attention_mask=batch_attention_mask,
         )
