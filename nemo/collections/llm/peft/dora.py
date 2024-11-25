@@ -18,17 +18,14 @@ from dataclasses import dataclass, field
 from typing import List, Literal, Optional
 
 import torch
-from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.tensor_parallel import (
-    ColumnParallelLinear,
-    RowParallelLinear,
     gather_from_tensor_model_parallel_region,
 )
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
 from torch import nn
 
-from nemo.collections.llm.peft.lora import LinearAdapter
+from nemo.collections.llm.peft.lora import _get_adapter_attributes_from_linear
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
@@ -208,38 +205,7 @@ class DoRA(PEFT):
 
         full_name = f"{prefix}.{name}" if prefix else name
         if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
-            if HAVE_TE and isinstance(m, TEColumnParallelLinear) or isinstance(m, TELayerNormColumnParallelLinear):
-                input_is_parallel = False
-                # m.in_features and m.out_features are divided by tp_size already,
-                # but in_features and out_features passed to ParallelLinearAdapter are not.
-                tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                in_features = m.in_features
-                out_features = m.out_features * tp_size
-                # DoRA is applied after layernorm, so layernorm output must be returned
-                m.return_layernorm_output = True
-                # perf optimization for DoRA + SP (to check!)
-                if m.config.sequence_parallel and not m.ub_overlap_ag:
-                    m.return_layernorm_output_gathered = True
-            elif HAVE_TE and isinstance(m, TERowParallelLinear):
-                input_is_parallel = True
-                tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                in_features = m.in_features * tp_size
-                out_features = m.out_features
-            elif isinstance(m, ColumnParallelLinear):
-                input_is_parallel = False
-                in_features = m.input_size
-                out_features = m.output_size
-            elif isinstance(m, RowParallelLinear):
-                input_is_parallel = True
-                in_features = m.input_size
-                out_features = m.output_size
-            elif isinstance(m, nn.Linear):
-                return LinearAdapter(
-                    m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
-                )
-            else:
-                raise NotImplementedError(f"Layer type is unrecognized for LoRA: {type(m)}")
-
+            input_is_parallel, in_features, out_features = _get_adapter_attributes_from_linear(m)
             logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(
                 in_features,
