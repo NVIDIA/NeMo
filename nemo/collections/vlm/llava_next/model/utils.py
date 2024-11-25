@@ -158,8 +158,8 @@ def merge_input_ids_with_image_features(
         total_num_special_image_tokens = torch.sum(special_image_token_mask)
         if total_num_special_image_tokens != num_images:
             raise ValueError(
-                f"Number of image tokens in input_ids ({total_num_special_image_tokens})
-                different from num_images ({num_images})."
+                f"Number of image tokens in input_ids ({total_num_special_image_tokens}) "
+                f"different from num_images ({num_images})."
             )
         # Compute the maximum embed dimension
         # max_image_feature_lens is max_feature_lens per batch
@@ -274,8 +274,8 @@ def unpad_image(tensor, original_size):
     if not isinstance(original_size, (list, tuple)):
         if not isinstance(original_size, (torch.Tensor, np.ndarray)):
             raise TypeError(
-                f"image_size invalid type: {type(original_size)} not valid,
-                should be either list, tuple, np.ndarray or tensor"
+                f"image_size invalid type: {type(original_size)} not valid ",
+                "should be either list, tuple, np.ndarray or tensor",
             )
         original_size = original_size.tolist()
     original_height, original_width = original_size
@@ -355,8 +355,8 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     if not isinstance(image_size, (list, tuple)):
         if not isinstance(image_size, (torch.Tensor, np.ndarray)):
             raise TypeError(
-                f"image_size invalid type: {type(image_size)} not valid,
-                should be either list, tuple, np.ndarray or tensor"
+                f"image_size invalid type: {type(image_size)} not valid, "
+                "should be either list, tuple, np.ndarray or tensor"
             )
         image_size = image_size.tolist()
 

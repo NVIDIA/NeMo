@@ -44,7 +44,8 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
-    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
+    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/
+    # megatron_gpt_model.py#L828-L842
     batch = next(dataloader_iter)
     _batch: dict
     if isinstance(batch, tuple) and len(batch) == 3:
@@ -227,11 +228,12 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         """Forward function of the LLaVA Next model.
 
         Args:
-            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w]. num_tiles means the number of image tiles in this batch.
+            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w].
+                                    num_tiles means the number of image tiles in this batch.
             input_ids (torch.Tensor): input text ids [batch, text_seq_len].
             position_ids (torch.Tensor): input text position ids [batch, text_seq_len].
             image_sizes (torch.Tensor): Raw image sizes  before tiling (N,2).
-            attention_mask (torch.Tensor): Attention mask for the language model [batch, 1, combined_seq_len, combined_seq_len].
+            attention_mask (torch.Tensor): Attention mask for the language model [batch, text seq length].
             labels (torch.Tensor): Optional target text labels [batch, combined_seq_len].
             loss_mask (torch.Tensor): Text loss mask [batch, text_seq_len].
             inference_params (InferenceParams): Inference-time parameters including KV cache.
@@ -239,7 +241,7 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             image_token_index (int): ID for input images.
 
         Returns:
-            output (torch.Tensor): Loss of shape [b, s] if labels are provided, otherwise logits of shape [b, s, vocab_size].
+            output (torch.Tensor): Loss ([b, s]) if labels are provided; logits ([b, s, vocab_size]) otherwise.
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
 
@@ -248,7 +250,8 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         )
         has_images = media.shape[0] > 0
 
-        # If running inference, we can skip media token computation if they were computed already earlier for this sample.
+        # If running inference, we can skip media token computation
+        # if they were computed already earlier for this sample.
         if use_inference_kv_cache:
             media_embeddings = None
         elif self.add_encoder and not has_images:

@@ -60,7 +60,7 @@ class LlavaNextModel(NevaModel):
 
     Attributes:
         config (LlavaNextConfig): Configuration object for the model.
-        optim (Optional[OptimizerModule]): Optimizer module for training the model. Defaults to a Megatron optimizer.
+        optim (Optional[OptimizerModule]): Optimizer module. Defaults to a Megatron optimizer.
         tokenizer (Optional[TokenizerSpec]): Tokenizer specification for processing text inputs.
         model_transform (Optional[Callable[[torch.nn.Module], torch.nn.Module]]):
             Optional transformation applied to the model after initialization.
@@ -78,7 +78,7 @@ class LlavaNextModel(NevaModel):
 
         Args:
             config (LlavaNextConfig): Configuration object for the model.
-            optim (Optional[OptimizerModule]): Optional optimizer module. If not provided, a default Megatron optimizer is used.
+            optim (Optional[OptimizerModule]): optimizer module. Defaults to Megatron optimizer.
             tokenizer (Optional[TokenizerSpec]): Optional tokenizer specification for processing text inputs.
             model_transform (Optional[Callable[[torch.nn.Module], torch.nn.Module]]):
                 Optional transformation function applied to the model after initialization.
@@ -121,7 +121,7 @@ class LlavaNextModel(NevaModel):
             position_ids (torch.Tensor): Position IDs of shape [batch, text_seq_len].
             image_sizes (torch.Tensor): Raw image sizes before tiling, of shape [batch, 2].
             loss_mask (Optional[torch.Tensor]): Text loss mask of shape [batch, text_seq_len].
-            attention_mask (Optional[torch.Tensor]): Attention mask (before merging image embeddings) of shape [batch, text_seq_len].
+            attention_mask (Optional[torch.Tensor]): Attention mask shape [batch, text_seq_len].
             media (Optional[torch.Tensor]): Input media tensor.
             labels (Optional[torch.Tensor]): Target labels of shape [batch, combined_seq_len].
             inference_params (InferenceParams): Inference-time parameters.
