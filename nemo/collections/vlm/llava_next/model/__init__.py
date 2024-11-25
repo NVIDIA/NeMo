@@ -13,12 +13,12 @@
 # limitations under the License.
 
 
-from nemo.collections.vlm.llavanext.model.base import LLavanextConfig
-from nemo.collections.vlm.llavanext.model.llavanext import Llava16Config7B, Llava16Config13B, LLavanextModel
+from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
+from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
 
 __all__ = [
-    "LLavanextConfig",
-    "LLavanextModel",
-    "Llava16Config7B",
-    "Llava16Config13B",
+    "LlavaNextConfig",
+    "LlavaNextModel",
+    "LlavaNextConfig7B",
+    "LlavaNextConfig13B",
 ]

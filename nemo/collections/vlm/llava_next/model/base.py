@@ -9,11 +9,11 @@ from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.vlm import MCoreNevaModel, NevaConfig
-from nemo.collections.vlm.llavanext.model.utils import merge_input_ids_with_image_features, pack_image_features
+from nemo.collections.vlm.llava_next.model.utils import merge_input_ids_with_image_features, pack_image_features
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 
 
-def llavanext_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     """
     Processes a batch of data from the dataloader for the LLaVA Next model.
 
@@ -68,7 +68,7 @@ def llavanext_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     return output
 
 
-def llavanext_forward_step(model, batch) -> torch.Tensor:
+def llava_next_forward_step(model, batch) -> torch.Tensor:
     """
     Performs the forward step for the LLaVA Next model.
 
@@ -99,17 +99,17 @@ def llavanext_forward_step(model, batch) -> torch.Tensor:
     return model(**forward_args)
 
 
-class LLavanextConfig(NevaConfig):
+class LlavaNextConfig(NevaConfig):
     """
     Configuration class for the LLaVA Next model.
     Overrides NevaConfig and modifies forward and data step fn.
 
     """
 
-    forward_step_fn: Callable = llavanext_forward_step
-    data_step_fn: Callable = llavanext_data_step
+    forward_step_fn: Callable = llava_next_forward_step
+    data_step_fn: Callable = llava_next_data_step
 
-    def configure_model(self, tokenizer) -> "MCoreLlavanextModel":
+    def configure_model(self, tokenizer) -> "MCoreLlavaNextModel":
         """
         Configures the LLaVA Next model with the appropriate settings.
 
@@ -117,7 +117,7 @@ class LLavanextConfig(NevaConfig):
             tokenizer: Tokenizer instance to be used with the model.
 
         Returns:
-            MCoreLlavanextModel: An instance of the LLaVA Next model.
+            MCoreLlavaNextModel: An instance of the LLaVA Next model.
         """
 
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -137,7 +137,7 @@ class LLavanextConfig(NevaConfig):
                 self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
                 self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        model = MCoreLlavanextModel(
+        model = MCoreLlavaNextModel(
             config=self,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage()
@@ -152,7 +152,7 @@ class LLavanextConfig(NevaConfig):
         return model
 
 
-class MCoreLlavanextModel(MCoreNevaModel):
+class MCoreLlavaNextModel(MCoreNevaModel):
     """
     The LLaVA Next model class, extending MCoreNevaModel.
 
@@ -162,7 +162,7 @@ class MCoreLlavanextModel(MCoreNevaModel):
 
     def __init__(
         self,
-        config: LLavanextConfig,
+        config: LlavaNextConfig,
         tokenizer=None,
         pre_process: bool = True,
         post_process: bool = True,
@@ -175,7 +175,7 @@ class MCoreLlavanextModel(MCoreNevaModel):
         Calls the super class init and initialize image_newline parameter
 
         Args:
-            config (LLavanextConfig): Model configuration instance.
+            config (LlavaNextConfig): Model configuration instance.
             tokenizer: Optional tokenizer instance.
             pre_process (bool): Whether to enable preprocessing.
             post_process (bool): Whether to enable postprocessing.
@@ -357,5 +357,5 @@ class MCoreLlavanextModel(MCoreNevaModel):
 
 
 __all__ = [
-    "LLavanextConfig",
+    "LLavaNextConfig",
 ]

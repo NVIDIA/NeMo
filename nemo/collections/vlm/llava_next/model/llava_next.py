@@ -4,7 +4,6 @@ from typing import Callable, List, Optional
 
 import torch
 import torch.distributed
-from megatron.core import parallel_state as ps
 from megatron.core.inference_params import InferenceParams
 from megatron.core.optimizer import OptimizerConfig
 from transformers import LlavaNextForConditionalGeneration
@@ -12,7 +11,7 @@ from transformers import LlavaNextForConditionalGeneration
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import LlamaConfig
 from nemo.collections.vlm import Llava15Config7B, Llava15Config13B, NevaModel
-from nemo.collections.vlm.llavanext.model.base import LLavanextConfig, MCoreLlavanextModel
+from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig, MCoreLlavaNextModel
 from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig, MultimodalProjectorConfig
 from nemo.collections.vlm.neva.model.llava import HFLlavaImporter
 from nemo.lightning import OptimizerModule, io, teardown
@@ -20,7 +19,7 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 
 
 @dataclass
-class Llava16Config7B(Llava15Config7B):
+class LlavaNextConfig7B(Llava15Config7B):
     """
     Configuration class for the 7B parameter variant of the LLaVA 16 model.
 
@@ -31,7 +30,7 @@ class Llava16Config7B(Llava15Config7B):
 
 
 @dataclass
-class Llava16Config13B(Llava15Config13B):
+class LlavaNextConfig13B(Llava15Config13B):
     """
     Configuration class for the 13B parameter variant of the LLaVA 16 model.
 
@@ -41,12 +40,12 @@ class Llava16Config13B(Llava15Config13B):
     pass
 
 
-class LLavanextModel(NevaModel):
+class LlavaNextModel(NevaModel):
     """
     The LLaVA Next model class, extending NevaModel.
 
     Attributes:
-        config (LLavanextConfig): Configuration object for the model.
+        config (LlavaNextConfig): Configuration object for the model.
         optim (Optional[OptimizerModule]): Optimizer module for training the model. Defaults to a Megatron optimizer.
         tokenizer (Optional[TokenizerSpec]): Tokenizer specification for processing text inputs.
         model_transform (Optional[Callable[[torch.nn.Module], torch.nn.Module]]):
@@ -55,16 +54,16 @@ class LLavanextModel(NevaModel):
 
     def __init__(
         self,
-        config: LLavanextConfig,
+        config: LlavaNextConfig,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[torch.nn.Module], torch.nn.Module]] = None,
     ):
         """
-        Initializes the LLavanextModel.
+        Initializes the LlavaNextModel.
 
         Args:
-            config (LLavanextConfig): Configuration object for the model.
+            config (LlavaNextConfig): Configuration object for the model.
             optim (Optional[OptimizerModule]): Optional optimizer module. If not provided, a default Megatron optimizer is used.
             tokenizer (Optional[TokenizerSpec]): Optional tokenizer specification for processing text inputs.
             model_transform (Optional[Callable[[torch.nn.Module], torch.nn.Module]]):
@@ -78,12 +77,12 @@ class LLavanextModel(NevaModel):
             model_transform=model_transform,
         )
 
-    def configure_model(self) -> MCoreLlavanextModel:
+    def configure_model(self) -> MCoreLlavaNextModel:
         """
         Configures the underlying model instance if it has not been initialized.
 
         Returns:
-            MCoreLlavanextModel: The configured model instance.
+            MCoreLlavaNextModel: The configured model instance.
         """
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
@@ -134,10 +133,10 @@ class LLavanextModel(NevaModel):
         return output_tensor
 
 
-@io.model_importer(LLavanextModel, "hf")
+@io.model_importer(LlavaNextModel, "hf")
 class HFLlavaNextImporter(
     HFLlavaImporter,
-    io.ModelConnector["LlavaNextForConditionalGeneration", LLavanextModel],
+    io.ModelConnector["LlavaNextForConditionalGeneration", LlavaNextModel],
 ):
     """
     Importer class for converting HuggingFace LLaVA Next checkpoint to NeMo format.
@@ -147,19 +146,19 @@ class HFLlavaNextImporter(
         io.ModelConnector: Connector interface to handle setup, save, and load using the Lightning framework.
 
     Methods:
-        init: Initializes a new LLavanextModel instance.
+        init: Initializes a new LlavaNextModel instance.
         apply: Converts the HuggingFace model to NeMo format and saves it.
-        config: Generates and returns the LLavanextConfig for the model.
+        config: Generates and returns the LlavaNextConfig for the model.
     """
 
-    def init(self) -> LLavanextModel:
+    def init(self) -> LlavaNextModel:
         """
-        Initializes the LLavanextModel.
+        Initializes the LlavaNextModel.
 
         Returns:
-            LLavanextModel: An instance of the LLaVA Next model initialized with the configuration.
+            LlavaNextModel: An instance of the LLaVA Next model initialized with the configuration.
         """
-        return LLavanextModel(self.config, tokenizer=self.tokenizer)
+        return LlavaNextModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         """
@@ -188,12 +187,12 @@ class HFLlavaNextImporter(
         return output_path
 
     @property
-    def config(self) -> LLavanextConfig:
+    def config(self) -> LlavaNextConfig:
         """
         Generates the configuration for the LLaVA Next model based on the HuggingFace model.
 
         Returns:
-            LLavanextConfig: A configuration object for the LLaVA Next model.
+            LlavaNextConfig: A configuration object for the LLaVA Next model.
         """
         from transformers import LlavaConfig as HFLlavaConfig
 
@@ -224,7 +223,7 @@ class HFLlavaNextImporter(
         )
         vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
 
-        output = LLavanextConfig(
+        output = LlavaNextConfig(
             language_transformer_config=language_transformer_config,
             vision_transformer_config=vision_transformer_config,
             vision_projection_config=vision_projection_config,
@@ -235,5 +234,5 @@ class HFLlavaNextImporter(
 
 
 __all__ = [
-    "LLavanextModel",
+    "LlavaNextModel",
 ]
