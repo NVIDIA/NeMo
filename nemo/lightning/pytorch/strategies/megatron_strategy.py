@@ -57,6 +57,7 @@ from typing_extensions import override
 
 from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.lightning import _strategy_lib, io
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, aggregate_moe_loss_stats
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
@@ -701,6 +702,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             and self.trainer.state.fn == TrainerFn.FITTING
             and self.ckpt_save_optimizer
         ):
+            checkpoint_dir = ckpt_to_weights_subdir(filepath, is_saving=True)
+            for i, optimizer in enumerate(self.optimizers):
+                if hasattr(optimizer, "save_parameter_state"):
+                    param_state_path = str(checkpoint_dir / f"optimizer_param_state_{i}")
+                    optimizer.save_parameter_state(param_state_path)
+
             checkpoint["optimizer_states"] = {}
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
@@ -734,6 +741,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
         checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
+        checkpoint["_checkpoint_path"] = str(checkpoint_path)
         if selective_restore:
             final_checkpoint = {}
             for key in sharded_state_dict.keys():
@@ -773,9 +781,15 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         optimizer_states = checkpoint["optimizer"]
 
-        for optimizer, opt_state in zip(self.optimizers, optimizer_states):
+        for i, optimizer, opt_state in zip(range(len(self.optimizers)), self.optimizers, optimizer_states):
             optimizer.load_state_dict(opt_state)
             _optimizer_to_device(optimizer, self.root_device)
+
+            if "_checkpoint_path" in checkpoint:
+                checkpoint_dir = ckpt_to_weights_subdir(checkpoint["_checkpoint_path"], is_saving=False)
+                param_state_path = str(checkpoint_dir / f"optimizer_param_state_{i}")
+                if os.path.isfile(param_state_path) and hasattr(optimizer, "load_parameter_state"):
+                    optimizer.load_parameter_state(param_state_path)
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         """Deletes checkpoint"""
