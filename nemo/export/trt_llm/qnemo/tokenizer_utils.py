@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import os
-import shutil
-import tempfile
 
 from omegaconf import OmegaConf
 from transformers import AutoTokenizer
