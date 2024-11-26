@@ -61,7 +61,7 @@ class MultiModalTaskEncoder(
         Parameters:
         tokenizer (Tokenizer): The tokenizer used for processing text across different sample types.
         image_processor (ImageProcessor): The image processor used for preprocessing images.
-        multimodal_sample_config (MultiModalSampleConfig): Config for multimodal samples, including tokens and placeholders.
+        multimodal_sample_config (MultiModalSampleConfig): MultiModalSampleConfig object.
         """
         self.tokenizer = tokenizer
         self.encoders: Dict[str, SampleEncoder] = {
