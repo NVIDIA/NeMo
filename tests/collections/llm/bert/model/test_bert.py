@@ -1,7 +1,7 @@
 from nemo.collections.llm.bert.model.bert import (
     HuggingFaceBertBaseConfig,
     HuggingFaceBertLargeConfig,
-    MegatronBertConfig,
+    MegatronBertBaseConfig,
     MegatronBertLargeConfig,
 )
 
@@ -25,7 +25,7 @@ def test_huggingface_bert_large_config():
 
 
 def test_megatron_bert_base_config():
-    config = MegatronBertConfig()
+    config = MegatronBertBaseConfig()
     assert config.bert_type == 'megatron'
     assert config.num_layers == 12
     assert config.hidden_size == 768

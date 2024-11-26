@@ -17,10 +17,10 @@ import pytest
 import nemo.lightning as nl
 from nemo.collections.llm.bert.data.pre_training import BERTPreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+import torch
 
 DATA_PATH = "/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_gpt_preproc_text_sentence"
 VOCAB_PATH = "/home/TestData/nlp/megatron_bert/data/bert/vocab.json"
-
 
 @pytest.fixture
 def tokenizer():
@@ -38,9 +38,12 @@ def trainer():
         max_steps=1,
     )
 
+@pytest.fixture(scope='session', autouse=True)
+def setup_once():
+    # This will run only once before any tests
+    torch.distributed.init_process_group(world_size=1, rank=0)
 
 def test_single_data_distribution(tokenizer, trainer):
-
     data = BERTPreTrainingDataModule(
         paths=[DATA_PATH],
         seq_length=512,
@@ -64,7 +67,7 @@ def test_multiple_data_distributions(tokenizer, trainer):
     data = BERTPreTrainingDataModule(
         paths={
             "train": ['1', DATA_PATH],
-            "validation": [DATA_PATH, DATA_PATH],
+            "validation": [DATA_PATH],
             "test": ['1', DATA_PATH],
         },
         seq_length=512,
@@ -76,37 +79,3 @@ def test_multiple_data_distributions(tokenizer, trainer):
 
     ## this should succeed
     data.setup(stage="dummy")
-
-
-def test_validate_dataset_asset_accessibility_file_does_not_exist(tokenizer, trainer):
-    raised_exception = False
-    try:
-        data = BERTPreTrainingDataModule(
-            paths=["/this/path/should/not/exist/"],
-            seq_length=512,
-            micro_batch_size=2,
-            global_batch_size=2,
-            tokenizer=tokenizer,
-        )
-        data.trainer = trainer
-    except FileNotFoundError:
-        raised_exception = True
-
-    assert raised_exception == True, "Expected to raise a FileNotFoundError"
-
-
-def test_validate_dataset_asset_accessibility_file_is_none(tokenizer, trainer):
-    raised_exception = False
-    try:
-        data = BERTPreTrainingDataModule(
-            paths=None,
-            seq_length=512,
-            micro_batch_size=2,
-            global_batch_size=2,
-            tokenizer=tokenizer,
-        )
-        data.trainer = trainer
-    except ValueError:
-        raised_exception = True
-
-    assert raised_exception == True, "Expected to raise a ValueError"

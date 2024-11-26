@@ -42,6 +42,14 @@ class MegatronBertLargeConfig(MegatronBertConfig):
     ffn_hidden_size: int = 4096
     num_attention_heads: int = 16
 
+@dataclass
+class MegatronBertBaseConfig(MegatronBertConfig):
+    """Configs for Bert-Base in megatron style."""
+
+    num_layers: int = 12
+    hidden_size: int = 768
+    ffn_hidden_size: int = 3072
+    num_attention_heads: int = 12
 
 @dataclass
 class HuggingFaceBertConfig(BertConfig):

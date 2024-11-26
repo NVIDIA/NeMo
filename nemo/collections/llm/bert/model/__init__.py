@@ -5,6 +5,7 @@ from nemo.collections.llm.bert.model.bert import (
     HuggingFaceBertLargeConfig,
     HuggingFaceBertModel,
     MegatronBertConfig,
+    MegatronBertBaseConfig,
     MegatronBertLargeConfig,
 )
 
@@ -16,5 +17,6 @@ __all__ = [
     "HuggingFaceBertConfig",
     "HuggingFaceBertModel",
     "MegatronBertConfig",
+    "MegatronBertBaseConfig",
     "MegatronBertLargeConfig",
 ]
