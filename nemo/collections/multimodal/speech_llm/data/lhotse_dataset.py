@@ -297,8 +297,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "instructions": None,
             "tokens": target_texts_merge,  # used in _reconfigure_and_process_inference_batch
             "target_texts_merge": target_texts_merge,  # used in prepare_llm_input
-            "contexts": target_texts_merge,  # used in inference
-            "context_lengths": target_text_lengths,
+            "contexts": target_texts_merge[:, :1],  # used in inference
+            "context_lengths": torch.ones_like(target_text_lengths),
             "target_texts": target_texts_merge,
             "target_text_lengths": target_text_lengths,
             "answers": target_texts_merge,

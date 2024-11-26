@@ -298,6 +298,11 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
         speech_done_token = (prev[:, 1:] == speech_eos_id).all(dim=1)
         if speech_done_token.any():
             logging.debug(f"speech done text {text_done_token}")
+        duplex_method = self.model.cfg.get("duplex_method", None)
+        if (
+            duplex_method == 'from_duplex'
+        ):  # in this case, the audio generation should always continue until the max_steps or the end of user channel
+            speech_done_token = torch.zeros_like(speech_done_token)
         return speech_done_token
 
     def prepare_batch_at_step(
@@ -367,7 +372,7 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
                 'context_lengths': context_lengths,
                 'target_texts_merge': torch.full(
                     [audio_signal.shape[0], self.model.get_step_from_audio_len(all_lens_answer_rate).max() + 1],
-                    self.model.tokenizer.eos_id,
+                    self.model.tokenizer.unk_id,
                 ).cuda(),
                 'answer_audio_lens': all_lens_answer_rate,
                 'answer_audio': torch.zeros([audio_signal.shape[0], all_lens_answer_rate.max()]).cuda(),

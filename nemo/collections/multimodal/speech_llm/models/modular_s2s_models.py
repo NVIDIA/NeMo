@@ -436,25 +436,25 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         #     speech_tokens = decoder_output[:, 1:]
         text_tokens = decoder_output[:, 0]
         speech_tokens = decoder_output[:, 1:]
-
-        # import pdb; pdb.set_trace()
-
         # Get speech token ids
         if self.cfg.get('megatron_amp_O2', False):
             n_speech_codebooks = self.model.module.n_proj_heads - 1
         else:
             n_speech_codebooks = self.model.n_proj_heads - 1
-
-        # Remove padded parts of speech tokens
-        speech_eos_pos = torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebooks
-        speech_mask = torch.cumsum(speech_eos_pos, 0) == 0
-        speech_tokens = speech_tokens[speech_mask]
+        duplex_method = self.cfg.duplex_method
+        if duplex_method != 'from_duplex':
+            # Remove padded parts of speech tokens
+            speech_eos_pos = torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebooks
+            speech_mask = torch.cumsum(speech_eos_pos, 0) == 0
+            speech_tokens = speech_tokens[speech_mask]
         # Revert decoder output reduction
         new_shape = (
             speech_tokens.shape[0] * self.cfg.decoder_reduction_factor,
             speech_tokens.shape[1] // self.cfg.decoder_reduction_factor,
         )
         speech_tokens = speech_tokens.reshape(new_shape)
+        if speech_tokens.shape[0] == 0:
+            speech_tokens = torch.zeros([1, new_shape[1]]).long().cuda()
         return text_tokens.long(), speech_tokens.long()
 
     def decode_and_save_wavs(self, codec_model, codes_list, wav_dir, metadata_list):
