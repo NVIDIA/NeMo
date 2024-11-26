@@ -88,25 +88,8 @@ class LoRALinearSplitQKV(AdapterWrapper):
         key_4d = key.reshape(key.shape[0], key.shape[1], -1, self.to_wrap.config.kv_channels)
         value_4d = value.reshape(value.shape[0], value.shape[1], -1, self.to_wrap.config.kv_channels)
 
-        import os
-        version = int(os.getenv("NEMO_DEBUG_QKV_VERSION", "1"))
-        match version:
-            case 1:
-                qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
-                adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
-            case 2:
-                # todo verify which one is correct
-                self.num_query_groups = self.to_wrap.config.num_query_groups
-                self.num_heads_per_group = self.to_wrap.config.num_attention_heads // self.num_query_groups
-                qkv = []
-                for i in range(self.num_query_groups):
-                    qkv.append(query_4d[:, :, i * self.num_heads_per_group: (i + 1) * self.num_heads_per_group, :])
-                    qkv.append(key_4d[:, :, i: i + 1, :])
-                    qkv.append(value_4d[:, :, i: i + 1, :])
-                qkv_4d = torch.cat(qkv, dim=2)
-                adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
-            case _:
-                raise NotImplementedError()
+        qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
+        adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
 
         return linear_output + adapter_output, bias
 
