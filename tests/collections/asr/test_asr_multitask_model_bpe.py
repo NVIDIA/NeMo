@@ -17,8 +17,9 @@ import tempfile
 
 import pytest
 import torch
-from lhotse import CutSet, MonoCut
-from lhotse.testing.dummies import DummyManifest
+from lhotse import CutSet, MonoCut, SupervisionSegment
+from lhotse.testing.dummies import DummyManifest, dummy_cut
+from lhotse.testing.random import deterministic_rng
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
@@ -111,6 +112,11 @@ def asr_model(test_data_dir):
         },
     }
 
+    optim = {
+        'name': 'adamw',
+        'lr': 1e-4,
+    }
+
     loss = {
         '_target_': 'nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss',
         'label_smoothing': 0.0,
@@ -130,11 +136,13 @@ def asr_model(test_data_dir):
             'head': DictConfig(head),
             'tokenizer': DictConfig(tokenizer),
             'decoding': DictConfig(decoding),
+            'optim': DictConfig(optim),
             'loss': DictConfig(loss),
         }
     )
 
     model_instance = EncDecMultiTaskModel(cfg=modelConfig)
+    model_instance.configure_optimizers()
     return model_instance
 
 
@@ -192,6 +200,105 @@ class TestEncDecMultiTaskModel:
         assert diff <= 1e-5
         diff = torch.max(torch.abs(logits_instance - logprobs_batch))
         assert diff <= 1e-5
+
+    @pytest.mark.unit
+    def test_training_step(self, deterministic_rng, asr_model):
+        cuts = CutSet(
+            [
+                dummy_cut(
+                    0,
+                    duration=1.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-0", recording_id="cut-0", start=0, duration=1.0, text="short", language="en"
+                        )
+                    ],
+                ),
+                dummy_cut(
+                    1,
+                    duration=5.0,
+                    recording_duration=5.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-1",
+                            recording_id="cut-1",
+                            start=0,
+                            duration=5.0,
+                            text="a very long transcript",
+                            language="en",
+                        )
+                    ],
+                ),
+            ]
+        )
+        for c in cuts:
+            c.source_lang = "en"
+            c.target_lang = "en"
+            c.task = "asr"
+            c.pnc = "no"
+        dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+        batch = dataset[cuts]
+
+        ans = asr_model.training_step(batch, batch_nb=0)
+        assert list(ans.keys()) == ["loss"]
+        assert torch.is_tensor(ans["loss"])
+
+    @pytest.mark.unit
+    def test_validation_step(self, deterministic_rng, asr_model):
+        cuts = CutSet(
+            [
+                dummy_cut(
+                    0,
+                    duration=1.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-0", recording_id="cut-0", start=0, duration=1.0, text="short", language="en"
+                        )
+                    ],
+                ),
+                dummy_cut(
+                    1,
+                    duration=5.0,
+                    recording_duration=5.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-1",
+                            recording_id="cut-1",
+                            start=0,
+                            duration=5.0,
+                            text="a very long transcript",
+                            language="en",
+                        )
+                    ],
+                ),
+            ]
+        )
+        for c in cuts:
+            c.source_lang = "en"
+            c.target_lang = "en"
+            c.task = "asr"
+            c.pnc = "no"
+        dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+        batch = dataset[cuts]
+
+        with torch.no_grad():
+            ans = asr_model.validation_pass(batch, batch_idx=0)
+        print(ans)
+        assert list(ans.keys()) == [
+            "val_loss",
+            "val_wer",
+            "val_wer_num",
+            "val_wer_denom",
+            "val_bleu",
+            "val_bleu_pred_len",
+            "val_bleu_target_len",
+            "val_bleu_num",
+            "val_bleu_denom",
+        ]
 
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
@@ -308,7 +415,7 @@ class TestEncDecMultiTaskModel:
         assert isinstance(asr_model.prompt, CanaryPromptFormatter)
 
         class CanaryPromptFormatterSubclass(CanaryPromptFormatter):
-            NAME = "canary2"
+            NAME = "canary-unit-test-stub-format"
 
         # Default change prompt
         asr_model.change_prompt()
@@ -316,9 +423,9 @@ class TestEncDecMultiTaskModel:
 
         prompt_defaults = asr_model.prompt.get_default_dialog_slots()
         prompt_defaults[0]['slots']['pnc'] = 'no'
-        asr_model.change_prompt(prompt_format='canary2', prompt_defaults=prompt_defaults)
+        asr_model.change_prompt(prompt_format='canary-unit-test-stub-format', prompt_defaults=prompt_defaults)
 
-        assert asr_model.cfg.prompt_format == 'canary2'
+        assert asr_model.cfg.prompt_format == 'canary-unit-test-stub-format'
         assert asr_model.cfg.prompt_defaults[0]['slots']['pnc'] == 'no'
         assert isinstance(asr_model.prompt, CanaryPromptFormatterSubclass)
 
