@@ -31,6 +31,7 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 )
 HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
+
 def get_adapter_attributes_from_linear(m: nn.Module):
     """
     Return input_is_parallel, in_features, out_feature attributes based on implementation of the base layer.
