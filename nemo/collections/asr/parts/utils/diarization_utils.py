@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
+import string
 from pyannote.metrics.diarization import DiarizationErrorRate
 
 from nemo.collections.asr.metrics.der import concat_perm_word_error_rate, calculate_session_cpWER
@@ -654,7 +655,7 @@ def streaming_evaluation(
         for idx, speaker in enumerate(hyp_speakers):
             hyp_speaker_words[idx] += hyp_speaker_word[idx]
         
-        der_metric(reference, hypothesis)
+        der_met = der_metric(reference, hypothesis)
         cpWER, min_perm_hyp_trans, ref_trans = cpwer_metric(ref_speaker_words, hyp_speaker_words)
 
         if verbose:
@@ -695,7 +696,8 @@ class OnlineEvaluation:
         self.collar = collar
         self.ignore_overlap = ignore_overlap
         self.verbose = verbose
-
+        self.der_list = []
+        self.cpwer_list = []
         # current index of the reference seglst
         self.current_idx = 0
 
@@ -707,16 +709,22 @@ class OnlineEvaluation:
             hyp_seglst (list): list of hypothesis seglst dictionaries from start to end_step_time
             end_step_time (float): end time of the current step
         """
+        is_update = False
         if end_step_time > self.ref_seglst[self.current_idx]['end_time']:
             self.current_idx += 1
+            is_update = True
             ref_seglst = self.ref_seglst[:self.current_idx]
-            der_list, cpwer_list = self.evaluate(ref_seglst, hyp_seglst, chunk_size=-1, verbose=False)
+            der_cumul, cpwer_cumul= self.evaluate(ref_seglst, hyp_seglst, chunk_size=-1, verbose=False)
+            der, cpwer = der_cumul[-1], cpwer_cumul[-1]
             if self.verbose:
                 logging.info(f"Session ID: {self.ref_seglst[0]['session_id']} from 0.0s to {end_step_time:.3f}s")
-                logging.info(f"DER: {der_list[-1]:.2f}%, cpWER: {cpwer_list[-1]:.2f}%")
-
-            return der_list[-1], cpwer_list[-1]
-        return None, None
+                logging.info(f"DER: {der:.2f}%, cpWER: {cpwer:.2f}%")
+            self.der_list.append(der)
+            self.cpwer_list.append(cpwer)
+        else:
+            is_update = False
+            der, cpwer = self.der_list[-1], self.cpwer_list[-1]
+        return der, cpwer, is_update
 
     def evaluate_outofloop(self, chunk_size=10.0):
         """
@@ -745,7 +753,7 @@ class OnlineEvaluation:
         session_id = ref_session_id
         ref_speaker_words = defaultdict(list)
         hyp_speaker_words = defaultdict(list)
-
+        
         der_metric = DiarizationErrorRate(collar=2 * self.collar, skip_overlap=self.ignore_overlap)
         cpwer_metric = calculate_session_cpWER
         der_list, cpwer_list = [], []
@@ -770,7 +778,12 @@ class OnlineEvaluation:
             for idx, speaker in enumerate(hyp_speakers):
                 hyp_speaker_words[idx] += hyp_speaker_word[idx]
 
-            der_metric(reference, hypothesis)
+            der_instance = der_metric(reference, hypothesis)
+            if len(hyp_labels) > 15:
+                import ipdb; ipdb.set_trace()
+            # Normalize the text
+            for spk_idx in range(len(hyp_speaker_words)):
+                hyp_speaker_words[spk_idx] = hyp_speaker_words[spk_idx].translate(str.maketrans('', '', string.punctuation)).lower()
             cpWER, min_perm_hyp_trans, ref_trans = cpwer_metric(ref_speaker_words, hyp_speaker_words)
 
             if verbose:

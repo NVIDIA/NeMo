@@ -103,6 +103,7 @@ def audio_rttm_map(manifest, attach_dur=False):
                 'num_speakers': dic.get('num_speakers', None),
                 'uem_filepath': dic.get('uem_filepath', None),
                 'ctm_filepath': dic.get('ctm_filepath', None),
+                'seglst_filepath': dic.get('seglst_filepath', None),
             }
             if attach_dur:
                 uniqname = get_uniq_id_with_dur(meta)

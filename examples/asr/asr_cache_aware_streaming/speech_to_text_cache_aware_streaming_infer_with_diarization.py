@@ -89,7 +89,6 @@ import yaml
 from tqdm import tqdm
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Union, List, Tuple, Dict
-from copy import deepcopy
 
 import torch
 import pytorch_lightning as pl
@@ -102,6 +101,10 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
+
+import numpy as np
+from copy import deepcopy
+from nemo.collections.asr.parts.utils.diarization_utils import read_seglst, OnlineEvaluation
 from nemo.utils import logging
 
 # DIARIZATION
@@ -111,6 +114,8 @@ from nemo.collections.asr.metrics.der import score_labels
 from hydra.core.config_store import ConfigStore
 
 from pyannote.core import Segment, Timeline
+
+from nemo.collections.asr.parts.utils.diarization_utils import streaming_evaluation
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get_audio_rttm_map
 from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing, timestamps_to_pyannote_object
 
@@ -174,24 +179,38 @@ class MultiSpeakerASRstreamer:
         diar_model,
         bsd_spk
     ):
-       self.cfg = cfg
-       self.asr_model = asr_model
-       self.diar_model = diar_model
-       self.bsd_spk = bsd_spk
-       self._word_count = 0
-       self._word_and_ts_seq = {"words": [],
-                                "buffered_words": [],
-                                "token_frame_index": [], 
-                                "offset_count": 0,
-                                "status": "success", 
-                                "sentences": None, 
-                                "speaker_count": None,
-                                "transcription": None,
-                                "max_spk_probs": [],
-                                "word_window_seq": [],
-                                "speaker_count_buffer": [],
-                                } 
-       self._initial_steps = cfg.ignored_initial_frame_steps
+        self.cfg = cfg
+        self.asr_model = asr_model
+        self.diar_model = diar_model
+        self.bsd_spk = bsd_spk
+        self._word_count = 0
+        self.test_manifest_dict = get_audio_rttm_map(self.cfg.manifest_file)
+        self._initial_steps = cfg.ignored_initial_frame_steps
+        self._init_evaluator() 
+    
+    def _init_evaluator(self):  
+        self.online_evaluators = []
+        self._word_and_ts_seq = []
+        for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()):
+            self._word_and_ts_seq.append({"words": [],
+                                    "buffered_words": [],
+                                    "token_frame_index": [], 
+                                    "offset_count": 0,
+                                    "status": "success", 
+                                    "sentences": None, 
+                                    "speaker_count": None,
+                                    "transcription": None,
+                                    "max_spk_probs": [],
+                                    "word_window_seq": [],
+                                    "speaker_count_buffer": [],
+                                    })
+            ref_seglst = read_seglst(data_dict['seglst_filepath'])
+            eval_instance = OnlineEvaluation(ref_seglst=ref_seglst,
+                                                hyp_seglst=None,
+                                                collar=0.25, 
+                                                ignore_overlap=False, 
+                                                verbose=True)
+            self.online_evaluators.append(eval_instance)
        
     def _update_speaker_vote(self, original_words, bsd_words):
         start = bsd_words[0]["word_index"]
@@ -301,22 +320,31 @@ class MultiSpeakerASRstreamer:
         if len( previous_hypotheses[0].text) == 0 and step_num <= self._initial_steps:
             transcribed_speaker_texts = None
         else:
-            word_and_ts_seq = deepcopy(self._word_and_ts_seq)
-            # Get the word-level dictionaries for each word in the chunk
-            word_and_ts_seq = get_frame_and_words(cfg=self.cfg,
-                                                tokenizer=self.asr_model.tokenizer,
-                                                step_num=step_num, 
-                                                diar_pred_out_stream=diar_pred_out_stream,
-                                                fifo_preds=fifo_preds, 
-                                                previous_hypotheses=previous_hypotheses, 
-                                                word_and_ts_seq=word_and_ts_seq) 
-            if len(word_and_ts_seq["words"]) > 0:
-                if self.cfg.beam_search_enabled: 
-                    word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq)
-                word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
-                transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg) 
-                write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
-            self._word_and_ts_seq = deepcopy(word_and_ts_seq)
+            for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()): 
+                word_and_ts_seq = deepcopy(self._word_and_ts_seq[idx])
+                # Get the word-level dictionaries for each word in the chunk
+                word_and_ts_seq = get_frame_and_words(cfg=self.cfg,
+                                                    tokenizer=self.asr_model.tokenizer,
+                                                    step_num=step_num, 
+                                                    diar_pred_out_stream=diar_pred_out_stream,
+                                                    previous_hypotheses=previous_hypotheses, 
+                                                    word_and_ts_seq=word_and_ts_seq)
+                word_and_ts_seq['uniq_id'] = uniq_id
+                if len(word_and_ts_seq["words"]) > 0:
+                    if self.cfg.beam_search_enabled: 
+                        word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq)
+                        
+                    word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
+                    transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg)
+                    end_time = word_and_ts_seq["sentences"][-1]["end_time"]
+                    der, cpwer, is_update = self.online_evaluators[idx].evaluate_inloop(hyp_seglst=word_and_ts_seq["sentences"], end_step_time=end_time)
+                    try:
+                        print(f"------[  DER  ]: {der:.3f},[  CPWER   ]: {cpwer:.3f} ------")
+                    except:
+                        import ipdb; ipdb.set_trace()
+                    if idx == 0:
+                        write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
+                self._word_and_ts_seq[idx] = deepcopy(word_and_ts_seq)
             logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         return (transcribed_speaker_texts,
                 transcribed_texts,
@@ -505,10 +533,12 @@ def get_sentences_values(session_trans_dict):
     word_dict_seq_list = session_trans_dict['words']
     prev_speaker = word_dict_seq_list[0]['speaker']
     sentences = []
-    sentence = {'speaker': prev_speaker,
+    sentence = {'session_id': session_trans_dict['uniq_id'], 
+                'speaker': prev_speaker,
                 'start_time': session_trans_dict['words'][0]['start_time'], 
                 'end_time': session_trans_dict['words'][0]['end_time'], 
-                'text': ''}
+                'text': '', 
+                'words': ''}
     for k, word_dict in enumerate(word_dict_seq_list):
         word, speaker = word_dict['word'], word_dict['speaker']
         start_point, end_point = word_dict['start_time'], word_dict['end_time']
@@ -520,6 +550,8 @@ def get_sentences_values(session_trans_dict):
             sentence['end_time'] = end_point
         stt_sec, end_sec = start_point, end_point
         sentence['text'] += word.strip() + ' '
+        sentence['words'] = sentence['text']
+        sentence['session_id'] = session_trans_dict['uniq_id']
         prev_speaker = speaker
 
     session_trans_dict['words'] = word_dict_seq_list
@@ -646,7 +678,7 @@ def get_fifo_queue_preds(cfg, fifo_preds, word_and_ts_seq, diar_pred_out_stream,
     return word_and_ts_seq 
 
 
-def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, fifo_preds, previous_hypotheses, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
+def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
     current_frame_range = [step_num * previous_hypotheses[0].length.item(), (step_num + 1) * previous_hypotheses[0].length.item()]
     offset = current_frame_range[0]
     word_seq = previous_hypotheses[0].text.split()
@@ -667,7 +699,6 @@ def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, fifo_pre
     word_and_ts_seq = get_multitoken_words(cfg, word_and_ts_seq, word_seq, new_words, fix_prev_words_count=fix_prev_words_count)
     
     ### Get the FIFO queue preds to word_and_ts_seq 
-    # word_and_ts_seq = get_fifo_queue_preds(cfg, fifo_preds, word_and_ts_seq, diar_pred_out_stream, previous_hypotheses)
     for local_idx, (token_group, word) in enumerate(zip(new_token_group, new_words)):
         word_dict = get_word_dict_content(cfg=cfg, 
                                           word=word,
@@ -743,7 +774,7 @@ def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, deb
                         right_offset=right_offset,
                         pad_and_drop_preencoded=False,
                     )
-                    
+
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
         loop_end_time = time.time()
