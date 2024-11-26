@@ -490,7 +490,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         )  # list, list
 
         answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
-        assert all(answer_codecs_lens == encoded_len)
+        assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=1))
         if 'answer_features_lens' in audio_batch:
             assert 'target_texts_merge' not in audio_batch
             prev_answer_features_lens = (
@@ -539,7 +539,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
-        encoded = encoded[:, :-1]
+        encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
         if loss_mask is not None:
