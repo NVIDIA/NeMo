@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from nemo.collections.llm.peft.api import gpt_lora, merge_lora
+from nemo.collections.llm.peft.canonical_lora import CanonicalLoRA
 from nemo.collections.llm.peft.dora import DoRA
 from nemo.collections.llm.peft.lora import LoRA
-from nemo.collections.llm.peft.canonical_lora import CanonicalLoRA
 
 PEFT_STR2CLS = {
     "LoRA": LoRA,

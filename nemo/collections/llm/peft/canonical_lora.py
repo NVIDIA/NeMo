@@ -14,22 +14,28 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Literal, Dict, Set, Tuple, Optional
+from typing import Dict, List, Literal, Optional, Set, Tuple
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from torch import nn
 
-from nemo.collections.llm.peft.lora import LoRALinear, _get_adapter_attributes_from_linear, is_expert_linear, \
-    LinearAdapter
+from nemo.collections.llm.peft.lora import (
+    LinearAdapter,
+    LoRALinear,
+    _get_adapter_attributes_from_linear,
+    is_expert_linear,
+)
 from nemo.collections.llm.peft.utils import wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+
 
 class ModuleDict(nn.ModuleDict):
     """
     nn.ModuleDict with a sharded_state_dict implementation for checkpointing
     """
+
     def sharded_state_dict(
         self,
         prefix: str = '',
@@ -58,7 +64,7 @@ class ModuleDict(nn.ModuleDict):
 
 
 class LoRALinearSplitQKV(AdapterWrapper):
-    """ An adapter wrapper for `linear_qkv` where q, k, v are three separate adapters.
+    """An adapter wrapper for `linear_qkv` where q, k, v are three separate adapters.
     This module that adds the output of the adapters to the output of the wrapped module while taking care of shape.
 
     This class is designed to be used with LoRA (Low-Rank Adaptation) and similar techniques
@@ -83,7 +89,7 @@ class LoRALinearSplitQKV(AdapterWrapper):
 
 
 class LoRALinearSplitFC1UpGate(AdapterWrapper):
-    """ An adapter wrapper for `linear_fc1` where up_proj and gate_proj are two separate adapters.
+    """An adapter wrapper for `linear_fc1` where up_proj and gate_proj are two separate adapters.
     This module that adds the output of the adapters to the output of the wrapped module while taking care of shape.
 
     This class is designed to be used with LoRA (Low-Rank Adaptation) and similar techniques
@@ -97,6 +103,7 @@ class LoRALinearSplitFC1UpGate(AdapterWrapper):
         adapter_output_up = self.adapter.adapter_up(layernorm_output)
         adapter_output = torch.cat([adapter_output_gate, adapter_output_up], dim=2)
         return linear_output + adapter_output, bias
+
 
 @dataclass
 class CanonicalLoRA(PEFT):
@@ -144,7 +151,13 @@ class CanonicalLoRA(PEFT):
 
     target_modules: List[str] = field(
         default_factory=lambda: [
-            'linear_q', 'linear_k', 'linear_v', 'linear_proj', 'linear_fc1_up', 'linear_fc1_gate', 'linear_fc2'
+            'linear_q',
+            'linear_k',
+            'linear_v',
+            'linear_proj',
+            'linear_fc1_up',
+            'linear_fc1_gate',
+            'linear_fc2',
         ]
     )
     dim: int = 32
@@ -175,12 +188,14 @@ class CanonicalLoRA(PEFT):
         """
         self.canonical_mapping: Dict[str, Set] = defaultdict(set)
         for target in self.target_modules:
-            assert not target.endswith("linear_qkv"), \
-                ("Canonical LoRA does not support target 'linear_qkv'. Either use 'linear_qkv' with LoRA() or "
-                 "use ['linear_q', 'linear_k', 'linear_v'] with Canonical LoRA")
-            assert not target.endswith("linear_fc1"), \
-                ("Canonical LoRA does not support target 'linear_fc1'. Either use 'linear_fc1' with LoRA() or "
-                 "use ['linear_fc1_up', 'linear_fc1_gate'] with Canonical LoRA")
+            assert not target.endswith("linear_qkv"), (
+                "Canonical LoRA does not support target 'linear_qkv'. Either use 'linear_qkv' with LoRA() or "
+                "use ['linear_q', 'linear_k', 'linear_v'] with Canonical LoRA"
+            )
+            assert not target.endswith("linear_fc1"), (
+                "Canonical LoRA does not support target 'linear_fc1'. Either use 'linear_fc1' with LoRA() or "
+                "use ['linear_fc1_up', 'linear_fc1_gate'] with Canonical LoRA"
+            )
 
             if 'linear_q' in target:
                 self.canonical_mapping[target.replace('linear_q', 'linear_qkv')].add('linear_q')
@@ -222,7 +237,6 @@ class CanonicalLoRA(PEFT):
             if name == pattern or wildcard_match(pattern, full_name):
                 match = pattern
                 break
-
 
         if match is not None:
             if isinstance(m, nn.Linear):
@@ -269,9 +283,9 @@ class CanonicalLoRA(PEFT):
             if name == 'linear_fc1':
                 adapter_up, adapter_gate = None, None
                 if 'linear_fc1_up' in canonical_submodules:
-                    adapter_up = ParallelLinearAdapter(in_features, out_features//2, **adapter_kwargs)
+                    adapter_up = ParallelLinearAdapter(in_features, out_features // 2, **adapter_kwargs)
                 if 'linear_fc1_gate' in canonical_submodules:
-                    adapter_gate = ParallelLinearAdapter(in_features, out_features//2, **adapter_kwargs)
+                    adapter_gate = ParallelLinearAdapter(in_features, out_features // 2, **adapter_kwargs)
                 adapters = ModuleDict({'adapter_up': adapter_up, 'adapter_gate': adapter_gate})
                 return LoRALinearSplitFC1UpGate(m, adapters)
 

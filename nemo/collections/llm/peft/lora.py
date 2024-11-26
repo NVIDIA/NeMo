@@ -19,7 +19,7 @@ from typing import List, Literal
 import torch
 from torch import nn
 
-from nemo.collections.llm.peft.utils import is_expert_linear, wildcard_match, _get_adapter_attributes_from_linear
+from nemo.collections.llm.peft.utils import _get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 

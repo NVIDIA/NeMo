@@ -31,10 +31,9 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 )
 HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
-def _get_adapter_attributes_from_linear(m: nn.Module):
-    """
 
-    """
+def _get_adapter_attributes_from_linear(m: nn.Module):
+    """ """
     if HAVE_TE and isinstance(m, TEColumnParallelLinear) or isinstance(m, TELayerNormColumnParallelLinear):
         input_is_parallel = False
         # m.in_features and m.out_features are divided by tp_size already,
