@@ -162,15 +162,27 @@ class TiktokenTokenizer(TokenizerSpec):
         for id_ in ids:
             if id_ < self.num_special_tokens:
                 if current_ids:
-                    decoded_text = self.tokenizer.decode([i - self.num_special_tokens for i in current_ids])
-                    tokens.extend(self._tokenize_text_with_pattern(decoded_text))
+                    adjusted_ids = [i - self.num_special_tokens for i in current_ids]
+                    text, offsets = self.tokenizer.decode_with_offsets(adjusted_ids)
+                    num_tokens = len(offsets)
+                    for i in range(num_tokens):
+                        start = offsets[i]
+                        end = offsets[i + 1] if i + 1 < num_tokens else len(text)
+                        token = text[start:end]
+                        tokens.append(token)
                     current_ids = []
                 tokens.append(self.special_tokens[id_])
             else:
                 current_ids.append(id_)
         if current_ids:
-            decoded_text = self.tokenizer.decode([i - self.num_special_tokens for i in current_ids])
-            tokens.extend(self._tokenize_text_with_pattern(decoded_text))
+            adjusted_ids = [i - self.num_special_tokens for i in current_ids]
+            text, offsets = self.tokenizer.decode_with_offsets(adjusted_ids)
+            num_tokens = len(offsets)
+            for i in range(num_tokens):
+                start = offsets[i]
+                end = offsets[i + 1] if i + 1 < num_tokens else len(text)
+                token = text[start:end]
+                tokens.append(token)
         return tokens
 
     def text_to_ids(self, text: str) -> List[int]:
@@ -200,20 +212,6 @@ class TiktokenTokenizer(TokenizerSpec):
         if chunks:
             result.append(self.tokenizer.decode([t - self.num_special_tokens for t in chunks]))
         return ''.join(result)
-
-    def _tokenize_text_with_pattern(self, text: str) -> List[str]:
-        tokens = []
-        last_end = 0
-        for match in self.pattern.finditer(text):
-            start, end = match.span()
-            if start > last_end:
-                # Capture any text between matches (including leading whitespace)
-                tokens.append(text[last_end:start])
-            tokens.append(match.group(0))
-            last_end = end
-        if last_end < len(text):
-            tokens.append(text[last_end:])
-        return tokens
     
     @property
     def bos_id(self):
