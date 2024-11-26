@@ -141,6 +141,7 @@ optim:
     optimizer: adam
     lr: 1e-4
     clip_grad: 1.0
+    weight_decay: 0.0001
   lr_scheduler:
     _target_: nemo.lightning.pytorch.optim.CosineAnnealingScheduler
     max_steps: ${trainer.max_steps}
@@ -168,13 +169,13 @@ strategy:
   pipeline_model_parallel_size: 1
 
 callbacks:
-  - _target_: nemo.lightning.pytorch.callbacks.ModelCheckpoint
-    monitor: "val_loss"
-    mode: "min"
-    save_last: true
-    save_top_k: 1
-    save_weights_only: false
-    always_save_context: true
+  _target_: nemo.lightning.pytorch.callbacks.ModelCheckpoint
+  monitor: "val_loss"
+  mode: "min"
+  save_last: true
+  save_top_k: 1
+  save_weights_only: false
+  always_save_context: true
 
 plugins:
   _target_: nemo.lightning.MegatronMixedPrecision
