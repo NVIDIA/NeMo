@@ -226,9 +226,10 @@ class TokenCountFilter:
         self.t_min = ifnone(t_min, -1)
         self.t_max = ifnone(t_max, float("inf"))
         self.measure_total_length = measure_total_length
+        self.enabled = self.t_min > 0 or self.t_max < float("inf")
 
     def __call__(self, example) -> bool:
-        if isinstance(example, Cut):
+        if not self.enabled or isinstance(example, Cut):
             return True  # does not apply to Cuts
         assert isinstance(example, Formattable), (
             f"TokenCountFilter can only be applied to data examples that derive Formattable class. "

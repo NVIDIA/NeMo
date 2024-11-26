@@ -49,13 +49,16 @@ def read_cutset_from_config(config: DictConfig | dict) -> Tuple[CutSet, bool]:
     # Now, we'll figure out if we should read Lhotse manifest or NeMo manifest.
     use_nemo_manifest = all(config.get(opt) is None for opt in ("cuts_path", "shar_path"))
     if use_nemo_manifest:
-        assert (
-            config.get("manifest_filepath") is not None
-        ), "You must specify either: manifest_filepath, cuts_path, or shar_path"
+        if config.get("manifest_filepath") is None:
+            raise IncompleteConfigError("You must specify either: manifest_filepath, cuts_path, or shar_path")
         cuts, is_tarred = read_nemo_manifest(config)
     else:
         cuts, is_tarred = read_lhotse_manifest(config)
     return cuts, is_tarred
+
+
+class IncompleteConfigError(RuntimeError):
+    pass
 
 
 KNOWN_DATA_CONFIG_TYPES = {}

@@ -38,7 +38,11 @@ from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
+from nemo.collections.common.data.lhotse.cutset import (
+    IncompleteConfigError,
+    guess_parse_cutset,
+    read_cutset_from_config,
+)
 from nemo.collections.common.data.lhotse.sampling import (
     DurationFilter,
     FixedBucketBatchSizeConstraint2D,
@@ -92,8 +96,12 @@ class LhotseDataLoadingConfig:
     shard_seed: int | str = "trng"
     max_open_streams: int | None = None
     cuda_expandable_segments: bool = True
-    sampler_fusion: str = "mux"  # mux | zip | round_robin | randomized_round_robin
-    sampler_weights: list[float] | None = None  # only applicable to randomized_round_robin
+    # e. Multi-config related options.
+    #    Setting multi_config=True will scan the config for keys with DictConfig values,
+    #    create a separate sampler for each, and fuse the samplers according to sampler_fusion.
+    multi_config: bool = False
+    sampler_fusion: str = "round_robin"  # round_robin | randomized_round_robin | zip
+    sampler_weights: dict[str, float] | None = None  # only applicable to randomized_round_robin
 
     # 2.1 Multimodal sampling override options
     pretokenize: bool = True  # should we apply tokenizer before data sampling
@@ -186,7 +194,7 @@ class LhotseDataLoadingConfig:
 
 
 def get_lhotse_dataloader_from_config(
-    config: DictConfig,
+    config: dict | DictConfig,
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
@@ -211,9 +219,15 @@ def get_lhotse_dataloader_from_config(
     If "prompt_format" is additionally provided in the config, we will also apply a prompt formatter.
     Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
-    if config.get("multi_config"):
+    if not isinstance(config, DictConfig):
+        config = OmegaConf.create(config)
+
+    # Providing default value because we haven't filled the config defaults yet.
+    maybe_set_cuda_expandable_segments(enabled=config.get("cuda_expandable_segments", True))
+
+    if config.get("multi_config", False):
         return get_lhotse_dataloader_from_multi_config(
-            configs=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
         )
     else:
         return get_lhotse_dataloader_from_single_config(
@@ -253,16 +267,10 @@ def get_lhotse_dataloader_from_single_config(
 
     config = make_structured_with_schema_warnings(config)
 
-    maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
-
     # First, resolve the random seed in case a string value was provided.
     config.seed = resolve_seed(config.seed)
     fix_random_seed(config.seed)
 
-    assert config.sampler_fusion == "mux", (
-        "In order to use a sampler_fusion strategy different than 'mux', "
-        "create your dataloader using 'get_lhotse_dataloader_from_multi_config' instead."
-    )
     sampler, use_iterable_dataset = get_lhotse_sampler_from_config(
         config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
     )
@@ -297,7 +305,7 @@ def get_lhotse_dataloader_from_single_config(
 
 
 def get_lhotse_dataloader_from_multi_config(
-    configs: DictConfig,
+    config: DictConfig,
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
@@ -313,44 +321,80 @@ def get_lhotse_dataloader_from_multi_config(
 
     The first config is treated as a "main" config that determines the RNG, CUDA allocator, and sampler fusion settings.
     """
-    configs = [make_structured_with_schema_warnings(c) for c in configs.values() if isinstance(c, DictConfig)]
-    main_config = configs[0]
-    maybe_set_cuda_expandable_segments(enabled=main_config.cuda_expandable_segments)
-    seed = resolve_seed(main_config.seed)
-    fix_random_seed(seed)
 
-    source_samplers, source_use_iterable_dataset = [], []
-    for config in configs:
-        # TODO(pzelasko): perhaps emit a warning in the unlikely case somebody defines different seeds explicitly.
-        config.seed = seed
-        config.shard_seed = main_config.shard_seed
-        s, t = get_lhotse_sampler_from_config(
-            config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
-        )
-        source_samplers.append(s)
+    def gather_shared_opts():
+        """
+        In multi-config setting, the top-level config defines several attributes that overwrite
+        the ones present in sub-configs.
+        """
+        assert all(
+            k in config for k in ["seed", "shard_seed", "shuffle"]
+        ), "In a multi-config setting (multi_config=True), the top-level namespace (typically train_ds) must define at least 'seed', 'shard_seed', and 'shuffle' keys that will be shared by all sub-configs."
+        overwriting_opts = [
+            "seed",
+            "shard_seed",
+            "num_workers",
+            "pin_memory",
+            "shuffle",
+            "sampler_fusion",
+            "sampler_weights",
+            "multi_config",
+            "metadata_only",
+            "force_finite",
+        ]
+        defaults = OmegaConf.structured(LhotseDataLoadingConfig)
+        config["seed"] = resolve_seed(config["seed"])
+        return OmegaConf.create({k: config.get(k, defaults[k]) for k in overwriting_opts})
+
+    shared_opts = gather_shared_opts()
+    fix_random_seed(shared_opts.seed)
+
+    configs = {
+        name: c
+        for name, c in config.items()
+        if isinstance(c, DictConfig) and name not in ("sampler_weights",)  # exclude dict opts
+    }
+    for k, v in shared_opts.items():
+        for config in configs.values():
+            config[k] = v
+
+    source_samplers, source_use_iterable_dataset = {}, []
+    for name, config in configs.items():
+        try:
+            expanded_config = make_structured_with_schema_warnings(config)
+            s, t = get_lhotse_sampler_from_config(
+                config=expanded_config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+            )
+        except IncompleteConfigError as e:
+            raise IncompleteConfigError(
+                f"Cannot create a sampler for one of the sub-configs in a multi_config setup. The problematic config is under key={name} and has the following contents: {config}"
+            ) from e
+        source_samplers[name] = s
         source_use_iterable_dataset.append(t)
 
-    assert all(
-        st == source_use_iterable_dataset[0] for st in source_use_iterable_dataset[1:]
-    ), "When using multiple input_cfg sources ensure they are all tarred or non-tarred (can't mix)."
+    assert all(st == source_use_iterable_dataset[0] for st in source_use_iterable_dataset[1:]), (
+        "When using multiple input_cfg sources ensure they are all tarred or non-tarred (can't mix). "
+        "You can provide force_iterable_dataset=True to each namespace to fix."
+    )
     use_iterable_dataset = all(source_use_iterable_dataset)
-    if main_config.sampler_fusion == "zip":
-        sampler = ZipSampler(*source_samplers)
-    elif main_config.sampler_fusion == "round_robin":
-        sampler = RoundRobinSampler(*source_samplers)
-    elif main_config.sampler_fusion == "randomized_round_robin":
-        sampler = RoundRobinSampler(
-            *source_samplers,
-            randomize=True if main_config.sampler_weights is None else main_config.sampler_weights,
-            seed=seed,
-        )
-    elif main_config.sampler_fusion == "mux":
-        raise RuntimeError(
-            "In order to use a sampler_fusion strategy 'mux', "
-            "create your dataloader using 'get_lhotse_dataloader_from_config' instead."
-        )
-    else:
-        raise RuntimeError(f"Unsupported sampler fusion strategy: {main_config.sampler_fusion}")
+    match shared_opts.sampler_fusion:
+        case "zip":
+            sampler = ZipSampler(*source_samplers.values())
+        case "round_robin":
+            sampler = RoundRobinSampler(*source_samplers.values())
+        case "randomized_round_robin":
+            _samplers, _weights = [], []
+            for key in source_samplers.keys():
+                _samplers.append(source_samplers[key])
+                if shared_opts.sampler_weights is not None:
+                    _weights.append(shared_opts.sampler_weights[key])
+            sampler = RoundRobinSampler(
+                *_samplers,
+                randomize=_weights if len(_weights) > 0 else True,
+                seed=shared_opts.seed,
+            )
+        case unknown_value:
+            raise RuntimeError(f"Unsupported sampler fusion strategy: {unknown_value}")
 
     # 4. Creating dataloader.
     if use_iterable_dataset:
@@ -363,8 +407,8 @@ def get_lhotse_dataloader_from_multi_config(
         # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
-            persistent_workers=main_config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=shared_opts.seed),
+            persistent_workers=shared_opts.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
         # For non-tarred data, the sampler resides in the training loop process and
@@ -374,8 +418,8 @@ def get_lhotse_dataloader_from_multi_config(
     dloader = torch.utils.data.DataLoader(
         **dloader_kwargs,
         batch_size=None,
-        num_workers=main_config.num_workers,
-        pin_memory=main_config.pin_memory,
+        num_workers=shared_opts.num_workers,
+        pin_memory=shared_opts.pin_memory,
     )
 
     return dloader
