@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import pytest
+import torch
 
 import nemo.lightning as nl
 from nemo.collections.llm.bert.data.pre_training import BERTPreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-import torch
 
 DATA_PATH = "/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_gpt_preproc_text_sentence"
 VOCAB_PATH = "/home/TestData/nlp/megatron_bert/data/bert/vocab.json"
+
 
 @pytest.fixture
 def tokenizer():
@@ -38,10 +39,12 @@ def trainer():
         max_steps=1,
     )
 
+
 @pytest.fixture(scope='session', autouse=True)
 def setup_once():
     # This will run only once before any tests
     torch.distributed.init_process_group(world_size=1, rank=0)
+
 
 def test_single_data_distribution(tokenizer, trainer):
     data = BERTPreTrainingDataModule(

@@ -26,8 +26,8 @@ from nemo.collections.llm.bert.model import (
     HuggingFaceBertConfig,
     HuggingFaceBertLargeConfig,
     HuggingFaceBertModel,
-    MegatronBertConfig,
     MegatronBertBaseConfig,
+    MegatronBertConfig,
     MegatronBertLargeConfig,
 )
 from nemo.collections.llm.gpt.data import (
