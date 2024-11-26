@@ -14,15 +14,18 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
+import torch
 
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+from nemo.collections.llm.peft import DoRA, LoRA
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.lightning.pytorch.callbacks import PEFT
 
 
 def default_finetune_recipe(
@@ -82,7 +85,7 @@ def default_finetune_recipe(
 def default_finetune_trainer(
     tensor_parallelism=1,
     pipeline_parallelism=1,
-    pipeline_parallelism_type=None,
+    pipeline_parallelism_type=torch.bfloat16,
     virtual_pipeline_parallelism=None,
     context_parallelism=1,
     sequence_parallelism=False,
@@ -93,6 +96,19 @@ def default_finetune_trainer(
     limit_val_batches=None,
     val_check_interval=30,
 ):
+    """
+    Create a default fine-tuning trainer for any model.
+
+    This function sets up a template for strategy and trainer.
+
+    Args:
+        See docstrings of MegatronStrategy and Trainer.
+
+    Returns:
+        run.Config: Config for a finetuning trainer.
+
+    See usages of this in recipes for further details.
+    """
     strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
@@ -125,7 +141,8 @@ def default_finetune_trainer(
 
 def nemo_resume(model_id: str) -> run.Config[nl.AutoResume]:
     """
-    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for https://huggingface.co/{model_id}.
+    Configure automatic resumption from a NeMo checkpoint converted from Huggingface for
+    https://huggingface.co/{model_id}.
 
     This NeMo checkpoint should be converted from Huggingface beforehand, using nemo.collections.llm.import_ckpt.
     When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
@@ -143,3 +160,41 @@ def nemo_resume(model_id: str) -> run.Config[nl.AutoResume]:
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=f"nemo://{model_id}"),
     )
+
+
+@run.cli.factory(name='lora')
+def lora() -> run.Config[PEFT]:
+    """
+    Factory function to create a LoRA configuration.
+
+    Returns:
+        run.Config[PEFT]: Configuration for the LoRA class.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune -f llama3_8b peft=lora
+
+        Python API usage:
+            >>> lora_config = lora()
+            >>> print(lora_config)
+    """
+    return run.Config(LoRA)
+
+
+@run.cli.factory(name='dora')
+def dora() -> run.Config[PEFT]:
+    """
+    Factory function to create a DoRA configuration.
+
+    Returns:
+        run.Config[PEFT]: Configuration for the DoRA class.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune -f llama3_8b peft=dora
+
+        Python API usage:
+            >>> dora_config = dora()
+            >>> print(dora_config)
+    """
+    return run.Config(DoRA)
