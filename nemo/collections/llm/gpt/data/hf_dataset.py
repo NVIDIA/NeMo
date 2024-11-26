@@ -61,7 +61,8 @@ class HfDatasetDataModule(pl.LightningDataModule):
             max_len = max(map(len, batch))
             return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
-        keys = list(filter(lambda x: x in batch[0], ['tokens', 'labels', 'position_ids', 'loss_mask']))
+        print(batch[0])
+        keys = list(filter(lambda x: x in batch[0], ['input_features', 'tokens', 'labels', 'position_ids', 'loss_mask']))
         return {
             key: batchify(
                 torch.LongTensor(
