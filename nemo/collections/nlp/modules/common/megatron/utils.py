@@ -429,6 +429,8 @@ def get_iterator_k_split(
     a dictionary of tensors or a list of tensors. A dictionary batch could also have items of List type,
     as long as the length of that list is the same as the batch size.
     """
+    print(type(batch))
+    print(batch)
     if isinstance(batch, dict):
         discard_items = [k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))]
         if len(discard_items) > 0:
