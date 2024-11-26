@@ -19,6 +19,7 @@ from functools import partial
 from typing import Any, Optional, Sequence
 
 import numpy as np
+import omegaconf
 import torch
 from lhotse import CutSet, RecordingSet
 from lhotse.cut import Cut
@@ -227,7 +228,11 @@ def get_lhotse_dataloader_from_config(
 
     if config.get("multi_config", False):
         return get_lhotse_dataloader_from_multi_config(
-            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+            top_level_config=config,
+            global_rank=global_rank,
+            world_size=world_size,
+            dataset=dataset,
+            tokenizer=tokenizer,
         )
     else:
         return get_lhotse_dataloader_from_single_config(
@@ -305,7 +310,7 @@ def get_lhotse_dataloader_from_single_config(
 
 
 def get_lhotse_dataloader_from_multi_config(
-    config: DictConfig,
+    top_level_config: DictConfig,
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
@@ -328,7 +333,7 @@ def get_lhotse_dataloader_from_multi_config(
         the ones present in sub-configs.
         """
         assert all(
-            k in config for k in ["seed", "shard_seed", "shuffle"]
+            k in top_level_config for k in ["seed", "shard_seed", "shuffle"]
         ), "In a multi-config setting (multi_config=True), the top-level namespace (typically train_ds) must define at least 'seed', 'shard_seed', and 'shuffle' keys that will be shared by all sub-configs."
         overwriting_opts = [
             "seed",
@@ -343,25 +348,24 @@ def get_lhotse_dataloader_from_multi_config(
             "force_finite",
         ]
         defaults = OmegaConf.structured(LhotseDataLoadingConfig)
-        config["seed"] = resolve_seed(config["seed"])
-        return OmegaConf.create({k: config.get(k, defaults[k]) for k in overwriting_opts})
+        top_level_config["seed"] = resolve_seed(top_level_config["seed"])
+        return OmegaConf.create({k: top_level_config.get(k, defaults[k]) for k in overwriting_opts})
 
     shared_opts = gather_shared_opts()
     fix_random_seed(shared_opts.seed)
 
     configs = {
         name: c
-        for name, c in config.items()
+        for name, c in top_level_config.items()
         if isinstance(c, DictConfig) and name not in ("sampler_weights",)  # exclude dict opts
     }
-    for k, v in shared_opts.items():
-        for config in configs.values():
-            config[k] = v
 
     source_samplers, source_use_iterable_dataset = {}, []
     for name, config in configs.items():
         try:
             expanded_config = make_structured_with_schema_warnings(config)
+            for k, v in shared_opts.items():
+                expanded_config[k] = v
             s, t = get_lhotse_sampler_from_config(
                 config=expanded_config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
             )
