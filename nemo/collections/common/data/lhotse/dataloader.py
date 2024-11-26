@@ -69,7 +69,8 @@ class LhotseDataLoadingConfig:
     #   b. Lhotse CutSet manifest / Lhotse Shar tar dir paths.
     cuts_path: str | None = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
-
+    #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
+    tarred_random_access: bool = False
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
@@ -170,6 +171,14 @@ class LhotseDataLoadingConfig:
     # * use map dataset for non-tarred audio data (we might change this in the future).
     force_map_dataset: bool = False
     force_iterable_dataset: bool = False
+
+
+def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
+    assert not (
+        config.force_map_dataset and config.force_iterable_dataset
+    ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
+    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
+    return use_iterable_dataset
 
 
 def get_lhotse_dataloader_from_config(
@@ -610,14 +619,6 @@ def make_structured_with_schema_warnings(config: DictConfig) -> DictConfig:
     config = OmegaConf.masked_copy(config, list(supported_keys))
 
     return OmegaConf.merge(default, config)
-
-
-def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
-    assert not (
-        config.force_map_dataset and config.force_iterable_dataset
-    ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
-    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
-    return use_iterable_dataset
 
 
 @dataclass
