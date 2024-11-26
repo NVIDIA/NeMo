@@ -51,6 +51,8 @@ from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import Mo
 from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 
+from nemo.collections.asr.parts.ngram_lm import FastNGramLM
+
 try:
     import kenlm
 
@@ -270,6 +272,7 @@ class BeamRNNTInfer(Typing):
         ngram_lm_alpha: float = 0.0,
         hat_subtract_ilm: bool = False,
         hat_ilm_weight: float = 0.0,
+        use_kenlm: bool = True
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -356,13 +359,17 @@ class BeamRNNTInfer(Typing):
         self.token_offset = 0
 
         if ngram_lm_model:
-            if KENLM_AVAILABLE:
-                self.ngram_lm = kenlm.Model(ngram_lm_model)
-                self.ngram_lm_alpha = ngram_lm_alpha
+            if use_kenlm:
+                if KENLM_AVAILABLE:
+                    self.ngram_lm = kenlm.Model(ngram_lm_model)
+                    self.ngram_lm_alpha = ngram_lm_alpha
+                else:
+                    raise ImportError(
+                        "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
+                    )
             else:
-                raise ImportError(
-                    "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
-                )
+                self.ngram_lm = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank)
+                self.ngram_lm_alpha = ngram_lm_alpha
         else:
             self.ngram_lm = None
 
@@ -371,6 +378,8 @@ class BeamRNNTInfer(Typing):
             assert search_type == "maes"
         self.hat_subtract_ilm = hat_subtract_ilm
         self.hat_ilm_weight = hat_ilm_weight
+        
+        self.use_kenlm = use_kenlm
 
     @typecheck()
     def __call__(
@@ -1108,6 +1117,10 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         h = h[0]  # [T, D]
+        float_dtype = h.dtype
+        device = h.device
+        if not self.use_kenlm:
+            self.ngram_lm.to(device)
 
         # prepare the batched beam states
         beam = min(self.beam_size, self.vocab_size)
@@ -1137,25 +1150,6 @@ class BeamRNNTInfer(Typing):
         beam_dec_out, beam_state = self.decoder.batch_score_hypothesis(init_tokens, cache)
         state = beam_state[0]
 
-        # Setup ngram LM:
-        if self.ngram_lm:
-            init_lm_state = kenlm.State()
-            self.ngram_lm.BeginSentenceWrite(init_lm_state)
-
-        # TODO: Setup LM
-        if self.language_model is not None:
-            # beam_lm_states, beam_lm_scores = self.lm.buff_predict(
-            #     None, beam_lm_tokens, 1
-            # )
-            # lm_state = select_lm_state(
-            #     beam_lm_states, 0, self.lm_layers, self.is_wordlm
-            # )
-            # lm_scores = beam_lm_scores[0]
-            raise NotImplementedError()
-        else:
-            lm_state = None
-            lm_scores = None
-
         # Initialize first hypothesis for the beam (blank) for kept hypotheses
         kept_hyps = [
             Hypothesis(
@@ -1163,14 +1157,24 @@ class BeamRNNTInfer(Typing):
                 score=0.0,
                 dec_state=state,
                 dec_out=[beam_dec_out[0]],
-                lm_state=lm_state,
-                lm_scores=lm_scores,
                 timestep=[-1],
                 length=0,
             )
         ]
+
+        # Setup ngram LM:
         if self.ngram_lm:
-            kept_hyps[0].ngram_lm_state = init_lm_state
+            if self.use_kenlm:
+                init_lm_state = kenlm.State()
+                self.ngram_lm.BeginSentenceWrite(init_lm_state)
+                kept_hyps[0].ngram_lm_state = init_lm_state
+            else:
+                init_lm_state = self.ngram_lm.get_init_states(batch_size=1, bos=True)
+                kept_hyps[0].ngram_lm_state = init_lm_state
+                
+                # lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(states=init_lm_state)  # vocab_size_no_blank
+                # lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+                # lm_scores = torch.cat((lm_scores, zeros_column), dim=2)
 
         # Initialize alignment buffer
         if self.preserve_alignments:
@@ -1228,8 +1232,6 @@ class BeamRNNTInfer(Typing):
                             score=new_score,
                             dec_out=hyp.dec_out[:],
                             dec_state=hyp.dec_state,
-                            lm_state=hyp.lm_state,
-                            lm_scores=hyp.lm_scores,
                             timestep=hyp.timestep[:],
                             length=t,
                         )
@@ -1309,18 +1311,6 @@ class BeamRNNTInfer(Typing):
                         # self.language_model is not None,
                     )
 
-                    # TODO: Setup LM
-                    if self.language_model is not None:
-                        # beam_lm_states = create_lm_batch_states(
-                        #     [hyp.lm_state for hyp in list_exp],
-                        #     self.lm_layers,
-                        #     self.is_wordlm,
-                        # )
-                        # beam_lm_states, beam_lm_scores = self.lm.buff_predict(
-                        #     beam_lm_states, beam_lm_tokens, len(list_exp)
-                        # )
-                        pass
-
                     # If this isnt the last mAES step
                     if n < (self.maes_num_steps - 1):
                         # For all expanded hypothesis
@@ -1328,14 +1318,6 @@ class BeamRNNTInfer(Typing):
                             # Preserve the decoder logits for the current beam
                             hyp.dec_out.append(beam_dec_out[i])
                             hyp.dec_state = beam_state[i]
-
-                            # TODO: Setup LM
-                            if self.language_model is not None:
-                                # hyp.lm_state = select_lm_state(
-                                #     beam_lm_states, i, self.lm_layers, self.is_wordlm
-                                # )
-                                # hyp.lm_scores = beam_lm_scores[i]
-                                pass
 
                         # Copy the expanded hypothesis
                         hyps = list_exp[:]
@@ -1362,14 +1344,6 @@ class BeamRNNTInfer(Typing):
                             # Preserve the decoder's output and state
                             hyp.dec_out.append(beam_dec_out[i])
                             hyp.dec_state = beam_state[i]
-
-                            # TODO: Setup LM
-                            if self.language_model is not None:
-                                # hyp.lm_state = select_lm_state(
-                                #     beam_lm_states, i, self.lm_layers, self.is_wordlm
-                                # )
-                                # hyp.lm_scores = beam_lm_scores[i]
-                                pass
 
                         # Finally, update the kept hypothesis of sorted top Beam candidates
                         kept_hyps = sorted(list_b + list_exp, key=lambda x: x.score, reverse=True)[:beam]
@@ -1481,20 +1455,23 @@ class BeamRNNTInfer(Typing):
 
         return hypotheses
 
-    def compute_ngram_score(self, current_lm_state: "kenlm.State", label: int) -> Tuple[float, "kenlm.State"]:
+    def compute_ngram_score(self, current_lm_state: kenlm.State, label: int) -> Tuple[float, "kenlm.State"]:
         """
         Score computation for kenlm ngram language model.
         """
-
-        if self.token_offset:
-            label = chr(label + self.token_offset)
+        if self.use_kenlm:
+            if self.token_offset:
+                label = chr(label + self.token_offset)
+            else:
+                label = str(label)
+            next_state = kenlm.State()
+            lm_score = self.ngram_lm.BaseScore(current_lm_state, label, next_state)
+            lm_score *= 1.0 / np.log10(np.e)
         else:
-            label = str(label)
-        next_state = kenlm.State()
-        lm_score = self.ngram_lm.BaseScore(current_lm_state, label, next_state)
-        lm_score *= 1.0 / np.log10(np.e)
+            lm_score, batch_lm_state_candidates = self.ngram_lm(states=current_lm_state)
+            next_state = torch.gather(batch_lm_state_candidates, dim=1, index=torch.tensor(label, device=lm_score.device).unsqueeze(-1).unsqueeze(-1)).flatten()
 
-        return lm_score, next_state
+        return float(lm_score[:, label]), next_state
 
     def set_decoding_type(self, decoding_type: str):
         """
@@ -1745,3 +1722,4 @@ class BeamRNNTInferConfig:
     pruning_mode: Optional[str] = None
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0
+    use_kenlm: bool = True

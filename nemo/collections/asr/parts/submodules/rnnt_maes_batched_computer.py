@@ -330,7 +330,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         blank_lm_score_mode: Optional[str | rnnt_utils.BlankLMScoreMode] = None,
         pruning_mode: Optional[str | rnnt_utils.PruningMode] = None,
         allow_recombine_hyps: bool = False,
-        score_norm: bool = True
+        score_norm: bool = True,
     ):
         """
         Init method.
