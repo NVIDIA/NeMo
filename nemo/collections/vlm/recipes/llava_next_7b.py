@@ -34,7 +34,7 @@ NAME = "llava_next_7b"
 @run.cli.factory(name=NAME)
 def model(config=run.Config(vlm.LlavaNextConfig7B)) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llava Next 7B model configuration.
+    Factory function to create a LlavaNext 7B model configuration.
 
     Returns:
         run.Config[pl.LightningModule]: Configuration for the Llava Next 7B model.
@@ -59,7 +59,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llava1.6 7B model.
+    Create a fine-tuning recipe for LlavaNext 7B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
