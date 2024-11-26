@@ -34,7 +34,7 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
     get_tarred_audio_text_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import TextProcessing
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing, TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.speechlm.data.data_sampler import SLMDataSampler
 from nemo.lightning.io.mixin import IOMixin
@@ -60,6 +60,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         if data_cfg is None:
             raise ValueError("common configuration is missing in the data config")
 
+        # TODO: unify the text processor creation for both lhotse and non-lhotse datasets
         text_processor = TextProcessing(
             self.tokenizer,
             max_seq_length=data_cfg["max_seq_length"],
@@ -139,6 +140,12 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get("use_lhotse"):
             logging.info(f"Creating Lhotse dataset for {mode}")
+            self.text_processor = PromptFormatterTextProcessing(
+                self.tokenizer,
+                prompt_format=data_cfg.get('prompt_format', None),
+                max_seq_length=data_cfg["max_seq_length"],
+                audio_locator=data_cfg.get('audio_locator', None),
+            )
             return LhotseAudioQuestionAnswerDataset(
                 text_processor=self.text_processor,
                 default_context="answer the question according to the previous audio",

@@ -17,30 +17,38 @@ import random
 import warnings
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Optional, Sequence, TypeVar, Union
+from typing import Any, List, Optional, Sequence, TypeVar, Union
 
 import numpy as np
 import torch
 from lhotse import CutSet, RecordingSet
 from lhotse.cut import Cut
-from lhotse.cut.text import TextExample, TextPairExample
 from lhotse.dataset import (
     CutConcatenate,
     DynamicBucketingSampler,
     DynamicCutSampler,
     IterableDatasetWrapper,
     ReverbWithImpulseResponse,
+    RoundRobinSampler,
+    ZipSampler,
     make_worker_init_fn,
 )
 from lhotse.dataset.dataloading import resolve_seed
-from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
+from lhotse.dataset.sampling.base import CutSampler, SamplingConstraint, TimeConstraint, TokenConstraint
 from lhotse.dataset.sampling.dynamic_bucketing import FixedBucketBatchSizeConstraint
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
+from nemo.collections.common.data.lhotse.text_adapters import (
+    NeMoMultimodalConversation,
+    NeMoSFTExample,
+    SourceTargetTextExample,
+    TextExample,
+)
 from nemo.collections.common.prompts.fn import get_prompt_format_fn
+from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 from nemo.utils import logging
 
 
@@ -61,8 +69,7 @@ class LhotseDataLoadingConfig:
     #   b. Lhotse CutSet manifest / Lhotse Shar tar dir paths.
     cuts_path: str | None = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
-    #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
-    tarred_random_access: bool = False
+
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
@@ -83,6 +90,8 @@ class LhotseDataLoadingConfig:
     shard_seed: int | str = "trng"
     max_open_streams: int | None = None
     cuda_expandable_segments: bool = True
+    sampler_fusion: str = "mux"  # mux | zip | round_robin | randomized_round_robin
+    sampler_weights: list[float] | None = None  # only applicable to randomized_round_robin
 
     # 2.1 Multimodal sampling override options
     pretokenize: bool = True  # should we apply tokenizer before data sampling
@@ -147,6 +156,20 @@ class LhotseDataLoadingConfig:
     # In most cases (such as regular multi-GPU training) it will result in a deadlock due to
     # a different number of steps on different DDP ranks.
     force_finite: bool = False
+    # The following two options may be used to override auto-detection of appropriate PyTorch dataset flavor
+    #   for your data types. PyTorch DataLoader uses two objects to yield data: dataset and sampler.
+    # *Map-dataset flavor.* There is one sampler per GPU that lives in the training loop process;
+    #   it selects the examples to be prepared by map-dataset class. Each batch selection determined by the sampler
+    #   is then passed by the dataloader to one of its worker processes to be processed by the dataset class.
+    # *Iterable-dataset flavor.* Each dataloading worker has its own sampler replica instead;
+    #   the sampler must have the logic for either data deduplication or unique order shuffling to avoid
+    #   duplicated data across workers and GPUs. Lhotse relies on unique order shuffling.
+    # The default settings are:
+    # * use iterable dataset for tarred audio data.
+    # * use iterable dataset for any text data.
+    # * use map dataset for non-tarred audio data (we might change this in the future).
+    force_map_dataset: bool = False
+    force_iterable_dataset: bool = False
 
 
 def get_lhotse_dataloader_from_config(
@@ -175,6 +198,44 @@ def get_lhotse_dataloader_from_config(
     If "prompt_format" is additionally provided in the config, we will also apply a prompt formatter.
     Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
+    if config.get("multi_config"):
+        return get_lhotse_dataloader_from_multi_config(
+            configs=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+        )
+    else:
+        return get_lhotse_dataloader_from_single_config(
+            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+        )
+
+
+def get_lhotse_dataloader_from_single_config(
+    config: DictConfig,
+    global_rank: int,
+    world_size: int,
+    dataset: torch.utils.data.Dataset,
+    tokenizer=None,
+) -> torch.utils.data.DataLoader:
+    """
+    Set up a Lhotse training dataloder.
+
+    Expects a typical NeMo dataset configuration format, with additional fields: "use_lhotse=True".
+    Some fields in the original NeMo configuration may be ignored.
+
+    The ``dataset`` parameter should be an instance of a Lhotse-compatible PyTorch Dataset class.
+    It only needs to define the following method ``__getitem__(self, cuts: CutSet) -> Dict[str, torch.Tensor]``.
+    This dataset is not expected to hold a reference to any actual data; it may be interpreted as a function
+    mapping a Lhotse CutSet into a mini-batch of tensors.
+
+    For an example, see: :class:`nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`,
+    which is constructed from just a tokenizer and essentially loads and collates audio and tokenizes the transcript.
+
+    The ``tokenizer`` is used when text-only datasets are included in dataloading.
+    In these cases we will tokenize ``TextExample``s before sampling mini-batches so that
+    we can account for their number of tokens.
+    Note: this behaviour might eventually be extended to audio datasets too.
+
+    Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
+    """
     logging.info("We will be using a Lhotse DataLoader.")
 
     config = make_structured_with_schema_warnings(config)
@@ -182,11 +243,137 @@ def get_lhotse_dataloader_from_config(
     maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
 
     # First, resolve the random seed in case a string value was provided.
-    seed = resolve_seed(config.seed)
+    config.seed = resolve_seed(config.seed)
+    fix_random_seed(config.seed)
+
+    assert config.sampler_fusion == "mux", (
+        "In order to use a sampler_fusion strategy different than 'mux', "
+        "create your dataloader using 'get_lhotse_dataloader_from_multi_config' instead."
+    )
+    sampler, use_iterable_dataset = get_lhotse_sampler_from_config(
+        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+    )
+
+    # 4. Creating dataloader.
+    if use_iterable_dataset:
+        # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
+        # because then I/O happens upon sampler iteration. Normally, the sampler resides
+        # in the training loop process, but when we use iterable dataset, we can move it to
+        # the dataloading worker process.
+        # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
+        # worker_id, etc. to set a different random seed for each (node, worker) combination.
+        # This together with infinite datasets removes the need to split data across nodes/workers.
+        dloader_kwargs = dict(
+            dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=config.seed),
+            persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
+        )
+    else:
+        # For non-tarred data, the sampler resides in the training loop process and
+        # reads only light-weight JSON objects; it samples mini-batches and passes
+        # the meta-data to Dataset, which performs the actual I/O inside its __getitem__ method.
+        dloader_kwargs = dict(dataset=dataset, sampler=sampler)
+    dloader = torch.utils.data.DataLoader(
+        **dloader_kwargs,
+        batch_size=None,
+        num_workers=config.num_workers,
+        pin_memory=config.pin_memory,
+    )
+
+    return dloader
+
+
+def get_lhotse_dataloader_from_multi_config(
+    configs: DictConfig,
+    global_rank: int,
+    world_size: int,
+    dataset: torch.utils.data.Dataset,
+    tokenizer=None,
+) -> torch.utils.data.DataLoader:
+    """
+    Set up a Lhotse training dataloder.
+
+    It works similarly to :func:`get_lhotse_dataloader_from_config`, except that you can provide multiple configs
+    to set up different sampling, batching, and augmentation settings for every dataset and decide how to merge them.
+
+    The expected format is that the ``configs`` is a dict of group name -> actual config.
+
+    The first config is treated as a "main" config that determines the RNG, CUDA allocator, and sampler fusion settings.
+    """
+    logging.info(f"We will be using a multi config Lhotse DataLoader with groups: {list(configs.keys())}.")
+
+    configs = [make_structured_with_schema_warnings(c) for c in configs.values() if isinstance(c, DictConfig)]
+    main_config = configs[0]
+    maybe_set_cuda_expandable_segments(enabled=main_config.cuda_expandable_segments)
+    seed = resolve_seed(main_config.seed)
     fix_random_seed(seed)
 
+    source_samplers, source_use_iterable_dataset = [], []
+    for config in configs:
+        # TODO(pzelasko): perhaps emit a warning in the unlikely case somebody defines different seeds explicitly.
+        config.seed = seed
+        config.shard_seed = main_config.shard_seed
+        s, t = get_lhotse_sampler_from_config(
+            config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+        )
+        source_samplers.append(s)
+        source_use_iterable_dataset.append(t)
+
+    assert all(
+        st == source_use_iterable_dataset[0] for st in source_use_iterable_dataset[1:]
+    ), "When using multiple input_cfg sources ensure they are all tarred or non-tarred (can't mix)."
+    use_iterable_dataset = all(source_use_iterable_dataset)
+    if main_config.sampler_fusion == "zip":
+        sampler = ZipSampler(*source_samplers)
+    elif main_config.sampler_fusion == "round_robin":
+        sampler = RoundRobinSampler(*source_samplers)
+    elif main_config.sampler_fusion == "randomized_round_robin":
+        sampler = RoundRobinSampler(
+            *source_samplers,
+            randomize=True if main_config.sampler_weights is None else main_config.sampler_weights,
+            seed=seed,
+        )
+    elif main_config.sampler_fusion == "mux":
+        raise RuntimeError(
+            "In order to use a sampler_fusion strategy 'mux', "
+            "create your dataloader using 'get_lhotse_dataloader_from_config' instead."
+        )
+    else:
+        raise RuntimeError(f"Unsupported sampler fusion strategy: {main_config.sampler_fusion}")
+
+    # 4. Creating dataloader.
+    if use_iterable_dataset:
+        # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
+        # because then I/O happens upon sampler iteration. Normally, the sampler resides
+        # in the training loop process, but when we use iterable dataset, we can move it to
+        # the dataloading worker process.
+        # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
+        # worker_id, etc. to set a different random seed for each (node, worker) combination.
+        # This together with infinite datasets removes the need to split data across nodes/workers.
+        dloader_kwargs = dict(
+            dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
+            persistent_workers=main_config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
+        )
+    else:
+        # For non-tarred data, the sampler resides in the training loop process and
+        # reads only light-weight JSON objects; it samples mini-batches and passes
+        # the meta-data to Dataset, which performs the actual I/O inside its __getitem__ method.
+        dloader_kwargs = dict(dataset=dataset, sampler=sampler)
+    dloader = torch.utils.data.DataLoader(
+        **dloader_kwargs,
+        batch_size=None,
+        num_workers=main_config.num_workers,
+        pin_memory=main_config.pin_memory,
+    )
+
+    return dloader
+
+
+def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
     # 1. Load a manifest as a Lhotse CutSet.
-    cuts, is_tarred = read_cutset_from_config(config)
+    cuts, use_iterable_dataset = read_cutset_from_config(config)
+    use_iterable_dataset = determine_use_iterable_dataset(use_iterable_dataset, config)
 
     # Apply channel selector
     if config.channel_selector is not None:
@@ -199,10 +386,14 @@ def get_lhotse_dataloader_from_config(
     # Expands cuts if multiple translations are provided.
     cuts = CutSet(LazyFlattener(cuts.map(_flatten_alt_text, apply_fn=None)))
 
-    if tokenizer is not None and config.pretokenize:
-        from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
+    if config.use_multimodal_sampling:
+        assert tokenizer is not None, (
+            "You must pass a tokenizer to `get_lhotse_dataloader_from_config` in order to read text-only datasets "
+            "(enabled via use_multimodal_dataloading)"
+        )
 
-        if not is_tarred:
+    if tokenizer is not None and config.pretokenize:
+        if not use_iterable_dataset:
             logging.warning(
                 "You are using a non-tarred dataset and requested tokenization during data sampling (pretokenize=True). "
                 "This will cause the tokenization to happen in the main (GPU) process, possibly impacting the training speed "
@@ -317,8 +508,9 @@ def get_lhotse_dataloader_from_config(
             duration_bins=determine_bucket_duration_bins(config),
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            concurrent=config.concurrent_bucketing,
+            rank=0 if use_iterable_dataset else global_rank,
+            world_size=1 if use_iterable_dataset else world_size,
         )
     else:
         # Non-bucketing sampler, similar to original NeMo dataloading without bucketing,
@@ -335,8 +527,8 @@ def get_lhotse_dataloader_from_config(
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
             seed=config.shard_seed,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            rank=0 if use_iterable_dataset else global_rank,
+            world_size=1 if use_iterable_dataset else world_size,
         )
 
     if config.concatenate_samples:
@@ -363,37 +555,11 @@ def get_lhotse_dataloader_from_config(
             ReverbWithImpulseResponse(
                 rir_recordings=RecordingSet.from_file(config.rir_path) if config.rir_path is not None else None,
                 p=config.rir_prob,
-                randgen=random.Random(seed),
+                randgen=random.Random(config.seed),
             )
         )
 
-    # 4. Creating dataloader.
-    if is_tarred and not config.tarred_random_access:
-        # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
-        # because then I/O happens upon sampler iteration. Normally, the sampler resides
-        # in the training loop process, but when we use iterable dataset, we can move it to
-        # the dataloading worker process.
-        # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
-        # worker_id, etc. to set a different random seed for each (node, worker) combination.
-        # This together with infinite datasets removes the need to split data across nodes/workers.
-        dloader_kwargs = dict(
-            dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
-            persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
-        )
-    else:
-        # For non-tarred data, the sampler resides in the training loop process and
-        # reads only light-weight JSON objects; it samples mini-batches and passes
-        # the meta-data to Dataset, which performs the actual I/O inside its __getitem__ method.
-        dloader_kwargs = dict(dataset=dataset, sampler=sampler)
-    dloader = torch.utils.data.DataLoader(
-        **dloader_kwargs,
-        batch_size=None,
-        num_workers=config.num_workers,
-        pin_memory=config.pin_memory,
-    )
-
-    return dloader
+    return sampler, use_iterable_dataset
 
 
 def determine_bucket_duration_bins(config):
@@ -446,6 +612,14 @@ def make_structured_with_schema_warnings(config: DictConfig) -> DictConfig:
     return OmegaConf.merge(default, config)
 
 
+def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
+    assert not (
+        config.force_map_dataset and config.force_iterable_dataset
+    ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
+    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
+    return use_iterable_dataset
+
+
 @dataclass
 class MultimodalSamplingConstraint(SamplingConstraint):
     # how many seconds of audio is a text token worth; balances audio to text ratio in a mini-batch
@@ -491,8 +665,15 @@ class MultimodalSamplingConstraint(SamplingConstraint):
 
     def measure_length(self, example: Any) -> float:
         if isinstance(example, Cut):
-            return example.duration / self.token_equivalent_duration
-        if isinstance(example, (TextExample, TextPairExample)):
+            # "length" of a Cut (audio+text example) is counted as the sum of:
+            # * num_tokens in each supervision segment ("utterance") in the Cut
+            # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
+            text_tokens = 0
+            for s in example.supervisions:
+                if s.has_custom("tokens"):
+                    text_tokens += len(s.tokens)
+            return example.duration / self.token_equivalent_duration + text_tokens
+        if isinstance(example, (TextExample, SourceTargetTextExample, NeMoSFTExample)):
             return example.num_tokens
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
@@ -553,10 +734,10 @@ class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2
 
 
 def is_text(example) -> bool:
-    return isinstance(example, (TextExample, TextPairExample))
+    return isinstance(example, (TextExample, SourceTargetTextExample, NeMoSFTExample))
 
 
-Example = TypeVar("Example", bound=Union[Cut, TextExample, TextPairExample])
+Example = TypeVar("Example", bound=Union[Cut, TextExample, SourceTargetTextExample, NeMoSFTExample])
 
 
 def tokenize(example: Example, tokenizer) -> Example:
@@ -564,11 +745,8 @@ def tokenize(example: Example, tokenizer) -> Example:
         for s in example.supervisions:
             if s.text is not None:
                 s.tokens = np.asarray(tokenizer(s.text, s.language))
-    elif isinstance(example, TextExample):
-        example.tokens = np.asarray(tokenizer(example.text, example.language))
-    elif isinstance(example, TextPairExample):
-        example.source.tokens = np.asarray(tokenizer(example.source.text, example.source.language))
-        example.target.tokens = np.asarray(tokenizer(example.source.text, example.target.language))
+    elif hasattr(example, "tokenize") and callable(example.tokenize):
+        example = example.tokenize(tokenizer)
     else:
         raise RuntimeError(f"Unsupported type of example: {type(example)}")
     return example
@@ -580,12 +758,20 @@ def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str) -> Exa
     #   We intend to extend it for text modality in follow-up work.
     if isinstance(example, Cut):
         prompt_format_fn = get_prompt_format_fn(prompt_format)
-        (tokenized_prompted_transcript,), (tokenized_prompt,), (tokenized_transcript,) = prompt_format_fn(
-            CutSet([example]), tokenizer
-        )
-        example.tokenized_prompted_transcript = tokenized_prompted_transcript
-        example.tokenized_prompt = tokenized_prompt
-        example.tokenized_transcript = tokenized_transcript
+        ans = prompt_format_fn(CutSet([example]), tokenizer)
+        if isinstance(ans, tuple):
+            (tokenized_prompted_transcript,), (tokenized_prompt,), (tokenized_transcript,) = ans
+            example.tokenized_prompted_transcript = tokenized_prompted_transcript
+            example.tokenized_prompt = tokenized_prompt
+            example.tokenized_transcript = tokenized_transcript
+        elif isinstance(ans, dict):
+            example.tokenized_prompted_transcript = ans["input_ids"][0]
+            example.tokenized_prompt = ans["context_ids"][0]
+            example.tokenized_transcript = ans["answer_ids"][0]
+        else:
+            raise RuntimeError(f"Unexpected return type from prompt_format_fn (must be dict or tuple): {ans}")
+    elif isinstance(example, NeMoMultimodalConversation):
+        example = example.tokenize(tokenizer, prompt_format)
     else:
         raise RuntimeError(f"Currently we only support tokenization + prompting during sampling for audio modality.")
     return example
