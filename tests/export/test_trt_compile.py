@@ -15,11 +15,6 @@ import tempfile
 import unittest
 from typing import List
 
-import torch
-
-from nemo.export import trt_compile
-from nemo.utils.import_utils import safe_import
-
 TEST_CASE_1 = ["fp32"]
 TEST_CASE_2 = ["fp16"]
 
