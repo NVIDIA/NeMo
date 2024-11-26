@@ -2,7 +2,7 @@ import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Callable, Optional
+from typing import Annotated, Callable, Optional, TYPE_CHECKING
 
 import torch
 from torch import nn
@@ -13,6 +13,9 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.utils import logging
 
+if TYPE_CHECKING:
+    from transformers import BertConfig as HFBertConfig
+    from transformers import BertModel
 
 @dataclass
 class MegatronBertConfig(BertConfig):
@@ -223,6 +226,75 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         return output
 
 
+@io.model_exporter(HuggingFaceBertModel, "hf")
+class HuggingFaceBertExporter(io.ModelConnector[BertModel, "BertModel"]):
+    """Exporter Connector for converting NeMo Bert Model to HF"""
+    def init(self, dtype=torch.bfloat16) -> "BertModel":
+        from transformers import BertModel
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights(True):
+            return BertModel.from_config(self.config, torch_dtype=dtype)
+
+    def apply(self, output_path: Path) -> Path:
+        source, _ = self.nemo_load(str(self))
+        target = self.init(source.dtype)
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        self.tokenizer.save_pretrained(output_path)
+
+        return output_path
+
+    @property
+    def tokenizer(self):
+        """Retrieve Tokenizer from HF"""
+        return io.load_context(str(self)).model.tokenizer.tokenizer
+
+    def convert_state(self, source, target):
+        """Convert NeMo state dict to HF style"""
+        mapping = {
+            "embedding.position_embeddings.weight": "embeddings.position_embeddings.weight",
+            "embedding.tokentype_embeddings.weight": "embeddings.token_type_embeddings.weight",
+            "encoder.initial_layernorm.weight": "embeddings.LayerNorm.weight",
+            "encoder.initial_layernorm.bias": "embeddings.LayerNorm.bias",
+            "encoder.layers.*.self_attention.linear_proj.weight": "encoder.layer.*.attention.output.dense.weight",
+            "encoder.layers.*.self_attention.linear_proj.bias": "encoder.layer.*.attention.output.dense.bias",
+            "encoder.layers.*.post_att_layernorm.weight": "encoder.layer.*.attention.output.LayerNorm.weight",
+            "encoder.layers.*.post_att_layernorm.bias": "encoder.layer.*.attention.output.LayerNorm.bias",
+            "encoder.layers.*.mlp.linear_fc1.weight": "encoder.layer.*.intermediate.dense.weight",
+            "encoder.layers.*.mlp.linear_fc1.bias": "encoder.layer.*.intermediate.dense.bias",
+            "encoder.layers.*.mlp.linear_fc2.weight": "encoder.layer.*.output.dense.weight",
+            "encoder.layers.*.mlp.linear_fc2.bias": "encoder.layer.*.output.dense.bias",
+            "encoder.layers.*.post_mlp_layernorm.weight": "encoder.layer.*.output.LayerNorm.weight",
+            "encoder.layers.*.post_mlp_layernorm.bias": "encoder.layer.*.output.LayerNorm.bias",
+        }
+
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv, _export_embedding],
+        )
+
+    @property
+    def config(self) -> "HFBertConfig":
+        """Generate HF Config based on NeMo config"""
+        source: BertConfig = io.load_context(str(self)).model.config
+
+        from transformers import BertConfig as HFBertConfig
+
+        return HFBertConfig(
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            max_position_embeddings=source.seq_length,
+            initializer_range=source.init_method_std,
+            layer_norm_eps=source.layernorm_epsilon,
+        )
+
 @io.state_transform(
     source_key=(
         "bert.encoder.layer.*.attention.self.query.weight",
@@ -411,3 +483,80 @@ def _import_embedding_2(ctx: io.TransformCTX, embedding):
         padded_embedding = torch.cat((embedding, zeros_to_add), dim=0)
         return padded_embedding
     return embedding
+
+@io.state_transform(
+    source_key="encoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "encoder.layer.*.attention.self.query.weight",
+        "encoder.layer.*.attention.self.key.weight",
+        "encoder.layer.*.attention.self.value.weight",
+    ),
+)
+def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    # Bert Model does not support GQA
+    megatron_config = ctx.target.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = head_num # BERT Does not use GQA
+    heads_per_group = head_num // num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
+@io.state_transform(
+    source_key="encoder.layers.*.self_attention.linear_qkv.bias",
+    target_key=(
+        "encoder.layer.*.attention.self.query.bias",
+        "encoder.layer.*.attention.self.key.bias",
+        "encoder.layer.*.attention.self.value.bias",
+    ),
+)
+def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
+    megatron_config = ctx.source.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = head_num # BERT does not use GQA
+    heads_per_group = head_num // num_query_groups
+    head_size = megatron_config.kv_channels
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_bias = qkv_bias[q_slice].reshape(-1).cpu()
+    k_bias = qkv_bias[k_slice].reshape(-1).cpu()
+    v_bias = qkv_bias[v_slice].reshape(-1).cpu()
+
+    return q_bias, k_bias, v_bias
+
+@io.state_transform(
+    source_key="embedding.word_embeddings.weight",
+    target_key="embeddings.word_embeddings.weight",
+)
+def _export_embedding(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]
