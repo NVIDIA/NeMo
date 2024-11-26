@@ -429,8 +429,6 @@ def get_iterator_k_split(
     a dictionary of tensors or a list of tensors. A dictionary batch could also have items of List type,
     as long as the length of that list is the same as the batch size.
     """
-    print(type(batch))
-    print(batch)
     if isinstance(batch, dict):
         discard_items = [k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))]
         if len(discard_items) > 0:
@@ -446,7 +444,11 @@ def get_iterator_k_split(
         # Split tensor items
         items = list(tensor_items.items())
         if enforce_divisible_batch:
-            assert items[0][1].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
+            if items[0][1].shape[0] % num_microbatches != 0:
+                raise ValueError(
+                    f"Issue with batch size configuration: batch size {items[0][1].shape[0]} is not divisible by {num_microbatches}!"
+                )
+
         split_batch = [torch.tensor_split(item[1], num_microbatches, dim=0) for item in items]
         # handle the case where the batch size from dynamic bucketting is not divisible
         if items[0][1].shape[0] % num_microbatches != 0:
