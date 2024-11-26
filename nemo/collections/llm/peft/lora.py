@@ -43,6 +43,7 @@ class LinearAdapter(nn.Module):
     """
     A simple LoRA linear module for non-megatron models.
     """
+
     def __init__(
         self, orig_linear, dim=8, alpha=32, dropout=0.1, dropout_position='post', lora_A_init_method='xavier'
     ):
