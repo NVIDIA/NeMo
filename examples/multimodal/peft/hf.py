@@ -18,7 +18,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 
 
-def mk_hf_dataset(tokenizer):
+def mk_hf_vlm_dataset(tokenizer):
     EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
 
     def formatting_prompts_func(examples):
@@ -76,12 +76,12 @@ if __name__ == '__main__':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
-    tokenizer = llm.HfAutoModelForCausalLM.configure_tokenizer(args.model)
+    processor = llm.HfAutoModelForImageTextToText.configure_processor(args.model)
 
     llm.api.finetune(
-        model=llm.HfAutoModelForCausalLM(args.model),
+        model=llm.HfAutoModelForImageTextToText(args.model),
         data=llm.HfDatasetDataModule(
-            mk_hf_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
+            mk_hf_vlm_dataset(processor), pad_token_id=tokenizer.tokenizer.eos_token_id
         ),
         trainer=nl.Trainer(
             devices=args.devices,
