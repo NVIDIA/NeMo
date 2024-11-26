@@ -22,6 +22,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn
 import os
+import json
 
 from nemo.collections.tts.parts.utils.helpers import (
     get_mask_from_lengths,
@@ -35,8 +36,14 @@ from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 import nemo.collections.asr as nemo_asr
 import soundfile as sf
+import librosa
 from torch.utils.data import get_worker_info
 from transformers import T5Tokenizer
+import copy
+from omegaconf import OmegaConf, open_dict
+import string
+from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
 
 HAVE_WANDB = True
 try:
@@ -167,9 +174,11 @@ class T5TTS_Model(ModelPT):
         for param in model.parameters():
             param.requires_grad = False
 
-    def state_dict(self):
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        if hasattr(self, '_no_state_dict') and self._no_state_dict:
+            return {}
         # Don't save the speaker verification and codec model in the state dict
-        state_dict = super().state_dict()
+        state_dict = super().state_dict(destination, prefix, keep_vars)
         keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model']
         for key in list(state_dict.keys()):
             if any([substring in key for substring in keys_substrings_to_exclude]):
@@ -287,7 +296,7 @@ class T5TTS_Model(ModelPT):
                 total_codebook_loss = total_codebook_loss + codebook_loss
         
         total_codebook_loss = total_codebook_loss / audio_codes.size(1)
-        return total_codebook_loss
+        return total_codebook_loss, loss_mask
 
     def forward(self, text, text_lens, audio_codes, audio_codes_lens, attn_prior=None, conditioning_vector=None, context_embeddings=None, context_mask=None, context_input_type="encoder"):
         # Either conditioning_vector or context_embeddings should be provided
@@ -537,7 +546,7 @@ class T5TTS_Model(ModelPT):
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
         logits = logits[:, dec_context_size:, :] # Remove the context audio embeddings from the logits
 
-        codebook_loss = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
+        codebook_loss, loss_mask = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
         alignment_loss = None
         if self.cfg.alignment_loss_scale > 0.0:
             cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.transcript_decoder_layers]
@@ -551,6 +560,7 @@ class T5TTS_Model(ModelPT):
             'attn_info' : attn_info,
             'loss': loss,
             'codebook_loss': codebook_loss,
+            'loss_mask': loss_mask,
             'alignment_loss': alignment_loss,
             'audio_codes_target': audio_codes_target,
             'audio_codes_lens_target': audio_codes_lens_target,
@@ -823,3 +833,355 @@ class T5TTS_Model(ModelPT):
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         return []
+
+class T5TTS_ModelInference(T5TTS_Model):
+    """Small override to save inference metrics"""
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg, trainer)
+        self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
+        self.eval_asr_model.freeze()
+        self.eval_asr_model.eval()
+
+        self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
+        self.eval_speaker_verification_model.freeze()
+        self.eval_speaker_verification_model.eval()
+    
+    def process_text(self, input_text):
+        """
+        Normalizes text for CER/WER calculation.
+        Taken from hallucination_eval.py
+        """
+        # Convert text to lowercase
+        lower_case_text = input_text.lower()
+        
+        # Remove commas from text
+        no_comma_text = lower_case_text.replace(",", "")
+        # Replace "-" with spaces
+        no_dash_text = no_comma_text.replace("-", " ")
+        no_dash_text = no_dash_text.replace("'", "")
+        no_dash_text = no_dash_text.replace(";", "")
+        no_dash_text = no_dash_text.replace(".", "")
+        
+        # Replace double spaces with single space
+        single_space_text = " ".join(no_dash_text.split())
+
+        single_space_text = single_space_text.translate(str.maketrans('', '', string.punctuation))
+
+        # @shehzeen: Added this to handle some common errors in ASR transcripts
+        single_space_text.replace("h t t p", "http")
+        single_space_text.replace("w w w", "www")
+
+        return single_space_text
+    
+    def get_speaker_embeddings_from_filepaths(self, filepaths):
+        audio_batch = []
+        audio_lengths = []
+        for filepath in filepaths:
+            audio, sr = sf.read(filepath)
+            if sr != 16000:
+                audio = librosa.core.resample(audio, orig_sr=sr, target_sr=16000)
+            audio_tensor = torch.tensor(audio, dtype=torch.float32, device=self.device)
+            audio_batch.append(audio_tensor)
+            audio_lengths.append(audio_tensor.size(0))
+        
+        batch_audio_lens = torch.tensor(audio_lengths, device=self.device).long()
+        max_audio_len = int(batch_audio_lens.max().item())
+        audio_batch = stack_tensors(audio_batch, max_lens=[max_audio_len])
+
+        _, speaker_embeddings = self.eval_speaker_verification_model.forward(
+            input_signal=audio_batch, 
+            input_signal_length=batch_audio_lens
+        )
+        
+        return speaker_embeddings
+
+    def test_step(self, batch, batch_idx):
+        with torch.no_grad():
+            test_dl_batch_size = self._test_dl.batch_size
+            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(batch, max_decoder_steps=self.cfg.get('max_decoder_steps', 500))
+            predicted_audio_paths = []
+            audio_durations = []
+            for idx in range(predicted_audio.size(0)):
+                predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
+                predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
+                item_idx = batch_idx * test_dl_batch_size + idx
+                # Save the predicted audio
+                log_dir = self.logger.log_dir
+                audio_dir = os.path.join(log_dir, 'audios')
+                if not os.path.exists(audio_dir):
+                    os.makedirs(audio_dir)
+                audio_path = os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}.wav')
+                audio_durations.append(len(predicted_audio_np) / self.cfg.sample_rate)
+                sf.write(audio_path, predicted_audio_np, self.cfg.sample_rate)
+
+                predicted_codes_torch = predicted_codes[idx].cpu().type(torch.int16)
+                predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]]
+                torch.save(predicted_codes_torch, os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'))
+                predicted_audio_paths.append(audio_path)
+            
+            with torch.no_grad():
+                pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
+                pred_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(predicted_audio_paths)
+                gt_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(batch['audio_filepaths'])
+
+            for idx in range(predicted_audio.size(0)):
+                audio_path = predicted_audio_paths[idx]
+                item_idx = batch_idx * test_dl_batch_size + idx
+                pred_transcript = pred_transcripts[idx]
+                gt_transcript = self.process_text(batch['raw_texts'][idx])
+
+                cer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=True)
+                wer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=False)
+
+                spk_embedding_pred = pred_speaker_embeddings[idx].cpu().numpy()
+                spk_embedding_gt = gt_speaker_embeddings[idx].cpu().numpy()
+                
+                spk_similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (
+                    np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt)
+                )
+                
+                item_metrics = {
+                    'cer_gt': float(cer_gt),
+                    'wer_gt': float(wer_gt),
+                    'duration' : audio_durations[idx],
+                    'spk_similarity': float(spk_similarity),
+                    'pred_transcript': pred_transcript,
+                    'gt_transcript': gt_transcript,
+                }
+
+                with open(os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_metrics.json'), 'w') as f:
+                    json.dump(item_metrics, f)
+
+class T5TTS_ModelDPO(T5TTS_Model):
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg, trainer)
+        # Copy cfg
+        ref_model_cfg = copy.deepcopy(cfg)
+        with open_dict(ref_model_cfg):
+            ref_model_cfg.train_ds = None
+            ref_model_cfg.validation_ds = None
+        self._reference_model = T5TTS_Model(cfg=ref_model_cfg)
+        print("Loading reference model from checkpoint")
+        self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path)['state_dict'])
+        self.freeze_model(self._reference_model)
+        self._reference_model.eval()
+        self._reference_model._no_state_dict = True
+        print("Reference model loaded and frozen")
+    
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        state_dict = super().state_dict(destination, prefix, keep_vars)
+        keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model', '_reference_model']
+        for key in list(state_dict.keys()):
+            if any([substring in key for substring in keys_substrings_to_exclude]):
+                del state_dict[key]
+        return state_dict
+        
+
+    def _get_batch_logps(self, logits, labels, loss_mask, average_log_prob=False):
+        """Compute the log probabilities of the given labels under the given logits.
+
+        Args:
+            logits: Logits of the model (unnormalized). Shape: (batch_size, sequence_length, vocab_size)
+            labels: Labels for which to compute the log probabilities. Label tokens with a value of -100 are ignored. Shape: (batch_size, sequence_length)
+            average_log_prob: If True, return the average log probability per (non-masked) token. Otherwise, return the sum of the log probabilities of the (non-masked) tokens.
+
+        Returns:
+            A tensor of shape (batch_size,) containing the average/sum log probabilities of the given labels under the given logits.
+        """
+        per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
+
+        if average_log_prob:
+            return (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
+        else:
+            return (per_token_logps * loss_mask).sum(-1)
+
+    # https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py
+    def preference_loss(self, policy_chosen_logps,
+                    policy_rejected_logps,
+                    reference_chosen_logps,
+                    reference_rejected_logps,
+                    chosen_gt_rewards=None,
+                    rejected_gt_rewards=None,
+                    beta=0.2,
+                    gt_reward_scale=1.0,
+                    label_smoothing=0,
+                    loss_type="dpo",
+                    reference_free=False):
+        """Compute the DPO loss for a batch of policy and reference model log probabilities.
+
+        Args:
+            policy_chosen_logps: Log probabilities of the policy model for the chosen responses. Shape: (batch_size,)
+            policy_rejected_logps: Log probabilities of the policy model for the rejected responses. Shape: (batch_size,)
+            reference_chosen_logps: Log probabilities of the reference model for the chosen responses. Shape: (batch_size,)
+            reference_rejected_logps: Log probabilities of the reference model for the rejected responses. Shape: (batch_size,)
+            beta: Temperature parameter for the DPO loss, typically something in the range of 0.1 to 0.5. We ignore the reference model as beta -> 0.
+            label_smoothing: conservativeness for DPO loss, which assumes that preferences are noisy (flipped with probability label_smoothing)
+            ipo: If True, use the IPO loss instead of the DPO loss.
+            reference_free: If True, we ignore the _provided_ reference model and implicitly use a reference model that assigns equal probability to all responses.
+
+        Returns:
+            A tuple of three tensors: (losses, chosen_rewards, rejected_rewards).
+            The losses tensor contains the DPO loss for each example in the batch.
+            The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected responses, respectively.
+        """
+        pi_logratios = policy_chosen_logps - policy_rejected_logps
+        ref_logratios = reference_chosen_logps - reference_rejected_logps
+
+        if reference_free:
+            ref_logratios = 0
+
+        logits = pi_logratios - ref_logratios  # also known as h_{\pi_\theta}^{y_w,y_l}
+        # logits = (policy_chosen_logps - policy_rejected_logps) - (reference_chosen_logps - reference_rejected_logps)
+        # logits = (policy_chosen_logps - reference_chosen_logps) - (policy_rejected_logps - reference_rejected_logps)
+        # logits is the same as rewards_delta in NeMo aligner: https://github.com/NVIDIA/NeMo-Aligner/blob/0b5bffeb78a8316dd57e0816a2a9544540f0c8dd/nemo_aligner/models/nlp/gpt/megatron_gpt_dpo_model.py#L241
+
+        if loss_type == "ipo":
+            losses = (logits - 1/(2 * beta)) ** 2  # Eq. 17 of https://arxiv.org/pdf/2310.12036v2.pdf
+        elif loss_type == "rpo":
+            # https://github.com/NVIDIA/NeMo-Aligner/blob/0b5bffeb78a8316dd57e0816a2a9544540f0c8dd/nemo_aligner/models/nlp/gpt/megatron_gpt_dpo_model.py#L241
+            logbeta_hat_chosen = torch.nn.functional.logsigmoid(beta * logits)
+            logbeta_hat_rejected = torch.nn.functional.logsigmoid(-beta * logits)
+            gt_rewards_delta = gt_reward_scale * (chosen_gt_rewards - rejected_gt_rewards)
+            logalpha_hat_chosen = torch.nn.functional.logsigmoid(gt_rewards_delta)
+            logalpha_hat_rejected = torch.nn.functional.logsigmoid(-gt_rewards_delta)
+            losses = (
+                torch.exp(logalpha_hat_chosen) * (logalpha_hat_chosen - logbeta_hat_chosen)
+                + torch.exp(logalpha_hat_rejected) * (logalpha_hat_rejected - logbeta_hat_rejected)
+            )
+        elif loss_type == "rpo_sq":
+            gt_rewards_delta = gt_reward_scale * (chosen_gt_rewards - rejected_gt_rewards)
+            losses = (beta * logits - gt_rewards_delta) ** 2
+        elif loss_type == "dpo":
+            # Eq. 3 https://ericmitchell.ai/cdpo.pdf; label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
+            F = torch.nn.functional
+            losses = -F.logsigmoid(beta * logits) * (1 - label_smoothing) - F.logsigmoid(-beta * logits) * label_smoothing
+        else:
+            raise NotImplementedError("loss type {} is not implemented".format(loss_type))
+
+        chosen_rewards = beta * (policy_chosen_logps - reference_chosen_logps).detach()
+        rejected_rewards = beta * (policy_rejected_logps - reference_rejected_logps).detach()
+
+        return losses, chosen_rewards, rejected_rewards
+
+    def process_batch_dpo(self, batch_chosen_rejected):
+        batch_chosen = batch_chosen_rejected['chosen']
+        batch_rejected = batch_chosen_rejected['rejected']
+        
+        model_output_chosen = self.process_batch(batch_chosen)
+        model_output_rejected = self.process_batch(batch_rejected)
+        with torch.no_grad():
+            reference_model_output_chosen = self._reference_model.process_batch(batch_chosen)
+            reference_model_output_rejected = self._reference_model.process_batch(batch_rejected)
+        
+        chosen_policy_logprobs = None
+        rejected_policy_logprobs = None
+        chosen_ref_logprobs = None
+        rejected_ref_logprobs = None
+        for codebook_idx in range(self.cfg.num_audio_codebooks):
+            si = codebook_idx * self.cfg.num_audio_tokens_per_codebook
+            ei = si + self.cfg.num_audio_tokens_per_codebook
+            codebook_logits_chosen = model_output_chosen['logits'][:, :, si:ei]
+            codebook_logits_rejected = model_output_rejected['logits'][:, :, si:ei]
+
+            ref_codebook_logits_chosen = reference_model_output_chosen['logits'][:, :, si:ei]
+            ref_codebook_logits_rejected = reference_model_output_rejected['logits'][:, :, si:ei]
+
+            codebook_labels_chosen = model_output_chosen['audio_codes_target'][:,codebook_idx]
+            codebook_labels_rejected = model_output_rejected['audio_codes_target'][:,codebook_idx]
+
+            codebook_log_probs_chosen = self._get_batch_logps(codebook_logits_chosen, codebook_labels_chosen, model_output_chosen['loss_mask'])
+            codebook_log_probs_rejected = self._get_batch_logps(codebook_logits_rejected, codebook_labels_rejected, model_output_rejected['loss_mask'])
+            with torch.no_grad():
+                ref_codebook_log_probs_chosen = self._get_batch_logps(ref_codebook_logits_chosen, codebook_labels_chosen, reference_model_output_chosen['loss_mask'])
+                ref_codebook_log_probs_rejected = self._get_batch_logps(ref_codebook_logits_rejected, codebook_labels_rejected, reference_model_output_rejected['loss_mask'])
+            
+            if chosen_policy_logprobs is None:
+                chosen_policy_logprobs = codebook_log_probs_chosen
+                rejected_policy_logprobs = codebook_log_probs_rejected
+                chosen_ref_logprobs = ref_codebook_log_probs_chosen
+                rejected_ref_logprobs = ref_codebook_log_probs_rejected
+            else:
+                chosen_policy_logprobs += codebook_log_probs_chosen
+                rejected_policy_logprobs += codebook_log_probs_rejected
+                chosen_ref_logprobs += ref_codebook_log_probs_chosen
+                rejected_ref_logprobs += ref_codebook_log_probs_rejected
+        
+        rewards_chosen = batch_chosen['rewards']
+        rewards_rejected = batch_rejected['rewards']
+        
+        assert torch.all(rewards_chosen == 1)
+        assert torch.all(rewards_rejected < 1)
+
+        pref_loss, chosen_rewards, rejected_rewards = self.preference_loss(
+            chosen_policy_logprobs,
+            rejected_policy_logprobs,
+            chosen_ref_logprobs,
+            rejected_ref_logprobs,
+            chosen_gt_rewards=rewards_chosen,
+            rejected_gt_rewards=rewards_rejected,
+            beta=self.cfg.get('dpo_beta', 0.01),
+            loss_type=self.cfg.get('dpo_loss_type', 'dpo'),
+        )
+
+        pref_loss = pref_loss.mean()
+        sft_loss = -chosen_policy_logprobs.mean()
+        
+        pref_loss_weight = self.cfg.get('dpo_pref_loss_weight', 1.0)
+        sft_loss_weight = self.cfg.get('dpo_sft_loss_weight', 0.0)
+        loss = pref_loss_weight * pref_loss + sft_loss * sft_loss_weight
+
+        alignment_loss = model_output_chosen['alignment_loss']
+        if alignment_loss is not None:
+            loss += alignment_loss
+        
+        return {
+            'loss': loss,
+            'pref_loss': pref_loss,
+            'sft_loss': sft_loss,
+            'alignment_loss': alignment_loss,
+        }
+
+    def training_step(self, batch, batch_idx):
+        dpo_outputs = self.process_batch_dpo(batch)
+        self.log('train_loss', dpo_outputs['loss'], prog_bar=True, sync_dist=True)
+        self.log('train_pref_loss', dpo_outputs['pref_loss'], prog_bar=True, sync_dist=True)
+        self.log('train_sft_loss', dpo_outputs['sft_loss'], prog_bar=True, sync_dist=True)
+        return dpo_outputs['loss']
+    
+    def validation_step(self, batch, batch_idx):
+        dpo_outputs = self.process_batch_dpo(batch)
+        
+        val_loss = dpo_outputs['loss']
+        val_pref_loss = dpo_outputs['pref_loss']
+        val_sft_loss = dpo_outputs['sft_loss']
+        val_alignment_loss = dpo_outputs['alignment_loss']
+        
+        self.validation_step_outputs.append({
+            'val_loss': val_loss,
+            'val_pref_loss': val_pref_loss,
+            'val_sft_loss': val_sft_loss,
+            'val_alignment_loss': val_alignment_loss,
+        })
+    
+    def on_validation_epoch_end(self):
+        def collect(key):
+            values = []
+            for x in self.validation_step_outputs:
+                if x[key] is not None:
+                    values.append(x[key])
+                else:
+                    values.append(torch.tensor(0.0, device=self.device))
+            stacked_values = torch.stack(values)
+            return stacked_values.mean()
+
+        val_loss = collect("val_loss")
+        val_pref_loss = collect("val_pref_loss")
+        val_sft_loss = collect("val_sft_loss")
+        val_alignment_loss = collect("val_alignment_loss")
+        self.log("val_loss", val_loss, prog_bar=True, sync_dist=True)
+        self.log("val_pref_loss", val_pref_loss, prog_bar=True, sync_dist=True)
+        self.log("val_sft_loss", val_sft_loss, prog_bar=True, sync_dist=True)
+        if val_alignment_loss is not None:
+            self.log("val_alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
+        self.validation_step_outputs.clear()
+        
