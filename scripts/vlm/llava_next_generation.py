@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 
 import requests
@@ -51,7 +65,6 @@ def generate(model, processor, raw_image, text):
         with torch.no_grad():
             attention_mask = (input_ids != 0).long().cuda()
             output = model(
-                # media=torch.zeros_like(media),
                 media=media,
                 input_ids=input_ids,
                 position_ids=position_ids,
@@ -59,7 +72,6 @@ def generate(model, processor, raw_image, text):
                 num_media_tiles=[media.size(0)],
                 attention_mask=attention_mask,
             )
-            # breakpoint()
             next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
 
             generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
@@ -77,7 +89,6 @@ def generate(model, processor, raw_image, text):
                 print(f"breaking")
                 break
     generated_ids[generated_ids == -200] = 0
-    breakpoint()
     generated_texts = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
     logging.info("======== GENERATED TEXT OUTPUT ========")
     logging.info(f"{generated_texts}")
@@ -86,7 +97,7 @@ def generate(model, processor, raw_image, text):
 
 def main(args) -> None:
     # pylint: disable=C0115,C0116
-    model_id = ''
+    model_id = 'llava-hf/llava-v1.6-vicuna-7b-hf'
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         ckpt_load_optimizer=False,
@@ -122,11 +133,11 @@ def main(args) -> None:
     if raw_image is None:
         return  # Exit if the image can't be loaded
 
-    generate(model, processor, image=raw_image, text="What are these?")
+    generate(model, processor, raw_image=raw_image, text="What are these?")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="")
+    parser = argparse.ArgumentParser(description="Llava Next Generation example")
     parser.add_argument(
         "--load_from_hf",
         action="store_true",
@@ -145,8 +156,8 @@ if __name__ == "__main__":
         default="https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg",
         help="URL of the image to use for inference.",
     )
-    parser.add_argument("--devices", type=int, required=False, default=1)
-    parser.add_argument("--tp_size", type=int, required=False, default=1)
+    parser.add_argument("--devices", type=int, required=False, default=2)
+    parser.add_argument("--tp_size", type=int, required=False, default=2)
 
     args = parser.parse_args()
     main(args)

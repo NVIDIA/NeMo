@@ -24,7 +24,8 @@ from transformers import LlavaNextForConditionalGeneration
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import LlamaConfig
-from nemo.collections.vlm import Llava15Config7B, Llava15Config13B, NevaModel
+from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B
+from nemo.collections.vlm.neva.model.base import NevaModel
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig, MCoreLlavaNextModel
 from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig, MultimodalProjectorConfig
 from nemo.collections.vlm.neva.model.llava import HFLlavaImporter
@@ -85,7 +86,6 @@ class LlavaNextModel(NevaModel):
         """
         super().__init__(
             config=config,
-            tokenizer=tokenizer,
             optim=optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)),
             tokenizer=tokenizer,
             model_transform=model_transform,
@@ -132,6 +132,9 @@ class LlavaNextModel(NevaModel):
             - If `labels` is provided: Loss tensor of shape [batch, seq_len].
             - If `labels` is not provided: Logits tensor of shape [batch, seq_len, vocab_size].
         """
+        if torch.distributed.get_rank() == 0:
+            breakpoint()
+        torch.distributed.barrier()
         output_tensor = self.module(
             media=media,
             input_ids=input_ids,
