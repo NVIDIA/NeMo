@@ -15,6 +15,8 @@ import tempfile
 import unittest
 from typing import List
 
+import torch
+
 TEST_CASE_1 = ["fp32"]
 TEST_CASE_2 = ["fp16"]
 
