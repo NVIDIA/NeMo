@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 import torch
@@ -63,14 +64,9 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         )
     )
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("position_ids",))
+        required_keys.update(("position_ids", "attention_mask"))
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(
-            (
-                "labels",
-                "loss_mask",
-            )
-        )
+        required_keys.update(("labels", "loss_mask", "attention_mask"))
 
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
@@ -116,6 +112,7 @@ def llava_next_forward_step(model, batch) -> torch.Tensor:
 from nemo.collections.vlm.neva.model.base import MCoreNevaModel, NevaConfig
 
 
+@dataclass
 class LlavaNextConfig(NevaConfig):
     """
     Configuration class for the LLaVA Next model.
@@ -123,8 +120,8 @@ class LlavaNextConfig(NevaConfig):
 
     """
 
-    forward_step_fn: Callable = llava_next_forward_step
-    data_step_fn: Callable = llava_next_data_step
+    forward_step_fn: Callable = field(default=llava_next_forward_step)
+    data_step_fn: Callable = field(default=llava_next_data_step)
 
     def configure_model(self, tokenizer) -> "MCoreLlavaNextModel":
         """
