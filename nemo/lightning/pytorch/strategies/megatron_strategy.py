@@ -278,7 +278,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Attaches a model to strategy."""
         super().connect(model)
 
-        assert not 'is_hf_model' in model.__dict__, "Cannot use HfAutoModelForCausalLM with MegatronParallel"
+        assert not 'is_hf_model' in model.__dict__, "Cannot use HFAutoModelForCausalLM with MegatronParallel"
 
         dtype_config = getattr(self._precision_plugin, "dtype_config", None)
         if self.pipeline_dtype is None and dtype_config:
@@ -734,6 +734,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
         checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
+
+        if selective_restore:
+            final_checkpoint = {}
+            for key in sharded_state_dict.keys():
+                final_checkpoint[key] = checkpoint[key]
+
+            return final_checkpoint
 
         return checkpoint
 
