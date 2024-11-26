@@ -220,21 +220,26 @@ model:
   data:
     train_ds:
       use_lhotse: true
+      seed: 0
+      shard_seed: "trng"
+      num_workers: 4
+      shuffle: true
+
       multi_config: true
+      sampler_fusion: randomized_round_robin
+      sampler_weights:
+        audio: 0.5
+        text: 0.5
+
       audio:
         input_cfg: ???
-        sampler_fusion: round_robin
         prompt_format: t5nmt
-        seed: 0
-        shard_seed: "trng"
         batch_size: null
         batch_duration: 360
         quadratic_factor: 15
         use_bucketing: true
         num_buckets: 30
         bucket_buffer_size: 20000
-        num_workers: 4
-        shuffle: true
       text:
         input_cfg: ???
         prompt_format: t5nmt
@@ -244,8 +249,6 @@ model:
         use_bucketing: true
         num_buckets: 30
         bucket_buffer_size: 20000
-        num_workers: 4
-        shuffle: true
 
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
