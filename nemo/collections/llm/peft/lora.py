@@ -13,30 +13,15 @@
 # limitations under the License.
 
 import math
-import re
 from dataclasses import dataclass, field
 from typing import List, Literal
 
 import torch
-from megatron.core import parallel_state
-from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 from torch import nn
 
+from nemo.collections.llm.peft.utils import is_expert_linear, wildcard_match, _get_adapter_attributes_from_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
-from nemo.utils.import_utils import safe_import_from
-
-TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine", "TEColumnParallelLinear"
-)
-TELayerNormColumnParallelLinear, HAVE_TE_LN_COL_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine",
-    "TELayerNormColumnParallelLinear",
-)
-TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
-)
-HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
 
 class LoRALinear(AdapterWrapper):
@@ -94,42 +79,6 @@ class LinearAdapter(nn.Module):
         if self.dropout_position == 'post':
             lora_res = self.dropout(lora_res)
         return res + lora_res
-
-
-def is_expert_linear(fqn):
-    return re.match('.*mlp\.experts\.local_experts.[0-9]+\.linear_fc[1-2]$', fqn) is not None
-
-
-def _get_adapter_attributes_from_linear(m: nn.Module):
-    if HAVE_TE and isinstance(m, TEColumnParallelLinear) or isinstance(m, TELayerNormColumnParallelLinear):
-        input_is_parallel = False
-        # m.in_features and m.out_features are divided by tp_size already,
-        # but in_features and out_features passed to ParallelLinearAdapter are not.
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        in_features = m.in_features
-        out_features = m.out_features * tp_size
-        # LoRA is applied after layernorm, so layernorm output must be returned
-        m.return_layernorm_output = True
-        # perf optimization for LoRA + SP
-        if m.config.sequence_parallel and not m.ub_overlap_ag:
-            m.return_layernorm_output_gathered = True
-    elif HAVE_TE and isinstance(m, TERowParallelLinear):
-        input_is_parallel = True
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        in_features = m.in_features * tp_size
-        out_features = m.out_features
-    elif isinstance(m, ColumnParallelLinear):
-        input_is_parallel = False
-        in_features = m.input_size
-        out_features = m.output_size
-    elif isinstance(m, RowParallelLinear):
-        input_is_parallel = True
-        in_features = m.input_size
-        out_features = m.output_size
-    else:
-        raise NotImplementedError(f"Layer type is unrecognized for LoRA: {type(m)}")
-
-    return input_is_parallel, in_features, out_features
 
 
 @dataclass
@@ -197,13 +146,6 @@ class LoRA(PEFT):
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
-
-        def wildcard_match(pattern, key):
-            if key is None:
-                return None
-            regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
-            match = regex_pattern.match(key)
-            return match is not None
 
         full_name = f"{prefix}.{name}" if prefix else name
         if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):

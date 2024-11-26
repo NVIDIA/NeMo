@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import List, Literal, Dict, Set, Tuple, Optional
@@ -23,21 +22,9 @@ from torch import nn
 
 from nemo.collections.llm.peft.lora import LoRALinear, _get_adapter_attributes_from_linear, is_expert_linear, \
     LinearAdapter
+from nemo.collections.llm.peft.utils import wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
-from nemo.utils.import_utils import safe_import_from
-
-TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine", "TEColumnParallelLinear"
-)
-TELayerNormColumnParallelLinear, HAVE_TE_LN_COL_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine",
-    "TELayerNormColumnParallelLinear",
-)
-TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
-)
-HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
 class ModuleDict(nn.ModuleDict):
     """
@@ -221,14 +208,6 @@ class CanonicalLoRA(PEFT):
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
-
-        # todo reuse this wildcard match
-        def wildcard_match(pattern, key):
-            if key is None:
-                return None
-            regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
-            match = regex_pattern.match(key)
-            return match is not None
 
         full_name = f"{prefix}.{name}" if prefix else name
 

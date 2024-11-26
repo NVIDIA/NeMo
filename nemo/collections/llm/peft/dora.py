@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import re
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
 
@@ -25,24 +23,10 @@ from megatron.core.tensor_parallel import (
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
 from torch import nn
 
-from nemo.collections.llm.peft.lora import _get_adapter_attributes_from_linear
+from nemo.collections.llm.peft.utils import _get_adapter_attributes_from_linear, wildcard_match
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
-from nemo.utils.import_utils import safe_import_from
-
-TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine", "TEColumnParallelLinear"
-)
-TELayerNormColumnParallelLinear, HAVE_TE_LN_COL_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine",
-    "TELayerNormColumnParallelLinear",
-)
-TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
-    "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
-)
-HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
-
 
 class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
     """
@@ -195,14 +179,6 @@ class DoRA(PEFT):
         Returns:
             nn.Module: The modified module with DoRA applied, or the original module if not a target.
         """
-
-        def wildcard_match(pattern, key):
-            if key is None:
-                return None
-            regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
-            match = regex_pattern.match(key)
-            return match is not None
-
         full_name = f"{prefix}.{name}" if prefix else name
         if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
             input_is_parallel, in_features, out_features = _get_adapter_attributes_from_linear(m)
