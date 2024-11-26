@@ -146,14 +146,10 @@ class TiktokenTokenizer(TokenizerSpec):
         )
 
     def token_to_id(self, token):
-        token_str = token.decode('utf-8', errors='replace') if isinstance(token, bytes) else token
-        if token_str in self.special_tokens:
-            return self.special_tokens.index(token_str)
-        else:
-            token_ids = self.tokenizer.encode(token_str)
-            if len(token_ids) != 1:
-                raise ValueError(f"Token '{token_str}' should correspond to exactly one ID, but got {token_ids}")
-            return token_ids[0] + self.num_special_tokens
+        token_ids = self.tokens_to_ids([token])
+        if len(token_ids) != 1:
+            raise ValueError(f"Token '{token}' should correspond to exactly one ID, but got {token_ids}")
+        return token_ids[0]
 
     def tokens_to_ids(self, tokens):
         ids = []
