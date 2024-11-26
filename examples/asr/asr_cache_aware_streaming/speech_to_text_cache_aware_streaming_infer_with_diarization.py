@@ -12,75 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-This script can be used to simulate cache-aware streaming for ASR models. The ASR model to be used with this script need to get trained in streaming mode. Currently only Conformer models supports this streaming mode.
-You may find examples of streaming models under 'NeMo/example/asr/conf/conformer/streaming/'.
-
-It works both on a manifest of audio files or a single audio file. It can perform streaming for a single stream (audio) or perform the evalution in multi-stream model (batch_size>1).
-The manifest file must conform to standard ASR definition - containing `audio_filepath` and `text` as the ground truth.
-
-# Usage
-
-## To evaluate a model in cache-aware streaming mode on a single audio file:
-
-python speech_to_text_streaming_infer.py \
-    --asr_model=asr_model.nemo \
-    --audio_file=audio_file.wav \
-    --compare_vs_offline \
-    --use_amp \
-    --debug_mode
-
-## To evaluate a model in cache-aware streaming mode on a manifest file:
-
-python speech_to_text_streaming_infer.py \
-    --asr_model=asr_model.nemo \
-    --manifest_file=manifest_file.json \
-    --batch_size=16 \
-    --compare_vs_offline \
-    --use_amp \
-    --debug_mode
-
-You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation.
-If compare_vs_offline is not used, then significantly larger batch_size can be used.
-Setting `--pad_and_drop_preencoded` would perform the caching for all steps including the first step.
-It may result in slightly different outputs from the sub-sampling module compared to offline mode for some techniques like striding and sw_striding.
-Enabling it would make it easier to export the model to ONNX.
-
-## Hybrid ASR models
-For Hybrid ASR models which have two decoders, you may select the decoder by --set_decoder DECODER_TYPE, where DECODER_TYPE can be "ctc" or "rnnt".
-If decoder is not set, then the default decoder would be used which is the RNNT decoder for Hybrid ASR models.
-
-## Multi-lookahead models
-For models which support multiple lookaheads, the default is the first one in the list of model.encoder.att_context_size. To change it, you may use --att_context_size, for example --att_context_size [70,1].
-
-
-## Evaluate a model trained with full context for offline mode
-
-You may try the cache-aware streaming with a model trained with full context in offline mode.
-But the accuracy would not be very good with small chunks as there is inconsistency between how the model is trained and how the streaming inference is done.
-The accuracy of the model on the borders of chunks would not be very good.
-
-To use a model trained with full context, you need to pass the chunk_size and shift_size arguments.
-If shift_size is not passed, chunk_size would be used as the shift_size too.
-Also argument online_normalization should be enabled to simulate a realistic streaming.
-The following command would simulate cache-aware streaming on a pretrained model from NGC with chunk_size of 100, shift_size of 50 and 2 left chunks as left context.
-The chunk_size of 100 would be 100*4*10=4000ms for a model with 4x downsampling and 10ms shift in feature extraction.
-
-python speech_to_text_streaming_infer.py \
-    --asr_model=stt_en_conformer_ctc_large \
-    --chunk_size=100 \
-    --shift_size=50 \
-    --left_chunks=2 \
-    --online_normalization \
-    --manifest_file=manifest_file.json \
-    --batch_size=16 \
-    --compare_vs_offline \
-    --use_amp \
-    --debug_mode
-
-"""
-
-
 import contextlib
 import json
 import os
@@ -120,18 +51,9 @@ from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get
 from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing, timestamps_to_pyannote_object
 
 from nemo.collections.asr.parts.utils.diarization_utils import (
-get_session_trans_dict,
-init_session_trans_dict,
-init_session_gecko_dict,
 print_sentences,
 get_color_palette,
 write_txt,
-)
-from nemo.collections.asr.parts.utils.speaker_utils import (
-labels_to_pyannote_object,
-generate_diarization_output_lines,
-rttm_to_labels,
-get_uem_object,
 )
 
 
@@ -170,6 +92,9 @@ def measure_eta(func):
         return result  # Return the original function's result
     return wrapper
 
+def write_seglst(output_filepath, seglst_list):
+    with open(output_filepath, "w") as f:
+        f.write(json.dumps(seglst_list, indent=2) + "\n")
 
 class MultiSpeakerASRstreamer:
     def __init__(
@@ -235,10 +160,7 @@ class MultiSpeakerASRstreamer:
             org_len = len(word_and_ts_seq["words"])
             extra_len = len(word_and_ts_seq["words"]) - self.cfg.word_window
             truncated_words = word_and_ts_seq["words"][extra_len:]
-            # try:
             bsd_truncated_words = self.bsd_spk.beam_search_diarization_single(word_dict_seq_list=truncated_words, speaker_count=word_and_ts_seq["speaker_count"])
-            # except:
-                # import ipdb; ipdb.set_trace()
             if self.cfg.bsd_maj_voting:
                 word_and_ts_seq["words"] = self._update_speaker_vote(word_and_ts_seq['words'], bsd_truncated_words)
             else:
@@ -316,34 +238,28 @@ class MultiSpeakerASRstreamer:
             left_offset=left_offset,
             right_offset=right_offset,
         )
-        transcribed_speaker_texts=None
-        if len( previous_hypotheses[0].text) == 0 and step_num <= self._initial_steps:
-            transcribed_speaker_texts = None
-        else:
-            for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()): 
+        transcribed_speaker_texts = [None] * len(self.test_manifest_dict)
+        for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()): 
+            if not (len( previous_hypotheses[idx].text) == 0 and step_num <= self._initial_steps):
                 word_and_ts_seq = deepcopy(self._word_and_ts_seq[idx])
                 # Get the word-level dictionaries for each word in the chunk
                 word_and_ts_seq = get_frame_and_words(cfg=self.cfg,
-                                                    tokenizer=self.asr_model.tokenizer,
-                                                    step_num=step_num, 
-                                                    diar_pred_out_stream=diar_pred_out_stream,
-                                                    previous_hypotheses=previous_hypotheses, 
-                                                    word_and_ts_seq=word_and_ts_seq)
-                word_and_ts_seq['uniq_id'] = uniq_id
+                                                      uniq_id=uniq_id,
+                                                      tokenizer=self.asr_model.tokenizer,
+                                                      step_num=step_num, 
+                                                      diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
+                                                      previous_hypothesis=previous_hypotheses[idx], 
+                                                      word_and_ts_seq=word_and_ts_seq)
                 if len(word_and_ts_seq["words"]) > 0:
                     if self.cfg.beam_search_enabled: 
                         word_and_ts_seq = self._manage_beam_search_update(word_and_ts_seq)
                         
                     word_and_ts_seq = get_sentences_values(session_trans_dict=word_and_ts_seq)
-                    transcribed_speaker_texts = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg)
+                    transcribed_speaker_texts[idx] = print_sentences(sentences=word_and_ts_seq["sentences"], color_palette=get_color_palette(), params=self.cfg)
                     end_time = word_and_ts_seq["sentences"][-1]["end_time"]
                     der, cpwer, is_update = self.online_evaluators[idx].evaluate_inloop(hyp_seglst=word_and_ts_seq["sentences"], end_step_time=end_time)
-                    try:
-                        print(f"------[  DER  ]: {der:.3f},[  CPWER   ]: {cpwer:.3f} ------")
-                    except:
-                        import ipdb; ipdb.set_trace()
                     if idx == 0:
-                        write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts.strip())
+                        write_txt(f'{self.cfg.print_path}', transcribed_speaker_texts[idx].strip())
                 self._word_and_ts_seq[idx] = deepcopy(word_and_ts_seq)
             logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         return (transcribed_speaker_texts,
@@ -375,8 +291,8 @@ class DiarizationConfig:
     
     # General configs
     session_len_sec: float = -1 # End-to-end diarization session length in seconds
-    batch_size: int = 4
-    num_workers: int = 0
+    batch_size: int = 1
+    num_workers: int = 8
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
     bypass_postprocessing: bool = True # If True, postprocessing will be bypassed
     log: bool = False # If True, log will be printed
@@ -387,12 +303,12 @@ class DiarizationConfig:
     
     # Streaming diarization configs
     streaming_mode: bool = True # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
-    mem_len: int = 100
+    mem_len: int = 188
     # mem_refresh_rate: int = 0
-    fifo_len: int = 100
-    step_len: int = 100
-    step_left_context: int = 100
-    step_right_context: int = 100
+    fifo_len: int = 188
+    step_len: int = 0
+    step_left_context: int = 0
+    step_right_context: int = 0
 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
@@ -411,7 +327,7 @@ class DiarizationConfig:
     device: str = 'cuda'
     audio_file: Optional[str] = None
     manifest_file: Optional[str] = None
-    use_amp: bool = False
+    use_amp: bool = True
     debug_mode: bool = False
     compare_vs_offline: bool = False
     batch_size: int = 32
@@ -426,11 +342,9 @@ class DiarizationConfig:
 
     
     # Beam search parameters
-    # batch_size: int = 32
-    # use_mp: bool = True
     arpa_language_model: Optional[str] = None
-    beam_prune_logp: float = -100
-    word_window: int = 32
+    beam_prune_logp: float = -40
+    word_window: int = 50
     bsd_maj_voting: bool = True
     use_spk_turn_bsd: bool = False
     left_frame_shift: int = -1
@@ -445,14 +359,14 @@ class DiarizationConfig:
     feat_len_sec: float = 0.01
     limit_max_spks: int = 2
     alpha: float = 0.2
-    beta: float = 0.02
-    beam_width: int = 16
+    beta: float = 0.03
+    beam_width: int = 8
     out_dir: Optional[str] = None
     print_time: bool = True
     colored_text: bool = True
     real_time_mode: bool = False
     print_path: str = "./"
-    beam_search_enabled: bool = True
+    beam_search_enabled: bool = False
     ignored_initial_frame_steps: int = 5
     verbose: bool = True
     break_lines: bool = True
@@ -591,12 +505,12 @@ def get_word_dict_content(cfg, word, word_index, diar_pred_out_stream, token_gro
         
     # Edge Cases: Sometimes, repeated token indexs can lead to incorrect frame and speaker assignment.
     if frame_stt == frame_end:
-        if frame_stt >= diar_pred_out_stream.shape[1] - 1:
-            frame_stt, frame_end = (diar_pred_out_stream.shape[1] - 1, diar_pred_out_stream.shape[1])
+        if frame_stt >= diar_pred_out_stream.shape[0] - 1:
+            frame_stt, frame_end = (diar_pred_out_stream.shape[1] - 1, diar_pred_out_stream.shape[0])
         else:
             frame_end = frame_stt + 1
     # Get the speaker based on the frame-wise softmax probabilities.
-    speaker_sigmoid = diar_pred_out_stream[0, max((frame_stt + cfg.left_frame_shift), 0):(frame_end + cfg.right_frame_shift), :].mean(dim=0)
+    speaker_sigmoid = diar_pred_out_stream[max((frame_stt + cfg.left_frame_shift), 0):(frame_end + cfg.right_frame_shift), :].mean(dim=0)
     speaker_sigmoid = torch.clamp(speaker_sigmoid, min=cfg.min_sigmoid_val, max=1) 
     speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
     # _speaker_softmax = torch.softmax(speaker_sigmoid, dim=0)
@@ -678,17 +592,18 @@ def get_fifo_queue_preds(cfg, fifo_preds, word_and_ts_seq, diar_pred_out_stream,
     return word_and_ts_seq 
 
 
-def get_frame_and_words(cfg, tokenizer, step_num, diar_pred_out_stream, previous_hypotheses, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
-    current_frame_range = [step_num * previous_hypotheses[0].length.item(), (step_num + 1) * previous_hypotheses[0].length.item()]
+def get_frame_and_words(cfg, uniq_id, tokenizer, step_num, diar_pred_out_stream, previous_hypothesis, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
+    current_frame_range = [step_num * previous_hypothesis.length.item(), (step_num + 1) * previous_hypothesis.length.item()]
     offset = current_frame_range[0]
-    word_seq = previous_hypotheses[0].text.split()
+    word_seq = previous_hypothesis.text.split()
     new_words = word_seq[word_and_ts_seq["offset_count"]:]
-    frame_inds_seq = (torch.tensor(previous_hypotheses[0].timestep) + offset).tolist()
+    frame_inds_seq = (torch.tensor(previous_hypothesis.timestep) + offset).tolist()
     new_token_group = tokenizer.text_to_tokens(new_words)
     new_tokens = list(itertools.chain(*new_token_group))
     frame_inds_seq = fix_frame_time_step(new_tokens, new_words, frame_inds_seq)
     min_len = min(len(new_words), len(frame_inds_seq))
    
+    word_and_ts_seq['uniq_id'] = uniq_id
 
     for idx in range(min_len):
         word_and_ts_seq["token_frame_index"].append((new_tokens[idx], frame_inds_seq[idx]))
@@ -926,8 +841,13 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         online_normalization=online_normalization,
         pad_and_drop_preencoded=args.pad_and_drop_preencoded,
     )
-    arpa_model = kenlm.Model(cfg.arpa_language_model)
-    bsd_spk = SpeakerTaggingBeamSearchDecoder(loaded_kenlm_model=arpa_model, cfg=cfg)
+    
+    if cfg.beam_search_enabled:
+        arpa_model = kenlm.Model(cfg.arpa_language_model)
+        bsd_spk = SpeakerTaggingBeamSearchDecoder(loaded_kenlm_model=arpa_model, cfg=cfg)
+    else:
+        bsd_spk = None
+    
     if args.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
@@ -952,6 +872,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                 item = json.loads(line)
                 samples.append(item)
 
+        # Override batch size 
+        args.batch_size = len(samples)
         logging.info(f"Loaded {len(samples)} from the manifest at {args.manifest_file}.")
 
         start_time = time.time()

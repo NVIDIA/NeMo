@@ -723,7 +723,10 @@ class OnlineEvaluation:
             self.cpwer_list.append(cpwer)
         else:
             is_update = False
-            der, cpwer = self.der_list[-1], self.cpwer_list[-1]
+            if len(self.der_list) > 0 and len(self.cpwer_list) > 0:
+                der, cpwer = self.der_list[-1], self.cpwer_list[-1]
+            else:
+                der, cpwer = 400.0, 100.0
         return der, cpwer, is_update
 
     def evaluate_outofloop(self, chunk_size=10.0):
@@ -779,8 +782,6 @@ class OnlineEvaluation:
                 hyp_speaker_words[idx] += hyp_speaker_word[idx]
 
             der_instance = der_metric(reference, hypothesis)
-            if len(hyp_labels) > 15:
-                import ipdb; ipdb.set_trace()
             # Normalize the text
             for spk_idx in range(len(hyp_speaker_words)):
                 hyp_speaker_words[spk_idx] = hyp_speaker_words[spk_idx].translate(str.maketrans('', '', string.punctuation)).lower()
