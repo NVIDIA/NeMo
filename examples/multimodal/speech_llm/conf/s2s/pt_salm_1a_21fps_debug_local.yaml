@@ -318,6 +318,8 @@ model:
       source_target_text_ratio_limit: 4.0
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
+      target_audio_sample_rate: 22050 # codec sampling rate
+
       max_duration: 24 # it is set for LibriSpeech, you may need to update it for your dataset
       min_duration: 0.1
       # tarred datasets
