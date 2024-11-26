@@ -92,7 +92,7 @@ class DiarizationConfig:
 
     # General configs
     session_len_sec: float = -1  # End-to-end diarization session length in seconds
-    batch_size: int = 4
+    batch_size: int = 1
     num_workers: int = 0
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
     bypass_postprocessing: bool = True  # If True, postprocessing will be bypassed
