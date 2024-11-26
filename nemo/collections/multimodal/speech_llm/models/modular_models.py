@@ -390,6 +390,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         seconds = steps * codec_model_downsampling_factor / codec_sample_rate * decoder_reduction_factor
         return seconds, int(seconds * codec_sample_rate)
 
+    def get_step_from_audio_len(self, audio_len):
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        return torch.ceil(audio_len / self.codec_model_downsampling_factor / decoder_reduction_factor).int() - 1
+
     def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
         codec_sample_rate = self.cfg.data.train_ds.get("codec_sample_rate", 22050)
         decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
@@ -405,9 +409,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             audio = torchaudio.functional.resample(audio, orig_sample_rate, target_sample_rate)
             audio_lens = (audio_lens * (target_sample_rate / orig_sample_rate)).int()
             return audio, audio_lens
-
-        def get_step_from_audio_len(audio_len):
-            return torch.ceil(audio_len / self.codec_model_downsampling_factor / decoder_reduction_factor).int() - 1
 
         if 'target_texts_merge' not in audio_batch:  # create duplex data from single turn
             labels, loss_mask = (
@@ -452,7 +453,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 duplex_len = user_len + silence + agent_len + silence
                 # make bos step -1 to be safe for silence+speech boundary
                 agent_bos_eos_step.append(
-                    [get_step_from_audio_len(user_len + silence) - 1, get_step_from_audio_len(duplex_len)]
+                    [self.get_step_from_audio_len(user_len + silence) - 1, self.get_step_from_audio_len(duplex_len)]
                 )
                 new_user_signal_length.append(duplex_len)
                 new_agent_signal_length.append(duplex_len)
@@ -472,6 +473,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             new_user_signal_length = audio_batch['audio_signal_length']
             new_agent_signal = audio_batch['answer_audio']
             new_agent_signal_length = audio_batch['answer_audio_lens']
+            loss_mask = None
+            duplex_method = self.cfg.duplex_method
+            assert duplex_method == "from_duplex"
 
         # [b, t, c]
         encoded, encoded_len = self.perception(
@@ -487,20 +491,23 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
         assert all(answer_codecs_lens == encoded_len)
-        prev_answer_features_lens = (
-            torch.ceil(agent_signal_length / self.codec_model_downsampling_factor / decoder_reduction_factor).long()
-            + 1
-        )  # bos
         if 'answer_features_lens' in audio_batch:
+            assert 'target_texts_merge' not in audio_batch
+            prev_answer_features_lens = (
+                torch.ceil(
+                    agent_signal_length / self.codec_model_downsampling_factor / decoder_reduction_factor
+                ).long()
+                + 1
+            )  # bos
             assert all(prev_answer_features_lens == audio_batch['answer_features_lens'])
-        shift_text_channel_len = answer_codecs_lens - prev_answer_features_lens - 2  # 2 is for bos and eos
+            shift_text_channel_len = answer_codecs_lens - prev_answer_features_lens - 2  # 2 is for bos and eos
 
         new_loss_mask = []
         all_channels = []
         for i, answer_codec in enumerate(answer_codecs):
             if 'target_texts_merge' in audio_batch:
                 text_channel = audio_batch['target_texts_merge'][i]
-                sliced_text_channel = text_channel[: answer_codec.shape[0]]
+                sliced_text_channel = text_channel[: answer_codec.shape[0]].unsqueeze(-1)
                 answer_codec = torch.where(
                     sliced_text_channel == self.tokenizer.bos_id, self.cfg.data.train_ds.speech_bos_id, answer_codec
                 )
@@ -511,7 +518,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 # mask bos and eos following timestamp or synthetic data mark
                 answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
                 answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
-                pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.eos_id
+                pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.unk_id
                 base_length = -1 + context_lengths[i]
                 text_channel = torch.cat(
                     [
@@ -540,6 +547,11 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             assert loss_mask.shape == labels.shape
             if self.cfg.get('duplex_loss_on_all_steps', False):
                 loss_mask = torch.ones_like(labels)  # include loss on silence too
+        elif 'target_texts_merge' in audio_batch:
+            loss_mask = torch.ones_like(labels)
+            assert self.cfg.get(
+                'duplex_loss_on_all_steps', False
+            ), "only support duplex_loss_on_all_steps in real duplex data read from dataloader"
         assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):

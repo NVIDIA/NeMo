@@ -328,7 +328,7 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
             duplex_method = self.model.cfg.get("duplex_method", None)
             if duplex_method is None:
                 pass
-            elif duplex_method == "from_multiturn":
+            elif duplex_method == "from_multiturn" or duplex_method == "from_duplex":
                 encoded = self.encoded[:, curr_context_length - 1].view(micro_batch_size, 1, -1)
                 embeddings2use = embeddings2use + encoded.transpose(0, 1).contiguous()
             else:
@@ -348,16 +348,29 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
 
         duplex_method = self.model.cfg.get("duplex_method", None)
         if duplex_method == 'from_duplex':
+            answer_audio_lens = int(
+                answer_audio_lens
+                / self.model.cfg.data.train_ds.get("codec_sample_rate", 22050)
+                * self.model.cfg.data.train_ds.get("sample_rate", 16000)
+            )
             padded_audio_signal = torch.cat(
                 [audio_signal, torch.zeros([audio_signal.shape[0], answer_audio_lens]).cuda()], axis=1
             )
+            all_lens_answer_rate = (
+                (audio_length + answer_audio_lens)
+                / self.model.cfg.data.train_ds.get("sample_rate", 16000)
+                * self.model.cfg.data.train_ds.get("codec_sample_rate", 22050)
+            ).long()
             batch = {
                 'audio_signal': padded_audio_signal,
                 'audio_signal_length': audio_length + answer_audio_lens,
                 'context_lengths': context_lengths,
-                'target_texts_merge': context_tokens,  # reuse context_tokens to keep target_texts_merge in data loader
-                'answer_audio_lens': audio_length + answer_audio_lens,
-                'answer_audio': padded_audio_signal * 0,
+                'target_texts_merge': torch.full(
+                    [audio_signal.shape[0], self.model.get_step_from_audio_len(all_lens_answer_rate).max() + 1],
+                    self.model.tokenizer.eos_id,
+                ).cuda(),
+                'answer_audio_lens': all_lens_answer_rate,
+                'answer_audio': torch.zeros([audio_signal.shape[0], all_lens_answer_rate.max()]).cuda(),
                 'loss_mask': None,
             }
         elif duplex_method == 'from_multiturn':

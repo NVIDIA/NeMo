@@ -257,7 +257,7 @@ model:
         weight: 0.5
         tags:
           lang: en
-          s2s_align: True
+          s2s_duplex: True
       load_answer_audio: ${model.extract_codec_on_the_fly}
       codec_model_downsampling_factor: ${model.codec_model_downsampling_factor}
       global_batch_size: ${model.global_batch_size}
@@ -331,7 +331,7 @@ model:
               weight: 0.1
               tags:
                 lang: en
-                s2s_align: True
+                s2s_duplex: True
             # s2s_shars_21fps_with_wavs
             # - type: lhotse_shar
             #   shar_path: /lustre/fs7/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/s2s_synthetic_data/s2s_shars_21fps/alpaca_val/ # speech SQA

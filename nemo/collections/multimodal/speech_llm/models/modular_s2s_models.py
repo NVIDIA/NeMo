@@ -344,7 +344,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['instructions']]
+        inputs_text = (
+            [self.tokenizer.ids_to_text(c.tolist()) for c in batch['instructions']]
+            if batch['instructions'] is not None
+            else [""] * len(batch['target_texts'])
+        )
         labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['target_texts']]
         # only do ids_to_text on the first channel which is text
         output['token_ids_text'] = (np.array(output['token_ids'])[:, :, 0]).tolist()
@@ -415,6 +419,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     ):
         # remove text context
         max_len = input_decoder_output.shape[0]
+        if len(input_decoder_output.shape) == 1:
+            return input_decoder_output, None
         decoder_output = input_decoder_output[-1:].tile([max_len, 1])
         decoder_output[: max_len - context_length] = input_decoder_output[context_length:]
 
@@ -571,6 +577,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                                 self.cfg.data.train_ds.speech_pad_id,
                                 self.cfg.data.train_ds.speech_eos_id,
                             )
+                            if speech_answer == None:
+                                speech_answer = torch.zeros_like(speech_pred)
                             text_pred_text = self.tokenizer.ids_to_text(text_pred)
                             deduplicated_outputs['preds'].append(text_pred_text.strip())
                             deduplicated_outputs['labels'].append(labels_text.strip())
@@ -893,7 +901,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
     def prepare_llm_input(self, audio_batch):
         encoder_input, attention_mask, labels, loss_mask, encoder_length = super().prepare_llm_input(audio_batch)
-        if all(audio_batch['num_turns'] == 2):
+        if (
+            all(audio_batch['num_turns'] == 2) or 'target_texts_merge' in audio_batch
+        ):  # real duplex data read from dataloader
             return encoder_input, attention_mask, labels, loss_mask, encoder_length
         # use num_turns to recover multiturn format and then merge them back to one sequence as LLM input/output
         new_encoder_input = []

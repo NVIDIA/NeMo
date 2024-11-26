@@ -139,7 +139,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
                 if supervisions[1].speaker == "agent":
                     pattern = r"<\|\d+\|>"
-                    output_text = re.sub(pattern, "", text)
+                    output_text = re.sub(pattern, "", supervisions[1].text)
                     output_text = re.sub(r'\s+', ' ', output_text).strip()
                     target_text = self.text_processor._process_example(context="", output=output_text)
                     # -1 to remove the eos token added by the text processor
@@ -171,7 +171,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     audios_list = field
                 else:
                     audios_list = [field]
-                assert num_turns[i] / 2 == len(audios_list)
                 for audios in audios_list:
                     from lhotse import Recording
 
@@ -253,27 +252,36 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 / self.codec_model_downsampling_factor
                 // self.decoder_reduction_factor
             )
-            return text_start_step - 1
+            return int(text_start_step) - 1
 
         cnt = 0
         new_target_texts = []
-        target_text_lengths = []
         for i in range(len(num_turns)):
             each_target_texts = []
-            total_steps = answer_audio_lens[i] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
-            cur_target_text = torch.full((total_steps), self.text_processor.pad_id)
+            total_steps = torch.ceil(
+                answer_audio_lens[i] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+            ).int()
+            cur_target_text = torch.full(
+                [total_steps],
+                (
+                    self.text_processor.tokenizer.pad_id
+                    if self.text_processor.tokenizer.pad_id >= 0
+                    else self.text_processor.tokenizer.unk_id
+                ),
+            )
+            assert len(text_start_time[i]) == num_turns[i] // 2
             for j in range(num_turns[i] // 2):
-                text_start_step = get_step_by_time(text_start_time[cnt])
-                text_end_step = get_step_by_time(text_end_time[cnt])
+                text_start_step = get_step_by_time(text_start_time[i][j])
+                text_end_step = get_step_by_time(text_end_time[i][j]) + 1
                 cur_target_text[text_start_step] = self.text_processor.bos_id
-                cur_target_text[text_start_step + 1 : text_end_step] = target_text[cnt][
-                    : text_end_step - text_start_step - 1, 0
+                text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
+                cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
+                    :text_len
                 ]
-                cur_target_text[text_end_step] = self.text_processor.bos_id
+                cur_target_text[text_end_step] = self.text_processor.eos_id
+                cnt += 1
             new_target_texts.append(cur_target_text)
-            target_text_lengths.append(new_target_texts[-1].shape[0])
-        target_texts_merge = collate_and_pad(new_target_texts)
-        assert cnt == len(text_start_time)
+        target_texts_merge, target_text_lengths = collate_and_pad(new_target_texts)
         assert cnt == len(target_texts)
         assert target_texts_merge.shape[0] == len(num_turns)
 
@@ -287,12 +295,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "metadata": metadata,
             # For forward
             "instructions": None,
+            "tokens": target_texts_merge,  # used in _reconfigure_and_process_inference_batch
             "target_texts_merge": target_texts_merge,  # used in prepare_llm_input
             "contexts": target_texts_merge,  # used in inference
             "context_lengths": target_text_lengths,
-            "target_texts": target_texts,
+            "target_texts": target_texts_merge,
             "target_text_lengths": target_text_lengths,
-            "answers": target_texts,
+            "answers": target_texts_merge,
             "answer_audio": answer_audios,
             "answer_audio_lens": answer_audio_lens,
             "num_turns": torch.Tensor(num_turns).long(),

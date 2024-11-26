@@ -119,6 +119,8 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
                 ),
             )
             total_dur += user_duration + agent_duration
+        cut.duration = total_dur
+        cut.start = 0.0
         save_audio(f"/tmp/u{j}1.wav", user_audio, sample_rate)
         cut.recording = Recording.from_file(f"/tmp/u{j}1.wav")
         save_audio(f"/tmp/u{j}2.wav", agent_audio, sample_rate)
