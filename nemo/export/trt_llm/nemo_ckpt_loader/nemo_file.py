@@ -69,68 +69,68 @@ class TarFileSystemReader(FileSystemReader):
         if isinstance(path, TarPath):
             self.path = path  # overwrites path set in super().__init__ call
 
-
-def get_extra_state_key(state_dict: dict) -> Optional[str]:
-    for key in state_dict.keys():
-        if '_extra_state/' in key:
-            return key
-    return None
-
-
-def unpack_extra_state_key(key: str) -> Tuple[str, int]:
-    basename = key.split('/')[0]
-    size = int(key.split('/')[1].split('_')[-1])
-    return basename, size
-
-
-def clear_loaded_extra_states(state_dict: dict, basename: str) -> dict:
-    """The scaling factors are originally saved to state_dict under the keynames 'basename/*'
-    The standardized representation is saved to 'basename.*'. This function clears the former from the state.
-    """
-    to_remove = [k for k in state_dict.keys() if basename + '/' in k]
-    for key in to_remove:
-        state_dict.pop(key)
-    return state_dict
-
-
-def retrieve_scale(bytes: BytesIO) -> Optional[torch.Tensor]:
-    bytes.seek(0)
-    extra_state = torch.load(bytes)
-    if not extra_state or 'scale_fwd' not in extra_state:
-        return None
-    return extra_state['scale_fwd'].cpu()
-
-
-def load_scales_from_bytes(bytes_list: List[BytesIO]) -> Optional[torch.Tensor]:
-    scales = []
-    for bytes in bytes_list:
-        scale = retrieve_scale(bytes)
-        if scale is None:
-            return None
-        scales.append(scale)
-    return torch.stack(scales)
-
-
-def load_scaling_factors(state_dict: dict, basename: str, size: int) -> Optional[torch.Tensor]:
-    keynames = [f'{basename}/shard_{layer}_{size}' for layer in range(size)]
-    bytes_list = [state_dict[keyname][0] for keyname in keynames]
-    return load_scales_from_bytes(bytes_list)
-
-
-def filter_experts_extra_states(state_dict: dict):
-    pattern = r'model\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
-    return {k: v for k, v in state_dict.items() if not re.fullmatch(pattern, k)}
-
-
+# Used only for the old, non-mcore path
 def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
-    while key := get_extra_state_key(state_dict):
-        basename, size = unpack_extra_state_key(key)
-        scaling_factors = load_scaling_factors(state_dict, basename, size)
-        if scaling_factors is not None:
-            state_dict[basename + '.scale_fwd'] = scaling_factors
-        state_dict = clear_loaded_extra_states(state_dict, basename)
+    scales_dict = {k: v for k, v in state_dict.items() if 'extra_state' in k}
+    state_dict = {k: v for k, v in state_dict.items() if 'extra_state' not in k}
 
-    return state_dict
+
+    scales = {}
+    
+    for k, v in scales_dict.items():
+        v.seek(0)
+        scales[k + '.scale_fwd'] = torch.load(v)['scale_fwd'].cpu()
+
+    combined_scales = {}
+    for k in scales:
+        if 'model.decoder.layers.' not in k:
+            continue
+
+        decomposed = k.split('.')
+        combined = []
+        id = 0
+        decomposed[3] = str(id)
+        while '.'.join(decomposed) in scales:
+            combined.append(scales['.'.join(decomposed)])
+            id += 1
+            decomposed[3] = str(id)
+        
+        del decomposed[3]
+        combined_scales['.'.join(decomposed)] = torch.stack(combined)
+
+    return state_dict | combined_scales
+
+
+def rename_extra_states(state_dict: dict) -> dict:
+    mcore_extra_states = {}
+
+    for key, value in state_dict.items():
+        if 'extra_state' not in key:
+            continue
+        
+        decomposed_sharded_key = key.split('/')
+        if not len(decomposed_sharded_key):
+            continue
+
+        key_base, shard_key = decomposed_sharded_key
+        if '_' not in shard_key:
+            continue
+
+        shard_layer = shard_key.split('_')[1]
+        if not shard_layer.isnumeric():
+            continue
+
+        split_string = 'layers'
+        decomposed_key = key_base.split(split_string)
+        mcore_key = (f'{split_string}.{shard_layer}').join(decomposed_key)
+        
+        if isinstance(value, list) and len(value) == 1:
+            value = value[0]
+        mcore_extra_states[mcore_key] = value
+
+    state_dict = {k: v for k, v in state_dict.items() if 'extra_state' not in k}
+    return state_dict | mcore_extra_states
+
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor: bool = True):
@@ -152,8 +152,7 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
         storage_reader=fs_reader,
         no_dist=True,
     )
-    state_dict = filter_experts_extra_states(state_dict)
-    state_dict = standarize_distributed_scaling_factors(state_dict)
+    state_dict = rename_extra_states(state_dict)
 
     if not torch_tensor:
         for k, v in state_dict.items():
@@ -172,31 +171,18 @@ def get_sharded_file(dir: dict, layer_number: int) -> Optional[os.PathLike]:
 
 
 def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
-    def _get_layer_number(file):
-        basename = os.path.basename(str(file))
-        return int(basename.split('_')[1])
-
     pt_files = list(dir.glob('shard_*_*.pt'))
-    bytes_list = []
-    for file in sorted(pt_files, key=_get_layer_number):
+    extra_states = {}
+    for file in pt_files:
+        shard_name = file.name.split('.')[0]
         with file.open('rb') as opened_file:
-            bytes_list.append(torch.load(opened_file))
+            extra_states[dir.name + '/' + shard_name] = torch.load(opened_file)
 
-    return load_scales_from_bytes(bytes_list)
+    return rename_extra_states(extra_states)
 
 
 def contains_extra_states(subdir: Union[Path, TarPath]):
     return list(subdir.glob('shard_0_*.pt')) != []
-
-
-def load_extra_state_from_pickle(sharded_state_dict: dict, subdir: Union[Path, TarPath]):
-    scales = load_sharded_pickle_extra_state_scale(subdir)
-    if scales is not None:
-        key = subdir.name + '.scale_fwd'
-        sharded_state_dict[key] = scales
-
-    return sharded_state_dict
-
 
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
@@ -205,7 +191,7 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
             continue
 
         if contains_extra_states(subdir):
-            sharded_state_dict = load_extra_state_from_pickle(sharded_state_dict, subdir)
+            sharded_state_dict |= load_sharded_pickle_extra_state_scale(subdir)
         elif (subdir / '.zarray').exists():
             key = subdir.name
             zstore = ZarrPathStore(subdir)
@@ -356,7 +342,7 @@ def build_tokenizer(tokenizer):
     return tokenizer
 
 
-def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path]):
+def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path], mcore_scales_format: bool = True):
 
     if not os.path.exists(nemo_ckpt):
         raise TypeError("%s does not exist", nemo_ckpt)
@@ -374,6 +360,10 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             dist_ckpt_folder = nemo_dir / "model_weights"
 
             model = load_sharded_metadata(dist_ckpt_folder)
+            if not mcore_scales_format:
+                model |= {k: v[0] for k,v in model.items() if 'extra_state' in k and isinstance(v, list)}
+                model = standarize_distributed_scaling_factors(model)
+
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
             if nemo_model_config["tokenizer"].get("library", None) == "huggingface":

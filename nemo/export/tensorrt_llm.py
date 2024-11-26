@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import safetensors
@@ -82,6 +82,15 @@ try:
 except Exception:
     use_pytriton = False
 
+
+
+def determine_quantization_settings(nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None) -> Tuple[bool, bool]:
+   is_nemo_quantized = nemo_model_config.get('fp8', False)
+   if fp8_quantized is None:
+       fp8_quantized = is_nemo_quantized
+   if fp8_kvcache is None:
+       fp8_kvcache = is_nemo_quantized
+   return fp8_quantized, fp8_kvcache
 
 # pylint: disable=line-too-long
 class TensorRTLLM(ITritonDeployable):
@@ -342,7 +351,7 @@ class TensorRTLLM(ITritonDeployable):
                         "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
                     )
 
-                model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
+                model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir, use_mcore_path)
                 if use_mcore_path:
                     from megatron.core.export.data_type import DataType
                     from megatron.core.export.export_config import ExportConfig
@@ -352,6 +361,9 @@ class TensorRTLLM(ITritonDeployable):
                     )
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
                     from tensorrt_llm.layers import MoeConfig
+
+
+                    fp8_quantized, fp8_kvcache = determine_quantization_settings(model_configs, fp8_quantized, fp8_kvcache)
 
                     # We build the transformer config using the nemo model config.
                     transformer_config = self.get_transformer_config(model_configs)
@@ -398,6 +410,8 @@ class TensorRTLLM(ITritonDeployable):
                             export_config=export_config,
                             dtype=input_dtype,
                             state_dict_split_by_layer_numbers=False,
+                            fp8_quantized=fp8_quantized,
+                            fp8_kvcache=fp8_kvcache,
                         )
                     )
 
