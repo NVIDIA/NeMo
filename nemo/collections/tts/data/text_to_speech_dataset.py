@@ -662,6 +662,11 @@ class T5TTSDataset(TextToSpeechDataset):
         
         if len(reward_list) > 0:
             batch_dict['rewards'] = torch.FloatTensor(reward_list)
+        
+        # Assert only ONE of context_audio or context_audio_codes in the batch
+        assert ('audio' in batch_dict) ^ ('audio_codes' in batch_dict)
+        # Assert only ONE of context_audio or context_audio_codes in the batch
+        assert ('context_audio' in batch_dict) ^ ('context_audio_codes' in batch_dict)
 
         return batch_dict
 
