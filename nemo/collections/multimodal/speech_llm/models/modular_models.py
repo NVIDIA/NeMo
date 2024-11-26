@@ -491,6 +491,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
         assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=1))
+        encoded_len = answer_codecs_lens
         if 'answer_features_lens' in audio_batch:
             assert 'target_texts_merge' not in audio_batch
             prev_answer_features_lens = (
