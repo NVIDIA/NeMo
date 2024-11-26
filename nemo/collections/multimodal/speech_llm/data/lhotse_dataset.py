@@ -256,7 +256,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 start_time_tokens.append(start_time_token)
 
         # Load source audio
-        audio = [cut.resample(self.codec_sample_rate).load_audio() for cut in cuts]
+        audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
         audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
 
         # Resample audio waveform here since cuts.resample causes core dump sometimes
@@ -348,7 +348,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             answer_audios = []
             features_lens = []
             for i, cut in enumerate(cuts):
-                answer_audio = torch.tensor(cut.target_audio.load_audio()).float()
+                answer_audio = torch.tensor(cut.target_audio.resample(self.codec_sample_rate).load_audio()).float()
                 answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
                 answer_audios.append(answer_audio)
                 answer_audio_lens.append(answer_audio_len)
