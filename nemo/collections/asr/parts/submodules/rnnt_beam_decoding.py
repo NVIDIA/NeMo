@@ -1178,12 +1178,6 @@ class BeamRNNTInfer(Typing):
                 hyp.alignments = [[]]
 
         for t in range(encoded_lengths):
-            # print("Frame idx: ", t)
-            # for hyp1 in kept_hyps:
-            #     print("Sequence: ", hyp1.y_sequence)
-            #     print("Timesteps: ", hyp1.timestep)
-            #     print("Score: ", hyp1.score)
-            #     print()
             enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
 
             # Perform prefix search to obtain hypothesis
@@ -1193,6 +1187,13 @@ class BeamRNNTInfer(Typing):
                 prefix_alpha=self.maes_prefix_alpha,
             )  # type: List[Hypothesis]
             kept_hyps = []
+            
+            # print("Frame idx: ", t)
+            # for hyp1 in hyps:
+            #     print("Sequence: ", hyp1.y_sequence)
+            #     print("Timesteps: ", hyp1.timestep)
+            #     print("Score: ", hyp1.score)
+            #     print()
 
             # Prepare output tensor
             beam_enc_out = enc_out_t
