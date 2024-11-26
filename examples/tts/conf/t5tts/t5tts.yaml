@@ -18,10 +18,10 @@ sample_rate: 22050
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
-  model_type: "single_encoder_sv_tts" # single_encoder_sv_tts, multi_encoder_context_tts or decoder_context_tts
+  model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts or decoder_context_tts
   use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
-  transcript_decoder_layers: [3,4,5,6,7,8] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
-  context_decoder_layers: [0,1,2,9,10,11] # ONLY used in multi_encoder_context_tts
+  transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
+  context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
   context_duration_min: 3.0
   context_duration_max: 8.0
   use_perceiver: false # For multi_encoder_context_tts, use perceiver after speaker encoder or not
@@ -30,9 +30,9 @@ model:
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1024
   load_cached_codes_if_available: true
-  prior_scaling_factor: 1.0
-  prior_end_step: 500
-  prior_scaledown_start_step: 200
+  prior_scaling_factor: 0.5
+  prior_end_step: 12000
+  prior_scaledown_start_step: 8000
   alignment_loss_scale: 0.0
   embedding_dim: 768
   codecmodel_path: ???
@@ -62,7 +62,7 @@ model:
       weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
       sample_rate: ${sample_rate}
       # speaker_path: ${speaker_path}
-      min_duration: 1.0
+      min_duration: 0.5
       max_duration: 20.0
 
     dataloader_params:
@@ -76,7 +76,7 @@ model:
       dataset_meta: ${val_ds_meta}
       sample_rate: ${sample_rate}
       # speaker_path: ${speaker_path}
-      min_duration: 1.0
+      min_duration: 0.5
       max_duration: 20.0
 
     dataloader_params:
@@ -86,13 +86,13 @@ model:
   t5_encoder:
     is_causal: false
     pos_emb:
-      name: "rope"
-      base: 10000
+      name: "learnable" # rope, learnable, alibi
+      base: 10000 # Only used for rope
     use_flash_self_attention: false
     use_flash_x_attention: false
     deterministic: false
     d_model: 768
-    n_layers: 12
+    n_layers: 6
     p_dropout: 0.1
     n_heads: 12
     has_xattn: false
@@ -100,18 +100,19 @@ model:
     kernel_size: 3
     layer_scale_init: 0.1
     layer_scale_decay: 0.95
+    max_length_causal_mask: 2048 # Determinse max size of positional embeddings
     context_xattn: null
   
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
     is_causal: false
     pos_emb:
-      name: "rope"
-      base: 10000
+      name: "learnable" # rope, learnable, alibi
+      base: 10000 # Only used for rope
     use_flash_self_attention: false
     use_flash_x_attention: false
     deterministic: false
     d_model: 768
-    n_layers: 12
+    n_layers: 6
     p_dropout: 0.1
     n_heads: 12
     has_xattn: false
@@ -119,13 +120,14 @@ model:
     kernel_size: 3
     layer_scale_init: 0.1
     layer_scale_decay: 0.95
+    max_length_causal_mask: 2048 # Determinse max size of positional embeddings
     context_xattn: null
 
   t5_decoder:
     is_causal: true
     pos_emb:
-      name: "rope"
-      base: 10000
+      name: "learnable"
+      base: 10000 # Only used for rope
     use_flash_self_attention: false
     use_flash_x_attention: false
     deterministic: false
@@ -138,6 +140,7 @@ model:
     kernel_size: 3
     layer_scale_init: 0.1
     layer_scale_decay: 0.95
+    max_length_causal_mask: 2048 # Determinse max size of positional embeddings
     context_xattn:
         n_heads: 12
         d_heads: 768
