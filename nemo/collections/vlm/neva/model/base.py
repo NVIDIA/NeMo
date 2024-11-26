@@ -23,7 +23,7 @@ import torch.distributed
 import torch.nn.functional as F
 from megatron.core import dist_checkpointing
 from megatron.core.enums import ModelType
-from megatron.core.inference_params import InferenceParams
+from megatron.core import InferenceParams, tensor_parallel
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
@@ -46,7 +46,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
-from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
+from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX, IGNORE_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -89,18 +89,81 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
     return num_patches + (class_token_len if add_class_token else 0)
 
+def calculate_model_parallel_padding(decoder_seq_len, text_only=False):
+    from megatron.core import parallel_state as ps
+    cp_size = ps.get_context_parallel_world_size()
+    tp_size = ps.get_tensor_model_parallel_world_size()
+
+    mp_padding_needed = 0
+    sequence_parallel = True
+    decoder_tp_comm_overlap = True
+    decoder_seq_length = 4096
+    # TP Comm overlap is performed with combined text+image embeddings.
+    # text_only flag skips using the full sequence length to calculate padding and uses
+    # the provided decoder_seq_len
+    if sequence_parallel and decoder_tp_comm_overlap and not text_only:
+        # If TP Comm Overlap is enabled for combined text+image embedding in LM backbone,
+        # user needs to provide decoder_seq_length with any potential padding needed for SP+CP
+        assert decoder_seq_length is not None, \
+            "Please provide --decoder-seq-length when using TP Comm overlap for LM backbone"
+        mp_padding_needed = decoder_seq_length - decoder_seq_len
+    elif sequence_parallel or cp_size > 1:
+        if sequence_parallel and cp_size > 1:
+            # Padding to multiple of tp_size * cp_size*2 when using sequence parallel and context parallel
+            padding_factor = tp_size * cp_size * 2
+        elif cp_size > 1:
+            padding_factor = cp_size * 2
+        elif sequence_parallel:
+            padding_factor = tp_size
+        mp_padding_needed = int((decoder_seq_len + padding_factor - 1) // (padding_factor) * (padding_factor)) - decoder_seq_len
+        decoder_seq_length = decoder_seq_len + mp_padding_needed
+    else:
+        decoder_seq_length = decoder_seq_len
+
+    return mp_padding_needed
+
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    """neva data step prepare batch"""
     from megatron.core import parallel_state
+    cp_size = parallel_state.get_context_parallel_world_size()
 
-    # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
-    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
+    def _get_packed_seq_params(tokens, img_seq_len, mp_padding_needed):
+        batch_size = tokens.shape[0]
+        # Calculate the valid token seq len that LM backbone should compute on
+        combined_valid_seqlen = tokens.shape[1] + img_seq_len - mp_padding_needed
+        cu_seqlens = torch.arange(
+            0, (batch_size + 1) * (combined_valid_seqlen), step=(combined_valid_seqlen), dtype=torch.int32, device=tokens.device)
+        # Calculate the total padded token seq len
+        combined_padded_seqlen = tokens.shape[1] + img_seq_len
+        cu_seqlens_padded = None
+        qkv_format = 'sbhd'
+        if cp_size > 1:
+            # Provide cu_seqlens_<q/kv>_padded for CP support
+            cu_seqlens_padded = torch.arange(
+                0, (batch_size + 1) * (combined_padded_seqlen), step=(combined_padded_seqlen), dtype=torch.int32, device=tokens.device)
+            # CP with padding mask type requires THD format
+            qkv_format = 'thd'
+        packed_seq_params = PackedSeqParams(
+            cu_seqlens_q=cu_seqlens,
+            cu_seqlens_kv=cu_seqlens,
+            cu_seqlens_q_padded=cu_seqlens_padded,
+            cu_seqlens_kv_padded=cu_seqlens_padded,
+            max_seqlen_q=combined_padded_seqlen,
+            max_seqlen_kv=combined_padded_seqlen,
+            qkv_format=qkv_format,
+        )
+        return packed_seq_params
+
     batch = next(dataloader_iter)
     _batch: dict
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]
     else:
         _batch = batch
+
+    packed_seq_params = None
+    image_token_mask = None
 
     required_keys = set()
     required_keys.update(
@@ -125,10 +188,33 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
-    # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
 
-    return output
+    if cp_size > 1:
+        vision_model_type = "clip"
+        # Calculate the number of image embedding tokens will be added to text tokens
+        num_image_embeddings_per_tile = 1
+        # Pad to make sure the text sequence can be sharded equally by CP chunks.
+        mp_padding_needed_for_text = calculate_model_parallel_padding(_batch["tokens"].shape[1], text_only=True)
+        if mp_padding_needed_for_text > 0:
+            _batch["tokens"], _batch["position_ids"], _batch["labels"], _batch["loss_mask"] = \
+                [torch.nn.functional.pad(item, (0, mp_padding_needed_for_text)) for item in
+                 (_batch["tokens"], _batch["position_ids"], _batch["labels"], _batch["loss_mask"])]
+        # Image token mask must be supplied before distributed sequence to CP ranks.
+        image_token_mask = _batch["tokens"] == IMAGE_TOKEN_INDEX
+        num_images_per_sample = torch.sum(image_token_mask, dim=-1)
+        img_seq_len = (num_image_embeddings_per_tile * num_images_per_sample - num_images_per_sample).max()
+        packed_seq_params = _get_packed_seq_params(_batch["tokens"], img_seq_len, mp_padding_needed_for_text)
+
+    # slice batch along sequence dimension for context parallelism
+    output = get_batch_on_this_context_parallel_rank(
+        {"tokens": _batch["tokens"], "position_ids": _batch["position_ids"]}
+    )
+
+    _batch.update(
+        {**output, "image_token_mask": image_token_mask, "packed_seq_params": packed_seq_params}
+    )
+
+    return _batch
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
@@ -140,6 +226,8 @@ def neva_forward_step(model, batch) -> torch.Tensor:
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
         "num_image_tiles": batch.get("num_media_tiles", None),
+        "image_token_mask": batch.get("image_token_mask", None),
+        "packed_seq_params": batch.get("packed_seq_params", None),
     }
 
     if 'cu_seqlens' in batch:
@@ -318,6 +406,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.language_transformer_config.context_parallel_size = self.context_parallel_size
 
         assert "NEVA `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
         if self.encoder_pipeline_model_parallel_size > 0:
@@ -391,16 +480,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.sequence_parallel_lm = language_transformer_config.sequence_parallel
         self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
         self.context_parallel_lm = language_transformer_config.context_parallel_size
-        # if self.sequence_parallel_lm or self.context_parallel_lm > 1:
-        #     assert (
-        #         language_transformer_layer_spec.submodules.self_attention.submodules.core_attention
-        #         == TEDotProductAttention
-        #         and HAVE_TE
-        #     ), "Sequence/Context Parallelism is supported only with TE DotProductAttention."
-        #     if self.context_parallel_lm > 1:
-        #         assert is_te_min_version(
-        #             "1.10.0"
-        #         ), "Context Parallelism in LLaVA requires TE v1.10 or higher"
         self.tensor_model_parallel_size_lm = language_transformer_config.tensor_model_parallel_size
 
         # This attribute is needed to check if an all-reduce is required
@@ -465,6 +544,178 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 add_class_token=not drop_vision_class_token,
                 class_token_len=vision_transformer_config.class_token_len,
             )
+
+
+    def _process_embedding_token_parallel(
+        self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+    ):
+        """Processes the input data for model parallelism support.
+
+        When using sequence parallelism (SP) or context parallelism (CP), the sequence is sharded
+        across different GPUs. This function helps ensure that the sharding is done correctly by
+        1. Calculates `padding_factor` which determines based on how many chunks we expect to shard
+           the sequence
+        2. Calculates and pads the inputs to necessary length to ensure equal sized chunks
+        3. Creates/Modifies PackedSeqParams which helps mask padded tokens during calculations
+        4. Performs any layout changes if necessary
+        5. Distributes the sequence across GPUs for SP and CP
+
+        Context Parallelism is a feature that helps improve memory efficiency for
+        long sequence training by distributing sequence across CP ranks.
+        It requires token length to be divisible by (CP size *2) to ensure proper load balance.
+        Please refer to `get_batch_on_this_cp_rank` function for more details.
+
+        Sequence Parallelism is a feature that helps improve memory efficiency for
+        long sequence training by distributing sequence across TP ranks.
+        It requires token length to be divisible by TP size.
+
+        Returns:
+            combined_embeddings (torch.Tensor): image and text embeddings combined and distributed.
+            new_labels (torch.Tensor): Distributed labels for image and text positions.
+            new_loss_mask (torch.Tensor): Distributed loss mask.
+            packed_seq_params (PackedSeqParams): Dict with padded token information.
+
+        """
+        # combined_embeddings - `s,b,h` if not using CP, `b,s,h` if using CP
+        batch_size = (
+            combined_embeddings.shape[0]
+            if self.context_parallel_lm > 1
+            else combined_embeddings.shape[1]
+        )
+        seq_dim = 1 if self.context_parallel_lm > 1 else 0
+
+        padding_mask_type = 'padding' in str(
+            self.language_model.transformer_layer_spec.submodules.self_attention.params.get(
+                'attn_mask_type', ''
+            )
+        )
+        if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
+            assert (
+                combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
+            ) or padding_mask_type, f"TP Comm overlap either requires Vision+Text token length \
+             == language_max_sequence_length or mask type to be set to padding/padding_causal"
+
+        if padding_mask_type:
+            # Calculate the padded sequence length needed to support SP and CP
+            # SP and CP are used to distributed the sequence across GPUs to improve
+            # memory efficiency and enable very long context training.
+            # To distribute workload equally, we need to ensure that the sequence is
+            # divisible by the appropriate padding factor calculated below.
+            padding_factor = None
+
+            if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
+                padding_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
+            elif self.context_parallel_lm > 1:
+                padding_factor = self.context_parallel_lm * 2
+            elif self.sequence_parallel_lm:
+                padding_factor = self.tensor_model_parallel_size_lm
+
+            padded_seq_len = int(
+                (combined_embeddings.shape[seq_dim] + (padding_factor - 1))
+                // padding_factor
+                * padding_factor
+            )
+
+            assert (
+                padded_seq_len <= self._language_max_sequence_length
+            ), f"Sequence length after padding {padded_seq_len} for SP/CP has exceeded \
+                language_max_sequence_length. Ensure language_max_sequence_length is \
+                divisible by SP/CP factor: {padding_factor}"
+
+            if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
+                # TP Comm overlap initializes the user buffer shape used for communication
+                # at the beginning of training run and the same shape is expected to be
+                # used throughout the training.
+                # Pad to language_max_sequence_length to use TP Comm overlap.
+                assert (
+                    self._language_max_sequence_length % padding_factor == 0
+                ), f"TP Comm overlap uses language_max_sequence_length \
+                    which needs to be divisible by SP/CP factor {padding_factor}"
+                padded_seq_len = self._language_max_sequence_length
+
+            assert (
+                packed_seq_params is not None
+            ), "Please provide PackedSeqParams dict when using SP or CP with padding"
+            valid_seqlens = packed_seq_params.cu_seqlens_q[1:] - packed_seq_params.cu_seqlens_q[:-1]
+            valid_seq_len = max(valid_seqlens)
+            assert (
+                padded_seq_len >= valid_seq_len
+            ), f"Padded Seq Len calculated for model parallelism: {padded_seq_len} \
+                    is shorter than expected valid token len {valid_seq_len} provided."
+
+            mp_padding_needed = padded_seq_len - combined_embeddings.shape[seq_dim]
+            if mp_padding_needed > 0:
+                new_labels = torch.nn.functional.pad(
+                    new_labels, (0, mp_padding_needed), value=IGNORE_INDEX
+                )
+                new_loss_mask = torch.nn.functional.pad(new_loss_mask, (0, mp_padding_needed))
+                if self.context_parallel_lm > 1:
+                    combined_embeddings = torch.nn.functional.pad(
+                        combined_embeddings, (0, 0, 0, mp_padding_needed)
+                    )
+                else:
+                    combined_embeddings = torch.nn.functional.pad(
+                        combined_embeddings, (0, 0, 0, 0, 0, mp_padding_needed)
+                    )
+
+                # Update PackedSeqParams if padding needed beyond user provided PackedSeqParams
+                packed_seq_params.max_seqlen_q = padded_seq_len
+                packed_seq_params.max_seqlen_kv = padded_seq_len
+                cu_seqlens_padded = None
+                # We need cu_seqlens_q_padded/cu_seqlens_kv_padded when doing
+                # CP+Padding to support accurate Attention with THD format.
+                if self.context_parallel_lm > 1:
+                    cu_seqlens_padded = torch.arange(
+                        0,
+                        (batch_size + 1) * (padded_seq_len),
+                        step=(padded_seq_len),
+                        dtype=torch.int32,
+                        device=combined_embeddings.device,
+                    )
+                    packed_seq_params.cu_seqlens_q_padded = cu_seqlens_padded
+                    packed_seq_params.cu_seqlens_kv_padded = cu_seqlens_padded
+                    packed_seq_params.qkv_format = 'thd'
+                else:
+                    packed_seq_params.qkv_format = 'sbhd'
+
+        if self.context_parallel_lm > 1:
+            # Distribute sequence across CP ranks
+            batch = get_batch_on_this_context_parallel_rank(
+                {
+                    "combined_embeddings": combined_embeddings,
+                    "new_labels": new_labels,
+                    "new_loss_mask": new_loss_mask,
+                }
+            )
+
+            combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
+
+            new_labels = batch["new_labels"]
+            new_loss_mask = batch["new_loss_mask"]
+
+            if getattr(packed_seq_params, 'qkv_format', None) == 'thd':
+                # If PackedSeqParams requires THD format,
+                # reshape embedding from [B,S,H] to [T,1,H] where T=B*S
+                combined_embeddings = (
+                    combined_embeddings.contiguous()
+                    .view(combined_embeddings.shape[0] * combined_embeddings.shape[1], -1)
+                    .unsqueeze(1)
+                )
+                new_labels = new_labels.view(new_labels.shape[0] * new_labels.shape[1]).unsqueeze(0)
+                new_loss_mask = new_loss_mask.view(
+                    new_loss_mask.shape[0] * new_loss_mask.shape[1]
+                ).unsqueeze(0)
+            else:
+                combined_embeddings = combined_embeddings.transpose(
+                    1, 0
+                ).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+
+        if self.sequence_parallel_lm:
+            combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
+                combined_embeddings
+            )  # [S/(CP*TP),B,H]
+
+        return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
     def forward(
         self,
@@ -665,8 +916,12 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         attention_mask: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
-        inference_params: InferenceParams = None,
+        inference_params: Optional[InferenceParams] = None,
         num_image_tiles: Optional[List[int]] = None,
+        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        runtime_gather_output: Optional[bool] = None,
+        image_token_mask: Optional[torch.Tensor] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
             images=images,
@@ -677,6 +932,10 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             labels=labels,
             inference_params=inference_params,
             num_image_tiles=num_image_tiles,
+            image_token_index=image_token_index,
+            runtime_gather_output=runtime_gather_output,
+            image_token_mask=image_token_mask,
+            packed_seq_params=packed_seq_params,
         )
 
         return output_tensor
