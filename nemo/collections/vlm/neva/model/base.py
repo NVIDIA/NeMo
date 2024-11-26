@@ -580,7 +580,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             num_image_tiles = torch.ones(images.shape[0], dtype=torch.int, device=input_ids.device)
         elif isinstance(num_image_tiles, list):
             num_image_tiles = torch.tensor(num_image_tiles, dtype=torch.int, device=input_ids.device)
-        print("A" * 100)
+
         # Preprocess input, labels and loss mask.
         combined_embeddings, new_labels, new_loss_mask = self._preprocess_data(
             image_embeddings,
@@ -594,14 +594,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
             num_image_tiles,
             image_token_mask,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
-        print("B" * 100)
+
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
             combined_embeddings, new_labels, new_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
                     combined_embeddings, new_labels, new_loss_mask, packed_seq_params
                 )
             )
-        print("C" * 100)
+
         output = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -612,7 +612,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             runtime_gather_output=runtime_gather_output,
             packed_seq_params=packed_seq_params,
         )
-        print("D" * 100)
 
         if labels is None or loss_mask is None:
             return output
