@@ -17,6 +17,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import List, Literal, Dict, Set
 
+import torch
 from torch import nn
 
 from nemo.collections.llm.peft.lora import LoRALinear, _get_adapter_attributes_from_linear, is_expert_linear, \
@@ -47,10 +48,30 @@ class LoRALinearSplitQKV(AdapterWrapper):
     """
 
     def forward(self, x):
-        ...
-        # linear_output, bias, layernorm_output = self.base_linear_forward(x)
-        # adapter_output = self.adapter(layernorm_output.contiguous())
-        # return linear_output + adapter_output, bias
+        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        query = self.adapter.adapter_q(layernorm_output)
+        key = self.adapter.adapter_k(layernorm_output)
+        value = self.adapter.adapter_v(layernorm_output)
+
+        query_4d = query.reshape(query.shape[0], query.shape[1], -1, self.to_wrap.config.kv_channels)
+        key_4d = key.reshape(key.shape[0], key.shape[1], -1, self.to_wrap.config.kv_channels)
+        value_4d = value.reshape(value.shape[0], value.shape[1], -1, self.to_wrap.config.kv_channels)
+
+        qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
+        adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
+
+        # todo verify which one is correct
+        # self.num_query_groups = self.to_wrap.config.num_query_groups
+        # self.num_heads_per_group = self.to_wrap.config.num_attention_heads // self.num_query_groups
+        # qkv = []
+        # for i in range(self.num_query_groups):
+        #     qkv.append(query_4d[:, :, i * self.num_heads_per_group: (i + 1) * self.num_heads_per_group, :])
+        #     qkv.append(key_4d[:, :, i: i + 1, :])
+        #     qkv.append(value_4d[:, :, i: i + 1, :])
+        # qkv_4d = torch.cat(qkv, dim=2)
+        # adapter_output2 = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
+        return linear_output + adapter_output, bias
+
 
 class LoRALinearSplitFC1UpGate(AdapterWrapper):
     """ TODO An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
@@ -61,12 +82,11 @@ class LoRALinearSplitFC1UpGate(AdapterWrapper):
     """
 
     def forward(self, x):
-        ...
-        # linear_output, bias, layernorm_output = self.base_linear_forward(x)
-        # adapter_output = self.adapter(layernorm_output.contiguous())
-        # return linear_output + adapter_output, bias
-
-
+        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        adapter_output_gate = self.adapter.adapter_gate(layernorm_output)
+        adapter_output_up = self.adapter.adapter_up(layernorm_output)
+        adapter_output = torch.cat([adapter_output_gate, adapter_output_up], dim=2)
+        return linear_output + adapter_output, bias
 
 @dataclass
 class CanonicalLoRA(PEFT):
@@ -145,10 +165,10 @@ class CanonicalLoRA(PEFT):
         """
         self.canonical_mapping: Dict[str, Set] = defaultdict(set)
         for target in self.target_modules:
-            assert "linear_qkv" not in target, \
+            assert not target.endswith("linear_qkv"), \
                 ("Canonical LoRA does not support target 'linear_qkv'. Either use 'linear_qkv' with LoRA() or "
                  "use ['linear_q', 'linear_k', 'linear_v'] with Canonical LoRA")
-            assert "linear_fc1" not in target, \
+            assert not target.endswith("linear_fc1"), \
                 ("Canonical LoRA does not support target 'linear_fc1'. Either use 'linear_fc1' with LoRA() or "
                  "use ['linear_fc1_up', 'linear_fc1_gate'] with Canonical LoRA")
 
@@ -234,13 +254,13 @@ class CanonicalLoRA(PEFT):
             logging.info(f"Adding lora to: {full_name} ({canonical_submodules})")
             if name == 'linear_qkv':
                 adapter_q, adapter_k, adapter_v = None, None, None
+                kv_out_features = m.config.kv_channels * m.config.num_query_groups
                 if 'linear_q' in canonical_submodules:
-                    out_features = m.config.kv_channels * m.config.num_query_groups
-                    adapter_q = ParallelLinearAdapter(in_features, out_features, **adapter_kwargs)
+                    adapter_q = ParallelLinearAdapter(in_features, in_features, **adapter_kwargs)
                 if 'linear_k' in canonical_submodules:
-                    adapter_k = ParallelLinearAdapter(in_features, in_features, **adapter_kwargs)
+                    adapter_k = ParallelLinearAdapter(in_features, kv_out_features, **adapter_kwargs)
                 if 'linear_v' in canonical_submodules:
-                    adapter_v = ParallelLinearAdapter(in_features, in_features, **adapter_kwargs)
+                    adapter_v = ParallelLinearAdapter(in_features, kv_out_features, **adapter_kwargs)
                 adapters = nn.ModuleDict({'adapter_q': adapter_q, 'adapter_k': adapter_k, 'adapter_v': adapter_v})
                 return LoRALinearSplitQKV(m, adapters)
 
