@@ -28,6 +28,14 @@ from transformers import AutoModel
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 
+import numpy as np
+import tensorstore as ts
+from pathlib import Path
+from safetensors.torch import load_file
+import json
+from transformers import AutoConfig
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import PixtralVisionModel
+
 logger = trt.Logger(trt.Logger.INFO)
 
 
@@ -286,6 +294,143 @@ def build_video_neva_engine(
     )
 
 
+def open_ts_array(arr_path: Path):
+    """Opens a Zarr file array with Tensorstore with basic setting.
+
+    Arguments:
+        arr_path (Path): path to a Zarr (Tensorstore) array
+    """
+    spec = {'driver': 'zarr', 'metadata_key': '.zarray', 'kvstore': {}}
+    spec['kvstore'] = {
+        'driver': 'file',
+        'path': str(arr_path),
+    }
+    try:
+        arr = ts.open(ts.Spec(spec), open=True).result()
+    except Exception as e:
+        raise ValueError(f'Array {arr_path} could not be loaded. Error: {e}') from e
+    return arr
+
+def postprocess_numpy_array(loaded_array, apply_flattened_range=True):
+    x = loaded_array    
+    x = x.astype(np.dtype('float32'))
+    x = torch.from_numpy(x)
+    x = x.bfloat16()
+    return x
+
+def read_weights(weights_dir):
+    arr = open_ts_array(weights_dir)
+    w = arr.read().result()
+    e = postprocess_numpy_array(w)
+    return e
+
+def build_pixtral_engine(
+    model_type: str,
+    model_dir: str,
+    visual_checkpoint_path: str,    
+    vision_max_batch_size: int = 1,
+):
+    device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+    if os.path.isdir(visual_checkpoint_path):
+        # load untar checkpoint
+        config_path = os.path.join(visual_checkpoint_path, 'model_config.yaml')
+        with open(config_path, 'r') as f:
+            nemo_config = yaml.safe_load(f)
+        
+        # Load the zarr checkpoint
+        mp0_weights = {}
+        weights_path = os.path.join(visual_checkpoint_path, 'model_weights')
+        sharded_tensor_key = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.weight"
+        weights_dir = f"{weights_path}/{sharded_tensor_key}"
+        mp0_weights[sharded_tensor_key] = read_weights(weights_dir)
+        
+        sharded_tensor_key = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.bias"
+        weights_dir = f"{weights_path}/{sharded_tensor_key}"
+        mp0_weights[sharded_tensor_key] = read_weights(weights_dir)
+        
+        sharded_tensor_key = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.weight"
+        weights_dir = f"{weights_path}/{sharded_tensor_key}"
+        mp0_weights[sharded_tensor_key] = read_weights(weights_dir)
+        
+        sharded_tensor_key = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias"
+        weights_dir = f"{weights_path}/{sharded_tensor_key}"
+        mp0_weights[sharded_tensor_key] = read_weights(weights_dir)
+        
+        #try:
+        #    weights_path = os.path.join(visual_checkpoint_path, 'model_weights')
+        #    mm_projector_0_weight = 
+        #    mp0_weights = torch.load(weights_path, map_location=device)
+        #except FileNotFoundError:
+        #    weights_path = os.path.join(visual_checkpoint_path, 'mp_rank_00/model_weights.ckpt')
+        #    mp0_weights = torch.load(weights_path, map_location=device)
+    else:
+        # extract NeMo checkpoint
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
+
+    nemo_config["mm_cfg"]["vision_encoder"]["from_pretrained"] = "/hub/hub/pixtral/pixtral-12b"
+    vision_model_path = nemo_config["mm_cfg"]["vision_encoder"]["from_pretrained"]
+    vision_config = AutoConfig.from_pretrained(nemo_config["mm_cfg"]["vision_encoder"]["from_pretrained"])
+
+    class VisionEncoderWrapper(torch.nn.Module):
+
+        def __init__(self, encoder, connector):
+            super().__init__()
+            self.encoder = encoder
+            self.connector = connector
+
+        def forward(self, images):
+            vision_x = self.encoder(images=images, output_hidden_states=True)
+            vision_x = vision_x.hidden_states[-1]
+            vision_x = self.connector(vision_x)
+            return vision_x
+
+    vision_encoder = PixtralVisionModel(vision_config).to(torch.bfloat16)
+    hf_config = vision_encoder.config
+    dtype = hf_config.torch_dtype
+
+    # Load vision encoder weights
+    safetensor_file = "model.safetensors"
+    weights_path = os.path.join(vision_model_path, safetensor_file)
+    vision_encoder_weights = load_file(weights_path)
+    vision_encoder.load_state_dict(vision_encoder_weights)
+    
+    vision_connector = torch.nn.Sequential(
+        torch.nn.Linear(vision_config.hidden_size, nemo_config["hidden_size"], bias=True),
+        torch.nn.GELU(),
+        torch.nn.Linear(nemo_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+    ).to(dtype=dtype)
+    
+    key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
+    for layer in range(0, 3, 2):
+        vision_connector[layer].load_state_dict(
+            {
+                'weight': mp0_weights[f"{key_prefix}.{layer}.weight"].to(dtype),
+                'bias': mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
+            }
+        )
+
+    # export the whole wrapper
+    lita_num_frames = None
+    wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
+    image_size = vision_config.image_size
+    dummy_image = torch.empty(
+        1, 1, 3, image_size, image_size, dtype=dtype, device=device
+    )  # dummy image shape [B, N, C, H, W]
+    
+    export_visual_wrapper_onnx(wrapper, dummy_image, model_dir)
+    build_trt_engine(
+        model_type,
+        [3, image_size, image_size],
+        model_dir,
+        vision_max_batch_size,
+        dtype,
+        image_size=image_size,
+        num_frames=lita_num_frames if model_type == "lita" or model_type == 'vita' else None,
+        nemo_config=nemo_config,
+    )
+    
 def build_visual_engine(
     model_dir: str,
     visual_checkpoint_path: str,
@@ -293,7 +438,7 @@ def build_visual_engine(
     max_batch_size: int = 1,
 ):
     if model_type == "neva":
-        build_neva_engine(model_dir, visual_checkpoint_path, max_batch_size)
+        build_pixtral_engine(model_dir, visual_checkpoint_path, max_batch_size)
     elif model_type == "video-neva":
         build_video_neva_engine(model_dir, visual_checkpoint_path, max_batch_size)
     else:

@@ -1693,7 +1693,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         # Unwrap the model if needed
-        model = self._unwrap_model()
+        model = self._unwrap_model() if self.use_mcore_dist_optim else model
         # Get the original state dictionary
         original_state_dict = super(type(model), model).state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
         keys_to_keep = self.get_keys_to_keep()
