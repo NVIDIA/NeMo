@@ -20,13 +20,8 @@ import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from torch import nn
 
-from nemo.collections.llm.peft.lora import (
-    LinearAdapter,
-    LoRALinear,
-    _get_adapter_attributes_from_linear,
-    is_expert_linear,
-)
-from nemo.collections.llm.peft.utils import wildcard_match
+from nemo.collections.llm.peft.lora import LoRALinear, LinearAdapter
+from nemo.collections.llm.peft.utils import wildcard_match, get_adapter_attributes_from_linear, is_expert_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -244,7 +239,7 @@ class CanonicalLoRA(PEFT):
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
                 )
 
-            input_is_parallel, in_features, out_features = _get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
 
             adapter_kwargs = dict(
                 dim=self.dim,

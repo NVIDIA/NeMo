@@ -19,7 +19,7 @@ from typing import List, Literal
 import torch
 from torch import nn
 
-from nemo.collections.llm.peft.utils import _get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
+from nemo.collections.llm.peft.utils import is_expert_linear, wildcard_match, get_adapter_attributes_from_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -154,7 +154,7 @@ class LoRA(PEFT):
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
                 )
 
-            input_is_parallel, in_features, out_features = _get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,

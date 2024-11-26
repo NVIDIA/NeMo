@@ -21,7 +21,7 @@ from megatron.core.tensor_parallel import gather_from_tensor_model_parallel_regi
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
 from torch import nn
 
-from nemo.collections.llm.peft.utils import _get_adapter_attributes_from_linear, wildcard_match
+from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, wildcard_match
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
@@ -180,7 +180,7 @@ class DoRA(PEFT):
         """
         full_name = f"{prefix}.{name}" if prefix else name
         if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
-            input_is_parallel, in_features, out_features = _get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
             logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(
                 in_features,
