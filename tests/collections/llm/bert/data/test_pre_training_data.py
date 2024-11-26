@@ -61,7 +61,7 @@ def test_single_data_distribution(tokenizer, trainer):
 
 
 def test_multiple_data_distributions(tokenizer, trainer):
-    data = PreTrainingDataModule(
+    data = BERTPreTrainingDataModule(
         paths={
             "train": ['1', DATA_PATH],
             "validation": [DATA_PATH, DATA_PATH],
