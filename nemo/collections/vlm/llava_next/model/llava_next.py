@@ -25,12 +25,7 @@ from transformers import LlavaNextForConditionalGeneration
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
-from nemo.collections.vlm.llava_next.model.base import (
-    LlavaNextConfig,
-    MCoreLlavaNextModel,
-    llava_next_data_step,
-    llava_next_forward_step,
-)
+from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig, MCoreLlavaNextModel
 from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig, MultimodalProjectorConfig, NevaModel
 from nemo.collections.vlm.neva.model.llava import HFLlavaImporter
 from nemo.lightning import OptimizerModule, io, teardown
