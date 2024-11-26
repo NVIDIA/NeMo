@@ -964,11 +964,11 @@ Example. Combine an ASR (audio-text) dataset with an MT (text-only) dataset so t
       ...
       train_ds:
         multi_config: True,
-        audio:
-          sampler_fusion: zip
-          shuffle: true
-          num_workers: 4
+        sampler_fusion: zip
+        shuffle: true
+        num_workers: 4
 
+        audio:
           prompt_format: t5nmt
           use_bucketing: true
           min_duration: 0.5
@@ -983,6 +983,7 @@ Example. Combine an ASR (audio-text) dataset with an MT (text-only) dataset so t
               weight: 0.5
               tags:
                 context: "Translate the following to English"
+
         text:
           prompt_format: t5nmt
           use_multimodal_sampling: true
