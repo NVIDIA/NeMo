@@ -15,9 +15,10 @@
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Literal, Dict, Set
+from typing import List, Literal, Dict, Set, Tuple, Optional
 
 import torch
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from torch import nn
 
 from nemo.collections.llm.peft.lora import LoRALinear, _get_adapter_attributes_from_linear, is_expert_linear, \
@@ -38,6 +39,36 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 )
 HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
+class ModuleDict(nn.ModuleDict):
+    """
+    nn.ModuleDict with a sharded_state_dict implementation for checkpointing
+    """
+    def sharded_state_dict(
+        self,
+        prefix: str = '',
+        sharded_offsets: Tuple[Tuple[int, int, int]] = (),
+        metadata: Optional[dict] = None,
+    ) -> "ShardedStateDict":
+        """Retrieve the sharded state dictionary of the wrapped module and adapter.
+
+        This method is used for distributed checkpointing, combining the sharded states
+        of both the main module and the adapter.
+
+        Args:
+            prefix (str): A prefix added to parameter and buffer names. Defaults to ''.
+            sharded_offsets (Tuple[Tuple[int, int, int]]): Offsets for sharded parameters.
+                                                           Defaults to an empty tuple.
+            metadata (Optional[dict]): Additional metadata for the sharded state.
+                                       Defaults to None.
+
+        Returns:
+            ShardedStateDict: The combined sharded state dictionary.
+        """
+        sharded_state_dict = {}
+        for key, layer in self.items():
+            sharded_state_dict.update(layer.sharded_state_dict(f"{prefix}{key}.", sharded_offsets, metadata))
+        return sharded_state_dict
+
 
 class LoRALinearSplitQKV(AdapterWrapper):
     """ TODO An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
@@ -57,19 +88,26 @@ class LoRALinearSplitQKV(AdapterWrapper):
         key_4d = key.reshape(key.shape[0], key.shape[1], -1, self.to_wrap.config.kv_channels)
         value_4d = value.reshape(value.shape[0], value.shape[1], -1, self.to_wrap.config.kv_channels)
 
-        qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
-        adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
+        import os
+        version = int(os.getenv("NEMO_DEBUG_QKV_VERSION", "1"))
+        match version:
+            case 1:
+                qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
+                adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
+            case 2:
+                # todo verify which one is correct
+                self.num_query_groups = self.to_wrap.config.num_query_groups
+                self.num_heads_per_group = self.to_wrap.config.num_attention_heads // self.num_query_groups
+                qkv = []
+                for i in range(self.num_query_groups):
+                    qkv.append(query_4d[:, :, i * self.num_heads_per_group: (i + 1) * self.num_heads_per_group, :])
+                    qkv.append(key_4d[:, :, i: i + 1, :])
+                    qkv.append(value_4d[:, :, i: i + 1, :])
+                qkv_4d = torch.cat(qkv, dim=2)
+                adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
+            case _:
+                raise NotImplementedError()
 
-        # todo verify which one is correct
-        # self.num_query_groups = self.to_wrap.config.num_query_groups
-        # self.num_heads_per_group = self.to_wrap.config.num_attention_heads // self.num_query_groups
-        # qkv = []
-        # for i in range(self.num_query_groups):
-        #     qkv.append(query_4d[:, :, i * self.num_heads_per_group: (i + 1) * self.num_heads_per_group, :])
-        #     qkv.append(key_4d[:, :, i: i + 1, :])
-        #     qkv.append(value_4d[:, :, i: i + 1, :])
-        # qkv_4d = torch.cat(qkv, dim=2)
-        # adapter_output2 = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
         return linear_output + adapter_output, bias
 
 
@@ -261,7 +299,7 @@ class CanonicalLoRA(PEFT):
                     adapter_k = ParallelLinearAdapter(in_features, kv_out_features, **adapter_kwargs)
                 if 'linear_v' in canonical_submodules:
                     adapter_v = ParallelLinearAdapter(in_features, kv_out_features, **adapter_kwargs)
-                adapters = nn.ModuleDict({'adapter_q': adapter_q, 'adapter_k': adapter_k, 'adapter_v': adapter_v})
+                adapters = ModuleDict({'adapter_q': adapter_q, 'adapter_k': adapter_k, 'adapter_v': adapter_v})
                 return LoRALinearSplitQKV(m, adapters)
 
             if name == 'linear_fc1':
@@ -270,7 +308,7 @@ class CanonicalLoRA(PEFT):
                     adapter_up = ParallelLinearAdapter(in_features, out_features//2, **adapter_kwargs)
                 if 'linear_fc1_gate' in canonical_submodules:
                     adapter_gate = ParallelLinearAdapter(in_features, out_features//2, **adapter_kwargs)
-                adapters = nn.ModuleDict({'adapter_up': adapter_up, 'adapter_gate': adapter_gate})
+                adapters = ModuleDict({'adapter_up': adapter_up, 'adapter_gate': adapter_gate})
                 return LoRALinearSplitFC1UpGate(m, adapters)
 
         return m
