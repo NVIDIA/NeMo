@@ -20,11 +20,6 @@ import torch
 from nemo.export import trt_compile
 from nemo.utils.import_utils import safe_import
 
-trt, trt_imported = safe_import("tensorrt")
-torch_tensorrt, torch_trt_imported = safe_import("torch_tensorrt")
-polygraphy, polygraphy_imported = safe_import("polygraphy")
-
-
 TEST_CASE_1 = ["fp32"]
 TEST_CASE_2 = ["fp16"]
 
@@ -43,8 +38,6 @@ class ListAdd(torch.nn.Module):
 
 
 @unittest.skip
-@unittest.skipUnless(trt_imported, "tensorrt is required")
-@unittest.skipUnless(polygraphy_imported, "polygraphy is required")
 class TestTRTCompile(unittest.TestCase):
 
     def setUp(self):
@@ -55,7 +48,6 @@ class TestTRTCompile(unittest.TestCase):
         if current_device != self.gpu_device:
             torch.cuda.set_device(self.gpu_device)
 
-    @unittest.skipUnless(torch_trt_imported, "torch_tensorrt is required")
     def test_torch_trt(self):
 
         model = torch.nn.Sequential(*[torch.nn.PReLU(), torch.nn.PReLU()])
