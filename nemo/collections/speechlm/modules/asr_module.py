@@ -100,9 +100,12 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
         else:
             imported_cls = nemo_asr.models.ASRModel
         if self.pretrained_model is not None and self.config is None:
-            asr_model = imported_cls.from_pretrained(
-                model_name=self.pretrained_model
-            )  # type: nemo_asr.models.ASRModel
+            if str(self.pretrained_model).endswith(".nemo"):
+                asr_model = imported_cls.restore_from(self.pretrained_model)  # type: nemo_asr.models.ASRModel
+            else:
+                asr_model = imported_cls.from_pretrained(
+                    model_name=self.pretrained_model
+                )  # type: nemo_asr.models.ASRModel
             self.config = OmegaConf.to_container(asr_model.cfg, resolve=True)
         else:
             cfg = OmegaConf.create(self.config)
