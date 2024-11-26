@@ -15,7 +15,7 @@
 import base64
 import json
 import os
-import re
+import regex as re
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -67,7 +67,6 @@ PATTERN_TIKTOKEN = "[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]*[
 DEFAULT_TIKTOKEN_MAX_VOCAB = 2**17  # 131072
 SPECIAL_TOKENS = ["<unk>", "<s>", "</s>"]
 SPECIAL_TOKEN_TEMPLATE = "<SPECIAL_{id}>"
-
 
 class TiktokenTokenizer(TokenizerSpec):
     """
@@ -127,38 +126,12 @@ class TiktokenTokenizer(TokenizerSpec):
             mergeable_ranks=self.token2id,
             special_tokens={},  # special tokens are handled manually
         )
+        
+        # Compile the tokenizer pattern for later use
+        self.pattern = re.compile(pattern)
 
     def text_to_tokens(self, text: str) -> List[str]:
-        """
-        Tokenizes input text into a list of token strings, handling special tokens and non-ASCII substrings.
-    
-        Args:
-            text (str): The input text to tokenize.
-    
-        Returns:
-            List[str]: A list of token strings.
-        """
-        tokens = []
-        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id=r"\d+")
-        pattern = f"({special_token_pattern}|<unk>|<s>|</s>|[^\x00-\x7F]+)"
-    
-        # Split the text using the defined pattern
-        parts = re.split(pattern, text)
-    
-        for part in filter(None, parts):  # Skip empty strings
-            if re.match(special_token_pattern, part) or part in self.special_tokens:
-                tokens.append(part)  # Special token
-            elif re.match(r"[^\x00-\x7F]+", part):
-                tokens.append(part)  # Non-ASCII substring
-            else:
-                # Encode and decode ASCII parts
-                for token_id in self.tokenizer.encode(part):
-                    token_str = self.id2token.get(token_id, "<unk>")
-                    if isinstance(token_str, bytes):  # Handle bytes decoding
-                        token_str = token_str.decode('utf-8', errors='replace')
-                    tokens.append(token_str)
-    
-        return tokens
+        return self.ids_to_tokens(self.text_to_ids(text))
 
     def tokens_to_text(self, tokens: List[str]) -> str:
         return ''.join(tokens)
@@ -185,23 +158,19 @@ class TiktokenTokenizer(TokenizerSpec):
 
     def ids_to_tokens(self, ids: List[int]) -> List[str]:
         tokens = []
-        chunks = []
+        current_ids = []
         for id_ in ids:
             if id_ < self.num_special_tokens:
-                if chunks:
-                    # Decode the chunk and append resulting tokens
-                    decoded_chunk = self.tokenizer.decode([t - self.num_special_tokens for t in chunks])
-                    tokens.extend(decoded_chunk.split())  # Split into individual tokens
-                    chunks = []
-                # Add the special token directly
+                if current_ids:
+                    decoded_text = self.tokenizer.decode([i - self.num_special_tokens for i in current_ids])
+                    tokens.extend(self._tokenize_text_with_pattern(decoded_text))
+                    current_ids = []
                 tokens.append(self.special_tokens[id_])
             else:
-                # Add to current chunk
-                chunks.append(id_)
-        if chunks:
-            # Decode any remaining chunk
-            decoded_chunk = self.tokenizer.decode([t - self.num_special_tokens for t in chunks])
-            tokens.extend(decoded_chunk.split())
+                current_ids.append(id_)
+        if current_ids:
+            decoded_text = self.tokenizer.decode([i - self.num_special_tokens for i in current_ids])
+            tokens.extend(self._tokenize_text_with_pattern(decoded_text))
         return tokens
 
     def text_to_ids(self, text: str) -> List[int]:
@@ -232,6 +201,20 @@ class TiktokenTokenizer(TokenizerSpec):
             result.append(self.tokenizer.decode([t - self.num_special_tokens for t in chunks]))
         return ''.join(result)
 
+    def _tokenize_text_with_pattern(self, text: str) -> List[str]:
+        tokens = []
+        last_end = 0
+        for match in self.pattern.finditer(text):
+            start, end = match.span()
+            if start > last_end:
+                # Capture any text between matches (including leading whitespace)
+                tokens.append(text[last_end:start])
+            tokens.append(match.group(0))
+            last_end = end
+        if last_end < len(text):
+            tokens.append(text[last_end:])
+        return tokens
+    
     @property
     def bos_id(self):
         return self._bos_id
