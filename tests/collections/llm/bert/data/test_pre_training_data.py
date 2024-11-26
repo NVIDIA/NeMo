@@ -21,6 +21,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 DATA_PATH = "/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_gpt_preproc_text_sentence"
 VOCAB_PATH = "/home/TestData/nlp/megatron_bert/data/bert/vocab.json"
 
+
 @pytest.fixture
 def tokenizer():
     return get_nmt_tokenizer(
