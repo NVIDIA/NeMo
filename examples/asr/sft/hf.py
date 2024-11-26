@@ -27,30 +27,19 @@ from typing import Any, Dict, List, Optional, Union
 
 
 def get_dataset(dataset_id):
-    ds = load_dataset(dataset_id)
-    ds = ds.train_test_split(test_size=0.2)
-    return ds.remove_columns(["english_transcription", "intent_class", "lang_id"])
+    ds = load_dataset(dataset_id, "clean", split="validation")
+    return ds.remove_columns(["speaker_id", "chapter_id", "id", "file"])
 
 
 def uppercase(dataset):
     return {"transcription": dataset["transcription"].upper()}
 
 
-def preprocess(dataset, processor):
-    dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-    return dataset.map(uppercase)
-
-
-def prep_dataset(batch):
-    audio = batch["audio"]
-    print(audio["sampling_rate"])
-    batch = processor(audio["array"], sampling_rate=audio["sampling_rate"], text=batch["transcription"])
-    batch["input_length"] = len(batch["input_values"][0])
+def prepare_dataset(batch):
+    audio_array = [array["array"] for array in batch["audio"]]
+    batch = processor(audio_array, text=batch["text"])
+    batch["input_length"] = len(batch["input_features"][0])
     return batch
-
-
-def prepare_dataset(dataset):
-    return dataset.map(prep_dataset, remove_columns=dataset.column_names["train"], num_proc=4)
 
 
 @dataclass
@@ -93,10 +82,8 @@ if __name__ == '__main__':
     processor = model.processor
     tokenizer = model.tokenizer
 
-    #train_dataset = get_dataset("distil-whisper/librispeech_long")
-    train_dataset = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-    #train_dataset = prepare_dataset(train_dataset)
-    print(train_dataset)
+    train_dataset = get_dataset("hf-internal-testing/librispeech_asr_dummy")
+    train_dataset = prepare_dataset(train_dataset)
 
     #data_collator = DataCollatorCTCWithPadding(processor=processor, padding="longest")
     #train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=16, collate_fn=data_collator)
