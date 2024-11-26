@@ -18,6 +18,7 @@ from typing import Optional
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
+from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
@@ -26,10 +27,8 @@ from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.vlm.neva.data.mock import MockDataModule
-from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-
-from megatron.core.distributed import DistributedDataParallelConfig
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llava15_7b"
 
@@ -105,7 +104,7 @@ def finetune_recipe(
             overlap_grad_reduce=True,
             overlap_param_gather=True,
             average_in_collective=True,
-        )
+        ),
     )
 
     trainer = run.Config(
