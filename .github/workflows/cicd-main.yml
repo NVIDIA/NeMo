@@ -823,13 +823,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-      python examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
-      trainer.devices="[0]" \
-      batch_size=3 \
-      model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/eesd_train_tiny.json \
-      model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
-      exp_manager.exp_dir=/tmp/speaker_diarization_results \
-      +trainer.fast_dev_run=True 
+        python examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
+        trainer.devices="[0]" \
+        batch_size=3 \
+        model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/eesd_train_tiny.json \
+        model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
+        exp_manager.exp_dir=/tmp/speaker_diarization_results \
+        +trainer.fast_dev_run=True 
 
   L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
     needs: [cicd-test-container-setup]
@@ -838,10 +838,10 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-      python examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
-      model_path=/home/TestData/an4_diarizer/diar_sortformer_4spk-v1-tiny.nemo \
-      dataset_manifest=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
-      batch_size=1 
+        python examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
+        model_path=/home/TestData/an4_diarizer/diar_sortformer_4spk-v1-tiny.nemo \
+        dataset_manifest=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
+        batch_size=1 
 
   L2_Speaker_dev_run_Speech_to_Label:
     needs: [cicd-test-container-setup]
