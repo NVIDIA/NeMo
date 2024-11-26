@@ -11,21 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import nemo_run as run
-
-
-@run.cli.factory
-def torchrun(devices: int = 8) -> run.Config[run.LocalExecutor]:
-    """Local executor using torchrun."""
-    env_vars = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
-    }
-
-    executor = run.Config(
-        run.LocalExecutor,
-        ntasks_per_node=devices,
-        launcher="torchrun",
-        env_vars=env_vars,
-    )
-
-    return executor

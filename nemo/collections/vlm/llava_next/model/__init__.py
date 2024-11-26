@@ -11,21 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import nemo_run as run
 
 
-@run.cli.factory
-def torchrun(devices: int = 8) -> run.Config[run.LocalExecutor]:
-    """Local executor using torchrun."""
-    env_vars = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
-    }
+from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
+from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
 
-    executor = run.Config(
-        run.LocalExecutor,
-        ntasks_per_node=devices,
-        launcher="torchrun",
-        env_vars=env_vars,
-    )
-
-    return executor
+__all__ = [
+    "LlavaNextConfig",
+    "LlavaNextModel",
+    "LlavaNextConfig7B",
+    "LlavaNextConfig13B",
+]
