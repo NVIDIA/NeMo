@@ -542,6 +542,7 @@ class TensorRTLLM(ITritonDeployable):
         use_parallel_embedding: bool = False,
         use_embedding_sharing: bool = False,
         dtype: str = "bfloat16",
+        use_mcore_path: bool = False,
     ):
         """Convert to safe tensor"""
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
@@ -573,30 +574,97 @@ class TensorRTLLM(ITritonDeployable):
             nemo_export_dir = Path(tmp_dir.name)
 
             model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
-            weights_dicts, model_configs = model_to_trtllm_ckpt(
-                model=model,
-                nemo_model_config=model_configs,
-                nemo_export_dir=nemo_export_dir,
-                decoder_type=model_type,
-                dtype=dtype,
-                tensor_parallel_size=tensor_parallelism_size,
-                pipeline_parallel_size=pipeline_parallelism_size,
-                gpus_per_node=gpus_per_node,
-                use_parallel_embedding=use_parallel_embedding,
-                use_embedding_sharing=use_embedding_sharing,
-            )
+
+            if use_mcore_path:
+                from megatron.core.export.data_type import DataType
+                from megatron.core.export.export_config import ExportConfig
+                from megatron.core.export.model_type import ModelType
+                from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
+                    DEFAULT_CONVERSION_DICT,
+                )
+                from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
+                from tensorrt_llm.layers import MoeConfig
+
+                # We build the transformer config using the nemo model config.
+                transformer_config = self.get_transformer_config(model_configs)
+                input_model_type = getattr(ModelType, model_type)
+
+                # MCore export supports some default conversion dictionaries
+                mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT
+                # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
+                nemo_model_conversion_dict = {
+                    f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
+                }
+
+                trtllm_helper = TRTLLMHelper(
+                    transformer_config=transformer_config,
+                    model_type=input_model_type,
+                    trtllm_conversion_dict=nemo_model_conversion_dict,
+                    position_embedding_type=model_configs.get('position_embedding_type'),
+                    max_position_embeddings=model_configs.get('max_position_embeddings'),
+                    rotary_percentage=model_configs.get('rotary_percentage', 1.0),
+                    rotary_base=model_configs.get('rotary_base', 10000),
+                    moe_tp_mode=model_configs.get('moe_tp_mode', 2),
+                    multi_query_mode=model_configs.get("multi_query_mode", False),
+                    activation=model_configs.get('activation', "gelu"),
+                    seq_len_interpolation_factor=model_configs.get("seq_len_interpolation_factor"),
+                    moe_renorm_mode=model_configs.get(
+                        'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
+                    ),
+                    share_embeddings_and_output_weights=model_configs.get(
+                        "share_embeddings_and_output_weights", False
+                    ),
+                    hybrid_override_pattern=model_configs.get("hybrid_override_pattern")
+                )
+
+                input_dtype = getattr(DataType, dtype)
+                export_config = ExportConfig(
+                    tensor_parallelism_size,
+                    pipeline_parallelism_size,
+                    use_parallel_embedding,
+                    use_embedding_sharing,
+                )
+
+                weights_dicts, model_configs = (
+                    trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
+                        model_state_dict=model,
+                        export_config=export_config,
+                        dtype=input_dtype,
+                        state_dict_split_by_layer_numbers=False if model_type != 'mamba_hybrid' else True,
+                    )
+                )
+            else:
+                weights_dicts, model_configs = model_to_trtllm_ckpt(
+                    model=model,
+                    nemo_model_config=model_configs,
+                    nemo_export_dir=nemo_export_dir,
+                    decoder_type=model_type,
+                    dtype=dtype,
+                    tensor_parallel_size=tensor_parallelism_size,
+                    pipeline_parallel_size=pipeline_parallelism_size,
+                    gpus_per_node=gpus_per_node,
+                    use_parallel_embedding=use_parallel_embedding,
+                    use_embedding_sharing=use_embedding_sharing,
+                )
 
             for weight_dict, model_config in zip(weights_dicts, model_configs):
                 rank = model_config.mapping.tp_rank
                 for k, v in weight_dict.items():
-                    weight_dict[k] = numpy_to_torch(v)
+                    if isinstance(v, np.ndarray):
+                        weight_dict[k] = numpy_to_torch(v)
 
                 safetensors.torch.save_file(weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors'))
             model_configs[0].to_json_file(os.path.join(self.model_dir, 'config.json'))
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
+            tokenizer_path_nemo2 = os.path.join(nemo_export_dir, "nemo_context")
+            vocab_path = os.path.join(nemo_export_dir, "vocab.json")
             if os.path.exists(tokenizer_path):
                 shutil.copy(tokenizer_path, self.model_dir)
+            elif os.path.exists(tokenizer_path_nemo2):
+                shutil.copytree(tokenizer_path_nemo2, Path(self.model_dir) / "nemo_context")
+            elif os.path.exists(vocab_path):
+                shutil.copy(vocab_path, os.path.join(self.model_dir, "vocab.json"))
             else:
                 self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
 
