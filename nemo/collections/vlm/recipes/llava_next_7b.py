@@ -32,7 +32,7 @@ NAME = "llava_next_7b"
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def model(config=run.Config(vlm.LlavaNextConfig7B)) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Llava Next 7B model configuration.
 
@@ -47,7 +47,7 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(vlm.LlavaNextModel, config=run.Config(vlm.LlavaNextConfig7B))
+    return run.Config(vlm.LlavaNextModel, config=config)
 
 
 @run.cli.factory(target=llm.finetune, name=NAME)
@@ -85,7 +85,7 @@ def finetune_recipe(
 
     strategy = run.Config(
         nl.MegatronStrategy,
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=4,
         pipeline_model_parallel_size=1,
         encoder_pipeline_model_parallel_size=0,
         pipeline_dtype=torch.bfloat16,
@@ -111,12 +111,19 @@ def finetune_recipe(
 
     recipe = run.Partial(
         llm.finetune,
-        model=model(),
+        model=model(
+            config=run.Config(
+                vlm.LlavaNextConfig7B,
+                freeze_language_model=False,
+                freeze_vision_model=True,
+                freeze_vision_projection=False,
+            )
+        ),
         trainer=trainer,
         data=run.Config(
             LlavaNextMockDataModule,
             seq_length=4096,
-            global_batch_size=128,
+            global_batch_size=8,
             micro_batch_size=2,
             tokenizer=None,
             image_processor=None,
@@ -146,5 +153,90 @@ def finetune_recipe(
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
+
+    return recipe
+
+
+@run.cli.factory(target=llm.pretrain, name=NAME)
+def pretrain_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    peft_scheme: Optional[str] = 'none',
+) -> run.Partial:
+    """
+    Create a Pre-training recipe for Llava1.6 7B model.
+
+    This function sets up a complete configuration for pre-training, including
+    model, trainer, data, logging, optimization, and resumption settings.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the fine-tuning run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        run.Partial: Partial configuration for fine-tuning.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory llava_next_7b
+
+        Python API usage:
+            >>> recipe = finetune_recipe(name="llava_next_7b_pretrain", num_nodes=1)
+            >>> print(recipe)
+    """
+
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        tensor_model_parallel_size=4,
+        pipeline_model_parallel_size=1,
+        encoder_pipeline_model_parallel_size=0,
+        pipeline_dtype=torch.bfloat16,
+    )
+
+    trainer = run.Config(
+        nl.Trainer,
+        accelerator="gpu",
+        accumulate_grad_batches=1,
+        devices=num_gpus_per_node,
+        limit_val_batches=10,
+        log_every_n_steps=1,
+        max_steps=5190,
+        num_nodes=num_nodes,
+        plugins=bf16_mixed(),
+        strategy=strategy,
+        val_check_interval=1000,
+        callbacks=[run.Config(TimingCallback)],
+    )
+    from transformers import AutoProcessor
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+    recipe = run.Partial(
+        llm.pretrain,
+        model=model(
+            config=run.Config(
+                vlm.LlavaNextConfig7B,
+                freeze_language_model=True,
+                freeze_vision_model=True,
+                freeze_vision_projection=False,
+            )
+        ),
+        trainer=trainer,
+        data=run.Config(
+            LlavaNextMockDataModule,
+            seq_length=4096,
+            global_batch_size=8,
+            micro_batch_size=2,
+            tokenizer=None,
+            image_processor=None,
+            num_workers=4,
+        ),
+        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=0.001, min_lr=2.0e-05, warmup_steps=150),
+    )
 
     return recipe
