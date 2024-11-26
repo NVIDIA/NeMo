@@ -110,11 +110,9 @@ def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[s
 
     any_special_token_present = False
 
-    lang_dict_compat = {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE"}
     for k in ("source_lang", "target_lang"):
         if k in slot_values and not ((v := slot_values[k]).startswith("<|") and v.endswith("|>")):
             val = slot_values[k]
-            val = lang_dict_compat.get(val, val)
             slot_values[k] = "<|" + val + "|>"
             any_special_token_present = True
 
@@ -130,9 +128,6 @@ def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[s
     # and slots for this turn correspond to user prompt.
     if any_special_token_present and PromptFormatter.PROMPT_LANGUAGE_SLOT not in slot_values:
         slot_values[PromptFormatter.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
-    else:
-        if (l := slot_values.get(PromptFormatter.PROMPT_LANGUAGE_SLOT)) is not None:
-            slot_values[PromptFormatter.PROMPT_LANGUAGE_SLOT] = lang_dict_compat.get(l, l)
 
     return slot_values
 
