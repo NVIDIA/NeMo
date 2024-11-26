@@ -2,7 +2,7 @@ import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Callable, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from torch import nn
@@ -16,6 +16,7 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from transformers import BertConfig as HFBertConfig
     from transformers import BertModel
+
 
 @dataclass
 class MegatronBertConfig(BertConfig):
@@ -229,6 +230,7 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
 @io.model_exporter(HuggingFaceBertModel, "hf")
 class HuggingFaceBertExporter(io.ModelConnector[BertModel, "BertModel"]):
     """Exporter Connector for converting NeMo Bert Model to HF"""
+
     def init(self, dtype=torch.bfloat16) -> "BertModel":
         from transformers import BertModel
         from transformers.modeling_utils import no_init_weights
@@ -294,6 +296,7 @@ class HuggingFaceBertExporter(io.ModelConnector[BertModel, "BertModel"]):
             initializer_range=source.init_method_std,
             layer_norm_eps=source.layernorm_epsilon,
         )
+
 
 @io.state_transform(
     source_key=(
@@ -484,6 +487,7 @@ def _import_embedding_2(ctx: io.TransformCTX, embedding):
         return padded_embedding
     return embedding
 
+
 @io.state_transform(
     source_key="encoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
@@ -497,7 +501,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
-    num_query_groups = head_num # BERT Does not use GQA
+    num_query_groups = head_num  # BERT Does not use GQA
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_size = megatron_config.kv_channels
@@ -519,6 +523,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
     return q_proj, k_proj, v_proj
 
+
 @io.state_transform(
     source_key="encoder.layers.*.self_attention.linear_qkv.bias",
     target_key=(
@@ -531,7 +536,7 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     megatron_config = ctx.source.config
 
     head_num = megatron_config.num_attention_heads
-    num_query_groups = head_num # BERT does not use GQA
+    num_query_groups = head_num  # BERT does not use GQA
     heads_per_group = head_num // num_query_groups
     head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
@@ -551,6 +556,7 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     v_bias = qkv_bias[v_slice].reshape(-1).cpu()
 
     return q_bias, k_bias, v_bias
+
 
 @io.state_transform(
     source_key="embedding.word_embeddings.weight",
