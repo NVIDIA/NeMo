@@ -1,8 +1,8 @@
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.bert.model.bert import (
     HuggingFaceBertBaseConfig,
-    HuggingFaceBertLargeConfig,
     HuggingFaceBertConfig,
+    HuggingFaceBertLargeConfig,
     HuggingFaceBertModel,
     MegatronBertConfig,
     MegatronBertLargeConfig,
