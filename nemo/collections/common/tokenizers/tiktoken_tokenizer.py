@@ -197,7 +197,13 @@ class TiktokenTokenizer(TokenizerSpec):
                 ids.extend([t + self.num_special_tokens for t in token_ids])
         return ids
 
-    def ids_to_text(self, ids: List[int], skip_special_tokens: bool = False) -> str:
+    def ids_to_text(
+        self,
+        ids: List[int],
+        skip_special_tokens: bool = False,
+        skip_bos_token: bool = True,
+        skip_eos_token: bool = True,
+    ) -> str:
         result = []
         chunks = []
         for id_ in ids:
@@ -205,7 +211,12 @@ class TiktokenTokenizer(TokenizerSpec):
                 if chunks:
                     result.append(self.tokenizer.decode([t - self.num_special_tokens for t in chunks]))
                     chunks = []
-                if not skip_special_tokens:
+                skip = (
+                    skip_bos_token
+                    if id_ == self.bos_id
+                    else (skip_eos_token if id_ == self.eos_id else skip_special_tokens)
+                )
+                if not skip:
                     result.append(self.special_tokens[id_])
             else:
                 chunks.append(id_)
