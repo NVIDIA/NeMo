@@ -1,23 +1,24 @@
-from pathlib import Path
+import argparse
+import csv
 import json
 import os
-import argparse
 import shutil
-import csv
-import soundfile as sf
+from pathlib import Path
+
 ### from nemo.collections.tts.models import AudioCodecModel
 import librosa
-import torch
 import numpy as np
-from tqdm import tqdm
-from matplotlib import pyplot as plt
-
-from lhotse import CutSet, SupervisionSegment, Recording, AudioSource
+import soundfile as sf
+import torch
+from lhotse import AudioSource, CutSet, Recording, SupervisionSegment
+from lhotse.array import Array, TemporalArray
+from lhotse.audio import RecordingSet
 from lhotse.cut.base import Cut
 from lhotse.features.base import Features, FeatureSet
-from lhotse.array import TemporalArray, Array
 from lhotse.shar.writers import AudioTarWriter
-from lhotse.audio import RecordingSet
+from matplotlib import pyplot as plt
+from tqdm import tqdm
+
 
 def json_reader(filename):
     with open(filename) as f:
@@ -25,16 +26,14 @@ def json_reader(filename):
             yield json.loads(line)
 
 
-def create_shar_from_manifest(
-    manifest, out_shar_dir, num_shard=10
-):
+def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
     in_manifest = list(json_reader(manifest))
     print(f"...loaded {manifest} # of datapoints {len(in_manifest)}")
     shard_size = int(len(in_manifest) / num_shard)
     if len(in_manifest) % shard_size != 0:
         shard_size += 1
     print(f"shard_size {shard_size} num_shards {num_shard}")
-    
+
     user_recordings = []
     answer_list = []
     instructions = []
@@ -48,7 +47,7 @@ def create_shar_from_manifest(
         # User_Speech
         user_recording = Recording.from_file(convs[0]['value'])
         user_recordings.append(user_recording)
-        
+
         # Instructions from the user. In case the question is part of the source audio this is a static text "Transcribe and answer",
         # If not then this is the actual question from the user but in text.
         # For direct_s2s instructions are always empty (else part)
@@ -108,21 +107,18 @@ def create_shar_from_manifest(
     out_shar_dir.mkdir(parents=True, exist_ok=True)
     shard_size = shard_size
     assert len(user_recordings) % shard_size != 0, "Lhotse breaks if feat_list is a multiple of shard_size"
-    exported = cuts.to_shar(
-        out_shar_dir, fields={"recording": "wav"}, num_jobs=4, shard_size=shard_size
-    )
+    exported = cuts.to_shar(out_shar_dir, fields={"recording": "wav"}, num_jobs=4, shard_size=shard_size)
     print(f"...share created")
 
     print(f"...Exporting target_audio to tar files")
     for i, path in tqdm(enumerate(exported["cuts"])):
         path = path[0]
         out_path = path.replace("cuts", "target_audio").replace(".jsonl.gz", ".tar")
-        with AudioTarWriter(
-            out_path, shard_size=None, format="flac"
-        ) as writer:
+        with AudioTarWriter(out_path, shard_size=None, format="flac") as writer:
             for cut in CutSet.from_file(path):
                 writer.write(cut.id, cut.target_audio.load_audio(), manifest=cut.target_audio, sampling_rate=22050)
     print(f"...Exported target_audio to tar files")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -141,7 +137,7 @@ def main():
         type=int,
         default=10,
     )
-    
+
     args = parser.parse_args()
     print(f"manifest {args.manifest}")
     print(f"out_shar_dir {args.out_shar_dir}")
@@ -153,7 +149,6 @@ def main():
         num_shard=args.num_shard,
     )
 
+
 if __name__ == "__main__":
     main()
-
-
