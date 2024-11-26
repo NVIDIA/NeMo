@@ -27,7 +27,8 @@ from nemo.utils import logging
 
 @dataclass
 class LlavaNextTextSample(ImageTextSample):
-    '''Sample type for LLaVA-Next, extending ImageTextSample to support tiled image data.
+    '''
+    Sample type for LLaVA-Next, extending ImageTextSample to support tiled image data.
 
     This class adds additional attributes for handling high-resolution images processed as tiles,
     along with metadata about the tiled images.
@@ -46,7 +47,8 @@ class LlavaNextTextSample(ImageTextSample):
 
 @dataclass
 class LlavaNextTextRawBatch(ImageTextRawBatch):
-    '''Batch type for raw LLaVA-Next samples, supporting tiled image data.
+    """
+    Batch type for raw LLaVA-Next samples, supporting tiled image data.
 
     This class aggregates multiple `LlavaNextTextSample` instances into a batch for processing.
     It includes attributes for managing tiled images and associated metadata for each sample in the batch.
@@ -55,7 +57,7 @@ class LlavaNextTextRawBatch(ImageTextRawBatch):
         num_media_tiles (List[int]): A list containing the number of tiles for each image in the batch.
         image_sizes (torch.Tensor): A tensor containing the sizes of all tiled images in the batch.
         attention_mask (Optional[torch.Tensor]): Attention mask. Defaults to None.
-    '''
+    """
 
     num_media_tiles: List[int] = field(default_factory=list)
     image_sizes: torch.tensor = field(default_factory=lambda: torch.tensor([]))
@@ -63,6 +65,8 @@ class LlavaNextTextRawBatch(ImageTextRawBatch):
 
 
 class LlavaNextSampleEncoder(VQASampleEncoder):
+    """LlavaNextSampleEncoder"""
+
     def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
         """
         Initialize the LlavaNextSampleEncoder, inherited from VQASampleEncoder for multimodal samples
@@ -133,6 +137,8 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
 
 
 class LlavaNextTaskEncoder(MultiModalTaskEncoder):
+    """LlavaNextTaskEncoder"""
+
     def __init__(self, tokenizer, image_processor, multimodal_sample_config):
         """
         Initialize the LlavaNextTaskEncoder.
