@@ -240,7 +240,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         # for eval, we need to create separate dataset so as to report splitted numbers
         else:
             dls = []
-            if hasattr(data_cfg, 'manifest_filepath'):
+            if data_cfg.get('manifest_filepath', None):
                 manifest_filepath = data_cfg.manifest_filepath
                 for cur_manifest_filepath in manifest_filepath:
                     conf = copy.deepcopy(data_cfg)
