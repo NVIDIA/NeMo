@@ -33,12 +33,16 @@ class LoRALinear(AdapterWrapper):
     """
 
     def forward(self, x):
+        # pylint: disable=C0115,C0116
         linear_output, bias, layernorm_output = self.base_linear_forward(x)
         adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
 
 
 class LinearAdapter(nn.Module):
+    """
+    A simple LoRA linear module for non-megatron models.
+    """
     def __init__(
         self, orig_linear, dim=8, alpha=32, dropout=0.1, dropout_position='post', lora_A_init_method='xavier'
     ):
@@ -70,6 +74,7 @@ class LinearAdapter(nn.Module):
         self.dropout_position = dropout_position
 
     def forward(self, x):
+        # pylint: disable=C0115,C0116
         res = self.orig_linear(x)
         if self.dropout_position == 'pre':
             x = self.dropout(x)

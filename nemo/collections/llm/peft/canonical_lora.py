@@ -68,6 +68,7 @@ class LoRALinearSplitQKV(AdapterWrapper):
     """
 
     def forward(self, x):
+        # pylint: disable=C0115,C0116
         linear_output, bias, layernorm_output = self.base_linear_forward(x)
         query = self.adapter.adapter_q(layernorm_output)
         key = self.adapter.adapter_k(layernorm_output)
@@ -93,6 +94,7 @@ class LoRALinearSplitFC1UpGate(AdapterWrapper):
     """
 
     def forward(self, x):
+        # pylint: disable=C0115,C0116
         linear_output, bias, layernorm_output = self.base_linear_forward(x)
         adapter_output_gate = self.adapter.adapter_gate(layernorm_output)
         adapter_output_up = self.adapter.adapter_up(layernorm_output)
