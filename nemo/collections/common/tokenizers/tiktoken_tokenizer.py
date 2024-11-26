@@ -128,26 +128,60 @@ class TiktokenTokenizer(TokenizerSpec):
             special_tokens={},  # special tokens are handled manually
         )
 
-    def text_to_tokens(self, text: str):
+    def text_to_tokens(self, text: str) -> List[str]:
+        """
+        Converts a text string into a list of token strings, handling both special tokens and regular tokens.
+        Treats contiguous non-ASCII substrings as single tokens to preserve them without splitting.
+
+        Args:
+            text (str): The input text to tokenize.
+
+        Returns:
+            List[str]: A list of token strings.
+        """
         tokens = []
-        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id='\\d+')
-        parts = re.split(f"({special_token_pattern})", text)
+        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id=r"\d+")
+
+        # Define a regex pattern to split the text into parts:
+        # 1. Special tokens (e.g., <SPECIAL_10>, <s>, </s>, <unk>)
+        # 2. Contiguous non-ASCII substrings (e.g., Chinese phrases)
+        # 3. Regular ASCII substrings
+        pattern = f"({special_token_pattern}|<unk>|<s>|</s>|[^\x00-\x7F]+)"
+
+        # Split the text based on the pattern
+        parts = re.split(pattern, text)
+
         for part in parts:
-            if re.match(special_token_pattern, part):
-                tokens.append(part.encode('utf-8'))
+            if not part:
+                continue  # Skip empty strings
+
+            # Check if the part is a special token
+            if re.match(special_token_pattern, part) or part in self.special_tokens:
+                tokens.append(part)  # Append special tokens as strings
+            # Check if the part contains non-ASCII characters
+            elif re.match(r"[^\x00-\x7F]+", part):
+                tokens.append(part)  # Append non-ASCII substrings as single tokens
             else:
+                # Encode the regular ASCII part into token IDs
                 token_ids = self.tokenizer.encode(part)
-                tokens.extend([self.tokenizer.decode_single_token_bytes(token) for token in token_ids])
+
+                # Decode each token ID back into its string representation
+                for token_id in token_ids:
+                    token_str = self.id2token.get(token_id, "<unk>")
+
+                    # If token_str is bytes, decode it to a string
+                    if isinstance(token_str, bytes):
+                        try:
+                            token_str = token_str.decode('utf-8')
+                        except UnicodeDecodeError:
+                            token_str = "<unk>"  # Replace undecodable bytes
+
+                    tokens.append(token_str)  # Append the decoded string
+
         return tokens
 
-    def tokens_to_text(self, tokens: List[int]):
-        result = []
-        for token in tokens:
-            if isinstance(token, bytes):
-                result.append(token.decode('utf-8'))
-            else:
-                result.append(self.tokenizer.decode([token]))
-        return ''.join(result)
+    def tokens_to_text(self, tokens: List[str]) -> str:
+        return ''.join(tokens)
 
     def token_to_id(self, token):
         token_str = token.decode('utf-8', errors='replace') if isinstance(token, bytes) else token
@@ -169,39 +203,53 @@ class TiktokenTokenizer(TokenizerSpec):
                 ids.extend([id + self.num_special_tokens for id in self.tokenizer.encode(token_str)])
         return ids
 
-    def ids_to_tokens(self, token_ids):
+    def ids_to_tokens(self, ids: List[int]) -> List[str]:
         tokens = []
-        for token_id in token_ids:
-            if token_id < self.num_special_tokens:
-                tokens.append(self.special_tokens[token_id].encode('utf-8'))
+        chunks = []
+        for id_ in ids:
+            if id_ < self.num_special_tokens:
+                if chunks:
+                    # Decode the chunk and append resulting tokens
+                    decoded_chunk = self.tokenizer.decode([t - self.num_special_tokens for t in chunks])
+                    tokens.extend(decoded_chunk.split())  # Split into individual tokens
+                    chunks = []
+                # Add the special token directly
+                tokens.append(self.special_tokens[id_])
             else:
-                adjusted_token = token_id - self.num_special_tokens
-                token_bytes = self.tokenizer.decode_single_token_bytes(adjusted_token)
-                tokens.append(token_bytes)
+                # Add to current chunk
+                chunks.append(id_)
+        if chunks:
+            # Decode any remaining chunk
+            decoded_chunk = self.tokenizer.decode([t - self.num_special_tokens for t in chunks])
+            tokens.extend(decoded_chunk.split())
         return tokens
 
-    def text_to_ids(self, text: str):
-        tokens = []
-        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id='\\d+')
-        parts = re.split(f"({special_token_pattern})", text)
+    def text_to_ids(self, text: str) -> List[int]:
+        ids = []
+        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id=r"\d+")
+        parts = re.split(f"({special_token_pattern}|<unk>|<s>|</s>)", text)
         for part in parts:
-            if re.match(special_token_pattern, part):
-                token_id = int(re.findall(r"\d+", part)[0])
-                tokens.append(token_id)
+            if part in self.special_tokens:
+                ids.append(self.special_tokens.index(part))
             else:
                 token_ids = self.tokenizer.encode(part)
-                tokens.extend([t + self.num_special_tokens for t in token_ids])
-        return tokens
+                ids.extend([t + self.num_special_tokens for t in token_ids])
+        return ids
 
-    def ids_to_text(self, tokens: List[int], skip_special_tokens: bool = False):
+    def ids_to_text(self, ids: List[int], skip_special_tokens: bool = False) -> str:
         result = []
-        for token in tokens:
-            if token < self.num_special_tokens:
+        chunks = []
+        for id_ in ids:
+            if id_ < self.num_special_tokens:
+                if chunks:
+                    result.append(self.tokenizer.decode([t - self.num_special_tokens for t in chunks]))
+                    chunks = []
                 if not skip_special_tokens:
-                    result.append(self.special_tokens[token])
+                    result.append(self.special_tokens[id_])
             else:
-                adjusted_token = token - self.num_special_tokens
-                result.append(self.tokenizer.decode([adjusted_token]))
+                chunks.append(id_)
+        if chunks:
+            result.append(self.tokenizer.decode([t - self.num_special_tokens for t in chunks]))
         return ''.join(result)
 
     @property
