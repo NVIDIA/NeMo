@@ -420,6 +420,7 @@ model:
       source_target_text_ratio_limit: 4.0
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
+      target_audio_sample_rate: 22050 # codec sampling rate
 
       log_every_n_steps: 10
       metrics:

@@ -95,7 +95,8 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             source_target_text_ratio_limit=data_cfg.get('source_target_text_ratio_limit', 1.0),
             load_answer_audio=data_cfg.get('load_answer_audio', False),
             codec_model_downsampling_factor=data_cfg.get('codec_model_downsampling_factor', 1024),
-            
+            sample_rate=data_cfg.get('sample_rate', 16000),
+            codec_sample_rate=data_cfg.get('target_audio_sample_rate', 22050),
         )
 
     # Notably, the data weights are controlled by either bucketing_weights
@@ -133,6 +134,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                 global_rank=parallel_state.get_data_parallel_rank(),
                 world_size=parallel_state.get_data_parallel_world_size(),
                 dataset=dataset,
+                resample_cuts=False,
             )
         # for eval, we need to create separate dataset so as to report splitted numbers
         else:
@@ -148,6 +150,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            resample_cuts=False,
                         )
                     )
             else:
@@ -168,6 +171,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            resample_cuts=False,
                         )
                     )
 

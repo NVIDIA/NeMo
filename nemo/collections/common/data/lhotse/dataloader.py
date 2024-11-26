@@ -159,6 +159,7 @@ def get_lhotse_dataloader_from_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    resample_cuts=True,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -181,11 +182,11 @@ def get_lhotse_dataloader_from_config(
     """
     if config.get("multi_config"):
         return get_lhotse_dataloader_from_multi_config(
-            configs=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+            configs=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer, resample_cuts=resample_cuts
         )
     else:
         return get_lhotse_dataloader_from_single_config(
-            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer, resample_cuts=resample_cuts
         )
 
 
@@ -195,6 +196,8 @@ def get_lhotse_dataloader_from_single_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    resample_cuts=True,
+
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -232,7 +235,7 @@ def get_lhotse_dataloader_from_single_config(
         "create your dataloader using 'get_lhotse_dataloader_from_multi_config' instead."
     )
     sampler, is_tarred = get_lhotse_sampler_from_config(
-        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer, resample_cuts=resample_cuts
     )
 
     # 4. Creating dataloader.
@@ -270,6 +273,7 @@ def get_lhotse_dataloader_from_multi_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    resample_cuts=True,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -295,7 +299,7 @@ def get_lhotse_dataloader_from_multi_config(
         config.seed = seed
         config.shard_seed = main_config.shard_seed
         s, t = get_lhotse_sampler_from_config(
-            config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+            config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer, resample_cuts=resample_cuts
         )
         source_samplers.append(s)
         source_tarred.append(t)
@@ -351,7 +355,7 @@ def get_lhotse_dataloader_from_multi_config(
     return dloader
 
 
-def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
+def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None, resample_cuts=True) -> tuple[CutSampler, bool]:
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)
 
@@ -361,7 +365,8 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         cuts = cuts.map(partial(_select_channel, channel_selector=config.channel_selector))
 
     # Resample as a safeguard; it's a no-op when SR is already OK
-    cuts = cuts.resample(config.sample_rate)
+    if resample_cuts:
+        cuts = cuts.resample(config.sample_rate)
 
     # Expands cuts if multiple translations are provided.
     cuts = CutSet(LazyFlattener(cuts.map(_flatten_alt_text, apply_fn=None)))

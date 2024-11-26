@@ -66,7 +66,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         speech_eos_id: int = 1004,
         filter_by_source_target_text_ratio: bool = False,
         source_target_text_ratio_limit: float = 1.0,
-        sample_rate: int = 22050,
+        sample_rate: int = 16000,
+        codec_sample_rate: int = 22050,
         t5_style: bool = False,
         load_answer_audio: bool = False,
         codec_model_downsampling_factor: float = 1023.5,
@@ -94,6 +95,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.filter_by_source_target_text_ratio = filter_by_source_target_text_ratio
         self.source_target_text_ratio_limit = source_target_text_ratio_limit
         self.sample_rate = sample_rate
+        self.codec_sample_rate = codec_sample_rate
         self.load_answer_audio = load_answer_audio
         self.codec_model_downsampling_factor = codec_model_downsampling_factor
 
@@ -255,7 +257,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 start_time_tokens.append(start_time_token)
 
         # Load source audio
-        audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
+        audio = [cut.resample(self.codec_sample_rate).load_audio() for cut in cuts]
         audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
 
         # Resample audio waveform here since cuts.resample causes core dump sometimes
@@ -443,7 +445,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 word_lengths,
                 start_time_tokens,
                 features_lens + 1,
-                self.codec_model_downsampling_factor / self.sample_rate,
+                self.codec_model_downsampling_factor / self.codec_sample_rate,
                 pad_id=text_unk_id,
             )
             # import pdb; pdb.set_trace()
