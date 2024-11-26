@@ -26,6 +26,16 @@ class SLMDataSampler(MegatronDataSampler):
             logging.info(f"Using Lhotse sampler for dataloader {dataloader}. Skipping Megatron data sampler.")
             return dataloader
 
+        try:
+            _ = len(dataloader.dataset)
+            has_len = True
+        except TypeError:
+            has_len = False
+
+        if not has_len:
+            logging.info(f"Dataset {dataloader.dataset} does not have __len__ method. Skipping Megatron data sampler.")
+            return dataloader
+
         from megatron.core import parallel_state
 
         from nemo.lightning.data import add_megatron_sampler
