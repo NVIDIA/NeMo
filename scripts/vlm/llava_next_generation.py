@@ -41,7 +41,10 @@ def generate(model, processor, raw_image, text):
     messages = [
         {
             "role": "user",
-            "content": [{"type": "text", "text": text}],
+            "content": [
+                {"type": "text", "text": "What are these?"},
+                {"type": "image"},
+            ],
         }
     ]
 
@@ -153,11 +156,11 @@ if __name__ == "__main__":
         "--image_url",
         type=str,
         # pylint: disable=line-too-long
-        default="https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg",
+        default="http://images.cocodataset.org/val2017/000000039769.jpg",
         help="URL of the image to use for inference.",
     )
-    parser.add_argument("--devices", type=int, required=False, default=2)
-    parser.add_argument("--tp_size", type=int, required=False, default=2)
+    parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--tp_size", type=int, required=False, default=1)
 
     args = parser.parse_args()
     main(args)

@@ -42,9 +42,6 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     """
     from megatron.core import parallel_state
 
-    if torch.distributed.get_rank() == 0:
-        breakpoint()
-    torch.distributed.barrier()
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/
     # megatron_gpt_model.py#L828-L842
@@ -110,9 +107,6 @@ def llava_next_forward_step(model, batch) -> torch.Tensor:
         "image_sizes": batch.get("image_sizes", None),
         "num_media_tiles": batch.get("num_media_tiles", None),
     }
-    if torch.distributed.get_rank() == 0:
-        breakpoint()
-    torch.distributed.barrier()
 
     if 'cu_seqlens' in batch:
         forward_args['packed_seq_params'] = get_packed_seq_params(batch)
@@ -252,9 +246,6 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             output (torch.Tensor): Loss ([b, s]) if labels are provided; logits ([b, s, vocab_size]) otherwise.
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
-        if torch.distributed.get_rank() == 0:
-            breakpoint()
-        torch.distributed.barrier()
         use_inference_kv_cache = (
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
@@ -285,11 +276,9 @@ class MCoreLlavaNextModel(MCoreNevaModel):
                 media_embeddings = media_embeddings[:, class_token_len:, :]
 
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
-            media_embeddings = media_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
-
+            media_embeddings = media_embeddings.contiguous()
             # map vision model output size to language model input size.
             media_embeddings = self.vision_projection(media_embeddings)  # [img_seq_len, num_tiles, h_language]
-
             # TODO: Support batched inference.
             # In inference, the language model KV cache will be updated for image token positions.
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
@@ -364,9 +353,6 @@ class MCoreLlavaNextModel(MCoreNevaModel):
                 image_token_index=media_token_index,
             )
         )
-        if torch.distributed.get_rank() == 0:
-            breakpoint()
-        torch.distributed.barrier()
         combined_embeddings = combined_embeddings.permute(1, 0, 2)
         combined_embeddings = combined_embeddings.contiguous()
         output = self.language_model(
