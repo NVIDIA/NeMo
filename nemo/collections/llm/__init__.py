@@ -23,6 +23,7 @@ from nemo.collections.llm.bert.model import (
     BertConfig,
     BertModel,
     HuggingFaceBertBaseConfig,
+    HuggingFaceBertLargeConfig,
     HuggingFaceBertConfig,
     HuggingFaceBertModel,
     MegatronBertConfig,
