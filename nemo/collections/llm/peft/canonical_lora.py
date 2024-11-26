@@ -71,7 +71,8 @@ class ModuleDict(nn.ModuleDict):
 
 
 class LoRALinearSplitQKV(AdapterWrapper):
-    """ TODO An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
+    """ An adapter wrapper for `linear_qkv` where q, k, v are three separate adapters.
+    This module that adds the output of the adapters to the output of the wrapped module while taking care of shape.
 
     This class is designed to be used with LoRA (Low-Rank Adaptation) and similar techniques
     where the adapter's output is added to the main module's output. It extends the AdapterWrapper
@@ -95,7 +96,8 @@ class LoRALinearSplitQKV(AdapterWrapper):
 
 
 class LoRALinearSplitFC1UpGate(AdapterWrapper):
-    """ TODO An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
+    """ An adapter wrapper for `linear_fc1` where up_proj and gate_proj are two separate adapters.
+    This module that adds the output of the adapters to the output of the wrapped module while taking care of shape.
 
     This class is designed to be used with LoRA (Low-Rank Adaptation) and similar techniques
     where the adapter's output is added to the main module's output. It extends the AdapterWrapper
