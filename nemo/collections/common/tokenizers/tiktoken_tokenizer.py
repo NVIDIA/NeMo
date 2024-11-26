@@ -178,7 +178,9 @@ class TiktokenTokenizer(TokenizerSpec):
         if chunks:
             # Decode any remaining chunk
             tokens += self._ids_to_tokens_core([t - self.num_special_tokens for t in chunks])
-        return tokens
+        # If there is no valid token, we return a single empty token. This is because some code in NeMo
+        # expects this method to always return at least one token.
+        return tokens if tokens else [""]
 
     def text_to_ids(self, text: str) -> List[int]:
         ids = []
