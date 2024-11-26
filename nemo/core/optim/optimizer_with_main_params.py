@@ -30,9 +30,9 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.parallel_state import (
-        get_expert_data_parallel_group,
         get_data_parallel_group,
         get_data_parallel_world_size,
+        get_expert_data_parallel_group,
     )
     from megatron.core.tensor_parallel import copy_tensor_model_parallel_attributes
 
