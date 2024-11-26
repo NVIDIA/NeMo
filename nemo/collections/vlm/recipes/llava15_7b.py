@@ -27,6 +27,9 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.vlm.neva.data.mock import MockDataModule
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+
+from megatron.core.distributed import DistributedDataParallelConfig
 
 NAME = "llava15_7b"
 
@@ -93,7 +96,16 @@ def finetune_recipe(
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
         encoder_pipeline_model_parallel_size=0,
+        sequence_parallel=True,
         pipeline_dtype=torch.bfloat16,
+        ddp=run.Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            average_in_collective=True,
+        )
     )
 
     trainer = run.Config(
@@ -108,7 +120,10 @@ def finetune_recipe(
         plugins=bf16_mixed(),
         strategy=strategy,
         val_check_interval=1000,
-        callbacks=[run.Config(TimingCallback)],
+        callbacks=[
+            run.Config(TimingCallback),
+            run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True),
+        ],
     )
 
     recipe = run.Partial(

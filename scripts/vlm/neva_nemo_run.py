@@ -1,6 +1,6 @@
 import nemo_run as run
 
-from nemo.collections import llm, vlm
+from nemo.collections import vlm
 
 
 def configure_recipe(nodes: int = 1, gpus_per_node: int = 8):
