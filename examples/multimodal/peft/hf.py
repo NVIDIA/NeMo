@@ -80,9 +80,7 @@ if __name__ == '__main__':
 
     llm.api.finetune(
         model=llm.HfAutoModelForImageTextToText(args.model),
-        data=llm.HfDatasetDataModule(
-            mk_hf_vlm_dataset(processor), pad_token_id=tokenizer.tokenizer.eos_token_id
-        ),
+        data=llm.HfDatasetDataModule(mk_hf_vlm_dataset(processor), pad_token_id=tokenizer.tokenizer.eos_token_id),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
