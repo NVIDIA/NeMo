@@ -202,4 +202,9 @@ logger:
   _target_: nemo.lightning.NeMoLogger
   log_dir: null  # default to ./nemo_experiments
   name: ${name}
+  wandb:
+    _target_: lightning.pytorch.loggers.WandbLogger
+    project: null
+    name: ${logger.name}
+    resume: false
 
