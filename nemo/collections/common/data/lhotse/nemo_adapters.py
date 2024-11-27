@@ -355,18 +355,19 @@ class LazyNeMoTarredIterator:
                     raw_audio = tar.extractfile(tar_info).read()
                     yield data, raw_audio, tar_info
                 except KeyError as e:
-                    raise RuntimeError(
+                    logging.warning(
                         f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                        f"The following audio_filepath='{data['audio_filepath']}' was not found in the tar file."
-                    ) from e
+                        f"The following audio_filepath='{data['audio_filepath']}' was not found in the tar file. Skipping: {e}"
+                    )
+                    continue
 
     def _iter_sequential(self, tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
         with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
             for tar_info in tar:
                 if tar_info.name not in shard_manifest:
-                    logging.warning(
-                        f"Tar file '{tar_path}' contains an entry '{tar_info.name}' that is not present in the JSON manifest '{manifest_path}', skipping."
-                    )
+                    # logging.warning(
+                    #     f"Tar file '{tar_path}' contains an entry '{tar_info.name}' that is not present in the JSON manifest '{manifest_path}', skipping."
+                    # )
                     continue
                 data = shard_manifest[tar_info.name]
                 raw_audio = tar.extractfile(tar_info).read()
