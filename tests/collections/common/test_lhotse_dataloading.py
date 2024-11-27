@@ -21,14 +21,14 @@ import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, SupervisionSegment, compute_num_samples
+from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, compute_num_samples
 from lhotse.audio import AudioLoadingError
 from lhotse.cut import Cut, MixedCut
 from lhotse.dataset import RoundRobinSampler, ZipSampler
 from lhotse.testing.dummies import dummy_recording
+from lhotse.testing.random import deterministic_rng
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample, TextExample
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
@@ -1372,18 +1372,18 @@ def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str], qu
 
 
 @pytest.fixture(scope="session")
-def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> TokenizerWrapper:
+def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> SentencePieceTokenizer:
     tmpdir = tmp_path_factory.mktemp("en_es_tokenizer")
     text_path = tmpdir / "text.txt"
     text_path.write_text(txt_en_path.read_text() + "\n" + txt_es_path.read_text())
     create_spt_model(text_path, vocab_size=128, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
-    return TokenizerWrapper(SentencePieceTokenizer(str(tmpdir / "tokenizer.model")))
+    return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
 
 def test_multimodal_text_audio_dataloading(
     txt_pair_paths_shards: tuple[str, str],
     nemo_tarred_manifest_path_multi: tuple[str, str],
-    en_es_tokenizer: TokenizerWrapper,
+    en_es_tokenizer: SentencePieceTokenizer,
     questions_path: str,
 ):
     en_paths, es_paths = txt_pair_paths_shards
@@ -1416,6 +1416,7 @@ def test_multimodal_text_audio_dataloading(
             "shuffle": True,
             "num_workers": 0,
             "use_multimodal_sampling": True,
+            "prompt_format": "plain",
             "batch_tokens": BT,
             # How to set token equivalent duration in actual training?
             #   assuming fbank frames: 0.01 is the base due to frame shift;
@@ -1457,16 +1458,16 @@ def test_multimodal_text_audio_dataloading(
             assert isinstance(ex.source.text, str)
             assert isinstance(ex.target.text, str)
             assert isinstance(ex.question.text, str)
-            assert isinstance(ex.input_ids, np.ndarray)
-            assert isinstance(ex.context_ids, np.ndarray)
-            assert isinstance(ex.answer_ids, np.ndarray)
-            assert isinstance(ex.mask, np.ndarray)
+            assert torch.is_tensor(ex.input_ids)
+            assert torch.is_tensor(ex.context_ids)
+            assert torch.is_tensor(ex.answer_ids)
+            assert torch.is_tensor(ex.mask)
 
 
 def test_multimodal_text_audio_dataloading_zip_strategy(
     txt_pair_paths_shards: tuple[str, str],
     nemo_tarred_manifest_path_multi: tuple[str, str],
-    en_es_tokenizer: TokenizerWrapper,
+    en_es_tokenizer: SentencePieceTokenizer,
     questions_path: str,
 ):
     en_paths, es_paths = txt_pair_paths_shards
@@ -1475,10 +1476,12 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
     config = OmegaConf.create(
         {
             "multi_config": True,
+            "sampler_fusion": "zip",  # <---- !!! this option is being tested here !!!
+            "seed": 0,
+            "shard_seed": 0,
+            "shuffle": True,
+            "num_workers": 0,
             "audio": {
-                "sampler_fusion": "zip",  # <---- !!! this option is being tested here !!!
-                "seed": 0,
-                "shard_seed": 0,
                 "input_cfg": [
                     {
                         "type": "nemo_tarred",
@@ -1489,8 +1492,7 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
                         },
                     },
                 ],
-                "shuffle": True,
-                "num_workers": 0,
+                "prompt_format": "plain",
                 "use_multimodal_sampling": True,
                 "batch_tokens": BT,
                 # How to set token equivalent duration in actual training?
@@ -1517,9 +1519,8 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
                         },
                     },
                 ],
-                "shuffle": True,
-                "num_workers": 0,
                 "use_multimodal_sampling": True,
+                "prompt_format": "plain",
                 "batch_tokens": 64,
                 # How to set token equivalent duration in actual training?
                 #   assuming fbank frames: 0.01 is the base due to frame shift;
@@ -1563,10 +1564,10 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
             assert ex.modality == "text"
             assert ex.source.language == "en"
             assert ex.target.language == "es"
-            assert isinstance(ex.input_ids, np.ndarray)
-            assert isinstance(ex.context_ids, np.ndarray)
-            assert isinstance(ex.answer_ids, np.ndarray)
-            assert isinstance(ex.mask, np.ndarray)
+            assert torch.is_tensor(ex.input_ids)
+            assert torch.is_tensor(ex.context_ids)
+            assert torch.is_tensor(ex.answer_ids)
+            assert torch.is_tensor(ex.mask)
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
@@ -1585,16 +1586,16 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
             assert ex.modality == "text"
             assert ex.source.language == "en"
             assert ex.target.language == "es"
-            assert isinstance(ex.input_ids, np.ndarray)
-            assert isinstance(ex.context_ids, np.ndarray)
-            assert isinstance(ex.answer_ids, np.ndarray)
-            assert isinstance(ex.mask, np.ndarray)
+            assert torch.is_tensor(ex.input_ids)
+            assert torch.is_tensor(ex.context_ids)
+            assert torch.is_tensor(ex.answer_ids)
+            assert torch.is_tensor(ex.mask)
 
 
 def test_multimodal_text_audio_dataloading_round_robin_strategy(
     txt_pair_paths_shards: tuple[str, str],
     nemo_tarred_manifest_path_multi: tuple[str, str],
-    en_es_tokenizer: TokenizerWrapper,
+    en_es_tokenizer: SentencePieceTokenizer,
     questions_path: str,
 ):
     en_paths, es_paths = txt_pair_paths_shards
@@ -1603,10 +1604,12 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
     config = OmegaConf.create(
         {
             "multi_config": True,
+            "sampler_fusion": "round_robin",  # <---- !!! this option is being tested here !!!
+            "seed": 0,
+            "shard_seed": 0,
+            "shuffle": True,
+            "num_workers": 0,
             "audio": {
-                "sampler_fusion": "round_robin",  # <---- !!! this option is being tested here !!!
-                "seed": 0,
-                "shard_seed": 0,
                 "input_cfg": [
                     {
                         "type": "nemo_tarred",
@@ -1617,9 +1620,8 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
                         },
                     },
                 ],
-                "shuffle": True,
-                "num_workers": 0,
                 "use_multimodal_sampling": True,
+                "prompt_format": "plain",
                 "batch_tokens": BT,
                 # How to set token equivalent duration in actual training?
                 #   assuming fbank frames: 0.01 is the base due to frame shift;
@@ -1645,8 +1647,7 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
                         },
                     },
                 ],
-                "shuffle": True,
-                "num_workers": 0,
+                "prompt_format": "plain",
                 "use_multimodal_sampling": True,
                 "batch_tokens": BT,
                 # How to set token equivalent duration in actual training?
@@ -1697,10 +1698,156 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
         assert ex.modality == "text"
         assert ex.source.language == "en"
         assert ex.target.language == "es"
-        assert isinstance(ex.input_ids, np.ndarray)
-        assert isinstance(ex.context_ids, np.ndarray)
-        assert isinstance(ex.answer_ids, np.ndarray)
-        assert isinstance(ex.mask, np.ndarray)
+        assert torch.is_tensor(ex.input_ids)
+        assert torch.is_tensor(ex.context_ids)
+        assert torch.is_tensor(ex.answer_ids)
+        assert torch.is_tensor(ex.mask)
+
+
+def test_multimodal_text_audio_dataloading_randomized_round_robin_strategy(
+    deterministic_rng,
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: SentencePieceTokenizer,
+    questions_path: str,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 64
+    config = OmegaConf.create(
+        {
+            "multi_config": True,
+            "sampler_fusion": "randomized_round_robin",  # <---- !!! this option is being tested here !!!
+            "sampler_weights": {
+                "audio": 0.5,
+                "text": 0.5,
+            },
+            "seed": 0,
+            "shard_seed": 0,
+            "shuffle": True,
+            "num_workers": 0,
+            "audio": {
+                "input_cfg": [
+                    {
+                        "type": "nemo_tarred",
+                        "manifest_filepath": manifest_filepath,
+                        "tarred_audio_filepaths": tarred_audio_filepaths,
+                        "tags": {
+                            "modality": "audio",
+                        },
+                    },
+                ],
+                "use_multimodal_sampling": True,
+                "prompt_format": "plain",
+                "batch_tokens": BT,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": QF,
+            },
+            "text": {
+                "input_cfg": [
+                    {
+                        "type": "txt_pair",
+                        "source_paths": en_paths,
+                        "target_paths": es_paths,
+                        "source_language": "en",
+                        "target_language": "es",
+                        "questions_path": questions_path,
+                        "questions_language": "en",
+                        "tags": {
+                            "modality": "text",
+                        },
+                    },
+                ],
+                "prompt_format": "plain",
+                "use_multimodal_sampling": True,
+                "batch_tokens": BT,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": QF,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=en_es_tokenizer,
+    )
+
+    assert isinstance(dl.dataset.sampler, RoundRobinSampler)
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    # Batch 0 is audio-only
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b)
+    assert all(isinstance(ex, Cut) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
+    for ex in b:
+        assert ex.modality == "audio"
+        assert isinstance(ex.load_audio(), np.ndarray)
+        assert isinstance(ex.supervisions[0].text, str)
+
+    # Batch 1 is text-only
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b)
+    assert all(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
+    for ex in b:
+        assert ex.modality == "text"
+        assert ex.source.language == "en"
+        assert ex.target.language == "es"
+        assert torch.is_tensor(ex.input_ids)
+        assert torch.is_tensor(ex.context_ids)
+        assert torch.is_tensor(ex.answer_ids)
+        assert torch.is_tensor(ex.mask)
+
+
+def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):
+    config = OmegaConf.create(
+        {
+            "cuts_path": str(cutset_path),
+            "noise_path": str(nemo_manifest_path),
+            "noise_mix_prob": 1.0,
+            "noise_snr": [-5.0, 5.0],
+            "batch_size": 2,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+    )
+    batch = next(iter(dl))
+    assert isinstance(batch, CutSet)
+    assert len(batch) == 2
+    cut = batch[0]
+    assert isinstance(cut, MixedCut)
+    assert -5.0 < cut.tracks[1].snr < 5.0
+    cut = batch[1]
+    assert isinstance(cut, MixedCut)
+    assert -5.0 < cut.tracks[1].snr < 5.0
 
 
 def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):

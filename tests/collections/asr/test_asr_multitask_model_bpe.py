@@ -404,7 +404,9 @@ class TestEncDecMultiTaskModel:
         c.target_lang = "en"
         c.task = "asr"
         c.pnc = "no"
-        dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+        dataset = PromptedAudioToTextLhotseDataset(
+            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+        )
         batch = dataset[cuts]
 
         # Numpy array test
@@ -436,7 +438,9 @@ class TestEncDecMultiTaskModel:
 
 @pytest.mark.unit
 def test_prompted_dataset(asr_model):
-    dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+    dataset = PromptedAudioToTextLhotseDataset(
+        tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+    )
 
     cuts = DummyManifest(CutSet, begin_id=0, end_id=3, with_data=True)
 
