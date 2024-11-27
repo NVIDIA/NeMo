@@ -23,6 +23,7 @@ on:
       dry-run:
         description: Do not publish a wheel and GitHub release.
         required: true
+        default: true
         type: boolean
 
 jobs: 
