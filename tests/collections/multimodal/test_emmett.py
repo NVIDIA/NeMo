@@ -32,21 +32,21 @@ def tokenizer(capsys, tmp_path_factory):
     <</SYS>>
     User: Assistant:
     user model
-    Instruct Output 
+    Instruct Output
     \n\n
     <start_of_turn> <end_of_turn>
     <|
     |>
     <|en|> <|de|> <|fr|> <|es|> <|transcribe|> <|translate|> <|pnc|> <|nopnc|> <|startoftranscript|> <|endoftext|>
     Feel free to add new tokens for your own tests!?
-    But know that if you do so, you may need to update the token IDs in the existing tests! 
+    But know that if you do so, you may need to update the token IDs in the existing tests!
     So, it might be a good idea to create a new tokenizer instead when adding new prompt formats.
     """
     tmpdir = tmp_path_factory.mktemp("bpe_tokenizer")
     text_path = tmpdir / "text.txt"
     text_path.write_text(TOKENIZER_TRAIN_TEXT)
     with capsys.disabled():
-        create_spt_model(str(text_path), vocab_size=512, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
+        create_spt_model(str(text_path), vocab_size=512, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir), remove_extra_whitespaces=True)
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
 

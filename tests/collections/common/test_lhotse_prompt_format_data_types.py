@@ -36,6 +36,7 @@ def tokenizer(tmp_path_factory):
             "<end_of_turn>",
             "<start_of_turn>",
         ],
+        remove_extra_whitespaces=True,
     )
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 

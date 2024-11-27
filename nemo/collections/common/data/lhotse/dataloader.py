@@ -288,7 +288,7 @@ def get_lhotse_dataloader_from_single_config(
     )
 
     # 4. Creating dataloader.
-    if use_iterable_dataset and not config.tarred_random_access:
+    if use_iterable_dataset:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
@@ -408,7 +408,7 @@ def get_lhotse_dataloader_from_multi_config(
             raise RuntimeError(f"Unsupported sampler fusion strategy: {unknown_value}")
 
     # 4. Creating dataloader.
-    if use_iterable_dataset and not main_config.tarred_random_access:
+    if use_iterable_dataset:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
