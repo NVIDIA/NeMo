@@ -588,10 +588,11 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             scale_mapping=scale_mapping,
             targets=targets,
         )
-        loss = self.loss(probs=preds, labels=targets, signal_lengths=sequence_lengths)
+        # loss = self.loss(probs=preds, labels=targets, signal_lengths=sequence_lengths)
+        loss = self.loss(probs=preds, labels=targets, target_lens=sequence_lengths)
         self._accuracy_train(preds, targets, sequence_lengths)
         torch.cuda.empty_cache()
-        f1_acc = self._accuracy_train.compute()
+        f1_acc, _, _ = self._accuracy_train.compute()
         self.log('loss', loss, sync_dist=True)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'], sync_dist=True)
         self.log('train_f1_acc', f1_acc, sync_dist=True)
@@ -610,9 +611,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             scale_mapping=scale_mapping,
             targets=targets,
         )
-        loss = self.loss(probs=preds, labels=targets, signal_lengths=sequence_lengths)
+        # loss = self.loss(probs=preds, labels=targets, signal_lengths=sequence_lengths)
+        loss = self.loss(probs=preds, labels=targets, target_lens=sequence_lengths)
         self._accuracy_valid(preds, targets, sequence_lengths)
-        f1_acc = self._accuracy_valid.compute()
+        f1_acc, _, _ = self._accuracy_valid.compute()
         self.log('val_loss', loss, sync_dist=True)
         self.log('val_f1_acc', f1_acc, sync_dist=True)
         return {
@@ -622,7 +624,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
     def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        f1_acc = self._accuracy_valid.compute()
+        f1_acc, _, _ = self._accuracy_valid.compute()
         self._accuracy_valid.reset()
 
         self.log('val_loss', val_loss_mean, sync_dist=True)
@@ -634,7 +636,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
     def multi_test_epoch_end(self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        f1_acc = self._accuracy_test.compute()
+        f1_acc, _, _ = self._accuracy_test.compute()
         self._accuracy_test.reset()
         self.log('test_f1_acc', f1_acc, sync_dist=True)
         return {
@@ -650,7 +652,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             f1_score (float): F1 score of the estimated diarized speaker label sequences.
             simple_acc (float): Accuracy of predicted speaker labels: (total # of correct labels)/(total # of sigmoid values)
         """
-        f1_score = self._accuracy_test.compute()
+        f1_score, _, _ = self._accuracy_test.compute()
         num_correct = torch.sum(self._accuracy_test.true.bool())
         total_count = torch.prod(torch.tensor(self._accuracy_test.targets.shape))
         simple_acc = num_correct / total_count
