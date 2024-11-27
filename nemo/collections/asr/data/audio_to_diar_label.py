@@ -1045,7 +1045,7 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
             "audio_signal": NeuralType(('B', 'T'), AudioSignal()),
             "audio_length": NeuralType(('B'), LengthsType()),
             "targets": NeuralType(('B', 'T', 'C'), ProbsType()),
-            "target_len": NeuralType(('B', 'C'), LengthsType()),
+            "target_len": NeuralType(('B'), LengthsType()),
         }
 
         return output_types
@@ -1293,7 +1293,7 @@ def _eesd_train_collate_fn(self, batch):
         targets_list.append(padded_tgt)
         audio_signal = torch.stack(audio_signal_list)
     feature_length = torch.stack(feature_length_list)
-    target_lens = torch.stack(target_len_list)
+    target_lens = torch.stack(target_len_list).squeeze(1)
     targets = torch.stack(targets_list)
     return audio_signal, feature_length, targets, target_lens
 
