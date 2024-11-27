@@ -469,8 +469,8 @@ class T5TTSDataset(TextToSpeechDataset):
             # If context audio is not available, just use a dummy context_audio_codes
             # (Will be used in text context scenario)
             if self.load_cached_codes_if_available:
-                context_bos_tensor = torch.full((self.num_audio_codebooks, 1), self.audio_bos_id, dtype=torch.int32)
-                context_eos_tensor = torch.full((self.num_audio_codebooks, 1), self.audio_eos_id, dtype=torch.int32)
+                context_bos_tensor = torch.full((self.num_audio_codebooks, 1), self.context_audio_bos_id, dtype=torch.int32)
+                context_eos_tensor = torch.full((self.num_audio_codebooks, 1), self.context_audio_eos_id, dtype=torch.int32)
                 context_audio_codes = torch.cat([context_bos_tensor, context_eos_tensor], dim=1)
                 context_audio_codes_len = context_audio_codes.shape[1]
                 example['context_audio_codes'] = context_audio_codes
@@ -514,7 +514,7 @@ class T5TTSDataset(TextToSpeechDataset):
                 context_tokens = self.text_conditioning_tokenizer("[NO TEXT CONTEXT]")['input_ids']
                 example['has_text_context'] = False
             if self.pad_context_text_to_max_duration:
-                _required_len = int(self.context_duration_max * self.sample_rate / self.codec_model_downsample_factor)
+                _required_len = int(self.context_duration_max * self.sample_rate / self.codec_model_downsample_factor) + 2 # +2 for BOS and EOS
                 if len(context_tokens) < _required_len:
                     _pad_id = self.text_conditioning_tokenizer.pad_token_id
                     context_tokens += [_pad_id] * (_required_len - len(context_tokens))

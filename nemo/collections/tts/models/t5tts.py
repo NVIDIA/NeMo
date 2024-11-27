@@ -96,6 +96,10 @@ class T5TTS_Model(ModelPT):
         self.audio_eos_id = cfg.num_audio_tokens_per_codebook - 1
         self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 2 # For backward compatibility
         self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 1 # For backward compatibility
+        if self.model_type == 'decoder_context_tts':
+            self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 4 # Changing these to make them different from target audio bos and eos
+            self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 3
+
         self._tb_logger = None
         self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
@@ -156,8 +160,6 @@ class T5TTS_Model(ModelPT):
                 )
         elif self.model_type == 'decoder_context_tts':
             self.transcript_decoder_layers = [idx for idx in range(cfg.t5_decoder.n_layers)] # All layers are used for text
-            self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 4 # Changing these to make them different from target audio bos and eos
-            self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 3 # Since both target and context audio are fed to decoder
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
         
@@ -652,7 +654,7 @@ class T5TTS_Model(ModelPT):
                 else:
                     context_audio_codes, context_audio_codes_lens = self.audio_to_codes(batch['context_audio'], batch['context_audio_lens'], audio_type='context')
                 context_audio_embedded = self.embed_audio_tokens(context_audio_codes) # (B, T', E)
-
+                
                 if self.use_text_conditioning_encoder:
                     context_text_tokens = batch['context_text_tokens']
                     context_text_lens = batch['context_text_tokens_lens']
