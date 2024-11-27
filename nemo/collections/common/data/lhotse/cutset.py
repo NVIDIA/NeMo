@@ -449,7 +449,9 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
     metadata_only = config.metadata_only
     force_finite = config.force_finite
     if isinstance(config.manifest_filepath, (str, Path)):
-        logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
+        logging.info(
+            f"Initializing Lhotse CutSet from a single NeMo manifest (is_tarred={is_tarred}): '{config.manifest_filepath}'"
+        )
         if is_tarred and not metadata_only:
             cuts = CutSet(
                 LazyNeMoTarredIterator(
@@ -478,7 +480,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         #   i.e., NeMo concatenated dataset
         #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
         logging.info(
-            f"Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. "
+            f"Initializing Lhotse CutSet from multiple NeMo manifest (is_tarred={is_tarred}) sources with a weighted multiplexer. "
             f"We found the following sources and weights: "
         )
         cutsets = []
