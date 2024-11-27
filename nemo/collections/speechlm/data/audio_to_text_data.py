@@ -16,13 +16,12 @@ import copy
 import math
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 import lightning.pytorch as pl
 import torch
 from megatron.core import parallel_state
 from omegaconf.omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.utilities.combined_loader import CombinedLoader
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader
 
@@ -38,8 +37,7 @@ from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import Prompt
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.speechlm.data.data_sampler import SLMDataSampler
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 
 
 class AudioToTextDataModule(pl.LightningDataModule, IOMixin):

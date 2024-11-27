@@ -163,6 +163,10 @@ def collate_text_data(
         input_id_maxlen = max_seq_length
         context_id_maxlen = max_seq_length
         answer_id_maxlen = max_seq_length
+    else:
+        input_id_maxlen = ceil_to_nearest(min(input_id_maxlen, max_seq_length), 8)
+        context_id_maxlen = ceil_to_nearest(min(context_id_maxlen, max_seq_length), 8)
+        answer_id_maxlen = ceil_to_nearest(min(answer_id_maxlen, max_seq_length), 8)
 
     all_tokens = collate_vectors(fields["input_ids"], max_length=input_id_maxlen, padding_value=pad_id)
     full_lengths = torch.LongTensor([len(item) for item in fields["input_ids"]])
