@@ -39,7 +39,14 @@ def tokenizer(capsys, tmp_path_factory):
     text_path = tmpdir / "text.txt"
     text_path.write_text(TOKENIZER_TRAIN_TEXT)
     with capsys.disabled():
-        create_spt_model(str(text_path), vocab_size=512, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir), remove_extra_whitespaces=True)
+        create_spt_model(
+            str(text_path),
+            vocab_size=512,
+            sample_size=-1,
+            do_lower_case=False,
+            output_dir=str(tmpdir),
+            remove_extra_whitespaces=True,
+        )
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
 
