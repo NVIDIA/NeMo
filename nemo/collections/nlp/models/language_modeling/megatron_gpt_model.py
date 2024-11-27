@@ -1332,7 +1332,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if cp_size > 1:
                         try:
                             import transformer_engine_torch as tex
-                        except (ModuleNotFoundError) as e:
+                        except ModuleNotFoundError as e:
                             logging.error(
                                 "Please update Transformer Engine to >= 1.10 to use Context Parallel with THD format data"
                             )
