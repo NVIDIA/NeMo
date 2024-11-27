@@ -14,8 +14,9 @@
 
 from functools import lru_cache
 
-from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
+from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+
 
 class ChatDataModule(FineTuningDataModule):
     """
@@ -38,4 +39,3 @@ class ChatDataModule(FineTuningDataModule):
             is_test=is_test,
             **kwargs,
         )
-
