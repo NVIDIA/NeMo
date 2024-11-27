@@ -1,33 +1,33 @@
-from copy import deepcopy
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-import torch
-from megatron.core import dist_checkpointing
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.api import _setup
-from nemo.collections.llm.gpt.model.base import GPTModel
 from nemo.collections.speechlm.data.audio_to_text_data import AudioToTextDataModule
 from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM, SpeechToTextLLMConfig
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
 from nemo.collections.speechlm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
 from nemo.core.classes.common import Serialization, typecheck
-from nemo.core.config import hydra_runner
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 
 
 def speech_to_text_llm_train(cfg: DictConfig):
-
-    if torch.cuda.is_available():
-        num_gpu = torch.cuda.device_count()
-        if cfg.trainer.devices == -1:
-            logging.info(f"Num GPUs not specified, using all {num_gpu} GPUs.")
-        elif cfg.trainer.devices > 0 and num_gpu != cfg.trainer.devices:
-            raise ValueError(f"Config devices: {cfg.trainer.devices} but found {num_gpu} GPUs.")
-
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
