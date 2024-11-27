@@ -1119,8 +1119,11 @@ class BeamRNNTInfer(Typing):
         h = h[0]  # [T, D]
         float_dtype = h.dtype
         device = h.device
-        if not self.use_kenlm:
+        if not self.use_kenlm and self.ngram_lm:
             self.ngram_lm.to(device)
+
+        labels = torch.arange(self.vocab_size, device=h.device).unsqueeze(0)
+        labels_wb = torch.arange(self.vocab_size + 1, device=h.device).unsqueeze(0)
 
         # prepare the batched beam states
         beam = min(self.beam_size, self.vocab_size)
@@ -1213,10 +1216,25 @@ class BeamRNNTInfer(Typing):
 
                 # Extract the log probabilities
                 ytm, ilm_ytm = self.resolve_joint_output(beam_enc_out, beam_dec_out)
-                beam_logp, beam_idx = ytm.topk(self.max_candidates, dim=-1)
+                total_logps = ytm[:, 0, 0, :]
+                
+                if not self.use_kenlm and self.ngram_lm:
+                    lm_next_states_list = []
+                    lm_scores_list = []
+                    for h1 in hyps:
+                        lm_score, lm_state_candidates = self.ngram_lm(states=h1.ngram_lm_state)
+                        lm_next_states = torch.gather(lm_state_candidates, dim=1, index=labels).flatten()
+                        
+                        lm_next_states_list.append(lm_next_states)
+                        lm_scores_list.append(lm_score.flatten())
+                    lm_scores = torch.stack(lm_scores_list)
+                    lm_next_states = torch.stack(lm_next_states_list)
 
-                beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
-                beam_idx = beam_idx[:, 0, 0, :]  # [B, max_candidates]
+                    total_logps[..., :-1] += lm_scores * self.ngram_lm_alpha
+                
+                beam_logp, beam_idx = total_logps.topk(self.max_candidates, dim=-1)
+                beam_logp = beam_logp # [B, V + 1]
+                beam_idx = beam_idx  # [B, max_candidates]
 
                 # Compute k expansions for all the current hypotheses
                 k_expansions = select_k_expansions(
@@ -1247,25 +1265,21 @@ class BeamRNNTInfer(Typing):
                             if (new_hyp.y_sequence + [int(k)]) not in duplication_check:
                                 new_hyp.y_sequence.append(int(k))
                                 new_hyp.timestep.append(t)
+                                
+                                if not self.use_kenlm and self.ngram_lm:
+                                    new_hyp.ngram_lm_state = lm_next_states[i, k].unsqueeze(-1)
 
-                                # Setup ngram LM:
-                                if self.ngram_lm:
-                                    lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(
-                                        hyp.ngram_lm_state, int(k)
-                                    )
-                                    if self.hat_subtract_ilm:
-                                        new_hyp.score += self.ngram_lm_alpha * lm_score - float(
-                                            self.hat_ilm_weight * ilm_ytm[i, 0, 0, k]
-                                        )
-                                    else:
-                                        new_hyp.score += self.ngram_lm_alpha * lm_score
-
-                                # TODO: Setup LM
-                                if self.language_model is not None:
-                                    # new_hyp.score += self.lm_weight * float(
-                                    #     hyp.lm_scores[k]
-                                    # )
-                                    pass
+                                # # Setup ngram LM:
+                                # if self.ngram_lm:
+                                #     lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(
+                                #         hyp.ngram_lm_state, int(k)
+                                #     )
+                                #     if self.hat_subtract_ilm:
+                                #         new_hyp.score += self.ngram_lm_alpha * lm_score - float(
+                                #             self.hat_ilm_weight * ilm_ytm[i, 0, 0, k]
+                                #         )
+                                #     else:
+                                #         new_hyp.score += self.ngram_lm_alpha * lm_score
 
                                 list_exp.append(new_hyp)
 
@@ -1360,9 +1374,9 @@ class BeamRNNTInfer(Typing):
 
         # Remove trailing empty list of alignments
         if self.preserve_alignments:
-            for h in kept_hyps:
-                if len(h.alignments[-1]) == 0:
-                    del h.alignments[-1]
+            for h1 in kept_hyps:
+                if len(h1.alignments[-1]) == 0:
+                    del h1.alignments[-1]
 
         # Sort the hypothesis with best scores
         return self.sort_nbest(kept_hyps)
@@ -1470,8 +1484,9 @@ class BeamRNNTInfer(Typing):
         else:
             lm_score, batch_lm_state_candidates = self.ngram_lm(states=current_lm_state)
             next_state = torch.gather(batch_lm_state_candidates, dim=1, index=torch.tensor(label, device=lm_score.device).unsqueeze(-1).unsqueeze(-1)).flatten()
+            lm_score = float(lm_score[:, label])
 
-        return float(lm_score[:, label]), next_state
+        return lm_score, next_state
 
     def set_decoding_type(self, decoding_type: str):
         """
