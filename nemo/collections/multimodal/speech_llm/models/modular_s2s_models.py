@@ -459,6 +459,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         for codes, metadata in zip(codes_list, metadata_list):
             codes = torch.tensor(codes).to(codec_model.device).T
             codec_len = torch.Tensor([codes.shape[1]]).long().to(codec_model.device)
+
+            # non causal codec requeris input >= 6 frames because of padding
+            if codes.size(1) < 6:
+                continue
+
             wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
             wav = wav[0]
             wavs.append(wav)

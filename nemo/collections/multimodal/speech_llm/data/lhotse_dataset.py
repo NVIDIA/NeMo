@@ -2,6 +2,7 @@ import math
 import random
 
 import torch.utils.data
+import torch.nn.functional as F
 from lhotse import CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
@@ -437,16 +438,26 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             ).to(torch.int)
 
             bos_tensor[:, :, 0] = self.text_processor.bos_id
-            # [batch, max_feat_len]
-            # the only thing needed is features_lens which can be estimated from target_audio length
-            target_texts_expanded = _expand_text_with_timestamps_and_word_lengths(
-                unpadded_target_texts,
-                word_lengths,
-                start_time_tokens,
-                features_lens + 1,
-                self.codec_model_downsampling_factor / self.codec_sample_rate,
-                pad_id=text_unk_id,
-            )
+
+            if getattr(cut, "has_alignment", True):
+                # [batch, max_feat_len]
+                # the only thing needed is features_lens which can be estimated from target_audio length
+                target_texts_expanded = _expand_text_with_timestamps_and_word_lengths(
+                    unpadded_target_texts,
+                    word_lengths,
+                    start_time_tokens,
+                    features_lens + 1,
+                    self.codec_model_downsampling_factor / self.sample_rate,
+                    pad_id=text_unk_id,
+                )
+            else:
+                # [batch, max_feat_len]
+                target_texts_expanded = target_texts_expanded[:,:,0]
+                # Pad to the same length as speech
+                target_texts_expanded = F.pad(
+                    target_texts_expanded, (0, target_codec.shape[1] - target_texts_expanded.shape[1]),
+                    value=self.text_processor.eos_id)
+
             # import pdb; pdb.set_trace()
             logging.debug(f'start_time_token: {start_time_tokens[0]}')
             logging.debug(f'word_length: {word_lengths[0]}')
@@ -467,8 +478,14 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 ]
             tokens, _ = collate_and_pad(token_list)
             speech_loss_mask = tokens[:, :, 1:] != self.speech_pad_id
-            # Make the text loss mask the same as speech since they are aligned
-            loss_mask = torch.cat([speech_loss_mask[..., :1], speech_loss_mask], dim=-1)
+
+            if getattr(cut, "has_alignment", True):
+                # Make the text loss mask the same as speech since they are aligned
+                text_loss_mask = speech_loss_mask[..., :1]
+            else:
+                text_loss_mask = tokens[:, :, 0:1] != text_pad_id
+
+            loss_mask = torch.cat([text_loss_mask, speech_loss_mask], dim=-1)
             if not self.t5_style:
                 for itl in instruction_lengths:
                     loss_mask[:, :itl, :] = False
