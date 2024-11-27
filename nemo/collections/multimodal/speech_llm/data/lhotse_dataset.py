@@ -258,9 +258,12 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         new_target_texts = []
         for i in range(len(num_turns)):
             each_target_texts = []
-            total_steps = torch.ceil(
-                answer_audio_lens[i] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
-            ).int()
+            total_steps = (
+                torch.ceil(
+                    answer_audio_lens[i] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                ).int()
+                + 1
+            )
             cur_target_text = torch.full(
                 [total_steps],
                 (
