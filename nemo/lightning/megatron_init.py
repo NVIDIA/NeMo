@@ -384,7 +384,6 @@ def fake_initialize_model_parallel(
     ), f"Pipeline parallel groups are expected to be the same for Non-Expert and Expert part, \
     but got {decoder_rank_generator.get_ranks('pp')} and {expert_decoder_rank_generator.get_ranks('pp')}"
 
-
     def generator_wrapper(group_type, is_expert=False, **kwargs):
         from itertools import cycle
 
