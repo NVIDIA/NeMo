@@ -116,20 +116,20 @@ class LinearAdapterForQKV(nn.Module):
         in_features = self.orig_linear.in_features
         out_features = self.orig_linear.out_features
         dtype = self.orig_linear.weight.dtype
-        self.lora_a = [
-            nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
+        self.lora_a = nn.ModuleList([
+            nn.Linear(in_features, dim, bias=False, dtype=dtype, device=device)
             for _ in range(3)
-        ]
-        self.lora_b = [
-            nn.Parameter(torch.zeros((dim, out_features//3), dtype=dtype, device=device))
+        ])
+        self.lora_b = nn.ModuleList([
+            nn.Linear(dim, out_features//3, bias=False, dtype=dtype, device=device)
             for _ in range(3)
-        ]
+        ])
         if lora_A_init_method == 'xavier':
             for x in self.lora_a:
-                torch.nn.init.uniform_(x)
+                torch.nn.init.uniform_(x.weight)
         else:
             for x in self.lora_a:
-                nn.init.kaiming_uniform_(self.lora_a, a=math.sqrt(5))
+                nn.init.kaiming_uniform_(x.weight, a=math.sqrt(5))
 
         self.dropout = nn.Dropout(p=dropout)
         assert dropout_position in ['pre', 'post'], dropout_position
@@ -141,9 +141,9 @@ class LinearAdapterForQKV(nn.Module):
             x = self.dropout(x)
 
         ans = []
-        for i in range(3):
-            lora_res = x @ self.lora_a[i]
-            lora_res = lora_res @ self.lora_b[i]
+        for _lora_a, _lora_b in zip(self.lora_a, self.lora_b):
+            lora_res = _lora_a(x)
+            lora_res = _lora_b(lora_res)
             ans.append(lora_res * self.scale)
         lora_res = torch.concat(ans, -1)
 
