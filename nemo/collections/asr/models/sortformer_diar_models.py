@@ -14,6 +14,7 @@
 
 import itertools
 import random
+import math
 from collections import OrderedDict
 from typing import Dict, List, Optional, Union
 
@@ -38,7 +39,6 @@ from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
 
 __all__ = ['SortformerEncLabelModel']
-
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     """
@@ -230,13 +230,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             }
         )
 
-    def frontend_encoder(self, processed_signal, processed_signal_length):
-        """
+    def frontend_encoder(self, processed_signal, processed_signal_length, pre_encode_input=False):
+        """ 
         Generate encoder outputs from frontend encoder.
-
+        
         Args:
-            processed_signal (torch.Tensor): tensor containing audio-feature (mel spectrogram, mfcc, etc.)
-            processed_signal_length (torch.Tensor): tensor containing lengths of audio signal in integers
+            process_signal (torch.Tensor): tensor containing audio signal
+            processed_signal_length (torch.Tensor): tensor containing lengths of audio signal
 
         Returns:
             emb_seq (torch.Tensor): tensor containing encoder outputs
@@ -245,10 +245,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-        emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length, pre_encode_input=pre_encode_input)
         emb_seq = emb_seq.transpose(1, 2)
-        if self.sortformer_modules.encoder_proj is not None:
-            emb_seq = self.sortformer_modules.encoder_proj(emb_seq)
+        if self._cfg.encoder.d_model != self._cfg.model_defaults.tf_d_model:
+            emb_seq = self.sortformer_modules.encoder_proj(emb_seq)   
         return emb_seq, emb_seq_length
 
     def forward_infer(self, emb_seq):
@@ -298,35 +298,146 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         return processed_signal, processed_signal_length
 
     def forward(
-        self,
-        audio_signal,
-        audio_signal_length,
+        self, 
+        audio_signal, 
+        audio_signal_length, 
     ):
         """
         Forward pass for training and inference.
-
+        
         Args:
             audio_signal (torch.Tensor): tensor containing audio waveform
                 Dimension: (batch_size, num_samples)
             audio_signal_length (torch.Tensor): tensor containing lengths of audio waveforms
                 Dimension: (batch_size,)
-
+            
         Returns:
             preds (torch.Tensor): Sorted tensor containing predicted speaker labels
-                Dimension: (batch_size, diar_frame_count, num_speakers)
+                Dimension: (batch_size, max. diar frame count, num_speakers)
+            encoder_states_list (list): List containing total speaker memory for each step for debugging purposes
+                Dimension: [(batch_size, max. diar frame count, inner dim), ]
         """
-        processed_signal, processed_signal_length = self.process_signal(
-            audio_signal=audio_signal, audio_signal_length=audio_signal_length
-        )
-        processed_signal = processed_signal[:, :, : processed_signal_length.max()]
-        if self._cfg.get("streaming_mode", False):
-            raise NotImplementedError("Streaming mode is not implemented yet.")
+        processed_signal, processed_signal_length = self.process_signal(audio_signal=audio_signal, audio_signal_length=audio_signal_length)
+        processed_signal = processed_signal[:, :, :processed_signal_length.max()]
+        if self.streaming_mode:
+            preds = self.forward_streaming(processed_signal, processed_signal_length)
         else:
-            emb_seq, _ = self.frontend_encoder(
-                processed_signal=processed_signal, processed_signal_length=processed_signal_length
-            )
+            emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length, pre_encode_input=False)
             preds = self.forward_infer(emb_seq)
         return preds
+     
+    def forward_streaming(
+        self,
+        processed_signal,
+        processed_signal_length,
+    ):
+        """
+        The main forward pass for diarization inference in streaming mode.
+
+        Args:
+            processed_signal (torch.Tensor): tensor containing audio waveform
+                Dimension: (batch_size, num_samples)
+            processed_signal_length (torch.Tensor): tensor containing lengths of audio waveforms
+                Dimension: (batch_size,)
+
+        Returns:
+            total_pred (torch.Tensor): tensor containing predicted speaker labels for the current chunk and all previous chunks
+                Dimension: (batch_size, pred_len, num_speakers)
+        """
+
+        MEM = None # memory to save the embeddings from start
+        FIFO_QUEUE = None # memory to save the embedding from the latest chunks
+        total_pred = None
+
+        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal):
+            MEM, FIFO_QUEUE, _, _, total_pred = self.forward_streaming_step(
+                processed_signal=chunk_feat_seq_t,
+                processed_signal_length=feat_lengths,
+                fifo_last_time=FIFO_QUEUE,
+                mem_last_time=MEM,
+                previous_pred_out=total_pred,
+                left_offset=left_offset,
+                right_offset=right_offset,
+            )
+            
+        del MEM, FIFO_QUEUE
+        torch.cuda.empty_cache()
+        return total_pred
+    
+    def forward_streaming_step(
+        self,
+        processed_signal,
+        processed_signal_length,
+        fifo_last_time=None,
+        mem_last_time=None,
+        previous_pred_out=None,
+        left_offset=0,
+        right_offset=0,
+    ):
+        """
+        One-step forward pass for diarization inference in streaming mode.
+
+        Args:
+            processed_signal (torch.Tensor): tensor containing audio waveform
+                Dimension: (batch_size, num_samples)
+            processed_signal_length (torch.Tensor): tensor containing lengths of audio waveforms
+                Dimension: (batch_size,)
+            fifo_last_time (torch.Tensor): tensor containing memory for the latest chunks
+                Dimension: (batch_size, fifo_len, emb_dim)
+            mem_last_time (torch.Tensor): tensor containing memory for the embeddings from start
+                Dimension: (batch_size, mem_len, emb_dim)
+            previous_pred_out (torch.Tensor): tensor containing previous predicted speaker labels
+                Dimension: (batch_size, pred_len, num_speakers)
+            left_offset (int): left offset for the current chunk
+            right_offset (int): right offset for the current chunk
+
+        Returns:
+            mem (torch.Tensor): tensor containing memory for the pre-encode embeddings from start
+                Dimension: (batch_size, mem_len, emb_dim)
+            fifo (torch.Tensor): tensor containing memory for the pre-encode embeddings from latest chunks
+                Dimension: (batch_size, fifo_len, emb_dim)
+            mem_preds (torch.Tensor): tensor containing predicted speaker labels for mem
+                Dimension: (batch_size, mem_len, num_speakers)
+            fifo_preds (torch.Tensor): tensor containing predicted speaker labels for fifo
+                Dimension: (batch_size, fifo_len, num_speakers)
+            total_step_preds (torch.Tensor): tensor containing predicted speaker labels for the current chunk and all previous chunks
+                Dimension: (batch_size, total_pred_len, num_speakers)
+            
+        """
+
+        B = processed_signal.shape[0]
+        if mem_last_time is None:
+            mem_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
+        if fifo_last_time is None:
+            fifo_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+        if previous_pred_out is None:
+            previous_pred_out = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.unit_n_spks, device=self.device)
+
+        chunk_pre_encode_embs, _ = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
+        
+        mem_chunk_pre_encode_embs, mem_chunk_pre_encode_lengths = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], return_lengths=True, dim=1, device=self.device) 
+        mem_chunk_fc_encoder_embs, _ = self.frontend_encoder(processed_signal=mem_chunk_pre_encode_embs, processed_signal_length=mem_chunk_pre_encode_lengths, pre_encode_input=True)
+        
+        mem_chunk_preds = self.forward_infer(mem_chunk_fc_encoder_embs)
+
+        mem, fifo, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_FIFO(
+            mem=mem_last_time,
+            fifo=fifo_last_time,
+            chunk=chunk_pre_encode_embs,
+            preds=mem_chunk_preds,
+            chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
+            chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
+        )
+
+        total_step_preds = torch.cat([previous_pred_out, chunk_preds], dim=1)
+
+        if not self.training and self.sortformer_modules.visualization:
+            self.chunk_preds_list.append(chunk_preds.detach().cpu().numpy())
+            self.fifo_preds_list.append(fifo_preds.detach().cpu().numpy())
+            self.mem_preds_list.append(mem_preds.detach().cpu().numpy())
+
+        return mem, fifo, mem_preds, fifo_preds, total_step_preds
+
 
     def _get_aux_train_evaluations(self, preds, targets, target_lens) -> dict:
         """
