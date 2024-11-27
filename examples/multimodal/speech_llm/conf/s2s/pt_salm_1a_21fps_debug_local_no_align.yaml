@@ -257,3472 +257,3472 @@ model:
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       - type: lhotse_shar
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/msmarco/timestamp
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/alpaca/timestamp
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/msmarco_train_normalized/timestamp
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True    
       - type: lhotse_shar
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/squadv2/timestamp
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_0_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_1_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_2_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_3_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_4_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_5_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_6_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_7_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_8_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_9_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_10_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_11_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_12_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_13_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_14_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_15_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_16_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_17_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_18_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_19_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_20_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_21_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_22_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_23_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_24_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_25_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_26_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_27_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_28_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_29_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_30_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_31_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_32_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_33_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_34_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_35_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_36_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_37_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_38_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_39_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_40_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_41_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_42_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_43_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_44_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_45_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_46_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_47_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_48_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_49_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_50_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_51_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_52_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_53_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_54_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_55_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_56_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_57_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_58_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_59_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_60_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_61_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_62_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_63_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_64_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_65_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_66_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_67_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_68_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_69_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_70_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_71_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_72_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_73_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_74_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_75_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_76_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_77_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_78_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_79_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_80_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_81_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_82_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_83_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_84_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_85_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_86_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_87_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_89_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_90_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_91_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_92_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_93_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_94_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_95_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_96_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_97_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_98_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_99_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_100_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_101_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_102_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_103_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_104_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_105_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_106_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_107_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_108_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_109_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_110_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_111_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_112_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_113_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_114_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_115_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_116_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_117_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_118_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_119_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_120_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_121_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_122_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_123_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_124_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_125_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_126_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_127_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_128_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_129_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_130_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_131_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_132_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_133_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_134_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_135_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_136_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_137_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_138_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_139_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_140_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_141_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_142_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_143_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_144_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_145_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_146_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_147_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_148_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_149_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_150_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_151_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_152_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_153_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_154_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_155_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_156_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_157_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_158_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_159_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_160_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_161_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_162_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_163_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_164_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_165_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_166_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_167_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_168_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_169_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_170_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_171_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_172_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_173_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_174_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_175_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_176_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_177_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_178_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_179_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_180_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_181_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_182_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_183_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_184_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_185_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_186_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_187_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_189_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_190_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_191_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_192_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_193_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_194_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_195_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_196_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_197_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_198_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_199_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_200_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_201_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_202_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_203_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_204_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_205_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_206_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_207_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_208_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_209_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_210_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_211_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_212_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_213_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_214_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_215_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_216_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_217_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_218_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_219_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_220_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_221_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_222_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_223_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_224_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_225_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_226_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_227_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_228_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_229_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_230_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_231_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_232_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_233_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_234_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_235_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_236_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_237_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_238_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_239_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_240_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_241_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_242_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_243_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_244_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_245_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_246_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_247_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_248_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_249_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_250_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_251_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_252_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_253_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_254_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_255_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_256_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_257_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_258_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_259_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_260_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_261_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_262_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_263_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_264_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_265_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_266_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_267_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_268_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_269_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_270_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_271_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_272_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_273_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_274_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_275_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_276_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_277_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_278_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_279_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_280_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_281_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_282_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_283_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_284_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_285_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_286_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_288_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_289_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_290_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_291_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_292_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_293_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_294_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_295_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_296_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_297_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_298_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_299_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_300_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_301_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_302_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_303_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_304_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_305_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_306_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_307_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_308_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_309_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_310_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_311_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_312_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_313_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_314_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_315_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_316_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_317_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_318_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_319_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_320_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_321_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_322_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_323_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_324_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_325_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_326_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_327_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_328_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_329_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_330_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_331_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_332_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_333_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_334_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_335_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_336_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_337_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_338_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_339_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_340_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_341_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_342_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_343_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_344_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_345_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_346_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_347_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_348_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_349_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_350_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_351_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_352_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_353_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_354_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_355_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_356_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_357_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_358_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_359_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_360_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_361_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_362_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_363_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_364_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_365_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_366_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_367_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_368_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_369_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_370_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_371_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_372_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_373_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_374_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_375_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_376_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_377_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_378_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_379_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_380_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_381_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_382_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_384_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_385_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_386_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_388_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_389_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_390_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_391_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_392_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_393_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_394_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_395_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_396_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_397_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_398_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       - type: lhotse_shar
         shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_399_answer
         weight: 0.5
         tags:
           lang: en
-          has_alignment: True
+          has_alignment: False
           s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_400_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_401_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_402_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_403_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_404_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_405_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_406_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_407_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_408_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_409_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_410_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_411_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_412_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_413_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_414_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_415_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_416_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_417_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_418_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_419_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_420_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_421_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_422_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_423_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_424_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_425_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_426_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_427_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_428_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_429_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_430_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_431_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_432_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_433_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_434_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_435_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_436_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_437_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_438_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_439_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_440_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_441_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_442_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_443_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_444_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_445_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_446_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_447_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_448_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_449_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_450_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_451_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_452_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_453_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_454_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_455_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_456_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_457_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_459_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_460_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_461_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_462_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_463_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_464_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_465_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_466_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_467_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_468_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_469_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_470_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_471_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_472_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_473_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_474_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_475_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_476_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_477_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_478_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_479_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_480_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_481_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_482_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_483_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_484_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_485_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_486_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_487_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_488_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_489_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_490_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_491_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_492_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_493_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_494_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_495_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
       # - type: lhotse_shar
       #   shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_496_answer
       #   weight: 0.5
       #   tags:
       #     lang: en
-      #     has_alignment: True
+      #     has_alignment: False
       #     s2s_align: True
 
       load_answer_audio: ${model.extract_codec_on_the_fly}
@@ -3794,12 +3794,14 @@ model:
               weight: 0.1
               tags:
                 lang: en
+                has_alignment: False
                 s2s_align: True
             - type: lhotse_shar
               shar_path: /rivamlops_data/ALM/SpeechQA/Mixtral8x22b_MMLPC_en/onfly_timestamp_s2s_shars/manifest_497_answer
               weight: 0.5
               tags:
                 lang: en
+                has_alignment: False
                 s2s_align: True
 
       load_answer_audio: ${model.extract_codec_on_the_fly}
