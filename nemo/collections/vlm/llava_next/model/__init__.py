@@ -12,18 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig, VideoDataConfig
-from nemo.collections.vlm.neva.data.lazy import NevaLazyDataModule
-from nemo.collections.vlm.neva.data.mock import MockDataModule as NevaMockDataModule
-from nemo.collections.vlm.neva.data.multimodal_tokens import ImageToken, MultiModalToken, VideoToken
+
+from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
+from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
 
 __all__ = [
-    "NevaLazyDataModule",
-    "NevaMockDataModule",
-    "DataConfig",
-    "ImageDataConfig",
-    "VideoDataConfig",
-    "MultiModalToken",
-    "ImageToken",
-    "VideoToken",
+    "LlavaNextConfig",
+    "LlavaNextModel",
+    "LlavaNextConfig7B",
+    "LlavaNextConfig13B",
 ]
