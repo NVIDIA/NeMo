@@ -20,6 +20,14 @@ from nemo.utils import logging, model_utils
 
 
 def speech_to_text_llm_train(cfg: DictConfig):
+
+    if torch.cuda.is_available():
+        num_gpu = torch.cuda.device_count()
+        if cfg.trainer.devices == -1:
+            logging.info(f"Num GPUs not specified, using all {num_gpu} GPUs.")
+        elif cfg.trainer.devices > 0 and num_gpu != cfg.trainer.devices:
+            raise ValueError(f"Config devices: {cfg.trainer.devices} but found {num_gpu} GPUs.")
+
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
