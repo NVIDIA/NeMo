@@ -1352,11 +1352,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             'labels': batch['labels'] if 'labels' in batch else None,
                         }
 
-                    # since the data is pre-padded, we need to check if there is extra padding
-                    # at the end of the sequence
-                    if len(cu_seqlens) > len(cu_seqlens_unpadded):
-                        cu_seqlens = cu_seqlens[:-1]
-
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens_unpadded,
                         cu_seqlens_kv=cu_seqlens_unpadded,
