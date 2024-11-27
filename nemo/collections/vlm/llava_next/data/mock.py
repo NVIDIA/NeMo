@@ -91,8 +91,8 @@ class MockDataModule(pl.LightningDataModule):
             model_name = "llava-hf/llava-v1.6-vicuna-7b-hf"
 
             processor = AutoProcessor.from_pretrained(model_name)
-            self.tokenizer = tokenizer or AutoTokenizer(model_name)
-            self.image_processor = image_processor or processor.image_processor
+        self.tokenizer = tokenizer or AutoTokenizer(model_name)
+        self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             decoder_seq_len=self.decoder_seq_len,
