@@ -96,6 +96,63 @@ class LinearAdapter(nn.Module):
         return res + lora_res
 
 
+class LinearAdapterForQKV(nn.Module):
+    def __init__(
+        self, orig_linear, dim=8, alpha=32, dropout=0.1, dropout_position='post', lora_A_init_method='xavier'
+    ):
+        super(LinearAdapterForQKV, self).__init__()
+        assert isinstance(orig_linear, nn.Linear)
+
+        self.orig_linear = orig_linear
+        self.dim = dim
+        self.scale = alpha / dim
+
+        # Freezer
+        device = self.orig_linear.weight.device
+        self.orig_linear.weight.requires_grad = False
+        if self.orig_linear.bias is not None:
+            self.orig_linear.bias.requires_grad = False
+
+        in_features = self.orig_linear.in_features
+        out_features = self.orig_linear.out_features
+        dtype = self.orig_linear.weight.dtype
+        self.lora_a = [
+            nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
+            for _ in range(3)
+        ]
+        self.lora_b = [
+            nn.Parameter(torch.zeros((dim, out_features//3), dtype=dtype, device=device))
+            for _ in range(3)
+        ]
+        if lora_A_init_method == 'xavier':
+            for x in self.lora_a:
+                torch.nn.init.uniform_(x)
+        else:
+            for x in self.lora_a:
+                nn.init.kaiming_uniform_(self.lora_a, a=math.sqrt(5))
+
+        self.dropout = nn.Dropout(p=dropout)
+        assert dropout_position in ['pre', 'post'], dropout_position
+        self.dropout_position = dropout_position
+
+    def forward(self, x):
+        res = self.orig_linear(x)
+        if self.dropout_position == 'pre':
+            x = self.dropout(x)
+
+        ans = []
+        for i in range(3):
+            lora_res = x @ self.lora_a[i]
+            lora_res = lora_res @ self.lora_b[i]
+            ans.append(lora_res * self.scale)
+        lora_res = torch.concat(ans, -1)
+
+        if self.dropout_position == 'post':
+            lora_res = self.dropout(lora_res)
+        return res + lora_res
+
+
+
 def is_expert_linear(fqn):
     return re.match('.*mlp\.experts\.local_experts.[0-9]+\.linear_fc[1-2]$', fqn) is not None
 
@@ -203,7 +260,11 @@ class LoRA(PEFT):
                 in_features = m.input_size
                 out_features = m.output_size
             elif isinstance(m, nn.Linear):
-                return LinearAdapter(
+                if 'qkv' in full_name.lower():
+                    adapter_cls = LinearAdapterForQKV
+                else:
+                    adapter_cls = LinearAdapter
+                return adapter_cls(
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
                 )
             else:
