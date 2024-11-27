@@ -24,7 +24,6 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import packaging
 import torch
-import transformer_engine_torch as tex
 from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.loops.fetchers import _DataFetcherWrapper
 from lightning.pytorch.trainer.trainer import Trainer
@@ -1331,6 +1330,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # get packed sequences for this context parallel rank
                     cp_size = parallel_state.get_context_parallel_world_size()
                     if cp_size > 1:
+                        try:
+                            import transformer_engine_torch as tex
+                        except (ModuleNotFoundError) as e:
+                            logging.error(
+                                "Please update Transformer Engine to >= 1.10 to use Context Parallel with THD format data"
+                            )
+                            raise e
                         cp_rank = parallel_state.get_context_parallel_rank()
                         for key in required_keys:
                             val = batch[key]
