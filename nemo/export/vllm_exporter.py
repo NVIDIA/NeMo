@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os.path
 from typing import Iterable, List, Optional, Union
@@ -19,11 +20,13 @@ from typing import Iterable, List, Optional, Union
 import numpy
 import wrapt
 from vllm import RequestOutput, SamplingParams
-from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, ParallelConfig, SchedulerConfig
+from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, LoRAConfig, ParallelConfig, SchedulerConfig
 from vllm.executor.ray_utils import initialize_ray_cluster
+from vllm.lora.request import LoRARequest
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
+from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
 from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
@@ -49,26 +52,28 @@ except Exception:
 
 class vLLMExporter(ITritonDeployable):
     """
-    The Exporter class implements conversion from a Nemo checkpoint format to something compatible with vLLM,
+    The vLLMExporter class implements conversion from a Nemo checkpoint format to something compatible with vLLM,
     loading the model in vLLM, and binding that model to a Triton server.
 
     Example:
-        from nemo.export.vllm import Exporter
+        from nemo.export.vllm_exporter import vLLMExporter
         from nemo.deploy import DeployPyTriton
 
-        exporter = Exporter()
+        exporter = vLLMExporter()
+
         exporter.export(
             nemo_checkpoint='/path/to/checkpoint.nemo',
             model_dir='/path/to/temp_dir',
-            model_type='llama')
+            model_type='llama',
+        )
 
         server = DeployPyTriton(
             model=exporter,
-            triton_model_name='LLAMA')
+            triton_model_name='LLAMA',
+        )
 
         server.deploy()
         server.serve()
-        server.stop()
     """
 
     def __init__(self):
@@ -83,11 +88,13 @@ class vLLMExporter(ITritonDeployable):
         tensor_parallel_size: int = 1,
         pipeline_parallel_size: int = 1,
         max_model_len: int = None,
+        lora_checkpoints: Optional[List[str]] = None,
         dtype: str = 'auto',
         seed: int = 0,
         log_stats: bool = True,
         weight_storage: str = 'auto',
         gpu_memory_utilization: float = 0.9,
+        quantization: Optional[str] = None,
     ):
         """
         Exports the Nemo checkpoint to vLLM and initializes the engine.
@@ -105,6 +112,7 @@ class vLLMExporter(ITritonDeployable):
             pipeline_parallel_size (int): pipeline parallelism.
                 Values over 1 are not currently supported by vLLM.
             max_model_len (int): model context length.
+            lora_checkpoints List[str]: paths to LoRA checkpoints.
             dtype (str): data type for model weights and activations.
                 Possible choices: auto, half, float16, bfloat16, float, float32
                 "auto" will use FP16 precision for FP32 and FP16 models,
@@ -118,10 +126,14 @@ class vLLMExporter(ITritonDeployable):
                 "auto" - use "cache" for multi-GPU runs and "memory" for single-GPU runs.
             gpu_memory_utilization (float): The fraction of GPU memory to be used for the model
                 executor, which can range from 0 to 1.
+            quantization (str): quantization method that is used to quantize the model weights.
+                Possible choices are None (weights not quantized, default) and "fp8".
         """
 
         # Pouplate the basic configuration structures
         device_config = DeviceConfig(device)
+
+        assert quantization in {None, 'fp8'}
 
         model_config = NemoModelConfig(
             nemo_checkpoint,
@@ -134,15 +146,30 @@ class vLLMExporter(ITritonDeployable):
             code_revision=None,
             tokenizer_revision=None,
             max_model_len=max_model_len,
-            quantization=None,  # TODO ???
+            quantization=quantization,
             quantization_param_path=None,
             enforce_eager=False,
             max_seq_len_to_capture=None,
         )
 
+        if model_config.nemo_model_config.get("fp8", False):
+            LOGGER.warning(
+                "NeMo FP8 checkpoint detected, but exporting FP8 quantized engines is not supported for vLLM."
+            )
+
         parallel_config = ParallelConfig(
             pipeline_parallel_size=pipeline_parallel_size, tensor_parallel_size=tensor_parallel_size
         )
+
+        # vllm/huggingface doesn't like the absense of config file. Place config in load dir.
+        if model_config.model and not os.path.exists(os.path.join(model_config.model, 'config.json')):
+            with open(os.path.join(model_config.model, 'config.json'), "w") as f:
+                json.dump(model_config.hf_text_config.to_dict(), f, indent=2)
+
+        # Dynamic online FP8 quantization currently does not support in-memory conversion [TODO]
+        if quantization is not None and weight_storage in {'auto', 'memory'}:
+            LOGGER.warning(f'Setting weight_storage = "file" for FP8 quantization')
+            weight_storage = 'file'
 
         # See if we have an up-to-date safetensors file
         safetensors_file = os.path.join(model_config.model, 'model.safetensors')
@@ -195,7 +222,6 @@ class vLLMExporter(ITritonDeployable):
             max_num_seqs=256,
             # Note: max_model_len can be derived by model_config if the input value is None
             max_model_len=model_config.max_model_len,
-            use_v2_block_manager=False,
             num_lookahead_slots=0,
             delay_factor=0.0,
             enable_chunked_prefill=False,
@@ -205,6 +231,11 @@ class vLLMExporter(ITritonDeployable):
             load_format=NemoModelLoader if inmemory_weight_conversion else LoadFormat.SAFETENSORS,
             download_dir=None,
             model_loader_extra_config=None,
+        )
+
+        # Convert the LoRA checkpoints to vLLM compatible format and derive the configuration structure
+        lora_config = self._prepare_lora_checkpoints(
+            model_dir=model_dir, lora_checkpoints=lora_checkpoints, dtype=model_config.dtype
         )
 
         # Initialize the cluster and specify the executor class.
@@ -239,8 +270,7 @@ class vLLMExporter(ITritonDeployable):
             scheduler_config=scheduler_config,
             device_config=device_config,
             load_config=load_config,
-            lora_config=None,
-            multimodal_config=None,
+            lora_config=lora_config,
             speculative_config=None,
             decoding_config=None,
             observability_config=None,
@@ -249,18 +279,61 @@ class vLLMExporter(ITritonDeployable):
             log_stats=log_stats,
         )
 
+    def _prepare_lora_checkpoints(
+        self, model_dir: str, lora_checkpoints: Optional[List[str]], dtype: str
+    ) -> LoRAConfig:
+        self.lora_checkpoints = []
+
+        if not lora_checkpoints:
+            return None
+
+        index = 0
+        max_lora_rank = 0
+        for nemo_file in lora_checkpoints:
+            if not os.path.isfile(nemo_file):
+                raise FileNotFoundError(f"LoRA checkpoint file '{nemo_file} does not exist'")
+
+            hf_lora_dir = os.path.join(model_dir, f'lora_{index}')
+
+            LOGGER.info(f"Converting LoRA checkpoint '{nemo_file}' into '{hf_lora_dir}'...")
+
+            _, lora_config = convert_lora_nemo_to_canonical(nemo_file, hf_lora_dir, hf_format=True)
+            self.lora_checkpoints.append(hf_lora_dir)
+
+            rank = lora_config['peft']['lora_tuning']['adapter_dim']
+            max_lora_rank = max(max_lora_rank, rank)
+
+            index += 1
+
+        return LoRAConfig(max_lora_rank=max_lora_rank, max_loras=len(self.lora_checkpoints), lora_dtype=dtype)
+
     def _add_request_to_engine(
-        self, prompt: str, max_output_len: int, temperature: float = 1.0, top_k: int = 1, top_p: float = 0.0
+        self,
+        prompt: str,
+        max_output_len: int,
+        temperature: float = 1.0,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        lora_uid: Optional[int] = None,
     ) -> str:
         if top_p <= 0.0:
             top_p = 1.0
 
-        sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p)
+        sampling_params = SamplingParams(
+            max_tokens=max_output_len, temperature=temperature, top_k=int(top_k), top_p=top_p
+        )
+
+        if lora_uid is not None and lora_uid >= 0 and lora_uid < len(self.lora_checkpoints):
+            lora_request = LoRARequest(
+                lora_name=f'LoRA_{lora_uid}', lora_int_id=lora_uid + 1, lora_local_path=self.lora_checkpoints[lora_uid]
+            )
+        else:
+            lora_request = None
 
         request_id = str(self.request_id)
         self.request_id += 1
 
-        self.engine.add_request(request_id, prompt, sampling_params)
+        self.engine.add_request(request_id, prompt, sampling_params, lora_request=lora_request)
 
         return request_id
 
@@ -306,12 +379,18 @@ class vLLMExporter(ITritonDeployable):
             yield [[response] for response in responses]
 
     def _add_triton_request_to_engine(self, inputs: numpy.ndarray, index: int) -> str:
+        if 'lora_uids' in inputs:
+            lora_uid = int(numpy.char.decode(inputs['lora_uids'][index][0], encoding="utf-8"))
+        else:
+            lora_uid = None
+
         return self._add_request_to_engine(
             prompt=inputs['prompts'][index][0].decode('UTF-8'),
             max_output_len=inputs['max_output_len'][index][0],
             temperature=inputs['temperature'][index][0],
             top_k=inputs['top_k'][index][0],
             top_p=inputs['top_p'][index][0],
+            lora_uid=lora_uid,
         )
 
     @property
@@ -322,6 +401,8 @@ class vLLMExporter(ITritonDeployable):
             Tensor(name="top_k", shape=(-1,), dtype=numpy.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=numpy.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=numpy.single, optional=True),
+            Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="output_generation_logits", shape=(-1,), dtype=numpy.bool_, optional=True),
         )
         return inputs
 
@@ -374,6 +455,7 @@ class vLLMExporter(ITritonDeployable):
         prompt_embeddings_checkpoint_path: Optional[str] = None,
         streaming: bool = False,
         output_log_probs: bool = False,
+        output_generation_logits: bool = False,
     ) -> Union[List[List[str]], Iterable[List[List[str]]]]:
         """
         The forward function performs LLM evaluation on the provided array of prompts with other parameters shared,
@@ -394,9 +476,6 @@ class vLLMExporter(ITritonDeployable):
         if task_ids is not None and task_ids != []:
             raise NotImplementedError("task_ids is not supported")
 
-        if lora_uids is not None and lora_uids != []:
-            raise NotImplementedError("lora_uids is not supported")
-
         if prompt_embeddings_table is not None:
             raise NotImplementedError("prompt_embeddings_table is not supported")
 
@@ -406,10 +485,25 @@ class vLLMExporter(ITritonDeployable):
         if output_log_probs:
             raise NotImplementedError("output_log_probs is not supported")
 
+        if output_generation_logits:
+            raise NotImplementedError("output_generation_logits is not supported")
+
         request_ids = []
-        for prompt in input_texts:
+        for index in range(len(input_texts)):
+            prompt = input_texts[index]
+
+            if lora_uids is not None and index < len(lora_uids):
+                lora_uid = lora_uids[index]
+            else:
+                lora_uid = None
+
             request_id = self._add_request_to_engine(
-                prompt=prompt, max_output_len=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p
+                prompt=prompt,
+                max_output_len=max_output_len,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                lora_uid=lora_uid,
             )
             request_ids.append(request_id)
 

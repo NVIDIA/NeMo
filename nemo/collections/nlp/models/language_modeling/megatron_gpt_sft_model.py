@@ -17,9 +17,9 @@ from functools import partial
 from typing import Any, Optional
 
 import torch
+from lightning.pytorch.loops.fetchers import _DataFetcherWrapper
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, ListConfig
-from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -301,7 +301,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),
                 ceil_to_power_2=data_cfg.get('ceil_to_power_2', False),
-                get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', False),
+                get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', True),
                 global_sample_mapping=data_cfg.get('global_sample_mapping', False),
                 virtual_tokens=self.virtual_tokens,
                 tokens_to_generate=data_cfg.get(

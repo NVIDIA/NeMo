@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Optional
 
 from nemo.core.optim.lr_scheduler import (
@@ -250,6 +264,8 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
 
     def __init__(
         self,
+        warmup_steps: int = 750,
+        warmup_ratio: Optional[float] = None,
         max_steps: int = 10,
         min_lr: float = 0.0,
         interval: str = "step",
@@ -257,6 +273,8 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
         monitor: str = "val_loss",
     ):
         super().__init__()
+        self.warmup_steps = warmup_steps
+        self.warmup_ratio = warmup_ratio
         self.max_steps = max_steps
         self.min_lr = min_lr
         self.interval = interval
@@ -264,7 +282,13 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, model, optimizer):
-        lr_scheduler = WarmupAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = WarmupAnnealing(
+            optimizer,
+            warmup_steps=self.warmup_steps,
+            warmup_ratio=self.warmup_ratio,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {

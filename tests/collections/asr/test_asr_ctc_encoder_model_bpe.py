@@ -19,11 +19,15 @@ import tempfile
 
 import pytest
 import torch
+from lhotse import CutSet, MonoCut
+from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data import audio_to_text
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models import configs
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.parts.submodules import ctc_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.common import tokenizers
 from nemo.utils.config_utils import assert_dataclass_signature_match
@@ -116,6 +120,18 @@ class TestEncDecCTCModel:
         assert diff <= 1e-6
         diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
         assert diff <= 1e-6
+
+    @pytest.mark.unit
+    def test_predict_step(self, asr_model):
+        asr_model = asr_model.eval()
+        cuts = DummyManifest(CutSet, begin_id=0, end_id=1, with_data=True)
+        dataset = LhotseSpeechToTextBpeDataset(tokenizer=asr_model.tokenizer, return_cuts=True)
+        batch = dataset[cuts]
+        outputs = asr_model.predict_step(batch, 0)
+        assert len(outputs) == 1
+        assert len(outputs[0]) == 2
+        assert isinstance(outputs[0][0], MonoCut)
+        assert isinstance(outputs[0][1], str)
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -279,6 +295,34 @@ class TestEncDecCTCModel:
         assert asr_model.decoding.preserve_alignments is True
         assert asr_model.decoding.compute_timestamps is True
 
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'beam'
+        new_strategy.beam = DictConfig({'beam_size': 1})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamCTCInfer)
+        assert asr_model.decoding.decoding.search_type == "default"
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'pyctcdecode'
+        new_strategy.beam = DictConfig({'beam_size': 1})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamCTCInfer)
+        assert asr_model.decoding.decoding.search_type == "pyctcdecode"
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'flashlight'
+        new_strategy.beam = DictConfig({'beam_size': 1})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamCTCInfer)
+        assert asr_model.decoding.decoding.search_type == "flashlight"
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'wfst'
+        new_strategy.beam = DictConfig({'beam_size': 1})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.WfstCTCInfer)
+        assert asr_model.decoding.decoding.search_type == "riva"
+
     @pytest.mark.unit
     def test_ASRDatasetConfig_for_AudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
@@ -304,6 +348,15 @@ class TestEncDecCTCModel:
             'bucketing_strategy',
             'bucketing_weights',
             'channel_selector',
+            'use_lhotse',
+            'tarred_random_access',
+            'use_bucketing',
+            'batch_duration',
+            'quadratic_duration',
+            'bucket_batch_size',
+            'bucket_duration_bins',
+            'num_buckets',
+            'pin_memory',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
@@ -343,6 +396,15 @@ class TestEncDecCTCModel:
             'bucketing_strategy',
             'bucketing_weights',
             'max_utts',
+            'use_lhotse',
+            'tarred_random_access',
+            'use_bucketing',
+            'batch_duration',
+            'quadratic_duration',
+            'bucket_batch_size',
+            'bucket_duration_bins',
+            'num_buckets',
+            'pin_memory',
         ]
 
         REMAP_ARGS = {

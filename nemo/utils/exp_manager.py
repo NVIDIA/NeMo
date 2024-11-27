@@ -19,25 +19,25 @@ import subprocess
 import sys
 import time
 import warnings
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
 
-import pytorch_lightning
+import lightning.pytorch
 import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
+from lightning.pytorch.callbacks import Callback, ModelCheckpoint
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.callbacks.timer import Interval, Timer
+from lightning.pytorch.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
+from lightning.pytorch.loops import _TrainingEpochLoop
+from lightning.pytorch.strategies.ddp import DDPStrategy
+from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning.callbacks import Callback, ModelCheckpoint
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.callbacks.timer import Interval, Timer
-from pytorch_lightning.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
-from pytorch_lightning.loops import _TrainingEpochLoop
-from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
-
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -116,7 +116,7 @@ class CallbackParams:
     auto_insert_metric_name: bool = True
     every_n_epochs: Optional[int] = 1
     every_n_train_steps: Optional[int] = None
-    train_time_interval: Optional[str] = None
+    train_time_interval: Optional[Any] = None
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
@@ -125,6 +125,7 @@ class CallbackParams:
     model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
     save_on_train_epoch_end: Optional[bool] = False  # Save after training, not after validation
     async_save: Optional[bool] = False  # save the checkpoint asynchronously
+    save_last_n_optim_states: Optional[int] = -1  # a number of last checkpoints to be saved with optimizer states
 
 
 @dataclass
@@ -213,6 +214,8 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    # log step time with nemo logger instead of lightning logger to avoid lightning logger overhead
+    log_delta_step_timing: Optional[bool] = False
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
@@ -293,7 +296,54 @@ class TimingCallback(Callback):
         self._on_batch_end("train_backward_timing", pl_module)
 
 
-def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
+class DeltaTimingCallback(Callback):
+    """
+    Logs execution time of train/val/test steps using nemo logger. Calculates
+    time from previous batch end to current batch end. This ensures accuracy.
+
+    Note: step time will only be printed in stdout. If you have initialized
+    loggers like TensorBoard, WandB, etc, step time will not be recorded there.
+    Use this callback instead of 'TimingCallback' to avoid logging overhead with
+    lightning logger used in the latter.
+    """
+
+    def __init__(self, timer_kwargs={}):
+        self._sync_cuda = timer_kwargs.get("sync_cuda", False)
+        self.timers = defaultdict(defaultdict)
+
+    def _on_epoch_start(self, name, trainer, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if self._sync_cuda and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        self.timers[name]["step"] = 0
+        self.timers[name]["start"] = time.time()
+
+    def _on_batch_end(self, name, trainer, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if self._sync_cuda and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        end = time.time()
+        dt = end - self.timers[name]["start"]
+        logging.info(f'Step {self.timers[name]["step"]}: {name} in s={dt}')
+        self.timers[name]["step"] += 1
+        self.timers[name]["start"] = end
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        self._on_epoch_start("train_step_timing in s", trainer, pl_module)
+
+    def on_validation_epoch_start(self, trainer, pl_module):
+        self._on_epoch_start("validation_step_timing in s", trainer, pl_module)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_end("train_step_timing in s", trainer, pl_module)
+
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_end("validation_step_timing in s", trainer, pl_module)
+
+
+def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
@@ -312,7 +362,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     resume_if_exists is set to True, creating the version folders is ignored.
 
     Args:
-        trainer (pytorch_lightning.Trainer): The lightning trainer.
+        trainer (lightning.pytorch.Trainer): The lightning trainer.
         cfg (DictConfig, dict): Can have the following keys:
 
             - explicit_log_dir (str, Path): Can be used to override exp_dir/name/version folder creation. Defaults to
@@ -373,6 +423,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
             - seconds_to_sleep (float): seconds to sleep non rank 0 processes for. Used to give enough time for rank 0 to initialize
+            - train_time_interval (timedelta): pass an object of timedelta to save the model every timedelta. Defaults to None.
+                (use _target_ with hydra to achieve this)
 
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
@@ -509,7 +561,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     # add loggers timing callbacks
-    if cfg.log_step_timing:
+    if cfg.log_delta_step_timing:
+        timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        trainer.callbacks.insert(0, timing_callback)
+    elif cfg.log_step_timing:
         timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
@@ -625,7 +680,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     return log_dir
 
 
-def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None):
+def error_checks(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None):
     """
     Checks that the passed trainer is compliant with NeMo and exp_manager's passed configuration. Checks that:
         - Throws error when hydra has changed the working directory. This causes issues with lightning's DDP
@@ -673,7 +728,7 @@ def _filter_out_unfinished_checkpoints(checkpoint_paths: Collection[Union[Path, 
 
 
 def check_resume(
-    trainer: 'pytorch_lightning.Trainer',
+    trainer: 'lightning.pytorch.Trainer',
     log_dir: str,
     resume_if_exists: bool = False,
     resume_past_end: bool = False,
@@ -748,11 +803,29 @@ def check_resume(
                 end_checkpoints = (
                     end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
                 )
+                end_chkpt_cnt = len(end_checkpoints)
                 end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
+                finished_end_chkpt_cnt = len(end_checkpoints)
+                if end_chkpt_cnt > 0 and finished_end_chkpt_cnt == 0:
+                    raise ValueError(
+                        "End checkpoint is unfinished and cannot be used to resume the training."
+                        " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                        " restarting from scratch."
+                    )
+
                 last_checkpoints = (
                     last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
                 )
+                last_chkpt_cnt = len(last_checkpoints)
                 last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
+                finished_last_chkpt_cnt = len(last_checkpoints)
+                if last_chkpt_cnt > 0 and finished_last_chkpt_cnt == 0:
+                    raise ValueError(
+                        "Last checkpoint is unfinished and cannot be used to resume the training."
+                        " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                        " restarting from scratch. Hint: Iteration number can be added to the checkpoint name pattern"
+                        " to maximize chance that there is at least one finished last checkpoint to resume from."
+                    )
 
             if not checkpoint_dir_exists or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
                 if resume_ignore_no_checkpoint:
@@ -813,7 +886,7 @@ def check_resume(
 
 
 def check_explicit_log_dir(
-    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: Union[Path, str], exp_dir: str, name: str, version: str
+    trainer: 'lightning.pytorch.Trainer', explicit_log_dir: Union[Path, str], exp_dir: str, name: str, version: str
 ) -> Tuple[Path, str, str, str]:
     """Checks that the passed arguments are compatible with explicit_log_dir.
 
@@ -844,7 +917,7 @@ def check_explicit_log_dir(
 
 
 def get_log_dir(
-    trainer: 'pytorch_lightning.Trainer',
+    trainer: 'lightning.pytorch.Trainer',
     exp_dir: str = None,
     name: str = None,
     version: str = None,
@@ -933,8 +1006,8 @@ def get_git_hash():
             True,
             subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT).decode(),
         )
-    except subprocess.CalledProcessError as err:
-        return False, "{}\n".format(err.output.decode("utf-8"))
+    except (subprocess.CalledProcessError, FileNotFoundError) as err:
+        return False, "{}\n".format(err)
 
 
 def get_git_diff():
@@ -952,7 +1025,7 @@ def get_git_diff():
 
 
 def configure_loggers(
-    trainer: 'pytorch_lightning.Trainer',
+    trainer: 'lightning.pytorch.Trainer',
     exp_dir: [Path, str],
     log_dir: [Path, str],
     name: str,
@@ -1063,7 +1136,7 @@ class NeMoCheckpointConnector(_CheckpointConnector):
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer',
+    trainer: 'lightning.pytorch.Trainer',
     log_dir: Path,
     name: str,
     resume: bool,
@@ -1096,6 +1169,20 @@ def configure_checkpointing(
         params.filename = f'{name}--{{{params.monitor}:.4f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
+    if params.always_save_nemo:
+        app_state = AppState()
+        if (
+            (app_state.tensor_model_parallel_size is not None and app_state.tensor_model_parallel_size > 1)
+            or (app_state.pipeline_model_parallel_size is not None and app_state.pipeline_model_parallel_size > 1)
+            or (app_state.context_parallel_size is not None and app_state.context_parallel_size > 1)
+        ):
+            raise LoggerMisconfigurationError(
+                "always_save_nemo is set to True, please ensure that model parallel is not used."
+                f"tensor_model_parallel_size: {app_state.tensor_model_parallel_size},"
+                f"pipeline_model_parallel_size: {app_state.pipeline_model_parallel_size},"
+                f"context_parallel_size: {app_state.context_parallel_size},"
+            )
+
     NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
 
     logging.debug(params.dirpath)
@@ -1170,12 +1257,12 @@ class StatelessTimer(Timer):
                 monitor_candidates = checkpoint_callback._monitor_candidates(trainer)
                 checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
             # Throw this exception to signal to Lightning to terminate gracefully.
-            from pytorch_lightning.utilities.exceptions import _TunerExitException
+            from lightning.pytorch.utilities.exceptions import _TunerExitException
 
             raise _TunerExitException()
 
 
-def configure_no_restart_validation_training_loop(trainer: pytorch_lightning.Trainer) -> None:
+def configure_no_restart_validation_training_loop(trainer: lightning.pytorch.Trainer) -> None:
     if type(trainer.fit_loop.epoch_loop) != _TrainingEpochLoop:
         warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
         return

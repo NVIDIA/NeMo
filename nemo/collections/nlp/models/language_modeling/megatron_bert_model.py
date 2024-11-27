@@ -18,8 +18,8 @@ from typing import Any, Dict, Iterator, List, Optional
 
 import torch
 import torch.nn.functional as F
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -1169,7 +1169,9 @@ class MegatronBertModel(MegatronBaseModel):
 
         normalization = self.cfg.get('normalization', 'layernorm')
 
-        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p' or self.cfg.get(
+            "layernorm_zero_centered_gamma", False
+        )
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
         elif normalization == 'rmsnorm':

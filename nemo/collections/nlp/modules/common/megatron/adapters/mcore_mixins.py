@@ -15,6 +15,7 @@
 import torch
 import torch.nn.functional as F
 from megatron.core import InferenceParams
+from megatron.core.extensions.transformer_engine import SplitAlongDim
 from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
@@ -22,7 +23,6 @@ from megatron.core.models.common.embeddings.language_model_embedding import Lang
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention
-from megatron.core.transformer.custom_layers.transformer_engine import SplitAlongDim
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.moe.experts import SequentialMLP
 from megatron.core.transformer.transformer_block import TransformerBlock
@@ -80,11 +80,22 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
         context: Tensor = None,
         context_mask: Tensor = None,
         rotary_pos_emb: Tensor = None,
+        rotary_pos_cos: Tensor = None,
+        rotary_pos_sin: Tensor = None,
+        attention_bias: Tensor = None,
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
     ):
         hidden_states = super().forward(
-            hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            context=context,
+            context_mask=context_mask,
+            rotary_pos_emb=rotary_pos_emb,
+            rotary_pos_cos=rotary_pos_cos,
+            rotary_pos_sin=rotary_pos_sin,
+            inference_params=inference_params,
+            packed_seq_params=packed_seq_params,
         )
 
         mlp_head_adapter = self.get_adapter_module(AdapterName.MLP_HEAD_ADAPTER)
@@ -220,6 +231,9 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         inference_params=None,
         rotary_pos_emb=None,
         packed_seq_params=None,
+        rotary_pos_cos=None,
+        rotary_pos_sin=None,
+        attention_bias=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -237,8 +251,8 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
-            inference_params, key, value, rotary_pos_emb
+        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+            inference_params, query, key, value, rotary_pos_emb
         )
 
         if packed_seq_params is not None:

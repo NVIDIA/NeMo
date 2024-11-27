@@ -15,14 +15,22 @@
 import logging
 import os
 import shutil
+import tempfile
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.multimodal.build import build_trtllm_engine, build_visual_engine
-from nemo.export.multimodal.run import MultimodalModelRunner
+from nemo.export.multimodal.build import (
+    build_perception_engine,
+    build_trtllm_engine,
+    build_visual_engine,
+    extract_lora_ckpt,
+)
+from nemo.export.multimodal.run import MultimodalModelRunner, SpeechllmModelRunner
+from nemo.export.tarutils import unpack_tarball
 
 use_deploy = True
 try:
@@ -74,9 +82,13 @@ class TensorRTMMExporter(ITritonDeployable):
         self,
         model_dir: str,
         load_model: bool = True,
+        modality: str = "vision",
     ):
         self.model_dir = model_dir
         self.runner = None
+        # vision modality is for image and video
+        assert modality in ["vision", "audio"]
+        self.modality = modality
 
         if load_model:
             self._load()
@@ -96,6 +108,10 @@ class TensorRTMMExporter(ITritonDeployable):
         dtype: str = "bfloat16",
         delete_existing_files: bool = True,
         load_model: bool = True,
+        use_lora_plugin: str = None,
+        lora_target_modules: List[str] = None,
+        lora_checkpoint_path: str = None,
+        max_lora_rank: int = 64,
     ):
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -113,6 +129,20 @@ class TensorRTMMExporter(ITritonDeployable):
         else:
             Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
+        if lora_checkpoint_path is not None:
+            tmp_dir = tempfile.TemporaryDirectory()
+            if os.path.isdir(lora_checkpoint_path):
+                lora_dir = lora_checkpoint_path
+            else:
+                lora_dir = os.path.join(tmp_dir.name, "unpacked_lora")
+                unpack_tarball(lora_checkpoint_path, lora_dir)
+
+            llm_lora_path = [extract_lora_ckpt(lora_dir, tmp_dir.name)]
+        else:
+            tmp_dir = None
+            llm_lora_path = None
+            lora_dir = None
+
         llm_dir = os.path.join(self.model_dir, "llm_engine")
         build_trtllm_engine(
             model_dir=llm_dir,
@@ -126,10 +156,23 @@ class TensorRTMMExporter(ITritonDeployable):
             max_batch_size=max_batch_size,
             max_multimodal_len=max_multimodal_len,
             dtype=dtype,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_lora_rank=max_lora_rank,
+            lora_ckpt_list=llm_lora_path,
         )
 
-        visual_dir = os.path.join(self.model_dir, "visual_engine")
-        build_visual_engine(visual_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
+        if model_type == "salm":
+            perception_dir = os.path.join(self.model_dir, "perception_engine")
+            build_perception_engine(perception_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
+        else:
+            visual_dir = os.path.join(self.model_dir, "visual_engine")
+            build_visual_engine(
+                visual_dir, visual_checkpoint_path if lora_dir is None else lora_dir, model_type, vision_max_batch_size
+            )
+
+        if tmp_dir is not None:
+            tmp_dir.cleanup()
 
         if load_model:
             self._load()
@@ -145,6 +188,7 @@ class TensorRTMMExporter(ITritonDeployable):
         temperature: float = 1.0,
         repetition_penalty: float = 1.0,
         num_beams: int = 1,
+        lora_uids: List[str] = None,
     ):
         if self.runner is None:
             raise Exception(
@@ -162,21 +206,36 @@ class TensorRTMMExporter(ITritonDeployable):
             temperature,
             repetition_penalty,
             num_beams,
+            lora_uids,
         )
+
+    def get_input_media_tensors(self):
+        if self.modality == "vision":
+            return [Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8)]
+        elif self.modality == "audio":
+            return [
+                Tensor(name="input_signal", shape=(-1,), dtype=np.single),
+                Tensor(name="input_signal_length", shape=(1,), dtype=np.intc),
+            ]
+        return []
 
     @property
     def get_triton_input(self):
         inputs = (
-            Tensor(name="input_text", shape=(-1,), dtype=bytes),
-            Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8),
-            Tensor(name="batch_size", shape=(-1,), dtype=np.int_, optional=True),
-            Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
-            Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
-            Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
-            Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
-            Tensor(name="repetition_penalty", shape=(-1,), dtype=np.single, optional=True),
-            Tensor(name="num_beams", shape=(-1,), dtype=np.int_, optional=True),
+            [Tensor(name="input_text", shape=(-1,), dtype=bytes)]
+            + self.get_input_media_tensors()
+            + [
+                Tensor(name="batch_size", shape=(-1,), dtype=np.int_, optional=True),
+                Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
+                Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
+                Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
+                Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
+                Tensor(name="repetition_penalty", shape=(-1,), dtype=np.single, optional=True),
+                Tensor(name="num_beams", shape=(-1,), dtype=np.int_, optional=True),
+                Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
+            ]
         )
+        inputs = tuple(inputs)
         return inputs
 
     @property
@@ -198,6 +257,9 @@ class TensorRTMMExporter(ITritonDeployable):
                 infer_input["input_image"] = ndarray2img(inputs.pop("input_media")[0])[0]
             elif self.runner.model_type in video_model_list:
                 infer_input["input_image"] = inputs.pop("input_media")[0]
+            elif self.runner.model_type == "salm":
+                infer_input["input_signal"] = inputs.pop("input_signal")
+                infer_input["input_signal_length"] = inputs.pop("input_signal_length")[:, 0]
             if "batch_size" in inputs:
                 infer_input["batch_size"] = inputs.pop("batch_size")[0][0]
             if "max_output_len" in inputs:
@@ -212,6 +274,9 @@ class TensorRTMMExporter(ITritonDeployable):
                 infer_input["repetition_penalty"] = inputs.pop("repetition_penalty")[0][0]
             if "num_beams" in inputs:
                 infer_input["num_beams"] = inputs.pop("num_beams")[0][0]
+            if "lora_uids" in inputs:
+                lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
+                infer_input["lora_uids"] = lora_uids[0].tolist()
 
             output_texts = self.runner.run(**infer_input)
             output = cast_output(output_texts, np.bytes_)
@@ -223,5 +288,11 @@ class TensorRTMMExporter(ITritonDeployable):
 
     def _load(self):
         llm_dir = os.path.join(self.model_dir, "llm_engine")
-        visual_dir = os.path.join(self.model_dir, "visual_engine")
-        self.runner = MultimodalModelRunner(visual_dir, llm_dir)
+        if not os.path.exists(llm_dir):
+            return
+        if self.modality == "vision":
+            visual_dir = os.path.join(self.model_dir, "visual_engine")
+            self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.modality)
+        elif self.modality == "audio":
+            perception_dir = os.path.join(self.model_dir, "perception_engine")
+            self.runner = SpeechllmModelRunner(perception_dir, llm_dir, self.modality)

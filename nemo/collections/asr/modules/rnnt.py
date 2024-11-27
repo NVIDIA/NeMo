@@ -74,8 +74,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -84,8 +83,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -317,20 +315,18 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         ]
         return state
 
-    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
-        Create batch of decoder states.
+        Creates a stacked decoder states to be passed to prediction network.
 
         Args:
-            batch_states (list): batch of decoder states
-                ([(B, H)])
-
-            decoder_states (list of list): list of decoder states
-                [B x ([(1, C)]]
+            decoder_states (list of list of torch.Tensor): list of decoder states
+                [B, 1, C]
+                    - B: Batch size.
+                    - C: Dimensionality of the hidden state.
 
         Returns:
-            batch_states (tuple): batch of decoder states
-                ([(B, C)])
+            batch_states (list of torch.Tensor): batch of decoder states [[B x C]]
         """
         new_state = torch.stack([s[0] for s in decoder_states])
 
@@ -382,7 +378,10 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_mask(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
+        mask: torch.Tensor,
     ):
         """Replace states in dst_states with states from src_states using the mask"""
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
@@ -390,7 +389,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor],
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
     ):
         """Replace states in dst_states with states from src_states"""
         dst_states[0].copy_(src_states[0])
@@ -449,86 +450,69 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return [states[0][mask]]
 
     def batch_score_hypothesis(
-        self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
+        self,
+        hypotheses: List[rnnt_utils.Hypothesis],
+        cache: Dict[Tuple[int], Any],
+    ) -> Tuple[List[torch.Tensor], List[List[torch.Tensor]]]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
 
         Args:
             hypothesis: List of Hypotheses. Refer to rnnt_utils.Hypothesis.
             cache: Dict which contains a cache to avoid duplicate computations.
-            batch_states: List of torch.Tensor which represent the states of the RNN for this batch.
-                Each state is of shape [L, B, H]
 
         Returns:
-            Returns a tuple (b_y, b_states, lm_tokens) such that:
-            b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
-            b_state is a list of list of RNN states, each of shape [L, B, H].
-            Represented as B x List[states].
-            lm_token is a list of the final integer tokens of the hypotheses in the batch.
+            Returns a tuple (batch_dec_out, batch_dec_states) such that:
+                batch_dec_out: a list of torch.Tensor [1, H] representing the prediction network outputs for the last tokens in the Hypotheses.
+                batch_dec_states: a list of list of RNN states, each of shape [L, B, H]. Represented as B x List[states].
         """
         final_batch = len(hypotheses)
+
         if final_batch == 0:
             raise ValueError("No hypotheses was provided for the batch!")
 
         _p = next(self.parameters())
         device = _p.device
-        dtype = _p.dtype
 
         tokens = []
-        process = []
-        done = [None for _ in range(final_batch)]
+        to_process = []
+        final = [None for _ in range(final_batch)]
 
         # For each hypothesis, cache the last token of the sequence and the current states
-        for i, hyp in enumerate(hypotheses):
+        for final_idx, hyp in enumerate(hypotheses):
             sequence = tuple(hyp.y_sequence)
 
             if sequence in cache:
-                done[i] = cache[sequence]
+                final[final_idx] = cache[sequence]
             else:
                 tokens.append(hyp.y_sequence[-1])
-                process.append((sequence, hyp.dec_state))
+                to_process.append((sequence, hyp.dec_state))
 
-        if process:
-            batch = len(process)
+        if to_process:
+            batch = len(to_process)
 
             # convert list of tokens to torch.Tensor, then reshape.
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.initialize_state(tokens)  # [B, C]
-            dec_states = self.batch_initialize_states(dec_states, [d_state for seq, d_state in process])
+            dec_states = self.batch_initialize_states([d_state for _, d_state in to_process])
 
-            y, dec_states = self.predict(
+            dec_outputs, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
-            )  # [B, 1, H], List([L, 1, H])
+            )  # [B, 1, H], B x List([L, 1, H])
 
-            dec_states = tuple(state.to(dtype=dtype) for state in dec_states)
+            # Update final states and cache shared by entire batch.
+            processed_idx = 0
+            for final_idx in range(final_batch):
+                if to_process and final[final_idx] is None:
+                    # Select sample's state from the batch state list
+                    new_state = self.batch_select_state(dec_states, processed_idx)
 
-        # Update done states and cache shared by entire batch.
-        j = 0
-        for i in range(final_batch):
-            if done[i] is None:
-                # Select sample's state from the batch state list
-                new_state = self.batch_select_state(dec_states, j)
+                    # Cache [1, H] scores of the current y_j, and its corresponding state
+                    final[final_idx] = (dec_outputs[processed_idx], new_state)
+                    cache[to_process[processed_idx][0]] = (dec_outputs[processed_idx], new_state)
 
-                # Cache [1, H] scores of the current y_j, and its corresponding state
-                done[i] = (y[j], new_state)
-                cache[process[j][0]] = (y[j], new_state)
+                    processed_idx += 1
 
-                j += 1
-
-        # Set the incoming batch states with the new states obtained from `done`.
-        batch_states = self.batch_initialize_states(batch_states, [d_state for y_j, d_state in done])
-
-        # Create batch of all output scores
-        # List[1, 1, H] -> [B, 1, H]
-        batch_y = torch.stack([y_j for y_j, d_state in done])
-
-        # Extract the last tokens from all hypotheses and convert to a tensor
-        lm_tokens = torch.tensor([h.y_sequence[-1] for h in hypotheses], device=device, dtype=torch.long).view(
-            final_batch
-        )
-
-        return batch_y, batch_states, lm_tokens
+        return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
 
 class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):
@@ -591,8 +575,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -601,8 +584,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -934,23 +916,21 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         return y, new_state, lm_token
 
     def batch_score_hypothesis(
-        self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
+        self,
+        hypotheses: List[rnnt_utils.Hypothesis],
+        cache: Dict[Tuple[int], Any],
+    ) -> Tuple[List[torch.Tensor], List[List[torch.Tensor]]]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
 
         Args:
             hypothesis: List of Hypotheses. Refer to rnnt_utils.Hypothesis.
             cache: Dict which contains a cache to avoid duplicate computations.
-            batch_states: List of torch.Tensor which represent the states of the RNN for this batch.
-                Each state is of shape [L, B, H]
 
         Returns:
-            Returns a tuple (b_y, b_states, lm_tokens) such that:
-            b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
-            b_state is a list of list of RNN states, each of shape [L, B, H].
-            Represented as B x List[states].
-            lm_token is a list of the final integer tokens of the hypotheses in the batch.
+            Returns a tuple (batch_dec_out, batch_dec_states) such that:
+                batch_dec_out: a list of torch.Tensor [1, H] representing the prediction network outputs for the last tokens in the Hypotheses.
+                batch_dec_states: a list of list of RNN states, each of shape [L, B, H]. Represented as B x List[states].
         """
         final_batch = len(hypotheses)
 
@@ -959,90 +939,69 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         _p = next(self.parameters())
         device = _p.device
-        dtype = _p.dtype
 
         tokens = []
-        process = []
-        done = [None for _ in range(final_batch)]
+        to_process = []
+        final = [None for _ in range(final_batch)]
 
         # For each hypothesis, cache the last token of the sequence and the current states
-        for i, hyp in enumerate(hypotheses):
+        for final_idx, hyp in enumerate(hypotheses):
             sequence = tuple(hyp.y_sequence)
 
             if sequence in cache:
-                done[i] = cache[sequence]
+                final[final_idx] = cache[sequence]
             else:
                 tokens.append(hyp.y_sequence[-1])
-                process.append((sequence, hyp.dec_state))
+                to_process.append((sequence, hyp.dec_state))
 
-        if process:
-            batch = len(process)
+        if to_process:
+            batch = len(to_process)
 
             # convert list of tokens to torch.Tensor, then reshape.
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.initialize_state(tokens.to(dtype=dtype))  # [L, B, H]
-            dec_states = self.batch_initialize_states(dec_states, [d_state for seq, d_state in process])
+            dec_states = self.batch_initialize_states([d_state for _, d_state in to_process])
 
-            y, dec_states = self.predict(
+            dec_out, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
-            )  # [B, 1, H], List([L, 1, H])
+            )  # [B, 1, H], B x List([L, 1, H])
 
-            dec_states = tuple(state.to(dtype=dtype) for state in dec_states)
+            # Update final states and cache shared by entire batch.
+            processed_idx = 0
+            for final_idx in range(final_batch):
+                if final[final_idx] is None:
+                    # Select sample's state from the batch state list
+                    new_state = self.batch_select_state(dec_states, processed_idx)
 
-        # Update done states and cache shared by entire batch.
-        j = 0
-        for i in range(final_batch):
-            if done[i] is None:
-                # Select sample's state from the batch state list
-                new_state = self.batch_select_state(dec_states, j)
+                    # Cache [1, H] scores of the current y_j, and its corresponding state
+                    final[final_idx] = (dec_out[processed_idx], new_state)
+                    cache[to_process[processed_idx][0]] = (dec_out[processed_idx], new_state)
 
-                # Cache [1, H] scores of the current y_j, and its corresponding state
-                done[i] = (y[j], new_state)
-                cache[process[j][0]] = (y[j], new_state)
+                    processed_idx += 1
 
-                j += 1
+        return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
-        # Set the incoming batch states with the new states obtained from `done`.
-        batch_states = self.batch_initialize_states(batch_states, [d_state for y_j, d_state in done])
-
-        # Create batch of all output scores
-        # List[1, 1, H] -> [B, 1, H]
-        batch_y = torch.stack([y_j for y_j, d_state in done])
-
-        # Extract the last tokens from all hypotheses and convert to a tensor
-        lm_tokens = torch.tensor([h.y_sequence[-1] for h in hypotheses], device=device, dtype=torch.long).view(
-            final_batch
-        )
-
-        return batch_y, batch_states, lm_tokens
-
-    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """
-        Create batch of decoder states.
+        Creates a stacked decoder states to be passed to prediction network
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([L x (B, H)], [L x (B, H)])
+        Args:
+            decoder_states (list of list of list of torch.Tensor): list of decoder states
+                [B, C, L, H]
+                    - B: Batch size.
+                    - C: e.g., for LSTM, this is 2: hidden and cell states
+                    - L: Number of layers in prediction RNN.
+                    - H: Dimensionality of the hidden state.
 
-           decoder_states (list of list): list of decoder states
-               [B x ([L x (1, H)], [L x (1, H)])]
+        Returns:
+            batch_states (list of torch.Tensor): batch of decoder states
+                [C x torch.Tensor[L x B x H]
+        """
+        # stack decoder states into tensor of shape [B x layers x L x H]
+        # permute to the target shape [layers x L x B x H]
+        stacked_states = torch.stack([torch.stack(decoder_state) for decoder_state in decoder_states])
+        permuted_states = stacked_states.permute(1, 2, 0, 3)
 
-       Returns:
-           batch_states (tuple): batch of decoder states
-               ([L x (B, H)], [L x (B, H)])
-       """
-        # LSTM has 2 states
-        new_states = [[] for _ in range(len(decoder_states[0]))]
-        for layer in range(self.pred_rnn_layers):
-            for state_id in range(len(decoder_states[0])):
-                # batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
-                new_state_for_layer = torch.stack([s[state_id][layer] for s in decoder_states])
-                new_states[state_id].append(new_state_for_layer)
-
-        for state_id in range(len(decoder_states[0])):
-            new_states[state_id] = torch.stack([state for state in new_states[state_id]])
-
-        return new_states
+        return list(permuted_states.contiguous())
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
@@ -1058,14 +1017,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
                 ([L x (1, H)], [L x (1, H)])
         """
         if batch_states is not None:
-            state_list = []
-            for state_id in range(len(batch_states)):
-                states = [batch_states[state_id][layer][idx] for layer in range(self.pred_rnn_layers)]
-                state_list.append(states)
+            return [state[:, idx] for state in batch_states]
 
-            return state_list
-        else:
-            return None
+        return None
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
@@ -1083,7 +1037,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         for state_id in range(len(batch_states[0])):
             batch_list = []
             for sample_id in range(len(batch_states)):
-                tensor = torch.stack(batch_states[sample_id][state_id])  # [L, H]
+                tensor = (
+                    torch.stack(batch_states[sample_id][state_id])
+                    if not isinstance(batch_states[sample_id][state_id], torch.Tensor)
+                    else batch_states[sample_id][state_id]
+                )  # [L, H]
                 tensor = tensor.unsqueeze(0)  # [1, L, H]
                 batch_list.append(tensor)
 
@@ -1109,7 +1067,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: Tuple[torch.Tensor, torch.Tensor], dst_states: Tuple[torch.Tensor, torch.Tensor],
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        dst_states: Tuple[torch.Tensor, torch.Tensor],
     ):
         """Replace states in dst_states with states from src_states"""
         dst_states[0].copy_(src_states[0])
@@ -1249,12 +1209,15 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         fused_batch_size: Optional int, required if `fuse_loss_wer` flag is set. Determines the size of the
             sub-batches. Should be any value below the actual batch size per GPU.
+        masking_prob: Optional float, indicating the probability of masking out decoder output in HAINAN
+            (Hybrid Autoregressive Inference Transducer) model, described in https://arxiv.org/pdf/2410.02597
+            Default to -1.0, which runs standard Joint network computation; if > 0, then masking out decoder output
+            with the specified probability.
     """
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "decoder_outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
@@ -1266,8 +1229,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         if not self._fuse_loss_wer:
             return {
                 "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
@@ -1313,6 +1275,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         fuse_loss_wer: bool = False,
         fused_batch_size: Optional[int] = None,
         experimental_fuse_loss_wer: Any = None,
+        masking_prob: float = -1.0,
     ):
         super().__init__()
 
@@ -1321,6 +1284,10 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self._vocab_size = num_classes
         self._num_extra_outputs = num_extra_outputs
         self._num_classes = num_classes + 1 + num_extra_outputs  # 1 is for blank
+
+        self.masking_prob = masking_prob
+        if self.masking_prob > 0.0:
+            assert self.masking_prob < 1.0, "masking_prob must be between 0 and 1"
 
         if experimental_fuse_loss_wer is not None:
             # Override fuse_loss_wer from deprecated argument
@@ -1490,6 +1457,10 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     sub_transcripts = sub_transcripts.detach()
 
                     # Update WER on each process without syncing
+                    if self.training:
+                        original_sync = self.wer._to_sync
+                        self.wer._to_sync = False
+
                     self.wer.update(
                         predictions=sub_enc,
                         predictions_lengths=sub_enc_lens,
@@ -1499,6 +1470,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     # Sync and all_reduce on all processes, compute global WER
                     wer, wer_num, wer_denom = self.wer.compute()
                     self.wer.reset()
+
+                    if self.training:
+                        self.wer._to_sync = original_sync
 
                     wers.append(wer)
                     wer_nums.append(wer_num)
@@ -1578,6 +1552,13 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         """
         f = f.unsqueeze(dim=2)  # (B, T, 1, H)
         g = g.unsqueeze(dim=1)  # (B, 1, U, H)
+
+        if self.training and self.masking_prob > 0:
+            [B, _, U, _] = g.shape
+            rand = torch.rand([B, 1, U, 1]).to(g.device)
+            rand = torch.gt(rand, self.masking_prob)
+            g = g * rand
+
         inp = f + g  # [B, T, U, H]
 
         del f, g
@@ -2047,7 +2028,11 @@ class SampledRNNTJoint(RNNTJoint):
         return losses, wer, wer_num, wer_denom
 
     def sampled_joint(
-        self, f: torch.Tensor, g: torch.Tensor, transcript: torch.Tensor, transcript_lengths: torch.Tensor,
+        self,
+        f: torch.Tensor,
+        g: torch.Tensor,
+        transcript: torch.Tensor,
+        transcript_lengths: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute the sampled joint step of the network.

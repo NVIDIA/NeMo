@@ -19,8 +19,8 @@ from typing import Any, Dict
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
 import torch.multiprocessing as mp
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning.trainer.trainer import Trainer
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -33,12 +33,12 @@ from abc import ABCMeta
 from importlib.metadata import version
 from typing import Tuple
 
+import packaging
 import torch
 import torch.nn.functional as F
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.parallel_state import get_tensor_model_parallel_group
 from megatron.core.transformer import TransformerConfig
-from pkg_resources import packaging
 from torch import Tensor
 from torch.nn.modules.loss import _Loss
 

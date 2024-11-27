@@ -15,10 +15,15 @@
 import argparse
 import logging
 import sys
+from typing import Optional
 
 from nemo.export.tensorrt_llm import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
+
+
+class UsageError(Exception):
+    pass
 
 
 def get_args(argv):
@@ -39,7 +44,7 @@ def get_args(argv):
     parser.add_argument(
         "-mr", "--model_repository", required=True, default=None, type=str, help="Folder for the trt-llm model files"
     )
-    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-ng", "--num_gpus", default=None, type=int, help="Number of GPUs for the deployment")
     parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
@@ -59,7 +64,14 @@ def get_args(argv):
         "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
     parser.add_argument(
-        "-npkc", "--no_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
+        "-upe",
+        "--use_parallel_embedding",
+        default=False,
+        action='store_true',
+        help="Use parallel embedding.",
+    )
+    parser.add_argument(
+        "-npkc", "--no_paged_kv_cache", default=False, action='store_true', help="Disable paged kv cache."
     )
     parser.add_argument(
         "-drip",
@@ -74,7 +86,8 @@ def get_args(argv):
         default=False,
         action='store_true',
         help='Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
-                        It is beneifical when batchxnum_heads cannot fully utilize GPU.',
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU. \
+                        Only available when using c++ runtime.',
     )
     parser.add_argument(
         '--use_lora_plugin',
@@ -107,8 +120,37 @@ def get_args(argv):
         'It is used to compute the workspace size of lora plugin.',
     )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
+    parser.add_argument(
+        "-fp8",
+        "--export_fp8_quantized",
+        default="auto",
+        type=str,
+        help="Enables exporting to a FP8-quantized TRT LLM checkpoint",
+    )
+    parser.add_argument(
+        "-kv_fp8",
+        "--use_fp8_kv_cache",
+        default="auto",
+        type=str,
+        help="Enables exporting with FP8-quantizatized KV-cache",
+    )
 
     args = parser.parse_args(argv)
+
+    def str_to_bool(name: str, s: str, optional: bool = False) -> Optional[bool]:
+        s = s.lower()
+        true_strings = ["true", "1"]
+        false_strings = ["false", "0"]
+        if s in true_strings:
+            return True
+        if s in false_strings:
+            return False
+        if optional and s == 'auto':
+            return None
+        raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
+
+    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
+    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
     return args
 
 
@@ -131,7 +173,9 @@ def nemo_export_trt_llm(argv):
         return
 
     try:
-        trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository, load_model=False)
+        trt_llm_exporter = TensorRTLLM(
+            model_dir=args.model_repository, load_model=False, multi_block_mode=args.multi_block_mode
+        )
 
         LOGGER.info("Export to TensorRT-LLM function is called.")
         trt_llm_exporter.export(
@@ -146,13 +190,16 @@ def nemo_export_trt_llm(argv):
             max_num_tokens=args.max_num_tokens,
             opt_num_tokens=args.opt_num_tokens,
             max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
+            use_parallel_embedding=args.use_parallel_embedding,
             paged_kv_cache=(not args.no_paged_kv_cache),
             remove_input_padding=(not args.disable_remove_input_padding),
             dtype=args.dtype,
-            enable_multi_block_mode=args.multi_block_mode,
             use_lora_plugin=args.use_lora_plugin,
             lora_target_modules=args.lora_target_modules,
             max_lora_rank=args.max_lora_rank,
+            fp8_quantized=args.export_fp8_quantized,
+            fp8_kvcache=args.use_fp8_kv_cache,
+            load_model=False,
         )
 
         LOGGER.info("Export is successful.")

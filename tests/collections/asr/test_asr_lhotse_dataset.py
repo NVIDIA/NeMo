@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import pytest
 import torch
 from lhotse import CutSet, SupervisionSegment
@@ -51,3 +65,35 @@ def test_lhotse_asr_dataset(tokenizer):
     assert tokens[2].tolist() == [1, 7, 10, 19, 20, 21, 1, 20, 6, 4, 16, 15, 5]
 
     assert token_lens.tolist() == [11, 11, 13]
+
+
+def test_lhotse_asr_dataset_metadata(tokenizer):
+
+    cuts = DummyManifest(CutSet, begin_id=0, end_id=2, with_data=True)
+
+    cuts[0].id = "cuts0"
+    cuts[1].id = "cuts1"
+    cuts[0].supervisions = [
+        SupervisionSegment(id="cuts0-sup0", recording_id=cuts[0].recording_id, start=0.2, duration=0.5, text="first"),
+    ]
+    cuts[1].supervisions = [
+        SupervisionSegment(id="cuts1-sup0", recording_id=cuts[1].recording_id, start=0, duration=1, text=""),
+    ]
+
+    datasets_metadata = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer, return_cuts=True)
+    batch = datasets_metadata[cuts]
+    assert isinstance(batch, tuple)
+    assert len(batch) == 5
+
+    _, _, _, _, cuts_metadata = batch
+
+    assert cuts_metadata[0].supervisions[0].text == "first"
+    assert cuts_metadata[1].supervisions[0].text == ""
+    assert cuts_metadata[0].id == "cuts0"
+    assert cuts_metadata[1].id == "cuts1"
+
+    assert cuts_metadata[0].supervisions[0].duration == 0.5
+    assert cuts_metadata[0].supervisions[0].start == 0.2
+
+    assert cuts_metadata[1].supervisions[0].duration == 1
+    assert cuts_metadata[1].supervisions[0].start == 0.0

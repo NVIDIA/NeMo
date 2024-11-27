@@ -20,8 +20,8 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -133,9 +133,6 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         augmentor: DictConfig = None,
     ) -> List[str]:
         """
-        If modify this function, please remember update transcribe_partial_audio() in
-        nemo/collections/asr/parts/utils/trancribe_utils.py
-
         Uses greedy decoding to transcribe video files. Use this method for debugging and prototyping.
 
         Args:

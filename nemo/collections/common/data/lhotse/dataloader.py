@@ -69,7 +69,8 @@ class LhotseDataLoadingConfig:
     #   b. Lhotse CutSet manifest / Lhotse Shar tar dir paths.
     cuts_path: str | None = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
-
+    #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
+    tarred_random_access: bool = False
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
@@ -167,9 +168,17 @@ class LhotseDataLoadingConfig:
     # The default settings are:
     # * use iterable dataset for tarred audio data.
     # * use iterable dataset for any text data.
-    # * use map dataset for non-tarred audio data (we might change this in the future).
+    # * use map dataset for non-tarred audio data (we might change this in the future)
     force_map_dataset: bool = False
     force_iterable_dataset: bool = False
+
+
+def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
+    assert not (
+        config.force_map_dataset and config.force_iterable_dataset
+    ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
+    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
+    return use_iterable_dataset
 
 
 def get_lhotse_dataloader_from_config(
@@ -237,7 +246,6 @@ def get_lhotse_dataloader_from_single_config(
     Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
     logging.info("We will be using a Lhotse DataLoader.")
-
     config = make_structured_with_schema_warnings(config)
 
     maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
@@ -255,7 +263,7 @@ def get_lhotse_dataloader_from_single_config(
     )
 
     # 4. Creating dataloader.
-    if use_iterable_dataset:
+    if use_iterable_dataset and not config.tarred_random_access:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
@@ -342,7 +350,7 @@ def get_lhotse_dataloader_from_multi_config(
         raise RuntimeError(f"Unsupported sampler fusion strategy: {main_config.sampler_fusion}")
 
     # 4. Creating dataloader.
-    if use_iterable_dataset:
+    if use_iterable_dataset and not main_config.tarred_random_access:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
@@ -787,8 +795,8 @@ class DurationFilter:
     """Callable, returns ``True`` if a cut's duration is in range [d_min, d_max] and ``False`` otherwise."""
 
     def __init__(self, d_min: float, d_max: float) -> None:
-        self.d_min = d_min
-        self.d_max = d_max
+        self.d_min = d_min if d_min is not None else -1.0
+        self.d_max = d_max if d_max is not None else float("inf")
 
     def __call__(self, example) -> bool:
         if isinstance(example, Cut):
