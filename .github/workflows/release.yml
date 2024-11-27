@@ -28,7 +28,7 @@ on:
 
 jobs: 
   release:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_release_library.yml@ko3n1g/feat/release-dry-run
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_release_library.yml@v0.15.0
     with:
       release-ref: ${{ inputs.release-ref }}
       image-name: nemo_container
