@@ -886,6 +886,24 @@ class FlowMatchingAudioToAudioModel(AudioToAudioModel):
 
         return {f'{tag}_loss': loss}
 
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="sr_ssl_flowmatching_16k_430m",
+            description="For details on this model, please refer to https://ngc.nvidia.com/catalog/models/nvidia:nemo:sr_ssl_flowmatching_16k_430m",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/sr_ssl_flowmatching_16k_430m/versions/v1/files/sr_ssl_flowmatching_16k_430m.nemo",
+        )
+        results.append(model)
+
+        return results
+
 
 class SchroedingerBridgeAudioToAudioModel(AudioToAudioModel):
     """This models is using a Schrödinger Bridge process to generate
@@ -1235,3 +1253,28 @@ class SchroedingerBridgeAudioToAudioModel(AudioToAudioModel):
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         return {f'{tag}_loss': loss}
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="se_den_sb_16k_small",
+            description="For details on this model, please refer to https://ngc.nvidia.com/catalog/models/nvidia:nemo:se_den_sb_16k_small",
+            location="https://api.ngc.nvidia.com/v2/org/nvidia/team/nemo/models/se_den_sb_16k_small/versions/v1.0/files/se_den_sb_16k_small.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="se_der_sb_16k_small",
+            description="For details on this model, please refer to https://ngc.nvidia.com/catalog/models/nvidia:nemo:se_der_sb_16k_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/se_der_sb_16k_small/versions/v1/files/se_der_sb_16k_small.nemo",
+        )
+        results.append(model)
+        return results
+
