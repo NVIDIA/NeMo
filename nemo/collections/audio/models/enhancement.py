@@ -1277,4 +1277,3 @@ class SchroedingerBridgeAudioToAudioModel(AudioToAudioModel):
         )
         results.append(model)
         return results
-
