@@ -18,7 +18,7 @@ sample_rate: 22050
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
-  model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts or decoder_context_tts
+  model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
   use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
   transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
   context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts

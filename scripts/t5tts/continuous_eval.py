@@ -3,7 +3,6 @@ from nemo.collections.tts.data.text_to_speech_dataset import T5TTSDataset
 from omegaconf.omegaconf import OmegaConf, open_dict
 import os
 import glob
-import shutil
 import torch
 import soundfile as sf
 import evaluate_generated_audio
@@ -12,24 +11,24 @@ import argparse
 
 dataset_meta_info = {
     'vctk': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/normalized_manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopathsNormalized.json',
         'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
         'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
     },
     'riva_challenging': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json',
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/normalized_manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPathsNormalized.json',
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
     },
     'libri_val': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/normalized_manifests/libri360_valNormalized.json',
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
         'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
     }
 }
 
 
-def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk):
+def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path):
     model_cfg = OmegaConf.load(hparams_file).cfg
 
     with open_dict(model_cfg):
@@ -113,8 +112,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                 audio_path = os.path.join(audio_dir, f"predicted_audio_{item_idx}.wav")
                 sf.write(audio_path, predicted_audio_np, model.cfg.sample_rate)
                 item_idx += 1
-
-
+        
         metrics = evaluate_generated_audio.evaluate(
             dataset_meta[dataset]['manifest_path'],
             dataset_meta[dataset]['audio_dir'],
@@ -124,43 +122,33 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
         with open(os.path.join(eval_dir, f"{dataset}_metrics.json"), "w") as f:
             json.dump(metrics, f)
 
-        # Keys in metrics:
-        # metrics['cer_filewise_avg']
-        # metrics['wer_filewise_avg']
-        # metrics['speaker_similarity']
-        # metrics['cer_cumulative']
-        # metrics['wer_cumulative']
-
         all_experiment_csv = os.path.join(out_dir, "all_experiment_metrics.csv")
         if not os.path.exists(all_experiment_csv):
             with open(all_experiment_csv, "w") as f:
-                f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,speaker_similarity\n")
+                f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate\n")
         with open(all_experiment_csv, "a") as f:
-            f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['speaker_similarity']}\n")
+            f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']}\n")
             print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
 
 
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    # parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver_hparams.yaml")
-    # parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver_epoch_10.ckpt")
-    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/fresht5_MultiEncoder_textcontext_kernel3_hparams.yaml")
-    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/fresht5_MultiEncoder_textcontext_kernel3_epoch_4.ckpt")
+    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/singleencoder_kernel3_hparams.yaml")
+    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/singleencoder_kernel3_epoch_9.ckpt")
+    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo")
     parser.add_argument('--datasets', type=str, default="libri_val,vctk,riva_challenging")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/dracomount")
-    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh")
-    # parser.add_argument('--exp_names', type=str, default="SingleEncoder_WithPriorCTC0.002_Rope10k,SingleEncoderTextContext_WithPriorCTC0.002_Rope10k,MultiEncoderTextContext_WithPriorCTC_Rope10k_NoPerceiverCTC0.002_10kall,MultiEncoder_WithPriorCTC_Rope10k_WithPerceiverCTC0.002")
-    # parser.add_argument('--exp_names', type=str, default="MultiEncoder_WithPriorCTC_Rope10k_WithPerceiver,MultiEncoder_WithPriorCTC_Rope10k_NoPerceiver")
-    # parser.add_argument('--exp_names', type=str, default="MultiEncoderTextContext_WithPriorCTC_Rope1k_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_NoPerceiverCTC0.002,MultiEncoderTextContext_WithPriorCTC_Alibi_WithPerceiverCTC0.002,SingleEncoderTextContext_WithPriorCTC0.002_Alibi")
-    parser.add_argument('--exp_names', type=str, default="fresht5_single_encoder_kernel3,fresht5_MultiEncoder_textcontext_kernel1")
-    parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5")
-    parser.add_argument('--temperature', type=float, default=0.7)
+    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NormalizedNewT5Experiments")
+    parser.add_argument('--exp_names', type=str, default="multiEncoder_textcontext_kernel3,singleencoder_kernel3,NoPriorNoCTC_singleencoder_kernel3,NoPriorNoctc_multiEncoder_textcontext_kernel3")
+    parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints")
+    parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5_v3")
+    parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--topk', type=int, default=80)
     args = parser.parse_args()
 
     if (args.hparams_file is not None) and (args.checkpoint_file is not None) and (args.hparams_file != "null"):
-        run_inference(args.hparams_file, args.checkpoint_file, args.datasets.split(","), args.out_dir, args.temperature, args.topk)
+        run_inference(args.hparams_file, args.checkpoint_file, args.datasets.split(","), args.out_dir, args.temperature, args.topk, args.codecmodel_path)
         return
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -184,8 +172,9 @@ def main():
                 continue
             last_checkpoint_path_draco = last_checkpoint.replace(BASE_EXP_DIR, DRACO_EXP_DIR) 
             epoch_num = last_checkpoint.split("epoch=")[1].split("-")[0]
-            checkpoint_copy_path = f"/datap/misc/continuouscheckpoints/{exp_name}_epoch_{epoch_num}.ckpt"
-            hparams_copy_path = f"/datap/misc/continuouscheckpoints/{exp_name}_hparams.yaml"
+
+            checkpoint_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_epoch_{epoch_num}.ckpt")
+            hparams_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_hparams.yaml")
             
             scp_command = f"scp pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:{last_checkpoint_path_draco} {checkpoint_copy_path}"
             print(f"Running command: {scp_command}")
@@ -199,9 +188,7 @@ def main():
             # import ipdb; ipdb.set_trace()
             print("Hparams file path: ", hparams_copy_path)
             print("Checkpoint file path: ", checkpoint_copy_path)
-
-            
-            run_inference(hparams_copy_path, checkpoint_copy_path, args.datasets.split(","), args.out_dir, args.temperature, args.topk)
+            run_inference(hparams_copy_path, checkpoint_copy_path, args.datasets.split(","), args.out_dir, args.temperature, args.topk, args.codecmodel_path)
             
 
 if __name__ == '__main__':

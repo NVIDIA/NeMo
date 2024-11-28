@@ -665,8 +665,12 @@ class T5TTSDataset(TextToSpeechDataset):
         
         # Assert only ONE of context_audio or context_audio_codes in the batch
         assert ('audio' in batch_dict) ^ ('audio_codes' in batch_dict)
+        
         # Assert only ONE of context_audio or context_audio_codes in the batch
-        assert ('context_audio' in batch_dict) ^ ('context_audio_codes' in batch_dict)
+        if 'context_audio' in batch_dict:
+            assert 'context_audio_codes' not in batch_dict
+        if 'context_audio_codes' in batch_dict:
+            assert 'context_audio' not in batch_dict
 
         return batch_dict
 

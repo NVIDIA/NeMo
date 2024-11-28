@@ -110,14 +110,15 @@ class T5TTS_Model(ModelPT):
         
         super().__init__(cfg=cfg, trainer=trainer)
         
-        self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
-
         audio_embeddings = []
         for _ in range(cfg.num_audio_codebooks):
             audio_embeddings.append(nn.Embedding(cfg.num_audio_tokens_per_codebook, cfg.embedding_dim))
         self.audio_embeddings = nn.ModuleList(audio_embeddings)
 
-        self.t5_encoder = t5tts_transformer.TransformerStack(dict(cfg.t5_encoder))
+        if self.model_type != 'decoder_pretrain_synthesizer':
+            # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
+            self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
+            self.t5_encoder = t5tts_transformer.TransformerStack(dict(cfg.t5_encoder))
         
         decoder_config = dict(cfg.t5_decoder)
         decoder_config['context_xattn'] = {'params': decoder_config['context_xattn']}
@@ -161,6 +162,8 @@ class T5TTS_Model(ModelPT):
                 )
         elif self.model_type == 'decoder_context_tts':
             self.transcript_decoder_layers = [idx for idx in range(cfg.t5_decoder.n_layers)] # All layers are used for text
+        elif self.model_type == 'decoder_pretrain_synthesizer':
+            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
         
@@ -302,34 +305,44 @@ class T5TTS_Model(ModelPT):
         return total_codebook_loss, loss_mask
 
     def forward(self, text, text_lens, audio_codes, audio_codes_lens, attn_prior=None, conditioning_vector=None, context_embeddings=None, context_mask=None, context_input_type="encoder"):
-        # Either conditioning_vector or context_embeddings should be provided
-        assert (conditioning_vector is not None) ^ (context_embeddings is not None)
-        text_embedded = self.text_embedding(text) # (B, T, E)
-        text_mask = ~get_mask_from_lengths(text_lens) # (B, T)
-        encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output'] # (B, T, E)
-        
         audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens)
         audio_codes_embedded = self.embed_audio_tokens(audio_codes) # (B, T', E)
-
-        if conditioning_vector is not None:
-            # conditioning_vector: (B, E) usually speaker embeddings
-            encoder_out = encoder_out + conditioning_vector.unsqueeze(1)
-            cond = encoder_out
-            cond_mask = text_mask
+        
+        if text is None:
+            # Decoder pretrain synthesizer
+            cond = None
+            cond_mask = None
             multi_encoder_mapping = None
-            _attn_prior = attn_prior
-        elif context_embeddings is not None and context_input_type == "encoder":
-            cond = [encoder_out, context_embeddings]
-            cond_mask = [text_mask, context_mask]
-            multi_encoder_mapping = self.multi_encoder_mapping
-            _attn_prior = [attn_prior, None]
-        elif context_embeddings is not None and context_input_type == "decoder":
-            audio_codes_embedded = torch.cat([context_embeddings, audio_codes_embedded], dim=1)
-            audio_codes_mask = torch.cat([context_mask, audio_codes_mask], dim=1)
-            cond = encoder_out
-            cond_mask = text_mask
-            multi_encoder_mapping = None
-            _attn_prior = attn_prior
+            _attn_prior = None
+        else:
+            # Either conditioning_vector or context_embeddings should be provided
+            assert (conditioning_vector is not None) ^ (context_embeddings is not None)
+            text_embedded = self.text_embedding(text) # (B, T, E)
+            text_mask = ~get_mask_from_lengths(text_lens) # (B, T)
+            encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output'] # (B, T, E)
+            
+            if conditioning_vector is not None:
+                # Single encoder SV TTS
+                # conditioning_vector: (B, E) usually speaker embeddings
+                encoder_out = encoder_out + conditioning_vector.unsqueeze(1)
+                cond = encoder_out
+                cond_mask = text_mask
+                multi_encoder_mapping = None
+                _attn_prior = attn_prior
+            elif context_embeddings is not None and context_input_type == "encoder":
+                # Multi-encoder scneario
+                cond = [encoder_out, context_embeddings]
+                cond_mask = [text_mask, context_mask]
+                multi_encoder_mapping = self.multi_encoder_mapping
+                _attn_prior = [attn_prior, None]
+            elif context_embeddings is not None and context_input_type == "decoder":
+                # Decoder context TTS
+                audio_codes_embedded = torch.cat([context_embeddings, audio_codes_embedded], dim=1)
+                audio_codes_mask = torch.cat([context_mask, audio_codes_mask], dim=1)
+                cond = encoder_out
+                cond_mask = text_mask
+                multi_encoder_mapping = None
+                _attn_prior = attn_prior
         
         decoder_out = self.t5_decoder(
             audio_codes_embedded,
@@ -338,7 +351,7 @@ class T5TTS_Model(ModelPT):
             cond_mask=cond_mask,
             attn_prior=_attn_prior,
             multi_encoder_mapping=multi_encoder_mapping,
-        ) # (B, T', E)
+        )
         attn_probabilities = decoder_out['attn_probabilities']
         all_code_logits = self.final_proj(decoder_out['output']) # (B, T', num_codebooks * num_tokens_per_codebook)
         return all_code_logits, attn_probabilities
@@ -480,7 +493,15 @@ class T5TTS_Model(ModelPT):
         
         context_input_type = "encoder"
         dec_context_size = 0
-        if self.model_type == 'single_encoder_sv_tts':
+        if self.model_type == 'decoder_pretrain_synthesizer':
+            text = None
+            text_lens = None
+            conditioning_vector = None
+            context_embeddings = None
+            context_mask = None
+            attn_prior = None
+
+        elif self.model_type == 'single_encoder_sv_tts':
             target_audio_16khz = batch['audio_16khz']
             target_audio_lens_16khz = batch['audio_lens_16khz']
             speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
@@ -605,7 +626,7 @@ class T5TTS_Model(ModelPT):
         
         if batch_idx == 0 and self.global_rank == 0:
             self.log_train_val_example(logits, audio_codes_target, audio_codes_lens_target, context_audio_codes, context_audio_codes_lens)
-            if len(attn_info[self.transcript_decoder_layers[0]]['cross_attn_probabilities']) > 1:
+            if self.model_type != 'decoder_pretrain_synthesizer' and len(attn_info[self.transcript_decoder_layers[0]]['cross_attn_probabilities']) > 1:
                 # cross_attn_probabilities only returned when not using flash attention
                 cross_attention_probs = [attn['cross_attn_probabilities'][0] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.transcript_decoder_layers]
                 self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix="val_", dec_context_size=dec_context_size)
@@ -634,10 +655,17 @@ class T5TTS_Model(ModelPT):
             audio_codes_input = audio_codes_bos
             audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens)
 
-            text_mask = ~get_mask_from_lengths(text_lens)
-            encoder_out = self.t5_encoder(self.text_embedding(text), text_mask, cond=None, cond_mask=None)['output']
+            if self.model_type != 'decoder_pretrain_synthesizer':
+                text_mask = ~get_mask_from_lengths(text_lens)
+                encoder_out = self.t5_encoder(self.text_embedding(text), text_mask, cond=None, cond_mask=None)['output']
 
-            if self.model_type == 'single_encoder_sv_tts':
+            if self.model_type == 'decoder_pretrain_synthesizer':
+                conditioning_vector = None
+                cond = None
+                cond_mask = None
+                multi_encoder_mapping = None
+
+            elif self.model_type == 'single_encoder_sv_tts':
                 target_audio_16khz = batch['audio_16khz']
                 target_audio_lens_16khz = batch['audio_lens_16khz']
                 speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
@@ -647,7 +675,7 @@ class T5TTS_Model(ModelPT):
                 cond = encoder_out
                 cond_mask = text_mask
                 multi_encoder_mapping = None
-
+                
             elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts']:
                 if 'context_audio_codes' in batch:
                     context_audio_codes = batch['context_audio_codes']
