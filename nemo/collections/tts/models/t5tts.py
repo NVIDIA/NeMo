@@ -96,12 +96,13 @@ class T5TTS_Model(ModelPT):
         self.audio_eos_id = cfg.num_audio_tokens_per_codebook - 1
         self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 2 # For backward compatibility
         self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 1 # For backward compatibility
+        self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
+        
         if self.model_type == 'decoder_context_tts':
             self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 4 # Changing these to make them different from target audio bos and eos
             self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 3
 
         self._tb_logger = None
-        self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
         self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
