@@ -202,7 +202,7 @@ class MegatronGenerate(Resource):
             time.sleep(0.5)  # process one batch every 0.5s
         else:
             queryid = 0
-        end_strings = ['<|endoftext|>', '</s>', special_tokens['turn_start'], special_tokens['label_start']]
+        end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
 
         # Return a response mimicking the OpenAI ChatCompletion API format
         if queryid == 0:
