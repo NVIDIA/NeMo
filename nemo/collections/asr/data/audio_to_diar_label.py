@@ -1235,7 +1235,9 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
 
         audio_signal_length = torch.tensor(audio_signal.shape[0]).long()
         audio_signal, audio_signal_length = audio_signal.to(self.device), audio_signal_length.to(self.device)
-        target_len = self.get_segment_timestamps(duration=session_len_sec, sample_rate=self.featurizer.sample_rate).to(self.device)
+        target_len = self.get_segment_timestamps(duration=session_len_sec, sample_rate=self.featurizer.sample_rate).to(
+            self.device
+        )
         targets = self.parse_rttm_for_targets_and_lens(
             rttm_file=sample.rttm_file, offset=offset, duration=session_len_sec, target_len=target_len
         ).to(self.device)
