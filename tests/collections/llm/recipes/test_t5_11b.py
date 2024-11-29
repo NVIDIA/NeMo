@@ -43,7 +43,7 @@ class TestT5_11B:
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
         assert trainer_config.num_nodes == 20
-        assert trainer_config.max_steps == 1000000
+        assert trainer_config.max_steps == 1168251
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
