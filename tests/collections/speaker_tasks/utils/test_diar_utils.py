@@ -50,7 +50,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_online_subsegments_from_buffer,
     get_speech_labels_for_update,
     get_sub_range_list,
-    get_subsegments,
     get_subsegments_scriptable,
     get_target_sig,
     int2fl,
@@ -84,31 +83,6 @@ def matrix(mat, use_tensor=True, dtype=torch.long):
     return mat
 
 
-def __get_subsegments(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
-    """
-    Return subsegments from a segment of audio file
-    Args:
-        offset (float): start time of audio segment
-        window (float): window length for segments to subsegments length
-        shift (float): hop length for subsegments shift
-        duration (float): duration of segment
-    Returns:
-        subsegments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each subsegment
-    """
-    subsegments: List[List[float]] = []
-    start = offset
-    slice_end = start + duration
-    base = math.ceil((duration - window) / shift)
-    slices = 1 if base < 0 else base + 1
-    for slice_id in range(slices):
-        end = start + window
-        if end > slice_end:
-            end = slice_end
-        subsegments.append([start, end - start])
-        start = offset + (slice_id + 1) * shift
-    return subsegments
-
-
 def generate_orthogonal_embs(total_spks, perturb_sigma, emb_dim):
     """Generate a set of artificial orthogonal embedding vectors from random numbers"""
     gaus = torch.randn(emb_dim, emb_dim)
@@ -137,7 +111,7 @@ def generate_toy_data(
     random_orthogonal_embs = generate_orthogonal_embs(n_spks, perturb_sigma, emb_dim)
     for scale_idx, (window, shift) in enumerate(zip(ms_window, ms_shift)):
         for spk_idx, (offset, dur) in enumerate(spk_timestamps):
-            segments_stt_dur = get_subsegments(offset=offset, window=window, shift=shift, duration=dur)
+            segments_stt_dur = get_subsegments_scriptable(offset=offset, window=window, shift=shift, duration=dur)
             segments = [[x[0], x[0] + x[1]] for x in segments_stt_dur]
             emb_cent = random_orthogonal_embs[spk_idx, :]
             emb = emb_cent.tile((len(segments), 1)) + 0.1 * torch.rand(len(segments), emb_dim)
