@@ -4471,6 +4471,34 @@ jobs:
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/nemo2_ptq_engine
 
+  L2_NeMo_vLLM_Llama2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_vLLM_Llama2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
+          --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf-tiny \
+          --output_path=/tmp/nlp_megatron_llama/llama_ci.nemo \
+          --precision=16
+
+        source /opt/venv/bin/activate && python tests/export/nemo_export.py \
+          --model_name test \
+          --model_type llama \
+          --checkpoint_dir /tmp/nlp_megatron_llama/llama_ci.nemo \
+          --model_dir /tmp/vllm_engine \
+          --save_engine True \
+          --min_tps 1 \
+          --run_accuracy False \
+          --test_data_path /todo/lambada.json \
+          --use_vllm True \
+          --test_deployment True \
+          --debug
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/vllm_engine
+
   Nemo_CICD_Test:
     needs:
       - pre-flight
@@ -4625,6 +4653,7 @@ jobs:
       - L2_Megatron_GPT_Reranker
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
       - L2_NeMo_2_PTQ_Llama2_FP8
+      - L2_NeMo_vLLM_Llama2
     if: always()
     runs-on: ubuntu-latest
     steps:
