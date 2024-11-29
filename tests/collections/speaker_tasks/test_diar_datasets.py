@@ -51,8 +51,7 @@ class TestAudioToSpeechE2ESpkDiarDataset:
 
         batch_size = 4
         num_samples = 8
-
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         data_dict_list = []
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
             with open(manifest_path, 'r', encoding='utf-8') as mfile:
@@ -77,10 +76,8 @@ class TestAudioToSpeechE2ESpkDiarDataset:
                 window_stride=0.01,
                 global_rank=0,
                 soft_targets=False,
+                device=device,
             )
-
-            dataset = dataset.to(device)
-
             dataloader_instance = torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=batch_size,

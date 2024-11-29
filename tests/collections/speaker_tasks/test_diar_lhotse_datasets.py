@@ -154,7 +154,6 @@ class TestLhotseAudioToSpeechE2ESpkDiarDataset:
                 world_size=1,
                 dataset=LhotseAudioToSpeechE2ESpkDiarDataset(cfg=config),
             )
-            dataloader_instance = dataloader_instance.to(device)
 
             deviation_thres_rate = 0.01  # 1% deviation allowed
             for batch_index, batch in enumerate(dataloader_instance):

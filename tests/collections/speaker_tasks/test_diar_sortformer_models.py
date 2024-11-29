@@ -23,15 +23,15 @@ from nemo.collections.asr.models import SortformerEncLabelModel
 def sortformer_model():
 
     model = {
+        'sample_rate': 16000,
         'pil_weight': 0.5,
         'ats_weight': 0.5,
-        'num_workers': 18,
+        'max_num_of_spks': 4,
+    }
+    model_defaults = {
         'fc_d_model': 512,
         'tf_d_model': 192,
-        'max_num_of_spks': 4,
-        'session_len_sec': 90,
     }
-
     preprocessor = {
         '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
         'normalize': 'per_feature',
@@ -49,8 +49,8 @@ def sortformer_model():
         '_target_': 'nemo.collections.asr.modules.sortformer_modules.SortformerModules',
         'num_spks': model['max_num_of_spks'],
         'dropout_rate': 0.5,
-        'fc_d_model': model['fc_d_model'],
-        'tf_d_model': model['tf_d_model'],
+        'fc_d_model': model_defaults['fc_d_model'],
+        'tf_d_model': model_defaults['tf_d_model'],
     }
 
     encoder = {
@@ -58,7 +58,7 @@ def sortformer_model():
         'feat_in': preprocessor['features'],
         'feat_out': -1,
         'n_layers': 18,
-        'd_model': model['fc_d_model'],
+        'd_model': model_defaults['fc_d_model'],
         'subsampling': 'dw_striding',
         'subsampling_factor': 8,
         'subsampling_conv_channels': 256,
@@ -86,7 +86,7 @@ def sortformer_model():
     transformer_encoder = {
         '_target_': 'nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoder',
         'num_layers': 18,
-        'hidden_size': model['tf_d_model'],
+        'hidden_size': model_defaults['tf_d_model'],
         'inner_size': 768,
         'num_attention_heads': 8,
         'attn_score_dropout': 0.5,
@@ -105,13 +105,11 @@ def sortformer_model():
 
     modelConfig = DictConfig(
         {
+            'sample_rate': 16000,
             'pil_weight': 0.5,
             'ats_weight': 0.5,
-            'num_workers': 1,
-            'fc_d_model': 512,
-            'tf_d_model': 192,
             'max_num_of_spks': 4,
-            'session_len_sec': 90,
+            'model_defaults': DictConfig(model_defaults),
             'encoder': DictConfig(encoder),
             'transformer_encoder': DictConfig(transformer_encoder),
             'sortformer_modules': DictConfig(sortformer_modules),
