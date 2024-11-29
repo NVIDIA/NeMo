@@ -75,8 +75,10 @@ if __name__ == '__main__':
     nemo2_path = llm.import_ckpt(model, "hf://" + args.hf_model, output_path=Path(args.output_path))
 
     trainer = nl.Trainer(
-        strategy=nl.MegatronStrategy(),
+        devices=1,
+        strategy=nl.MegatronStrategy(tensor_model_parallel_size=1),
         plugins=nl.MegatronMixedPrecision(precision='fp16'),
     )
     fabric = trainer.to_fabric()
+    trainer.strategy.setup_environment()
     fabric.load_model(nemo2_path)
