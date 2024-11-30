@@ -356,12 +356,15 @@ def fake_initialize_model_parallel(
         order='tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
         rank_offset=encoder_world_size,
     )
-    
+
     # the default setting uses DEP (expert-parallel ranks for FFN are data-parallel ranks for Attention. This definition follows that rule.)
     expert_decoder_rank_generator = RankGenerator(
-        tp=tensor_model_parallel_size, # the same as Attention part
+        tp=tensor_model_parallel_size,  # the same as Attention part
         ep=expert_model_parallel_size_,
-        dp=(decoder_world_size // (expert_model_parallel_size_ * tensor_model_parallel_size * pipeline_model_parallel_size)),
+        dp=(
+            decoder_world_size
+            // (expert_model_parallel_size_ * tensor_model_parallel_size * pipeline_model_parallel_size)
+        ),
         pp=pipeline_model_parallel_size,
         cp=1,
         order='tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
