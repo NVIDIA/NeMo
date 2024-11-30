@@ -254,10 +254,10 @@ class FLOPsMeasurementCallback(Callback):
         vocab_size = LLM_VOCAB_SIZE_MAP["grok"]
         return (
             self.layers
-            * self.gbs 
+            * self.gbs
             * self.enc_seq_len
-            * self.hs 
-            * self.hs 
+            * self.hs
+            * self.hs
             * (
                 12
                 + (12 * self.query_groups / self.attention_heads)
