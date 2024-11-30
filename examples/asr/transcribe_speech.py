@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field, is_dataclass
 from typing import List, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
@@ -275,6 +275,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # we will adjust this flag if the model does not support it
     compute_langs = cfg.compute_langs
+
+    if cfg.timestamps:
+        cfg.return_hypotheses = True
 
     # Check whether model and decoder type match
     if isinstance(asr_model, EncDecCTCModel):
