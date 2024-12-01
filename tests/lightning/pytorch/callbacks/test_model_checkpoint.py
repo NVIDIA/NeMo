@@ -310,12 +310,6 @@ class TestLinkCheckpoint:
             trainer.fit(model, data)
 
             checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
-            """final_ckpt, top_k_checkpoints = get_final_checkpoint(checkpoint_dir)
-            assert os.path.islink(final_ckpt)
-            assert len(top_k_checkpoints) == 3
-
-            link = final_ckpt.resolve()
-            assert str(final_ckpt).replace("-last", "") == str(link)"""
             checkpoint_list = os.listdir(checkpoint_dir)
 
             # first_two_epochs = [ckpt for ckpt in checkpoint_list if "epoch=2" not in ckpt]
