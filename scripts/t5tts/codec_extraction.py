@@ -116,7 +116,7 @@ def write_manifest(manifest_path, records):
         f.write(file_str)
         print("Wrote {} records to: {}".format(len(records), manifest_path))
 
-def update_manifests(manifests, save_dir, dataset_names):
+def update_manifests(manifests, save_dir, dataset_names, codec_model_name):
     for midx, manifest in enumerate(manifests):
         records = read_manifest(manifest)
         for ridx, record in enumerate(records):
@@ -133,7 +133,7 @@ def update_manifests(manifests, save_dir, dataset_names):
                 if ridx % 10 == 0:
                     assert os.path.exists(context_audio_codes_path), "Context audio codes not found: {}".format(context_audio_codes_path)
         
-        write_manifest(manifest.replace(".json", "_withAudioCodes.json"), records)
+        write_manifest(manifest.replace(".json", "_withAudioCodes_{}.json".format(codec_model_name)), records)
         
 if __name__ == "__main__":
     """
@@ -141,11 +141,14 @@ if __name__ == "__main__":
     python scripts/t5tts/codec_extraction.py \
         --manifests /home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json \
         --audio_base_dirs /datap/misc/Datasets/VCTK-Corpus \
+        --codec_model_name codec21Khz_no_eliz \
         --dataset_names smallvctk \
         --save_dir /home/pneekhara/2023/SimpleT5NeMo/codec_outputs_21Khz \
         --codec_model_path /datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo \
         --sample_rate 22050 \
-        --pad_multiple 1024
+        --pad_multiple 1024 \
+        --devices -1 \
+        --num_nodes 1 
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifests", type=str)
@@ -153,6 +156,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_names", type=str)
     parser.add_argument("--save_dir", type=str)
     parser.add_argument("--codec_model_path", type=str)
+    parser.add_argument("--codec_model_name", type=str)
     parser.add_argument("--sample_rate", type=int)
     parser.add_argument("--pad_multiple", type=int)
     parser.add_argument("--devices", type=int, default=-1)
@@ -162,6 +166,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Prepare output directories
+    save_dir = os.path.join(args.save_dir, args.codec_model_name)
     manifests = args.manifests.split(",")
     audio_base_dirs = args.audio_base_dirs.split(",")
     dataset_names = args.dataset_names.split(",")
@@ -177,7 +182,7 @@ if __name__ == "__main__":
         file_lists.append(file_list)
         for file_path in file_list:
             dir_path = os.path.dirname(file_path)
-            out_dir_path = os.path.join(args.save_dir, dataset_names[midx], dir_path)
+            out_dir_path = os.path.join(save_dir, dataset_names[midx], dir_path)
             if not os.path.exists(out_dir_path):
                 os.makedirs(out_dir_path)
     
@@ -188,7 +193,7 @@ if __name__ == "__main__":
         file_lists=file_lists,
         base_audio_dirs=audio_base_dirs,
         dataset_names=dataset_names,
-        out_dir=args.save_dir,
+        out_dir=save_dir,
         sample_rate=args.sample_rate,
         pad_multiple=args.pad_multiple,
     )
@@ -218,6 +223,6 @@ if __name__ == "__main__":
 
     if torch.distributed.is_initialized():
         if torch.distributed.get_rank() == 0:
-            update_manifests(manifests, args.save_dir, dataset_names)
+            update_manifests(manifests, save_dir, dataset_names, args.codec_model_name)
     else:
-        update_manifests(manifests, args.save_dir, dataset_names)
+        update_manifests(manifests, save_dir, dataset_names, args.codec_model_name)
