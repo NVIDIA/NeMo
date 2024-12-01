@@ -318,7 +318,7 @@ class TestLinkCheckpoint:
             assert str(final_ckpt).replace("-last", "") == str(link)"""
             checkpoint_list = os.listdir(checkpoint_dir)
 
-            #first_two_epochs = [ckpt for ckpt in checkpoint_list if "epoch=2" not in ckpt]
+            # first_two_epochs = [ckpt for ckpt in checkpoint_list if "epoch=2" not in ckpt]
             first_epoch_ckpt = [ckpt for ckpt in checkpoint_list if "epoch=0" in ckpt][0]
             second_epoch_ckpt = [ckpt for ckpt in checkpoint_list if "epoch=1" in ckpt][0]
             final_epoch_ckpt = [ckpt for ckpt in checkpoint_list if "epoch=2" in ckpt and "-last" not in ckpt][0]
