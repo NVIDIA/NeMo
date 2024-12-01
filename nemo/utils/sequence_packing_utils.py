@@ -205,7 +205,13 @@ def fill_packing_strategy(
             input_ids = np.array([x['input_ids'] for x in per_seq_data])[perm].tolist()
             try:
                 loss_mask = np.array(
-                    [[idx >= x['answer_start_idx'] and x['input_ids'][idx] != pad_id for idx in range(len(x['input_ids']))] for x in per_seq_data]
+                    [
+                        [
+                            idx >= x['answer_start_idx'] and x['input_ids'][idx] != pad_id
+                            for idx in range(len(x['input_ids']))
+                        ]
+                        for x in per_seq_data
+                    ]
                 )[perm].tolist()
             except KeyError:
                 loss_mask = None
