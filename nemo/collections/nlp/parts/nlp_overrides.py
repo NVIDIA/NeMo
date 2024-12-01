@@ -104,11 +104,12 @@ try:
         optim_state_to_sharding_state,
     )
     from megatron.core.dist_checkpointing.strategies import tensorstore
-    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+    from megatron.core.tensor_parallel.layers import ColumnParallelLinear, param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 
     from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
+    from transformer_engine.pytorch import LayerNorm, RMSNorm
 
     HAVE_MEGATRON_CORE = True
 
@@ -482,18 +483,23 @@ class NLPDDPStrategy(DDPStrategy):
         # @akoumparouli: check if it contains an mcore dist opt
         if sharded_state_dict.get('optimizer_states') is None:
             return False
-        if common_state_dict['optimizer_states'][0].get('param_groups', None) is None:
+        #TODO: Resolve MCore Dist Opt mismatch, Apex Fused Adam + Dist Fused Adam working.
+        if self._get_param_group(common_state_dict) is None:
             return False
         model_param_groups = self._get_param_group(common_state_dict)
         checkpoint_param_groups = self._get_param_group(sharded_state_dict)
         return len(model_param_groups) != len(checkpoint_param_groups)
 
     def _fix_param_groups(
-        self, checkpoint_path: Union[str, Path], sharded_state_dict: Dict[str, Any]
+        self,
+        checkpoint_path: Union[str, Path],
+        sharded_state_dict: Dict[str, Any],
+        patch_separate_lm_head_stage: bool = False,
     ) -> Dict[str, Any]:
         """
         Try to fix the param groups in the checkpoint.
         This is to fix the bug that in 24.03, all checkpoints store EP param group regardless of using EP or not.
+        We also need to fix a bug in param groups if the model has a separate pipeline stage for LM head.
         This function makes sure all checkpoints are compatible for loading.
         Returns:
             sharded_state_dict: Loaded dictionary for the distributed load function
@@ -504,6 +510,16 @@ class NLPDDPStrategy(DDPStrategy):
 
         model_has_expert_param = any(param.get('is_expert', False) for param in model_param_groups)
         checkpoint_has_expert_param = any(param.get('is_expert', False) for param in checkpoint_param_groups)
+
+        patch_pipeline_index = None
+        if patch_separate_lm_head_stage:
+            patch_pipeline_index = len(model_param_groups)
+            model_param_groups.insert(patch_pipeline_index, {'params': LocalNonpersitentObject([0])})
+            # Temporary empty params so that loading doesn't fail
+            if 'optimizer' in sharded_state_dict['optimizer_states'][0]:
+                sharded_state_dict['optimizer_states'][0]['optimizer']['param_groups'] = model_param_groups
+            else:
+                sharded_state_dict['optimizer_states'][0]['param_groups'] = model_param_groups
 
         expert_index = None
         if checkpoint_has_expert_param and not model_has_expert_param:
@@ -531,6 +547,18 @@ class NLPDDPStrategy(DDPStrategy):
                 loaded_state_dict['optimizer_states'][0]['optimizer']['param_groups'].pop(expert_index)
             else:
                 loaded_state_dict['optimizer_states'][0]['param_groups'].pop(expert_index)
+
+        if patch_pipeline_index is not None:
+            # Remove the temporary empty params added above
+            if patch_pipeline_index is not None:
+                if 'optimizer' in loaded_state_dict['optimizer_states'][0]:
+                    loaded_state_dict['optimizer_states'][0]['optimizer']['param_groups'].pop(patch_pipeline_index)
+                    if 'param_groups' in loaded_state_dict['optimizer_states'][0]:
+                        # Remove the temp empty param_group that is created at state_dict["param_groups"] for dist fused adam, during the merging
+                        loaded_state_dict['optimizer_states'][0]['param_groups'].pop(patch_pipeline_index)
+                else:
+                    loaded_state_dict['optimizer_states'][0]['param_groups'].pop(patch_pipeline_index)
+
         return loaded_state_dict
 
     def load_checkpoint(self, checkpoint_path: Union[str, Path], load_optimizer_states: bool = True) -> Dict[str, Any]:
@@ -559,11 +587,42 @@ class NLPDDPStrategy(DDPStrategy):
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
+
+            #Check if the model has a separate LM head stage
+            def is_lm_head_separate_stage(module=None, state_dict=None):
+                if module is None or state_dict is None or checkpoint_path is None:
+                    return False
+                # Get common state dict configuration
+                common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+                config = common_state_dict.get("hyper_parameters", {}).get("cfg", {})
+                
+                # Check layernorm configuration
+                has_final_layernorm = config.get("post_process", True) and config.get("post_layer_norm", True)
+                
+                # Get model module and output layer
+                model_module = getattr(module.model, 'module', None) or module.model[0].module
+                output_layer = getattr(model_module, 'output_layer', None)
+                
+                # If no final layernorm, simpler check
+                if not has_final_layernorm:
+                    if len(state_dict) > 1: return False
+                    return isinstance(output_layer, ColumnParallelLinear)
+                
+                if len(state_dict) > 2: return False
+                # Determine layernorm type
+                norm_type = RMSNorm if config.get("normalization") == "RMSNorm" else LayerNorm
+                decoder = getattr(model_module, 'decoder', None)
+                final_layernorm = getattr(decoder, 'final_layernorm', None)
+            
+                return (isinstance(output_layer, ColumnParallelLinear)) or isinstance(final_layernorm, norm_type)
+              
+            patch_separate_lm_head_stage = is_lm_head_separate_stage(self.lightning_module, sharded_state_dict)
+
             # Check whether to load optim states
             if load_optimizer_states:
                 checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
-                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint)
+                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint,patch_separate_lm_head_stage)
             else:
                 checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
 
