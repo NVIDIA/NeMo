@@ -176,7 +176,7 @@ def create_packing_strategy(
 
 
 def fill_packing_strategy(
-    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int
+    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int, pad_id
 ) -> List[Dict]:
     """
     Fills the packing strategy with actual sequence data based on assignments and sequence information.
@@ -205,7 +205,7 @@ def fill_packing_strategy(
             input_ids = np.array([x['input_ids'] for x in per_seq_data])[perm].tolist()
             try:
                 loss_mask = np.array(
-                    [[idx >= x['answer_start_idx'] for idx in range(len(x['input_ids']))] for x in per_seq_data]
+                    [[idx >= x['answer_start_idx'] and x['input_ids'][idx] != pad_id for idx in range(len(x['input_ids']))] for x in per_seq_data]
                 )[perm].tolist()
             except KeyError:
                 loss_mask = None
