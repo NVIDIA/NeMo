@@ -336,23 +336,24 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # Drop optimizer states
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
         if len(checkpoints) > self.save_last_n_optim_states:
-            checkpoint_path = Path(checkpoints[checkpoint_index])
-            checkpoint_path = (
-                checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
-            )
+            if is_global_rank_zero():
+                checkpoint_path = Path(checkpoints[checkpoint_index])
+                checkpoint_path = (
+                    checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+                )
 
-            ## get base checkpoint io in case of wrapping
-            if self.base_checkpoint_io is None:
-                self.base_checkpoint_io = trainer.strategy.checkpoint_io
-                while isinstance(self.base_checkpoint_io, _WrappingCheckpointIO):
-                    self.base_checkpoint_io = self.base_checkpoint_io.checkpoint_io
-                assert hasattr(
-                    self.base_checkpoint_io, "drop_optimizer_states"
-                ), f"{checkpoint_io=} does not support dropping optimizer states. \
-                    Please disable dropping optimizer states by setting save_last_n_optim_states=-1."
+                ## get base checkpoint io in case of wrapping
+                if self.base_checkpoint_io is None:
+                    self.base_checkpoint_io = trainer.strategy.checkpoint_io
+                    while isinstance(self.base_checkpoint_io, _WrappingCheckpointIO):
+                        self.base_checkpoint_io = self.base_checkpoint_io.checkpoint_io
+                    assert hasattr(
+                        self.base_checkpoint_io, "drop_optimizer_states"
+                    ), f"{checkpoint_io=} does not support dropping optimizer states. \
+                        Please disable dropping optimizer states by setting save_last_n_optim_states=-1."
 
-            logging.info(f'dropping optimizer states at {checkpoint_path}')
-            self.base_checkpoint_io.drop_optimizer_states(checkpoint_path)
+                logging.info(f'dropping optimizer states at {checkpoint_path}')
+                self.base_checkpoint_io.drop_optimizer_states(checkpoint_path)
 
         torch.distributed.barrier()
 
