@@ -176,7 +176,7 @@ def create_packing_strategy(
 
 
 def fill_packing_strategy(
-    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int, pad_id
+    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int, pad_id: int
 ) -> List[Dict]:
     """
     Fills the packing strategy with actual sequence data based on assignments and sequence information.
@@ -192,6 +192,7 @@ def fill_packing_strategy(
           sequences: A dictionary where keys are sequence lengths and values are lists of corresponding sequences
                       from the dataset (output of 'create_hist').
           pack_size: The maximum capacity of each bin.
+          pad_id: The tokenizer's padding token.
 
     Returns:
           output_data: A list of dictionaries, where each dictionary represents a packed sequence with its input IDs,
