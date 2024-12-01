@@ -355,7 +355,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'dropping optimizer states at {checkpoint_path}')
                 self.base_checkpoint_io.drop_optimizer_states(checkpoint_path)
 
-        torch.distributed.barrier()
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
