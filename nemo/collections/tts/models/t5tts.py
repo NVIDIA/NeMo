@@ -462,8 +462,7 @@ class T5TTS_Model(ModelPT):
             target_audio_lens_16khz = batch['audio_lens_16khz']
             speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
             speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
-            encoder_out = text_encoder_out + speaker_embeddings_projected.unsqueeze(1)
-            cond = encoder_out
+            cond = text_encoder_out + speaker_embeddings_projected.unsqueeze(1)
             cond_mask = text_mask
             multi_encoder_mapping = None
             attn_prior = _attn_prior
@@ -770,26 +769,30 @@ class T5TTS_Model(ModelPT):
     def _setup_train_dataloader(self, cfg):
         dataset = self.get_dataset(cfg, dataset_type='train')
         sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
+        persistent_workers = True
         if cfg.dataloader_params.num_workers == 0:
+            persistent_workers = False
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg)
             if self.cfg.use_text_conditioning_encoder:
                 dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
 
         data_loader = torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn
+            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn, persistent_workers=persistent_workers
         )
         return data_loader
 
     def _setup_test_dataloader(self, cfg):
         dataset = self.get_dataset(cfg, dataset_type='test')
+        persistent_workers = True
         if cfg.dataloader_params.num_workers == 0:
+            persistent_workers = False
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg, mode='test')
             if self.cfg.use_text_conditioning_encoder:
                 dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
 
-        data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params, worker_init_fn=worker_init_fn)
+        data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params, worker_init_fn=worker_init_fn, persistent_workers=persistent_workers)
         return data_loader
 
     def setup_training_data(self, cfg):
