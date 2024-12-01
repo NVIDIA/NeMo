@@ -161,7 +161,7 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.SGD(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
 
     def on_validation_epoch_end(self):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
@@ -178,7 +178,7 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return PassThroughLossReduction()
 
 
-def setup_test(path, async_save=False, max_epochs=3):
+def setup_test(path, async_save=False, max_epochs=3, save_last_n_optim_states=-1):
     model = ExampleModel()
 
     data = RandomDataset(32, 64)
@@ -210,6 +210,7 @@ def setup_test(path, async_save=False, max_epochs=3):
             save_context_on_train_end=False,
             filename=f'{{step}}-{{epoch}}-{{val_loss}}-{{consumed_samples}}',
             save_last="link",
+            save_last_n_optim_states=save_last_n_optim_states,
         ),
         strategy=strategy,
     )
@@ -296,3 +297,42 @@ class TestLinkCheckpoint:
 
             epoch = str(final_ckpt).split('epoch=')[1][0]
             assert int(epoch) == 5  ## make sure we're running the correct number of epochs
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on("GPU")
+    def test_drop_optimizer_states_async(self, tmpdir):
+        """Test to check that dropping optimizer states works as expected."""
+
+        with reset_megatron_parallel_state():
+            tmp_path = tmpdir / "async_drop_optim_test"
+            data, model, trainer = setup_test(tmp_path, async_save=True, save_last_n_optim_states=2)
+
+            trainer.fit(model, data)
+
+            checkpoint_dir = Path(tmp_path / "default" / "checkpoints")
+            """final_ckpt, top_k_checkpoints = get_final_checkpoint(checkpoint_dir)
+            assert os.path.islink(final_ckpt)
+            assert len(top_k_checkpoints) == 3
+
+            link = final_ckpt.resolve()
+            assert str(final_ckpt).replace("-last", "") == str(link)"""
+            checkpoint_list = os.listdir(checkpoint_dir)
+
+            #first_two_epochs = [ckpt for ckpt in checkpoint_list if "epoch=2" not in ckpt]
+            first_epoch_ckpt = [ckpt for ckpt in checkpoint_list if "epoch=0" in ckpt][0]
+            second_epoch_ckpt = [ckpt for ckpt in checkpoint_list if "epoch=1" in ckpt][0]
+            final_epoch_ckpt = [ckpt for ckpt in checkpoint_list if "epoch=2" in ckpt and "-last" not in ckpt][0]
+
+            ## first checkpoint's optimizer states should get dropped
+            first_checkpoint_files = os.listdir(checkpoint_dir / first_epoch_ckpt / "weights")
+            first_checkpoint_optim_files = [f for f in first_checkpoint_files if f.startswith("optimizer")]
+            assert len(first_checkpoint_optim_files) == 0
+
+            ## last two checkpoints should have optimizer states
+            second_checkpoint_files = os.listdir(checkpoint_dir / second_epoch_ckpt / "weights")
+            second_checkpoint_optim_files = [f for f in second_checkpoint_files if f.startswith("optimizer")]
+            assert len(second_checkpoint_optim_files) == torch.distributed.get_world_size()
+
+            final_checkpoint_files = os.listdir(checkpoint_dir / final_epoch_ckpt / "weights")
+            final_checkpoint_optim_files = [f for f in final_checkpoint_files if f.startswith("optimizer")]
+            assert len(final_checkpoint_optim_files) == torch.distributed.get_world_size()
