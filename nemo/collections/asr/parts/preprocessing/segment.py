@@ -419,7 +419,8 @@ class AudioSegment(object):
             # Shortcut when selecting a single channel
             if channel_selector >= len(audio_file_list):
                 raise RuntimeError(
-                    f'Channel cannot be selected: channel_selector={channel_selector}, num_audio_files={len(audio_file_list)}'
+                    f'Channel cannot be selected: channel_selector={channel_selector}, '
+                    f'num_audio_files={len(audio_file_list)}'
                 )
             # Select only a single file
             audio_file_list = [audio_file_list[channel_selector]]
