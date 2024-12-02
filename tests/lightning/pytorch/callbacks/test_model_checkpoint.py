@@ -103,11 +103,12 @@ class PassThroughLossReduction(MegatronLossReduction):
 
 
 class ExampleModel(pl.LightningModule, IOMixin):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, use_adam=False, *args, **kwargs):
         super().__init__()
 
         ## keeps track of number of validation steps
         self.count = torch.zeros((1,))
+        self.use_adam = use_adam
 
     def configure_model(self):
 
@@ -161,7 +162,8 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        opt = torch.optim.Adam if self.use_adam else torch.optim.SGD
+        return opt(self.parameters(), lr=1e-3)
 
     def on_validation_epoch_end(self):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
@@ -178,8 +180,8 @@ class ExampleModel(pl.LightningModule, IOMixin):
         return PassThroughLossReduction()
 
 
-def setup_test(path, async_save=False, max_epochs=3, save_last_n_optim_states=-1):
-    model = ExampleModel()
+def setup_test(path, async_save=False, max_epochs=3, save_last_n_optim_states=-1, use_adam=False):
+    model = ExampleModel(use_adam=use_adam)
 
     data = RandomDataset(32, 64)
 
@@ -305,7 +307,9 @@ class TestLinkCheckpoint:
 
         with reset_megatron_parallel_state():
             tmp_path = tmpdir / "async_drop_optim_test"
-            data, model, trainer = setup_test(tmp_path, async_save=True, save_last_n_optim_states=2)
+
+            ## use adam so we have optimizer states to track
+            data, model, trainer = setup_test(tmp_path, async_save=True, save_last_n_optim_states=2, use_adam=True)
 
             trainer.fit(model, data)
 
