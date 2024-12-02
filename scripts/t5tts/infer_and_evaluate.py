@@ -32,7 +32,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
     model_cfg = OmegaConf.load(hparams_file).cfg
 
     with open_dict(model_cfg):
-        model_cfg.codecmodel_path = "/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo"
+        model_cfg.codecmodel_path = codecmodel_path
         model_cfg.text_tokenizer.g2p.phoneme_dict = "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
         model_cfg.text_tokenizer.g2p.heteronyms = "scripts/tts_dataset_files/heteronyms-052722"
         model_cfg.text_tokenizer.g2p.phoneme_probability = 1.0
@@ -41,7 +41,9 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 
     model = T5TTS_Model(cfg=model_cfg)
-    model.use_kv_cache_for_inference = True
+    if model_cfg.t5_decoder.pos_emb == "learnable":
+        if (model_cfg.t5_decoder.use_flash_self_attention) is False and (model_cfg.t5_decoder.use_flash_self_attention is False):
+            model.use_kv_cache_for_inference = True
 
     # Load weights from checkpoint file
     print("Loading weights from checkpoint")
@@ -134,8 +136,8 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/singleencoder_kernel3_hparams.yaml")
-    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/singleencoder_kernel3_epoch_17.ckpt")
+    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/edresson_hparams.yaml")
+    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/edresson_epoch21.ckpt")
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo")
     parser.add_argument('--datasets', type=str, default="libri_val,vctk,riva_challenging")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/dracomount")

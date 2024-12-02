@@ -168,7 +168,7 @@ class T5TTS_Model(ModelPT):
             raise ValueError(f"Unsupported model type {self.model_type}")
         
         if self.use_text_conditioning_encoder:
-            self.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+            self.text_conditioning_tokenizer = self._setup_text_conditioning_tokenizer(cfg)
             self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
 
         self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
@@ -204,6 +204,11 @@ class T5TTS_Model(ModelPT):
             tokenizer.set_phone_prob(1.0)
         return tokenizer
 
+    def _setup_text_conditioning_tokenizer(self, cfg):
+        # Tokenizer used for context text
+        text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+        return text_conditioning_tokenizer
+    
     @property
     def tb_logger(self):
         if self._tb_logger is None:
@@ -775,7 +780,7 @@ class T5TTS_Model(ModelPT):
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg)
             if self.cfg.use_text_conditioning_encoder:
-                dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+                dataset.text_conditioning_tokenizer = self._setup_text_conditioning_tokenizer(self.cfg)
 
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn, persistent_workers=persistent_workers
@@ -790,7 +795,7 @@ class T5TTS_Model(ModelPT):
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer = self._setup_tokenizer(self.cfg, mode='test')
             if self.cfg.use_text_conditioning_encoder:
-                dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+                dataset.text_conditioning_tokenizer = self._setup_text_conditioning_tokenizer(self.cfg)
 
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params, worker_init_fn=worker_init_fn, persistent_workers=persistent_workers)
         return data_loader
