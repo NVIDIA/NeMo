@@ -57,7 +57,14 @@ def test_set_model_parallel_attributes() -> None:
     assert model.config.pipeline_dtype == torch.float32
 
 
-def test_init_parallel_ranks() -> None:
+@pytest.mark.parameterize(
+    "cp,ep"
+    [
+        (1,2),
+        (2,1),
+    ]
+)
+def test_init_parallel_ranks(cp, ep) -> None:
     from megatron.core.num_microbatches_calculator import destroy_num_microbatches_calculator
     from megatron.core.parallel_state import destroy_model_parallel
 
@@ -67,8 +74,8 @@ def test_init_parallel_ranks() -> None:
 
     app_state.tensor_model_parallel_size = 2
     app_state.pipeline_model_parallel_size = 3
-    app_state.context_parallel_size = 2
-    app_state.expert_model_parallel_size = 2
+    app_state.context_parallel_size = cp
+    app_state.expert_model_parallel_size = ep
     app_state.global_rank = 1
     app_state.local_rank = 0
 
@@ -76,8 +83,8 @@ def test_init_parallel_ranks() -> None:
     mock_parallel_config.tensor_model_parallel_size = 2
     mock_parallel_config.pipeline_model_parallel_size = 3
     mock_parallel_config.virtual_pipeline_model_parallel_size = 4
-    mock_parallel_config.context_parallel_size = 2
-    mock_parallel_config.expert_model_parallel_size = 2
+    mock_parallel_config.context_parallel_size = cp
+    mock_parallel_config.expert_model_parallel_size = ep
     mock_parallel_config.encoder_tensor_model_parallel_size = 0
     mock_parallel_config.encoder_pipeline_model_parallel_size = 0
     mock_parallel_config.tp_comm_overlap = False
@@ -98,8 +105,8 @@ def test_init_parallel_ranks() -> None:
         "tensor_model_parallel_size": 2,
         "pipeline_model_parallel_size": 3,
         "virtual_pipeline_model_parallel_size": 4,
-        "context_parallel_size": 2,
-        "expert_model_parallel_size": 2,
+        "context_parallel_size":  cp,
+        "expert_model_parallel_size": ep,
         "pipeline_model_parallel_split_rank": None,
         "encoder_pipeline_model_parallel_size": 0,
         "encoder_tensor_model_parallel_size": 0,
