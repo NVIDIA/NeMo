@@ -14,6 +14,7 @@
 
 from unittest.mock import ANY, MagicMock, patch
 
+import pytest
 import torch
 from torch import nn
 
