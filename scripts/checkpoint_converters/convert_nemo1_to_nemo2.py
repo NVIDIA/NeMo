@@ -42,7 +42,6 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import torch
-from genericpath import isdir
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
 from omegaconf import OmegaConf
