@@ -364,6 +364,9 @@ class TensorRTLLM(ITritonDeployable):
                         f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
                     }
 
+                    if model_configs.get('squared_relu_activation', False):
+                        model_configs['activation'] = 'squared-relu'
+
                     trtllm_helper = TRTLLMHelper(
                         transformer_config=transformer_config,
                         model_type=input_model_type,
