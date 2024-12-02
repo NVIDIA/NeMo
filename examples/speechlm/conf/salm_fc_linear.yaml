@@ -149,9 +149,12 @@ optim:
     constant_steps: 10000
     min_lr: 5e-5
 
-
-
 ############ Trainer ############
+
+# Set this to "DD:HH:MM:SS" format to limit the max time for this job
+# If `max_time_per_run` is set, `strategy.ckpt_async_save` must be set to false
+max_time_per_run: null
+
 trainer:
   # _target_: nemo.lightning.Trainer
   devices: -1
@@ -167,9 +170,11 @@ strategy:
   _target_: nemo.lightning.MegatronStrategy
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
+  ckpt_async_save: true
 
 callbacks:
   _target_: nemo.lightning.pytorch.callbacks.ModelCheckpoint
+  filename: '${name}--{${callbacks.monitor}:.3f}-{step}-{epoch}'
   monitor: "val_loss"
   mode: "min"
   save_last: true
@@ -185,10 +190,6 @@ plugins:
 ############ AutoResume ############
 resume:
   _target_: nemo.collections.speechlm.utils.resume.SLMAutoResume
-  # _target_: nemo.lightning.AutoResume
-  # restore_config:
-  #   _target_: nemo.lightning.RestoreConfig
-  #   path: ???
   resume_from_directory: null
   resume_from_path: null
   adapter_path: null

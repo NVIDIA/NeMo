@@ -25,11 +25,13 @@ from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterCo
 from nemo.collections.speechlm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.utils import logging
+from nemo.utils.exp_manager import StatelessTimer
 
 
 def speech_to_text_llm_train(cfg: DictConfig):
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
+
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     # 1. build the model
@@ -55,10 +57,21 @@ def speech_to_text_llm_train(cfg: DictConfig):
     optim = Serialization.from_config_dict(cfg['optim'])
 
     # 4. setup trainer
+    callbacks = get_object_list_from_config(cfg['callbacks'])
+    if cfg.get('max_time_per_run', None):
+        if cfg['strategy'].get('ckpt_async_save', True):
+            logging.warning(
+                f"`strategy.ckpt_async_save` must be `False` to save ckpt when `max_time_per_run` is set, got {cfg['strategy']['ckpt_async_save']}. `max_time_per_run` will not work in this case!"
+            )
+        else:
+            # ckpt_async_save must be False to save ckpt when training is interrupted by max_time_per_run
+            logging.info(f"Setting max_time_per_run={cfg['max_time_per_run']} for the training job.")
+            callbacks.append(StatelessTimer(cfg['max_time_per_run']))
+
     trainer = nl.Trainer(
         strategy=Serialization.from_config_dict(cfg['strategy']),
         plugins=get_object_list_from_config(cfg['plugins']),
-        callbacks=get_object_list_from_config(cfg['callbacks']),
+        callbacks=callbacks,
         **cfg['trainer'],
     )
 
