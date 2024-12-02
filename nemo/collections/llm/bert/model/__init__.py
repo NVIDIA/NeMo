@@ -4,8 +4,8 @@ from nemo.collections.llm.bert.model.bert import (
     HuggingFaceBertConfig,
     HuggingFaceBertLargeConfig,
     HuggingFaceBertModel,
-    MegatronBertConfig,
     MegatronBertBaseConfig,
+    MegatronBertConfig,
     MegatronBertLargeConfig,
 )
 

@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
@@ -6,9 +20,7 @@ import torch
 import torch.distributed
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-from megatron.core.models.bert import bert_layer_specs
 from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
-from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 from megatron.core.models.bert.pooler import Pooler
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
@@ -23,8 +35,8 @@ from torch import Tensor, nn
 from nemo.collections.llm import fn
 from nemo.collections.llm.bert.loss import BERTLossReduction
 from nemo.collections.llm.bert.model.bert_spec import (
-    bert_layer_local_spec_postln,
-    bert_layer_with_transformer_engine_spec_postln,
+    get_bert_layer_local_spec_postln,
+    get_bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -32,8 +44,11 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 HAVE_TE = True
 try:
     import transformer_engine  # pylint: disable=W0611
-except (ImportError, ModuleNotFoundError):
+    from megatron.core.models.bert import bert_layer_specs
+    from megatron.core.models.bert.bert_model import BertModel as MCoreBert
+except (ImportError, ModuleNotFoundError) as e:
     HAVE_TE = False
+    MCoreBert = TransformerLayer # Place holder for import checking. BERT requires TE installed.
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -99,12 +114,12 @@ def default_layer_spec(config: "BertConfig") -> ModuleSpec:
         if bert_type == 'megatron':
             return bert_layer_specs.bert_layer_with_transformer_engine_spec
         else:
-            return bert_layer_with_transformer_engine_spec_postln
+            return get_bert_layer_with_transformer_engine_spec_postln()
 
     if bert_type == 'megatron':
         return bert_layer_specs.bert_layer_local_spec
     else:
-        return bert_layer_local_spec_postln
+        return get_bert_layer_local_spec_postln()
 
 
 @dataclass
@@ -527,6 +542,15 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        # Megatron-LM's BERT implementation has high dependency on TE, and it is not possible
+        # to instantiate the MCore BERT without TE package.
+        # Few issues there: 1. bert_layer_specs.py is not TE dependency-free.
+        #                  2. in bert_model.py _sanity_check_attention_and_get_attn_mask_dimension() checks on
+        #                     if transformer_layer_spec is identical to bert_layer_local_spec to determine if TE is
+        #                     required; since in NeMo we use customized bert layer spec, it will always assume this
+        #                     if using TE.
+        # We need to address the above two issues to enable TE-Free NeMo BERT.
+        assert HAVE_TE, "NeMo BERT requires Transformer Engine to be installed."
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
