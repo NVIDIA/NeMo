@@ -32,10 +32,10 @@ from argparse import ArgumentParser
 
 import torch
 from genericpath import isdir
+from lightning.pytorch.plugins.environments import TorchElasticEnvironment
+from lightning.pytorch.trainer.trainer import Trainer
 from megatron.core import parallel_state
 from omegaconf import OmegaConf, open_dict
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -111,6 +111,11 @@ def get_args():
         default='16-mixed',
         choices=['32-true', '16-mixed', 'bf16-mixed'],
         help="Precision value for the trainer that matches with precision of the ckpt",
+    )
+    parser.add_argument(
+        "--convert_mlm",
+        action="store_true",
+        help="Use this flag to convert megatron-lm checkpoints.",
     )
 
     args = parser.parse_args()
@@ -195,7 +200,9 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == 'gpt':
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, load_mlm=args.convert_mlm
+        )
     elif args.model_type == 'sft':
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer

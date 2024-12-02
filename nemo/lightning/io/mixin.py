@@ -81,15 +81,33 @@ def _partial_representer_with_defaults(dumper, data):
 
 
 def _safe_object_representer(dumper, data):
-    if not inspect.isclass(data):
-        cls = data.__class__
-        call = True
-    else:
-        cls = data
+    """
+    Represent a given object as YAML using the specified dumper.
+
+    This function is a fallback for objects that don't have specific representers.
+    If the object has __qualname__ attr, the __target__ is set to f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}".
+    If the object does not have a __qualname__ attr, the __target__ is set from its __class__ attr.
+    The __call__ key is used to indicate whether the target should be called to create an instance.
+
+    Args:
+        dumper (yaml.Dumper): The YAML dumper to use for serialization.
+        data (Any): The data to serialize. This can be any Python object,
+            but if it's a class or a class instance, special handling will be applied.
+
+    Returns:
+        str: The YAML representation of the data.
+    """
+    try:
+        obj = data
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
         call = False
+    except AttributeError:
+        obj = data.__class__
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
+        call = True
 
     value = {
-        "_target_": f"{inspect.getmodule(cls).__name__}.{cls.__qualname__}",  # type: ignore
+        "_target_": target,  # type: ignore
         "_call_": call,
     }
     return dumper.represent_data(value)
@@ -590,7 +608,9 @@ def _io_flatten_object(instance):
 
 
 def _io_unflatten_object(values, metadata):
-    assert hasattr(_thread_local, "output_dir")
+    if not hasattr(_thread_local, "output_dir"):
+        return fdl.Config.__unflatten__(values, metadata)
+
     output_dir = _thread_local.output_dir
 
     if len(values) == 1:

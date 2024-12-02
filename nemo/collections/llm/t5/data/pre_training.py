@@ -17,8 +17,8 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+import lightning.pytorch as pl
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
@@ -141,8 +141,18 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.index_mapping_dir = index_mapping_dir
         self.init_global_step = 0
 
-        # add additional tokens for T5 tokenizer
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        # create tokenizer if tokenizer is None
+        if tokenizer is None:
+            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
+            special_tokens = {}
+            special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
+            tokenizer = get_nmt_tokenizer(
+                "megatron",
+                "BertWordPieceCase",
+                special_tokens=special_tokens,
+            )
+        self.tokenizer = tokenizer
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,

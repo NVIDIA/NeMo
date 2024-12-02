@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import fiddle as fdl
-from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm
 
@@ -76,11 +76,11 @@ if __name__ == '__main__':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
-    tokenizer = llm.HfAutoModelForCausalLM.configure_tokenizer(args.model)
+    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
 
     llm.api.finetune(
-        model=llm.HfAutoModelForCausalLM(args.model),
-        data=llm.HfDatasetDataModule(
+        model=llm.HFAutoModelForCausalLM(args.model),
+        data=llm.HFDatasetDataModule(
             mk_hf_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
         ),
         trainer=nl.Trainer(
@@ -96,7 +96,7 @@ if __name__ == '__main__':
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
         ),
-        optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(max_lr=1e-5, clip_grad=0.5)),
+        optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],

@@ -15,15 +15,16 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
-from pytorch_lightning.callbacks.callback import Callback
+from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
+from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
@@ -32,25 +33,25 @@ NAME = "hf_auto_model_for_causal_lm"
 
 
 @run.cli.factory(name=NAME)
-def model(model_name) -> run.Config[pl.LightningModule]:
+def model(model_name, load_pretrained_weights) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create HfAutoModelForCausalLM model configurations.
+    Factory function to create HFAutoModelForCausalLM model configurations.
 
     Args:
         model_name (str): Model id on HF.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the HfAutoModelForCausalLM.
+        run.Config[pl.LightningModule]: Configuration for the HFAutoModelForCausalLM.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory 'HfAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
+            $ nemo llm pretrain --factory 'HFAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
 
         Python API usage:
             >>> model_config = model(model_name="mistralai/Mistral-Nemo-Instruct-2407")
             >>> print(model_config)
     """
-    return run.Config(HfAutoModelForCausalLM, model_name=model_name)
+    return run.Config(HFAutoModelForCausalLM, model_name=model_name, load_pretrained_weights=load_pretrained_weights)
 
 
 def trainer(
@@ -68,7 +69,7 @@ def trainer(
     gradient_clip_val: float = 1.0,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for HfAutoModelForCausalLM.
+    Configure the NeMo Lightning Trainer for HFAutoModelForCausalLM.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -90,7 +91,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=HfAutoModelForCausalLM ...
+            $ nemo llm pretrain trainer=HFAutoModelForCausalLM ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
@@ -130,7 +131,7 @@ def pretrain_recipe(
     model_name: str = '',
 ) -> run.Partial:
     """
-    Create a pre-training recipe for a HfAutoModelForCausalLM model.
+    Create a pre-training recipe for a HFAutoModelForCausalLM model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -147,7 +148,7 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory 'HfAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
+            $ nemo llm pretrain --factory 'HFAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
 
         Python API usage:
             >>> recipe = pretrain_recipe(name="auto_pretrain", num_nodes=2, model_name="mistralai/Mistral-Nemo-Instruct-2407")
@@ -178,7 +179,7 @@ def finetune_recipe(
     model_name: str = '',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for a HfAutoModelForCausalLM model.
+    Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -223,7 +224,7 @@ def finetune_recipe(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA)
+        recipe.peft = run.Config(LoRA, target_modules=['*_proj'])
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

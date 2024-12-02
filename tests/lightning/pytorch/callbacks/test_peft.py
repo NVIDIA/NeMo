@@ -15,7 +15,7 @@
 from unittest.mock import MagicMock, call, patch
 
 import torch.nn as nn
-from pytorch_lightning.trainer.states import TrainerFn
+from lightning.pytorch.trainer.states import TrainerFn
 from nemo.collections.llm import fn
 from nemo.lightning.pytorch.callbacks.peft import PEFT, WrappedAdapterIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
@@ -25,6 +25,11 @@ class TestPEFT:
     class DummyPEFT(PEFT):
         def transform(self, module, name=None, prefix=None):
             return module  # No-op transform for testing
+
+        def freeze_model(self, module):
+            super().freeze_model(module)
+            self.is_called = True
+            return module
 
     class DummyModel(nn.Module, fn.FNMixin):
         def __init__(self):
@@ -38,6 +43,9 @@ class TestPEFT:
 
         transformed_model = peft(model)
 
+        assert (
+            hasattr(peft, "is_called") and peft.is_called == True
+        ), "peft methods may subclass `freeze_model()`, so it must be called"
         assert transformed_model.linear.weight.requires_grad == False
         assert transformed_model.conv.weight.requires_grad == False
 
