@@ -8,6 +8,7 @@ from nemo.collections.tts.models import AudioCodecModel
 import os
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 import argparse
+from pytorch_lightning.utilities.rank_zero import rank_zero_only
 
 class AudioDataset(Dataset):
     def __init__(self, file_lists, base_audio_dirs, dataset_names, out_dir, sample_rate=22050, pad_multiple=1024):
@@ -116,6 +117,7 @@ def write_manifest(manifest_path, records):
         f.write(file_str)
         print("Wrote {} records to: {}".format(len(records), manifest_path))
 
+@rank_zero_only
 def update_manifests(manifests, save_dir, dataset_names, codec_model_name):
     for midx, manifest in enumerate(manifests):
         records = read_manifest(manifest)
@@ -134,7 +136,27 @@ def update_manifests(manifests, save_dir, dataset_names, codec_model_name):
                     assert os.path.exists(context_audio_codes_path), "Context audio codes not found: {}".format(context_audio_codes_path)
         
         write_manifest(manifest.replace(".json", "_withAudioCodes_{}.json".format(codec_model_name)), records)
-        
+
+def prepare_directories(base_save_dir, codec_model_name, manifests, audio_base_dirs, dataset_names):
+    save_dir = os.path.join(base_save_dir, codec_model_name)
+    file_lists = []
+    for midx, manifest in enumerate(manifests):
+        records = read_manifest(manifest)
+        unique_audio_file_paths = {}
+        for record in records:
+            unique_audio_file_paths[record["audio_filepath"]] = 1
+            if "context_audio_filepath" in record:
+                unique_audio_file_paths[record["context_audio_filepath"]] = 1
+        file_list = list(unique_audio_file_paths.keys())
+        file_lists.append(file_list)
+        for file_path in file_list:
+            dir_path = os.path.dirname(file_path)
+            out_dir_path = os.path.join(save_dir, dataset_names[midx], dir_path)
+            if not os.path.exists(out_dir_path):
+                os.makedirs(out_dir_path)
+    print("Created directories for saving audio codes at: ", save_dir, len(file_lists))
+    return save_dir, file_lists
+
 if __name__ == "__main__":
     """
     Usage:
@@ -165,27 +187,42 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
 
-    # Prepare output directories
-    save_dir = os.path.join(args.save_dir, args.codec_model_name)
-    manifests = args.manifests.split(",")
+    trainer = Trainer(
+        devices=args.devices,
+        accelerator="gpu",
+        strategy=DDPStrategy(find_unused_parameters=False),
+        num_nodes=args.num_nodes,
+        log_every_n_steps=1,
+        max_epochs=1,
+        logger=False,
+    )
+    
     audio_base_dirs = args.audio_base_dirs.split(",")
     dataset_names = args.dataset_names.split(",")
-    file_lists = []
-    for midx, manifest in enumerate(manifests):
-        records = read_manifest(manifest)
-        unique_audio_file_paths = {}
-        for record in records:
-            unique_audio_file_paths[record["audio_filepath"]] = 1
-            if "context_audio_filepath" in record:
-                unique_audio_file_paths[record["context_audio_filepath"]] = 1
-        file_list = list(unique_audio_file_paths.keys())
-        file_lists.append(file_list)
-        for file_path in file_list:
-            dir_path = os.path.dirname(file_path)
-            out_dir_path = os.path.join(save_dir, dataset_names[midx], dir_path)
-            if not os.path.exists(out_dir_path):
-                os.makedirs(out_dir_path)
-    
+    manifests = args.manifests.split(",")
+
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        if rank == 0:
+            save_dir, file_lists = prepare_directories(
+                args.save_dir,
+                args.codec_model_name,
+                manifests,
+                audio_base_dirs,
+                dataset_names
+            )
+        results = [save_dir, file_lists]
+        torch.distributed.broadcast_object(results, src=0)
+        save_dir, file_lists = results
+    else:
+        save_dir, file_lists = prepare_directories(
+            args.save_dir,
+            args.codec_model_name,
+            manifests,
+            audio_base_dirs,
+            dataset_names
+        )
+
     codec_extractor = CodecExtractor(args.codec_model_path)
 
     # Dataset and DataLoader
@@ -206,23 +243,7 @@ if __name__ == "__main__":
         collate_fn=dataset.collate_fn,
     )
 
-    # Trainer
-    trainer = Trainer(
-        devices=args.devices,
-        accelerator="gpu",
-        strategy=DDPStrategy(find_unused_parameters=False),
-        num_nodes=args.num_nodes,
-        precision=16,  # Mixed precision for faster computations
-        log_every_n_steps=1,
-        max_epochs=1,
-        logger=False,
-    )
-
     # Run prediction (Saves the audio codes to files)
     trainer.predict(codec_extractor, dataloaders=dataloader)
 
-    if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0:
-            update_manifests(manifests, save_dir, dataset_names, args.codec_model_name)
-    else:
-        update_manifests(manifests, save_dir, dataset_names, args.codec_model_name)
+    update_manifests(manifests, save_dir, dataset_names, args.codec_model_name)

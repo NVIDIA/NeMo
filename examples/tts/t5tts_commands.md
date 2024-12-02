@@ -12,11 +12,12 @@ docker run --runtime=nvidia -it --rm -v --shm-size=16g --ipc=host --ulimit memlo
 ```
 
 ```
-cd /home/pneekhara/2023/SimpleT5NeMo/NeMo; export PYTHONPATH="/home/pneekhara/2023/SimpleT5NeMo/NeMo.:${PYTHONPATH}" ; pip install ipdb ;
+cd /home/pneekhara/2023/SimpleT5NeMo/NeMo; export PYTHONPATH="/home/pneekhara/2023/SimpleT5NeMo/NeMo.:${PYTHONPATH}" ;
 ```
 
 ## Code
 * Model `nemo/collections/tts/models/t5tts.py`
+* Dataset Class `T5TTSDataset` in `nemo/collections/tts/data/text_to_speech_dataset.py`
 * Transformer Module `nemo/collections/tts/modules/t5tts_transformer.py`
 * Config Yaml `examples/tts/conf/t5tts/t5tts.yaml`
 * Training/Inference Script `examples/tts/t5tts.py`
@@ -26,86 +27,110 @@ cd /home/pneekhara/2023/SimpleT5NeMo/NeMo; export PYTHONPATH="/home/pneekhara/20
 Currently supports three model types `single_encoder_sv_tts` , `multi_encoder_context_tts` and `decoder_context_tts` (`cfg.model.model_type` in t5tts.yaml)
 
 1. `single_encoder_sv_tts` is a simple T5 model: Text goes into the encoder and target audio goes to the decoder.
-   Additionally, speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder output (all timesteps).
-   When using text context, the DistilBert embedding of the text will be added instead of the speaker_embedding.
+   Additionally, speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder output (all timesteps). Text context is not supported in this model.
 
 2. `multi_encoder_context_tts` is a multi-encoder T5 model: Transcript and context audio go to different encoders.
-   Transcript encoding feeds to layers given by `cfg.model.transcript_decoder_layers` and the context encoding feeds into the remaining layers.
-   Also supports text context - The context text is encoded by DistilBert and is either concatenated after the context audio encoding (along time dimension)
-   or used by itself if context audio is not available.
+   Transcript encoding feeds to layers given by `cfg.model.transcript_decoder_layers` and the context encoding feeds into the layers given by `context_decoder_layers` .
+   Also supports text context which gets encoded by the same encoder as context audio. Only one of context audio or contex text is supported.
 
-1. `decoder_context_tts` : Text goes into the encoder; context & target audio go to the decoder.
-   When using text context, the DistilBert embedding of the text will be added instead of the speaker_embedding.
-   Also supports text context - The context text is encoded by DistilBert and is either concatenated after the context audio encoding (along time dimension)
-   or used by itself if context audio is not available.
+3. `decoder_context_tts` : Text goes into the encoder; context & target audio go to the decoder.
+   Also supports text context. Currently, I have tested the model with using fixed sized context so I set `context_duration_min` and `context_duration_max` to the same value (5 seconds). Text context, which is usually shorter than number of codec frames of 5 second of audio, is padded to the max context duration in this model.
 
-   NOTE: `multi_encoder_context_tts` can support both audio and text context in a single example,
-   while `single_encoder_sv_tts` exclusively supports audio or text context in a single example.
-   If both are provided, text context takes precedence.
+4. `decoder_pretrain_synthesizer` : This is the model type used for pretraining the decoder only on audio data using next frame prediction loss. 
 
 ## Training Command
 
-### Data structure
-For `single_encoder_sv_tts`, the manifest json files should contain the following keys: `audio_filepath, duration, text, speaker` . `speaker` is not currently being used so can be anything.
+### Manifest structure
+For `single_encoder_sv_tts`, the manifest json files should contain the following keys: `audio_filepath, duration, text, speaker` . `speaker` is not currently being used so can be anything. Optionally, we can have a `context_audio_filepath` and `context_audio_duration` as well, if we want to use that for speaker embedding instead of the `audio_filepath`.
 If we have already extracted the audio codes then they can also contain the key `target_audio_codes_path` pointing to the absolute path to the codes .pt file of shape (8, T).
 Note: `target_audio_codes_path` should either be present in ALL training manifests or absent in ALL training manifest. Train set cannot be a mix of both. Same goes for val set.
 If `target_audio_codes_path` is not present, codes are extracted on the fly (and training will be slower).
 
-For `multi_encoder_context_tts`, `decoder_context_tts` in addition to the above, the manifest should contain `context_audio_filepath` and `context_duration`. If we have codes already extracted, we can have `context_audio_codes_path` (abosolute path) instead of `context_audio_filepath`. 
+For `multi_encoder_context_tts`, `decoder_context_tts`, in addition to the above, the manifest should contain `context_audio_filepath` and `context_audio_duration`. If we have codes already extracted, we can have `context_audio_codes_path` (abosolute path) instead of `context_audio_filepath`. 
 
-Additionally, we can have `context_text` key for text context training. If both, `context_audio_codes_path` and `context_text` are provided, in multi_encoder_context_tts or decoder_context_tts, both information will be used for conditioning, but in single_encoder_sv_tts only context_text will be used.
+For text context training, we can have `context_text` key for text context and drop `context_audio_duration` and `context_audio_filepath` (or `context_audio_codes_path`).
+
+If we have both `audio_filepath` and `target_audio_codes_path` in the manifest, the dataloader will load from `target_audio_codes_path`. To disable this and extract codes on the fly set the parameter `model.load_cached_codes_if_available=false` during training. Same goes for context audio.
+
+### Manifests and Datasets
+
+Manifests can be found in: `/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/manifests` on draco-oci (`draco-oci-dc-02.draco-oci-iad.nvidia.com`)
+I use the following for training.
+
+```
+Train:
+hifitts__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_textContextsimplet5_withContextAudioPaths.json
+libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+mls17k__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_verified_simplet5_withContextAudioPaths.json
+
+Val:
+dev_clean_withContextAudioPaths.json
+```
+
+Audio File Directories:
+```
+HifiTTS: /lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/hi_fi_tts_v0
+Libri100, Libri360 Libri dev: /lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS
+Lindy/Rodney: /lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/riva
+MLS Audio: /lustre/fsw/portfolios/edgeai/projects/edgeai_riva_rivamlops/data/tts/datasets/mls17k/filtered_24khz/audio_24khz
+```
+
+Pre-extracted Audio Codes (21 FPS with WavLM)
+```
+/lustre/fs11/portfolios/edgeai/projects/edgeai_riva_rivamlops/data/tts/datasets/codecs
+```
 
 ### Command
 ```
 python examples/tts/t5tts.py \
+--config-name=t5tts \
 max_epochs=1000 \
 weighted_sampling_steps_per_epoch=1000 \
 exp_manager.exp_dir="/datap/misc/Experiments/SimpleT5Explore/LocalTraining_LRH/" \
-+train_ds_meta.hifittstrain.manifest_path="/home/pneekhara/2023/SimpleT5NeMo/manifests/hifitts__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
-+train_ds_meta.hifittstrain.audio_dir="/datap/misc/Datasets/hi_fi_tts_v0" \
-+train_ds_meta.hifittstrain.feature_dir="/datap/misc/Datasets/hi_fi_tts_v0" \
-+train_ds_meta.hifittstrain.sample_weight=1.0 \
 +train_ds_meta.rivatrain.manifest_path="/home/pneekhara/2023/SimpleT5NeMo/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
 +train_ds_meta.rivatrain.audio_dir="/datap/misc/Datasets/riva" \
 +train_ds_meta.rivatrain.feature_dir="/datap/misc/Datasets/riva" \
 +train_ds_meta.rivatrain.sample_weight=1.0 \
-+train_ds_meta.libri360.manifest_path="/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
-+train_ds_meta.libri360.audio_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
-+train_ds_meta.libri360.feature_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
-+train_ds_meta.libri360.sample_weight=1.0 \
-+train_ds_meta.libri100.manifest_path="/home/pneekhara/2023/SimpleT5NeMo/manifests/libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
-+train_ds_meta.libri100.audio_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
-+train_ds_meta.libri100.feature_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
-+train_ds_meta.libri100.sample_weight=1.0 \
-+val_ds_meta.librival.manifest_path="/datap/misc/LibriTTSfromNemo/LibriTTS/devclean_small.json" \
++train_ds_meta.libri360train.manifest_path="/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
++train_ds_meta.libri360train.audio_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
++train_ds_meta.libri360train.feature_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
++train_ds_meta.libri360train.sample_weight=1.0 \
++train_ds_meta.libri100train.manifest_path="/home/pneekhara/2023/SimpleT5NeMo/manifests/libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
++train_ds_meta.libri100train.audio_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
++train_ds_meta.libri100train.feature_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
++train_ds_meta.libri100train.sample_weight=1.0 \
++val_ds_meta.librival.manifest_path="/home/pneekhara/2023/SimpleT5NeMo/manifests/dev_clean_withcontext.json" \
 +val_ds_meta.librival.audio_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
 +val_ds_meta.librival.feature_dir="/datap/misc/LibriTTSfromNemo/LibriTTS" \
 model.model_type="single_encoder_sv_tts" \
-model.use_text_conditioning_encoder=false \
+model.use_text_conditioning_encoder=true \
 model.codecmodel_path="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
-model.alignment_loss_scale=0.01 \
+model.alignment_loss_scale=0.005 \
 model.prior_scaling_factor=0.5 \
 model.prior_scaledown_start_step=5000 \
 model.prior_end_step=8000 \
-model.t5_encoder.use_flash_self_attention=true \
-model.t5_encoder.use_flash_x_attention=true \
-model.t5_decoder.use_flash_self_attention=true \
-model.t5_decoder.use_flash_x_attention=false \
+model.context_duration_min=3.0 \
+model.context_duration_max=8.0 \
 model.train_ds.dataloader_params.num_workers=2 \
-model.validation_ds.dataloader_params.num_workers=0 \
+model.validation_ds.dataloader_params.num_workers=2 \
 trainer.val_check_interval=500 \
-trainer.devices=1 \
+trainer.devices=-1 \
 ~model.optim.sched ;
 ```
 
-Set `model.model_type=multi_encoder_context_tts` for Multi Encoder T5TTS and `model.use_text_conditioning_encoder=true` if you are doing text context training.
+Audio filepaths in the manifests should be relative to `audio_dir`. Codec paths are absolute.
+
+Set `model.model_type=multi_encoder_context_tts` for Multi Encoder T5TTS or `decoder_context_tts` for decoder context and `model.use_text_conditioning_encoder=true` if you want both audio/text contexts.
 
 If you change the codec model, make sure to adjust these model config params in `t5tts.yaml`:
 
 ```
 model:
   num_audio_codebooks: 8
-  num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
+  num_audio_tokens_per_codebook: 2048 # Keep atleast 4 extra for eos/bos ids
   codec_model_downsample_factor: 1024
 ```
 
@@ -117,7 +142,7 @@ model.prior_scaling_factor=null \
 ```
 
 
-### Training sub file for cluster.
+### Training sub file for cluster (Draco-OCI)
 
 ```
 #!/bin/bash
@@ -127,19 +152,20 @@ model.prior_scaling_factor=null \
 #SBATCH --mem=0                    # all mem avail
 #SBATCH --mail-type=FAIL           # only send email on failure
 #SBATCH --overcommit               # Needed for pytorch
-#SBATCH -p batch
+#SBATCH -p batch_block1,batch_block3,batch_block4
+#SBATCH --gres=gpu:8
 #SBATCH -N 2                   # number of nodes
-#SBATCH -A 	llmservice_nemo_speechlm
-#SBATCH -J 	llmservice_nemo_speechlm-sample:pneekhara_sample
+#SBATCH -A 	convai_convaird_nemo-speech
+#SBATCH -J 	convai_convaird_nemo-speech-sample:samplepneekhara
 
-source containers_2407.sh
+source containers_nemodev.sh
 export HYDRA_FULL_ERROR=1
 export CUDA_LAUNCH_BLOCKING=1
 
 set -x
 
-EXP_DIR="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/ExperimentalT5MultiGPUFixed/alldataWeighted_WithCTCPrior_Flash"
-DOCKER_EXP_DIR="/gitrepos/experiments/ExperimentalT5MultiGPUFixed/alldataWeighted_WithCTCPrior_Flash"
+EXP_DIR="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NormalizedNewT5Experiments/unnormalizedLalign005_multiEncoder_textcontext_kernel3"
+DOCKER_EXP_DIR="/gitrepos/experiments/NormalizedNewT5Experiments/unnormalizedLalign005_multiEncoder_textcontext_kernel3"
 
 mkdir -p $EXP_DIR
 
@@ -149,53 +175,68 @@ read -r -d '' cmd <<EOF
 echo "*******STARTING********" \
 && cd /gitrepos/SimpleNeMo/NeMo ; export PYTHONPATH="/gitrepos/SimpleNeMo/NeMo/.:${PYTHONPATH}" ; cd /gitrepos/SimpleNeMo/NeMo \
 && echo "Starting training" \
-&& PYTHONFAULTHANDLER=1 python examples/tts/t5tts.py \
+&& python examples/tts/t5tts.py \
 exp_manager.exp_dir="${DOCKER_EXP_DIR}" \
 +exp_manager.version=0 \
-max_epochs=500 \
 weighted_sampling_steps_per_epoch=10000 \
-batch_size=24 \
+max_epochs=500 \
+batch_size=16 \
 phoneme_dict_path="/gitrepos/SimpleNeMo/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt" \
 heteronyms_path="/gitrepos/SimpleNeMo/NeMo/scripts/tts_dataset_files/heteronyms-052722" \
-+train_ds_meta.hifittstrain.manifest_path="/data/TTS/manifests/hifitts__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
++train_ds_meta.hifittstrain.manifest_path="/data/TTS/manifests/hifitts__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
 +train_ds_meta.hifittstrain.audio_dir="/data/TTS/hi_fi_tts_v0" \
 +train_ds_meta.hifittstrain.feature_dir="/data/TTS/hi_fi_tts_v0" \
 +train_ds_meta.hifittstrain.sample_weight=1.0 \
-+train_ds_meta.rivatrain.manifest_path="/data/TTS/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
++train_ds_meta.rivatrain.manifest_path="/data/TTS/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
 +train_ds_meta.rivatrain.audio_dir="/data/TTS/riva" \
 +train_ds_meta.rivatrain.feature_dir="/data/TTS/riva" \
 +train_ds_meta.rivatrain.sample_weight=1.0 \
-+train_ds_meta.libri100train.manifest_path="/data/TTS/manifests/libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
++train_ds_meta.rivatraintextcontext.manifest_path="/data/TTS/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_textContextsimplet5_withContextAudioPaths.json" \
++train_ds_meta.rivatraintextcontext.audio_dir="/data/TTS/riva" \
++train_ds_meta.rivatraintextcontext.feature_dir="/data/TTS/riva" \
++train_ds_meta.rivatraintextcontext.sample_weight=1.0 \
++train_ds_meta.libri100train.manifest_path="/data/TTS/manifests/libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
 +train_ds_meta.libri100train.audio_dir="/data/TTS/LibriTTS" \
 +train_ds_meta.libri100train.feature_dir="/data/TTS/LibriTTS" \
 +train_ds_meta.libri100train.sample_weight=1.0 \
-+train_ds_meta.libri360train.manifest_path="/data/TTS/manifests/libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
++train_ds_meta.libri360train.manifest_path="/data/TTS/manifests/libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
 +train_ds_meta.libri360train.audio_dir="/data/TTS/LibriTTS" \
 +train_ds_meta.libri360train.feature_dir="/data/TTS/LibriTTS" \
 +train_ds_meta.libri360train.sample_weight=1.0 \
-+train_ds_meta.mlstrain.manifest_path="/data/TTS/manifests/mls17k__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json" \
++train_ds_meta.mlstrain.manifest_path="/data/TTS/manifests/mls17k__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_verified_simplet5_withContextAudioPaths.json" \
 +train_ds_meta.mlstrain.audio_dir="/MLS" \
 +train_ds_meta.mlstrain.feature_dir="/MLS" \
 +train_ds_meta.mlstrain.sample_weight=0.1 \
-+val_ds_meta.libridev.manifest_path="/data/TTS/LibriTTS/dev_clean.json" \
++val_ds_meta.libridev.manifest_path="/data/TTS/manifests/dev_clean_withContextAudioPaths.json" \
 +val_ds_meta.libridev.audio_dir="/data/TTS/LibriTTS" \
 +val_ds_meta.libridev.feature_dir="/data/TTS/LibriTTS" \
-model.codecmodel_path="/gitrepos/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
 model.train_ds.dataset.min_duration=0.5 \
 model.validation_ds.dataset.min_duration=0.5 \
-model.alignment_loss_scale=0.01 \
+model.context_duration_min=3.0 \
+model.context_duration_max=8.0 \
+model.codecmodel_path="/gitrepos/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
+model.model_type="multi_encoder_context_tts" \
+model.transcript_decoder_layers='[3,4,5,6,7]' \
+model.context_decoder_layers='[8,9]' \
+model.use_text_conditioning_encoder=true \
+model.use_perceiver=false \
+model.alignment_loss_scale=0.005 \
 model.prior_scaling_factor=0.5 \
 model.prior_scaledown_start_step=8000 \
 model.prior_end_step=12000 \
-model.t5_encoder.use_flash_self_attention=true \
-model.t5_encoder.use_flash_x_attention=true \
-model.t5_decoder.use_flash_self_attention=true \
-model.t5_decoder.use_flash_x_attention=false \
-model.train_ds.dataloader_params.num_workers=4 \
+model.t5_encoder.pos_emb.name="learnable" \
+model.t5_decoder.pos_emb.name="learnable" \
+model.context_encoder.pos_emb.name="learnable" \
+model.t5_encoder.kernel_size=3 \
+model.t5_decoder.kernel_size=3 \
+model.context_encoder.kernel_size=3 \
+model.t5_encoder.n_layers=6 \
+model.context_encoder.n_layers=6 \
+model.train_ds.dataloader_params.num_workers=2 \
 model.validation_ds.dataloader_params.num_workers=0 \
 trainer.devices=8 \
 trainer.val_check_interval=1000 \
-model.optim.lr=2e-4 \
+model.optim.lr=1e-4 \
 trainer.num_nodes=${SLURM_JOB_NUM_NODES}
 EOF
 
@@ -203,9 +244,10 @@ echo $cmd
 
 srun -o ${EXP_DIR}/slurm-sft-%j-%n.out -e ${EXP_DIR}/slurm-sft-%j-%n.err --no-container-mount-home --container-image="$CONTAINER" $MOUNTS bash -c "${cmd}"
 set +x
+
 ```
 
-Here's my containers file:
+Here's my containers file for relevant file mounts, docker container.
 
 ```
 #!/usr/bin/env sh
@@ -227,24 +269,45 @@ DATASETS="/lustre/fsw/llmservice_nemo_speechlm/data/speechlm_codecs_updated/:/da
 MOUNTS="--container-mounts=$CODE,$DATASETS"
 ```
 
+## Inference and Eval
 
-
-## Inference Command
-
-For now, I am running inference as follows. This saves the generated audio somewhere in `exp_manager.exp_dir`
+To infer and evaluate from a given checkpoint and hparams.yaml file I use `scripts/t5tts/infer_and_evaluate.py`. To evaluate on a given manifest (same structure as discussed above), edit the `dataset_meta_info` in `scripts/t5tts/infer_and_evaluate.py` to point to the paths on your machine or add any other datasets if missing.
 
 ```
-CUDA_VISIBLE_DEVICES=1 python examples/tts/t5tts.py \
---config-name=t5tts_inference \
-+init_from_ptl_ckpt="/datap/misc/checkpoints/withprior10.ckpt" \
-exp_manager.exp_dir="/datap/misc/Experiments/SimpleT5Explore/Inference/DracoNoPriorInterspeech" \
-+test_ds_meta.riva_interspeech.manifest_path="/datap/misc/Datasets/riva/riva_interspeech.json" \
-+test_ds_meta.riva_interspeech.audio_dir="/datap/misc/Datasets/riva" \
-+test_ds_meta.riva_interspeech.feature_dir="/datap/misc/Datasets/riva" \
-model.codecmodel_path="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
-model.t5_encoder.use_flash_self_attention=true \
-model.t5_encoder.use_flash_x_attention=true \
-model.t5_decoder.use_flash_self_attention=true \
-model.t5_decoder.use_flash_x_attention=false \
-model.prior_scaling_factor=null
+dataset_meta_info = {
+    'vctk': {
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
+        'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
+        'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
+    },
+    'riva_challenging': {
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
+        'audio_dir' : '/datap/misc/Datasets/riva',
+        'feature_dir' : '/datap/misc/Datasets/riva',
+    },
+    'libri_val': {
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
+        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
+        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
+    }
+}
 ```
+
+Then run
+
+```
+python scripts/t5tts/infer_and_evaluate.py \
+--hparams_file <Path to hparams.yaml which is usualy found in the training log dir> \
+--checkpoint_file <Path to T5TTS checkpoint > \
+--codecmodel_path /datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo \
+--datasets "vctk,libri_val" \
+--out_dir /datap/misc/Evals \
+--temperature 0.6 \
+--topk 80
+```
+
+Ignore the other params in the file, I also use this for evaluating ongoing experiments on the cluster by copying over the checkpoints and hparams..
+
+### Inference Notebook
+
+Inference Notebook: `t5tts_inference.ipynb` For quickly trying custom texts/contexts.

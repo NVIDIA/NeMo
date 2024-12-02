@@ -11,17 +11,17 @@ import argparse
 
 dataset_meta_info = {
     'vctk': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/normalized_manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopathsNormalized.json',
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
         'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
         'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
     },
     'riva_challenging': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/normalized_manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPathsNormalized.json',
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
     },
     'libri_val': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/normalized_manifests/libri360_valNormalized.json',
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
         'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
     }
@@ -135,14 +135,15 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/singleencoder_kernel3_hparams.yaml")
-    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/singleencoder_kernel3_epoch_9.ckpt")
+    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/singleencoder_kernel3_epoch_17.ckpt")
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo")
     parser.add_argument('--datasets', type=str, default="libri_val,vctk,riva_challenging")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/dracomount")
     parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NormalizedNewT5Experiments")
-    parser.add_argument('--exp_names', type=str, default="multiEncoder_textcontext_kernel3,singleencoder_kernel3,NoPriorNoCTC_singleencoder_kernel3,NoPriorNoctc_multiEncoder_textcontext_kernel3")
+    parser.add_argument('--server_address', type=str, default="pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com")
+    parser.add_argument('--exp_names', type=str, default="unnormalizedLalign005_multiEncoder_textcontext_kernel3,unnormalizedLalign005_decoderContext_textcontext_kernel3Fixed,unnormalizedLalign005_singleencoder_kernel3")
     parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints")
-    parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5_v3")
+    parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5_Unnormalized")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--topk', type=int, default=80)
     args = parser.parse_args()
@@ -176,12 +177,12 @@ def main():
             checkpoint_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_epoch_{epoch_num}.ckpt")
             hparams_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_hparams.yaml")
             
-            scp_command = f"scp pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:{last_checkpoint_path_draco} {checkpoint_copy_path}"
+            scp_command = f"scp {args.server_address}:{last_checkpoint_path_draco} {checkpoint_copy_path}"
             print(f"Running command: {scp_command}")
             os.system(scp_command)
             print("Copied checkpoint.")
             hparams_path_draco = hparams_file.replace(BASE_EXP_DIR, DRACO_EXP_DIR)
-            scp_command_hparams = f"scp pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:{hparams_path_draco} {hparams_copy_path}"
+            scp_command_hparams = f"scp {args.server_address}:{hparams_path_draco} {hparams_copy_path}"
             print(f"Running command: {scp_command_hparams}")
             os.system(scp_command_hparams)
             print("Copied hparams file.")
