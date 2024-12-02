@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-class MockDataModule(pl.LightningDataModule):
+class BERTMockDataModule(pl.LightningDataModule):
     """Mock DataModule for BERT model.
     Args:
         seq_length (int): Sequence length.
