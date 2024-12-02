@@ -446,7 +446,7 @@ def fake_initialize_model_parallel(
     # EP rank
     expert_model_parallel_rank = 0
     if expert_model_parallel_size_ is not None and expert_model_parallel_size_ > 1:
-        for ranks in generator_wrapper('ep', independent_ep=True):
+        for ranks in generator_wrapper('ep'):
             if rank in ranks:
                 expert_model_parallel_rank = list(ranks).index(rank)
 
