@@ -59,10 +59,9 @@ def test_set_model_parallel_attributes() -> None:
 
 
 @pytest.mark.parameterize(
-    "cp,ep"
-    [
-        (1,2),
-        (2,1),
+    "cp,ep"[
+        (1, 2),
+        (2, 1),
     ]
 )
 def test_init_parallel_ranks(cp, ep) -> None:
@@ -106,7 +105,7 @@ def test_init_parallel_ranks(cp, ep) -> None:
         "tensor_model_parallel_size": 2,
         "pipeline_model_parallel_size": 3,
         "virtual_pipeline_model_parallel_size": 4,
-        "context_parallel_size":  cp,
+        "context_parallel_size": cp,
         "expert_model_parallel_size": ep,
         "pipeline_model_parallel_split_rank": None,
         "encoder_pipeline_model_parallel_size": 0,
