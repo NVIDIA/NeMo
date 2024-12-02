@@ -78,7 +78,7 @@ jobs:
       run: |
         docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
           # PyTorch Lightning version
-          python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
+          python -c "import lightning.pytorch; print(lightning.pytorch.__version__)"
 
           # PyTorch Lightning DDP Checks
           CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"

@@ -589,7 +589,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     self.ddp_config,
                     module,
                     data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    expert_data_parallel_group=parallel_state.get_expert_data_parallel_group(),
                     disable_bucketing=disable_bucketing,
                 )
 

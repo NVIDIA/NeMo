@@ -31,12 +31,14 @@ from tests.collections.llm.common import small_llama_cfg, train_data
 
 
 class CrashCallback(Callback):
-    def __init__(self, crash_step=3):
+    def __init__(self, crash_step=16):
         self.crash_step = crash_step
+        self.current_step = 0
         print(f"Setup to simulate a crash if step == {self.crash_step}")
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        if self.crash_step and trainer.global_step == self.crash_step:
+        self.current_step = self.current_step + 1
+        if self.crash_step and self.current_step == self.crash_step:
             raise Exception(f"Simulating a crash at step {self.crash_step}!")
 
 
@@ -89,8 +91,12 @@ def main():
     # Recipe Overrides
     pretrain_recipe.trainer.max_steps = 20
     pretrain_recipe.trainer.log_every_n_steps = 1
-    pretrain_recipe.log.ckpt.every_n_train_steps = None
+    # Enable ckpt save so that after the simulated crash, training can resume from ckpt
+    pretrain_recipe.log.ckpt.every_n_train_steps = 10
     pretrain_recipe.log.ckpt.train_time_interval = None
+    # Disable async ckpt because the simulated crash happens during ckpt save
+    # So only an unfinished ckpt would be available for resume which can cause errors
+    pretrain_recipe.trainer.strategy.ckpt_async_save = False
     pretrain_recipe.trainer.val_check_interval = 30
     pretrain_recipe.trainer.limit_val_batches = 2
 
@@ -120,6 +126,8 @@ def main():
         assert "Straggler report processing time" in log_content
     if args.crash_step:
         assert f"Exception: Simulating a crash at step {args.crash_step}!" in log_content
+        assert "Restored all states from the checkpoint" in log_content
+        assert "`Trainer.fit` stopped: `max_steps=20` reached" in log_content
 
 
 if __name__ == '__main__':
