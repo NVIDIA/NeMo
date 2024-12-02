@@ -61,13 +61,17 @@ class ExternalFeatureLoader(object):
         return float32_samples
 
     def process(self, file_path: str) -> torch.Tensor:
+        """Processes the features from the provided `file_path`."""
         features = self.load_feature_from_file(file_path)
         features = self.process_segment(features)
         return features
 
     def process_segment(self, feature_segment):
+        """Processes the provided feature segment."""
         if self.augmentor:
-            # augmentor for external features. Here possible augmentor for external embedding feature is Diaconis Augmentation and might be implemented later
+            # augmentor for external features. Here possible augmentor for
+            # external embedding feature is Diaconis Augmentation and might
+            # be implemented later
             self.augmentor.perturb(feature_segment)
             return torch.tensor(feature_segment, dtype=torch.float)
 
