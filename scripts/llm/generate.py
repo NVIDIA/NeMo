@@ -14,8 +14,8 @@
 
 # NOTE: This script is just an example of using NeMo checkpoints for generating outputs and is subject to change without notice.
 
-from argparse import ArgumentParser
 import os
+from argparse import ArgumentParser
 
 import torch
 import torch.distributed
@@ -24,13 +24,12 @@ from megatron.core.inference.common_inference_params import CommonInferenceParam
 import nemo.lightning as nl
 from nemo.collections.llm import api
 
+
 def get_args():
     """
     Parse the command line arguments.
     """
-    parser = ArgumentParser(
-        description="""Run generation on a few sample prompts given the checkpoint path."""
-    )
+    parser = ArgumentParser(description="""Run generation on a few sample prompts given the checkpoint path.""")
     parser.add_argument(
         "--model_path",
         type=str,
@@ -83,6 +82,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
+
 if __name__ == "__main__":
     args = get_args()
 
@@ -117,7 +117,9 @@ if __name__ == "__main__":
         path=args.model_path,
         prompts=prompts,
         trainer=trainer,
-        inference_params=CommonInferenceParams(temperature=args.temperature, top_p=args.top_p, num_tokens_to_generate=args.num_tokens_to_generate),
+        inference_params=CommonInferenceParams(
+            temperature=args.temperature, top_p=args.top_p, num_tokens_to_generate=args.num_tokens_to_generate
+        ),
         text_only=True,
     )
     if torch.distributed.get_rank() == 0:

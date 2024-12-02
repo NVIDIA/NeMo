@@ -39,11 +39,11 @@ import os
 import shutil
 import tempfile
 from argparse import ArgumentParser
-from genericpath import isdir
 from pathlib import Path
 from typing import Optional
 
 import torch
+from genericpath import isdir
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
 from omegaconf import OmegaConf
@@ -127,6 +127,7 @@ def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
     """
     if os.path.isdir(model_id):
         from nemo.lightning import io
+
         model = io.load_context(Path(model_id), subpath="model")
         model.config.bf16 = True
         model.config.params_dtype = torch.bfloat16
