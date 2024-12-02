@@ -337,7 +337,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             else:
                 return self._pad_cu_seqlens
         return False
-    
+
     def _extract_tokenizer_model_name(self) -> str:
         """Automatically get the model name from model path."""
         if self.packed_sequence_specs.tokenizer_model_name is not None:

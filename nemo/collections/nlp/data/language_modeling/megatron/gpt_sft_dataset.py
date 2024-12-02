@@ -525,13 +525,15 @@ class GPTSFTDataset(Dataset):
 
 
 class GPTSFTPackedDataset(GPTSFTDataset):
-    def __init__(self, 
-        file_path: str, 
-        tokenizer: TokenizerSpec, 
-        return_cu_seqlen: bool = True, 
+    def __init__(
+        self,
+        file_path: str,
+        tokenizer: TokenizerSpec,
+        return_cu_seqlen: bool = True,
         pad_cu_seqlens: bool = False,
         pack_metadata_file_path: Optional[str] = None,
-        **kwargs):
+        **kwargs,
+    ):
         """
         file_path: See `file_path` in the parent class.
         tokenizer: See `tokenizer` in the parent class.
@@ -546,8 +548,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         self.pad_cu_seqlens = pad_cu_seqlens
         if self.pad_cu_seqlens:
-            assert pack_metadata_file_path is not None, \
-                "a metadata json file is required when pad_cu_seqlens is enabled"
+            assert (
+                pack_metadata_file_path is not None
+            ), "a metadata json file is required when pad_cu_seqlens is enabled"
 
         self.pack_metadata = None
         if pack_metadata_file_path is not None:
@@ -684,8 +687,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
             if self.pad_cu_seqlens:
                 # pad cu_seqlens with zero length sequences
-                pad_num = self.pack_metadata['max_samples_per_bin'] - len(cu_seqlens[-1]) 
-                cu_seqlens[-1].extend([max_length]*pad_num)
+                pad_num = self.pack_metadata['max_samples_per_bin'] - len(cu_seqlens[-1])
+                cu_seqlens[-1].extend([max_length] * pad_num)
 
         assert len(input_ids[0]) == len(
             position_ids[0]
@@ -721,7 +724,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 # Use the global max seqlen, as 'pad_cu_seqlens' is used mainly
                 # to support cudagraphs, and 'max_seqlen' is a cpu tensor, which means should
                 # be the same across all batches.
-                max_seqlen = torch.IntTensor([self.pack_metadata['dataset_max_seqlen']]*len(cu_seqlens))
+                max_seqlen = torch.IntTensor([self.pack_metadata['dataset_max_seqlen']] * len(cu_seqlens))
             else:
                 seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
                 max_seqlen, _ = seqlens.max(dim=1, keepdim=True)

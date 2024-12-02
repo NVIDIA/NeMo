@@ -74,6 +74,7 @@ def create_sft_dataset(
 
     if path.suffix == '.npy':
         from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTPackedDataset
+
         return GPTSFTPackedDataset(
             pack_metadata_file_path=pack_metadata_file_path,
             pad_cu_seqlens=pad_cu_seqlens,
@@ -82,6 +83,7 @@ def create_sft_dataset(
         )
     else:
         from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+
         return GPTSFTDataset(
             **gpt_sft_dataset_kwargs,
             **kwargs,

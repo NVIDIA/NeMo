@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-import json
 import numpy as np
 
 from nemo.collections.common.tokenizers import TokenizerSpec
@@ -86,7 +86,7 @@ def prepare_packed_sequence_data(
     np.save(output_path, output_data)
     # save packing metadata
     if output_metadata_path is not None:
-        with open(output_metadata_path, "w" ) as f:
+        with open(output_metadata_path, "w") as f:
             json.dump(packing_metadata, f)
     logging.info(f"Packed sequence is prepared and saved to {output_path}")
 
