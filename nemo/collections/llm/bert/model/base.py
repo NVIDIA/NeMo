@@ -48,7 +48,7 @@ try:
     from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 except (ImportError, ModuleNotFoundError) as e:
     HAVE_TE = False
-    MCoreBert = TransformerLayer # Place holder for import checking. BERT requires TE installed.
+    MCoreBert = TransformerLayer  # Place holder for import checking. BERT requires TE installed.
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
