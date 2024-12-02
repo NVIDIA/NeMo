@@ -29,15 +29,15 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
+from megatron.core.models.bert import bert_layer_specs
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor, nn
-
+from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 from nemo.collections.llm import fn
 from nemo.collections.llm.bert.loss import BERTLossReduction
 from nemo.collections.llm.bert.model.bert_spec import (
-    bert_layer_local_spec_postln,
-    bert_layer_with_transformer_engine_spec_postln,
-    megatron_layer_local_spec_preln,
+    get_bert_layer_local_spec_postln,
+    get_bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -45,9 +45,7 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 HAVE_TE = True
 try:
     import transformer_engine  # pylint: disable=W0611
-    from megatron.core.models.bert import bert_layer_specs
-    from megatron.core.models.bert.bert_model import BertModel as MCoreBert
-except (ImportError, ModuleNotFoundError):
+except (ImportError, ModuleNotFoundError) as e:
     HAVE_TE = False
 
 if TYPE_CHECKING:
@@ -114,12 +112,12 @@ def default_layer_spec(config: "BertConfig") -> ModuleSpec:
         if bert_type == 'megatron':
             return bert_layer_specs.bert_layer_with_transformer_engine_spec
         else:
-            return bert_layer_with_transformer_engine_spec_postln
+            return get_bert_layer_with_transformer_engine_spec_postln()
 
     if bert_type == 'megatron':
-        return megatron_layer_local_spec_preln
+        return bert_layer_specs.bert_layer_local_spec
     else:
-        return bert_layer_local_spec_postln
+        return get_bert_layer_local_spec_postln()
 
 
 @dataclass
@@ -542,6 +540,15 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        # Megatron-LM's BERT implementation has high dependency on TE, and it is not possible
+        # to instantiate the MCore BERT without TE package.
+        # Few issues there: 1. bert_layer_specs.py is not TE dependency-free.
+        #                  2. in bert_model.py _sanity_check_attention_and_get_attn_mask_dimension() checks on
+        #                     if transformer_layer_spec is identical to bert_layer_local_spec to determine if TE is
+        #                     required; since in NeMo we use customized bert layer spec, it will always assume this
+        #                     if using TE.
+        # We need to address the above two issues to enable TE-Free NeMo BERT.
+        assert HAVE_TE, "NeMo BERT requires Transformer Engine to be installed."
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
