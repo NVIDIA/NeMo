@@ -82,13 +82,13 @@ class MockDataModule(pl.LightningDataModule):
     def setup(self, stage: str = "") -> None:
         """Setup train/val/test datasets."""
         self._train_ds = _MockBERTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer, "train", self.num_train_samples, self.seq_length,
         )
         self._validation_ds = _MockBERTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer, "valid", self.num_val_samples, self.seq_length,
         )
         self._test_ds = _MockBERTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer, "test", self.num_test_samples, self.seq_length,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -127,7 +127,6 @@ class _MockBERTDataset(Dataset):
         num_samples: int,
         seq_length: int,
         seed: int = 420,
-        create_attention_mask: bool = False,
     ) -> None:
         super().__init__()
         self.name = name
@@ -135,7 +134,6 @@ class _MockBERTDataset(Dataset):
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
         self.seed = seed
-        self.create_attention_mask = create_attention_mask
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
