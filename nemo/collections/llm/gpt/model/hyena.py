@@ -161,12 +161,12 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
                 import re
 
                 layer_map = {i + 2: i for i in range(self.num_layers)}
-                layer_map[self.num_layers + 3] = self.num_layers + 1
+                layer_map[self.num_layers + 3] = self.num_layers
                 updated_data = {}
 
-                for key in list(source.keys()):
+                for key in list(source['module'].keys()):
                     if "_extra" in key:
-                        source.pop(key)
+                        source['module'].pop(key)
                     else:
                         match = re.search(r'sequential\.(\d+)', key)
                         if match:
@@ -174,18 +174,17 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
                             if original_layer_num in layer_map:
                                 # Create the updated key by replacing the layer number
                                 new_key = re.sub(rf'\b{original_layer_num}\b', str(layer_map[original_layer_num]), key)
-                                updated_data[new_key] = source[key]
+                                updated_data[new_key] = source['module'][key]
                             else:
                                 # Keep the key unchanged if no mapping exists
-                                updated_data[key] = source[key]
+                                updated_data[key] = source['module'][key]
                         else:
-                            updated_data[key] = source[key]
-
+                            updated_data[key] = source['module'][key]
                 return updated_data
 
         source = ModelState(source, self.config.num_layers)
         target = self.init()
-        trainer = self.nemo_setup(target, ckpt_async_save=False)
+        trainer = self.nemo_setup(target, ckpt_async_save=False, save_ckpt_format='zarr')
         source.to(self.config.params_dtype)
         target.to(self.config.params_dtype)
         self.convert_state(source, target)
@@ -204,7 +203,7 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
         te_enabled = True
         scale_or_weight = 'weight'
         mapping['sequential.0.word_embeddings.weight'] = 'embedding.word_embeddings.weight'
-        mapping[f'sequential.{len(self.config.hybrid_override_pattern)+1}.norm.{scale_or_weight}'] = (
+        mapping[f'sequential.{len(self.config.hybrid_override_pattern)}.norm.{scale_or_weight}'] = (
             'decoder.final_norm.weight'
         )
         for i, symbol in enumerate(self.config.hybrid_override_pattern):
@@ -334,7 +333,7 @@ class HyenaTestConfig(HyenaConfig):
 
 @dataclass
 class Hyena7bConfig(HyenaConfig):
-    hybrid_override_pattern: str = "SDH*SHDSDH*SDHSDH*SDHSDH*SDHSDH*"
+    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*SDHSDH*"
     num_layers: int = 32
     seq_length: int = 8192
     hidden_size: int = 4096
@@ -355,9 +354,9 @@ class Hyena7bConfig(HyenaConfig):
     add_qkv_bias: bool = False
     add_bias_linear: bool = False
     layernorm_epsilon: float = 1e-6
-    # fp8: str = 'hybrid'
-    # fp8_amax_history_len: int = 16
-    # fp8_amax_compute_algo: str = "max"
+    fp8: str = 'hybrid'
+    fp8_amax_history_len: int = 16
+    fp8_amax_compute_algo: str = "max"
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
     recompute_num_layers: int = 4
@@ -367,7 +366,7 @@ class Hyena7bConfig(HyenaConfig):
 
 @dataclass
 class Hyena40bConfig(HyenaConfig):
-    hybrid_override_pattern: str = "SDH*SHDSDH*SDHSDH*SDHSDH*SDHSDH*SDH*SDHSDH*SDHSDH*"
+    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*SDHSDH*SDH*SDHSDH*SDHSDH*"
     num_layers: int = 50
     seq_length: int = 8192
     hidden_size: int = 8192
@@ -388,9 +387,9 @@ class Hyena40bConfig(HyenaConfig):
     add_qkv_bias: bool = False
     add_bias_linear: bool = False
     layernorm_epsilon: float = 1e-6
-    # fp8: str = 'hybrid'
-    # fp8_amax_history_len: int = 16
-    # fp8_amax_compute_algo: str = "max"
+    fp8: str = 'hybrid'
+    fp8_amax_history_len: int = 16
+    fp8_amax_compute_algo: str = "max"
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
     recompute_num_layers: int = 2

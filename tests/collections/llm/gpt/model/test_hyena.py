@@ -30,22 +30,24 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, WarmupHoldPolicyScheduler
+
 
 """
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
                                 --num-nodes=1 \
                                 --devices=8 \
-                                --max-steps=1000 \
-                                --val-check-interval=100 \
+                                --max-steps=50000 \
+                                --val-check-interval=10 \
                                 --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
+                                --ckpt-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
                                 --data-path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/hyena_data/hg38/pretraining_data_hg38/data_hg38_all_text_CharLevelTokenizer_document \
                                 --seq-length=8192 \
-                                --tensor-parallel-size=4 \
+                                --tensor-parallel-size=1 \
                                 --pipeline-model-parallel-size=1 \
-                                --context-parallel-size=2 \
-                                --sequence-parallel \
+                                --context-parallel-size=1 \
                                 --global-batch-size=16 \
-                                --micro-batch-size=4 \
+                                --micro-batch-size=2 \
                                 --model-size=7b
 """
 
@@ -69,7 +71,10 @@ def get_args():
         '--model-size', type=str, default="7b", help="Model size, choose between 7b, 40b, or test (4 layers, less than 1b)"
     )
     parser.add_argument(
-        '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
+        '--experiment-dir', type=str, default=None, help="directory to write results to"
+    )
+    parser.add_argument(
+        '--ckpt-dir', type=str, default=None, help="directory to write checkpoints to"
     )
     parser.add_argument('--tokenizer-path', type=str, default=None, help="Path to tokenizer model")
 
@@ -84,23 +89,13 @@ if __name__ == '__main__':
         "byte-level",
     )
 
-    # data = MockDataModule(
-    #     seq_length=args.seq_length,
-    #     tokenizer=tokenizer,
-    #     micro_batch_size=args.micro_batch_size,
-    #     global_batch_size=args.global_batch_size,
-    #     num_train_samples=10_000,
-    #     num_val_samples=10,
-    #     num_test_samples=10,
-    #     num_workers=0,
-    #     pin_memory=False,
-    # )
     data = PreTrainingDataModule(
         paths=args.data_path,
         seq_length=args.seq_length,
         micro_batch_size=args.micro_batch_size,
         global_batch_size=args.global_batch_size,
         seed=1234,
+        num_workers=2,
         tokenizer=tokenizer,
     )
 
@@ -115,28 +110,20 @@ if __name__ == '__main__':
 
     hyena_config.seq_length = args.seq_length
     model = llm.GPTModel(hyena_config, tokenizer=data.tokenizer)
-    strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=args.tensor_parallel_size,
-        pipeline_model_parallel_size=args.pipeline_model_parallel_size,
-        context_parallel_size=args.context_parallel_size,
-        pipeline_dtype=torch.bfloat16,
-        sequence_parallel=args.sequence_parallel,
-        ckpt_load_optimizer=False,
-        ckpt_save_optimizer=False,
-        ckpt_async_save=False,
-    )
+    
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=args.val_check_interval,
         dirpath=args.experiment_dir,
+        save_top_k=5,
+        save_optim_on_train_end=True
     )
-    callbacks = [checkpoint_callback]
-
+    
     loggers = []
     wandb_logger = WandbLogger(
         name=(f"hyena-size-{args.model_size}-TP{args.tensor_parallel_size}-"
         f"PP{args.pipeline_model_parallel_size}-CP{args.context_parallel_size}"
         f"-GBS{args.global_batch_size}-MBS{args.micro_batch_size}"),
-        project="hyena_ux",
+        project="hyena_ux_test",
         save_dir=args.experiment_dir,
     )
     # wandb_logger = TensorBoardLogger(
@@ -144,44 +131,80 @@ if __name__ == '__main__':
     # )
     loggers.append(wandb_logger)
 
-    opt_config = OptimizerConfig(
-        optimizer='adam',
-        lr=6e-4,
-        min_lr=6e-5,
-        clip_grad=1.0,
-        use_distributed_optimizer=True,
-        bf16=True,
+    nemo_logger = NeMoLogger(
+        log_dir=args.experiment_dir,
+        wandb=wandb_logger
     )
-    opt = MegatronOptimizerModule(config=opt_config, no_weight_decay_cond=hyena_config.hyena_no_weight_decay_cond_fn)
 
     trainer = nl.Trainer(
         devices=args.devices,
         num_nodes=args.num_nodes,
         max_steps=args.max_steps,
         accelerator="gpu",
-        strategy=strategy,
+        strategy = nl.MegatronStrategy(
+            tensor_model_parallel_size=args.tensor_parallel_size,
+            pipeline_model_parallel_size=args.pipeline_model_parallel_size,
+            context_parallel_size=args.context_parallel_size,
+            pipeline_dtype=torch.bfloat16,
+            sequence_parallel=args.sequence_parallel,
+            ckpt_load_optimizer=True,
+            ckpt_save_optimizer=True,
+            ckpt_async_save=False,
+            save_ckpt_format='zarr',
+        ),
         logger=loggers,
-        callbacks=callbacks,
+        callbacks = [checkpoint_callback],
         log_every_n_steps=1,
-        limit_val_batches=2,
+        limit_val_batches=10,
+        num_sanity_val_steps=0,
         plugins=nl.MegatronMixedPrecision(
             precision="bf16-mixed",
             params_dtype=torch.bfloat16,
         ),
+        val_check_interval=args.val_check_interval,
     )
 
-    nemo_logger = NeMoLogger(
-        log_dir=args.experiment_dir,
+    # Logger setup
+    nemo_logger.setup(
+        trainer,
+        resume_if_exists=True,
     )
 
-    app_state = _setup(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=nemo_logger,
-        optim=opt,
-        resume=None,
-        tokenizer='data',
-        model_transform=None,
+    # Auto resume setup
+    from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+
+    resume = nl.AutoResume(
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=True,
+        resume_past_end=True,
+        resume_from_directory=args.ckpt_dir,
+        # restore_config=(
+        #     RestoreConfig(
+        #         path=args.ckpt_dir,
+        #         load_model_state = True,
+        #         load_optim_state = True,
+        #     ) if args.ckpt_dir else None
+        # ),
     )
+    resume.setup(trainer, model)
+
+    # Optimizer and scheduler setup
+    opt_config = OptimizerConfig(
+        optimizer='adam',
+        lr=0.0003,
+        adam_beta1=0.9,
+        adam_beta2=0.95,
+        use_distributed_optimizer=True,
+        bf16=True,
+    )
+    sched = CosineAnnealingScheduler(
+        max_steps=trainer.max_steps,
+        warmup_steps=2500,
+        min_lr=0.00003,
+    )
+
+    opt = MegatronOptimizerModule(opt_config, sched)
+    opt.connect(model)
+
+    # Start training
     trainer.fit(model, data)
