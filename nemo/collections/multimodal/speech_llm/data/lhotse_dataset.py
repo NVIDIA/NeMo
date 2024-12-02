@@ -1,4 +1,3 @@
-import logging
 import math
 import random
 
@@ -12,6 +11,7 @@ from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     build_loss_mask,
     ceil_to_nearest,
 )
+from nemo.utils import logging
 
 
 def collate_vectors(items, max_length: int, padding_value):
@@ -591,6 +591,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             # Iterate over each batch
             for batch_idx in range(batch_size):
+                # Remove the speech eos
                 batch_max_length = features_lens[batch_idx] - 1
                 word_start_idx = 0  # Start index to keep track of the position within the concatenated word tokens
 
@@ -679,7 +680,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 (target_codec.shape[0], 1, self.n_speech_codebooks * self.decoder_reduction_factor + 1),
                 self.speech_bos_id,
             ).to(torch.int)
-            bos_tensor[:, :, 0] = self.text_processor.tokenizer.bos_id
+
+            bos_tensor[:, :, 0] = self.text_processor.bos_id
             # [batch, max_feat_len]
             # the only thing needed is features_lens which can be estimated from target_audio length
             target_texts_expanded = _expand_text_with_timestamps_and_word_lengths(
@@ -702,6 +704,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 raise ValueError("target_texts_expanded and target_codec have different batch size")
             token_list = torch.concat([bos_tensor, target_codec], 1)
             features_lens += 1
+
+            # import pdb; pdb.set_trace()
 
             logging.debug(f'token_list[0].shape: {token_list[0].shape}')
             if not self.t5_style:

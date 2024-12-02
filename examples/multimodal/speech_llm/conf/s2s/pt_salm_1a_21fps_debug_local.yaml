@@ -36,7 +36,7 @@ exp_manager:
   # explicit_log_dir: null
   exp_dir: null
   name: ${name}
-  create_wandb_logger: False
+  create_wandb_logger: True
   wandb_logger_kwargs:
     project: null
     name: null
@@ -252,12 +252,36 @@ model:
       #   tags:
       #     lang: en
       #     s2s: True
+      # - type: lhotse_shar
+      #   shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/tmp/msmarco_train_normalized.b/
+      #   weight: 0.5
+      #   tags:
+      #     lang: en
+      #     s2s_align: True
       - type: lhotse_shar
-        shar_path: /data/tmp/msmarco_train_normalized.b/
+        shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/msmarco/timestamp
         weight: 0.5
         tags:
           lang: en
           s2s_align: True
+      - type: lhotse_shar
+        shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/alpaca/timestamp
+        weight: 0.5
+        tags:
+          lang: en
+          s2s_align: True
+      - type: lhotse_shar
+        shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/msmarco_train_normalized/timestamp
+        weight: 0.5
+        tags:
+          lang: en
+          s2s_align: True    
+      - type: lhotse_shar
+        shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/squadv2/timestamp
+        weight: 0.5
+        tags:
+          lang: en
+          s2s_align: True        
       load_answer_audio: ${model.extract_codec_on_the_fly}
       codec_model_downsampling_factor: ${model.codec_model_downsampling_factor}
       global_batch_size: ${model.global_batch_size}
@@ -326,12 +350,12 @@ model:
             #   tags:
             #     lang: en
             #     s2s: True
-            - type: lhotse_shar
-              shar_path: /data/tmp/msmarco_train_normalized.b/
-              weight: 0.1
-              tags:
-                lang: en
-                s2s_align: True
+            # - type: lhotse_shar
+            #   shar_path: /data/tmp/msmarco_train_normalized.b/
+            #   weight: 0.1
+            #   tags:
+            #     lang: en
+            #     s2s_align: True
             # s2s_shars_21fps_with_wavs
             # - type: lhotse_shar
             #   shar_path: /lustre/fs7/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/s2s_synthetic_data/s2s_shars_21fps/alpaca_val/ # speech SQA
@@ -339,7 +363,31 @@ model:
             #   tags:
             #     lang: en
             #     s2s: True
-          
+            # - type: lhotse_shar
+            #   shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/msmarco/timestamp
+            #   weight: 1.0
+            #   tags:
+            #     lang: en
+            #     s2s_align: True
+            # - type: lhotse_shar
+            #   shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/alpaca/timestamp
+            #   weight: 1.0
+            #   tags:
+            #     lang: en
+            #     s2s_align: True
+            # - type: lhotse_shar
+            #   shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/msmarco_train_normalized/timestamp
+            #   weight: 0.5
+            #   tags:
+            #     lang: en
+            #     s2s_align: True    
+            - type: lhotse_shar
+              shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data_otf/squadv2/timestamp
+              weight: 0.5
+              tags:
+                lang: en
+                s2s_align: True
+
       load_answer_audio: ${model.extract_codec_on_the_fly}
       codec_model_downsampling_factor: ${model.codec_model_downsampling_factor}
       global_batch_size: ${model.global_batch_size}
