@@ -327,7 +327,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         return ema_callback
 
     def _drop_optimizer_states(self, trainer, filepath: Union[str, Path]) -> None:
-        from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+        from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -350,7 +350,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                         self.base_checkpoint_io = self.base_checkpoint_io.checkpoint_io
                     assert hasattr(
                         self.base_checkpoint_io, "drop_optimizer_states"
-                    ), f"{checkpoint_io=} does not support dropping optimizer states. \
+                    ), f"{self.base_checkpoint_io} does not support dropping optimizer states. \
                         Please disable dropping optimizer states by setting save_last_n_optim_states=-1."
 
                 logging.info(f'dropping optimizer states at {checkpoint_path}')

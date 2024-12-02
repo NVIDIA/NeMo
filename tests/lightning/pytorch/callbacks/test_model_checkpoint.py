@@ -234,7 +234,7 @@ def get_final_checkpoint(checkpoint_dir):
     return final_ckpt, top_k_checkpoints
 
 
-class TestLinkCheckpoint:
+class TestModelCheckpoint:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on("GPU")
