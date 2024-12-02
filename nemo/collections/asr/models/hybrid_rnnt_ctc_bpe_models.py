@@ -137,11 +137,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.epoch_count = 0
 
     def on_train_epoch_end(self):
-        if self.epoch_count > 0 :
+        if self.epoch_count > 0:
             raise KeyboardInterrupt("Simulated KeyboardInterrupt at epoch 2")
         else:
             self.epoch_count += 1
-            
+
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
         if config.get("use_lhotse"):

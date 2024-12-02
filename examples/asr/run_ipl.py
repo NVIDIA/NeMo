@@ -1,21 +1,18 @@
-import os
 import copy
+import glob
+import os
 import subprocess
-from omegaconf import OmegaConf
-from typing import Dict, Any
 from pathlib import Path
-from omegaconf import OmegaConf, open_dict
-from pathlib import Path
+from typing import Any, Dict
+
+import torch
 
 # import nemo_run as run
 from omegaconf import OmegaConf, open_dict
+
 from nemo.collections.asr.parts.utils.run_ipl_utils import *
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-import glob 
-import torch 
-from omegaconf import  OmegaConf, open_dict
-from omegaconf import OmegaConf, open_dict
 
 
 def check_training_finished(log_dir):
@@ -31,9 +28,7 @@ def check_training_finished(log_dir):
     log_pattern = os.path.join(log_dir, f"lightning_logs.txt")
     command = f"grep -ri '`Trainer.fit` stopped:' {log_pattern}"
 
-    result = subprocess.run(
-        command, shell=True, capture_output=True, text=True
-    )
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
     if result.stdout:
         print("Stopping reasons found:")
         print(result.stdout)
@@ -44,10 +39,7 @@ def check_training_finished(log_dir):
 
 
 def get_command_for_inference(
-    inference_config: str,
-    inference_config_dir: Union[str, Path],
-    p_cache: float,
-    checkpoint: str
+    inference_config: str, inference_config_dir: Union[str, Path], p_cache: float, checkpoint: str
 ) -> Tuple[str, List[str], List[str]]:
     """
     Generates the command string for running speech inference with transcribe_speech_parallel.
@@ -92,7 +84,6 @@ def get_command_for_inference(
             OmegaConf.update(modified_cfg, "predict_ds.tarred_audio_filepaths", tarr_audio_files[i])
         OmegaConf.update(modified_cfg, "model", checkpoint)
 
-
         temp_config_file = os.path.join(temp_config_dir, f"modified_config_{i}.yaml")
         OmegaConf.save(modified_cfg, temp_config_file)
         cmd += f"python transcribe_speech_parallel.py --config-path {temp_config_dir} --config-name modified_config_{i}.yaml && "
@@ -102,6 +93,7 @@ def get_command_for_inference(
 
     print(f"Inference command: {cmd}")
     return cmd, output_dirs, full_pass_done
+
 
 def merge_configs(script_config_path, run_config):
     # Load the configurations
@@ -132,6 +124,7 @@ def merge_configs(script_config_path, run_config):
     result.exp_manager.resume_if_exists = True
     return result
 
+
 def get_execution_script(cluster_script_path: str, config_name: str, config_path: str) -> str:
     """
     Constructs a command string to execute a training with the specified configuration.
@@ -161,6 +154,7 @@ def get_execution_script(cluster_script_path: str, config_name: str, config_path
 
     return cmd
 
+
 def find_checkpoint_dir(base_path):
     """
     Find the 'checkpoints' folder in the directory structure.
@@ -174,33 +168,38 @@ def find_checkpoint_dir(base_path):
                 return os.path.join(root, dir_name), root
     return None
 
+
 @hydra_runner(config_path='./', config_name='run_ipl')
 def main(run_config):
 
     script_config = run_config.script_config
     script_path = run_config.script
     inference_config = run_config.inference_config
-    inference_config_dir =  Path(run_config.inference_config_dir).absolute()
+    inference_config_dir = Path(run_config.inference_config_dir).absolute()
     script_config_path = os.path.dirname(Path(script_config).absolute())
-    inference_config =os.path.join(inference_config_dir,inference_config )
+    inference_config = os.path.join(inference_config_dir, inference_config)
 
     add_pl_datasets = True
     merged_config = merge_configs(script_config, run_config)
     config_filepath = os.path.join(script_config_path, "update_script_config.yaml")
     subprocess.run(f"touch {config_filepath}", shell=True)
 
-    subprocess.run(f"echo '{OmegaConf.to_yaml(merged_config)}' > {config_filepath}", shell= True)
+    subprocess.run(f"echo '{OmegaConf.to_yaml(merged_config)}' > {config_filepath}", shell=True)
     training_command = get_execution_script(script_path, "update_script_config.yaml", script_config_path)
     subprocess.run(training_command, shell=True)
-    
-    checkpoint_path, logs_dir = find_checkpoint_dir(os.path.join(merged_config.exp_manager.exp_dir, merged_config.exp_manager.name))
+
+    checkpoint_path, logs_dir = find_checkpoint_dir(
+        os.path.join(merged_config.exp_manager.exp_dir, merged_config.exp_manager.name)
+    )
     checkpoint = os.path.join(checkpoint_path, merged_config.exp_manager.name + ".nemo")
     while True:
         should_terminate = check_training_finished(logs_dir)
         if should_terminate:
             break
-        cmd, output_dirs, full_pass_done  = get_command_for_inference(inference_config, inference_config_dir,0.5, checkpoint)
-        subprocess.run(cmd, shell=True) 
+        cmd, output_dirs, full_pass_done = get_command_for_inference(
+            inference_config, inference_config_dir, 0.5, checkpoint
+        )
+        subprocess.run(cmd, shell=True)
 
         if not full_pass_done:
             if merged_config.model.train_ds.is_tarred:
@@ -214,13 +213,16 @@ def main(run_config):
                 all_manifest_filepaths = write_sampled_transcriptions(output_dirs)
         if add_pl_datasets:
             base_cfg = OmegaConf.load(inference_config)
-            merged_config = update_training_sets(merged_config, all_manifest_filepaths, base_cfg.predict_ds.get("tarred_audio_filepaths", None))
+            merged_config = update_training_sets(
+                merged_config, all_manifest_filepaths, base_cfg.predict_ds.get("tarred_audio_filepaths", None)
+            )
             add_pl_datasets = False
 
-        subprocess.run(f"echo '{OmegaConf.to_yaml(merged_config)}' > {config_filepath}", shell= True)
+        subprocess.run(f"echo '{OmegaConf.to_yaml(merged_config)}' > {config_filepath}", shell=True)
         training_command = get_execution_script(script_path, "update_script_config.yaml", script_config_path)
-        
+
         subprocess.run(training_command, shell=True)
+
 
 if __name__ == '__main__':
     main()
