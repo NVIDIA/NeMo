@@ -18,12 +18,11 @@ try:
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
     from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
     from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-    from megatron.core.transformer.spec_utils import build_module
     from megatron.core.transformer.dot_product_attention import DotProductAttention
     from megatron.core.transformer.enums import AttnMaskType
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
-    from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.spec_utils import ModuleSpec, build_module
     from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
     from megatron.core.utils import make_viewless_tensor
 
@@ -39,16 +38,17 @@ try:
         TEDotProductAttention,
         TENorm,
         TERowParallelLinear,
-
     )
 
     HAVE_TE = True
 except (ImportError, ModuleNotFoundError) as e:
     HAVE_TE = False
 
+
 @dataclass
 class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
     """TransformerLayerSubmodules with post layer norm"""
+
     def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
         super(TransformerLayerSubmodulesWithPostLNSupport, self).__init__(**kwargs)
         self.post_att_layernorm = post_att_layernorm
@@ -57,6 +57,7 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 
 class TransformerLayerWithPostLNSupport(TransformerLayer):
     """TransformerLayer with post layer norm."""
+
     def __init__(self, *args, **kwargs):
         super(TransformerLayerWithPostLNSupport, self).__init__(*args, **kwargs)
         ## [Module add: Post attention LN]
@@ -88,7 +89,7 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         packed_seq_params=None,
     ):
         """Copy from megatron/core/transformer/transformer_layer.py with modification of applying
-           extra post layer norm if needed."""
+        extra post layer norm if needed."""
         # hidden_states: [s, b, h]
 
         # Residual connection.
@@ -200,6 +201,7 @@ def get_bert_layer_with_transformer_engine_spec_postln():
             post_mlp_layernorm=TENorm,
         ),
     )
+
 
 # Use this spec for an implementation using only modules in megatron core
 def get_bert_layer_local_spec_postln():
