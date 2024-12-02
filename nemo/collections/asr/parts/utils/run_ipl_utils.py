@@ -33,7 +33,7 @@ def separate_multiple_transcriptions(inference_config: str) -> Tuple[List[str], 
         else:
             return [manifest_filepaths], [tarred_audio_filepaths]
     else:
-
+       
         return [config.predict_ds.manifest_filepath], None
 
 def create_transcribed_shard_manifests(
@@ -41,12 +41,15 @@ def create_transcribed_shard_manifests(
 ) -> List[str]:
     """
     Processes prediction files and generates transcribed shard manifests.
+
     This function reads prediction JSON files grouped by `shard_id` from 
     specified directories, organizes the entries by shard, and writes the 
     results to new JSON manifest files.
+
     Args:
         prediction_filepaths (List[str]): A list of filepaths to directories 
             containing prediction JSON files (named like `predictions_[0-9]*.json`).
+
     Returns:
         List[str]: A list of filepaths to the created manifest files.
     """
@@ -104,12 +107,15 @@ def create_transcribed_manifests(
 def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[List[str]]:
     """
     Updates transcriptions by merging predicted shard data and transcribed manifest data.
+
     This function processes prediction and transcribed manifest files, merges them
     by matching the shard_id and audio file paths. For each shard, the corresponding 
     data entries are written to a new file.
+
     Args:
         manifest_filepaths (List[str]): A list of file paths to directories containing 
             prediction and transcribed manifest files.
+
     Returns:
         List[List[str]]: A list of lists containing the file paths to the generated 
             transcribed shard manifest files.
@@ -165,8 +171,11 @@ def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[Li
 def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
     """
     Updates transcriptions by merging predicted data with transcribed manifest data.
+
+
     This function processes prediction files and transcribed manifest files, merging
     them by matching audio file paths. The merged data is then written to a new file.
+
     Args:
         manifest_filepaths (List[str]): A list of file paths to directories containing 
             prediction and transcribed manifest files.
@@ -222,10 +231,11 @@ def update_training_sets(merged_config: OmegaConf, final_cache_manifests: list, 
         merged_config: The configuration object containing the model and dataset settings.
         final_cache_manifests: A list of paths to the manifest files for the pseudo-labeled data.
         tarred_audio_filepaths: A string or list of tarred audio file paths to be added to the training set.
+
     Returns:
         merged_config: The updated configuration object with the new training datasets.
     """
-
+    
     if merged_config.model.train_ds.get("is_tarred", False):
         if isinstance(tarred_audio_filepaths, str):
             if isinstance(merged_config.model.train_ds['tarred_audio_filepaths'], str):
@@ -280,4 +290,5 @@ def count_files_for_pseudo_labeling(manifest_filepath: str, is_tarred: bool) -> 
     else:
         with open(manifest_filepath, 'r') as f:
             number_of_files = len(f.readlines())
+
     return number_of_files

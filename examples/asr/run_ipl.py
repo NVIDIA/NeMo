@@ -3,8 +3,11 @@ import copy
 import subprocess
 from omegaconf import OmegaConf
 from typing import Dict, Any
-
 from pathlib import Path
+from omegaconf import OmegaConf, open_dict
+from pathlib import Path
+
+# import nemo_run as run
 from omegaconf import OmegaConf, open_dict
 from nemo.collections.asr.parts.utils.run_ipl_utils import *
 from nemo.core.config import hydra_runner
@@ -12,6 +15,7 @@ from nemo.utils import logging
 import glob 
 import torch 
 from omegaconf import  OmegaConf, open_dict
+from omegaconf import OmegaConf, open_dict
 
 
 def check_training_finished(log_dir):
@@ -24,14 +28,12 @@ def check_training_finished(log_dir):
         print(f"Log directory '{log_dir}' does not exist.")
         return
 
-
     log_pattern = os.path.join(log_dir, f"lightning_logs.txt")
     command = f"grep -ri '`Trainer.fit` stopped:' {log_pattern}"
 
     result = subprocess.run(
         command, shell=True, capture_output=True, text=True
     )
-
     if result.stdout:
         print("Stopping reasons found:")
         print(result.stdout)
@@ -39,6 +41,7 @@ def check_training_finished(log_dir):
     else:
         print("No stopping reasons found in the logs.")
         return False
+
 
 def get_command_for_inference(
     inference_config: str,
@@ -66,13 +69,11 @@ def get_command_for_inference(
     num_gpus = torch.cuda.device_count()
     output_dirs = []
     cmd = ""
-
     for i in range(len(manifests)):
         output_dir = os.path.dirname(manifests[i])
         output_dirs.append(output_dir)
 
         base_cfg = OmegaConf.load(inference_config)
-
         temp_config_dir = Path(str(inference_config_dir) + "/temp_configs").absolute()
         os.makedirs(temp_config_dir, exist_ok=True)
         modified_cfg = copy.deepcopy(base_cfg)
@@ -94,8 +95,6 @@ def get_command_for_inference(
 
         temp_config_file = os.path.join(temp_config_dir, f"modified_config_{i}.yaml")
         OmegaConf.save(modified_cfg, temp_config_file)
-
-        # Build the command to run the inference
         cmd += f"python transcribe_speech_parallel.py --config-path {temp_config_dir} --config-name modified_config_{i}.yaml && "
 
     # Remove trailing '&&' from the final command string
@@ -133,7 +132,6 @@ def merge_configs(script_config_path, run_config):
     result.exp_manager.resume_if_exists = True
     return result
 
-
 def get_execution_script(cluster_script_path: str, config_name: str, config_path: str) -> str:
     """
     Constructs a command string to execute a training with the specified configuration.
@@ -168,8 +166,7 @@ def find_checkpoint_dir(base_path):
     Find the 'checkpoints' folder in the directory structure.
     Parameters:
         base_path (str): The base directory path to search from.
-    Returns:
-        str: The path to the 'checkpoints' folder.
+
     """
     for root, dirs, files in os.walk(base_path):
         for dir_name in dirs:
@@ -195,7 +192,7 @@ def main(run_config):
     subprocess.run(f"echo '{OmegaConf.to_yaml(merged_config)}' > {config_filepath}", shell= True)
     training_command = get_execution_script(script_path, "update_script_config.yaml", script_config_path)
     subprocess.run(training_command, shell=True)
-
+    
     checkpoint_path, logs_dir = find_checkpoint_dir(os.path.join(merged_config.exp_manager.exp_dir, merged_config.exp_manager.name))
     checkpoint = os.path.join(checkpoint_path, merged_config.exp_manager.name + ".nemo")
     while True:
@@ -215,7 +212,6 @@ def main(run_config):
                 all_manifest_filepaths = write_sampled_shard_transcriptions(output_dirs)
             else:
                 all_manifest_filepaths = write_sampled_transcriptions(output_dirs)
-
         if add_pl_datasets:
             base_cfg = OmegaConf.load(inference_config)
             merged_config = update_training_sets(merged_config, all_manifest_filepaths, base_cfg.predict_ds.get("tarred_audio_filepaths", None))
@@ -223,7 +219,7 @@ def main(run_config):
 
         subprocess.run(f"echo '{OmegaConf.to_yaml(merged_config)}' > {config_filepath}", shell= True)
         training_command = get_execution_script(script_path, "update_script_config.yaml", script_config_path)
-
+        
         subprocess.run(training_command, shell=True)
 
 if __name__ == '__main__':
