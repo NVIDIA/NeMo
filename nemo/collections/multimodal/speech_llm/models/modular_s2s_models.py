@@ -473,7 +473,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         return text_tokens.long(), speech_tokens.long()
 
     def decode_and_save_wavs(self, codec_model, codes_list, wav_dir, metadata_list):
-        sample_rate = 22050
+        sample_rate = self.codec_sample_rate
         os.makedirs(wav_dir, exist_ok=True)
         wavs = []
         for codes, metadata in zip(codes_list, metadata_list):
@@ -654,16 +654,17 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 self.additional_models['squim_mos_model'] = self.mos_model
                 assert 'squim_mos_model' in self.additional_models
                 squim_mos_model = self.additional_models['squim_mos_model']
-
-                import torchaudio
+                codec_sample_rate = self.codec_sample_rate
 
                 with torch.no_grad():
                     logging.info(f"Running MOS prediction")
+
                     pred_wavs_resampled = [
-                        torchaudio.functional.resample(wav, 22050, 16000).unsqueeze(0) for wav in pred_wavs
+                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in pred_wavs
                     ]
                     answer_wavs_resampled = [
-                        torchaudio.functional.resample(wav, 22050, 16000).unsqueeze(0) for wav in answer_wavs
+                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
+                        for wav in answer_wavs
                     ]
                     squim_mos_scores = [
                         squim_mos_model(pred_wav, answer_wav)
@@ -913,6 +914,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         self.additional_models = {}
         self.extract_codec_on_the_fly = cfg.get('extract_codec_on_the_fly', False)
         self.codec_model_downsampling_factor = cfg.get('codec_model_downsampling_factor', 1023.5)
+        self.codec_sample_rate = cfg.data.train_ds.get("codec_sample_rate", 22050)
 
         super().__init__(cfg, trainer)
 
@@ -958,8 +960,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
     def get_duration_by_steps(self, steps):
         codec_model_downsampling_factor = self.codec_model_downsampling_factor
-        codec_sample_rate = self.cfg.data.train_ds.get("codec_sample_rate", 22050)
         decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        codec_sample_rate = self.codec_sample_rate
         seconds = steps * codec_model_downsampling_factor / codec_sample_rate * decoder_reduction_factor
         return seconds, int(seconds * codec_sample_rate)
 
@@ -968,7 +970,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         return torch.ceil(audio_len / self.codec_model_downsampling_factor / decoder_reduction_factor).int() - 1
 
     def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
-        codec_sample_rate = self.cfg.data.train_ds.get("codec_sample_rate", 22050)
+        codec_sample_rate = self.codec_sample_rate
         decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
         # make the following to be one decoding step so as to easier replace with speech bos token and eos token
         duplex_inject_silence_second = (
