@@ -29,12 +29,28 @@ try:
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
     from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
+
+try:
+    import apex  # pylint: disable=unused-import
+
+    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+
+    HAVE_APEX = True
+    LNImpl = FusedLayerNorm
+except ImportError:
+    import warnings
+
+    from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+
+    warnings.warn(f'Apex is not installed. Falling back to Torch LayerNorm')
+    LNImpl = WrappedTorchLayerNorm
 
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
     TransformerLayerSubmodulesWithPostLNSupport,
@@ -96,5 +112,37 @@ bert_layer_local_spec_postln = ModuleSpec(
         ),
         mlp_bda=get_bias_dropout_add,
         post_mlp_layernorm=FusedLayerNorm,
+    ),
+)
+
+# We copy the Mcore's local spec here to avoid TE dependency issue.
+# Megatron-LM's core/models/bert/bert_layer_specs.py always requires
+# TE dependency to load. Avoid it by copying paste the local specs in NeMo.
+megatron_layer_local_spec_preln = ModuleSpec(
+    module=TransformerLayer,
+    submodules=TransformerLayerSubmodules(
+        input_layernorm=LNImpl,
+        self_attention=ModuleSpec(
+            module=SelfAttention,
+            params={"attn_mask_type": AttnMaskType.padding},
+            submodules=SelfAttentionSubmodules(
+                linear_qkv=ColumnParallelLinear,
+                core_attention=DotProductAttention,
+                linear_proj=RowParallelLinear,
+                q_layernorm=IdentityOp,
+                k_layernorm=IdentityOp,
+            ),
+        ),
+        self_attn_bda=get_bias_dropout_add,
+        pre_mlp_layernorm=LNImpl,
+        mlp=ModuleSpec(
+            module=MLP,
+            submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear),
+        ),
+        mlp_bda=get_bias_dropout_add,
+        sharded_state_dict_keys_map={
+            'input_layernorm.': 'self_attention.linear_qkv.layer_norm_',
+            'pre_mlp_layernorm.': 'mlp.linear_fc1.layer_norm_',
+        },
     ),
 )

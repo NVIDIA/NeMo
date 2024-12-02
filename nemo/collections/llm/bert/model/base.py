@@ -20,7 +20,6 @@ import torch
 import torch.distributed
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-from megatron.core.models.bert import bert_layer_specs
 from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
 from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 from megatron.core.models.bert.pooler import Pooler
@@ -39,6 +38,7 @@ from nemo.collections.llm.bert.loss import BERTLossReduction
 from nemo.collections.llm.bert.model.bert_spec import (
     bert_layer_local_spec_postln,
     bert_layer_with_transformer_engine_spec_postln,
+    megatron_layer_local_spec_preln,
 )
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -46,6 +46,7 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 HAVE_TE = True
 try:
     import transformer_engine  # pylint: disable=W0611
+    from megatron.core.models.bert import bert_layer_specs
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
@@ -116,7 +117,7 @@ def default_layer_spec(config: "BertConfig") -> ModuleSpec:
             return bert_layer_with_transformer_engine_spec_postln
 
     if bert_type == 'megatron':
-        return bert_layer_specs.bert_layer_local_spec
+        return megatron_layer_local_spec_preln
     else:
         return bert_layer_local_spec_postln
 
