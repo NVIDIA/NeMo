@@ -134,7 +134,22 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
         # setting the RNNT decoder as the default one
         self.cur_decoder = "rnnt"
+        self.epoch_count = 0
 
+    def on_train_epoch_end(self):
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        print(f"in {self.epoch_count} on_train_epoch_end")
+        if self.epoch_count > 0 :
+            raise KeyboardInterrupt("Simulated KeyboardInterrupt at epoch 2")
+        else:
+            self.epoch_count += 1
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
         if config.get("use_lhotse"):
