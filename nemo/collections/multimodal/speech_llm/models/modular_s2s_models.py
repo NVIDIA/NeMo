@@ -3,9 +3,11 @@ import json
 import math
 import os
 import re
+import tempfile
 from collections import OrderedDict
 from typing import List, Optional, Union
 
+import hydra
 import numpy as np
 import sacrebleu
 import soundfile as sf
@@ -25,6 +27,7 @@ from nemo.collections.common.parts.utils import apply_rope_scaling, extend_insta
 from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin, get_specs
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging, model_utils
 
@@ -303,7 +306,16 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         logging.info(f"Loaded MOS Model: {mos_model}")
 
         if cfg.model.get('salm_model_path') is not None:
-            torch_state_dict = torch.load(cfg.model.get('salm_model_path'))['state_dict']
+            # this may only work for tp=1
+            # check scripts/nlp_language_modeling/merge_lora_weights/merge_salm.py on tp>1
+            salm_model_path = cfg.model.get('salm_model_path')
+            if '.nemo' in salm_model_path:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    NLPSaveRestoreConnector._unpack_nemo_file(salm_model_path, tmpdir)
+                    salm_model_path = f"{tmpdir}/model_weights.ckpt"
+                    torch_state_dict = torch.load(salm_model_path)
+            else:
+                torch_state_dict = torch.load(salm_model_path)['state_dict']
             model.setup_complete = False
             model.load_state_dict(torch_state_dict, strict=False)
             logging.info(f"loading from {cfg.model.get('salm_model_path')}: {torch_state_dict.keys()}")
