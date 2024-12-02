@@ -47,6 +47,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_online_subsegments_from_buffer,
     get_speech_labels_for_update,
     get_sub_range_list,
+    get_subsegments,
     get_subsegments_scriptable,
     get_target_sig,
     int2fl,

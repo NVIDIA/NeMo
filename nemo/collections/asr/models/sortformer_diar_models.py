@@ -175,6 +175,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
             window_stride=self._cfg.preprocessor.window_stride,
             global_rank=global_rank,
             soft_targets=config.soft_targets if 'soft_targets' in config else False,
+            device=self.device,
         )
 
         self.data_collection = dataset.collection
