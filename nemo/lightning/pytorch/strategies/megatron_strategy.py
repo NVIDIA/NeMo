@@ -19,7 +19,6 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from packaging import version
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -50,6 +49,7 @@ from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+from packaging import version
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
