@@ -510,7 +510,7 @@ class TensorRTLLM(ITritonDeployable):
         """Given nemo model config get transformer config"""
         from megatron.core.transformer.transformer_config import TransformerConfig
 
-        normalization = nemo_model_config.get('normalization', 'layernorm')
+        normalization = nemo_model_config.get('normalization', 'layernorm').lower()
         transformer_config_normalization = 'LayerNorm'
         layernorm_zero_centered_gamma = False
         if normalization == 'layernorm1p':
@@ -598,6 +598,9 @@ class TensorRTLLM(ITritonDeployable):
                 nemo_model_conversion_dict = {
                     f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
                 }
+
+                if model_configs.get('squared_relu_activation', False):
+                    model_configs['activation'] = 'squared-relu'
 
                 trtllm_helper = TRTLLMHelper(
                     transformer_config=transformer_config,
