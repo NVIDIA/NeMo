@@ -21,7 +21,6 @@ import torch.distributed
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
-from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 from megatron.core.models.bert.pooler import Pooler
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
@@ -47,6 +46,7 @@ HAVE_TE = True
 try:
     import transformer_engine  # pylint: disable=W0611
     from megatron.core.models.bert import bert_layer_specs
+    from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
