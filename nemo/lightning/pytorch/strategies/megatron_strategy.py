@@ -99,7 +99,7 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
-    use_te_rng_tracker: bool
+    use_te_rng_tracker: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
