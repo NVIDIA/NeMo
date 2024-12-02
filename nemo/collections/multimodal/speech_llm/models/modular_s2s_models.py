@@ -131,7 +131,8 @@ class S2sMCoreGPTModel(MCoreGPTModel):
                     bias=False,
                     skip_bias_add=False,
                     gather_output=not self.parallel_output,
-                    skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
+                    skip_weight_param_allocation=self.pre_process
+                    and self.share_embeddings_and_output_weights,  # if skip_weight_param_allocation=True, weights are initialized from setup_embeddings_and_output_layer
                     embedding_activation_buffer=self.embedding_activation_buffer,
                     grad_output_buffer=self.grad_output_buffer,
                 )
@@ -213,11 +214,19 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             return hidden_states
 
         # logits and loss
-        all_logits = [self.output_layers[i](hidden_states)[0] for i in range(self.n_proj_heads)]
-        output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
-        all_logits[0], _ = self.output_layer(hidden_states, weight=output_weight)
+        else:
+            output_weight = None
+        all_logits = []
+        cur_dims = 0
+        for i in range(self.n_proj_heads):
+            cur_output_weight = (
+                output_weight[cur_dims : cur_dims + self.proj_head_dims[i]] if output_weight is not None else None
+            )
+            all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
+        assert self.vocab_size == self.proj_head_dims[0]
+        all_logits[0], _ = self.output_layer(hidden_states, weight=output_weight[: self.vocab_size])
 
         if labels is None:
             # [s b h] => [b s h]
