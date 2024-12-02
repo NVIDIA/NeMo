@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# NOTE: This script is just an example of using NeMo checkpoints for generating outputs and is subject to change without notice.
+# NOTE: This script is just an example of using NeMo checkpoints
+# for generating outputs and is subject to change without notice.
 
-import os
 from argparse import ArgumentParser
 
 import torch

@@ -40,7 +40,6 @@ import shutil
 import tempfile
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Optional
 
 import torch
 from genericpath import isdir
