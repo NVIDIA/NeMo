@@ -19,6 +19,7 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
+from packaging import version
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -35,21 +36,20 @@ from typing import (
     cast,
 )
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.distributed
-from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
-from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from lightning.fabric.plugins import CheckpointIO, ClusterEnvironment
+from lightning.fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
+from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
+from lightning.pytorch.overrides.distributed import _sync_module_states
+from lightning.pytorch.strategies.ddp import DDPStrategy
+from lightning.pytorch.trainer.states import RunningStage, TrainerFn
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from packaging import version
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
-from pytorch_lightning.loops.fetchers import _DataLoaderIterDataFetcher
-from pytorch_lightning.overrides.distributed import _sync_module_states
-from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.trainer.states import RunningStage, TrainerFn
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
@@ -158,6 +158,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_directly_on_device (bool): if True, loads the weights directly on GPU.
             Has effect only for `zarr` based checkpoints (PyT Distributed always loads on device).
             Defaults to True.
+        ckpt_load_strictness (StrictHandling, optional): defines loading strictness.
+            If not None, overwrites the `strict` flag passed to `load_checkpoint`.
+            Defaults to None.
         setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
             Defaults to True.
@@ -207,6 +210,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_load: bool = True,
         ckpt_parallel_save_optim: bool = True,
         ckpt_load_directly_on_device: bool = True,
+        ckpt_load_strictness: Optional['StrictHandling'] = None,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
@@ -241,6 +245,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
+        self.ckpt_load_strictness = ckpt_load_strictness
         self.pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
@@ -292,7 +297,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Attaches a model to strategy."""
         super().connect(model)
 
-        assert not 'is_hf_model' in model.__dict__, "Cannot use HfAutoModelForCausalLM with MegatronParallel"
+        assert not 'is_hf_model' in model.__dict__, "Cannot use HFAutoModelForCausalLM with MegatronParallel"
 
         dtype_config = getattr(self._precision_plugin, "dtype_config", None)
         if self.pipeline_dtype is None and dtype_config:
@@ -708,16 +713,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if "sharded_state_dict" not in checkpoint:
             checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        ## replace unsharded optimizer_states with sharded dict.
-        ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-        ## the checkpoint will contain only model weights. Optimizer states will be omitted.
-        if (
-            "optimizer_states" in checkpoint
-            and self.trainer.state.fn == TrainerFn.FITTING
-            and self.ckpt_save_optimizer
-        ):
+        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
+            # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
+            # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
-            checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
+
+            ## replace unsharded optimizer_states with sharded dict.
+            ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+            ## the checkpoint will contain only model weights. Optimizer states will be omitted.
+            if self.ckpt_save_optimizer:
+                checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
@@ -748,7 +753,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
-        checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
+        strict = (
+            self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+        )
+        checkpoint = self.checkpoint_io.load_checkpoint(
+            checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
+        )
+
+        if selective_restore:
+            final_checkpoint = {}
+            for key in sharded_state_dict.keys():
+                final_checkpoint[key] = checkpoint[key]
+
+            return final_checkpoint
 
         return checkpoint
 
@@ -763,7 +780,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if self.restore_config.load_model_state:
             logging.info(f"Restoring model weights from {self.restore_config}")
-            self.load_model_state_dict(checkpoint=checkpoint)
+            strict = True if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+            self.load_model_state_dict(checkpoint=checkpoint, strict=strict)
 
         if self.restore_config.load_optim_state:
             logging.info(f"Restoring optimizer states from {self.restore_config}")
@@ -818,6 +836,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         assert self.megatron_parallel is not None
 
+        strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
 
         if not 'optimizer' in checkpoint:

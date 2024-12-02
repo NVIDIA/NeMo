@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from torch.utils.data import DataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
-class HfDatasetDataModule(pl.LightningDataModule):
+class HFDatasetDataModule(pl.LightningDataModule):
     def __init__(
         self,
         dataset,
@@ -88,7 +88,7 @@ class HfDatasetDataModule(pl.LightningDataModule):
         from nemo.lightning.data import add_megatron_sampler
 
         if collate_fn is None:
-            collate_fn = lambda x: HfDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
         return DataLoader(
             self.dataset,

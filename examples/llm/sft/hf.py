@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import fiddle as fdl
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
+import lightning.pytorch as pl
+from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
+from nemo.lightning.pytorch.callbacks import ModelCallback
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
@@ -53,7 +55,9 @@ if __name__ == '__main__':
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
+    parser.add_argument('--model-accelerator', default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
+    parser.add_argument("--fp8-autocast", default=False, action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--model-save-path', type=str, default=None)
     args = parser.parse_args()
@@ -71,7 +75,16 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
-    model = llm.HfAutoModelForCausalLM(args.model)
+    model_accelerator = None
+    if args.model_accelerator == "te":
+        from functools import partial
+        from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
+        model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
+
+    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     tokenizer = model.tokenizer
 
     llm.api.finetune(
@@ -88,11 +101,18 @@ if __name__ == '__main__':
             accumulate_grad_batches=10,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
+            callbacks=[],
             logger=wandb,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
+
+    if args.model_accelerator:
+        if args.model_accelerator == "te":
+            te_acc = is_te_accelerated(model.model)
+            assert te_acc, "Transformer Engine acceleration was unsuccessful"
+            print("TE Accelerated: ", te_acc)
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)
