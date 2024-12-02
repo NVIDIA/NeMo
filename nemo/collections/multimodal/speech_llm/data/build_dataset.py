@@ -25,6 +25,9 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
     get_tarred_audio_text_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
+from nemo.collections.multimodal.speech_llm.data.lhotse_s2s_dataset import (
+    LhotseAudioQuestionAnswerDataset as S2SLhotseAudioQuestionAnswerDataset,
+)
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -77,7 +80,12 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             end_string=data_cfg.get('end_string', None),
             sample_alpha=data_cfg.get('sample_alpha', None),
         )
-        return LhotseAudioQuestionAnswerDataset(
+        dataloader_cls = (
+            S2SLhotseAudioQuestionAnswerDataset
+            if hasattr(data_cfg, 'speech_bos_id')
+            else LhotseAudioQuestionAnswerDataset
+        )
+        return dataloader_cls(
             tp,
             default_context="answer the question according to the previous audio",
             tokens_to_generate=data_cfg.get('tokens_to_generate', 0),

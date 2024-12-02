@@ -2,11 +2,13 @@ import itertools
 import json
 import math
 import os
+import re
 from collections import OrderedDict
 from typing import List, Optional, Union
 
 import numpy as np
 import sacrebleu
+import soundfile as sf
 import torch
 import torchaudio
 from omegaconf import DictConfig, OmegaConf
@@ -471,8 +473,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         return text_tokens.long(), speech_tokens.long()
 
     def decode_and_save_wavs(self, codec_model, codes_list, wav_dir, metadata_list):
-        import soundfile as sf
-
         sample_rate = 22050
         os.makedirs(wav_dir, exist_ok=True)
         wavs = []
@@ -483,7 +483,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             wav = wav[0]
             wavs.append(wav)
             sf.write(
-                os.path.join(wav_dir, metadata['audio_filepath'].split('.wav')[0] + ".gen.wav"),
+                os.path.join(
+                    wav_dir, re.sub("_repeat\d*", "", metadata['audio_filepath'].split('.wav')[0]) + ".gen.wav"
+                ),
                 wav.detach().cpu().numpy(),
                 sample_rate,
             )
