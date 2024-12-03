@@ -2,7 +2,7 @@ import math
 import random
 
 import torch.utils.data
-from lhotse import CutSet
+from lhotse import CutSet, Recording
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
@@ -114,8 +114,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         metadata = []
         instructions, instruction_lengths = [], []
         target_texts, target_text_lengths = [], []
-        remove_ids = []
-        start_time_tokens, word_lengths = [], []
         num_turns = []
         text_start_time = []
         text_end_time = []
@@ -159,7 +157,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         assert self.load_answer_audio
         assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
 
-        # TODO(subhankarg) load answer audio from cut.target_codes logic
         def load_audio_from_cut(cuts, name, sample_rate):
             answer_audio_lens = []
             answer_audios = []  # b*N
@@ -171,8 +168,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 else:
                     audios_list = [field]
                 for audios in audios_list:
-                    from lhotse import Recording
-
                     if not isinstance(audios, Recording):
                         # TODO: tmp solution for multiturn
                         audios = Recording.from_file(audios['sources'][0]['source'])
@@ -190,13 +185,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 [a.squeeze(0) for a in answer_audios], max_length=max(answer_audio_lens), padding_value=0.0
             ).float()
             answer_audio_lens = torch.tensor(answer_audio_lens).long()
-            # Prepare dummy target_codec with speech_pad_id and eos_tensor, the dummy values will be filled in training_step or validation_step
-            # once the audio codecs are extracted from the audio.
             features_lens = torch.tensor(features_lens, dtype=torch.int)
             return answer_audios, answer_audio_lens, features_lens
 
-        # treat multiturn data as multiple batch each with 2-turn conversation
-        if hasattr(cuts[0], "target_audio"):  # single-turn
+        # in duplex data, user channel is kept in cut.recording and agent channel is kept in cut.target_audio
+        # in the following, we keep target and source audio in different sample rates to be compatible with the single-turn and multi-turn branches
+        # may not be necessary in future
+        if hasattr(cuts[0], "target_audio"):
             # 22k target audio
             answer_audios, answer_audio_lens, features_lens = load_audio_from_cut(
                 cuts, "target_audio", self.codec_sample_rate
@@ -204,11 +199,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # 16k source audio
             audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
             audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
-            # Resample audio waveform here since cuts.resample causes core dump sometimes
-            # cuts_sample_rates = [c.recording.sampling_rate for c in cuts]
-            # import torchaudio
-            # audio = [torchaudio.functional.resample(a, orig_sample_rate, self.sample_rate).squeeze(0) for a, orig_sample_rate in zip(audio, cuts_sample_rates)]
-            # audio_lens = (torch.IntTensor(audio_lens) * (self.sample_rate / torch.IntTensor(cuts_sample_rates))).int()
             audio = collate_vectors([a.squeeze(0) for a in audio], max_length=max(audio_lens), padding_value=0.0)
             audio_lens = torch.tensor(audio_lens).long()
         else:
@@ -289,7 +279,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         assert cnt == len(target_texts)
         assert target_texts_merge.shape[0] == len(num_turns)
 
-        # Merge batch
         # note: the codec id in labels and contexts and others do not consider the offset e.g. speech_eos is 1002
         # the offset is all considered by SumVocabParallelEmbedding
         return_batch = {
@@ -320,8 +309,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         if getattr(cuts[0], "s2s_duplex"):
             return self.__getitem__duplex_(cuts)
 
+        '''
         # half-duplex single turn s2s data and multi turn s2s data go here
         # TODO: the following stanza can be removed or cleaned if we only need duplex s2s
+        '''
+
         def extract_text_and_time_tokens(input_sequence):
             # Regular expression to match time tokens (e.g., <|x|> where x is an integer)
             time_token_pattern = r"<\|(\d+)\|>"

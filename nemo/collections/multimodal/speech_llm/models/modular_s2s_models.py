@@ -1010,6 +1010,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             return audio, audio_lens
 
         if 'target_texts_merge' not in audio_batch:  # create duplex data from single turn
+            # this branch is not used anymore; duplex data should go to else:
             labels, loss_mask = (
                 audio_batch['labels'],
                 audio_batch['loss_mask'],
@@ -1115,6 +1116,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     sliced_text_channel == self.tokenizer.eos_id, self.cfg.data.train_ds.speech_eos_id, answer_codec
                 )
             else:
+                # this branch is not used anymore
                 # mask bos and eos following timestamp or synthetic data mark
                 answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
                 answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
@@ -1176,8 +1178,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         duplex_method = self.cfg.duplex_method
 
         if duplex_method == 'from_duplex':
+            # duplex data should go here
             assert 'target_texts_merge' in audio_batch
             return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
+        # the following branches are not used anymore
         elif duplex_method == 'from_multiturn':
             return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
         elif duplex_method == None:
@@ -1185,6 +1189,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         else:
             raise ValueError(f"Unknown duplex method: {duplex_method}")
 
+        # the following branch is used in single turn and multiturn but not duplex
         input_signal = audio_batch['audio_signal']
         logging.debug(f'input_signal.shape: {input_signal.shape}')
         input_signal_length = audio_batch['audio_signal_length']
