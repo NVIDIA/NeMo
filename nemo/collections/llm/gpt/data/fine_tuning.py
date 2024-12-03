@@ -52,6 +52,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
         packed_sequence_specs (PackedSequenceSpecs, optional): See PackedSequenceSpecs for details
         dataset_kwargs (Optional[Dict[str, Any]], optional): Keyword arguments to pass into the GPTSFTDataset class
+        max_steps (int, optional): Maximum number of training steps. Used when trainer is not provided. Defaults to 100000.
     """
 
     def __init__(
@@ -69,6 +70,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
         dataset_kwargs: Optional[Dict[str, Any]] = None,
+        max_steps: Optional[int] = None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -88,6 +90,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.packed_sequence_size = -1 if not packed_sequence_specs else packed_sequence_specs.packed_sequence_size
         self.validate_batch_size_for_packed_sequence()
         self.dataset_kwargs = dataset_kwargs or {}
+        self._max_steps = max_steps
 
     def validate_batch_size_for_packed_sequence(self):
         if self.packed_sequence_size > 0 and self.micro_batch_size > 1:
@@ -123,9 +126,16 @@ class FineTuningDataModule(pl.LightningDataModule):
             dataloader_type="batch",
         )
 
+        # Use trainer's max_steps if available, otherwise use default
+        if hasattr(self, "trainer") and self.trainer is not None:
+            max_steps = getattr(self.trainer, 'max_steps')
+        else:
+            max_steps = self._max_steps
+        assert max_steps is not None, "max_steps must be provided either during initialization or from an attached trainer."
+        
         # Follows the calculation in nemo.collections.nlp.data.language_modeling.megatron.
         # base_dataset_utils.get_datasets_weights_and_num_samples
-        self.max_train_samples = int(math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005))
+        self.max_train_samples = int(math.ceil(self.global_batch_size * max_steps * 1.005))
 
     def train_dataloader(self) -> DataLoader:
         return self._create_dataloader(

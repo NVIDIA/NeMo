@@ -73,7 +73,7 @@ def validate_dataset_asset_accessibility(paths):
             validate_dataset_asset_accessibility(p)
         return
 
-    if not isinstance(paths, str) and not isisntance(paths, Path):
+    if not isinstance(paths, str) and not isinstance(paths, Path):
         raise ValueError("Expected path to be of string or Path type.")
 
     path = Path(paths)
@@ -136,6 +136,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_train_samples (Optional[int]): The number of samples to use for training, defaults to total train steps times global batch size.
         num_val_samples (Optional[int]): The number of samples to use for validation, defaults to total validation steps times global batch size.
         num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total test steps times global batch size.
+        max_steps (Optional[int]): Maximum number of training steps.
+        val_check_interval (Optional[int]): Validation check interval.
+        limit_val_batches (Optional[Union[int, float]]): Limit on validation batches.
+        limit_test_batches (Optional[Union[int, float]]): Limit on test batches.
     """
 
     def __init__(
@@ -160,6 +164,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_train_samples: Optional[int] = None,
         num_val_samples: Optional[int] = None,
         num_test_samples: Optional[int] = None,
+        max_steps: Optional[int] = None,
+        val_check_interval: Optional[int] = None,
+        limit_val_batches: Optional[Union[int, float]] = None,
+        limit_test_batches: Optional[Union[int, float]] = None,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
@@ -205,6 +213,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
+        self._max_steps = max_steps
+        self._val_check_interval = val_check_interval
+        self._limit_val_batches = limit_val_batches
+        self._limit_test_batches = limit_test_batches
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -218,15 +230,26 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     def build(
         self,
-        trainer_max_steps: int,
-        trainer_val_check_interval: int,
-        trainer_limit_val_batches: Union[int, float],
-        trainer_limit_test_batches: Union[int, float],
+        trainer_max_steps: Optional[int] = None,
+        trainer_val_check_interval: Optional[int] = None,
+        trainer_limit_val_batches: Optional[Union[int, float]] = None,
+        trainer_limit_test_batches: Optional[Union[int, float]] = None,
     ):
         from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
         from megatron.core.datasets.gpt_dataset import GPTDataset
 
-        train_iters = trainer_max_steps
+        # Use trainer values if provided, otherwise fall back to init values
+        max_steps = trainer_max_steps if trainer_max_steps is not None else self._max_steps
+        val_check_interval = trainer_val_check_interval if trainer_val_check_interval is not None else self._val_check_interval
+        limit_val_batches = trainer_limit_val_batches if trainer_limit_val_batches is not None else self._limit_val_batches
+        limit_test_batches = trainer_limit_test_batches if trainer_limit_test_batches is not None else self._limit_test_batches
+
+        assert max_steps is not None, "max_steps must be provided either during initialization or in build()"
+        assert val_check_interval is not None, "val_check_interval must be provided either during initialization or in build()"
+        assert limit_val_batches is not None, "limit_val_batches must be provided either during initialization or in build()"
+        assert limit_test_batches is not None, "limit_test_batches must be provided either during initialization or in build()"
+
+        train_iters = max_steps
         assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
         num_train_samples = int(train_iters * self.data_sampler.global_batch_size)
 
@@ -237,10 +260,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             num_train_samples = self.num_train_samples
             train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
 
-        eval_iters = (train_iters // trainer_val_check_interval + 1) * trainer_limit_val_batches
+        eval_iters = (train_iters // val_check_interval + 1) * limit_val_batches
         num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
 
-        test_iters = trainer_limit_test_batches
+        test_iters = limit_test_batches
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
 
         if self.num_val_samples is not None:
@@ -252,11 +275,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             ), f"num_test_samples must be greater than {num_test_samples}."
             num_test_samples = self.num_test_samples
 
-        if (
-            trainer_limit_val_batches > 0.0
-            and trainer_limit_val_batches <= 1.0
-            and isinstance(trainer_limit_val_batches, float)
-        ):
+        if limit_val_batches > 0.0 and limit_val_batches <= 1.0 and isinstance(limit_val_batches, float):
             assert "blend" not in self.build_kwargs, (
                 "When using a single data distribution, limit_val_batches <= 1.0 is not supported. If you'd "
                 "like to run with a fractional value of limit_val_batches, please pass in separate datasets for "
@@ -280,16 +299,17 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         ).build()
 
     def setup(self, stage: str = "") -> None:
-        assert (
-            hasattr(self, "trainer") and self.trainer is not None
-        ), "Setup should be completed when trainer and config are attached."
-
-        self.build(
-            trainer_max_steps=self.trainer.max_steps,
-            trainer_val_check_interval=self.trainer.val_check_interval,
-            trainer_limit_val_batches=self.trainer.limit_val_batches,
-            trainer_limit_test_batches=self.trainer.limit_test_batches,
-        )
+        """Setup datasets using trainer parameters if available."""
+        if hasattr(self, "trainer") and self.trainer is not None:
+            self.build(
+                trainer_max_steps=self.trainer.max_steps,
+                trainer_val_check_interval=self.trainer.val_check_interval,
+                trainer_limit_val_batches=self.trainer.limit_val_batches,
+                trainer_limit_test_batches=self.trainer.limit_test_batches,
+            )
+        else:
+            # Use values provided during initialization
+            self.build()
 
     # uncomment once fabric API is merged
     # def fabric_setup(
@@ -318,7 +338,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         return self._create_dataloader(self._test_ds, mode="test")
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
-        self.init_global_step = self.trainer.global_step
+        if hasattr(self, "trainer") and self.trainer is not None:
+            self.init_global_step = self.trainer.global_step
         self.data_sampler.init_global_step = self.init_global_step
         dataloader = WrappedDataLoader(
             mode=mode,
@@ -355,7 +376,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+        """Get datamodule state for checkpointing."""
+        global_step = self.trainer.global_step if hasattr(self, "trainer") and self.trainer is not None else 0
+        consumed_samples = self.data_sampler.compute_consumed_samples(global_step - self.init_global_step)
         return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
@@ -383,6 +406,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.data_sampler.if_first_step = 1
 
     def reconfigure_limit_batches(self):
+        """Reconfigure batch limits if trainer is available."""
+        if not hasattr(self, "trainer") or self.trainer is None:
+            return
+
         # Override limit_train_batches in terms of num of microbatches
         self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds, "train")
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
@@ -422,19 +449,19 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                             f" `limit_val_batches` argument. Try at least"
                             f" `limit_val_batches={min_percentage}`"
                         )
-                    # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+                    # Make sure limit_val_batches is a multiple of num of microbatches
                     if limit_micro_batches < get_num_microbatches():
                         limit_batches = get_num_microbatches()
                     else:
                         limit_batches = limit_batches - limit_batches % get_num_microbatches()
 
-        if mode == "train":
-            self.trainer.limit_train_batches = limit_batches
-        else:
-            self.trainer.limit_val_batches = limit_batches
-
-        # Override num sanity steps to be a multiple of num of microbatches
-        self.trainer.num_sanity_val_steps *= get_num_microbatches()
+        if hasattr(self, "trainer") and self.trainer is not None:
+            if mode == "train":
+                self.trainer.limit_train_batches = limit_batches
+            else:
+                self.trainer.limit_val_batches = limit_batches
+                # Override num sanity steps to be a multiple of num of microbatches
+                self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
 
 def build_pretraining_datamodule(
