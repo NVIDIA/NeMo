@@ -14,6 +14,7 @@
 
 from typing import Any, Dict
 
+
 def preprocess_common_state_dict_before_consistency_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Removes values known to be different across ranks from consideration during the consistency check run as part of distributed checkpoint saving.
@@ -23,7 +24,7 @@ def preprocess_common_state_dict_before_consistency_check(state_dict: Dict[str, 
 
     # Deepcopy to ensure that all states in state dict are still saved
     state_dict_to_check = copy.deepcopy(state_dict)
-    
+
     # Remove Timer callback states from consideration during consistency check
     state_dict_to_check.get("callbacks", {}).pop("Timer", None)
 

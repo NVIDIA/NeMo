@@ -12,28 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 
-from nemo.utils.distributed_checkpointing import preprocess_common_state_dict_before_consistency_check)
+from nemo.utils.distributed_checkpointing import preprocess_common_state_dict_before_consistency_check
 
 
 def test_preprocess_common_state_dict_before_consistency_check(self):
-    """Test processing common state dict before saving. """
+    """Test processing common state dict before saving."""
 
     # Case 1: Callbacks/Timer included in state dict
-    state_dict = {
-        "callbacks": {
-            "Timer": {"elapsed": 1.0}, 
-            "other": {"entry": 42}
-        }, 
-        "bar": {"baz": "qux"}
-    }
+    state_dict = {"callbacks": {"Timer": {"elapsed": 1.0}, "other": {"entry": 42}}, "bar": {"baz": "qux"}}
     expected = {"callbacks": {"other": {"entry": 42}}, "bar": {"baz": "qux"}}
     processed = preprocess_common_state_dict_before_consistency_check(state_dict)
 
     state_dict = {"foo": {"bar": "baz"}}
     expected = {"foo": {"bar": "baz"}}
-    assert preprocess_common_state_dict_before_consistency_check(state_dict) == expected      
+    assert preprocess_common_state_dict_before_consistency_check(state_dict) == expected
 
     # Test case 3: Callbacks dictionary exists but no Timer key
     state_dict = {"callbacks": {"Other": "value"}, "foo": {"bar": "baz"}}
