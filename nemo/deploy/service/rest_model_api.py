@@ -28,7 +28,7 @@ class TritonSettings(BaseSettings):
     def __init__(self):
         super(TritonSettings, self).__init__()
         try:
-            self._triton_service_port = int(os.environ.get('TRITON_PORT', 8080))
+            self._triton_service_port = int(os.environ.get('TRITON_PORT', 8000))
             self._triton_service_ip = os.environ.get('TRITON_HTTP_ADDRESS', '0.0.0.0')
             self._triton_request_timeout = int(os.environ.get('TRITON_REQUEST_TIMEOUT', 60))
             self._openai_format_response = os.environ.get('OPENAI_FORMAT_RESPONSE', 'False').lower() == 'true'
@@ -105,7 +105,7 @@ async def check_triton_health():
         raise HTTPException(status_code=503, detail=f"Cannot reach Triton server: {str(e)}")
 
 
-@app.post("/v1/completions/")
+@app.post("/v1/completions")
 def completions_v1(request: CompletionRequest):
     try:
         url = triton_settings.triton_service_ip + ":" + str(triton_settings.triton_service_port)
