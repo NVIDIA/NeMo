@@ -456,7 +456,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         closure = kwargs.pop('closure', None)
         # Allows applications to specify closure kwarg without erroring due to duplicate specification
-        assert closure is None, f"closre should be None but was passed {closure}"
+        assert closure is None, f"closure should be None but was passed {closure}"
 
         # Step the optimizer.
         self.optimizer.step(closure=None, **kwargs)
