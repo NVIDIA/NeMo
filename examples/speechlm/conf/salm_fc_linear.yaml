@@ -43,7 +43,6 @@ data:
     # Notably, the data weights are controlled by either bucketing_weights
     # or concat_sampling_probabilities depending on the dataset type (tar and
     # non-tar).
-    # See audio_text_qa_dataset.py for details.
     concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
     context_key: ${data.common.context_key}
     answer_key: ${data.common.answer_key}
@@ -59,6 +58,7 @@ data:
     max_duration: 24 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
     # tarred datasets
+    is_concat: false
     is_tarred: false
     tarred_audio_filepaths: null
     shuffle_n: 2048

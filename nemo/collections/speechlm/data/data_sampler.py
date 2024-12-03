@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
@@ -34,6 +34,10 @@ class SLMDataSampler(MegatronDataSampler):
 
         if not has_len:
             logging.info(f"Dataset {dataloader.dataset} does not have __len__ method. Skipping Megatron data sampler.")
+            return dataloader
+
+        if isinstance(dataloader.dataset, IterableDataset):
+            logging.info(f"Dataset {dataloader.dataset} is an IterableDataset. Skipping Megatron data sampler.")
             return dataloader
 
         from megatron.core import parallel_state
