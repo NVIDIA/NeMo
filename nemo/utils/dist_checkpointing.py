@@ -16,8 +16,12 @@ from typing import Any, Dict
 
 
 def preprocess_common_state_dict_before_consistency_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes values known to be different across ranks from consideration during the consistency check run as part of distributed checkpoint saving.
+    """Filters common state dict entries before the consistency check is run.
+
+    Distributed checkpointing saving automatically groups certain values into a common state dict,
+    which is assumed to be equivalent across ranks.
+    To ensure that the common state dict is actually equivalent across ranks, a consistency check is run.
+    However, there are entries within NeMo that are known to be different across ranks, so here they are removed.
     """
 
     import copy
