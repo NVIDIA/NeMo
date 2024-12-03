@@ -109,7 +109,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         n_cls = outputs.logits.shape[-1]
         outputs = outputs.logits.view(-1, n_cls)
-        labels = labels.reshape(-1)[0:outputs.shape[0]]
+        labels = labels.reshape(-1)[0 : outputs.shape[0]]
 
         outputs.loss = self.loss_fn(outputs, labels, loss_mask)
         return outputs
@@ -118,7 +118,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         tokens = batch["input_features"]
         labels = batch["labels"]
 
-        loss_mask = None # batch.get('loss_mask', None)
+        loss_mask = None  # batch.get('loss_mask', None)
         output = self.forward(
             input_ids=tokens,
             labels=labels,

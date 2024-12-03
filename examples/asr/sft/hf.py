@@ -60,7 +60,6 @@ if __name__ == '__main__':
     parser.add_argument('--model-save-path', type=str, default=None)
     args = parser.parse_args()
 
-
     model = HFAutoModelForSpeechSeq2Seq(model_name=args.model)
     processor = model.processor
     tokenizer = AutoTokenizer(args.model)
@@ -88,14 +87,14 @@ if __name__ == '__main__':
     )
 
     train_dataloader = get_lhotse_dataloader_from_config(
-            config,
-            global_rank=0,
-            world_size=1,
-            dataset=LhotseHfNeMoDataset(
-                processor=processor,
-            ),
-            tokenizer=tokenizer,
-        )
+        config,
+        global_rank=0,
+        world_size=1,
+        dataset=LhotseHfNeMoDataset(
+            processor=processor,
+        ),
+        tokenizer=tokenizer,
+    )
 
     llm.api.finetune(
         model=model,
@@ -117,7 +116,6 @@ if __name__ == '__main__':
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
-
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)
