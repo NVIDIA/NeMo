@@ -503,6 +503,10 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         if labels is None or loss_mask is None:
             return output
 
+        if output.size(1) != final_loss_mask.size(1):
+            raise RuntimeError(f"Output size {output.size(1)} does not match loss mask size {final_loss_mask.size(1)}")
+
+        # [b, t], [b, t]
         return output, final_loss_mask.contiguous()
 
 
