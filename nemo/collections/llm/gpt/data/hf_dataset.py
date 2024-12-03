@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
-class HfDatasetDataModule(pl.LightningDataModule):
+class HFDatasetDataModule(pl.LightningDataModule):
     def __init__(
         self,
         dataset,
@@ -61,8 +61,7 @@ class HfDatasetDataModule(pl.LightningDataModule):
             max_len = max(map(len, batch))
             return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
-        print(batch[0])
-        keys = list(filter(lambda x: x in batch[0], ['input_features', 'tokens', 'labels', 'position_ids', 'loss_mask']))
+        keys = list(filter(lambda x: x in batch[0], ['tokens', 'labels', 'position_ids', 'loss_mask']))
         return {
             key: batchify(
                 torch.LongTensor(
@@ -89,7 +88,7 @@ class HfDatasetDataModule(pl.LightningDataModule):
         from nemo.lightning.data import add_megatron_sampler
 
         if collate_fn is None:
-            collate_fn = lambda x: HfDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
         return DataLoader(
             self.dataset,
