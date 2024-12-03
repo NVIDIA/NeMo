@@ -67,9 +67,7 @@ def get_args():
 
     args = parser.parse_args()
     if args.export_path is None:
-        args.export_path = (
-            f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
-        )
+        args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
     return args
 
 
