@@ -361,12 +361,9 @@ def fake_initialize_model_parallel(
     expert_decoder_rank_generator = RankGenerator(
         tp=tensor_model_parallel_size,  # the same as Attention part
         ep=expert_model_parallel_size_,
-        dp=(
-            decoder_world_size
-            // (expert_model_parallel_size_ * tensor_model_parallel_size * pipeline_model_parallel_size)
-        ),
+        dp=(data_parallel_size // expert_model_parallel_size_),
         pp=pipeline_model_parallel_size,
-        cp=1,
+        cp=context_parallel_size,
         order='tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
         rank_offset=encoder_world_size,
     )
