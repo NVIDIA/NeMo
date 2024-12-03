@@ -863,6 +863,9 @@ class ASRPredictionWriter(BasePredictionWriter):
 
         for sample_id, transcribed_text in prediction:
             item = {}
+            item["duration"] = sample.duration
+            item["pred_text"] = transcribed_text
+
             if isinstance(sample_id, lhotse.cut.Cut):
                 sample = sample_id
                 if isinstance(sample, lhotse.cut.MixedCut):
@@ -872,22 +875,17 @@ class ASRPredictionWriter(BasePredictionWriter):
                 else:
                     item["audio_filepath"] = sample.id
                 item["offset"] = sample.start
-                item["duration"] = sample.duration
                 item["text"] = sample.supervisions[0].text or ''
                 if hasattr(sample, 'shard_id'):
                     item["shard_id"] = sample.shard_id
-                item["pred_text"] = transcribed_text
-                self.outf.write(json.dumps(item) + "\n")
-                self.samples_num += 1
             else:
                 sample = self.dataset.get_manifest_sample(sample_id)
                 item["audio_filepath"] = sample.audio_file
                 item["offset"] = sample.offset
-                item["duration"] = sample.duration
                 item["text"] = sample.text_raw
-                item["pred_text"] = transcribed_text
-                self.outf.write(json.dumps(item) + "\n")
-                self.samples_num += 1
+
+            self.outf.write(json.dumps(item) + "\n")
+            self.samples_num += 1
         return
 
     def close_output_file(self):
