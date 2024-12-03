@@ -229,7 +229,9 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
             cur_dims += self.proj_head_dims[i]
         assert self.vocab_size == self.proj_head_dims[0]
-        all_logits[0], _ = self.output_layer(hidden_states, weight=output_weight[: self.vocab_size])
+        all_logits[0], _ = self.output_layer(
+            hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
+        )
 
         if labels is None:
             # [s b h] => [b s h]
