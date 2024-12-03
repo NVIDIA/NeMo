@@ -27,6 +27,7 @@ from lightning.pytorch import Callback
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
+from nemo.utils.dist_checkpointing import preprocess_common_state_dict_before_consistency_check
 
 try:
     from megatron.core import dist_checkpointing
@@ -274,7 +275,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
-            preprocess_common_before_consistancy_check=_preprocess_common_state_dict_before_consistency_check
+            preprocess_common_before_consistancy_check=preprocess_common_state_dict_before_consistency_check
         )
 
     @_debug_time('DistributedCheckpointIO.load_checkpoint')
@@ -421,19 +422,3 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
-
-
-def _preprocess_common_state_dict_before_consistency_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes values known to be different across ranks from consideration during the consistency check during distributed checkpoint saving.
-    """
-
-    import copy
-
-    # Deepcopy to ensure that all states in state dict are still saved
-    state_dict_to_check = copy.deepcopy(state_dict)
-    
-    # Remove Timer callback states from consideration during consistency check
-    state_dict_to_check.get("callbacks", {}).pop("Timer", None)
-
-    return state_dict_to_check
