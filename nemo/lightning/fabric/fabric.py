@@ -14,18 +14,18 @@
 
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Protocol, Sequence, Type, TypeVar, Union, List, runtime_checkable
+from typing import TYPE_CHECKING, Any, List, Optional, Protocol, Sequence, Type, TypeVar, Union, runtime_checkable
 
 import fiddle as fdl
 import lightning_fabric as lb
 import pytorch_lightning as pl
 from torch import nn
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader
 from typing_extensions import Self, override
 
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
-from torch.optim import Optimizer
-from torch.utils.data import DataLoader
 
 ModelT = TypeVar("ModelT", bound=nn.Module)
 

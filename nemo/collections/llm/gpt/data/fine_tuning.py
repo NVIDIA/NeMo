@@ -131,8 +131,10 @@ class FineTuningDataModule(pl.LightningDataModule):
             max_steps = getattr(self.trainer, 'max_steps')
         else:
             max_steps = self._max_steps
-        assert max_steps is not None, "max_steps must be provided either during initialization or from an attached trainer."
-        
+        assert (
+            max_steps is not None
+        ), "max_steps must be provided either during initialization or from an attached trainer."
+
         # Follows the calculation in nemo.collections.nlp.data.language_modeling.megatron.
         # base_dataset_utils.get_datasets_weights_and_num_samples
         self.max_train_samples = int(math.ceil(self.global_batch_size * max_steps * 1.005))

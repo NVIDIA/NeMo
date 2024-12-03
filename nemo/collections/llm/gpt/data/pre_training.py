@@ -240,14 +240,26 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         # Use trainer values if provided, otherwise fall back to init values
         max_steps = trainer_max_steps if trainer_max_steps is not None else self._max_steps
-        val_check_interval = trainer_val_check_interval if trainer_val_check_interval is not None else self._val_check_interval
-        limit_val_batches = trainer_limit_val_batches if trainer_limit_val_batches is not None else self._limit_val_batches
-        limit_test_batches = trainer_limit_test_batches if trainer_limit_test_batches is not None else self._limit_test_batches
+        val_check_interval = (
+            trainer_val_check_interval if trainer_val_check_interval is not None else self._val_check_interval
+        )
+        limit_val_batches = (
+            trainer_limit_val_batches if trainer_limit_val_batches is not None else self._limit_val_batches
+        )
+        limit_test_batches = (
+            trainer_limit_test_batches if trainer_limit_test_batches is not None else self._limit_test_batches
+        )
 
         assert max_steps is not None, "max_steps must be provided either during initialization or in build()"
-        assert val_check_interval is not None, "val_check_interval must be provided either during initialization or in build()"
-        assert limit_val_batches is not None, "limit_val_batches must be provided either during initialization or in build()"
-        assert limit_test_batches is not None, "limit_test_batches must be provided either during initialization or in build()"
+        assert (
+            val_check_interval is not None
+        ), "val_check_interval must be provided either during initialization or in build()"
+        assert (
+            limit_val_batches is not None
+        ), "limit_val_batches must be provided either during initialization or in build()"
+        assert (
+            limit_test_batches is not None
+        ), "limit_test_batches must be provided either during initialization or in build()"
 
         train_iters = max_steps
         assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
