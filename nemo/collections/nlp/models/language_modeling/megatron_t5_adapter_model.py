@@ -21,9 +21,9 @@ import itertools
 from typing import Any
 
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model

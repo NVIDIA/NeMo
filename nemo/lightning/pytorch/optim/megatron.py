@@ -1,12 +1,27 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import inspect
 from typing import Callable, List, Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from megatron.core.distributed import finalize_model_grads
-from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
+from megatron.core.optimizer import OptimizerConfig
 from megatron.core.utils import get_model_config
 from torch.optim import Optimizer
 
+from nemo.lightning._strategy_lib import setup_megatron_optimizer
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 
@@ -83,45 +98,15 @@ class MegatronOptimizerModule(OptimizerModule):
         if not isinstance(model, MegatronParallel):
             raise ValueError("Model must be an instance of MegatronParallel")
 
-        from nemo.core.optim import McoreDistributedOptimizer
-
-        class McoreOpt(McoreDistributedOptimizer):
-            def sharded_state_dict(
-                self,
-                model_sharded_state_dict,
-                optimizer_state_dict=None,
-                is_loading=False,
-                sharding_type='fully_sharded_model_space',
-            ):
-                mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
-                distrib_optim_kwargs = {}
-                if "sharding_type" in mcore_optimizer_sig:
-                    distrib_optim_kwargs["sharding_type"] = sharding_type
-                state_dict = self.mcore_optimizer.sharded_state_dict(
-                    model_sharded_state_dict, is_loading=is_loading, **distrib_optim_kwargs
-                )
-                return state_dict
-
-        mcore_opt = get_megatron_optimizer(
+        optimizer = setup_megatron_optimizer(
+            model,
             self.config,
-            list(model),
             no_weight_decay_cond=self.no_weight_decay_cond,
             scale_lr_cond=self.scale_lr_cond,
             lr_mult=self.lr_mult,
         )
 
-        if getattr(model.ddp_config, "overlap_param_sync", False) and getattr(
-            model.ddp_config, "delay_param_gather", False
-        ):
-            param_sync_func = [
-                lambda x, model_index=model_index: mcore_opt.finish_param_sync(model_index, x)
-                for model_index in range(len(pipeline))
-            ]
-            param_sync_func = param_sync_func[0] if len(pipeline) == 1 else param_sync_func
-            for module in model:
-                module.config.param_sync_func = param_sync_func
-
-        return [McoreOpt(mcore_opt)]
+        return [optimizer]
 
     def finalize_model_grads(self, *args, **kwargs):
         return finalize_model_grads(*args, **kwargs)

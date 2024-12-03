@@ -20,7 +20,7 @@ from typing import List
 import numpy as np
 import torch
 import wrapt
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -32,6 +32,16 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
+
+try:
+    from megatron.core.dist_checkpointing.validation import StrictHandling
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError) as e:
+
+    HAVE_MEGATRON_CORE = False
+    IMPORT_ERROR = e
 
 
 @wrapt.decorator
@@ -99,6 +109,8 @@ class MegatronLLMDeployable(ITritonDeployable):
         num_nodes: int = 1,
         existing_model: MegatronGPTModel = None,
     ):
+        if not HAVE_MEGATRON_CORE:
+            raise IMPORT_ERROR
         if nemo_checkpoint_filepath is None and existing_model is None:
             raise ValueError(
                 "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None"
@@ -142,6 +154,14 @@ class MegatronLLMDeployable(ITritonDeployable):
             # had to override these to make Nemotron3-22B work, see sample_sequence_batch() in text_generation_utils.py
             custom_config.activations_checkpoint_granularity = None
             custom_config.activations_checkpoint_method = None
+            # Models trained with TE < 1.10 and loaded with TE >= 1.10 require
+            # special handling on loading checkpoint due to structural updates
+            custom_config.dist_ckpt_load_strictness = StrictHandling.LOG_ALL.value
+            if custom_config.get("fp8", False):
+                # Need to disable FP8 for in-framework inference due to shape constraints imposed by TE,
+                # see https://github.com/NVIDIA/TransformerEngine/blob/v1.10/transformer_engine/pytorch/utils.py#L229
+                LOGGER.warning("Disabling FP8 inference due to shape constraints imposed by Transformer Engine.")
+                custom_config.fp8 = False
 
             self.model = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, override_config_path=custom_config

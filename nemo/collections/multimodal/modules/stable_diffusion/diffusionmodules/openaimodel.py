@@ -40,15 +40,9 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     zero_module,
 )
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
 
-try:
-    # FP8 related import
-    import transformer_engine
-
-    HAVE_TE = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+transformer_engine, HAVE_TE = safe_import("transformer_engine")
 
 try:
     from apex.contrib.group_norm import GroupNorm
@@ -609,6 +603,7 @@ class UNetModel(nn.Module):
         from_NeMo=False,
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
+        use_te_dpa: bool = False,
         unet_precision: str = "fp32",
         lora_network_alpha=None,
         timesteps=1000,
@@ -782,6 +777,7 @@ class UNetModel(nn.Module):
                                 use_linear=use_linear_in_transformer,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
+                                use_te_dpa=use_te_dpa,
                                 lora_network_alpha=lora_network_alpha,
                                 use_te=self.use_te_fp8,
                             )
@@ -851,6 +847,7 @@ class UNetModel(nn.Module):
                     use_linear=use_linear_in_transformer,
                     use_checkpoint=use_checkpoint,
                     use_flash_attention=use_flash_attention,
+                    use_te_dpa=use_te_dpa,
                     use_te=self.use_te_fp8,
                     lora_network_alpha=lora_network_alpha,
                 )
@@ -918,6 +915,7 @@ class UNetModel(nn.Module):
                                 use_linear=use_linear_in_transformer,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
+                                use_te_dpa=use_te_dpa,
                                 lora_network_alpha=lora_network_alpha,
                                 use_te=self.use_te_fp8,
                             )
@@ -978,8 +976,8 @@ class UNetModel(nn.Module):
             self.convert_to_fp16()
         elif unet_precision == 'fp16':
             self.convert_to_fp16(enable_norm_layers=True)
-        elif self.use_te_fp8:
-            assert unet_precision != 'fp16', "fp8 training can't work with fp16 O2 amp recipe"
+        if self.use_te_fp8:
+            assert unet_precision == 'fp16', "fp8 training can't work with fp16 O2 amp recipe"
             convert_module_to_fp8(self)
 
             fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
@@ -1002,6 +1000,7 @@ class UNetModel(nn.Module):
                 amax_history_len=fp8_amax_history_len,
                 amax_compute_algo=fp8_amax_compute_algo,
                 override_linear_precision=(False, False, not fp8_wgrad),
+                # fp8_dpa=use_te_dpa, # TODO; fp8 DPA kernel is not supported now.
             )
             old_state_dict = self.state_dict()
             new_state_dict = self.te_fp8_key_mapping(old_state_dict)

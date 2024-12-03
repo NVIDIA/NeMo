@@ -18,17 +18,18 @@ import re
 from pathlib import Path
 from typing import Any
 
+import lightning.pytorch as pl
 import pytest
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch import Callback
+from lightning.pytorch.loops import _TrainingEpochLoop
 from omegaconf import OmegaConf
 from omegaconf.errors import OmegaConfBaseException
-from pytorch_lightning import Callback
-from pytorch_lightning.loops import _TrainingEpochLoop
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.core.classes import ModelPT
+from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint
 from nemo.utils.exp_manager import (
     CheckpointMisconfigurationError,
@@ -1050,3 +1051,121 @@ class TestExpManager:
         assert 'epoch=8.ckpt' in ckpt_filenames
         assert 'epoch=7.ckpt' in ckpt_filenames
         assert 'epoch=4.ckpt' in ckpt_filenames
+
+    @pytest.mark.unit
+    def test_doesnt_silently_start_from_scratch(self, tmp_path):
+        """
+        Ensure that if the last checkpoint is unfinished it wont silently start from scratch.
+        This is to avoid a training that is not actually making any progress.
+        """
+        test_dir = tmp_path / "test"
+        checkpoints_dir = test_dir / "checkpoints"
+
+        self._write_fake_checkpoint(
+            checkpoints_dir / "megatron_gpt--val_loss=5.01-step=900-consumed_samples=1000.0-last.ckpt",
+            isdir=False,
+            add_unfinished_marker=True,
+        )  # incomplete last
+
+        restored_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
+
+        with pytest.raises(Exception):
+            exp_manager(
+                restored_trainer,
+                {"resume_if_exists": True, "resume_ignore_no_checkpoint": True, "explicit_log_dir": str(test_dir)},
+            )
+
+    @pytest.mark.unit
+    def test_doesnt_silently_start_from_scratch_dist(self, tmp_path):
+        """
+        Ensure that if the last distributed checkpoint is unfinished it wont silently start from scratch.
+        This is to avoid a training that is not actually making any progress.
+        """
+
+        test_dir = tmp_path / "test"
+        checkpoints_dir = test_dir / "checkpoints"
+
+        self._write_fake_checkpoint(
+            checkpoints_dir / "megatron_gpt--val_loss=5.01-step=1100-consumed_samples=17600.0-last",
+            isdir=True,
+            add_unfinished_marker=True,
+        )  # incomplete last
+
+        restored_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
+
+        with pytest.raises(Exception):
+            exp_manager(
+                restored_trainer,
+                {"resume_if_exists": True, "resume_ignore_no_checkpoint": True, "explicit_log_dir": str(test_dir)},
+            )
+
+    @pytest.mark.unit
+    def test_save_nemo_not_comp_with_model_parallel(self, tmp_path):
+        """
+        Ensure that always_save_nemo is not compatible with model parallelism.
+        """
+
+        test_dir = tmp_path / "test"
+
+        with pytest.raises(LoggerMisconfigurationError):
+            appstate = AppState()
+            appstate.tensor_model_parallel_size = 2
+            appstate.pipeline_model_parallel_size = 1
+            appstate.context_parallel_size = 1
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+            exp_manager(
+                test_trainer,
+                {
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
+                    "explicit_log_dir": str(test_dir),
+                },
+            )
+
+        with pytest.raises(LoggerMisconfigurationError):
+            appstate = AppState()
+            appstate.tensor_model_parallel_size = 1
+            appstate.pipeline_model_parallel_size = 2
+            appstate.context_parallel_size = 1
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+            exp_manager(
+                test_trainer,
+                {
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
+                    "explicit_log_dir": str(test_dir),
+                },
+            )
+
+        with pytest.raises(LoggerMisconfigurationError):
+            appstate = AppState()
+            appstate.tensor_model_parallel_size = 1
+            appstate.pipeline_model_parallel_size = 1
+            appstate.context_parallel_size = 2
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+            exp_manager(
+                test_trainer,
+                {
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
+                    "explicit_log_dir": str(test_dir),
+                },
+            )
+
+        appstate = AppState()
+        appstate.tensor_model_parallesl_size = 1
+        appstate.pipeline_model_parallel_size = 1
+        appstate.context_parallel_size = 1
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {
+                    "always_save_nemo": True,
+                },
+                "explicit_log_dir": str(test_dir),
+            },
+        )

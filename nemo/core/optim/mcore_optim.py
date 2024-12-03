@@ -35,8 +35,6 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
     def __init__(self, optim):
         self.defaults = {}
         self.mcore_optimizer = optim
-        self.param_groups = self.mcore_optimizer.param_groups
-        self.state = self.mcore_optimizer.state
 
     def zero_grad(self, set_to_none: bool = True):
         """We only need to zero the model related parameters, i.e.,
@@ -63,7 +61,7 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
             model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
         )
 
-    def step(self, closure):
+    def step(self, closure=None):
         """Clip gradients (if needed) and step the base optimizer.
         Always return successful since there is no overflow."""
         # Apply closure
@@ -72,9 +70,22 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
             loss = closure()
 
         # return unused update_successful, grad_norm, num_zeros_in_grad
-        self.mcore_optimizer.step()
+        _, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
 
-        return loss
+        return loss, grad_norm, num_zeros_in_grad
+
+    # Promote state so it can be retrieved or set via
+    # "optimizer_instance.state"
+    def _get_state(self):
+        if hasattr(self, 'mcore_optimizer'):
+            return self.mcore_optimizer.state
+        else:
+            return []
+
+    def _set_state(self, value):
+        self.mcore_optimizer.state = value
+
+    state = property(_get_state, _set_state)
 
     def save_parameter_state(self, filename: str):
         self.mcore_optimizer.save_parameter_state(filename)
@@ -82,8 +93,19 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
     def load_parameter_state(self, filename: str):
         self.mcore_optimizer.load_parameter_state(filename)
 
-    def finish_param_sync(self, model_index):
-        self.mcore_optimizer.finish_param_sync(model_index)
+    # Promote param_groups so it can be retrieved or set via
+    # "optimizer_instance.param_groups"
+    # (for example, to adjust the learning rate)
+    def _get_param_groups(self):
+        if hasattr(self, 'mcore_optimizer'):
+            return self.mcore_optimizer.param_groups
+        else:
+            return []
+
+    def _set_param_groups(self, value):
+        self.mcore_optimizer.param_groups = value
+
+    param_groups = property(_get_param_groups, _set_param_groups)
 
     def disable_pre_hook(self):
         self.mcore_optimizer.disable_pre_hook()

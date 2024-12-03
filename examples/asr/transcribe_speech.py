@@ -12,38 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-import glob
 import json
 import os
 import time
 from dataclasses import dataclass, field, is_dataclass
-from tempfile import NamedTemporaryFile
 from typing import List, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
-    read_and_maybe_sort_manifest,
     restore_transcription_order,
     setup_model,
-    transcribe_partial_audio,
     write_transcription,
 )
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -54,21 +47,17 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   model_path: path to .nemo ASR checkpoint
   pretrained_name: name of pretrained ASR model (from NGC registry)
   audio_dir: path to directory with audio files
-  dataset_manifest: path to dataset JSON manifest file (in NeMo format)
-
-  compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
+  dataset_manifest: path to dataset JSON manifest file (in NeMo formats
   compute_langs: Bool to request language ID information (if the model supports it)
+  timestamps: Bool to request greedy time stamp information (if the model supports it) by default None 
 
   (Optionally: You can limit the type of timestamp computations using below overrides)
-  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
-  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
-
-  (Optionally: You can limit the type of timestamp computations using below overrides)
-  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
-  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
+  ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word, segment])
+  rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word, segment])
 
   output_filename: Output filename where the transcriptions will be written
   batch_size: batch size during inference
+  presort_manifest: sorts the provided manifest by audio length for faster inference (default: True)
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
   allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available
@@ -103,7 +92,7 @@ python transcribe_speech.py \
     clean_groundtruth_text=True \
     langid='en' \
     batch_size=32 \
-    compute_timestamps=False \
+    timestamps=False \
     compute_langs=False \
     cuda=0 \
     amp=True \
@@ -114,13 +103,19 @@ python transcribe_speech.py \
 
 @dataclass
 class ModelChangeConfig:
+    """
+    Sub-config for changes specific to the Conformer Encoder
+    """
 
-    # Sub-config for changes specific to the Conformer Encoder
     conformer: ConformerChangeConfig = field(default_factory=ConformerChangeConfig)
 
 
 @dataclass
 class TranscriptionConfig:
+    """
+    Transcription Configuration for audio to text transcription.
+    """
+
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -141,10 +136,11 @@ class TranscriptionConfig:
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
-    # Set to True to output greedy timestamp information (only supported models)
-    compute_timestamps: bool = False
-    # set to True if need to return full alignment information
-    preserve_alignment: bool = False
+    # Set to True to output greedy timestamp information (only supported models) and returns full alignment hypotheses
+    timestamps: Optional[bool] = None
+
+    # Set to True to return hypotheses instead of text from the transcribe function
+    return_hypotheses: bool = False
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -176,7 +172,8 @@ class TranscriptionConfig:
     # Implicit single-turn assuming default role='user' (works with Canary-1B)
     #  +prompt.source_lang=en +prompt.target_lang=es +prompt.task=asr +prompt.pnc=yes
     # Explicit single-turn prompt:
-    #  +prompt.role=user +prompt.slots.source_lang=en +prompt.slots.target_lang=es +prompt.slots.task=s2t_translation +prompt.slots.pnc=yes
+    #  +prompt.role=user +prompt.slots.source_lang=en +prompt.slots.target_lang=es
+    # +prompt.slots.task=s2t_translation +prompt.slots.pnc=yes
     # Explicit multi-turn prompt:
     #  +prompt.turns='[{role:user,slots:{source_lang:en,target_lang:es,task:asr,pnc:yes}}]'
     prompt: dict = field(default_factory=dict)
@@ -199,17 +196,10 @@ class TranscriptionConfig:
     # if True, will also skip writing anything to the output file
     return_transcriptions: bool = False
 
-    # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
-    return_hypotheses: bool = True
-
     # key for groundtruth text in manifest
     gt_text_attr_name: str = "text"
     gt_lang_attr_name: str = "lang"
 
-    # Use model's transcribe() function instead of transcribe_partial_audio() by default
-    # Only use transcribe_partial_audio() when the audio is too long to fit in memory
-    # Your manifest input should have `offset` field to use transcribe_partial_audio()
-    allow_partial_transcribe: bool = False
     extract_nbest: bool = False  # Extract n-best hypotheses from the model
 
     calculate_rtfx: bool = False
@@ -217,6 +207,9 @@ class TranscriptionConfig:
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis]]:
+    """
+    Transcribes the input audio and can be used to infer with Encoder-Decoder models.
+    """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     for key in cfg:
@@ -281,10 +274,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         asr_model.to(getattr(torch, cfg.compute_dtype))
 
     # we will adjust this flag if the model does not support it
-    compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
-    # has to be True if timestamps are required
-    preserve_alignment = True if cfg.compute_timestamps else cfg.preserve_alignment
+
+    if cfg.timestamps:
+        cfg.return_hypotheses = True
 
     # Check whether model and decoder type match
     if isinstance(asr_model, EncDecCTCModel):
@@ -293,7 +286,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     elif isinstance(asr_model, EncDecHybridRNNTCTCModel):
         if cfg.decoder_type and cfg.decoder_type not in ['ctc', 'rnnt']:
             raise ValueError('Hybrid model only support ctc or rnnt decoding!')
-    else:  # rnnt model, there could be other models needs to be addressed.
+    elif isinstance(asr_model, EncDecRNNTModel):
         if cfg.decoder_type and cfg.decoder_type != 'rnnt':
             raise ValueError('RNNT model only support rnnt decoding!')
 
@@ -304,7 +297,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if hasattr(asr_model, 'change_decoding_strategy') and hasattr(asr_model, 'decoding'):
         if isinstance(asr_model.decoding, MultiTaskDecoding):
             cfg.multitask_decoding.compute_langs = cfg.compute_langs
-            cfg.multitask_decoding.preserve_alignments = cfg.preserve_alignment
             if cfg.extract_nbest:
                 cfg.multitask_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
@@ -318,9 +310,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if cfg.extract_nbest:
                 decoding_cfg.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
-            decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
-            if 'preserve_alignments' in decoding_cfg:
-                decoding_cfg.preserve_alignments = preserve_alignment
             if 'compute_langs' in decoding_cfg:
                 decoding_cfg.compute_langs = cfg.compute_langs
             if hasattr(asr_model, 'cur_decoder'):
@@ -334,16 +323,12 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 cfg.rnnt_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
             cfg.rnnt_decoding.fused_batch_size = -1
-            cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
-            if 'preserve_alignments' in cfg.rnnt_decoding:
-                cfg.rnnt_decoding.preserve_alignments = preserve_alignment
 
             asr_model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
-            cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
             if cfg.extract_nbest:
                 cfg.ctc_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
@@ -361,39 +346,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         else:
             cfg.decoding = cfg.rnnt_decoding
 
-    remove_path_after_done = None
-    if isinstance(asr_model, EncDecMultiTaskModel):
-        # Special case for EncDecMultiTaskModel, where the input manifest is directly passed into the model's transcribe() function
-        partial_audio = False
-        if cfg.audio_dir is not None and not cfg.append_pred:
-            filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
-        else:
-            assert cfg.dataset_manifest is not None
-            if cfg.presort_manifest:
-                with NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-                    for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=True):
-                        item["audio_filepath"] = get_full_path(item["audio_filepath"], cfg.dataset_manifest)
-                        print(json.dumps(item), file=f)
-                    cfg.dataset_manifest = f.name
-                    remove_path_after_done = f.name
-            filepaths = cfg.dataset_manifest
-    else:
-        # prepare audio filepaths and decide wether it's partial audio
-        filepaths, partial_audio = prepare_audio_data(cfg)
+    filepaths, sorted_manifest_path = prepare_audio_data(cfg)
 
-    if not cfg.allow_partial_transcribe:
-        # by defatul, use model's transcribe() function, unless partial audio is required
-        partial_audio = False
+    remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
 
-    # setup AMP (optional)
-    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-        logging.info("AMP enabled!\n")
-        autocast = torch.cuda.amp.autocast
-    else:
-
-        @contextlib.contextmanager
-        def autocast(dtype=None, enabled=True):
-            yield
+    filepaths = sorted_manifest_path if sorted_manifest_path is not None else filepaths
 
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
@@ -416,41 +373,32 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 item = json.loads(line)
                 if "duration" not in item:
                     raise ValueError(
-                        f"Requested calculate_rtfx=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
+                        f"Requested calculate_rtfx=True, but line {line} in manifest {cfg.dataset_manifest} \
+                            lacks a 'duration' field."
                     )
                 total_duration += item["duration"]
 
-    with autocast(dtype=amp_dtype, enabled=cfg.amp):
+    with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', dtype=amp_dtype, enabled=cfg.amp):
         with torch.no_grad():
             if cfg.calculate_rtfx:
                 start_time = time.time()
-            if partial_audio:
-                transcriptions = transcribe_partial_audio(
-                    asr_model=asr_model,
-                    path2manifest=cfg.dataset_manifest,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    return_hypotheses=cfg.return_hypotheses,
-                    channel_selector=cfg.channel_selector,
-                    augmentor=augmentor,
-                    decoder_type=cfg.decoder_type,
-                )
-            else:
-                override_cfg = asr_model.get_transcribe_config()
-                override_cfg.batch_size = cfg.batch_size
-                override_cfg.num_workers = cfg.num_workers
-                override_cfg.return_hypotheses = cfg.return_hypotheses
-                override_cfg.channel_selector = cfg.channel_selector
-                override_cfg.augmentor = augmentor
-                override_cfg.text_field = cfg.gt_text_attr_name
-                override_cfg.lang_field = cfg.gt_lang_attr_name
-                if hasattr(override_cfg, "prompt"):
-                    override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
 
-                transcriptions = asr_model.transcribe(
-                    audio=filepaths,
-                    override_config=override_cfg,
-                )
+            override_cfg = asr_model.get_transcribe_config()
+            override_cfg.batch_size = cfg.batch_size
+            override_cfg.num_workers = cfg.num_workers
+            override_cfg.return_hypotheses = cfg.return_hypotheses
+            override_cfg.channel_selector = cfg.channel_selector
+            override_cfg.augmentor = augmentor
+            override_cfg.text_field = cfg.gt_text_attr_name
+            override_cfg.lang_field = cfg.gt_lang_attr_name
+            override_cfg.timestamps = cfg.timestamps
+            if hasattr(override_cfg, "prompt"):
+                override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
+
+            transcriptions = asr_model.transcribe(
+                audio=filepaths,
+                override_config=override_cfg,
+            )
             if cfg.calculate_rtfx:
                 transcribe_time = time.time() - start_time
 
@@ -481,7 +429,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         model_name,
         filepaths=filepaths,
         compute_langs=compute_langs,
-        compute_timestamps=compute_timestamps,
+        timestamps=cfg.timestamps,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 

@@ -25,7 +25,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -65,6 +65,7 @@ def load_config(hf_model_name, nemo_config):
         logging.warning(f"Got unknown activation function {nemo_config.activation}")
 
     hf_config.rope_theta = nemo_config['rotary_base']
+    hf_config.tie_word_embeddings = getattr(nemo_config, "share_embeddings_and_output_weights", False)
     return hf_config
 
 
@@ -79,6 +80,8 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     model_config = MegatronGPTModel.restore_from(in_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
+    model_config.sequence_parallel = False
+    model_config.name = "te_gpt"
     if cpu_only:
         map_location = torch.device('cpu')
         model_config.use_cpu_initialization = True
@@ -131,7 +134,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     num_layers = model.cfg.num_layers
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
-    head_size = model.cfg.get('kv_channels', hidden_size // head_num)
+    head_size = model.cfg.get("kv_channels") or (hidden_size // head_num)  # equivalent to hf's head_dim
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
@@ -212,7 +215,13 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
         output_layer_base_name = 'model.output_layer.weight'
     else:
         output_layer_base_name = 'model.language_model.output_layer.weight'
-    state_dict[hf_output_layer_weight_name] = param_to_weights(ckpt[output_layer_base_name])
+
+    if getattr(nemo_config, "share_embeddings_and_output_weights", False):
+        # tie_word_embeddings: True
+        state_dict[hf_output_layer_weight_name] = state_dict[embed_weights_base_name]
+    else:
+        # tie_word_embeddings: False
+        state_dict[hf_output_layer_weight_name] = param_to_weights(ckpt[output_layer_base_name])
     return state_dict, nemo_config, dtype
 
 

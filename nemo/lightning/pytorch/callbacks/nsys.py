@@ -1,7 +1,21 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import List, Optional
 
 import torch
-from pytorch_lightning.callbacks.callback import Callback
+from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.utils import logging
 from nemo.utils.get_rank import get_rank
@@ -60,10 +74,14 @@ class NsysCallback(Callback):
         """
 
         device = trainer.strategy.root_device
-        current_step = trainer.strategy.current_epoch_step
+        try:
+            # Not all strategies have this. e.g.:
+            #    AttributeError: 'SingleDeviceStrategy' object has no attribute 'current_epoch_step'
+            current_step = trainer.strategy.current_epoch_step
+        except AttributeError:
+            current_step = self._nsys_profile_start_step
         if device.type == 'cuda':
             if current_step == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
-                logging.info("====== Start nsys profiling ======")
                 torch.cuda.cudart().cudaProfilerStart()
                 if self._nsys_profile_gen_shape:
                     torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
@@ -77,9 +95,11 @@ class NsysCallback(Callback):
         """
 
         device = trainer.strategy.root_device
-        current_step = trainer.strategy.current_epoch_step
+        try:
+            current_step = trainer.strategy.current_epoch_step
+        except AttributeError:
+            current_step = self._nsys_profile_end_step
         if device.type == 'cuda':
             if current_step == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
-                logging.info("====== End nsys profiling ======")
                 torch.cuda.cudart().cudaProfilerStop()
                 torch.autograd.profiler.emit_nvtx().__exit__(None, None, None)

@@ -43,26 +43,26 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, tokenizer: TokenizerSpec):
+    def __init__(self, tokenizer: TokenizerSpec, return_cuts: bool = False):
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
+        self.return_cuts = return_cuts
 
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
         audio, audio_lens, cuts = self.load_audio(cuts)
         tokens = [
-            torch.as_tensor(
-                sum(
-                    (
-                        # Supervisions may come pre-tokenized from the dataloader.
-                        s.tokens if hasattr(s, "tokens") else self.tokenizer(s.text, s.language)
-                        for s in c.supervisions
-                    ),
-                    start=[],
-                )
+            torch.cat(
+                [
+                    torch.as_tensor(s.tokens if hasattr(s, "tokens") else self.tokenizer(s.text or "", s.language))
+                    for s in c.supervisions
+                ],
+                dim=0,
             )
             for c in cuts
         ]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=0)
+        if self.return_cuts:
+            return audio, audio_lens, tokens, token_lens, cuts.drop_in_memory_data()
         return audio, audio_lens, tokens, token_lens

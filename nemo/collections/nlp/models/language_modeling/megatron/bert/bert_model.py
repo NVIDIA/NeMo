@@ -206,6 +206,9 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         context=None,
         context_mask=None,
         rotary_pos_emb=None,
+        rotary_pos_cos=None,
+        rotary_pos_sin=None,
+        attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
     ):

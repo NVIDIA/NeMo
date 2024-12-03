@@ -19,12 +19,12 @@ from contextlib import contextmanager
 from time import time
 from typing import Any, Dict, Optional, Union
 
-import pytorch_lightning as pl
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.types import _PATH
-from pytorch_lightning import Callback
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+import lightning.pytorch as pl
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.types import _PATH
+from lightning.pytorch import Callback
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
 
@@ -242,7 +242,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 it should be provided separately. Defaults to False.
         """
         return cls(
-            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
+            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'torch_dist'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
             load_strictness=model_cfg.get('dist_ckpt_load_strictness', None),
             async_save=async_save,
@@ -390,6 +390,13 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         are passed in config or in case of a fully parallel save in which case
         a parallelization wrapper is applied.
         """
+        if self.save_ckpt_format == 'zarr':
+            logging.warning(
+                f'`zarr` distributed checkpoint backend is deprecated.'
+                f' Distributed optimizer checkpoint saving might be extremely slow.'
+                f' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+            )
+
         if self.async_save and self.save_ckpt_format != 'torch_dist':
             raise ValueError('Async dist-ckpt save supported only for torch_dist format')
 

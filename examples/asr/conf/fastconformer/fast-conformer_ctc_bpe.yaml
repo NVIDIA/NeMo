@@ -136,6 +136,8 @@ model:
     xscaling: true # scales up the input embeddings by sqrt(d_model)
     untie_biases: true # unties the biases of the TransformerXL layers
     pos_emb_max_len: 5000
+    use_pytorch_sdpa: false # use torch sdpa instead of manual attention
+    use_pytorch_sdpa_backends: [] # empty list means all backends https://pytorch.org/docs/stable/generated/torch.nn.attention.SDPBackend.html e.g. [MATH]
 
     # Convolution module's params
     conv_kernel_size: 9
@@ -195,7 +197,9 @@ trainer:
   max_steps: -1 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
-  strategy: ddp
+  strategy:
+    _target_: lightning.pytorch.strategies.DDPStrategy
+    gradient_as_bucket_view: true
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   precision: 32 # 16, 32, or bf16

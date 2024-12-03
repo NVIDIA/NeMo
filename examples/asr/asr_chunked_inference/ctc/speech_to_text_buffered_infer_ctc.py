@@ -35,15 +35,14 @@ python speech_to_text_buffered_infer_ctc.py \
     You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the
     predictions of the model, and ground-truth text if presents in manifest.
 """
-import contextlib
 import copy
 import glob
 import math
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass
 from typing import Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
@@ -65,6 +64,10 @@ can_gpu = torch.cuda.is_available()
 
 @dataclass
 class TranscriptionConfig:
+    """
+    Transcription Configuration for buffered inference.
+    """
+
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -88,7 +91,9 @@ class TranscriptionConfig:
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
-    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models.
+    model_stride: int = (
+        8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models.
+    )
 
     # Decoding strategy for CTC models
     decoding: CTCDecodingConfig = CTCDecodingConfig()
@@ -112,14 +117,14 @@ class TranscriptionConfig:
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
+    """
+    Transcribes the input audio and can be used to infer long audio files by chunking
+    them into smaller segments.
+    """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
 
-    for key in cfg:
-        cfg[key] = None if cfg[key] == 'None' else cfg[key]
-
-    if is_dataclass(cfg):
-        cfg = OmegaConf.structured(cfg)
+    cfg = OmegaConf.structured(cfg)
 
     if cfg.random_seed:
         pl.seed_everything(cfg.random_seed)
@@ -163,16 +168,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # Disable config overwriting
     OmegaConf.set_struct(model_cfg.preprocessor, True)
 
-    # setup AMP (optional)
-    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-        logging.info("AMP enabled!\n")
-        autocast = torch.cuda.amp.autocast
-    else:
-
-        @contextlib.contextmanager
-        def autocast():
-            yield
-
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
 
@@ -214,22 +209,26 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
     frame_asr = FrameBatchASR(
-        asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
+        asr_model=asr_model,
+        frame_len=chunk_len,
+        total_buffer=cfg.total_buffer_in_secs,
+        batch_size=cfg.batch_size,
     )
 
-    hyps = get_buffered_pred_feat(
-        frame_asr,
-        chunk_len,
-        tokens_per_chunk,
-        mid_delay,
-        model_cfg.preprocessor,
-        model_stride_in_secs,
-        asr_model.device,
-        manifest,
-        filepaths,
-    )
+    with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp):
+        hyps = get_buffered_pred_feat(
+            frame_asr,
+            chunk_len,
+            tokens_per_chunk,
+            mid_delay,
+            model_cfg.preprocessor,
+            model_stride_in_secs,
+            asr_model.device,
+            manifest,
+            filepaths,
+        )
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, compute_timestamps=False
+        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 

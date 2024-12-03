@@ -99,8 +99,8 @@ from nemo.utils import logging
 
 def extract_transcriptions(hyps):
     """
-        The transcribed_texts returned by CTC and RNNT models are different.
-        This method would extract and return the text section of the hypothesis.
+    The transcribed_texts returned by CTC and RNNT models are different.
+    This method would extract and return the text section of the hypothesis.
     """
     if isinstance(hyps[0], Hypothesis):
         transcriptions = []
@@ -127,7 +127,7 @@ def perform_streaming(
         # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
         # the output of the model in the offline and streaming mode should be exactly the same
         with torch.inference_mode():
-            with autocast():
+            with autocast:
                 processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
                 with torch.no_grad():
                     (
@@ -156,7 +156,7 @@ def perform_streaming(
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         with torch.inference_mode():
-            with autocast():
+            with autocast:
                 # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
                 # otherwise the last outputs would get dropped
 
@@ -210,7 +210,10 @@ def perform_streaming(
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, required=True, help="Path to an ASR model .nemo file or name of a pretrained model.",
+        "--asr_model",
+        type=str,
+        required=True,
+        help="Path to an ASR model .nemo file or name of a pretrained model.",
     )
     parser.add_argument(
         "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
@@ -310,19 +313,7 @@ def main():
             raise ValueError("Model does not support multiple lookaheads.")
 
     global autocast
-    if (
-        args.use_amp
-        and torch.cuda.is_available()
-        and hasattr(torch.cuda, 'amp')
-        and hasattr(torch.cuda.amp, 'autocast')
-    ):
-        logging.info("AMP enabled!\n")
-        autocast = torch.cuda.amp.autocast
-    else:
-
-        @contextlib.contextmanager
-        def autocast():
-            yield
+    autocast = torch.amp.autocast(asr_model.device.type, enabled=args.use_amp)
 
     # configure the decoding config
     decoding_cfg = asr_model.cfg.decoding
@@ -431,7 +422,7 @@ def main():
                 "streaming_out_"
                 + os.path.splitext(os.path.basename(args.asr_model))[0]
                 + "_"
-                + os.path.splitext(os.path.basename(args.test_manifest))[0]
+                + os.path.splitext(os.path.basename(args.manifest_file))[0]
                 + ".json"
             )
 

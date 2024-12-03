@@ -21,13 +21,13 @@ from typing import Any, Optional, Union
 
 import sacrebleu
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
-from nemo.collections.asr.parts.mixins.transcription import move_to_device
+from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speech_llm.data.build_dataset import (
     build_speechllm_dataloader,
@@ -978,7 +978,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
         # the following supports STT (audio-text) inference
 
-        batch = move_to_device(batch, device=self.device)
+        batch = move_data_to_device(batch, device=self.device)
         audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
         assert (
@@ -1495,7 +1495,7 @@ class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
-        batch = move_to_device(batch, device=self.device)
+        batch = move_data_to_device(batch, device=self.device)
         encoder_input, _, enc_mask = self.prepare_llm_input(batch)
         # enc_input = speech prompt
         # dec_input and label = text prompt and text output label

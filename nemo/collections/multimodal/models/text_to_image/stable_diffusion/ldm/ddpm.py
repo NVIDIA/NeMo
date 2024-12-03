@@ -17,18 +17,18 @@ import time
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
+import lightning.pytorch as pl
 import numpy as np
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from lightning_fabric.utilities.cloud_io import _load as pl_load
+from lightning.fabric.utilities.cloud_io import _load as pl_load
+from lightning.pytorch import Trainer
+from lightning.pytorch.core.saving import _load_state as ptl_load_state
+from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from lightning.pytorch.utilities.migration import pl_legacy_patch
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
-from pytorch_lightning.utilities.migration import pl_legacy_patch
-from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from torch._inductor import config as inductor_config
 from torchvision.utils import make_grid
 from tqdm import tqdm
@@ -1945,6 +1945,8 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
+            if isinstance(batch, tuple):
+                batch, _, _ = batch  # PTL dataloader iter fix
             batch = process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             if len(self.conditioning_keys) == 0:
@@ -1978,11 +1980,16 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         return loss
 
     def setup(self, stage=None):
-        """PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+
+        We setup datasets here as Megatron datasets require DDP to instantiate.
+        See the PyTorch Lightning documentation for more information:
+        https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup
+
         Args:
-            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+            stage (str, optional):
+                Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
         if self.model.rng:
             self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
@@ -2209,6 +2216,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                     cfg.channels_last = True
                 if not cfg.get('capture_cudagraph_iters'):
                     cfg.capture_cudagraph_iters = -1
+                if cfg.get('unet_config') and cfg.get('unet_config').get('use_te_dpa'):
+                    cfg.unet_config.use_te_dpa = False
+                    cfg.unet_config.use_flash_attention = True
 
             # compatibility for stable diffusion old checkpoint tweaks
             first_key = list(checkpoint['state_dict'].keys())[0]
@@ -2240,6 +2250,14 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 for key in checkpoint['state_dict'].keys():
                     new_key = key.replace('._orig_mod', '', 1)
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            # compatiblity for te-dpa in inference
+            if cfg.get('unet_config') and not cfg.get('unet_config').get('use_te_dpa'):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    if "_extra_state" not in key:
+                        new_state_dict[key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
 
             if cfg.get('megatron_amp_O2', False):

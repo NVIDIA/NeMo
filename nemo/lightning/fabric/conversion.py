@@ -1,10 +1,24 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from functools import singledispatch
 from typing import Any, TypeVar
 
-from lightning_fabric import plugins as fl_plugins
-from lightning_fabric import strategies as fl_strategies
-from pytorch_lightning import plugins as pl_plugins
-from pytorch_lightning import strategies as pl_strategies
+from lightning.fabric import plugins as fl_plugins
+from lightning.fabric import strategies as fl_strategies
+from lightning.pytorch import plugins as pl_plugins
+from lightning.pytorch import strategies as pl_strategies
 
 T = TypeVar('T')
 FabricT = TypeVar('FabricT')
@@ -25,8 +39,8 @@ def to_fabric(obj: Any) -> Any:
         NotImplementedError: If no converter is registered for the object's type.
 
     Example:
-        >>> from pytorch_lightning.strategies import Strategy as PLStrategy
-        >>> from lightning_fabric.strategies import Strategy as FabricStrategy
+        >>> from lightning.pytorch.strategies import Strategy as PLStrategy
+        >>> from lightning.fabric.strategies import Strategy as FabricStrategy
         >>> from nemo.lightning.fabric.conversion import to_fabric
         >>>
         >>> # Define a custom PyTorch Lightning strategy
@@ -56,7 +70,7 @@ def to_fabric(obj: Any) -> Any:
         f"No Fabric converter registered for {type(obj).__name__}. "
         f"To register a new conversion, use the @to_fabric.register decorator:\n\n"
         f"from nemo.lightning.fabric.conversion import to_fabric\n"
-        f"from lightning_fabric import strategies as fl_strategies\n\n"
+        f"from lightning.fabric import strategies as fl_strategies\n\n"
         f"@to_fabric.register({type(obj).__name__})\n"
         f"def _{type(obj).__name__.lower()}_converter(obj: {type(obj).__name__}) -> fl_strategies.Strategy:\n"
         f"    return fl_strategies.SomeStrategy(\n"
