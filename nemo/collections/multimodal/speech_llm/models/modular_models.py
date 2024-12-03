@@ -455,8 +455,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         Modified not to assume certain fields like 'tokens' are always available in the mini-batch,
         since we have mixed text/audio dataloading and sometimes one of the modalities might be missing.
         """
-        # TODO(pzelasko): I marked the sections that are modified from the original with TODOs like this one.
-
         # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
         # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
         if isinstance(dataloader_iter, _DataFetcherWrapper):
@@ -466,11 +464,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
-
-        # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
-        # log_token_counts = self.cfg.get('log_token_counts', False)
-        # if log_token_counts:
-        #     token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
 
         # Note: We want to perform full fwd+bwd separately for each modality,
         #       as it allows us to save GPU memory. Otherwise, we'd have to
@@ -484,8 +477,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
             batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
 
-            # TODO(pzelasko): For the prototype, computing seq_length as a max from both modalities,
-            #                 but I feel like this needs larger refactoring
             if 'tokens' in batch and 'text_input_ids' in batch:
                 seq_length = max(batch['tokens'].shape[1], batch['text_input_ids'].shape[1])
             elif 'tokens' in batch:
@@ -493,14 +484,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             elif 'text_input_ids' in batch:
                 seq_length = batch['text_input_ids'].shape[1]
             else:
-                seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
+                seq_length = None
 
             data_iter = get_iterator_k_split(batch, get_num_microbatches())
-
-            # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
-            # if log_token_counts:
-            #     self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
-            #     self.log('tokens_avg', token_count_avg, prog_bar=True, sync_dist=True, batch_size=1)
 
             # handle asynchronous grad reduction
             no_sync_func = None
@@ -1374,10 +1360,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Used to get LLM predictions for validation and test steps based on the given inference config.
         """
-        # TODO: we expect only one modality in each batch of inference. In lhotse, can we specify a list of datasets which only have one modality either audio-text or text-only?
-        # TODO: support text-only part of mini-batch
-        # the following supports STT (audio-text) inference
-
         inference_config = self.get_inference_config()
         if inference_config is not None:
             # need to overwrite some configuration, make it immutable
@@ -1858,7 +1840,6 @@ class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
         encoder_input, extra_outputs = self.perception_cross_attn(
             encoded, encoded_len, input_embeds, input_lengths=input_length, return_mems=True
         )
-        # TODO: need separate speech and text methods for inference
         if 'audio_ratio' in audio_batch:
             audio_ratio = audio_batch['audio_ratio'][..., None, None]
             encoder_input = encoder_input * audio_ratio + input_embeds * (1 - audio_ratio)

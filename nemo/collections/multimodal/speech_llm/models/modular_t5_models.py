@@ -1261,8 +1261,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
             batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
 
-            # TODO(pzelasko): For the prototype, computing seq_length as a max from both modalities,
-            #                 but I feel like this needs larger refactoring
             if 'tokens' in batch and 'text_input_ids' in batch:
                 seq_length = max(batch['tokens'].shape[1], batch['text_input_ids'].shape[1])
                 dec_seq_length = max(batch['answers'].shape[1], batch['text_answer_ids'].shape[1])
@@ -1273,7 +1271,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 seq_length = batch['text_input_ids'].shape[1]
                 dec_seq_length = batch['text_answer_ids'].shape[1]
             else:
-                seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
+                seq_length = None
                 dec_seq_length = None
 
             # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
