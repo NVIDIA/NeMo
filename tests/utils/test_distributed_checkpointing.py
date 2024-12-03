@@ -22,7 +22,7 @@ def test_preprocess_common_state_dict_before_consistency_check(self):
     # Case 1: Callbacks/Timer included in state dict
     state_dict = {"callbacks": {"Timer": {"elapsed": 1.0}, "other": {"entry": 42}}, "bar": {"baz": "qux"}}
     expected = {"callbacks": {"other": {"entry": 42}}, "bar": {"baz": "qux"}}
-    processed = preprocess_common_state_dict_before_consistency_check(state_dict)
+    assert preprocess_common_state_dict_before_consistency_check(state_dict) == expected
 
     state_dict = {"foo": {"bar": "baz"}}
     expected = {"foo": {"bar": "baz"}}
