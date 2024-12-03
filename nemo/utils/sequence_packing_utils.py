@@ -153,7 +153,7 @@ def create_packing_strategy(
     Returns:
           assignments: A list of lists, where each inner list represents a bin and contains the indices of the
                         sequence lengths assigned to that bin.
-          pack_metadata #TODO
+          pack_metadata: A dict that records packing metadata, for instance the max number of samples per bin.
     """
 
     logging.info(f"Packing sequences to length {pack_size}...")
