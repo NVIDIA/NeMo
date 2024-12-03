@@ -76,39 +76,49 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def configure_tokenizer(model_name):
         return AutoProcessor.from_pretrained(model_name).tokenizer
 
-    def configure_model(self):
+    def configure_model(self, train=True):
         # create all your layers here
-        if self.load_pretrained_weights:
-            self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
-                self.model_name,
-                torch_dtype='auto',
-                trust_remote_code=self.trust_remote_code,
-                use_safetensors=True,
-            )
-        else:
-            from transformers import AutoConfig
+        if self.model is None:
+            if self.load_pretrained_weights:
+                self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
+                    self.model_name,
+                    torch_dtype='auto',
+                    trust_remote_code=self.trust_remote_code,
+                    use_safetensors=True,
+                )
+            else:
+                from transformers import AutoConfig
 
-            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
-            self.model = AutoModelForSpeechSeq2Seq.from_config(config, trust_remote_code=self.trust_remote_code)
+                config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
+                self.model = AutoModelForSpeechSeq2Seq.from_config(config, trust_remote_code=self.trust_remote_code)
 
-        self.model.train()
+        if train:
+            self.model.train()
 
     def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
-        outputs = self.model(
-            input_ids=input_ids.to(self.model.device),
-            attention_mask=attention_mask,
-        )
-        labels = labels.to(self.model.device)
+        decoder_input_ids = torch.tensor([[1, 1]]) * self.model.config.decoder_start_token_id
+        with torch.cuda.amp.autocast():
+            outputs = self.model(
+                input_features=input_ids.to(self.model.device),
+                attention_mask=attention_mask,
+                decoder_input_ids=torch.tensor(decoder_input_ids).to(self.model.device),
+            )
+        labels = torch.tensor(labels).to(self.model.device)
         if loss_mask is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
+
         n_cls = outputs.logits.shape[-1]
-        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
+        outputs = outputs.logits.view(-1, n_cls)
+        labels = labels.reshape(-1)[0:outputs.shape[0]]
+
+        outputs.loss = self.loss_fn(outputs, labels, loss_mask)
         return outputs
 
     def training_step(self, batch):
-        tokens = batch['tokens']
-        labels = batch['labels']
-        loss_mask = batch.get('loss_mask', None)
+        tokens = batch["input_features"]
+        labels = batch["labels"]
+
+        loss_mask = None # batch.get('loss_mask', None)
         output = self.forward(
             input_ids=tokens,
             labels=labels,
@@ -120,8 +130,8 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens = batch['tokens']
-        labels = batch['labels']
+        tokens = batch["input_features"]
+        labels = batch["labels"]
         output = self.forward(
             input_ids=tokens,
             labels=labels,

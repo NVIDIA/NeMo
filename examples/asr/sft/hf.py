@@ -13,56 +13,39 @@
 # limitations under the License.
 
 import fiddle as fdl
-import lightning.pytorch as pl
-from torch.utils.data import DataLoader
-from datasets import Audio, load_dataset
-import transformers
 import torch
+from lhotse.dataset.collation import collate_matrices, collate_vectors
+from omegaconf import OmegaConf
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.asr.models.hf_auto_model_for_speech_seq2seq import HFAutoModelForSpeechSeq2Seq
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
-def get_dataset(dataset_id):
-    ds = load_dataset(dataset_id, "clean", split="validation")
-    return ds.remove_columns(["speaker_id", "chapter_id", "id", "file"])
+class LhotseHfNeMoDataset(torch.utils.data.Dataset):
+    def __init__(self, processor):
+        super().__init__()
+        self.processor = processor
 
+    def __getitem__(self, cuts):
+        features = []
+        for cut in cuts:
+            audio = cut.load_audio()
+            features.append(
+                self.processor(
+                    audio,
+                    sampling_rate=cut.sampling_rate,
+                    return_tensors="pt",
+                    text=cut.supervisions[0].text,
+                )
+            )
 
-def uppercase(dataset):
-    return {"transcription": dataset["transcription"].upper()}
-
-
-def prepare_dataset(batch):
-    audio_array = [array["array"] for array in batch["audio"]]
-    batch = processor(audio_array, text=batch["text"])
-    batch["input_length"] = len(batch["input_features"][0])
-    return batch
-
-
-@dataclass
-class DataCollatorCTCWithPadding:
-    processor: transformers.AutoProcessor
-    padding: Union[bool, str] = "longest"
-
-    def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
-        # split inputs and labels since they have to be of different lengths and need
-        # different padding methods
-        input_features = [{"input_values": feature["input_values"][0]} for feature in features]
-        label_features = [{"input_ids": feature["labels"]} for feature in features]
-
-        batch = self.processor.pad(input_features, padding=self.padding, return_tensors="pt")
-
-        labels_batch = self.processor.pad(labels=label_features, padding=self.padding, return_tensors="pt")
-
-        # replace padding with -100 to ignore loss correctly
-        labels = labels_batch["input_ids"].masked_fill(labels_batch.attention_mask.ne(1), -100)
-
-        batch["labels"] = labels
-
-        return batch
+        return {
+            "input_features": collate_matrices(tensors=[f["input_features"].squeeze(0) for f in features]),
+            "labels": collate_vectors(tensors=[c.supervisions[0].tokens for c in cuts]),
+        }
 
 
 if __name__ == '__main__':
@@ -80,18 +63,43 @@ if __name__ == '__main__':
 
     model = HFAutoModelForSpeechSeq2Seq(model_name=args.model)
     processor = model.processor
-    tokenizer = model.tokenizer
+    tokenizer = AutoTokenizer(args.model)
 
-    train_dataset = get_dataset("hf-internal-testing/librispeech_asr_dummy")
-    train_dataset = prepare_dataset(train_dataset)
+    config = OmegaConf.create(
+        {
+            "cuts_path": "/opt/checkpoints/lhotse/libri/libri-train-5.jsonl.gz",
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            # lhotse specific
+            "use_bucketing": True,
+            "concurrent_bucketing": False,
+            "num_buckets": 2,
+            "drop_last": False,
+            "batch_duration": 4.0,  # seconds
+            "quadratic_duration": 15.0,  # seconds
+            "shuffle_buffer_size": 10,
+            "bucket_buffer_size": 100,
+            "seed": 0,
+            "shard_seed": 0,
+            "pretokenize": True,
+        }
+    )
 
-    #data_collator = DataCollatorCTCWithPadding(processor=processor, padding="longest")
-    #train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=16, collate_fn=data_collator)
+    train_dataloader = get_lhotse_dataloader_from_config(
+            config,
+            global_rank=0,
+            world_size=1,
+            dataset=LhotseHfNeMoDataset(
+                processor=processor,
+            ),
+            tokenizer=tokenizer,
+        )
 
-    '''
     llm.api.finetune(
         model=model,
-        data=data,
+        data=train_dataloader,
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -109,7 +117,6 @@ if __name__ == '__main__':
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
-    '''
 
 
     if args.model_save_path is not None:
