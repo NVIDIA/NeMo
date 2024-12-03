@@ -413,6 +413,30 @@ def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
+def test_dataloader_from_lhotse_shar_cuts_via_fields(cutset_shar_path: Path):
+    config = OmegaConf.create(
+        {
+            "shar_path": {
+                "cuts": f"{cutset_shar_path}/cuts._OP_000000..000001_CL_.jsonl.gz",
+                "recording": f"{cutset_shar_path}/recording._OP_000000..000001_CL_.tar",
+            },
+            "sample_rate": 16000,
+            "num_workers": 0,
+            "shuffle": False,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    batch = next(iter(dl))
+    assert len(batch) == 4
+    audio = batch[0].load_audio()
+    assert isinstance(audio, np.ndarray)
+
+
 def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
     config = OmegaConf.create(
         {
