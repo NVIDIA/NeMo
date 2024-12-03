@@ -1,14 +1,15 @@
-import json
-from itertools import islice
-
 import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse.testing.dummies import dummy_cut, dummy_recording
+from lhotse.testing.dummies import dummy_recording
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.sampling import (
+    MultimodalFixedBucketBatchSizeConstraint2D,
+    MultimodalSamplingConstraint,
+)
 from nemo.collections.common.data.lhotse.text_adapters import (
     AudioTurn,
     NeMoMultimodalConversation,
@@ -16,7 +17,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     NeMoMultimodalConversationTarWriter,
     TextTurn,
 )
-from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
+from nemo.collections.common.prompts import Llama2PromptFormatter
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 
@@ -134,8 +135,6 @@ def test_multimodal_conversation_input(multimodal_conversations_path):
     assert isinstance(t, TextTurn)
     assert t.role == "assistant"
     assert t.value == "Of course!"
-    for key in ("input_ids", "context_ids", "answer_ids", "mask"):
-        assert getattr(ex, key) is None  # not tokenized/prompted
 
 
 @pytest.fixture
@@ -219,6 +218,171 @@ def test_multimodal_conversation_input_with_prompt(multimodal_conversations_path
     assert (ex.mask[30:72] == True).all()  # assistant turn
     assert (ex.mask[72:95] == False).all()  # user turn
     assert (ex.mask[95:] == True).all()  # assistant turn
+
+
+def test_text_only_conversation_length_measurement(tokenizer):
+    convo = NeMoMultimodalConversation(
+        id="textonly-1",
+        turns=[
+            TextTurn("hello", "user"),
+            TextTurn("hi", "assistant"),
+        ],
+    )
+    convo = convo.apply_prompt_format(Llama2PromptFormatter(tokenizer))
+    assert tokenizer.ids_to_text(convo.input_ids) == "[INST] hello [/INST] hi"
+    assert tokenizer.ids_to_text(convo.context_ids) == "[INST] hello [/INST]"
+    assert tokenizer.ids_to_text(convo.answer_ids) == "hi"
+
+    assert convo.input_length == len(convo.context_ids) == 10
+    assert convo.output_length == len(convo.answer_ids) == 4
+    assert convo.total_length == len(convo.input_ids) == 14
+
+    constr = MultimodalSamplingConstraint(measure_total_length=False)
+    assert constr.measure_length(convo) == 10
+
+    constr = MultimodalSamplingConstraint(measure_total_length=True)
+    assert constr.measure_length(convo) == 14
+
+    constr = MultimodalFixedBucketBatchSizeConstraint2D(
+        max_seq_len_buckets=[5, 10, 15], batch_sizes=[3, 2, 1], measure_total_length=True
+    )
+    assert constr.measure_length(convo) == 14
+    assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 2
+
+    constr = MultimodalFixedBucketBatchSizeConstraint2D(
+        max_seq_len_buckets=[(5, 2), (5, 5), (15, 3), (15, 6), (15, 10)],
+        batch_sizes=[5, 4, 3, 2, 1],
+        measure_total_length=False,
+    )
+    assert constr.measure_length(convo) == (10, 4)
+    assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 3
+
+
+def test_audio_only_conversation_length_measurement(tokenizer, tmp_path_factory):
+    audio_dir = tmp_path_factory.mktemp("audio")
+    c1 = dummy_recording(0, duration=7.16, with_data=True).to_cut().save_audio(audio_dir / "1.wav")
+    c2 = dummy_recording(1, duration=15.96, with_data=True).to_cut().save_audio(audio_dir / "2.wav")
+    convo = NeMoMultimodalConversation(
+        id="audioonly-1",
+        turns=[
+            AudioTurn(c1, "user", "[audio]"),
+            AudioTurn(c2, "assistant", "[audio]"),
+        ],
+        token_equivalent_duration=0.1,  # 10ms frame_shift * 10x subsampling for easy testing
+    )
+    convo = convo.apply_prompt_format(Llama2PromptFormatter(tokenizer))
+    assert tokenizer.ids_to_text(convo.input_ids) == "[INST] [audio] [/INST] [audio]"
+    assert tokenizer.ids_to_text(convo.context_ids) == "[INST] [audio] [/INST]"
+    assert tokenizer.ids_to_text(convo.answer_ids) == "[audio]"
+
+    # NOTE: Unlike text-only, len(context_ids) != convo.input_length! The same is true for answer and input ids.
+    # 7.16s with 100ms frame is 72 tokens, we have 7 context tokens, but replace 1 audio locator tag.
+    assert len(convo.context_ids) == 7
+    assert convo.input_length == 78
+
+    # 15.96s with 100ms frame is 160 tokens, we have 3 answer tokens, but replace 1 audio locator tag.
+    assert len(convo.answer_ids) == 3
+    assert convo.output_length == 162
+
+    assert len(convo.input_ids) == 10
+    assert convo.total_length == 162 + 78
+
+    constr = MultimodalSamplingConstraint(measure_total_length=False)
+    assert constr.measure_length(convo) == 78
+
+    constr = MultimodalSamplingConstraint(measure_total_length=True)
+    assert constr.measure_length(convo) == 162 + 78
+
+    constr = MultimodalFixedBucketBatchSizeConstraint2D(
+        max_seq_len_buckets=[100, 200, 300, 400], batch_sizes=[3, 2, 1, 1], measure_total_length=True
+    )
+    assert constr.measure_length(convo) == 162 + 78
+    assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 2
+
+    constr = MultimodalFixedBucketBatchSizeConstraint2D(
+        max_seq_len_buckets=[
+            (50, 50),
+            (50, 100),
+            (50, 200),
+            (100, 50),
+            (100, 150),
+            (100, 200),
+            (100, 300),
+            (400, 400),
+        ],
+        batch_sizes=[8, 7, 6, 5, 4, 3, 2, 1],
+        measure_total_length=False,
+    )
+    assert constr.measure_length(convo) == (78, 162)
+    assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 5
+
+
+def test_multimodal_conversation_length_measurement(tokenizer, tmp_path_factory):
+    audio_dir = tmp_path_factory.mktemp("audio")
+    c1 = dummy_recording(0, duration=7.16, with_data=True).to_cut().save_audio(audio_dir / "1.wav")
+    c2 = dummy_recording(1, duration=15.96, with_data=True).to_cut().save_audio(audio_dir / "2.wav")
+    convo = NeMoMultimodalConversation(
+        id="multimodal-1",
+        turns=[
+            TextTurn("listen to this and tell me your opinion", "user"),
+            AudioTurn(c1, "user", "[audio]"),
+            TextTurn("its fine", "assistant"),
+            TextTurn("remove the noise", "user"),
+            TextTurn("sure", "assistant"),
+            AudioTurn(c2, "assistant", "[audio]"),
+        ],
+        token_equivalent_duration=0.1,  # 10ms frame_shift * 10x subsampling for easy testing
+    )
+    convo = convo.apply_prompt_format(Llama2PromptFormatter(tokenizer))
+    print(convo)
+    assert (
+        tokenizer.ids_to_text(convo.input_ids)
+        == "[INST] listen to this and tell me your opinion [audio] [/INST] its fine [INST] remove the noise [/INST] sure [audio]"
+    )
+    assert (
+        tokenizer.ids_to_text(convo.context_ids)
+        == "[INST] listen to this and tell me your opinion [audio] [/INST] its fine [INST] remove the noise [/INST]"
+    )
+    assert tokenizer.ids_to_text(convo.answer_ids) == "sure [audio]"
+
+    assert len(convo.context_ids) == 66
+    assert convo.input_length == 66 + 72 - 1 == 137
+
+    # 15.96s with 100ms frame is 160 tokens, we have 3 answer tokens, but replace 1 audio locator tag.
+    assert len(convo.answer_ids) == 7
+    assert convo.output_length == 7 + 160 - 1 == 166
+
+    assert len(convo.input_ids) == 73
+    assert convo.total_length == 137 + 166 == 303
+
+    constr = MultimodalSamplingConstraint(measure_total_length=False)
+    assert constr.measure_length(convo) == 137
+
+    constr = MultimodalSamplingConstraint(measure_total_length=True)
+    assert constr.measure_length(convo) == 303
+
+    constr = MultimodalFixedBucketBatchSizeConstraint2D(
+        max_seq_len_buckets=[100, 200, 300, 400], batch_sizes=[3, 2, 1, 1], measure_total_length=True
+    )
+    assert constr.measure_length(convo) == 303
+    assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 3
+
+    constr = MultimodalFixedBucketBatchSizeConstraint2D(
+        max_seq_len_buckets=[
+            (50, 50),
+            (50, 100),
+            (50, 200),
+            (100, 50),
+            (100, 150),
+            (100, 200),
+            (100, 300),
+            (400, 400),
+        ],
+        batch_sizes=[8, 7, 6, 5, 4, 3, 2, 1],
+        measure_total_length=False,
+    )
+    assert constr.measure_length(convo) == (137, 166)
+    assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 7
 
 
 def test_multimodal_conversation_tarred_format(multimodal_conversations_path, tmp_path_factory):

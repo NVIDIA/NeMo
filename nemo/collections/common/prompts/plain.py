@@ -1,11 +1,7 @@
-from collections import defaultdict
+from lhotse.cut import Cut, MixedCut
 
-from lhotse import CutSet
-from lhotse.cut import MixedCut
-
-from nemo.collections.common.prompts import registered_prompt_format_fn
+from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
-from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 class PlainPromptFormatter(PromptFormatter):
@@ -31,20 +27,17 @@ class PlainPromptFormatter(PromptFormatter):
     }
 
 
-@registered_prompt_format_fn
-def plain(cuts: CutSet, tokenizer: TokenizerSpec):
-    prompt = PlainPromptFormatter(tokenizer)
-    ans = defaultdict(list)
-    for cut in cuts:
-        if isinstance(cut, MixedCut):
-            cut = cut.first_non_padding_cut
-        assert cut.has_custom("context"), f"Missing mandatory metadata key 'context' in {cut=}"
+@registered_prompt_format_fn(Cut, PlainPromptFormatter)
+def plain(cut: Cut, prompt: PlainPromptFormatter):
+    if isinstance(cut, MixedCut):
+        cut = cut.first_non_padding_cut
+    if cut.has_custom("context"):
+        ctx = cut.context
+    else:
+        ctx = ""
 
-        turns = [{"role": "user", "slots": {"message": cut.context}}]
-        if (answer := cut.supervisions[0].text) is not None:
-            turns.append({"role": "assistant", "slots": {"message": answer}})
+    turns = [{"role": "user", "slots": {"message": ctx}}]
+    if (answer := cut.supervisions[0].text) is not None:
+        turns.append({"role": "assistant", "slots": {"message": answer}})
 
-        for k, v in prompt.encode_dialog(turns).items():
-            ans[k].append(v)
-
-    return ans
+    return prompt.encode_dialog(turns)
