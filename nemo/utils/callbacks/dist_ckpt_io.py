@@ -274,6 +274,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
+            preprocess_common_before_consistancy_check=_preprocess_common_state_dict_before_consistency_check
         )
 
     @_debug_time('DistributedCheckpointIO.load_checkpoint')
@@ -420,3 +421,18 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
+
+
+def _preprocess_common_state_dict_before_consistency_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes values known to be different across ranks that distributed checkpointing checks for consistency.
+    """
+
+    import copy
+
+    state_dict_to_check = copy.deepcopy(state_dict)
+    
+    # Remove Timer callback states
+    state_dict_to_check.get("callbacks", {}).pop("Timer", None)
+
+    return state_dict_to_check
