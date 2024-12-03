@@ -161,6 +161,8 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         # Zero out the new embeddings to make the model behave the same as it was pre-trained
         self.embedding.word_embeddings.weight.data[pretrained_emb.word_embeddings.weight.shape[0] :].zero_()
         del pretrained_emb
+        if self.pre_process or self.post_process:
+            self.setup_embeddings_and_output_layer()
 
     def forward(
         self,
@@ -225,6 +227,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
                 output_weight[cur_dims : cur_dims + self.proj_head_dims[i]] if output_weight is not None else None
             )
             all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
+            cur_dims += self.proj_head_dims[i]
         assert self.vocab_size == self.proj_head_dims[0]
         all_logits[0], _ = self.output_layer(hidden_states, weight=output_weight[: self.vocab_size])
 
