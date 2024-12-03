@@ -106,7 +106,6 @@ def test_init_parallel_ranks() -> None:
         "encoder_tensor_model_parallel_size": 0,
         "use_fp8": False,
         "init_mpi_proc_group": False,
-        "use_te_rng_tracker": False,
     }
     for k, v in expected_app_state.items():
         assert hasattr(app_state, k), f"Expected to find {k} in AppState"
