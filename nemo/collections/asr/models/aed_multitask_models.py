@@ -754,7 +754,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             num_measurements = loss_mask.long().sum()
         else:
             loss_mask = None
-            num_measurements = None
+            num_measurements = transf_log_probs.shape[0] * transf_log_probs.shape[1]
         transf_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
         self.val_loss(loss=transf_loss, num_measurements=num_measurements)
         output_dict = {f'{eval_mode}_loss': transf_loss}
