@@ -124,6 +124,13 @@ def parse_args():
         help="Prompt slots provided as a Python list of dicts. It is used together with --prompt-format option."
         "For example, with Canary-1B you may use: [{'role':'user','slots':{'source_lang':'en','target_lang':'en','task':'asr','pnc':'yes'}]",
     )
+    parser.add_argument(
+        "-m",
+        "--measure-total-length",
+        type=bool,
+        default=False,
+        help="When specified, we'll measure the total length (context+answer, i.e. input_ids) instead of context-only length. Total length is more suitable for decoder-only models while context-only length is more suitable for encoder-decoder models.",
+    )
     return parser.parse_args()
 
 
@@ -288,7 +295,9 @@ def main():
     cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None)
     if hasattr(cuts, "prefetch"):
         cuts = cuts.prefetch()  # to be released in lhotse 1.27
-    token_filter = RejectionsCounter(TokenCountFilter(args.min_tokens, args.max_tokens), "Token count filtering")
+    token_filter = RejectionsCounter(
+        TokenCountFilter(args.min_tokens, args.max_tokens, args.measure_total_length), "Token count filtering"
+    )
     cuts = cuts.filter(token_filter)
     tpt_filter = RejectionsCounter(TokenPerTokenFilter(-1, args.max_tpt), "Output tokens per input token filtering")
     cuts = cuts.filter(tpt_filter)

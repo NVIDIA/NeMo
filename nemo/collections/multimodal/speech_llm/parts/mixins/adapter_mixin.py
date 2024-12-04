@@ -82,7 +82,6 @@ class SpeechLLMAdapterMixin(NLPAdapterModelMixin):
                     del state_dict[i_no_model]
 
         super(MegatronGPTModel, self).load_state_dict(state_dict, strict=False)
-        state_dict = state_dict
 
     def get_peft_state_dict(self):
         """

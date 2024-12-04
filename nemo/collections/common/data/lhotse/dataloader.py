@@ -388,24 +388,23 @@ def get_lhotse_dataloader_from_multi_config(
         "You can provide force_iterable_dataset=True to each namespace to fix."
     )
     use_iterable_dataset = all(source_use_iterable_dataset)
-    match shared_opts.sampler_fusion:
-        case "zip":
-            sampler = ZipSampler(*source_samplers.values())
-        case "round_robin":
-            sampler = RoundRobinSampler(*source_samplers.values())
-        case "randomized_round_robin":
-            _samplers, _weights = [], []
-            for key in source_samplers.keys():
-                _samplers.append(source_samplers[key])
-                if shared_opts.sampler_weights is not None:
-                    _weights.append(shared_opts.sampler_weights[key])
-            sampler = RoundRobinSampler(
-                *_samplers,
-                randomize=_weights if len(_weights) > 0 else True,
-                seed=shared_opts.seed,
-            )
-        case unknown_value:
-            raise RuntimeError(f"Unsupported sampler fusion strategy: {unknown_value}")
+    if shared_opts.sampler_fusion == "zip":
+        sampler = ZipSampler(*source_samplers.values())
+    elif shared_opts.sampler_fusion == "round_robin":
+        sampler = RoundRobinSampler(*source_samplers.values())
+    elif shared_opts.sampler_fusion == "randomized_round_robin":
+        _samplers, _weights = [], []
+        for key in source_samplers.keys():
+            _samplers.append(source_samplers[key])
+            if shared_opts.sampler_weights is not None:
+                _weights.append(shared_opts.sampler_weights[key])
+        sampler = RoundRobinSampler(
+            *_samplers,
+            randomize=_weights if len(_weights) > 0 else True,
+            seed=shared_opts.seed,
+        )
+    else:
+        raise RuntimeError(f"Unsupported sampler fusion strategy: {shared_opts.sampler_fusion}")
 
     # 4. Creating dataloader.
     if use_iterable_dataset:

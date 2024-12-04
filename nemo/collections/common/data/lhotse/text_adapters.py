@@ -385,15 +385,14 @@ def _compute_num_audio_tokens(example: NeMoMultimodalConversation, mode: Literal
         "Did you forget to set token_equivalent_duration option in your dataloading config? "
         "Tip: generally it should be set to frame_shift * total_subsampling_factor of your audio encoder model."
     )
-    match mode:
-        case "context":
-            turns = example.turns[:-1]
-        case "answer":
-            turns = example.turns[-1:]
-        case "all":
-            turns = example.turns
-        case _:
-            raise RuntimeError(f"invalid mode for number of audio token computation: {mode}")
+    if mode == "context":
+        turns = example.turns[:-1]
+    elif mode == "answer":
+        turns = example.turns[-1:]
+    elif mode == "all":
+        turns = example.turns
+    else:
+        raise RuntimeError(f"invalid mode for number of audio token computation: {mode}")
     return sum(
         [
             # subtract 1 for each audio locator tag as its token will be replaced
