@@ -715,10 +715,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Mask components: 1) discard padding  &  2) discard prompt (notice the negation)
         # For a full decoder sequence O with len M, the loss mask skips the first element,
         # covering the remaining M-1 elements - hence we subtract 1 from prompt lens to account BOS.
-        loss_mask = None
         if self.cfg.get("use_loss_mask_for_prompt", False):
             maxlen = batch.prompted_transcript.shape[1] - 1
             loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
+        else:
+            loss_mask = None
         audio_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
 
         tensorboard_logs = {
@@ -747,12 +748,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Mask components: 1) discard padding  &  2) discard prompt (notice the negation)
         # For a full decoder sequence O with len M, the loss mask skips the first element,
         # covering the remaining M-1 elements - hence we subtract 1 from prompt lens to account BOS.
-        loss_mask = None
         if self.cfg.get("use_loss_mask_for_prompt", False):
             maxlen = batch.prompted_transcript.shape[1] - 1
             loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
+            num_measurements = loss_mask.long().sum()
+        else:
+            loss_mask = None
+            num_measurements = None
         transf_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
-        self.val_loss(loss=transf_loss, num_measurements=loss_mask.long().sum())
+        self.val_loss(loss=transf_loss, num_measurements=num_measurements)
         output_dict = {f'{eval_mode}_loss': transf_loss}
 
         self.wer.update(
