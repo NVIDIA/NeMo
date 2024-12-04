@@ -70,6 +70,7 @@ class MegatronAutoModel(GPTModel):
         architectures = AutoConfig.from_pretrained(model_name_or_path, trust_remote_code=True).architectures
         assert isinstance(architectures, list), "Expected architectures to be a list"
         assert len(architectures) == 1, "Expected architectures to contain one item"
+        assert isinstance(architectures[0], str), "Expected architecture to be a string"
         if not architectures[0] in HF_TO_MCORE_REGISTRY:
             raise ValueError("Architecture " + str(architectures) + " not supported")
         model_cls = HF_TO_MCORE_REGISTRY[architectures[0]]
