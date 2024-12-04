@@ -30,6 +30,7 @@ from nemo.collections.llm.gpt.model.baichuan import Baichuan2Model
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Model
 from nemo.collections.llm.gpt.model.starcoder import StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import Starcoder2Model
+from nemo.collections.llm.gpt.model.nemotron import NemotronModel
 
 HF_TO_MCORE_REGISTRY = {
     'ChatGLMForCausalLM': ChatGLMModel,
@@ -43,6 +44,7 @@ HF_TO_MCORE_REGISTRY = {
     'Qwen2ForCausalLM': Qwen2Model,
     'StarcoderForCausal': StarcoderModel,
     'Starcoder2ForCausal': Starcoder2Model,
+    'NemotronModelForCausal': NemotronModel,
 }
 
 
