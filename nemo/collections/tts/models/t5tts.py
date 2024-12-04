@@ -38,12 +38,13 @@ import nemo.collections.asr as nemo_asr
 import soundfile as sf
 import librosa
 from torch.utils.data import get_worker_info
-from transformers import T5Tokenizer
+from transformers import AutoTokenizer, T5Tokenizer
 import copy
 from omegaconf import OmegaConf, open_dict
 import string
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer
 
 HAVE_WANDB = True
 try:
@@ -59,17 +60,24 @@ def worker_init_fn(worker_id):
     dataset = worker_info.dataset  # Get the dataset instance in this worker
 
     # Initialize a non-picklable tokenizer for this worker
-    text_tokenizer_kwargs = {}
-    if "g2p" in dataset.tokenizer_config:
-        # for backward compatibility
-        text_tokenizer_kwargs["g2p"] = instantiate(dataset.tokenizer_config.g2p)
-        logging.info(f"g2p instantiated: {text_tokenizer_kwargs['g2p']}")
-    tokenizer = instantiate(dataset.tokenizer_config, **text_tokenizer_kwargs)
-    if dataset.dataset_type == 'test' and hasattr(tokenizer, "set_phone_prob"):
-        logging.info("Setting phone prob to 1.0 for test dataset")
-        tokenizer.set_phone_prob(1.0)
+    tokenizers = []
+    tokenizer_names = []
+    for tokenizer_name in dataset.tokenizer_config:
+        tokenizer_config = dataset.tokenizer_config[tokenizer_name]
+        if tokenizer_config._target_ == 'AutoTokenizer':
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_config.pretrained_model)
+        else:
+            text_tokenizer_kwargs = {}
+            if "g2p" in tokenizer_config:
+                text_tokenizer_kwargs["g2p"] = instantiate(tokenizer_config.g2p)
+            tokenizer = instantiate(tokenizer_config, **text_tokenizer_kwargs)
+            if dataset.dataset_type == 'test' and hasattr(tokenizer, "set_phone_prob"):
+                logging.info("Setting phone prob to 1.0 for test dataset")
+                tokenizer.set_phone_prob(1.0)
+        tokenizers.append(tokenizer)
+        tokenizer_names.append(tokenizer_name)
+    dataset.text_tokenizer = AggregatedTTSTokenizer(tokenizers, tokenizer_names)
     logging.info(f"Tokenizer instantiated: {tokenizer}")
-    dataset.text_tokenizer = tokenizer # Use for transcripts
     if dataset.use_text_conditioning_tokenizer:
         dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small") # Used for text conditioning
 
@@ -84,14 +92,18 @@ class T5TTS_Model(ModelPT):
             self.world_size = trainer.num_nodes * trainer.num_devices
         
         # Setup tokenizer
+        if hasattr(cfg, 'text_tokenizer'):
+            # For backward compatibility for English-only models
+            with open_dict(cfg):
+                cfg.text_tokenizers = {"english_phoneme": cfg.text_tokenizer}
+                del cfg['text_tokenizer']
         self.tokenizer = self._setup_tokenizer(cfg)
 
         num_tokens_tokenizer = len(self.tokenizer.tokens)
         num_tokens = num_tokens_tokenizer + 2 # +2 for BOS and EOS
         self.bos_id = num_tokens - 2
         self.eos_id = num_tokens - 1
-        self.tokenizer_pad = self.tokenizer.pad
-        self.tokenizer_unk = self.tokenizer.oov
+        
         self.audio_bos_id = cfg.num_audio_tokens_per_codebook - 2
         self.audio_eos_id = cfg.num_audio_tokens_per_codebook - 1
         self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 2 # For backward compatibility
@@ -196,13 +208,23 @@ class T5TTS_Model(ModelPT):
         super().load_state_dict(state_dict, strict=False)
         
     def _setup_tokenizer(self, cfg, mode='train'):
-        text_tokenizer_kwargs = {}
-        if "g2p" in cfg.text_tokenizer:
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p)
-        tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
-        if mode == 'test' and hasattr(tokenizer, "set_phone_prob"):
-            tokenizer.set_phone_prob(1.0)
-        return tokenizer
+        tokenizers = []
+        tokenizer_names = []
+        for tokenizer_name in cfg.text_tokenizers:
+            tokenizer_config = cfg.text_tokenizers[tokenizer_name]
+            if tokenizer_config._target_ == 'AutoTokenizer':
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer_config.pretrained_model)
+            else:
+                text_tokenizer_kwargs = {}
+                if "g2p" in tokenizer_config:
+                    text_tokenizer_kwargs["g2p"] = instantiate(tokenizer_config.g2p)
+                tokenizer = instantiate(tokenizer_config, **text_tokenizer_kwargs)
+                if mode == 'test' and hasattr(tokenizer, "set_phone_prob"):
+                    tokenizer.set_phone_prob(1.0)
+            tokenizers.append(tokenizer)
+            tokenizer_names.append(tokenizer_name)
+        aggregated_tokenizer = AggregatedTTSTokenizer(tokenizers, tokenizer_names)
+        return aggregated_tokenizer
 
     def _setup_text_conditioning_tokenizer(self, cfg):
         # Tokenizer used for context text
@@ -768,7 +790,7 @@ class T5TTS_Model(ModelPT):
             context_duration_max=self.cfg.context_duration_max,
         )
         dataset.load_16khz_audio = self.model_type == 'single_encoder_sv_tts'
-        dataset.tokenizer_config = self.cfg.text_tokenizer # This will be used in worker_init_fn for instantiating tokenizer
+        dataset.tokenizer_config = self.cfg.text_tokenizers # This will be used in worker_init_fn for instantiating tokenizer
         return dataset
 
     def _setup_train_dataloader(self, cfg):

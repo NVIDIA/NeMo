@@ -46,6 +46,7 @@ class DatasetMeta:
     audio_dir: Path
     feature_dir: Path
     sample_weight: float = 1.0
+    tokenizer_names: List[str] = None
 
 
 @dataclass
@@ -57,6 +58,7 @@ class DatasetSample:
     text: str
     speaker: str
     speaker_index: int = None
+    tokenizer_names: List[str] = None
 
 
 @experimental
@@ -198,6 +200,7 @@ class TextToSpeechDataset(Dataset):
                 text=text,
                 speaker=speaker,
                 speaker_index=speaker_index,
+                tokenizer_names=dataset.tokenizer_names,
             )
             samples.append(sample)
             sample_weights.append(dataset.sample_weight)
@@ -379,8 +382,11 @@ class T5TTSDataset(TextToSpeechDataset):
     
     def __getitem__(self, index):
         data = self.data_samples[index]
-
-        tokens = self.text_tokenizer(data.text)
+        tokenizer_name = "english_phoneme" # Default to english phoneme tokenizer
+        if data.tokenizer_names is not None:
+            # Pick a random tokenizer from the list of tokenizers
+            tokenizer_name = random.choice(data.tokenizer_names)
+        tokens = self.text_tokenizer.encode(text=data.text, tokenizer_name=tokenizer_name)
         tokens = tokens + [self.eos_id] # Not adding BOS id
         tokens = torch.tensor(tokens, dtype=torch.int32)
         text_len = tokens.shape[0]
