@@ -1,6 +1,4 @@
 name: megatron_starcoder
-restore_from_path: null # used when starting from a .nemo file
-
 trainer:
   devices: 1
   num_nodes: 1
