@@ -28,7 +28,8 @@ dataset_meta_info = {
 }
 
 
-def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path):
+def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path, use_cfg, cfg_scale):
+    # import ipdb; ipdb.set_trace()
     model_cfg = OmegaConf.load(hparams_file).cfg
 
     with open_dict(model_cfg):
@@ -57,6 +58,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
     # import ipdb; ipdb.set_trace()
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
+    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}".format(checkpoint_name, temperature, topk, use_cfg, cfg_scale)
     
     for dataset in datasets:
         eval_dir = os.path.join(out_dir, "{}_{}".format(checkpoint_name, dataset))
@@ -106,7 +108,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                 else:
                     batch_cuda[key] = batch[key]
             
-            predicted_audio, predicted_audio_lens, _, _ = model.infer_batch(batch_cuda, max_decoder_steps=500, temperature=temperature, topk=topk)
+            predicted_audio, predicted_audio_lens, _, _ = model.infer_batch(batch_cuda, max_decoder_steps=500, temperature=temperature, topk=topk, use_cfg=use_cfg, cfg_scale=cfg_scale)
             for idx in range(predicted_audio.size(0)):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
@@ -135,10 +137,10 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/edresson_hparams.yaml")
-    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/edresson_epoch21.ckpt")
+    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/unnormalizedLalign005_multiEncoder_textcontext_kernel3_hparams.yaml")
+    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/unnormalizedLalign005_multiEncoder_textcontext_kernel3_epoch_18.ckpt")
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo")
-    parser.add_argument('--datasets', type=str, default="libri_val,vctk,riva_challenging")
+    parser.add_argument('--datasets', type=str, default="vctk,riva_challenging,libri_val")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/dracomount")
     parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NormalizedNewT5Experiments")
     parser.add_argument('--server_address', type=str, default="pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com")
@@ -146,11 +148,23 @@ def main():
     parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints")
     parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5_Unnormalized")
     parser.add_argument('--temperature', type=float, default=0.6)
+    parser.add_argument('--use_cfg', action='store_true')
+    parser.add_argument('--cfg_scale', type=float, default=1.0)
     parser.add_argument('--topk', type=int, default=80)
     args = parser.parse_args()
 
     if (args.hparams_file is not None) and (args.checkpoint_file is not None) and (args.hparams_file != "null"):
-        run_inference(args.hparams_file, args.checkpoint_file, args.datasets.split(","), args.out_dir, args.temperature, args.topk, args.codecmodel_path)
+        run_inference(
+            args.hparams_file, 
+            args.checkpoint_file, 
+            args.datasets.split(","), 
+            args.out_dir, 
+            args.temperature, 
+            args.topk,
+            args.codecmodel_path,
+            args.use_cfg,
+            args.cfg_scale
+        )
         return
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -190,7 +204,17 @@ def main():
             # import ipdb; ipdb.set_trace()
             print("Hparams file path: ", hparams_copy_path)
             print("Checkpoint file path: ", checkpoint_copy_path)
-            run_inference(hparams_copy_path, checkpoint_copy_path, args.datasets.split(","), args.out_dir, args.temperature, args.topk, args.codecmodel_path)
+            run_inference(
+                hparams_copy_path, 
+                checkpoint_copy_path, 
+                args.datasets.split(","), 
+                args.out_dir, 
+                args.temperature, 
+                args.topk, 
+                args.codecmodel_path, 
+                args.use_cfg,
+                args.cfg_scale
+            )
             
 
 if __name__ == '__main__':

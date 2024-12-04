@@ -150,6 +150,9 @@ model.prior_scaling_factor=null \
 | single_encoder_sv_tts | draco-oci-login-01.draco-oci-iad.nvidia.com | /lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalizedt5_singleencoder.sub |
 | decoder_pretrain_synthesizer | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/newt5_pretrain.sub |
 
+## Pretrained Models and Results
+
+Paths to pretrained checkpoints and their evaluation results on some test sets can be found [here](https://docs.google.com/spreadsheets/d/16AkvAHZ-ytWYnzEx9wtOG7yLkuU2wfB8gGMiDa5sROg/edit?usp=sharing)
 
 ## Inference and Eval
 

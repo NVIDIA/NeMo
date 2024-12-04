@@ -674,7 +674,11 @@ class T5TTS_Model(ModelPT):
 
         return val_output
     
-    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80):
+    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_cfg=False, cfg_scale=1.0):
+        if use_cfg:
+            # TODO: @pneekhara: Concatenate unconditional and conditional inputs into one batch to avoid this issue
+            self.use_kv_cache_for_inference = False # KV cache is not supported with CFG yet.
+
         with torch.no_grad():
             if self.use_kv_cache_for_inference:
                 assert self.cfg.t5_decoder.use_flash_self_attention is False, "KV cache is not supported with flash self attention"
@@ -712,6 +716,17 @@ class T5TTS_Model(ModelPT):
                     attn_prior=None,
                     multi_encoder_mapping=context_tensors['multi_encoder_mapping']
                 )
+
+                if use_cfg:
+                    uncond_logits, _ = self.forward(
+                        dec_input_embedded=_audio_codes_embedded,
+                        dec_input_mask=_audio_codes_mask,
+                        cond=None,  # No conditioning
+                        cond_mask=None,
+                        attn_prior=None,
+                        multi_encoder_mapping=None
+                    )
+                    all_code_logits = (1 - cfg_scale) * uncond_logits + cfg_scale * all_code_logits
                 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
                 audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk) # (B, num_codebooks)
