@@ -22,7 +22,7 @@ from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,
     DollyDataModule,
     FineTuningDataModule,
-    HfDatasetDataModule,
+    HFDatasetDataModule,
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
@@ -64,7 +64,7 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig126M,
     GPTConfig175B,
     GPTModel,
-    HfAutoModelForCausalLM,
+    HFAutoModelForCausalLM,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
@@ -73,6 +73,8 @@ from nemo.collections.llm.gpt.model import (
     Llama31Config8B,
     Llama31Config70B,
     Llama31Config405B,
+    Llama32Config1B,
+    Llama32Config3B,
     LlamaConfig,
     LlamaModel,
     MaskedTokenLossReduction,
@@ -115,10 +117,15 @@ from nemo.collections.llm.gpt.model import (
     gpt_forward_step,
 )
 from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
+from nemo.collections.llm.t5.data import FineTuningDataModule as T5FineTuningDataModule
+from nemo.collections.llm.t5.data import MockDataModule as T5MockDataModule
+from nemo.collections.llm.t5.data import PreTrainingDataModule as T5PreTrainingDataModule
+from nemo.collections.llm.t5.data import SquadDataModule as T5SquadDataModule
 from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 
 __all__ = [
     "MockDataModule",
+    "T5MockDataModule",
     "GPTModel",
     "GPTConfig",
     "gpt_data_step",
@@ -166,6 +173,8 @@ __all__ = [
     "Llama31Config8B",
     "Llama31Config70B",
     "Llama31Config405B",
+    "Llama32Config1B",
+    "Llama32Config3B",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
@@ -198,6 +207,10 @@ __all__ = [
     "PreTrainingDataModule",
     "FineTuningDataModule",
     "SquadDataModule",
+    "T5PreTrainingDataModule",
+    "T5FineTuningDataModule",
+    "T5SquadDataModule",
+    "T5MockDataModule",
     "DollyDataModule",
     "tokenizer",
     "mock",
@@ -205,7 +218,7 @@ __all__ = [
     "dolly",
     "peft",
     "hf_dataset",
-    "HfAutoModelForCausalLM",
+    "HFAutoModelForCausalLM",
 ]
 
 

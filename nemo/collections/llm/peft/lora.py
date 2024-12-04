@@ -124,6 +124,7 @@ class LoRA(PEFT):
         dropout (float): Dropout rate for the low-rank projection. Defaults to 0.0.
         dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
             Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'post'.
+        a2a_experimental (bool): Enables the experimental All-to-All (A2A) communication strategy. Defaults to False.
 
     Example:
     --------
@@ -151,6 +152,7 @@ class LoRA(PEFT):
     dropout_position: Literal['pre', 'post'] = 'post'
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
+    a2a_experimental: bool = False
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -224,6 +226,47 @@ class LoRA(PEFT):
                 model_parallel_config=getattr(m, "config", None),
                 alpha=self.alpha,
                 is_expert=is_expert_linear(full_name),
+                a2a_experimental=self.a2a_experimental,
             )
             return AdapterParallelAdd(m, adapter)
+        return m
+
+
+class LoRAMerge(PEFT):
+    """
+    Implements the LoRA weight merge for parameter-efficient fine-tuning.
+
+    Example:
+    --------
+        >>> from nemo.collections.llm.peft.lora import LoRAMerge
+        >>> lora_merge = LoRAMerge()
+        >>> merged_model = lora_merge(trainer.strategy.megatron_parallel)
+    """
+
+    @torch.no_grad()
+    def transform(self, m: nn.Module, name=None, prefix=None):
+        """
+        Merges the LoRA adapter with the base model weights.
+
+        Args:
+            m (nn.Module): The module to apply LoRA merge to.
+            name (str, optional): Name of the module to merge. Defaults to None.
+            prefix (str, optional): Prefix for the module name. Defaults to None.
+
+        Returns:
+            nn.Module: The modified module with the LoRA adapter merged into the base model weights.
+        """
+
+        if not isinstance(m, AdapterParallelAdd):
+            return m
+        logging.info(f'merging {(prefix if prefix else "") + "." + (name if name else "")}')
+        base_weight = m.to_wrap.weight
+        lora_weight = (
+            m.adapter.alpha
+            / m.adapter.dim
+            * m.adapter.linear_out.weight.to(base_weight.device)
+            @ m.adapter.linear_in.weight.to(base_weight.device)
+        )
+        merged_weight = base_weight + lora_weight
+        m.to_wrap.weight.data = merged_weight
         return m
