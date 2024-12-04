@@ -15,12 +15,20 @@
 from typing import Optional, Union
 from lhotse.cut import Cut
 
-from nemo.collections.common.prompts import PromptFormatter, get_prompt_format_fn
+from nemo.collections.common.prompts import get_prompt_format_fn
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
 
 
 class MockCut:
+    """
+    A mock class to wrap the input data for the prompt formatter.
+    """
+
     def __init__(self, sample: Union[str, dict]):
+        """
+        Args:
+            sample: The input data to be formatted.
+        """
         if isinstance(sample, str):
             setattr(self, 'context', sample)
         elif isinstance(sample, dict):
@@ -29,7 +37,15 @@ class MockCut:
 
 
 class AutoPromptFormatter:
+    """
+    A class to automatically format the prompt based on the input data.
+    """
+
     def __init__(self, prompt_format: Optional[str] = None):
+        """
+        Args:
+            prompt_format: The prompt format string.
+        """
         self.prompt_format = prompt_format
         self.prompt_formatter = get_prompt_format_fn(prompt_format)
 
@@ -48,7 +64,11 @@ class AutoPromptFormatter:
             return [MockCut(inputs)]
 
 
-class TextProcessingWithPromptFormatter(PromptFormatterTextProcessing):
+class TextProcesserWithPromptFormatter(PromptFormatterTextProcessing):
+    """
+    Wrapper class that processes text and uses the prompt formatter.
+    """
+
     def __init__(
         self,
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
@@ -56,6 +76,13 @@ class TextProcessingWithPromptFormatter(PromptFormatterTextProcessing):
         max_seq_length: Optional[int] = None,
         audio_locator: Optional[str] = None,
     ):
+        """
+        Args:
+            tokenizer: The tokenizer to use.
+            prompt_format: The prompt format string.
+            max_seq_length: The maximum sequence length.
+            audio_locator: The audio locator for inserting audio.
+        """
         super().__init__(tokenizer, prompt_format, max_seq_length, audio_locator)
         self.prompt_format_fn = AutoPromptFormatter(prompt_format)
 

@@ -196,7 +196,8 @@ def _speechllm_multi_audio_text_collate_fn(
 
 class AudioTextDataset(Dataset):
     """
-    Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
+    Dataset that loads tensors via a json file containing paths to audio files, transcripts,
+    and durations (in seconds).
     Each new line is a different sample. Example below:
 
     .. code-block:: json
@@ -214,25 +215,33 @@ class AudioTextDataset(Dataset):
         min_duration: If audio is less than this length, do not include in dataset
         max_utts: Limit number of utterances
         trim: whether or not to trim silence. Defaults to False
-        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from
+            multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`.
+            Defaults to `None`. Uses zero-based indexing.
 
             :note: below args are NLP-specific
 
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit
+            this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they
+            do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
         tokens_to_generate (int): (inference only) Number of tokens to generate during inference
         seed: Random seed for data shuffling.
-        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data.
+            If None, all samples will be loaded.
         seed: int = 1234,
         context_key: Key to use for the context in your JSONL file
         answer_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
-        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
-        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
+        answer_only_loss: If True, will compute the loss only on the answer part of the input.
+            If False, will compute the loss on the entire input.
+        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation
+            if the combined length exceeds the max sequence length.
+        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of
+            the current batch.
         prompt_template: Prompt template to inject via an fstring. Formatted like:
 
             .. code-block:: text
@@ -586,8 +595,10 @@ class TarredAudioTextDataset(IterableDataset):
 
             :note: Below args are NLP-specific
 
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated
+            to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they
+            do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
@@ -597,9 +608,12 @@ class TarredAudioTextDataset(IterableDataset):
         context_key: Key to use for the context in your JSONL file
         answer_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
-        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
-        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
+        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute
+            the loss on the entire input.
+        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation
+            if the combined length exceeds the max sequence length.
+        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the
+            max length of the current batch.
         prompt_template: Prompt template to inject via an fstring. Formatted like:
 
             .. code-block:: text
@@ -610,7 +624,8 @@ class TarredAudioTextDataset(IterableDataset):
 
             :note: Below args are for miscellaneous purposes
 
-        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
+        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load
+            random questions from, if question is not in manifest.
         sample_alpha: Optional[float] = None, for SPE subword sampling
 
     """
