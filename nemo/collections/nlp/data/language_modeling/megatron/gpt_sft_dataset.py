@@ -551,6 +551,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             assert (
                 pack_metadata_file_path is not None
             ), "a metadata json file is required when pad_cu_seqlens is enabled"
+            assert (
+                self.pad_to_max_length is True
+            ), "'pad_to_max_length=True' is required when pad_cu_seqlens is enabled"
 
         self.pack_metadata = None
         if pack_metadata_file_path is not None:
