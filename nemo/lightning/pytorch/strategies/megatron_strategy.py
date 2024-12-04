@@ -693,6 +693,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """Saves checkpoint"""
+        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
+            self.megatron_parallel.disable_forward_pre_hook()
+
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
         if "sharded_state_dict" not in checkpoint:
@@ -710,6 +713,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+
+        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
+            self.megatron_parallel.enable_forward_pre_hook()
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         """Determines whether to restore optimizer states or not"""
