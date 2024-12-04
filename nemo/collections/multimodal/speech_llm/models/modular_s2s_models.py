@@ -1,5 +1,6 @@
 import itertools
 import json
+import math
 import os
 from collections import OrderedDict
 from typing import List, Optional, Union
@@ -151,6 +152,8 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         # Zero out the new embeddings to make the model behave the same as it was pre-trained
         self.embedding.word_embeddings.weight.data[pretrained_emb.word_embeddings.weight.shape[0] :].zero_()
         del pretrained_emb
+        if self.pre_process or self.post_process:
+            self.setup_embeddings_and_output_layer()
 
     def forward(
         self,
@@ -204,12 +207,24 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             return hidden_states
 
         # logits and loss
-        all_logits = [self.output_layers[i](hidden_states)[0] for i in range(self.n_proj_heads)]
-        output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
-        all_logits[0], _ = self.output_layer(hidden_states, weight=output_weight)
+        else:
+            output_weight = None
 
+        all_logits = []
+        cur_dims = 0
+        for i in range(self.n_proj_heads):
+            cur_output_weight = (
+                output_weight[cur_dims : cur_dims + self.proj_head_dims[i]] if output_weight is not None else None
+                )
+            all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
+            cur_dims += self.proj_head_dims[i]
+        assert self.vocab_size == self.proj_head_dims[0]
+        all_logits[0], _ = self.output_layer(
+            hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
+        )
+        
         if labels is None:
             # [s b h] => [b s h]
             return_logits = [logits.transpose(0, 1).contiguous() for logits in all_logits]
@@ -586,7 +601,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                             deduplicated_outputs['inputs'].append(input)
                             deduplicated_outputs['metadata'].append(metadata)
                             deduplicated_outputs['batch_idx'].append(batch['batch_idx'])
-
+            
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
             metric = self.val_metric if mode == 'validation' else self.test_metric
@@ -894,6 +909,46 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         self.additional_models = {}
 
         super().__init__(cfg, trainer)
+
+    def _get_codec_embeddings(self, audio_signal, audio_signal_length):
+        """Get codec embeddings for the input audio signal."""
+        if 'codec_model' not in self.additional_models:
+            self.additional_models['codec_model'] = self.codec_model
+            self.additional_models['codec_model'].to(self.device)
+            self.additional_models['codec_model'].eval()
+        codec_model = self.additional_models['codec_model']
+        codec_model.eval()
+        with torch.no_grad():
+            original_codec_codes, _ = codec_model.encode(audio=audio_signal, audio_len=audio_signal_length)
+            original_codec_codes = original_codec_codes.transpose(1, 2)
+        out_codec_codes = []
+        out_codec_lens = []
+        n_speech_codebooks = original_codec_codes.shape[-1]
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        speech_pad_id = self.cfg.data.train_ds.speech_pad_id
+        padded_original_codec_codes = torch.cat(
+            [
+                original_codec_codes,
+                torch.ones([original_codec_codes.shape[0], decoder_reduction_factor, n_speech_codebooks]).long().cuda()
+                * speech_pad_id,
+            ],
+            axis=1,
+        )
+        for sidx in range(audio_signal.shape[0]):
+            codec_len = min(
+                torch.ceil(audio_signal_length[sidx] / self.codec_model_downsampling_factor / decoder_reduction_factor)
+                .int()
+                .to(self.device),
+                math.ceil(original_codec_codes[sidx].shape[0] / decoder_reduction_factor),
+            )
+            out_codec_codes.append(
+                padded_original_codec_codes[sidx, : codec_len * decoder_reduction_factor]
+                .reshape((-1, n_speech_codebooks * decoder_reduction_factor))
+                .to(self.device)
+            )
+            out_codec_lens.append(codec_len)
+
+        return out_codec_codes, out_codec_lens
 
     '''
     def prepare_llm_input(self, audio_batch):

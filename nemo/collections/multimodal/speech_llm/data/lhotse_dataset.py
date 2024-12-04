@@ -132,8 +132,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 tokenized_word = self.text_processor._process_example(context="", output=word)
                 # Remove the EOS token (assuming the EOS token is at the end of "answer_ids")
                 token_ids = tokenized_word["answer_ids"][:-1]  # Remove EOS token
+                
                 if idx != 0:  # If not the first word, remove the first token
                     token_ids = token_ids[1:]
+                
                 if id == 0:
                     logging.debug(f'token_ids: {token_ids}')
                 token_length = len(token_ids)  # Calculate the length
@@ -343,7 +345,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             target_codec = target_codec.to(torch.int)
         else:
             assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
-            assert self.decoder_reduction_factor == 1, "TODO: add the support in on the fly"
+            # assert self.decoder_reduction_factor == 1, "TODO: add the support in on the fly"
             # TODO(subhankarg) load answer audio from cut.target_codes logic
             answer_audio_lens = []
             answer_audios = []
@@ -353,7 +355,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
                 answer_audios.append(answer_audio)
                 answer_audio_lens.append(answer_audio_len)
-                features_lens.append(math.ceil(answer_audio_len / self.codec_model_downsampling_factor))
+                features_lens.append(
+                        math.ceil(
+                            answer_audio_len / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                        )
+                    )
             answer_audios = collate_vectors(
                 [a.squeeze(0) for a in answer_audios], max_length=max(answer_audio_lens), padding_value=0.0
             ).float()
@@ -442,6 +448,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             if getattr(cut, "has_alignment", True):
                 # [batch, max_feat_len]
                 # the only thing needed is features_lens which can be estimated from target_audio length
+                
                 target_texts_expanded = _expand_text_with_timestamps_and_word_lengths(
                     unpadded_target_texts,
                     word_lengths,
