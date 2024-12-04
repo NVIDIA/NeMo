@@ -12,11 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=C0116
+# pylint: disable=C0301
 import importlib
 import math
 import sys
 from numbers import Number
-from typing import Iterable, Literal
 
 import click
 import pytorch_lightning as pl

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=C0116
 import bisect
 import logging
 import math
@@ -163,7 +164,7 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
 class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2D):
     """
     Sampling strategy that customizes Lhotse samplers to support both multimodal sampling and 2D bucket selection.
-    It combines the capabilities of :class:`FixedBucketBatchSizeConstraint2D` and :class:`MultimodalSamplingConstraint`.
+    It combines the capabilities of :class:`FixedBucketBatchSizeConstraint2D` and :class:`MultimodalSamplingConstraint`
     """
 
     # How many seconds of audio is a text token worth; balances audio to text ratio in a mini-batch.
