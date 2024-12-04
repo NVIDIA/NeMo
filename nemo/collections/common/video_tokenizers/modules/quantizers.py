@@ -43,9 +43,7 @@ class ResidualFSQuantizer(nn.Module):
     def __init__(self, levels: list[int], num_quantizers: int, **ignore_kwargs):
         super().__init__()
         self.dtype = ignore_kwargs.get("dtype", torch.float32)
-        self.layers = nn.ModuleList(
-            [FSQuantizer(levels=levels) for _ in range(num_quantizers)]
-        )
+        self.layers = nn.ModuleList([FSQuantizer(levels=levels) for _ in range(num_quantizers)])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         indices_stack = []
@@ -94,9 +92,7 @@ class FSQuantizer(nn.Module):
         _levels = torch.tensor(levels, dtype=torch.int32)
         self.register_buffer("_levels", _levels, persistent=False)
 
-        _basis = torch.cumprod(
-            torch.tensor([1] + levels[:-1]), dim=0, dtype=torch.int32
-        )
+        _basis = torch.cumprod(torch.tensor([1] + levels[:-1]), dim=0, dtype=torch.int32)
         self.register_buffer("_basis", _basis, persistent=False)
 
         self.scale = scale
@@ -108,35 +104,21 @@ class FSQuantizer(nn.Module):
         self.num_codebooks = num_codebooks
         self.effective_codebook_dim = effective_codebook_dim
 
-        keep_num_codebooks_dim = default(
-            keep_num_codebooks_dim, num_codebooks > 1
-        )
+        keep_num_codebooks_dim = default(keep_num_codebooks_dim, num_codebooks > 1)
         assert not (num_codebooks > 1 and not keep_num_codebooks_dim)
         self.keep_num_codebooks_dim = keep_num_codebooks_dim
 
         self.dim = default(dim, len(_levels) * num_codebooks)
 
         has_projections = self.dim != effective_codebook_dim
-        self.project_in = (
-            nn.Linear(self.dim, effective_codebook_dim)
-            if has_projections
-            else nn.Identity()
-        )
-        self.project_out = (
-            nn.Linear(effective_codebook_dim, self.dim)
-            if has_projections
-            else nn.Identity()
-        )
+        self.project_in = nn.Linear(self.dim, effective_codebook_dim) if has_projections else nn.Identity()
+        self.project_out = nn.Linear(effective_codebook_dim, self.dim) if has_projections else nn.Identity()
         self.has_projections = has_projections
 
         self.codebook_size = self._levels.prod().item()
 
-        implicit_codebook = self.indices_to_codes(
-            torch.arange(self.codebook_size), project_out=False
-        )
-        self.register_buffer(
-            "implicit_codebook", implicit_codebook, persistent=False
-        )
+        implicit_codebook = self.indices_to_codes(torch.arange(self.codebook_size), project_out=False)
+        self.register_buffer("implicit_codebook", implicit_codebook, persistent=False)
 
     def bound(self, z: torch.Tensor, eps: float = 1e-3) -> torch.Tensor:
         """Bound `z`, an array of shape (..., d)."""
@@ -165,9 +147,7 @@ class FSQuantizer(nn.Module):
         zhat = self._scale_and_shift(zhat).float()
         return (zhat * self._basis).sum(dim=-1).to(torch.int32)
 
-    def indices_to_codes(
-        self, indices: torch.Tensor, project_out=True
-    ) -> torch.Tensor:
+    def indices_to_codes(self, indices: torch.Tensor, project_out=True) -> torch.Tensor:
         """Inverse of `codes_to_indices`."""
         is_img_or_video = indices.ndim >= (3 + int(self.keep_num_codebooks_dim))
         indices = rearrange(indices, "... -> ... 1")
@@ -201,9 +181,7 @@ class FSQuantizer(nn.Module):
             z = rearrange(z, "b d ... -> b ... d")
             z, ps = pack_one(z, "b * d")
 
-        assert (
-            z.shape[-1] == self.dim
-        ), f"expected dimension of {self.dim} but found dimension of {z.shape[-1]}"
+        assert z.shape[-1] == self.dim, f"expected dimension of {self.dim} but found dimension of {z.shape[-1]}"
 
         z = self.project_in(z)
 
@@ -224,9 +202,7 @@ class FSQuantizer(nn.Module):
             indices = unpack_one(indices, ps, "b * c")
             dummy_loss = torch.zeros_like(out.mean(dim=[1, 2, 3], keepdim=True))
         else:
-            dummy_loss = torch.zeros_like(
-                out.mean(dim=[1, 2], keepdim=True)
-            ).unsqueeze(1)
+            dummy_loss = torch.zeros_like(out.mean(dim=[1, 2], keepdim=True)).unsqueeze(1)
 
         if not self.keep_num_codebooks_dim:
             indices = rearrange(indices, "... 1 -> ...")
@@ -294,9 +270,7 @@ class VectorQuantizer(nn.Module):
         new = match.argmax(-1)
         unknown = match.sum(2) < 1
         if self.unknown_index == "random":
-            new[unknown] = torch.randint(
-                0, self.re_embed, size=new[unknown].shape
-            ).to(device=new.device)
+            new[unknown] = torch.randint(0, self.re_embed, size=new[unknown].shape).to(device=new.device)
         else:
             new[unknown] = self.unknown_index
         return new.reshape(ishape)
@@ -312,15 +286,9 @@ class VectorQuantizer(nn.Module):
         return back.reshape(ishape)
 
     def forward(self, z, temp=None, rescale_logits=False, return_logits=False):
-        assert (
-            temp is None or temp == 1.0
-        ), "Only for interface compatible with Gumbel"
-        assert (
-            rescale_logits is False
-        ), "Only for interface compatible with Gumbel"
-        assert (
-            return_logits is False
-        ), "Only for interface compatible with Gumbel"
+        assert temp is None or temp == 1.0, "Only for interface compatible with Gumbel"
+        assert rescale_logits is False, "Only for interface compatible with Gumbel"
+        assert return_logits is False, "Only for interface compatible with Gumbel"
         z = rearrange(z, "b c h w -> b h w c").contiguous()
         z_flattened = z.view(-1, self.e_dim)
 
@@ -336,9 +304,7 @@ class VectorQuantizer(nn.Module):
         )
 
         encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
-        encodings = torch.zeros(
-            encoding_indices.shape[0], self.n_e, device=z.device
-        )
+        encodings = torch.zeros(encoding_indices.shape[0], self.n_e, device=z.device)
         encodings.scatter_(1, encoding_indices, 1)
         z_q = torch.matmul(encodings, self.embedding.weight).view(z.shape)
         min_encodings = None
@@ -346,12 +312,8 @@ class VectorQuantizer(nn.Module):
         z_q, z = self.norm(z_q), self.norm(z)
 
         # compute loss for embedding
-        commit_loss = torch.mean(
-            (z_q - z.detach()) ** 2, dim=[1, 2, 3], keepdim=True
-        )
-        emb_loss = torch.mean(
-            (z_q.detach() - z) ** 2, dim=[1, 2, 3], keepdim=True
-        )
+        commit_loss = torch.mean((z_q - z.detach()) ** 2, dim=[1, 2, 3], keepdim=True)
+        emb_loss = torch.mean((z_q.detach() - z) ** 2, dim=[1, 2, 3], keepdim=True)
         if not self.legacy:
             loss = self.beta * emb_loss + commit_loss
         else:
@@ -360,28 +322,18 @@ class VectorQuantizer(nn.Module):
         # preserve gradients
         z_q = z + (z_q - z).detach()
         avg_probs = torch.mean(encodings, dim=0)
-        perplexity = torch.exp(
-            -torch.sum(avg_probs * torch.log(avg_probs + 1e-10))
-        )
+        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
 
         # reshape back to match original input shape
         z_q = rearrange(z_q, "b h w c -> b c h w").contiguous()
 
         if self.remap is not None:
-            min_encoding_indices = encoding_indices.squeeze(1).reshape(
-                z.shape[0], -1
-            )  # add batch axis
-            min_encoding_indices = self.remap_to_used(
-                encoding_indices.squeeze(1)
-            )
-            min_encoding_indices = min_encoding_indices.reshape(
-                -1, 1
-            )  # flatten
+            min_encoding_indices = encoding_indices.squeeze(1).reshape(z.shape[0], -1)  # add batch axis
+            min_encoding_indices = self.remap_to_used(encoding_indices.squeeze(1))
+            min_encoding_indices = min_encoding_indices.reshape(-1, 1)  # flatten
 
         if self.sane_index_shape:
-            min_encoding_indices = min_encoding_indices.reshape(
-                z_q.shape[0], z_q.shape[2], z_q.shape[3]
-            )
+            min_encoding_indices = min_encoding_indices.reshape(z_q.shape[0], z_q.shape[2], z_q.shape[3])
 
         # TODO: return (indices, z_q, loss)
         return (
@@ -455,23 +407,13 @@ class LFQuantizer(nn.Module):
         embed_dim = embed_dim or codebook_dim
 
         has_projections = embed_dim != codebook_dim
-        self.project_in = (
-            nn.Linear(embed_dim, codebook_dim)
-            if has_projections
-            else nn.Identity()
-        )
-        self.project_out = (
-            nn.Linear(codebook_dim, embed_dim)
-            if has_projections
-            else nn.Identity()
-        )
+        self.project_in = nn.Linear(embed_dim, codebook_dim) if has_projections else nn.Identity()
+        self.project_out = nn.Linear(codebook_dim, embed_dim) if has_projections else nn.Identity()
 
         self.dtype = ignore_kwargs.get("dtype", torch.float32)
 
         if entropy_loss:
-            assert (
-                2**codebook_dim == codebook_size
-            ), "codebook size must be 2 ** codebook_dim"
+            assert 2**codebook_dim == codebook_size, "codebook size must be 2 ** codebook_dim"
             self.codebook_size = codebook_size
 
             self.register_buffer(
@@ -485,9 +427,7 @@ class LFQuantizer(nn.Module):
             bits = ((all_codes[..., None].int() & self.mask) != 0).float()
             codebook = 2 * bits - 1.0
 
-            self.register_buffer(
-                "codebook", codebook, persistent=False
-            )  # [codebook_size, codebook_dim]
+            self.register_buffer("codebook", codebook, persistent=False)  # [codebook_size, codebook_dim]
 
     def forward(self, z: torch.Tensor, temp: float = None) -> torch.Tensor:
         temp = temp or self.default_temp
@@ -523,9 +463,7 @@ class LFQuantizer(nn.Module):
         # entropy loss (eq-5)
         if self.entropy_loss:
             # indices
-            indices = reduce(
-                (z > 0).int() * self.mask.int(), "b n c d -> b n c", "sum"
-            )
+            indices = reduce((z > 0).int() * self.mask.int(), "b n c d -> b n c", "sum")
             indices = unpack_one(indices, ps, "b * c")
             indices = rearrange(indices, "... 1 -> ...")
 
@@ -550,8 +488,7 @@ class LFQuantizer(nn.Module):
                     indices,
                     self.commitment_loss_weight * commit_loss.mean().detach(),
                     self.entrop_loss_weight * entropy_aux_loss.mean().detach(),
-                    self.entrop_loss_weight
-                    * per_sample_entropy.mean().detach(),
+                    self.entrop_loss_weight * per_sample_entropy.mean().detach(),
                     self.entrop_loss_weight * codebook_entropy.mean().detach(),
                 ),
             )

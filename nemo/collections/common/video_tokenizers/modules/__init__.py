@@ -16,10 +16,7 @@
 # ******************************************************************************
 from enum import Enum
 
-from nemo.collections.common.video_tokenizers.modules.distributions import (
-    GaussianDistribution,
-    IdentityDistribution,
-)
+from nemo.collections.common.video_tokenizers.modules.distributions import GaussianDistribution, IdentityDistribution
 from nemo.collections.common.video_tokenizers.modules.layers2d import Decoder, Encoder
 from nemo.collections.common.video_tokenizers.modules.layers3d import (
     DecoderBase,

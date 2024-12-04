@@ -18,11 +18,11 @@
 
 from nemo.collections.common.video_tokenizers.modules import (
     ContinuousFormulation,
-    DiscreteQuantizer,
-    EncoderType,
-    DecoderType,
-    Encoder3DType,
     Decoder3DType,
+    DecoderType,
+    DiscreteQuantizer,
+    Encoder3DType,
+    EncoderType,
 )
 
 continuous_image = dict(

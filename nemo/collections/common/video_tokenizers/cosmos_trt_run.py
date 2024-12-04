@@ -17,9 +17,9 @@
 # editdistance
 # https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.7.0/tars/TensorRT-10.7.0.23.Linux.x86_64-gnu.cuda-12.6.tar.gz
 
+import argparse
 import os
 import shutil
-import argparse
 
 import torch
 
@@ -28,25 +28,26 @@ from nemo.export.tensorrt_lazy_compiler import trt_compile
 
 parser = argparse.ArgumentParser(description="Export and run tokenizer in TensorRT")
 parser.add_argument(
-    "--tokenizer_name", type=str, default="Cosmos-Tokenizer-CV4x8x8", help="Tokenizer name or path",
+    "--tokenizer_name",
+    type=str,
+    default="Cosmos-Tokenizer-CV4x8x8",
+    help="Tokenizer name or path",
 )
 parser.add_argument(
-    "--engine_path", type=str, default="outputs", help="Path to TensorRT engine",
+    "--engine_path",
+    type=str,
+    default="outputs",
+    help="Path to TensorRT engine",
 )
-parser.add_argument(
-    "--min_shape", type=int, nargs='+', help="min input shape for inference"
-)
-parser.add_argument(
-    "--opt_shape", type=int, nargs='+', help="opt input shape for inference"
-)
+parser.add_argument("--min_shape", type=int, nargs='+', help="min input shape for inference")
+parser.add_argument("--opt_shape", type=int, nargs='+', help="opt input shape for inference")
 parser.add_argument(
     "--max_shape", type=int, nargs='+', default=[1, 3, 9, 512, 512], help="max input shape for inference"
 )
-parser.add_argument(
-    "--clean", action="store_true", help="Clean all files in engine_path before export"
-)
+parser.add_argument("--clean", action="store_true", help="Clean all files in engine_path before export")
 
 args = parser.parse_args()
+
 
 def main():
     model = CausalVideoTokenizer.from_pretrained(args.tokenizer_name, use_pytorch=True, dtype="float")
@@ -91,6 +92,7 @@ def main():
 
     input_tensor = torch.randn(max_shape).to('cuda').to(torch.float)
     output = model_wrapper(input_tensor)
+
 
 if __name__ == '__main__':
     main()

@@ -24,9 +24,7 @@ from torch import nn
 from nemo.collections.common.video_tokenizers.modules import DecoderType, DiscreteQuantizer, EncoderType
 from nemo.collections.common.video_tokenizers.modules.quantizers import InvQuantizerJit
 
-NetworkEval = namedtuple(
-    "NetworkEval", ["reconstructions", "quant_loss", "quant_info"]
-)
+NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant_info"])
 
 
 class DiscreteImageTokenizer(nn.Module):
@@ -36,41 +34,25 @@ class DiscreteImageTokenizer(nn.Module):
         self.embedding_dim = embedding_dim
 
         encoder_name = kwargs.get("encoder", EncoderType.Default.name)
-        self.encoder = EncoderType[encoder_name].value(
-            z_channels=z_channels, **kwargs
-        )
+        self.encoder = EncoderType[encoder_name].value(z_channels=z_channels, **kwargs)
 
         decoder_name = kwargs.get("decoder", DecoderType.Default.name)
-        self.decoder = DecoderType[decoder_name].value(
-            z_channels=z_channels, **kwargs
-        )
+        self.decoder = DecoderType[decoder_name].value(z_channels=z_channels, **kwargs)
         self.quant_conv = nn.Conv2d(z_channels, embedding_dim, 1)
         self.post_quant_conv = nn.Conv2d(embedding_dim, z_channels, 1)
 
         quantizer_name = kwargs.get("quantizer", DiscreteQuantizer.RESFSQ.name)
         if quantizer_name == DiscreteQuantizer.VQ.name:
-            assert (
-                "num_embeddings" in kwargs
-            ), f"`num_embeddings` must be provided for {quantizer_name}."
+            assert "num_embeddings" in kwargs, f"`num_embeddings` must be provided for {quantizer_name}."
             kwargs.update(dict(embedding_dim=embedding_dim))
         elif quantizer_name == DiscreteQuantizer.LFQ.name:
-            assert (
-                "codebook_size" in kwargs
-            ), f"`codebook_size` must be provided for {quantizer_name}."
-            assert (
-                "codebook_dim" in kwargs
-            ), f"`codebook_dim` must be provided for {quantizer_name}."
+            assert "codebook_size" in kwargs, f"`codebook_size` must be provided for {quantizer_name}."
+            assert "codebook_dim" in kwargs, f"`codebook_dim` must be provided for {quantizer_name}."
         elif quantizer_name == DiscreteQuantizer.FSQ.name:
-            assert (
-                "levels" in kwargs
-            ), f"`levels` must be provided for {quantizer_name}."
+            assert "levels" in kwargs, f"`levels` must be provided for {quantizer_name}."
         elif quantizer_name == DiscreteQuantizer.RESFSQ.name:
-            assert (
-                "levels" in kwargs
-            ), f"`levels` must be provided for {quantizer_name}.name."
-            assert (
-                "num_quantizers" in kwargs
-            ), f"`num_quantizers` must be provided for {quantizer_name}."
+            assert "levels" in kwargs, f"`levels` must be provided for {quantizer_name}.name."
+            assert "num_quantizers" in kwargs, f"`num_quantizers` must be provided for {quantizer_name}."
         self.quantizer = DiscreteQuantizer[quantizer_name].value(**kwargs)
 
         num_parameters = sum(param.numel() for param in self.parameters())

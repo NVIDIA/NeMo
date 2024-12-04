@@ -15,12 +15,12 @@
 """Utility functions for the inference libraries."""
 
 import os
+import re
 from glob import glob
 
 import mediapy as media
 import numpy as np
 import torch
-import re
 
 from nemo.collections.common.video_tokenizers.networks import TokenizerConfigs, TokenizerModels
 
@@ -346,11 +346,7 @@ def get_tokenizer_config(tokenizer_type) -> TokenizerConfigs:
     if match:
         name, temporal, spatial = match.groups()
         tokenizer_config = TokenizerConfigs[name].value
-        tokenizer_config.update(
-            dict(spatial_compression=int(spatial))
-        )
-        tokenizer_config.update(
-            dict(temporal_compression=int(temporal))
-        )
+        tokenizer_config.update(dict(spatial_compression=int(spatial)))
+        tokenizer_config.update(dict(temporal_compression=int(temporal)))
         return tokenizer_config
     return None
