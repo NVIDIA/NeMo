@@ -677,11 +677,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         input_ids_lens = batch.prompted_transcript_lens - 1
 
         num_frames = batch.audio_lens.sum().float()
-        num_tokens = input_ids_lens.sum().float()
-        tot_frames = torch.as_tensor(batch.audio.numel(), device=num_frames.device, dtype=torch.float)
-        tot_tokens = torch.as_tensor(batch.prompted_transcript.numel(), device=num_frames.device, dtype=torch.float)
-
-        num_frames = batch.audio_lens.sum().float()
         num_tokens = batch.prompted_transcript_lens.sum().float()
         tot_frames = torch.as_tensor(batch.audio.numel(), device=num_frames.device, dtype=torch.float)
         tot_tokens = torch.as_tensor(batch.prompted_transcript.numel(), device=num_frames.device, dtype=torch.float)
@@ -696,8 +691,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Mask components: 1) discard padding  &  2) discard prompt (notice the negation)
         # For a full decoder sequence O with len M, the loss mask skips the first element,
         # covering the remaining M-1 elements - hence we subtract 1 from prompt lens to account BOS.
-        maxlen = batch.prompted_transcript.shape[1] - 1
-        loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
+        loss_mask = None
+        if self.cfg.get("use_loss_mask_for_prompt", False):
+            maxlen = batch.prompted_transcript.shape[1] - 1
+            loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
         audio_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
 
         tensorboard_logs = {
@@ -726,8 +723,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Mask components: 1) discard padding  &  2) discard prompt (notice the negation)
         # For a full decoder sequence O with len M, the loss mask skips the first element,
         # covering the remaining M-1 elements - hence we subtract 1 from prompt lens to account BOS.
-        maxlen = batch.prompted_transcript.shape[1] - 1
-        loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
+        loss_mask = None
+        if self.cfg.get("use_loss_mask_for_prompt", False):
+            maxlen = batch.prompted_transcript.shape[1] - 1
+            loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
         transf_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
         self.val_loss(loss=transf_loss, num_measurements=loss_mask.long().sum())
         output_dict = {f'{eval_mode}_loss': transf_loss}
