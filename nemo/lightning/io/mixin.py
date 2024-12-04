@@ -613,7 +613,7 @@ def _io_unflatten_object(values, metadata):
 
     output_dir = _thread_local.output_dir
 
-    if len(values) == 1:
+    if len(values) == 1 and values[0] is not None:
         pickle_path = values[0]
         with open(Path(output_dir) / pickle_path, "rb") as f:
             return pickle_load(f)
