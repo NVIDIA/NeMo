@@ -32,6 +32,9 @@ from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
+from nemo.utils.get_rank import is_global_rank_zero
+
+SPEECHLM_TEMP_CKPT_DIR = '/tmp/speechlm_dummy_ckpt'
 
 
 class SpeechToTextLLMPEFT(PEFT):
@@ -209,10 +212,10 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         self, path: _PATH, sharded_state_dict, map_location: Optional[Callable] = None, load_base: bool = False
     ) -> None:
         if load_base:
-            import tempfile
+            tempdir = Path(SPEECHLM_TEMP_CKPT_DIR)
+            if is_global_rank_zero():
+                tempdir.mkdir(parents=True, exist_ok=True)
 
-            with tempfile.TemporaryDirectory() as tempdir:
-                # base_sharded_state_dict = self._get_base_sharded_state_dict(sharded_state_dict)
                 base_sharded_state_dict = {
                     "state_dict": dict(),
                     "sharded_state_dict": dict(sharded_state_dict['state_dict']),
@@ -221,10 +224,17 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
                 async_save = getattr(self.checkpoint_io, "async_save", False)
                 self.checkpoint_io.async_save = False
                 self.checkpoint_io.save_checkpoint(base_sharded_state_dict, tempdir)
-                model_ckpt = self.checkpoint_io.load_checkpoint(tempdir, sharded_state_dict, map_location)
-                model_ckpt = self._fix_ckpt_device(model_ckpt)
-                self.checkpoint_io.async_save = async_save
-                torch.cuda.empty_cache()
+
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            model_ckpt = self.checkpoint_io.load_checkpoint(tempdir, sharded_state_dict, map_location)
+            model_ckpt = self._fix_ckpt_device(model_ckpt)
+            self.checkpoint_io.async_save = async_save
+            torch.cuda.empty_cache()
+            if is_global_rank_zero():
+                import shutil
+
+                shutil.rmtree(tempdir)  # remove temporary directory
             return model_ckpt
         else:
             model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location)
