@@ -13,10 +13,10 @@
 # limitations under the License.
 
 
-from nemo.utils.distributed_checkpointing import preprocess_common_state_dict_before_consistency_check
+from nemo.utils.dist_checkpointing import preprocess_common_state_dict_before_consistency_check
 
 
-def test_preprocess_common_state_dict_before_consistency_check(self):
+def test_preprocess_common_state_dict_before_consistency_check():
     """Test processing common state dict before saving."""
 
     # Case 1: Callbacks/Timer included in state dict
