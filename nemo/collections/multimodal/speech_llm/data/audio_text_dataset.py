@@ -123,7 +123,8 @@ def _speechllm_audio_text_collate_fn(
 
     loss_mask = [build_loss_mask(item)[1:] for item in batch]
 
-    max_length = max([len(x) for x in input_ids]) + tokens_to_generate
+    # add 1 for actual max length in batch
+    max_length = max([len(x) for x in input_ids]) + tokens_to_generate + 1
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
         max_length = max_seq_length
