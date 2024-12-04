@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from unittest.mock import ANY, MagicMock, patch
 
-import pytest
 import torch
 from torch import nn
 
@@ -100,13 +98,8 @@ def test_init_parallel_ranks() -> None:
         "tensor_model_parallel_size": 2,
         "pipeline_model_parallel_size": 3,
         "virtual_pipeline_model_parallel_size": 4,
-<<<<<<< HEAD
-        "context_parallel_size": cp,
-        "expert_model_parallel_size": ep,
-=======
         "context_parallel_size": 2,
         "expert_model_parallel_size": 2,
->>>>>>> parent of 1abf70960... test ep and cp init separately
         "pipeline_model_parallel_split_rank": None,
         "encoder_pipeline_model_parallel_size": 0,
         "encoder_tensor_model_parallel_size": 0,
