@@ -29,7 +29,6 @@ from nemo.collections.llm.gpt.data import (
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (
-    MegatronAutoModel,
     Baichuan2Config,
     Baichuan2Config7B,
     Baichuan2Model,
@@ -79,6 +78,7 @@ from nemo.collections.llm.gpt.model import (
     LlamaConfig,
     LlamaModel,
     MaskedTokenLossReduction,
+    MegatronAutoModel,
     MistralConfig7B,
     MistralModel,
     MistralNeMoConfig12B,

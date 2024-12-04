@@ -13,16 +13,14 @@
 # limitations under the License.
 
 
-
 def test_all_models_in_registry():
     from nemo.collections import llm
     from nemo.collections.llm.gpt.model.megatron_auto_model import HF_TO_MCORE_REGISTRY
 
-    model_class_names = list(filter(lambda x: 'model' in x.lower() and x[0].isupper() and not 'auto' in x.lower(), dir(llm)))\
-
-    mcore_models = set(
-        cls.__name__ for cls in HF_TO_MCORE_REGISTRY.values()
+    model_class_names = list(
+        filter(lambda x: 'model' in x.lower() and x[0].isupper() and not 'auto' in x.lower(), dir(llm))
     )
+    mcore_models = set(cls.__name__ for cls in HF_TO_MCORE_REGISTRY.values())
     skipped = set(['GPTModel', 'T5Model'])
     for model_class_name in model_class_names:
         if model_class_name in skipped:
