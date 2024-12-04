@@ -897,6 +897,8 @@ class MegatronBaseModel(NLPModel):
                 except TypeError as e:
                     if "unexpected keyword argument 'requires_grad_only'" in str(e):
                         params = self.parameters()
+                    else:
+                        raise
                 self._optimizer.init_params_bucket(params)
             if hasattr(self, 'distributed_adam_buckets'):
                 del self.distributed_adam_buckets
