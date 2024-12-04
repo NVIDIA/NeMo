@@ -363,7 +363,7 @@ def fake_initialize_model_parallel(
         expert_tensor_parallel_size * expert_model_parallel_size_ * pipeline_model_parallel_size
     )
     expert_data_parallel_size = decoder_world_size // expert_tensor_model_pipeline_parallel_size
-    if decoder_world_size % expert_tensor_model_pipeline_parallel_size == 0:
+    if decoder_world_size % expert_tensor_model_pipeline_parallel_size != 0:
         raise RuntimeError(
             f"decoder world_size ({decoder_world_size}) is not divisible by expert_tensor_model_pipeline_parallel size ({expert_tensor_model_pipeline_parallel_size})"
         )
