@@ -53,17 +53,13 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 
-def worker_init_fn(worker_id):
-    # Access worker information
-    logging.info(f"Worker {worker_id} initializing...")
-    worker_info = get_worker_info()
-    dataset = worker_info.dataset  # Get the dataset instance in this worker
-
-    # Initialize a non-picklable tokenizer for this worker
+def setup_tokenizers(tokenizer_config, use_text_conditioning_tokenizer, mode='train'):
+    # Being used in both model and worker_init_fn, so it is defined here
+    # Returns two tokenizers: one for TTS transcript and one for conditioning text (if needed)
     tokenizers = []
     tokenizer_names = []
-    for tokenizer_name in dataset.tokenizer_config:
-        tokenizer_config = dataset.tokenizer_config[tokenizer_name]
+    for tokenizer_name in tokenizer_config:
+        tokenizer_config = tokenizer_config[tokenizer_name]
         if tokenizer_config._target_ == 'AutoTokenizer':
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_config.pretrained_model)
         else:
@@ -71,15 +67,35 @@ def worker_init_fn(worker_id):
             if "g2p" in tokenizer_config:
                 text_tokenizer_kwargs["g2p"] = instantiate(tokenizer_config.g2p)
             tokenizer = instantiate(tokenizer_config, **text_tokenizer_kwargs)
-            if dataset.dataset_type == 'test' and hasattr(tokenizer, "set_phone_prob"):
-                logging.info("Setting phone prob to 1.0 for test dataset")
+            if mode == 'test' and hasattr(tokenizer, "set_phone_prob"):
                 tokenizer.set_phone_prob(1.0)
         tokenizers.append(tokenizer)
         tokenizer_names.append(tokenizer_name)
-    dataset.text_tokenizer = AggregatedTTSTokenizer(tokenizers, tokenizer_names)
-    logging.info(f"Tokenizer instantiated: {tokenizer}")
-    if dataset.use_text_conditioning_tokenizer:
-        dataset.text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small") # Used for text conditioning
+    
+    aggregated_tokenizer = AggregatedTTSTokenizer(tokenizers, tokenizer_names) # TTS Transcript tokenizer
+    text_conditioning_tokenizer = None
+    
+    if use_text_conditioning_tokenizer:
+        # TODO: make this configurable
+        # Conditioning text tokenizer
+        text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+    
+    return aggregated_tokenizer, text_conditioning_tokenizer
+
+
+def worker_init_fn(worker_id):
+    # For mp.set_start_method("spawn", force=True)
+    # The dataset class should be picklable, so we initialize non-picklable objects here
+    logging.info(f"Worker {worker_id} initializing...")
+    worker_info = get_worker_info()
+    dataset = worker_info.dataset  # Get the dataset instance in this worker
+    tokenizer, text_conditioning_tokenizer = setup_tokenizers(
+        dataset.tokenizer_config, 
+        dataset.use_text_conditioning_tokenizer,
+        mode=dataset.dataset_type
+    )
+    dataset.text_tokenizer = tokenizer
+    dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
 
 class T5TTS_Model(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -97,7 +113,11 @@ class T5TTS_Model(ModelPT):
             with open_dict(cfg):
                 cfg.text_tokenizers = {"english_phoneme": cfg.text_tokenizer}
                 del cfg['text_tokenizer']
-        self.tokenizer = self._setup_tokenizer(cfg)
+        
+        self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
+        tokenizer, text_conditioning_tokenizer = self._setup_tokenizers(cfg)
+        self.tokenizer = tokenizer
+        self.text_conditioning_tokenizer = text_conditioning_tokenizer
 
         num_tokens_tokenizer = len(self.tokenizer.tokens)
         num_tokens = num_tokens_tokenizer + 2 # +2 for BOS and EOS
@@ -115,7 +135,7 @@ class T5TTS_Model(ModelPT):
             self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 3
 
         self._tb_logger = None
-        self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
+        
         self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
         # use_kv_cache_for_inference True works for native attention and tested only with learnable position embeddings for now.
@@ -180,7 +200,6 @@ class T5TTS_Model(ModelPT):
             raise ValueError(f"Unsupported model type {self.model_type}")
         
         if self.use_text_conditioning_encoder:
-            self.text_conditioning_tokenizer = self._setup_text_conditioning_tokenizer(cfg)
             self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
 
         self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
@@ -206,31 +225,15 @@ class T5TTS_Model(ModelPT):
     def load_state_dict(self, state_dict, strict=True):
         # Override to load all the keys except _speaker_verification_model and _codec_model
         super().load_state_dict(state_dict, strict=False)
-        
-    def _setup_tokenizer(self, cfg, mode='train'):
-        tokenizers = []
-        tokenizer_names = []
-        for tokenizer_name in cfg.text_tokenizers:
-            tokenizer_config = cfg.text_tokenizers[tokenizer_name]
-            if tokenizer_config._target_ == 'AutoTokenizer':
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer_config.pretrained_model)
-            else:
-                text_tokenizer_kwargs = {}
-                if "g2p" in tokenizer_config:
-                    text_tokenizer_kwargs["g2p"] = instantiate(tokenizer_config.g2p)
-                tokenizer = instantiate(tokenizer_config, **text_tokenizer_kwargs)
-                if mode == 'test' and hasattr(tokenizer, "set_phone_prob"):
-                    tokenizer.set_phone_prob(1.0)
-            tokenizers.append(tokenizer)
-            tokenizer_names.append(tokenizer_name)
-        aggregated_tokenizer = AggregatedTTSTokenizer(tokenizers, tokenizer_names)
-        return aggregated_tokenizer
-
-    def _setup_text_conditioning_tokenizer(self, cfg):
-        # Tokenizer used for context text
-        text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
-        return text_conditioning_tokenizer
     
+    def _setup_tokenizers(self, cfg, mode='test'):
+        tokenizer, text_conditioning_tokenizer = setup_tokenizers(
+            cfg.text_tokenizers, 
+            cfg.use_text_conditioning_encoder,
+            mode=mode
+        )
+        return tokenizer, text_conditioning_tokenizer
+
     @property
     def tb_logger(self):
         if self._tb_logger is None:
@@ -759,7 +762,6 @@ class T5TTS_Model(ModelPT):
                 audio_path = os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}.wav')
                 sf.write(audio_path, predicted_audio_np, self.cfg.sample_rate)
 
-
     def on_validation_epoch_end(self):
         collect = lambda key: torch.stack([x[key] for x in self.validation_step_outputs]).mean()
         val_loss = collect("val_loss")
@@ -800,10 +802,7 @@ class T5TTS_Model(ModelPT):
         if cfg.dataloader_params.num_workers == 0:
             persistent_workers = False
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-            dataset.text_tokenizer = self._setup_tokenizer(self.cfg)
-            if self.cfg.use_text_conditioning_encoder:
-                dataset.text_conditioning_tokenizer = self._setup_text_conditioning_tokenizer(self.cfg)
-
+            dataset.text_tokenizer, dataset.text_conditioning_tokenizer = self._setup_tokenizers(cfg)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params, worker_init_fn=worker_init_fn, persistent_workers=persistent_workers
         )
@@ -815,9 +814,7 @@ class T5TTS_Model(ModelPT):
         if cfg.dataloader_params.num_workers == 0:
             persistent_workers = False
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-            dataset.text_tokenizer = self._setup_tokenizer(self.cfg, mode='test')
-            if self.cfg.use_text_conditioning_encoder:
-                dataset.text_conditioning_tokenizer = self._setup_text_conditioning_tokenizer(self.cfg)
+            dataset.text_tokenizer, dataset.text_conditioning_tokenizer = self._setup_tokenizers(cfg, mode='test')
 
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params, worker_init_fn=worker_init_fn, persistent_workers=persistent_workers)
         return data_loader

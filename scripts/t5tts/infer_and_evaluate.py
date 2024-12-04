@@ -33,9 +33,11 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
     with open_dict(model_cfg):
         model_cfg.codecmodel_path = codecmodel_path
-        model_cfg.text_tokenizer.g2p.phoneme_dict = "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
-        model_cfg.text_tokenizer.g2p.heteronyms = "scripts/tts_dataset_files/heteronyms-052722"
-        model_cfg.text_tokenizer.g2p.phoneme_probability = 1.0
+        if hasattr(model_cfg, 'text_tokenizer'):
+            # Backward compatibility for models trained with absolute paths in text_tokenizer
+            model_cfg.text_tokenizer.g2p.phoneme_dict = "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+            model_cfg.text_tokenizer.g2p.heteronyms = "scripts/tts_dataset_files/heteronyms-052722"
+            model_cfg.text_tokenizer.g2p.phoneme_probability = 1.0
         model_cfg.train_ds = None
         model_cfg.validation_ds = None
 
@@ -84,10 +86,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
             context_duration_min=model.cfg.get('context_duration_min', 5.0),
             context_duration_max=model.cfg.get('context_duration_max', 5.0),
         )
-        test_dataset.text_tokenizer = model.tokenizer
-        if model.use_text_conditioning_encoder:
-            test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
-
+        test_dataset.text_tokenizer, test_dataset.text_conditioning_tokenizer = model._setup_tokenizers(model.cfg, mode='test')
 
         test_data_loader = torch.utils.data.DataLoader(
             test_dataset,

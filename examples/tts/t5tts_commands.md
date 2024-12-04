@@ -38,7 +38,7 @@ Currently supports three model types `single_encoder_sv_tts` , `multi_encoder_co
 
 4. `decoder_pretrain_synthesizer` : This is the model type used for pretraining the decoder only on audio data using next frame prediction loss. 
 
-## Training Command
+## Training
 
 ### Manifest structure
 For `single_encoder_sv_tts`, the manifest json files should contain the following keys: `audio_filepath, duration, text, speaker` . `speaker` is not currently being used so can be anything. Optionally, we can have a `context_audio_filepath` and `context_audio_duration` as well, if we want to use that for speaker embedding instead of the `audio_filepath`.
@@ -139,135 +139,17 @@ To train then model without CTC loss and prior, set the below params:
 ```
 model.alignment_loss_scale=0.0 \
 model.prior_scaling_factor=null \
-```
+``` 
 
+### Training sub files on cluster
 
-### Training sub file for cluster (Draco-OCI)
+| Model Type | Cluster | Training Sub File |
+|------------|---------|--------|
+| multi_encoder_context_tts | draco-oci-login-01.draco-oci-iad.nvidia.com |/lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalized_me.sub |
+| decoder_context_tts | draco-oci-login-01.draco-oci-iad.nvidia.com | /lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalizedt5_decoder.sub |
+| single_encoder_sv_tts | draco-oci-login-01.draco-oci-iad.nvidia.com | /lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalizedt5_singleencoder.sub |
+| decoder_pretrain_synthesizer | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/newt5_pretrain.sub |
 
-```
-#!/bin/bash
-#SBATCH -t 4:00:00                 # wall time
-#SBATCH --ntasks-per-node=8        # tasks per node
-#SBATCH --exclusive                # exclusive node access
-#SBATCH --mem=0                    # all mem avail
-#SBATCH --mail-type=FAIL           # only send email on failure
-#SBATCH --overcommit               # Needed for pytorch
-#SBATCH -p batch_block1,batch_block3,batch_block4
-#SBATCH --gres=gpu:8
-#SBATCH -N 2                   # number of nodes
-#SBATCH -A 	convai_convaird_nemo-speech
-#SBATCH -J 	convai_convaird_nemo-speech-sample:samplepneekhara
-
-source containers_nemodev.sh
-export HYDRA_FULL_ERROR=1
-export CUDA_LAUNCH_BLOCKING=1
-
-set -x
-
-EXP_DIR="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NormalizedNewT5Experiments/unnormalizedLalign005_multiEncoder_textcontext_kernel3"
-DOCKER_EXP_DIR="/gitrepos/experiments/NormalizedNewT5Experiments/unnormalizedLalign005_multiEncoder_textcontext_kernel3"
-
-mkdir -p $EXP_DIR
-
-### export PYTORCH_NO_CUDA_MEMORY_CACHING=1
-### export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:1000
-read -r -d '' cmd <<EOF
-echo "*******STARTING********" \
-&& cd /gitrepos/SimpleNeMo/NeMo ; export PYTHONPATH="/gitrepos/SimpleNeMo/NeMo/.:${PYTHONPATH}" ; cd /gitrepos/SimpleNeMo/NeMo \
-&& echo "Starting training" \
-&& python examples/tts/t5tts.py \
-exp_manager.exp_dir="${DOCKER_EXP_DIR}" \
-+exp_manager.version=0 \
-weighted_sampling_steps_per_epoch=10000 \
-max_epochs=500 \
-batch_size=16 \
-phoneme_dict_path="/gitrepos/SimpleNeMo/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt" \
-heteronyms_path="/gitrepos/SimpleNeMo/NeMo/scripts/tts_dataset_files/heteronyms-052722" \
-+train_ds_meta.hifittstrain.manifest_path="/data/TTS/manifests/hifitts__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
-+train_ds_meta.hifittstrain.audio_dir="/data/TTS/hi_fi_tts_v0" \
-+train_ds_meta.hifittstrain.feature_dir="/data/TTS/hi_fi_tts_v0" \
-+train_ds_meta.hifittstrain.sample_weight=1.0 \
-+train_ds_meta.rivatrain.manifest_path="/data/TTS/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
-+train_ds_meta.rivatrain.audio_dir="/data/TTS/riva" \
-+train_ds_meta.rivatrain.feature_dir="/data/TTS/riva" \
-+train_ds_meta.rivatrain.sample_weight=1.0 \
-+train_ds_meta.rivatraintextcontext.manifest_path="/data/TTS/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_textContextsimplet5_withContextAudioPaths.json" \
-+train_ds_meta.rivatraintextcontext.audio_dir="/data/TTS/riva" \
-+train_ds_meta.rivatraintextcontext.feature_dir="/data/TTS/riva" \
-+train_ds_meta.rivatraintextcontext.sample_weight=1.0 \
-+train_ds_meta.libri100train.manifest_path="/data/TTS/manifests/libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
-+train_ds_meta.libri100train.audio_dir="/data/TTS/LibriTTS" \
-+train_ds_meta.libri100train.feature_dir="/data/TTS/LibriTTS" \
-+train_ds_meta.libri100train.sample_weight=1.0 \
-+train_ds_meta.libri360train.manifest_path="/data/TTS/manifests/libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json" \
-+train_ds_meta.libri360train.audio_dir="/data/TTS/LibriTTS" \
-+train_ds_meta.libri360train.feature_dir="/data/TTS/LibriTTS" \
-+train_ds_meta.libri360train.sample_weight=1.0 \
-+train_ds_meta.mlstrain.manifest_path="/data/TTS/manifests/mls17k__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_verified_simplet5_withContextAudioPaths.json" \
-+train_ds_meta.mlstrain.audio_dir="/MLS" \
-+train_ds_meta.mlstrain.feature_dir="/MLS" \
-+train_ds_meta.mlstrain.sample_weight=0.1 \
-+val_ds_meta.libridev.manifest_path="/data/TTS/manifests/dev_clean_withContextAudioPaths.json" \
-+val_ds_meta.libridev.audio_dir="/data/TTS/LibriTTS" \
-+val_ds_meta.libridev.feature_dir="/data/TTS/LibriTTS" \
-model.train_ds.dataset.min_duration=0.5 \
-model.validation_ds.dataset.min_duration=0.5 \
-model.context_duration_min=3.0 \
-model.context_duration_max=8.0 \
-model.codecmodel_path="/gitrepos/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
-model.model_type="multi_encoder_context_tts" \
-model.transcript_decoder_layers='[3,4,5,6,7]' \
-model.context_decoder_layers='[8,9]' \
-model.use_text_conditioning_encoder=true \
-model.use_perceiver=false \
-model.alignment_loss_scale=0.005 \
-model.prior_scaling_factor=0.5 \
-model.prior_scaledown_start_step=8000 \
-model.prior_end_step=12000 \
-model.t5_encoder.pos_emb.name="learnable" \
-model.t5_decoder.pos_emb.name="learnable" \
-model.context_encoder.pos_emb.name="learnable" \
-model.t5_encoder.kernel_size=3 \
-model.t5_decoder.kernel_size=3 \
-model.context_encoder.kernel_size=3 \
-model.t5_encoder.n_layers=6 \
-model.context_encoder.n_layers=6 \
-model.train_ds.dataloader_params.num_workers=2 \
-model.validation_ds.dataloader_params.num_workers=0 \
-trainer.devices=8 \
-trainer.val_check_interval=1000 \
-model.optim.lr=1e-4 \
-trainer.num_nodes=${SLURM_JOB_NUM_NODES}
-EOF
-
-echo $cmd
-
-srun -o ${EXP_DIR}/slurm-sft-%j-%n.out -e ${EXP_DIR}/slurm-sft-%j-%n.err --no-container-mount-home --container-image="$CONTAINER" $MOUNTS bash -c "${cmd}"
-set +x
-
-```
-
-Here's my containers file for relevant file mounts, docker container.
-
-```
-#!/usr/bin/env sh
-
-######################################################################
-# @author      : adithyare (adithyare@selene-login-01)
-# @file        : containers
-# @created     : Saturday Aug 13, 2022 15:29:54 PDT
-#
-# @description : file with holds all the paths required for docker containers
-######################################################################
-
-
-CONTAINER="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/launchscripts/nemodevNov24.sqsh"
-
-CODE="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos:/gitrepos"
-DATASETS="/lustre/fsw/llmservice_nemo_speechlm/data/speechlm_codecs_updated/:/datap/misc/speechllm_codecdatasets/,/lustre/fsw/llmservice_nemo_speechlm/data/MLS:/MLS,/lustre/fsw/llmservice_nemo_speechlm/data/speechllm_codecdatasets_new/:/datap/misc/speechllm_codecdatasets_new/,/lustre/fsw/llmservice_nemo_speechlm/data/TTS/:/data/TTS/"
-
-MOUNTS="--container-mounts=$CODE,$DATASETS"
-```
 
 ## Inference and Eval
 
