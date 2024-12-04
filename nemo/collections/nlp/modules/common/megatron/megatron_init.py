@@ -357,13 +357,22 @@ def fake_initialize_model_parallel(
         rank_offset=encoder_world_size,
     )
 
-    # the default setting uses DEP (expert-parallel ranks for FFN are data-parallel ranks for Attention. This definition follows that rule.)
+    # This configuration folds EP first into CP, and if EP>CP fold the remained ranks of EP into DP
+    expert_tensor_parallel_size = tensor_model_parallel_size
+    expert_tensor_model_pipeline_parallel_size = (
+        expert_tensor_parallel_size * expert_model_parallel_size_ * pipeline_model_parallel_size
+    )
+    expert_data_parallel_size = decoder_world_size // expert_tensor_model_pipeline_parallel_size
+    if decoder_world_size % expert_tensor_model_pipeline_parallel_size == 0:
+        raise RuntimeError(
+            f"decoder world_size ({decoder_world_size}) is not divisible by expert_tensor_model_pipeline_parallel size ({expert_tensor_model_pipeline_parallel_size})"
+        )
     expert_decoder_rank_generator = RankGenerator(
-        tp=tensor_model_parallel_size,  # the same as Attention part
+        tp=expert_tensor_parallel_size,
         ep=expert_model_parallel_size_,
-        dp=(data_parallel_size // expert_model_parallel_size_),
+        dp=expert_data_parallel_size,
         pp=pipeline_model_parallel_size,
-        cp=context_parallel_size,
+        cp=1,
         order='tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
         rank_offset=encoder_world_size,
     )
