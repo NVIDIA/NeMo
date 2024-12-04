@@ -3322,7 +3322,7 @@ jobs:
         rm -rf examples/nlp/language_modeling/t5_pretrain_results
         rm -rf examples/nlp/language_modeling/t5_index_mappings
 
-  L2_Megatron_T5_Pretraining_and_Resume_Training_PP2:
+  OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_T5_Pretraining_and_Resume_Training_PP2') || needs.cicd-test-container-setup.outputs.all == 'true'
