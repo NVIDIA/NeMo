@@ -61,12 +61,15 @@ def test_gemma_prompt_formatter_training_bos_eos_inserted_only_once_in_multiturn
         ]
     )
 
-    assert (ans["input_ids"] == -1).sum() == 2
-    assert ans["input_ids"][0] == -1
-    assert ans["input_ids"][-1] == -1
+    assert (ans["input_ids"] == bpe_tokenizer.bos).sum() == 1
+    assert (ans["input_ids"] == bpe_tokenizer.eos).sum() == 1
+    assert ans["input_ids"][0] == bpe_tokenizer.bos
+    assert ans["input_ids"][-1] == bpe_tokenizer.eos
 
-    assert (ans["context_ids"] == -1).sum() == 1
-    assert ans["context_ids"][0] == -1
+    assert (ans["context_ids"] == bpe_tokenizer.bos).sum() == 1
+    assert (ans["context_ids"] == bpe_tokenizer.eos).sum() == 0
+    assert ans["context_ids"][0] == bpe_tokenizer.bos
 
-    assert (ans["answer_ids"] == -1).sum() == 1
-    assert ans["answer_ids"][-1] == -1
+    assert (ans["answer_ids"] == bpe_tokenizer.bos).sum() == 0
+    assert (ans["answer_ids"] == bpe_tokenizer.eos).sum() == 1
+    assert ans["answer_ids"][-1] == bpe_tokenizer.eos

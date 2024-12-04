@@ -170,6 +170,7 @@ def tokenizer(tmp_path_factory, multimodal_conversations_path):
         bos=True,
         eos=True,
         user_defined_symbols=["[INST]", "[/INST]", "<<SYS>>", "<</SYS>>", "[audio]"],
+        remove_extra_whitespaces=True,
     )
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
