@@ -25,7 +25,7 @@ from nemo.lightning.io.mixin import track_io
 
 def get_args():
     parser = argparse.ArgumentParser(description='Finetune a small GPT model using NeMo 2.0')
-    parser.add_argument('--model', type=str.lower, choices=['mistral', 'mixtral'], help="model")
+    parser.add_argument('--model', type=str.lower, choices=['mistral', 'mixtral', '/mnt/datadrive/TestData/llm/phi3-mini-4k'], help="model")
     parser.add_argument('--max-steps', type=int, default=9, help="number of devices")
     parser.add_argument('--mbs', type=int, default=2, help="micro batch size")
     parser.add_argument('--gbs', type=int, default=4, help="global batch size")
@@ -113,13 +113,22 @@ def mistral_7b() -> pl.LightningModule:
     lora = llm.peft.LoRA()
     return model, lora
 
+def auto_model(model_path):
+    tokenizer = OrdTokenizer()
+    model = llm.MegatronAutoModel(model_path, tokenizer=tokenizer)
+    lora = llm.peft.LoRA()
+    return model, lora
 
 if __name__ == '__main__':
     args = get_args()
     if args.model == 'mistral':
         model, lora = mistral_7b()
-    else:
+    elif args.model == 'mixtral':
         model, lora = mixtral_8x7b()
+    else:
+        # do automodel
+        model, lora = auto_model(args.model)
+
     llm.finetune(
         model=model,
         data=squad(args.mbs, args.gbs),
