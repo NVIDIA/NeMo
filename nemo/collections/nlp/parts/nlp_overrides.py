@@ -1362,6 +1362,11 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                 checkpoint = {}
                 sharded_state_dict = instance.sharded_state_dict()
+                sharded_state_dict = {
+                    k.replace("model.", ""): sharded_state_dict.pop(k).key.replace("model.", "")
+                    for k in list(sharded_state_dict.keys())
+                }
+
                 checkpoint['state_dict'] = sharded_state_dict
                 if replace_sharded_tensor_key:
                     for v in checkpoint["state_dict"].values():
