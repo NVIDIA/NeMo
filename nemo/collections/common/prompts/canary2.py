@@ -166,7 +166,7 @@ def canary2(
             )
 
         # first, validate the utterance
-        expected_slots = {"source_lang", "target_lang", "pnc"}
+        expected_slots = {"source_lang", "target_lang"}
         missing_keys = expected_slots - set(cut.custom)
         if missing_keys:
             raise RuntimeError(
@@ -180,6 +180,7 @@ def canary2(
             "itn": "<|noitn|>",
             "timestamp": "<|notimestamp|>",
             "diarize": "<|nodiarize|>",
+            "pnc": "<|pnc|>",  # consistent with canary1
         }
         slots = {slot: cut.custom[slot] for slot in expected_slots}
         slots[formatter.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER

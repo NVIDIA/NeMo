@@ -656,7 +656,6 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
     c.supervisions[0].language = "en"
     c.source_lang = "en"
     c.target_lang = "en"
-    c.pnc = "no"
 
     # new format
     c = cuts[1]
@@ -694,14 +693,14 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
     i = 0
     assert (
         canary2_tokenizer.ids_to_text(batch.prompt[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|nopnc|><|noitn|><|notimestamp|><|nodiarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompt_lens[i] == 9
     assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'i##r##r##el##e##v##a##nt'
     assert batch.transcript_lens[i] == 8
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|nopnc|><|noitn|><|notimestamp|><|nodiarize|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompted_transcript_lens[i] == 18
 
