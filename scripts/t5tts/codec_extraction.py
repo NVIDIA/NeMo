@@ -138,6 +138,7 @@ def update_manifests(manifests, save_dir, dataset_names, codec_model_name):
         write_manifest(manifest.replace(".json", "_withAudioCodes_{}.json".format(codec_model_name)), records)
 
 def prepare_directories(base_save_dir, codec_model_name, manifests, audio_base_dirs, dataset_names):
+    print("In prepare_directories")
     save_dir = os.path.join(base_save_dir, codec_model_name)
     file_lists = []
     for midx, manifest in enumerate(manifests):
@@ -153,7 +154,7 @@ def prepare_directories(base_save_dir, codec_model_name, manifests, audio_base_d
             dir_path = os.path.dirname(file_path)
             out_dir_path = os.path.join(save_dir, dataset_names[midx], dir_path)
             if not os.path.exists(out_dir_path):
-                os.makedirs(out_dir_path)
+                os.makedirs(out_dir_path, exist_ok=True)
     print("Created directories for saving audio codes at: ", save_dir, len(file_lists))
     return save_dir, file_lists
 
@@ -211,7 +212,9 @@ if __name__ == "__main__":
                 audio_base_dirs,
                 dataset_names
             )
-        results = [save_dir, file_lists]
+            results = [save_dir, file_lists]
+        else:
+            results = [None, None]
         torch.distributed.broadcast_object(results, src=0)
         save_dir, file_lists = results
     else:
