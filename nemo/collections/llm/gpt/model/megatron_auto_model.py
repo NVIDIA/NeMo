@@ -44,7 +44,7 @@ HF_TO_MCORE_REGISTRY = {
     'Qwen2ForCausalLM': Qwen2Model,
     'StarcoderForCausal': StarcoderModel,
     'Starcoder2ForCausal': Starcoder2Model,
-    'NemotronModelForCausal': NemotronModel,
+    'NemotronForCausalLM': NemotronModel,
 }
 
 
