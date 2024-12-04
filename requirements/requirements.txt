@@ -12,3 +12,4 @@ torch
 tqdm>=4.41.0
 wget
 wrapt
+protobuf==3.20
