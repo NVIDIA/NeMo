@@ -128,6 +128,8 @@ if __name__ == '__main__':
     else:
         # do automodel
         model, lora = auto_model(args.model)
+        # Update this if you change the checkpoint.
+        assert isinstance(model, llm.Phi3Model), "Expected model to be of type llm.Phi3Model"
 
     llm.finetune(
         model=model,
