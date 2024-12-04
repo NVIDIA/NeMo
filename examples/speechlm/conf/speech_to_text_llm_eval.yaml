@@ -147,7 +147,7 @@ plugins:
 
 ############ AutoResume ############
 resume:
-  _target_: nemo.collections.speechlm.utils.resume.SLMAutoResume
+  _target_: nemo.collections.speechlm.utils.resume.SpeechLMAutoResume
   # _target_: nemo.lightning.AutoResume
   # restore_config:
   #   _target_: nemo.lightning.RestoreConfig

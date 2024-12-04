@@ -24,8 +24,10 @@ from nemo.utils.app_state import AppState
 
 
 @dataclass(kw_only=True)
-class SLMAutoResume(AutoResume):
-    """Dataclass for SLMAutoResume."""
+class SpeechLMAutoResume(AutoResume):
+    """
+    Wrapper for AutoResume to get rid of requirement on restore_config.
+    """
 
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
         if self.resume_from_path:
