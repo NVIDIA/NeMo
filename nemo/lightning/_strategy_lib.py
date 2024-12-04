@@ -22,11 +22,13 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping, Optio
 import torch
 from torch import nn
 
+from nemo.lightning.megatron_init import initialize_model_parallel_for_nemo
+
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
 if TYPE_CHECKING:
-    from lightning_fabric.utilities.types import Optimizable
+    from lightning.fabric.utilities.types import Optimizable
     from megatron.core.model_parallel_config import ModelParallelConfig
 
 
@@ -57,7 +59,6 @@ def init_parallel_ranks(
         seed (int, optional): The seed for random number generation. Defaults to 1234.
         fp8 (bool, optional): Whether to use fp8 precision for model parameters. Defaults to False.
     """
-    from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
     from nemo.utils import AppState
 
     app_state = AppState()
@@ -83,10 +84,13 @@ def init_parallel_ranks(
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
+        encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
+        encoder_pipeline_model_parallel_size=getattr(parallel_config, "encoder_pipeline_model_parallel_size", 0),
         seed=seed,
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
-        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False),
+        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
+        and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -112,6 +116,8 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
+                encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
@@ -129,16 +135,6 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
             # create MPI process group for UCX-based communication APIs
             if app_state.init_mpi_proc_group:
                 torch.distributed.new_group(backend="mpi")
-
-        if model:
-            # Set TP group
-            # Deep iterate but skip self to avoid infinite recursion.
-            for index, child in enumerate(model.modules()):
-                if index == 0:
-                    continue
-                if hasattr(child, "set_tensor_parallel_group"):
-                    tp_group = parallel_state.get_tensor_model_parallel_group()
-                    child.set_tensor_parallel_group(tp_group)
 
 
 def set_model_parallel_attributes(model, parallelism):
@@ -169,17 +165,20 @@ def set_model_parallel_attributes(model, parallelism):
 
 @contextmanager
 def megatron_lazy_init_context(config) -> Generator[None, None, None]:
-    from megatron.core.extensions import transformer_engine as _te
+    try:
+        from megatron.core.extensions import transformer_engine as _te
 
-    original = _te._get_extra_te_kwargs  # noqa: SLF001
+        original = _te._get_extra_te_kwargs  # noqa: SLF001
 
-    def _get_extra_te_kwargs_meta(c):
-        """Forces device to meta"""
-        kwargs = original(c)
-        kwargs['device'] = 'meta'
-        return kwargs
+        def _get_extra_te_kwargs_meta(c):
+            """Forces device to meta"""
+            kwargs = original(c)
+            kwargs['device'] = 'meta'
+            return kwargs
 
-    _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
+        _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
+    except ImportError:
+        pass
 
     _orig_perform_initialization = config.perform_initialization
     _orig_use_cpu_initialization = config.use_cpu_initialization
@@ -189,7 +188,13 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
 
     yield
 
-    _te._get_extra_te_kwargs = original  # noqa: SLF001
+    try:
+        from megatron.core.extensions import transformer_engine as _te
+
+        _te._get_extra_te_kwargs = original  # noqa: SLF001
+    except ImportError:
+        pass
+
     config.perform_initialization = _orig_perform_initialization
     config.use_cpu_initialization = _orig_use_cpu_initialization
 
@@ -510,6 +515,17 @@ def optimizer_sharded_state_dict(
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
+
+    ## convert from StrictHandling to bool for PTL
+    if strict is not None and not isinstance(strict, bool):
+        strict = parse_strict_flag(strict)
+        strict_options = [
+            StrictHandling.ASSUME_OK_UNEXPECTED,
+            StrictHandling.RAISE_UNEXPECTED,
+            StrictHandling.RAISE_ALL,
+        ]
+        strict = strict in strict_options
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:

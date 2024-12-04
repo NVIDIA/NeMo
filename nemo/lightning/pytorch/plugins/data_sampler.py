@@ -16,7 +16,7 @@ import dataclasses
 import logging
 from typing import List, Literal, Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
 from nemo.lightning.megatron_parallel import MegatronStep
@@ -44,9 +44,10 @@ class MegatronDataSampler(DataSampler):
         init_consumed_samples: int = 0,
         init_global_step: int = 0,
         output_log: bool = True,
-        drop_last: bool = True,
+        decoder_seq_len: Optional[int] = None,
     ):
         self.seq_len = seq_len
+        self.decoder_seq_len = decoder_seq_len
         self.output_log = output_log
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
@@ -57,7 +58,6 @@ class MegatronDataSampler(DataSampler):
         self.if_first_step = 0
         self.prev_global_batch_size = None
         self.init_global_step = init_global_step
-        self.drop_last = drop_last
 
     def setup(self, global_rank: int) -> None:
         from nemo.lightning.data import setup_microbatch_calculator
@@ -65,9 +65,14 @@ class MegatronDataSampler(DataSampler):
         setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size)
 
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
+        from megatron.core import parallel_state
+
         from nemo.lightning.data import add_megatron_sampler
 
         mode = getattr(dataloader, 'mode', 'train')
+
+        data_parallel_rank = parallel_state.get_data_parallel_rank()
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
         return add_megatron_sampler(
             dataloader,
             micro_batch_size=self.micro_batch_size,
@@ -75,7 +80,10 @@ class MegatronDataSampler(DataSampler):
             rampup_batch_size=self.rampup_batch_size,
             consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
             dataloader_type=self.dataloader_type,
-            drop_last=self.drop_last,
+            drop_last=mode not in ["test", "predict"],  # don't drop the incomplete batch in test and predict methods
+            dataloader_mode=mode,  # dataloader wrapped with nemo.lightning.data.WrappedDataLoader has mode attribute
+            rank=data_parallel_rank,
+            world_size=data_parallel_size,
         )
 
     def compute_consumed_samples(self, steps_since_resume=0) -> int:
@@ -104,6 +112,7 @@ class MegatronDataSampler(DataSampler):
             seq_length=self.seq_len,
             micro_batch_size=self.micro_batch_size,
             num_microbatches=self.num_microbatches,
+            decoder_seq_length=self.decoder_seq_len,
         )
 
     def on_megatron_microbatches_start(self, step: MegatronStep) -> None:

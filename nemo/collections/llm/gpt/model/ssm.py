@@ -86,7 +86,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = gpt_data_step
     tokenizer_model_path: str = None
 
-    def configure_model(self, tokenizer) -> "MCoreMambaModel":
+    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
 
         return MCoreMambaModel(
             self,
@@ -101,8 +101,8 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             rotary_percent=self.rotary_percent,
             rotary_base=self.rotary_base,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
+            pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
+            post_process=post_process or parallel_state.is_pipeline_last_stage(),
         )
 
 
@@ -139,7 +139,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
         source = ModelState(source)
         target = self.init()
-        trainer = self.nemo_setup(target, ckpt_async_save=False)
+        trainer = self.nemo_setup(target)
         source.to(self.config.params_dtype)
         target.to(self.config.params_dtype)
         self.convert_state(source, target)
@@ -290,6 +290,7 @@ class BaseMambaConfig2_7B(SSMConfig):
 @dataclass
 class NVIDIAMambaConfig8B(SSMConfig):
     hybrid_override_pattern: str = "M" * 56
+    num_attention_heads: int = 32
     num_layers: int = 56
     seq_length: int = 4096
     hidden_size: int = 4096

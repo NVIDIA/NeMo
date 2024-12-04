@@ -1,9 +1,23 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
 from nemo.collections.llm.t5.data.core import create_sft_dataset
@@ -57,10 +71,18 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.seed = seed
         self.dataset_root = Path(dataset_root)
 
-        # add additional tokens for T5 tokenizer
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        # create tokenizer if tokenizer is None
+        if tokenizer is None:
+            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "BertWordPieceCase")
+            special_tokens = {}
+            special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
+            tokenizer = get_nmt_tokenizer(
+                "megatron",
+                "BertWordPieceCase",
+                special_tokens=special_tokens,
+            )
+        self.tokenizer = tokenizer
 
         self.memmap_workers = memmap_workers
         self.num_workers = num_workers

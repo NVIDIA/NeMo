@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset, ssl_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
@@ -996,7 +996,12 @@ class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def inference_pass(
-        self, batch: ssl_dataset.AudioNoiseBatch, batch_idx: int, dataloader_idx: int = 0, mode: str = 'val'
+        self,
+        batch: ssl_dataset.AudioNoiseBatch,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+        mode: str = 'val',
+        apply_mask: bool = True,
     ):
         log_probs, encoded_len, masks, tokens = self.forward(
             input_signal=batch.audio,
@@ -1005,7 +1010,7 @@ class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
             noise_signal_length=batch.noise_len,
             noisy_input_signal=batch.noisy_audio,
             noisy_input_signal_length=batch.noisy_audio_len,
-            apply_mask=True,
+            apply_mask=apply_mask,
         )
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)

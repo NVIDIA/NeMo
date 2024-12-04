@@ -21,8 +21,8 @@ def set_env():
 
 from pathlib import Path
 
+import lightning.pytorch as pl
 import pytest
-import pytorch_lightning as pl
 import torch
 
 import nemo.lightning as nl
@@ -34,6 +34,7 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, Asyn
 def _get_strategy():
     strategy = nl.MegatronStrategy(
         enable_nemo_ckpt_io=False,
+        ckpt_async_save=False,
     )
     return strategy
 

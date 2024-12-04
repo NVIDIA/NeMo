@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from contextlib import ExitStack, contextmanager
 from datetime import timedelta
 from typing import (
@@ -15,21 +29,21 @@ from typing import (
 )
 
 import torch
-from lightning_fabric.accelerators import CPUAccelerator
-from lightning_fabric.accelerators.accelerator import Accelerator
-from lightning_fabric.plugins.collectives.torch_collective import default_pg_timeout
-from lightning_fabric.plugins.environments.cluster_environment import ClusterEnvironment
-from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
-from lightning_fabric.plugins.precision import Precision
-from lightning_fabric.strategies import DDPStrategy
-from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
-from lightning_fabric.utilities.types import _PATH, _Stateful
+from lightning.fabric.accelerators import CPUAccelerator
+from lightning.fabric.accelerators.accelerator import Accelerator
+from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
+from lightning.fabric.plugins.environments.cluster_environment import ClusterEnvironment
+from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning.fabric.plugins.precision import Precision
+from lightning.fabric.strategies import DDPStrategy
+from lightning.fabric.strategies.strategy import _validate_keys_for_strict_loading
+from lightning.fabric.utilities.types import _PATH, _Stateful
+from lightning.pytorch import LightningDataModule
+from lightning.pytorch.loops.fetchers import _DataFetcher
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning.pytorch.utilities.combined_loader import CombinedLoader
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning import LightningDataModule
-from pytorch_lightning.loops.fetchers import _DataFetcher
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
-from pytorch_lightning.utilities.combined_loader import CombinedLoader
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
@@ -58,6 +72,7 @@ class FabricMegatronStrategy(DDPStrategy):
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
+        microbatch_group_size_per_vp_stage: Optional[int] = None,
         context_parallel_size: int = 1,
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
@@ -94,6 +109,11 @@ class FabricMegatronStrategy(DDPStrategy):
         self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
+        self.microbatch_group_size_per_vp_stage = (
+            microbatch_group_size_per_vp_stage
+            if microbatch_group_size_per_vp_stage is not None
+            else pipeline_model_parallel_size
+        )
         self.context_parallel_size = context_parallel_size
         self.expert_model_parallel_size = expert_model_parallel_size
         self.moe_extended_tp = moe_extended_tp
@@ -392,6 +412,7 @@ class FabricMegatronStrategy(DDPStrategy):
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
+            microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
             context_parallel_size=self.context_parallel_size,
             sequence_parallel=self.sequence_parallel,
             expert_model_parallel_size=self.expert_model_parallel_size,

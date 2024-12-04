@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
+from megatron.core import parallel_state
 from torch import nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
@@ -95,7 +96,8 @@ class GemmaModel(GPTModel):
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
 
         super().configure_model()
-        extend_instance(self.module.embedding, EmbeddingScalingMixin)
+        if parallel_state.is_pipeline_first_stage():
+            extend_instance(self.module.embedding, EmbeddingScalingMixin)
 
 
 @io.model_importer(GemmaModel, "hf")
@@ -160,7 +162,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            share_embeddings_and_output_weights=False,
+            share_embeddings_and_output_weights=True,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),

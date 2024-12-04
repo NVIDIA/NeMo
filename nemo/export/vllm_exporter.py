@@ -52,26 +52,28 @@ except Exception:
 
 class vLLMExporter(ITritonDeployable):
     """
-    The Exporter class implements conversion from a Nemo checkpoint format to something compatible with vLLM,
+    The vLLMExporter class implements conversion from a Nemo checkpoint format to something compatible with vLLM,
     loading the model in vLLM, and binding that model to a Triton server.
 
     Example:
-        from nemo.export.vllm import Exporter
+        from nemo.export.vllm_exporter import vLLMExporter
         from nemo.deploy import DeployPyTriton
 
-        exporter = Exporter()
+        exporter = vLLMExporter()
+
         exporter.export(
             nemo_checkpoint='/path/to/checkpoint.nemo',
             model_dir='/path/to/temp_dir',
-            model_type='llama')
+            model_type='llama',
+        )
 
         server = DeployPyTriton(
             model=exporter,
-            triton_model_name='LLAMA')
+            triton_model_name='LLAMA',
+        )
 
         server.deploy()
         server.serve()
-        server.stop()
     """
 
     def __init__(self):
@@ -86,12 +88,13 @@ class vLLMExporter(ITritonDeployable):
         tensor_parallel_size: int = 1,
         pipeline_parallel_size: int = 1,
         max_model_len: int = None,
-        lora_checkpoints: List[str] = [],
+        lora_checkpoints: Optional[List[str]] = None,
         dtype: str = 'auto',
         seed: int = 0,
         log_stats: bool = True,
         weight_storage: str = 'auto',
         gpu_memory_utilization: float = 0.9,
+        quantization: Optional[str] = None,
     ):
         """
         Exports the Nemo checkpoint to vLLM and initializes the engine.
@@ -109,6 +112,7 @@ class vLLMExporter(ITritonDeployable):
             pipeline_parallel_size (int): pipeline parallelism.
                 Values over 1 are not currently supported by vLLM.
             max_model_len (int): model context length.
+            lora_checkpoints List[str]: paths to LoRA checkpoints.
             dtype (str): data type for model weights and activations.
                 Possible choices: auto, half, float16, bfloat16, float, float32
                 "auto" will use FP16 precision for FP32 and FP16 models,
@@ -122,10 +126,14 @@ class vLLMExporter(ITritonDeployable):
                 "auto" - use "cache" for multi-GPU runs and "memory" for single-GPU runs.
             gpu_memory_utilization (float): The fraction of GPU memory to be used for the model
                 executor, which can range from 0 to 1.
+            quantization (str): quantization method that is used to quantize the model weights.
+                Possible choices are None (weights not quantized, default) and "fp8".
         """
 
         # Pouplate the basic configuration structures
         device_config = DeviceConfig(device)
+
+        assert quantization in {None, 'fp8'}
 
         model_config = NemoModelConfig(
             nemo_checkpoint,
@@ -138,7 +146,7 @@ class vLLMExporter(ITritonDeployable):
             code_revision=None,
             tokenizer_revision=None,
             max_model_len=max_model_len,
-            quantization=None,  # TODO ???
+            quantization=quantization,
             quantization_param_path=None,
             enforce_eager=False,
             max_seq_len_to_capture=None,
@@ -156,7 +164,12 @@ class vLLMExporter(ITritonDeployable):
         # vllm/huggingface doesn't like the absense of config file. Place config in load dir.
         if model_config.model and not os.path.exists(os.path.join(model_config.model, 'config.json')):
             with open(os.path.join(model_config.model, 'config.json'), "w") as f:
-                json.dump(model_config.hf_text_config.to_dict(), f)
+                json.dump(model_config.hf_text_config.to_dict(), f, indent=2)
+
+        # Dynamic online FP8 quantization currently does not support in-memory conversion [TODO]
+        if quantization is not None and weight_storage in {'auto', 'memory'}:
+            LOGGER.warning(f'Setting weight_storage = "file" for FP8 quantization')
+            weight_storage = 'file'
 
         # See if we have an up-to-date safetensors file
         safetensors_file = os.path.join(model_config.model, 'model.safetensors')
@@ -209,7 +222,6 @@ class vLLMExporter(ITritonDeployable):
             max_num_seqs=256,
             # Note: max_model_len can be derived by model_config if the input value is None
             max_model_len=model_config.max_model_len,
-            use_v2_block_manager=False,
             num_lookahead_slots=0,
             delay_factor=0.0,
             enable_chunked_prefill=False,
@@ -267,10 +279,12 @@ class vLLMExporter(ITritonDeployable):
             log_stats=log_stats,
         )
 
-    def _prepare_lora_checkpoints(self, model_dir: str, lora_checkpoints: List[str], dtype) -> LoRAConfig:
+    def _prepare_lora_checkpoints(
+        self, model_dir: str, lora_checkpoints: Optional[List[str]], dtype: str
+    ) -> LoRAConfig:
         self.lora_checkpoints = []
 
-        if lora_checkpoints is None or len(lora_checkpoints) == 0:
+        if not lora_checkpoints:
             return None
 
         index = 0
@@ -388,6 +402,7 @@ class vLLMExporter(ITritonDeployable):
             Tensor(name="top_p", shape=(-1,), dtype=numpy.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=numpy.single, optional=True),
             Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="output_generation_logits", shape=(-1,), dtype=numpy.bool_, optional=True),
         )
         return inputs
 
@@ -440,6 +455,7 @@ class vLLMExporter(ITritonDeployable):
         prompt_embeddings_checkpoint_path: Optional[str] = None,
         streaming: bool = False,
         output_log_probs: bool = False,
+        output_generation_logits: bool = False,
     ) -> Union[List[List[str]], Iterable[List[List[str]]]]:
         """
         The forward function performs LLM evaluation on the provided array of prompts with other parameters shared,
@@ -468,6 +484,9 @@ class vLLMExporter(ITritonDeployable):
 
         if output_log_probs:
             raise NotImplementedError("output_log_probs is not supported")
+
+        if output_generation_logits:
+            raise NotImplementedError("output_generation_logits is not supported")
 
         request_ids = []
         for index in range(len(input_texts)):

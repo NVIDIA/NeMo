@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.ssl_models import EncDecDenoiseMaskedTokenPredModel
@@ -28,7 +28,9 @@ from nemo.utils.exp_manager import exp_manager
 python pretrain_masked_token_pred.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
+    model.train_ds.noise_manifest=<path to noise manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
+    model.validation_ds.noise_manifest=<path to noise manifest> \
     trainer.devices=-1 \
     trainer.accelerator="gpu" \
     strategy="ddp"  \

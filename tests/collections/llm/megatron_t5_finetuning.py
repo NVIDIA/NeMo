@@ -1,11 +1,25 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 ## NOTE: This script is present for github-actions testing only.
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
 
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -89,7 +103,7 @@ if __name__ == '__main__':
         optimizer='adam',
         lr=2.0e-5,
         use_distributed_optimizer=False,
-        bf16=False,
+        bf16=True,
         weight_decay=0.1,
     )
     opt = MegatronOptimizerModule(
@@ -110,7 +124,7 @@ if __name__ == '__main__':
         log_every_n_steps=1,
         limit_val_batches=2,
         val_check_interval=50,
-        plugins=nl.MegatronMixedPrecision(precision="32"),
+        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     )
 
     if args.wandb_project is not None:
