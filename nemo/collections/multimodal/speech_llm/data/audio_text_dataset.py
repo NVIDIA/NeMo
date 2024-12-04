@@ -97,7 +97,7 @@ def _collate_item(item: Union[torch.Tensor, np.ndarray, List], max_length: int, 
     item = maybe_cast_to_list(item)
     # max_length = max([len(x) for x in item]) if item else 0
     # here [0] should be tokenizer.pad_id
-    item = [x + [pad_id] * (max_length - len(x)) for x in item]
+    item = [x[:max_length] + [pad_id] * (max_length - len(x)) for x in item]
     return item
 
 
