@@ -29,7 +29,7 @@ from nemo.collections.llm.gpt.data import (
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (
-    AutoModel,
+    MegatronAutoModel,
     Baichuan2Config,
     Baichuan2Config7B,
     Baichuan2Model,

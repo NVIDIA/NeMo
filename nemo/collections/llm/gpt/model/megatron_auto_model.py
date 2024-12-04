@@ -46,7 +46,7 @@ HF_TO_MCORE_REGISTRY = {
 }
 
 
-class AutoModel(GPTModel):
+class MegatronAutoModel(GPTModel):
     def __init__(
         self,
         model_name_or_path: str,
@@ -58,11 +58,11 @@ class AutoModel(GPTModel):
         An auto-model class which uses an HF model identifier (or model snapshot path) to resolve
         which NeMo class it corresponds to, initializes that class and returns the object, e.g.
         > import nemo.collections.llm as llm
-        > m = llm.AutoModel("microsoft/Phi-3-mini-128k-instruct")
+        > m = llm.MegatronAutoModel("microsoft/Phi-3-mini-128k-instruct")
         > print(m)
         >> Phi3Model()
 
-        Type of m is not AutoModel but instead Phi3Model.
+        Type of m is not MegatronAutoModel but instead Phi3Model.
         """
 
         # Get model class from registry
@@ -92,5 +92,5 @@ class AutoModel(GPTModel):
         self.__class__ = model_cls
 
 __all__ = [
-    "AutoModel",
+    "MegatronAutoModel",
 ]
