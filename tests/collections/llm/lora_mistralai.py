@@ -22,14 +22,22 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.mixin import track_io
 
+model_choices = ['mistral', 'mixtral']
+
+def model_type(arg):
+    if arg.lower() in model_choices:
+        return arg.lower()
+    elif os.path.exists(arg):
+        return arg
+    else:
+        raise argparse.ArgumentTypeError(f"invalid choice: '{arg_value}' (choose from " + str(model_choices) + ")")
 
 def get_args():
     parser = argparse.ArgumentParser(description='Finetune a small GPT model using NeMo 2.0')
     parser.add_argument(
         '--model',
-        type=str.lower,
-        choices=['mistral', 'mixtral', '/mnt/datadrive/TestData/llm/phi3-mini-4k'],
-        help="model",
+        type=model_type,
+        help="Path to model; Choose from " + str(model_choices),
     )
     parser.add_argument('--max-steps', type=int, default=9, help="number of devices")
     parser.add_argument('--mbs', type=int, default=2, help="micro batch size")
