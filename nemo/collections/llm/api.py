@@ -265,12 +265,11 @@ def validate(
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
     nemo_checkpoint: str,
-    calib_tp: int = 1,
-    calib_pp: int = 1,
+    export_config: ExportConfig,
+    calibration_tp: int = 1,
+    calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
-    export_config: Optional[Union[ExportConfig, run.Config[ExportConfig]]] = None,
 ) -> Path:
-    # TODO: Fix "nemo_run.cli.cli_parser.CLIException: An unexpected error occurred (Argument: , Context: {})"
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
@@ -281,8 +280,8 @@ def ptq(
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
     nemo llm ptq nemo_checkpoint=/models/Llama-3-70B \
         export_config.path=/models/Llama-3-70B-FP8 \
-        calib_tp=8 \
-        export_config.inference_tensor_parallel=2
+        calibration_tp=8 \
+        export_config.inference_tp=2
     # Choose different quantization method, for example, INT8 SmoothQuant
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
@@ -290,13 +289,16 @@ def ptq(
     ```
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
-        calib_tp (int): Calibration tensor parallelism.
-        calib_pp (int): Calibration pipeline parallelism.
+        calibration_tp (int): Calibration tensor parallelism.
+        calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
+    if not quantization_config:
+        quantization_config = QuantizationConfig()
+
     if export_config.path is None:
         raise ValueError("The export_config.path needs to be specified, got None.")
 
@@ -304,7 +306,7 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calib_tp, calib_pp)
+    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calibration_tp, calibration_pp)
 
     model = quantizer.quantize(model)
 
