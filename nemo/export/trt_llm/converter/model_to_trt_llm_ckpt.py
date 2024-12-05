@@ -233,7 +233,8 @@ def convert_model_to_trt_llm_ckpt(
                         # Let's rename/map the key to the old layer name previously. You can try printing out
                         # the rename_key output of the old llama checkpoint and compare.
                         rename_key_dist_ckpt(key, 0),
-                        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                        # Since the state dict value has the full layers,
+                        # let's select the ith layer weights/biases here.
                         [val],
                         storage_type,
                         None,
@@ -251,7 +252,8 @@ def convert_model_to_trt_llm_ckpt(
                             # Let's rename/map the key to the old layer name previously. You can try printing out
                             # the rename_key output of the old llama checkpoint and compare.
                             rename_key_dist_ckpt(key, i),
-                            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                            # Since the state dict value has the full layers,
+                            # let's select the ith layer weights/biases here.
                             [val[i]],
                             storage_type,
                             None,
@@ -335,7 +337,8 @@ def dist_model_to_trt_llm_ckpt(
             reshard_model = True
         else:
             raise NotImplementedError(
-                f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
+                "NeMo currently only supports PP>1 -> PP=1 resharding,"
+                 " other types of resharding will come in future releases."
             )
 
     num_layers = nemo_model_config["num_layers"]
