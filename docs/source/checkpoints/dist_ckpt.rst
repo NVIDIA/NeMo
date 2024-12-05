@@ -28,7 +28,7 @@ The NeMo Distributed Checkpoint enables saving and loading models from multiple 
 
 When loading the checkpoint, each DP rank reads its corresponding checkpoint file (shard) to recover. If different parallelism strategies are needed (e.g., tensor parallelism, pipeline parallelism), each rank can also access other checkpoint files to transfer data to the correct locations. 
 
-Nemo enables users to resume training from a checkpoint saved with different tensor and pipeline parallelism degrees, providing the flexibility to change training configurations as needed during training. 
+NeMo enables users to resume training from a checkpoint saved with different tensor and pipeline parallelism degrees, providing the flexibility to change training configurations as needed during training. 
 
 The following figure illustrates fully parallel saving in NeMo Framework, utilizing data-parallel replicas for writing across nodes.
 
@@ -52,7 +52,13 @@ Distributed checkpoints in NeMo could be configured for pre-training and fine-tu
 
 In the `NeMo 1.0 YAML config file <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/checkpointing.html>`__ or `NeMo 2.0 MegatronStrategy <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/checkpointing.html>`__, you can enable and tune these parameters.
 
-Here are some best practices for configuring distributed checkpoints in NeMo:
+The latest NeMo version is Nemo 2.0 (NGC container ``nvcr.io/nvidia/nemo:24.09``).
+
+
+Best Practices
+^^^^^^^^^^^
+
+Here are best practices for configuring distributed checkpoints in NeMo:
 
 .. code-block:: python
 
@@ -75,35 +81,43 @@ Here are some best practices for configuring distributed checkpoints in NeMo:
         	dist_ckpt_load_strictness: null
 
 
-The latest NeMo version is Nemo 2.0 (NGC container ``nvcr.io/nvidia/nemo:24.09``).
+Here are more details of the checkpoint format options and related parameters:
 
-Here's a summary of the checkpoint format options and related parameters:
+dist_ckpt_format
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Checkpoint format used for saving. Options are ``torch_dist`` and ``zarr``. PyTorch Distributed (``torch_dist``) is the recommended format. The saving format can differ from the format used for resuming a job. The loading format is auto-detected.
 
-•      **dist_ckpt_format**: Checkpoint format used for saving. Options are ``torch_dist`` and ``zarr``. PyTorch Distributed (torch_dist) is the recommended format. The saving format can differ from the format used for resuming a job. The loading format is auto-detected.
+dist_ckpt_load_on_device
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Determines whether to load checkpoint weights directly on GPU or CPU. If True, weights are loaded on GPU. This currently affects only the ``zarr`` format.
 
+dist_ckpt_parallel_save
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Each worker writes its own part of the distributed checkpoint, meaning each DP rank saves its checkpoint shard independently. This applies to model weights or a non-distributed optimizer state. Distributed optimizer parallelization is controlled by the ``dist_ckpt_parallel_dist_opt`` flag (see below).
 
-•      **dist_ckpt_load_on_device**: Determines whether to load checkpoint weights directly on GPU or CPU. If True, weights are loaded on GPU. This currently affects only the ``zarr`` format.
+dist_ckpt_parallel_save_within_dp
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Controls whether NCCL parallelizes the save within the Data Parallel domain. If False, saving is parallelized across the entire world size (number of nodes * number of GPUs). If True, saving is parallelized only within the Data Parallel domain. Setting this to True can reduce latency, but may cause NCCL errors in some setups.
 
+dist_ckpt_parallel_load
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Each worker loads part of the distributed checkpoint and exchanges it with NCCL, meaning each DP rank loads its checkpoint shard independently. This might use extra GPU memory and is critical for large DP setups. If True, the checkpoint is read from storage only once; otherwise, the model weights part is read from storage DP times.
 
-•      **dist_ckpt_parallel_save**: Each worker writes its own part of the distributed checkpoint, meaning each DP rank saves its checkpoint shard independently. This applies to model weights or a non-distributed optimizer state. Distributed optimizer parallelization is controlled by the ``dist_ckpt_parallel_dist_opt`` flag (see below).
+dist_ckpt_torch_dist_multiproc
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Number of extra processes per rank used during checkpoint save with the ``torch_dist`` format. This equals the number of checkpoint files created by each rank. Increasing this number can help saturate the write bandwidth. The default is 2.
 
+dist_ckpt_assume_constant_structure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Set to True only if the state dict structure remains constant during a single training job (including startup, data loading, training setup, and actual training). This allows caching some computations across checkpoint saves and can reduce saving time starting from the third checkpoint save in the current process.
 
-•      **dist_ckpt_parallel_save_within_dp**: Controls whether NCCL parallelizes the save within the Data Parallel domain. If False, saving is parallelized across the entire world size (number of nodes * number of GPUs). If True, saving is parallelized only within the Data Parallel domain. Setting this to True can reduce latency, but may cause NCCL errors in some setups.
+dist_ckpt_parallel_dist_opt
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Enables parallel save/load of a distributed optimizer. Set to True to save the optimizer state in a reshardable format (allowing changes in TP, PP, etc., upon resume). Set to False to minimize the number of checkpoint files.
 
-
-•      **dist_ckpt_parallel_load**: Each worker loads part of the distributed checkpoint and exchanges it with NCCL, meaning each DP rank loads its checkpoint shard independently. This might use extra GPU memory and is critical for large DP setups. If True, the checkpoint is read from storage only once; otherwise, the model weights part is read from storage DP times.
-
-
-•      **dist_ckpt_torch_dist_multiproc**: Number of extra processes per rank used during checkpoint save with the ``torch_dist`` format. This equals the number of checkpoint files created by each rank. Increasing this number can help saturate the write bandwidth. The default is 2.
-
-
-•      **dist_ckpt_assume_constant_structure**: Set to True only if the state dict structure remains constant during a single training job (including startup, data loading, training setup, and actual training). This allows caching some computations across checkpoint saves and can reduce saving time starting from the third checkpoint save in the current process.
-
-
-•      **dist_ckpt_parallel_dist_opt**: Enables parallel save/load of a distributed optimizer. Set to True to save the optimizer state in a reshardable format (allowing changes in TP, PP, etc., upon resume). Set to False to minimize the number of checkpoint files.
-
-
-•      **dist_ckpt_load_strictness**: Defines behavior for checkpoint key mismatches during loading. Options are ``assume_ok_unexpected`` (default, tries loading without any check), ``log_all`` (logs mismatches), and ``raise_all`` (raises mismatches). Setting to ``log_all`` results in a non-strict state dict load into the model. Non-default options might cause slight overhead due to extra storage interaction. It is recommended to set this flag to ``raise_all`` first to check for expected mismatches. If mismatches are expected, set it to ``log_all`` to ignore (but log) them.
+dist_ckpt_load_strictness
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Defines behavior for checkpoint key mismatches during loading. Options are ``assume_ok_unexpected`` (default, tries loading without any check), ``log_all`` (logs mismatches), and ``raise_all`` (raises mismatches). Setting to ``log_all`` results in a non-strict state dict load into the model. Non-default options might cause slight overhead due to extra storage interaction. It is recommended to set this flag to ``raise_all`` first to check for expected mismatches. If mismatches are expected, set it to ``log_all`` to ignore (but log) them.
 
 
 Basic Sharding
@@ -520,56 +534,64 @@ For other applications (e.g. with simpler types of supported parallelisms) it mi
 FAQs
 -----------------------
 
-1. Q: With the default configuration using the torch_dist checkpoint format, each rank creates two files. For example, a cluster with 576 GPUs, this results in 1152 files. Is this expected behavior?
+**1. Q: With the default configuration using the torch_dist checkpoint format, each rank creates two files. For example, a cluster with 576 GPUs, this results in 1152 files. Is this expected behavior?**
 
    A: This is expected behavior for the torch_dist checkpoint.
 
-2. Q: When writing a checkpoint, two identical copies of the checkpoint directory are created. For example, with Llama 70B, two folders, each containing approximately 1.4TB of data, are written. Is this expected behavior?
+**2. Q: When writing a checkpoint, two identical copies of the checkpoint directory are created. For example, with Llama 70B, two folders, each containing approximately 1.4TB of data, are written. Is this expected behavior?**
 
    A: This is expected behavior in NeMo. One copy is related to the last checkpoint, while the other copy is related to the top K checkpoints.
 
-3. Q: Where can I find details about the Megatron binary file format and its access patterns?
+**3. Q: Where can I find details about the Megatron binary file format and its access patterns?**
 
    A: Please refer to the documentation at `https://pytorch.org/docs/stable/distributed.checkpoint.html <https://pytorch.org/docs/stable/distributed.checkpoint.html>`__.
 
-4. Q: Which  `dist_ckpt ` configurations are valid for pre-training and fine-tuning?
+**4. Q: Which  `dist_ckpt` configurations are valid for pre-training and fine-tuning?**
 
-   A: All dist_ckpt configs are valid for pre-training and fine-tuning. (Note that dist_ckpt_load_strictness is not yet supported in NeMo 2.0 container 24.09).
+   A: All ``dist_ckpt`` configs are valid for pre-training and fine-tuning. (Note that ``dist_ckpt_load_strictness`` is not yet supported in NeMo 2.0 container 24.09).
 
-5. Q: What is the explanation for `-last` checkpoints?
+**5. Q: What is the explanation for `-last` checkpoints?**
 
-   A: The `-last` checkpoint is the final checkpoint in the training session. It is used to identify the most recent checkpoint from which to continue training.
+   A: The ``-last`` checkpoint is the final checkpoint in the training session. It is used to identify the most recent checkpoint from which to continue training.
 
-6. Q: How does  `save_top_k: 1 ` interact with  `save_best_model `?
+**6. Q: How does  `save_top_k: 1` interact with  `save_best_model`?**
 
-   A: `save_top_k ` specifies the number of checkpoints to be saved during training. The  `save_best_model ` flag determines whether to save the best model based on a monitored metric (e.g., validation loss or accuracy).
+   A: ``save_top_k`` specifies the number of checkpoints to be saved during training. The  ``save_best_model`` flag determines whether to save the best model based on a monitored metric (e.g., validation loss or accuracy).
 
-      – If `save_top_k=1` and `save_best_model=True`: Only the single best-performing checkpoint will be retained.
+   – If ``save_top_k`` and ``save_best_model=True``: Only the single best-performing checkpoint will be retained.
 
-      – If `save_top_k>1` and `save_best_model=True`: NeMo will save up to save_top_k checkpoints, and the best checkpoint (determined by the monitored metric) is always guaranteed to be included.
+   – If ``save_top_k>1`` and ``save_best_model=True``: NeMo will save up to ``save_top_k`` checkpoints, and the best checkpoint (determined by the monitored metric) is always guaranteed to be included.
 
-      – If `save_best_model=False`: NeMo will save only the top K models without explicitly ensuring that the best model is preserved.
+   – If ``save_best_model=False``: NeMo will save only the top K models without explicitly ensuring that the best model is preserved.
 
-7. Q: How does `dist_ckpt_torch_dist_multiproc` affect the `async_save=True` parameter?
+**7. Q: How does `dist_ckpt_torch_dist_multiproc` affect the `async_save=True` parameter?**
 
-   A: `dist_ckpt_torch_dist_multiproc` controls distributed checkpointing by defining the number of helper processes per rank to accelerate checkpoint saving. ` async_save=True` enables asynchronous checkpointing, allowing checkpointing processes to run in the background without blocking the main training loop. These two parameters could be used orthogonally.
+   A: ``dist_ckpt_torch_dist_multiproc`` controls distributed checkpointing by defining the number of helper processes per rank to accelerate checkpoint saving. ``async_save=True`` enables asynchronous checkpointing, allowing checkpointing processes to run in the background without blocking the main training loop. These two parameters could be used orthogonally.
 
-8. Q: What is the expected checkpoint saving time with the Distributed Fused Adam Optimizer or Megatron Core Distributed Optimizer? How can checkpoint saving be accelerated?
+**8. Q: What is the expected checkpoint saving time with the Distributed Fused Adam Optimizer or Megatron Core Distributed Optimizer? How can checkpoint saving be accelerated?**
 
-   A: The Megatron Core Distributed Optimizer is recommended and is the default setting in NeMo 2.0. With Megatron Core Distributed Optimizer (model configuration `mcore_distributed_optim`), the expected saving time should be approximately 1 second for a single checkpoint. With Distributed Fused Adam Optimizer from Apex (model configuration `distributed_fused_adam`), the expected saving time should be longer, estimated to be about 3 seconds for a single checkpoint.
+   A: The Megatron Core Distributed Optimizer is recommended and is the default setting in NeMo 2.0. With Megatron Core Distributed Optimizer (model configuration ``mcore_distributed_optim``), the expected saving time should be approximately 1 second for a single checkpoint. With Distributed Fused Adam Optimizer from Apex (model configuration ``distributed_fused_adam``), the expected saving time should be longer, estimated to be about 3 seconds for a single checkpoint.
 
-      To accelerate checkpoint saving, it is recommended to set `dist_ckpt_assume_constant_structure=True`.
+   To accelerate checkpoint saving, it is recommended to set ``dist_ckpt_assume_constant_structure=True``.
 
 
 Glossary
 -----------------------
 
-•      **DP**: Data Parallelism (DP) replicates the model across multiple GPUs. Data batches are evenly distributed between GPUs, and the data-parallel GPUs process them independently. While the computation workload is efficiently distributed across GPUs, inter-GPU communication is required to keep the model replicas consistent between training steps.
+DP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Data Parallelism (DP) replicates the model across multiple GPUs. Data batches are evenly distributed between GPUs, and the data-parallel GPUs process them independently. While the computation workload is efficiently distributed across GPUs, inter-GPU communication is required to keep the model replicas consistent between training steps.
 
-•      **TP**: Tensor Parallelism (TP) is a model-parallel partitioning method that distributes the parameter tensor of an individual layer across GPUs. In addition to reducing model state memory usage, it also saves activation memory as the per-GPU tensor sizes shrink. However, the reduced per-GPU tensor size increases CPU overhead due to smaller per-GPU kernel workloads.
+TP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Tensor Parallelism (TP) is a model-parallel partitioning method that distributes the parameter tensor of an individual layer across GPUs. In addition to reducing model state memory usage, it also saves activation memory as the per-GPU tensor sizes shrink. However, the reduced per-GPU tensor size increases CPU overhead due to smaller per-GPU kernel workloads.
 
-•      **PP**: Pipeline Parallelism (PP) is a technique that assigns consecutive layers or segments of a neural network to different GPUs. This division allows each GPU to process different stages of the network sequentially.
+PP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Pipeline Parallelism (PP) is a technique that assigns consecutive layers or segments of a neural network to different GPUs. This division allows each GPU to process different stages of the network sequentially.
 
-•      **Distributed Optimizer**: The distributed optimizer is a memory-optimized data-parallel deployment method. It shards the optimizer states and the high-precision master parameters across data-parallel GPUs instead of replicating them. At the parameter optimizer step, each data-parallel GPU updates its shard of parameters. Since each GPU needs its own gradient shard, the distributed optimizer conducts reduce-scatter of the parameter gradients instead of all-reduce of them. Then, the updated parameter shards are all-gathered across data-parallel GPUs. This approach significantly reduces the memory need of large-scale LLM training. Also, when the precision of the gradient is higher than the parameter precision, the split execution of gradient reduce-scatter and parameter all-gather can reduce the total communication volume. This split collective execution increases the total computation to overlap with the communication, which improves the overlap opportunity.
+Distributed Optimizer
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The distributed optimizer is a memory-optimized data-parallel deployment method. It shards the optimizer states and the high-precision master parameters across data-parallel GPUs instead of replicating them. At the parameter optimizer step, each data-parallel GPU updates its shard of parameters. Since each GPU needs its own gradient shard, the distributed optimizer conducts reduce-scatter of the parameter gradients instead of all-reduce of them. Then, the updated parameter shards are all-gathered across data-parallel GPUs. This approach significantly reduces the memory need of large-scale LLM training. Also, when the precision of the gradient is higher than the parameter precision, the split execution of gradient reduce-scatter and parameter all-gather can reduce the total communication volume. This split collective execution increases the total computation to overlap with the communication, which improves the overlap opportunity.
 
-       More information please refer to https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/parallelisms.html.
+More information please refer to https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/parallelisms.html.
