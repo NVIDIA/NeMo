@@ -342,6 +342,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        original_context_lengths = batch['context_lengths']
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
@@ -408,6 +409,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
             'batch_idx': batch_idx,
+            'answer_audio': batch['answer_audio'],
+            'answer_audio_lens': batch['answer_audio_lens'],
+            'target_text_lengths': batch['target_text_lengths'],
+            'target_context_lengths': original_context_lengths,
         }
 
         if mode == 'validation':
@@ -541,6 +546,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                         'context_lengths': x['context_lengths'],
                         'batch_idx': x['batch_idx'],
                         'labels_text': x['labels_text'],
+                        'answer_audio': x['answer_audio'],
+                        'answer_audio_lens': x['answer_audio_lens'],
+                        'target_text_lengths': x['target_text_lengths'],
+                        'target_context_lengths': x['target_context_lengths'],
                     }
                     for x in output
                 ],
@@ -562,15 +571,31 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, answer, input, metadata, pred_context_length, labels_text in zip(
+                    for pred, answer, input, metadata, pred_context_length, labels_text, answer_audio, answer_audio_len, target_text_length, target_context_length in zip(
                         batch['preds'],
                         batch['labels'],
                         batch['inputs'],
                         batch['metadata'],
                         batch['context_lengths'],
                         batch['labels_text'],
+                        batch['answer_audio'],
+                        batch['answer_audio_lens'],
+                        batch['target_text_lengths'],
+                        batch['target_context_lengths'],
                     ):
                         context_length = len(self.tokenizer.text_to_ids(input))
+                        
+                        # Maybe inject speech codecs on-the-fly
+                        if self.extract_codec_on_the_fly:
+                            device = next(self.parameters()).device
+                            answer_audio = answer_audio.to(device).unsqueeze(0)
+                            answer_audio_len = answer_audio_len.to(device).unsqueeze(0)
+                            answer_codecs, answer_codecs_lens = self._get_codec_embeddings(answer_audio, answer_audio_len)  # list, list
+                            assert len(answer_codecs) == 1
+                            assert len(answer_codecs_lens) == 1
+                            base_length = target_text_length + target_context_length
+                            answer[base_length : base_length + answer_codecs_lens[0], 1:] = answer_codecs[0]
+
                         text_answer, speech_answer = self.parse_decoder_outputs(
                             answer,
                             self.tokenizer.eos_id,
