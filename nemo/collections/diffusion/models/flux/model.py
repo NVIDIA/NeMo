@@ -264,6 +264,14 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.configure_vae(self.vae_params)
         self.configure_scheduler(self.scheduler_params)
         self.configure_text_encoders(self.clip_params, self.t5_params)
+        for name, param in self.module.named_parameters():
+            if self.config.num_single_layers == 0:
+                if 'context' in name or 'added' in name:
+                    param.requires_grad = False
+            # When getting rid of concat, the projection bias in attention and mlp bias are identical
+            # So this bias is skipped and not included in the computation graph
+            if 'single_blocks' in name and 'self_attention.linear_proj.bias' in name:
+                param.requires_grad = False
 
 
     def configure_scheduler(self, scheduler):

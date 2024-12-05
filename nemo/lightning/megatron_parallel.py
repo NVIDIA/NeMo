@@ -588,15 +588,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             with init_ddp_context():
                 if self.ddp_config.use_custom_fsdp:
-                    DDP = FullyShardedDataParallel
-                    ddp = DDP(
+                    FSDP = FullyShardedDataParallel
+                    dist_module = FSDP(
                         module.config,
                         self.ddp_config,
                         module,
                         disable_bucketing=disable_bucketing,
                     )
                 else:
-                    ddp = DDP(
+                    dist_module = DDP(
                         module.config,
                         self.ddp_config,
                         module,
@@ -604,8 +604,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                         disable_bucketing=disable_bucketing,
                     )
-            model_chunk.module = ddp
-            model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
+            model_chunk.module = dist_module
+            model_chunk.buffers = dist_module.buffers  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron

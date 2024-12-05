@@ -78,7 +78,7 @@ def main(args):
     )
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
         ddp=ddp,
