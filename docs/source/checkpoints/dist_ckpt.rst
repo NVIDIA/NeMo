@@ -7,11 +7,11 @@ This guide provides details about the distributed checkpoints best practices fro
 Introduction
 --------------
 
-Megatron Core is an open-source, PyTorch-based library that provides a collection of GPU optimization techniques including various parallelisms (data, tensor, pipeline, context, and expert parallelism). NeMo Framework is an end to end LLM training framework that builds on top of the Megatron Core library.
+Megatron Core is an open-source, PyTorch-based library that provides a collection of GPU optimization techniques including various parallelisms (data, tensor, pipeline, context, and expert parallelism). NeMo Framework is an end-to-end LLM training framework that builds on top of the Megatron Core library.
 
 In large-scale training, checkpoints are used to periodically save intermediate model states (including model weights, optimizer states, and other necessary metadata). This allows for easy recovery if the training process is interrupted.
 
-NeMo Distributed Checkpoint, part of the Megatron Core library, refers to saving the state of a distributed training job across multiple GPUs or nodes. This approach aims to reduce memory overhead and improve GPU utilization. It also allows users the flexibility to resume training using different parallelisms. 
+NeMo Distributed Checkpoint, part of the Megatron Core library, refers to saving the state of a distributed training job across multiple GPUs or nodes. This approach aims to reduce memory overhead and improve GPU utilization. It also provides users with the flexibility to resume training using different parallelism strategies.
 
 **Megatron Core Library**
 
@@ -24,22 +24,22 @@ Apart from that, it provides a mechanism to define how different types of local 
 
 Mechanism
 --------------
-The NeMo Distributed Checkpoint enables saving and loading models from multiple ranks in parallel. It employs a novel strategy **Fully Parallel Saving** (FPS) to partition the optimizer states, gradients and model parameters across all GPU ranks. When saving the checkpoint of a distributed optimizer, each DP rank holds its shard of the optimizer state and independently writes its shard to the shared storage (grad buffer).
+The NeMo Distributed Checkpoint enables saving and loading models from multiple ranks in parallel. It employs a novel strategy called Fully Parallel Saving (FPS) to partition the optimizer states, gradients, and model parameters across all GPU ranks. When saving the checkpoint of a distributed optimizer, each DP rank holds its shard of the optimizer state and independently writes its shard to the shared storage (grad buffer).
 
 When loading the checkpoint, each DP rank reads its corresponding checkpoint file (shard) to recover. If different parallelism strategies are needed (e.g., tensor parallelism, pipeline parallelism), each rank can also access other checkpoint files to transfer data to the correct locations. 
 
-NeMo enables users to resume training from a checkpoint saved with different tensor and pipeline parallelism degrees, providing the flexibility to change training configurations as needed during training. 
+NeMo allows users to resume training from a checkpoint saved with different tensor and pipeline parallelism degrees, offering the flexibility to adjust training configurations as needed.
 
 The following figure illustrates fully parallel saving in NeMo Framework, utilizing data-parallel replicas for writing across nodes.
 
-.. image:: imgs/dist_ckpt_0.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v2.0.0/asset-nemo-dist-ckpt-explain-0.png
 
 
 *Figure 1. Fully parallel saving in NeMo Framework uses the data-parallel replicas for parallel writing across nodes*
 
 The following figure illustrates asynchronous saving in NeMo Framework, where checkpoints are saved in the background while training continues. Asynchronous parallel saving allows model parameters to be copied to the CPU first before persisting the checkpoint to stable storage in the background. This process minimizes interruptions to the main training, thereby speeding up the distributed checkpointing process.
 
-.. image:: imgs/dist_ckpt_1.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v2.0.0/asset-nemo-dist-ckpt-explain-1.png
 
 
 *Figure 2. Asynchronous saving in Megatron Core saves checkpoint at the background in parallel with training*
@@ -48,7 +48,7 @@ The following figure illustrates asynchronous saving in NeMo Framework, where ch
 Parameter Tuning
 --------------
 
-Distributed checkpoints in NeMo could be configured for pre-training and fine-tuning jobs. 
+You can configure distributed checkpoints in NeMo pre-training and fine-tuning jobs.
 
 In the `NeMo 1.0 YAML config file <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/checkpointing.html>`__ or `NeMo 2.0 MegatronStrategy <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/checkpointing.html>`__, you can enable and tune these parameters.
 
@@ -81,7 +81,7 @@ Here are best practices for configuring distributed checkpoints in NeMo:
         	dist_ckpt_load_strictness: null
 
 
-Here are more details of the checkpoint format options and related parameters:
+Here's a summary of the checkpoint format options and related parameters:
 
 dist_ckpt_format
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -594,4 +594,4 @@ Distributed Optimizer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The distributed optimizer is a memory-optimized data-parallel deployment method. It shards the optimizer states and the high-precision master parameters across data-parallel GPUs instead of replicating them. At the parameter optimizer step, each data-parallel GPU updates its shard of parameters. Since each GPU needs its own gradient shard, the distributed optimizer conducts reduce-scatter of the parameter gradients instead of all-reduce of them. Then, the updated parameter shards are all-gathered across data-parallel GPUs. This approach significantly reduces the memory need of large-scale LLM training. Also, when the precision of the gradient is higher than the parameter precision, the split execution of gradient reduce-scatter and parameter all-gather can reduce the total communication volume. This split collective execution increases the total computation to overlap with the communication, which improves the overlap opportunity.
 
-More information please refer to https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/parallelisms.html.
+For more information, please refer to https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/parallelisms.html.
