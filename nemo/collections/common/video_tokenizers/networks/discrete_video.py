@@ -56,8 +56,6 @@ class CausalDiscreteVideoTokenizer(nn.Module):
             assert "num_quantizers" in kwargs, f"`num_quantizers` must be provided for {quantizer_name}."
         self.quantizer = DiscreteQuantizer[quantizer_name].value(**kwargs)
 
-        num_parameters = sum(param.numel() for param in self.parameters())
-
     def to(self, *args, **kwargs):
         setattr(self.quantizer, "dtype", kwargs.get("dtype", torch.bfloat16))
         return super(CausalDiscreteVideoTokenizer, self).to(*args, **kwargs)

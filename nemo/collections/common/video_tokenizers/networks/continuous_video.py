@@ -48,8 +48,6 @@ class CausalContinuousVideoTokenizer(nn.Module):
         formulation_name = kwargs.get("formulation", ContinuousFormulation.AE.name)
         self.distribution = ContinuousFormulation[formulation_name].value()
 
-        num_parameters = sum(param.numel() for param in self.parameters())
-
     def encoder_jit(self):
         return nn.Sequential(
             OrderedDict(
