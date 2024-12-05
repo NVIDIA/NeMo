@@ -147,7 +147,6 @@ class TestSortformerEncLabelModel:
         sortformer_diar_model = sortformer_model.eval()
         confdict = sortformer_diar_model.to_config_dict()
         sampling_rate = confdict['preprocessor']['sample_rate']
-        target_frame_count = int(sample_len // frame_length)
         input_signal = torch.randn(size=(batch_size, sample_len * sampling_rate))
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
 
