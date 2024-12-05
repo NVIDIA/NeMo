@@ -105,7 +105,7 @@ if __name__ == '__main__':
     dolly = llm.DollyDataModule(
         seq_length=2048,
         micro_batch_size=args.mbs,
-        global_batch_size=8,
+        global_batch_size=4,
         num_workers=0,
         packed_sequence_specs=packed_sequence_specs,
     )
