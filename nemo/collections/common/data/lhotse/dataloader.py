@@ -166,6 +166,9 @@ class LhotseDataLoadingConfig:
     rir_enabled: bool = False
     rir_path: str | None = None  # str, must point to a lhotse RecordingSet manifest
     rir_prob: float = 0.5
+    #   f. Padding to a minimum duration. Examples shorter than this will be padded, others are unaffected.
+    pad_min_duration: Optional[float] = None
+    pad_direction: str = "right"  # "right" | "left" | "both" | "random"
 
     # 5. Other Lhotse options.
     text_field: str = "text"  # key to read the transcript from
@@ -513,6 +516,9 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             hop=config.cut_into_windows_hop,
             keep_excessive_supervisions=config.keep_excessive_supervisions,
         )
+
+    if config.pad_min_duration is not None:
+        cuts = cuts.pad(duration=config.pad_min_duration, direction=config.pad_direction, preserve_id=True)
 
     # Duration filtering, same as native NeMo dataloaders.
     # We can filter after the augmentations because they are applied only when calling load_audio().
