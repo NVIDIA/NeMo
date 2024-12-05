@@ -338,7 +338,7 @@ def dist_model_to_trt_llm_ckpt(
         else:
             raise NotImplementedError(
                 "NeMo currently only supports PP>1 -> PP=1 resharding,"
-                 " other types of resharding will come in future releases."
+                " other types of resharding will come in future releases."
             )
 
     num_layers = nemo_model_config["num_layers"]
