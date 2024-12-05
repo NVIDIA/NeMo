@@ -46,12 +46,12 @@ class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.F
         # Initialize an empty list as sometimes self._validation_dl can be None at this stage
         self._validation_step_outputs = None
         self._validation_names = None
-        self._num_validation_dl = 0
+        self._num_validation_dl = None
 
         # Initialize an empty list as sometimes self._test_dl can be None at this stage
         self._test_step_outputs = None
         self._test_names = None
-        self._num_test_dl = 0
+        self._num_test_dl = None
 
     @property
     def cfg(self) -> DictConfig:
@@ -114,18 +114,21 @@ class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.F
             logging.info("No validation dataset found. Skipping setup of multi validation data.")
             return
 
-        self._num_validation_dl = getattr(data_module, "_num_validation_dl", 1)
+        self._num_validation_dl = getattr(data_module, "_num_validation_dl", None)
         self._validation_names = getattr(data_module, "_validation_names", None)
+        if self._num_validation_dl is None:
+            # special case for lhotse dataloader
+            self._num_validation_dl = len(self._validation_names)
 
         if self._validation_names is None:
+            if not self._num_validation_dl:
+                raise ValueError(
+                    f"`_num_validation_dl` not found/valid in data module: { getattr(data_module, '_num_validation_dl', None) }"
+                )
             self._validation_names = [f'val_{idx}' for idx in range(self._num_validation_dl)]
             logging.info(
                 f"`_validation_names` not found in data module. Setting default names: {self._validation_names}"
             )
-            if not isinstance(data_module._validation_ds, list):
-                self._validation_step_outputs = []
-            else:
-                self._validation_step_outputs = [list() for _ in range(self._num_validation_dl)]
         elif len(self._validation_names) != self._num_validation_dl:
             raise ValueError(
                 f"Number of validation names provided ({len(self._validation_names)}) does not match number of validation datasets ({self._num_validation_dl})."
@@ -142,16 +145,19 @@ class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.F
             logging.info("No test dataset found. Skipping setup of multi test data.")
             return
 
-        self._num_test_dl = getattr(data_module, "_num_test_dl", 1)
+        self._num_test_dl = getattr(data_module, "_num_test_dl", None)
         self._test_names = getattr(data_module, "_test_names", None)
+        if self._num_test_dl is None:
+            # special case for lhotse dataloader
+            self._num_test_dl = len(self._test_names)
 
         if self._test_names is None:
-            logging.info(f"`_test_names` not found in data module. Setting default names.")
+            if not self._num_test_dl:
+                raise ValueError(
+                    f"`_num_test_dl` not found/valid in data module: {getattr(data_module, '_num_test_dl', None)}"
+                )
             self._test_names = [f'test_{idx}' for idx in range(self._num_test_dl)]
-            if not isinstance(data_module._test_ds, list):
-                self._test_step_outputs = []
-            else:
-                self._test_step_outputs = [list() for _ in range(self._num_test_dl)]
+            logging.info(f"`_test_names` not found in data module. Setting default names: {self._test_names}")
         elif len(self._test_names) != self._num_test_dl:
             raise ValueError(
                 f"Number of test names provided ({len(self._test_names)}) does not match number of test datasets ({self._num_test_dl})."
@@ -169,18 +175,12 @@ class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.F
         if self._validation_step_outputs is not None:
             return self._validation_step_outputs
 
-        data_module = self.trainer.datamodule
-
         # Initialize new output list
         self._validation_step_outputs = []
         # Check len(data_module._validation_ds) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>] when ds_item in
         # config has 1 item passed in a list
-        if (
-            data_module._validation_ds is not None
-            and isinstance(data_module._validation_ds, (list, tuple))
-            and len(data_module._validation_ds) > 1
-        ):
-            for _ in range(len(data_module._validation_ds)):
+        if self._num_validation_dl > 1:
+            for _ in range(self._num_validation_dl):
                 self._validation_step_outputs.append([])
 
         return self._validation_step_outputs
@@ -200,18 +200,12 @@ class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.F
         if self._test_step_outputs is not None:
             return self._test_step_outputs
 
-        data_module = self.trainer.datamodule
-
         # Initialize new output list
         self._test_step_outputs = []
         # Check len(data_module._test_ds) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>] when ds_item in
         # config has 1 item passed in a list
-        if (
-            data_module._test_ds is not None
-            and isinstance(data_module._test_ds, (list, tuple))
-            and len(data_module._test_ds) > 1
-        ):
-            for _ in range(len(data_module._test_ds)):
+        if self._num_test_dl > 1:
+            for _ in range(self._num_test_dl):
                 self._test_step_outputs.append([])
 
         return self._test_step_outputs

@@ -16,7 +16,7 @@ import copy
 import math
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
 import lightning.pytorch as pl
 import torch
@@ -52,8 +52,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         self._test_names = None
         self.init_global_step = 0
         self.text_processor = None
-        self._num_validation_dl = 0
-        self._num_test_dl = 0
+        self._num_validation_dl = None
+        self._num_test_dl = None
 
     def get_text_processor(self):
         data_cfg = self.cfg.get("common", None)
@@ -140,6 +140,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get("use_lhotse"):
             logging.info(f"Creating Lhotse dataset for {mode}")
+            setattr(self, f"_{mode}_names", self._parse_lhotse_data_name(mode))
             self.text_processor = PromptFormatterTextProcessing(
                 self.tokenizer,
                 prompt_format=data_cfg.get('prompt_format', None),
@@ -161,7 +162,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get('is_tarred', False):
-            return get_tarred_audio_text_dataset_from_config(
+            dataset = get_tarred_audio_text_dataset_from_config(
                 config=data_cfg,
                 tokenizer=self.tokenizer,
                 augmentor=augmentor,
@@ -172,7 +173,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 world_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
-            return get_audio_text_dataset_from_config(
+            dataset = get_audio_text_dataset_from_config(
                 manifest_filepath=data_cfg.manifest_filepath,
                 config=data_cfg,
                 tokenizer=self.tokenizer,
@@ -182,6 +183,10 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 answer_only_loss=data_cfg.get('answer_only_loss', True),
                 virtual_tokens=data_cfg.get("virtual_tokens", 0),
             )
+        if mode != 'train':
+            num_ds = len(dataset) if isinstance(dataset, list) else 1
+            setattr(self, f"_num_{mode}_dl", num_ds)
+        return dataset
 
     def _create_nemo_dataloader(self, dataset: Any, mode: str, **kwargs) -> DataLoader:
         data_cfg = self.cfg.get(f"{mode}_ds", None)
@@ -223,6 +228,28 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             collate_fn=collate_fn,
             **kwargs,
         )
+
+    def _parse_lhotse_data_name(self, mode: str) -> List[str]:
+        data_cfg = self.cfg.get(f"{mode}_ds", None)
+        if data_cfg.get('manifest_filepath', None):
+            manifest_filepath = data_cfg.manifest_filepath
+            if isinstance(manifest_filepath, str):
+                manifest_filepath = [manifest_filepath]
+        else:
+            input_cfg = data_cfg.input_cfg
+            if isinstance(input_cfg, (str, Path)):
+                # Resolve /path/to/input_cfg.yaml into config contents if needed.
+                input_cfg = OmegaConf.load(input_cfg)
+                assert len(input_cfg) == 1, "Only one dataset with multiple manifest paths is supported for eval"
+                data_cfg.input_cfg = input_cfg
+                # for getting names
+                manifest_filepath = [ic.manifest_filepath for ic in input_cfg[0].input_cfg]
+
+        names = []
+        for cur_manifest_filepath in manifest_filepath:
+            names.append(Path(cur_manifest_filepath).stem)
+        logging.info(f"Parsed names for lhotse {mode} dataset: {names}")
+        return names
 
     def _create_lhotse_dataloader(self, dataset: Any, mode: str, **kwargs) -> DataLoader:
         data_cfg = self.cfg.get(f"{mode}_ds", None)
@@ -273,14 +300,6 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                             dataset=dataset,
                         )
                     )
-
-            if 'name' not in data_cfg:
-                names = []
-                for cur_manifest_filepath in manifest_filepath:
-                    names.append(Path(cur_manifest_filepath).stem)
-                OmegaConf.update(data_cfg, 'name', names, force_add=True)
-                setattr(self, f"_{mode}_names", names)
-                logging.info(f'Update dataset names as {names}')
             return dls
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
