@@ -659,7 +659,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             assert isinstance(model_chunk, DDP)
             model_chunk.enable_forward_pre_hook()
 
-
     def disable_forward_pre_hook(self):
         for model in self:
             model_chunk = model.module

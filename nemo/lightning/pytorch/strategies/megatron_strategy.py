@@ -693,7 +693,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """Saves checkpoint"""
-        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
+        if (
+            isinstance(self.ddp_config, DistributedDataParallelConfig)
+            and self.ddp_config.use_distributed_optimizer
+            and self.ddp_config.overlap_param_gather
+        ):
             self.megatron_parallel.force_param_sync()
 
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
@@ -713,7 +717,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         """Determines whether to restore optimizer states or not"""
