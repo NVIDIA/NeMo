@@ -24,6 +24,7 @@ from nemo.lightning.io.mixin import track_io
 
 model_choices = ['mistral', 'mixtral']
 
+
 def model_type(arg):
     if arg.lower() in model_choices:
         return arg.lower()
@@ -31,6 +32,7 @@ def model_type(arg):
         return arg
     else:
         raise argparse.ArgumentTypeError(f"invalid choice: '{arg_value}' (choose from " + str(model_choices) + ")")
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Finetune a small GPT model using NeMo 2.0')
