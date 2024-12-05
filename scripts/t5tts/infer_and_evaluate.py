@@ -20,6 +20,11 @@ dataset_meta_info = {
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
     },
+    'riva_challenging_nozeros': {
+        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
+        'audio_dir' : '/datap/misc/Datasets/riva',
+        'feature_dir' : '/datap/misc/Datasets/riva',
+    },
     'libri_val': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
@@ -28,7 +33,7 @@ dataset_meta_info = {
 }
 
 
-def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path, use_cfg, cfg_scale):
+def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path, use_cfg, cfg_scale, batch_size):
     # import ipdb; ipdb.set_trace()
     model_cfg = OmegaConf.load(hparams_file).cfg
 
@@ -92,7 +97,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
         test_data_loader = torch.utils.data.DataLoader(
             test_dataset,
-            batch_size=16,
+            batch_size=batch_size,
             collate_fn=test_dataset.collate_fn,
             num_workers=2,
             shuffle=False
@@ -140,17 +145,18 @@ def main():
     parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/unnormalizedLalign005_multiEncoder_textcontext_kernel3_hparams.yaml")
     parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/unnormalizedLalign005_multiEncoder_textcontext_kernel3_epoch_18.ckpt")
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo")
-    parser.add_argument('--datasets', type=str, default="vctk,riva_challenging,libri_val")
-    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/dracomount")
-    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NormalizedNewT5Experiments")
-    parser.add_argument('--server_address', type=str, default="pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com")
-    parser.add_argument('--exp_names', type=str, default="unnormalizedLalign005_multiEncoder_textcontext_kernel3,unnormalizedLalign005_decoderContext_textcontext_kernel3Fixed,unnormalizedLalign005_singleencoder_kernel3")
+    parser.add_argument('--datasets', type=str, default="riva_challenging_nozeros,vctk,riva_challenging,libri_val")
+    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmount2")
+    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTSCFG_Finetunes")
+    parser.add_argument('--server_address', type=str, default="pneekhara@login-eos02.eos.clusters.nvidia.com")
+    parser.add_argument('--exp_names', type=str, default="decoder_21,singleencoder_20")
     parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints")
     parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5_Unnormalized")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
     parser.add_argument('--cfg_scale', type=float, default=1.0)
     parser.add_argument('--topk', type=int, default=80)
+    parser.add_argument('--batch_size', type=int, default=16)
     args = parser.parse_args()
 
     if (args.hparams_file is not None) and (args.checkpoint_file is not None) and (args.hparams_file != "null"):
@@ -163,7 +169,8 @@ def main():
             args.topk,
             args.codecmodel_path,
             args.use_cfg,
-            args.cfg_scale
+            args.cfg_scale,
+            args.batch_size
         )
         return
     else:
@@ -213,7 +220,8 @@ def main():
                 args.topk, 
                 args.codecmodel_path, 
                 args.use_cfg,
-                args.cfg_scale
+                args.cfg_scale,
+                args.batch_size
             )
             
 
