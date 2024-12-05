@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.utils import logging
 
 GENERATE_NUM = 0
+KEEPALIVE_NUM = 1
 lock = threading.Lock()
 
 API_ALLOWED_KEYS = set(
@@ -73,6 +74,20 @@ class MegatronGenerate(Resource):
     def send_do_generate():
         choice = torch.cuda.LongTensor([GENERATE_NUM])
         torch.distributed.broadcast(choice, 0)
+
+    @staticmethod
+    def keepalive(stop_event, timeout=3600):
+        """
+        Periodically broadcast a keepalive signal to avoid timeouts.
+        """
+        while True:
+            stop_event.wait(timeout=timeout)
+            if stop_event.is_set():
+                return
+            with lock:
+                logging.debug("Sending keepalive signal")
+                choice = torch.cuda.LongTensor([KEEPALIVE_NUM])
+                torch.distributed.broadcast(choice, 0)
 
     def convert_messages(self, input_list):
         output_dict = {
@@ -493,4 +508,14 @@ class MegatronServer(object):
         )
 
     def run(self, url, port=5000):
-        self.app.run(url, threaded=True, port=port, debug=False)
+        # Also start a thread that periodically sends a "keepalive" signal to all workers, to ensure
+        # the PyTorch `brodcast()` operation does not time out.
+        stop_event = threading.Event()
+        keepalive_thread = threading.Thread(target=MegatronGenerate.keepalive, args=[stop_event])
+        keepalive_thread.start()
+        try:
+            self.app.run(url, threaded=True, port=port, debug=False)
+        finally:
+            # Once we're done, let the keepalive thread know so that it can exit gracefully.
+            stop_event.set()
+            keepalive_thread.join()
