@@ -680,10 +680,13 @@ class T5TTS_Model(ModelPT):
         batch_output = self.process_batch(batch)
         loss = batch_output['loss']
         codebook_loss = batch_output['codebook_loss']
-        alignment_loss = batch_output['alignment_loss']
         self.log('train_codebook_loss', codebook_loss, prog_bar=True, sync_dist=True)
-        if alignment_loss is not None:
-            self.log('train_alignment_loss', alignment_loss, prog_bar=True, sync_dist=True)
+        if self.cfg.get('cfg_unconditional_prob', 0.0) == 0.0:
+            # Only log alignment loss when not using cfg to avoid sync issues when
+            # alignment loss is None on some ranks
+            alignment_loss = batch_output['alignment_loss']
+            if alignment_loss is not None:
+                self.log('train_alignment_loss', alignment_loss, prog_bar=True, sync_dist=True)
         self.log('train_loss', loss, prog_bar=True, sync_dist=True)
         
         return loss
