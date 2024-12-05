@@ -197,6 +197,7 @@ def convert_pred_mat_to_segments(
                                                                                 all_hypothesis, 
                                                                                 all_reference, 
                                                                                 all_uems,
+                                                                                out_rttm_dir=out_rttm_dir
                                                                                )
         batch_pred_ts_segs.append(spk_ts) 
     return all_hypothesis, all_reference, all_uems
@@ -253,6 +254,7 @@ def convert_pred_mat_to_segments_chunkwise(
                                                                                     all_hypothesis, 
                                                                                     all_reference, 
                                                                                     all_uems,
+                                                                                    out_rttm_dir=None
                                                                                 )
             batch_pred_ts_segs.append(spk_ts) 
         yield all_hypothesis, all_reference, all_uems
@@ -300,7 +302,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     else:
         raise ValueError("cfg.model_path must end with.ckpt or.nemo!")
     
-    import ipdb; ipdb.set_trace()
     diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     diar_model.set_trainer(trainer)
