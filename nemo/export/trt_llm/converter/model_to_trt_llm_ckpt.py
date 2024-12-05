@@ -36,6 +36,7 @@ layer_names = {
     "final_layernorm.bias": "final_layernorm.bias",
 }
 
+
 def torch_dtype_from_precision(precision, megatron_amp_O2) -> torch.dtype:
     """Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
     # Copied from nemo.collections.nlp.parts.utils_funcs to avoid extra depenencies for NIM.
