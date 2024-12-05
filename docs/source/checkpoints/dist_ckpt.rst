@@ -42,7 +42,7 @@ The following figure illustrates asynchronous saving in NeMo Framework, where ch
 .. image:: https://github.com/NVIDIA/NeMo/releases/download/v2.0.0/asset-nemo-dist-ckpt-explain-1.png
 
 
-*Figure 2. Asynchronous saving in Megatron Core saves checkpoint at the background in parallel with training*
+*Figure 2. Asynchronous saving in NeMo Framework saves checkpoint at the background in parallel with training*
 
 
 Parameter Tuning
