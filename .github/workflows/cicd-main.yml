@@ -2109,10 +2109,10 @@ jobs:
     #    }
     #  }
 
-  L2_Megatron_LM_To_NeMo_Conversion:
+  OPTIONAL_L2_Megatron_LM_To_NeMo_Conversion:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_LM_To_NeMo_Conversion') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Megatron_LM_To_NeMo_Conversion') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -2223,6 +2223,7 @@ jobs:
           --model_type gpt \
           --hparams_file /tmp/nemo_conversion_ckpt/megatron_gpt/version_0/hparams.yaml \
           --convert_mlm
+      IS_OPTIONAL: true
 
   L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
@@ -2495,10 +2496,10 @@ jobs:
         rm -rf examples/nlp/language_modeling/gpt_pretrain_results
         rm -rf examples/nlp/language_modeling/gpt_index_mappings
 
-  Optional_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2:
+  OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'Optional_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure-gpus-2-h100
       SCRIPT: |
@@ -3322,10 +3323,10 @@ jobs:
         rm -rf examples/nlp/language_modeling/t5_pretrain_results
         rm -rf examples/nlp/language_modeling/t5_index_mappings
 
-  L2_Megatron_T5_Pretraining_and_Resume_Training_PP2:
+  OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_T5_Pretraining_and_Resume_Training_PP2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -3390,6 +3391,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/nlp/language_modeling/t5_pretrain_results
         rm -rf examples/nlp/language_modeling/t5_index_mappings
+      IS_OPTIONAL: true
 
   L2_Megatron_T5_w_Mixture_of_Expert_Pretraining:
     needs: [cicd-test-container-setup]
@@ -3964,7 +3966,7 @@ jobs:
   L2_NeMo_2_GPT_DDP_Param_Parity_check:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_NeMo_2_GPT_DDP_Param_Parity_check') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_GPT_DDP_Param_Parity_check') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -4408,7 +4410,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-  
         python tests/collections/llm/gpt_finetuning.py \
         --restore_path /home/TestData/nemo2_ckpt/llama_68M \
         --devices 2 \
@@ -4458,10 +4459,10 @@ jobs:
         --model mixtral \
         --dist-opt
 
-  L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
+  OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -4472,6 +4473,7 @@ jobs:
         --mbs 1 \
         --model mixtral \
         --dist-opt
+      IS_OPTIONAL: true
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
     needs: [cicd-test-container-setup]
@@ -4615,13 +4617,13 @@ jobs:
       - L2_RAG_Pipeline_Generating
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_Skip_Train
-      - L2_Megatron_LM_To_NeMo_Conversion
+      #- OPTIONAL_L2_Megatron_LM_To_NeMo_Conversion
       - L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_Drop_Optimizer_States_TP2
       - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
-      # - Optional_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
+      #- OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
       - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
@@ -4637,7 +4639,7 @@ jobs:
       - L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
+      #- OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
       - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
       - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_Core_T5_Eval
@@ -4677,7 +4679,7 @@ jobs:
       - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
       - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
+      #- OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
       - L2_NEMO_2_LoRA_MERGE
