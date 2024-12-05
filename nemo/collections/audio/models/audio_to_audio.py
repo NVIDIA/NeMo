@@ -45,6 +45,7 @@ class AudioToAudioModel(ModelPT, ABC):
         cfg: A DictConfig object with the configuration parameters.
         trainer: A Trainer object to be used for training.
     """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
