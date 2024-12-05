@@ -78,6 +78,7 @@ from nemo.collections.llm.gpt.model import (
     LlamaConfig,
     LlamaModel,
     MaskedTokenLossReduction,
+    MegatronAutoModel,
     MistralConfig7B,
     MistralModel,
     MistralNeMoConfig12B,
