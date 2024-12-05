@@ -140,7 +140,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get("use_lhotse"):
             logging.info(f"Creating Lhotse dataset for {mode}")
-            setattr(self, f"_{mode}_names", self._parse_lhotse_data_name(mode))
+            if mode != 'train':
+                setattr(self, f"_{mode}_names", self._parse_lhotse_data_name(mode))
             self.text_processor = PromptFormatterTextProcessing(
                 self.tokenizer,
                 prompt_format=data_cfg.get('prompt_format', None),
@@ -230,6 +231,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         )
 
     def _parse_lhotse_data_name(self, mode: str) -> List[str]:
+        if mode == 'train':
+            return []
         data_cfg = self.cfg.get(f"{mode}_ds", None)
         if data_cfg.get('manifest_filepath', None):
             manifest_filepath = data_cfg.manifest_filepath
