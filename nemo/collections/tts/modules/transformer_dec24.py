@@ -14,17 +14,16 @@
 import math
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from flash_attn import flash_attn_varlen_kvpacked_func, flash_attn_varlen_qkvpacked_func
+from flash_attn.layers.rotary import RotaryEmbedding
+from torch import nn
 from torch.cuda import amp
 from torch.nn.utils.rnn import pad_sequence
-from flash_attn import flash_attn_varlen_qkvpacked_func
-from flash_attn import flash_attn_varlen_kvpacked_func
-from flash_attn.layers.rotary import RotaryEmbedding
 
 
 # alibi helper functions (start)
-def get_relative_positions(seq_len: int, device, symmetric: bool=True) -> torch.tensor:
+def get_relative_positions(seq_len: int, device, symmetric: bool = True) -> torch.tensor:
     x = torch.arange(seq_len)[None, :]
     y = torch.arange(seq_len)[:, None]
     rel_pos = (x - y).to(device)
@@ -34,23 +33,32 @@ def get_relative_positions(seq_len: int, device, symmetric: bool=True) -> torch.
 
 
 def get_alibi_slope(num_heads):
-    x = (2 ** 8) ** (1 / num_heads)
-    return (
-        torch.tensor([1 / x ** (i + 1) for i in range(num_heads)])
-        .unsqueeze(-1)
-        .unsqueeze(-1)
-    )
+    x = (2**8) ** (1 / num_heads)
+    return torch.tensor([1 / x ** (i + 1) for i in range(num_heads)]).unsqueeze(-1).unsqueeze(-1)
+
+
 # alibi helper functions (end)
 
+
 class ConvNorm(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1,
-                 padding=None, dilation=1, bias=True, w_init_gain='gpt2',
-                 is_causal=False, norm_name=''):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=1,
+        stride=1,
+        padding=None,
+        dilation=1,
+        bias=True,
+        w_init_gain='gpt2',
+        is_causal=False,
+        norm_name='',
+    ):
         super(ConvNorm, self).__init__()
 
         padding = 0 if is_causal else padding
         if padding is None:
-            assert(kernel_size % 2 == 1)
+            assert kernel_size % 2 == 1
             padding = int(dilation * (kernel_size - 1) / 2)
 
         self.is_causal = is_causal
@@ -58,14 +66,19 @@ class ConvNorm(torch.nn.Module):
         self.dilation = dilation
 
         self.conv = torch.nn.Conv1d(
-            in_channels, out_channels, kernel_size=kernel_size, stride=stride,
-            padding=padding, dilation=dilation, bias=bias)
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=bias,
+        )
 
         if w_init_gain == 'gpt2':
             torch.nn.init.normal_(self.conv.weight, mean=0.0, std=0.02)
         else:
-            torch.nn.init.xavier_uniform_(
-                self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+            torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
 
         self.norm_name = norm_name
         if self.norm_name == 'weightnorm':
@@ -79,9 +92,11 @@ class ConvNorm(torch.nn.Module):
             signal = torch.nn.functional.pad(signal, padding)
         conv_signal = self.conv(signal)
         return conv_signal
-    
+
+
 class LayerNorm(nn.Module):
-    """ LayerNorm with optional bias. PyTorch doesn't support bias=False """
+    """LayerNorm with optional bias. PyTorch doesn't support bias=False"""
+
     def __init__(self, size, gamma0=1, eps=1e-5, use_bias=False):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(size))
@@ -96,8 +111,7 @@ class LayerNorm(nn.Module):
         dtype = tensor.dtype
         # fp32 to avoid numerical issues
         with amp.autocast(enabled=True, dtype=torch.float32):
-            tensor = F.layer_norm(
-                tensor, self.weight.shape, self.weight, self.bias, self.eps)
+            tensor = F.layer_norm(tensor, self.weight.shape, self.weight, self.bias, self.eps)
         return tensor.to(dtype)
 
 
@@ -113,13 +127,11 @@ class LayerScale(nn.Module):
         device (torch.device or None): Device to initialize the module.
         dtype (torch.dtype or None): dtype to use to initialize the module.
     """
-    def __init__(self, channels: int, init: float = 1e-4, channel_last: bool =
-                 True, device=None, dtype=None):
+
+    def __init__(self, channels: int, init: float = 1e-4, channel_last: bool = True, device=None, dtype=None):
         super().__init__()
         self.channel_last = channel_last
-        self.scale = nn.Parameter(
-            torch.full((channels,), init,
-                       requires_grad=True, device=device, dtype=dtype))
+        self.scale = nn.Parameter(torch.full((channels,), init, requires_grad=True, device=device, dtype=dtype))
 
     def forward(self, x: torch.Tensor):
         dtype = x.dtype
@@ -132,16 +144,13 @@ class LayerScale(nn.Module):
 
 
 class PositionwiseConvFF(nn.Module):
-    def __init__(self, d_model, p_dropout, kernel_size=1, bias=False,
-                 is_causal=True):
+    def __init__(self, d_model, p_dropout, kernel_size=1, bias=False, is_causal=True):
         super(PositionwiseConvFF, self).__init__()
 
         self.d_model = d_model
         self.non_linearity = nn.GELU(approximate="tanh")
-        self.proj = ConvNorm(d_model, d_model * 4, bias=bias,
-                             kernel_size=kernel_size, is_causal=is_causal)
-        self.o_net = ConvNorm(d_model * 4, d_model, bias=bias,
-                              kernel_size=kernel_size, is_causal=is_causal)
+        self.proj = ConvNorm(d_model, d_model * 4, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
+        self.o_net = ConvNorm(d_model * 4, d_model, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
         self.dropout = nn.Dropout(p_dropout)
 
     def forward(self, x):
@@ -154,10 +163,19 @@ class PositionwiseConvFF(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, n_heads, d_model, p_dropout, is_causal=True,
-                 is_self_attention=True, d_memory=None,
-                 use_flash_attention=True, deterministic=False,
-                 pos_emb={"name": "alibi"}, max_length_causal_mask=4096):
+    def __init__(
+        self,
+        n_heads,
+        d_model,
+        p_dropout,
+        is_causal=True,
+        is_self_attention=True,
+        d_memory=None,
+        use_flash_attention=True,
+        deterministic=False,
+        pos_emb={"name": "alibi"},
+        max_length_causal_mask=4096,
+    ):
         super(Attention, self).__init__()
         # context conditional attention dims
         if is_self_attention:
@@ -169,7 +187,7 @@ class Attention(nn.Module):
 
         self.n_heads = n_heads
         self.d_model = d_model
-        self.scale = self.d_head ** -0.5
+        self.scale = self.d_head**-0.5
         self.is_causal = is_causal
         self.is_self_attention = is_self_attention
         self.use_flash_attention = use_flash_attention
@@ -177,8 +195,7 @@ class Attention(nn.Module):
         self.pos_emb_name = pos_emb['name']
         self.max_length_causal_mask = max_length_causal_mask
         if self.pos_emb_name == 'rope':
-            self.rope = RotaryEmbedding(
-                self.d_head, base=pos_emb['base'])
+            self.rope = RotaryEmbedding(self.d_head, base=pos_emb['base'])
         elif self.pos_emb_name == 'alibi':
             self.register_buffer("m", get_alibi_slope(self.n_heads))
         elif self.pos_emb_name == 'learnable':
@@ -188,13 +205,10 @@ class Attention(nn.Module):
             # ~ 45 seconds mask, 4096 mel frames, 86 frames per second
             # ~ 762 seconds mask, 65536 mel frames, 86 frames per second
 
-            self.register_buffer(
-                "causal_mask",
-                torch.tril(torch.ones(4096, 4096)).view(1, 1, 4096, 4096) == 0)
+            self.register_buffer("causal_mask", torch.tril(torch.ones(4096, 4096)).view(1, 1, 4096, 4096) == 0)
 
         if is_self_attention:
-            self.qkv_net = nn.Linear(
-                d_model, 3 * n_heads * self.d_head, bias=False)
+            self.qkv_net = nn.Linear(d_model, 3 * n_heads * self.d_head, bias=False)
             self.o_net = nn.Linear(n_heads * self.d_head, d_model, bias=False)
         else:
             self.q_net = nn.Linear(d_model, n_heads * self.d_head, bias=False)
@@ -202,26 +216,25 @@ class Attention(nn.Module):
             self.o_net = nn.Linear(n_heads * self.d_head, d_model, bias=False)
         self.dropout = nn.Dropout(p_dropout)
         self.use_cache = False
-    
+
     def reset_cache(self, use_cache=False):
         self.use_cache = use_cache
         self.cache = {
             'is_initialized': False,
             'self_k': None,
             'self_v': None,
-            'cross_kv' : None,
+            'cross_kv': None,
             'cross_k': None,
-            'cross_v': None
+            'cross_v': None,
         }
 
     def add_positional_embeddings(self, x, start_step=0):
         # Used for learnable positional embeddings
-        positions = torch.arange(start_step, start_step+x.size(1), device=x.device).unsqueeze(0)
+        positions = torch.arange(start_step, start_step + x.size(1), device=x.device).unsqueeze(0)
         pos_emb = self.position_embeddings(positions)
         return x + pos_emb
-    
-    def attn_flash(self, query, query_mask, memory=None, memory_mask=None,
-                   idx=None):
+
+    def attn_flash(self, query, query_mask, memory=None, memory_mask=None, idx=None):
         alibi_slopes = None
         if self.pos_emb_name == 'learnable':
             query = self.add_positional_embeddings(query)
@@ -241,10 +254,14 @@ class Attention(nn.Module):
             cu_seqlens_q = F.pad(lengths_q.cumsum(0), (1, 0), value=0).to(torch.int32)
             max_seqlen_q = torch.max(lengths_q)
             y = flash_attn_varlen_qkvpacked_func(
-                qkv.bfloat16(), cu_seqlens=cu_seqlens_q,
-                max_seqlen=max_seqlen_q, dropout_p=self.dropout.p,
-                causal=self.is_causal, alibi_slopes=alibi_slopes,
-                deterministic=self.deterministic)
+                qkv.bfloat16(),
+                cu_seqlens=cu_seqlens_q,
+                max_seqlen=max_seqlen_q,
+                dropout_p=self.dropout.p,
+                causal=self.is_causal,
+                alibi_slopes=alibi_slopes,
+                deterministic=self.deterministic,
+            )
         else:
             Bq, Tq, _ = query.shape
             Bkv, Tkv, _ = memory.shape
@@ -263,19 +280,27 @@ class Attention(nn.Module):
             max_seqlen_q = torch.max(lengths_q)
             max_seqlen_k = torch.max(lengths_k)
             y = flash_attn_varlen_kvpacked_func(
-                q.bfloat16(), kv.bfloat16(), cu_seqlens_q, cu_seqlens_k,
-                max_seqlen_q, max_seqlen_k, dropout_p=self.dropout.p,
-                causal=self.is_causal, alibi_slopes=alibi_slopes,
-                deterministic=self.deterministic)
+                q.bfloat16(),
+                kv.bfloat16(),
+                cu_seqlens_q,
+                cu_seqlens_k,
+                max_seqlen_q,
+                max_seqlen_k,
+                dropout_p=self.dropout.p,
+                causal=self.is_causal,
+                alibi_slopes=alibi_slopes,
+                deterministic=self.deterministic,
+            )
         # (rvalle): modify such that transformer uses no padding at all
         B, T, C = query.shape
         y = pad_sequence(torch.split(y, lengths_q.tolist()), batch_first=True)
         y = y.to(query.dtype).view(B, T, -1)
         return y
 
-    def attn_naive(self, query, query_mask, memory=None, memory_mask=None,
-                   attn_prior=None, dump_attention=False, idx=0):
-        
+    def attn_naive(
+        self, query, query_mask, memory=None, memory_mask=None, attn_prior=None, dump_attention=False, idx=0
+    ):
+
         pos_start_time_step = 0
         if self.use_cache:
             if self.cache['is_initialized']:
@@ -288,7 +313,7 @@ class Attention(nn.Module):
         B, T, _ = query.shape
         Tkv = T if memory is None else memory.shape[1]
         mask = None
-        
+
         if self.pos_emb_name == 'learnable':
             query = self.add_positional_embeddings(query, pos_start_time_step)
             if memory is not None:
@@ -348,8 +373,7 @@ class Attention(nn.Module):
             attn_score.masked_fill_(mask, float('-inf'))
 
         if self.is_self_attention and self.is_causal:
-            attn_score.masked_fill_(
-                self.causal_mask[..., :T, :T], float('-inf'))
+            attn_score.masked_fill_(self.causal_mask[..., :T, :T], float('-inf'))
 
         # attn_prior or square mask or vanilla attention
         if attn_prior is not None:
@@ -376,8 +400,9 @@ class Attention(nn.Module):
 
         return y, [attn_prob, _attn_score]
 
-    def forward(self, query, query_mask=None, memory=None, memory_mask=None,
-                attn_prior=None, dump_attention=False, idx=None):
+    def forward(
+        self, query, query_mask=None, memory=None, memory_mask=None, attn_prior=None, dump_attention=False, idx=None
+    ):
         """
         all inputs should be (B, T, C)
         query_mask (T1, T1)
@@ -389,9 +414,7 @@ class Attention(nn.Module):
             attn_prob = []
             y = self.attn_flash(query, query_mask, memory, memory_mask, idx)
         else:
-            y, attn_prob = self.attn_naive(
-                query, query_mask, memory, memory_mask, attn_prior,
-                dump_attention, idx=idx)
+            y, attn_prob = self.attn_naive(query, query_mask, memory, memory_mask, attn_prior, dump_attention, idx=idx)
 
         y = self.dropout(self.o_net(y))
 
@@ -399,12 +422,26 @@ class Attention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, d_model, n_heads, kernel_size, p_dropout, context_xattn,
-                 has_xattn, remove_self_attention=False, is_causal=True,
-                 apply_norm_to_cond=True, layer_norm_method='pre',
-                 use_layer_scale=False, layer_scale_init=1e-1,
-                 use_flash_self_attention=True, use_flash_x_attention=True, deterministic=False,
-                 pos_emb={"name": "alibi"}, max_length_causal_mask=4096):
+    def __init__(
+        self,
+        d_model,
+        n_heads,
+        kernel_size,
+        p_dropout,
+        context_xattn,
+        has_xattn,
+        remove_self_attention=False,
+        is_causal=True,
+        apply_norm_to_cond=True,
+        layer_norm_method='pre',
+        use_layer_scale=False,
+        layer_scale_init=1e-1,
+        use_flash_self_attention=True,
+        use_flash_x_attention=True,
+        deterministic=False,
+        pos_emb={"name": "alibi"},
+        max_length_causal_mask=4096,
+    ):
         super(TransformerBlock, self).__init__()
         """
         T5-ish
@@ -417,14 +454,17 @@ class TransformerBlock(nn.Module):
         if not self.remove_self_attention:
             self.norm_self = LayerNorm(d_model, use_bias=False)
             self.self_attention = Attention(
-                n_heads=n_heads, d_model=d_model, p_dropout=p_dropout,
+                n_heads=n_heads,
+                d_model=d_model,
+                p_dropout=p_dropout,
                 is_self_attention=True,
                 use_flash_attention=use_flash_self_attention,
-                deterministic=deterministic, pos_emb=pos_emb,
-                max_length_causal_mask=max_length_causal_mask)
+                deterministic=deterministic,
+                pos_emb=pos_emb,
+                max_length_causal_mask=max_length_causal_mask,
+            )
             if self.use_layer_scale:
-                self.layer_scale_self_attn = LayerScale(
-                    d_model, init=layer_scale_init)
+                self.layer_scale_self_attn = LayerScale(d_model, init=layer_scale_init)
             else:
                 self.layer_scale_self_attn = nn.Identity()
 
@@ -433,23 +473,23 @@ class TransformerBlock(nn.Module):
             self.norm_xattn_query = LayerNorm(d_model, use_bias=False)
             params = context_xattn['params']
             cross_attention = Attention(
-                n_heads=params['n_heads'], d_model=d_model,
-                p_dropout=p_dropout, is_causal=False,
-                is_self_attention=False, d_memory=params['d_heads'],
+                n_heads=params['n_heads'],
+                d_model=d_model,
+                p_dropout=p_dropout,
+                is_causal=False,
+                is_self_attention=False,
+                d_memory=params['d_heads'],
                 use_flash_attention=use_flash_x_attention,
                 deterministic=deterministic,
                 pos_emb=params.get('pos_emb', pos_emb),
-                max_length_causal_mask=params.get(
-                    'max_length_causal_mask', max_length_causal_mask)
+                max_length_causal_mask=params.get('max_length_causal_mask', max_length_causal_mask),
             )
             if self.use_layer_scale:
-                layer_scale_cross_attn = LayerScale(
-                    d_model, init=layer_scale_init)
+                layer_scale_cross_attn = LayerScale(d_model, init=layer_scale_init)
             else:
                 layer_scale_cross_attn = nn.Identity()
             if self.apply_norm_to_cond:
-                norm_xattn_memory = LayerNorm(
-                    params['d_heads'], use_bias=False)
+                norm_xattn_memory = LayerNorm(params['d_heads'], use_bias=False)
 
             if self.apply_norm_to_cond:
                 self.norm_xattn_memory = norm_xattn_memory
@@ -458,14 +498,13 @@ class TransformerBlock(nn.Module):
             self.layer_scale_cross_attn = layer_scale_cross_attn
 
         self.norm_pos_ff = LayerNorm(d_model, use_bias=False)
-        self.pos_ff = PositionwiseConvFF(
-            d_model, p_dropout, kernel_size=kernel_size, is_causal=is_causal)
+        self.pos_ff = PositionwiseConvFF(d_model, p_dropout, kernel_size=kernel_size, is_causal=is_causal)
 
         if self.use_layer_scale:
             self.layer_scale_ff = LayerScale(d_model, init=layer_scale_init)
         else:
             self.layer_scale_ff = nn.Identity()
-        
+
         self.use_cache = False
 
     def reset_cache(self, use_cache=False):
@@ -479,8 +518,7 @@ class TransformerBlock(nn.Module):
         if self.has_xattn:
             self.cross_attention.reset_cache(use_cache)
 
-    def forward(self, x, x_mask, cond, cond_mask, dump_attention=False,
-                attn_prior=None, idx=None):
+    def forward(self, x, x_mask, cond, cond_mask, dump_attention=False, attn_prior=None, idx=None):
         """
         all inputs should be (B, T, C)
         mask (T1, T2) is True where masking (ignoring) is required
@@ -488,9 +526,8 @@ class TransformerBlock(nn.Module):
         x_mask_inv_float = (~x_mask).to(x.dtype)[..., None]
         if self.layer_norm_method == 'pre':
             x_, s_attn_prob = self.self_attention(
-                query=self.norm_self(x),
-                query_mask=x_mask,
-                dump_attention=dump_attention, idx=idx)
+                query=self.norm_self(x), query_mask=x_mask, dump_attention=dump_attention, idx=idx
+            )
             if self.use_cache:
                 if self.cache['self_attn_output'] is not None:
                     x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
@@ -498,10 +535,7 @@ class TransformerBlock(nn.Module):
 
             x = (x + self.layer_scale_self_attn(x_)) * x_mask_inv_float
         elif self.layer_norm_method == 'post':
-            x_, s_attn_prob = self.self_attention(
-                query=x,
-                query_mask=x_mask,
-                dump_attention=dump_attention)
+            x_, s_attn_prob = self.self_attention(query=x, query_mask=x_mask, dump_attention=dump_attention)
             if self.use_cache:
                 if self.cache['self_attn_output'] is not None:
                     x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
@@ -516,8 +550,7 @@ class TransformerBlock(nn.Module):
                 if self.use_cache and self.cache['memory'] is not None:
                     memory = self.cache['memory']
                 else:
-                    memory = (self.norm_xattn_memory(cond)
-                            if self.apply_norm_to_cond else cond)
+                    memory = self.norm_xattn_memory(cond) if self.apply_norm_to_cond else cond
                     if self.use_cache:
                         self.cache['memory'] = memory
 
@@ -528,7 +561,8 @@ class TransformerBlock(nn.Module):
                     memory_mask=cond_mask,
                     attn_prior=attn_prior,
                     dump_attention=dump_attention,
-                    idx=idx)
+                    idx=idx,
+                )
                 if self.use_cache:
                     if self.cache['cross_attn_output'] is not None:
                         x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
@@ -542,29 +576,26 @@ class TransformerBlock(nn.Module):
                     memory=cond,
                     memory_mask=cond_mask,
                     attn_prior=attn_prior,
-                    dump_attention=dump_attention)
+                    dump_attention=dump_attention,
+                )
                 if self.use_cache:
                     if self.cache['cross_attn_output'] is not None:
                         x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
                     self.cache['cross_attn_output'] = x_res
-                    
+
                 x = (x + self.layer_scale_cross_attn(x_res)) * x_mask_inv_float
                 x = self.norm_xattn_query(x)
 
         # mlp final projection
         if self.layer_norm_method == 'pre':
-            x = x + self.layer_scale_ff(
-                self.pos_ff(self.norm_pos_ff(x)))
+            x = x + self.layer_scale_ff(self.pos_ff(self.norm_pos_ff(x)))
             x *= x_mask_inv_float
         elif self.layer_norm_method == 'post':
             x = x + self.layer_scale_ff(self.pos_ff(x))
             x *= x_mask_inv_float
             x = self.norm_pos_ff(x)
 
-        attn_probabilities = {
-            'self_attn_probabilities': s_attn_prob,
-            'cross_attn_probabilities': x_attn_prob
-        }
+        attn_probabilities = {'self_attn_probabilities': s_attn_prob, 'cross_attn_probabilities': x_attn_prob}
 
         return {
             'output': x,
@@ -573,7 +604,7 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerStack(nn.Module):
-    def __init__(self,  hparams):
+    def __init__(self, hparams):
         super(TransformerStack, self).__init__()
         """
         hparams <dict> with transformer params
@@ -602,8 +633,7 @@ class TransformerStack(nn.Module):
             self.apply(self._init_weights_gpt2)
             for pn, p in self.named_parameters():
                 if 'o_net' in pn and pn.endswith('weight'):
-                    torch.nn.init.normal_(
-                        p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+                    torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
@@ -617,8 +647,7 @@ class TransformerStack(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, x, x_mask, cond, cond_mask, dump_attention=False,
-                attn_prior=None, multi_encoder_mapping=None):
+    def forward(self, x, x_mask, cond, cond_mask, dump_attention=False, attn_prior=None, multi_encoder_mapping=None):
         """
         x <torch tensor> (B, T1, C):
         x_mask <bool mask> (B, T1): True where ignoring is required
@@ -643,8 +672,8 @@ class TransformerStack(nn.Module):
                 _cond_mask = cond_mask
                 _attn_prior = attn_prior
             out_dict = layer(
-                x, x_mask, _cond, _cond_mask, dump_attention=dump_attention,
-                attn_prior=_attn_prior, idx=idx)
+                x, x_mask, _cond, _cond_mask, dump_attention=dump_attention, attn_prior=_attn_prior, idx=idx
+            )
             x = out_dict['output']
             attn_prob = out_dict['attn_probabilities']
             attn_probabilities.append(attn_prob)
@@ -655,14 +684,8 @@ class TransformerStack(nn.Module):
         if self.p_dropout_out > 0.0:
             x = self.dropout(x)
 
-        return {
-            'output': x,
-            'attn_probabilities': attn_probabilities
-        }
+        return {'output': x, 'attn_probabilities': attn_probabilities}
 
     @torch.no_grad()
-    def infer(self, x, cond, x_mask, cond_mask, dump_attention=False,
-              attn_prior=None):
-        return self.forward(
-            x, x_mask, cond, cond_mask, dump_attention=dump_attention,
-            attn_prior=attn_prior)
+    def infer(self, x, cond, x_mask, cond_mask, dump_attention=False, attn_prior=None):
+        return self.forward(x, x_mask, cond, cond_mask, dump_attention=dump_attention, attn_prior=attn_prior)
