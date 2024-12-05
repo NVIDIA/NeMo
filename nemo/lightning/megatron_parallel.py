@@ -1292,6 +1292,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             batch = next(self.data)
             if isinstance(batch, tuple) and len(batch) == 3:
                 batch = batch[0]
+            self.seq_length = batch['tokens'].size(1)
             from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
             data = get_iterator_k_split(batch, self.num_microbatches, True)
