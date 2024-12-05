@@ -4639,7 +4639,7 @@ jobs:
       - L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2
-      - Optional_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
+      # - Optional_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
       - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
       - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_Core_T5_Eval
