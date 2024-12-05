@@ -40,23 +40,4 @@ class SpeechLMDataSampler(MegatronDataSampler):
             logging.info(f"Dataset {dataloader.dataset} is an IterableDataset. Skipping Megatron data sampler.")
             return dataloader
 
-        from megatron.core import parallel_state
-
-        from nemo.lightning.data import add_megatron_sampler
-
-        mode = getattr(dataloader, 'mode', 'train')
-
-        data_parallel_rank = parallel_state.get_data_parallel_rank()
-        data_parallel_size = parallel_state.get_data_parallel_world_size()
-        return add_megatron_sampler(
-            dataloader,
-            micro_batch_size=self.micro_batch_size,
-            global_batch_size=self.global_batch_size,
-            rampup_batch_size=self.rampup_batch_size,
-            consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
-            dataloader_type=self.dataloader_type,
-            drop_last=mode not in ["test", "predict"],  # don't drop the incomplete batch in test and predict methods
-            dataloader_mode=mode,  # dataloader wrapped with nemo.lightning.data.WrappedDataLoader has mode attribute
-            rank=data_parallel_rank,
-            world_size=data_parallel_size,
-        )
+        return super().transform_dataloader(dataloader, consumed_samples)
