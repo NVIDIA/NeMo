@@ -52,6 +52,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         self._test_names = None
         self.init_global_step = 0
         self.text_processor = None
+        self._num_validation_dl = 0
+        self._num_test_dl = 0
 
     def get_text_processor(self):
         data_cfg = self.cfg.get("common", None)
@@ -277,6 +279,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 for cur_manifest_filepath in manifest_filepath:
                     names.append(Path(cur_manifest_filepath).stem)
                 OmegaConf.update(data_cfg, 'name', names, force_add=True)
+                setattr(self, f"_{mode}_names", names)
                 logging.info(f'Update dataset names as {names}')
             return dls
 
@@ -292,28 +295,32 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
     def val_dataloader(self) -> EVAL_DATALOADERS:
         data_cfg = self.cfg.get("validation_ds", None)
         if data_cfg.get("use_lhotse"):
-            return self._create_lhotse_dataloader(self._validation_ds, 'validation')
+            data_loaders = self._create_lhotse_dataloader(self._validation_ds, 'validation')
         else:
             if isinstance(self._validation_ds, list):
                 if len(self._validation_ds) > 1:
-                    return [self._create_nemo_dataloader(ds, 'validation') for ds in self._validation_ds]
+                    data_loaders = [self._create_nemo_dataloader(ds, 'validation') for ds in self._validation_ds]
                 else:
-                    return self._create_nemo_dataloader(self._validation_ds[0], 'validation')
+                    data_loaders = self._create_nemo_dataloader(self._validation_ds[0], 'validation')
             else:
-                return self._create_nemo_dataloader(self._validation_ds, 'validation')
+                data_loaders = self._create_nemo_dataloader(self._validation_ds, 'validation')
+        self._num_validation_dl = len(data_loaders) if isinstance(data_loaders, list) else 1
+        return data_loaders
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
         data_cfg = self.cfg.get("test_ds", None)
         if data_cfg.get("use_lhotse"):
-            return self._create_lhotse_dataloader(self._test_ds, 'test')
+            data_loaders = self._create_lhotse_dataloader(self._test_ds, 'test')
         else:
             if isinstance(self._test_ds, list):
                 if len(self._test_ds) > 1:
-                    return [self._create_nemo_dataloader(ds, 'test') for ds in self._test_ds]
+                    data_loaders = [self._create_nemo_dataloader(ds, 'test') for ds in self._test_ds]
                 else:
-                    return self._create_nemo_dataloader(self._test_ds[0], 'test')
+                    data_loaders = self._create_nemo_dataloader(self._test_ds[0], 'test')
             else:
-                return self._create_nemo_dataloader(self._test_ds, 'test')
+                data_loaders = self._create_nemo_dataloader(self._test_ds, 'test')
+        self._num_test_dl = len(data_loaders) if isinstance(data_loaders, list) else 1
+        return data_loaders
 
     def predict_dataloader(self) -> EVAL_DATALOADERS:
         if "predict_ds" not in self.cfg and "test_ds" in self.cfg:

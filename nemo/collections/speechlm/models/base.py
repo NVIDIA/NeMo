@@ -114,15 +114,14 @@ class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.F
             logging.info("No validation dataset found. Skipping setup of multi validation data.")
             return
 
-        self._num_validation_dl = (
-            1 if not isinstance(data_module._validation_ds, list) else len(data_module._validation_ds)
-        )
-
+        self._num_validation_dl = getattr(data_module, "_num_validation_dl", 1)
         self._validation_names = getattr(data_module, "_validation_names", None)
 
         if self._validation_names is None:
-            logging.info(f"`_validation_names` not found in data module. Setting default names.")
             self._validation_names = [f'val_{idx}' for idx in range(self._num_validation_dl)]
+            logging.info(
+                f"`_validation_names` not found in data module. Setting default names: {self._validation_names}"
+            )
             if not isinstance(data_module._validation_ds, list):
                 self._validation_step_outputs = []
             else:
@@ -143,7 +142,7 @@ class SpeechLanguageModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.F
             logging.info("No test dataset found. Skipping setup of multi test data.")
             return
 
-        self._num_test_dl = 1 if not isinstance(data_module._test_ds, list) else len(data_module._test_ds)
+        self._num_test_dl = getattr(data_module, "_num_test_dl", 1)
         self._test_names = getattr(data_module, "_test_names", None)
 
         if self._test_names is None:
