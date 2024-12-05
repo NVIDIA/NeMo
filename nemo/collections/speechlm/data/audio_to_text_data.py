@@ -35,7 +35,7 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing, TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.speechlm.data.data_sampler import SLMDataSampler
+from nemo.collections.speechlm.data.data_sampler import SpeechLMDataSampler
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
@@ -106,7 +106,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             self._test_ds = self._create_dataset('test')
 
         if stage != 'predict':
-            self.data_sampler = SLMDataSampler(
+            self.data_sampler = SpeechLMDataSampler(
                 seq_len=self.cfg.common.max_seq_length,
                 micro_batch_size=self.cfg.common.micro_batch_size,
                 global_batch_size=self.cfg.common.global_batch_size,
