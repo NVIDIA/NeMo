@@ -17,6 +17,7 @@ import logging
 import multiprocessing
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional, Union
 
 import torch
 from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch
@@ -35,7 +36,7 @@ layer_names = {
 }
 
 
-def torch_dtype_from_precision(precision, megatron_amp_O2) -> torch.dtype:
+def torch_dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool] = None) -> torch.dtype:
     """Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
     # Copied from nemo.collections.nlp.parts.utils_funcs to avoid extra depenencies for NIM.
     if megatron_amp_O2 is not None and megatron_amp_O2 is False:
