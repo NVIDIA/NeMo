@@ -117,12 +117,16 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         logging.info(f"Loading HF dataset from {path}")
 
-        # self.dataset_splits will hold the actual dataset for each split.
+        # A dataset usually will have several splits (e.g. train, val, test, etc).
+        # We canonicalize synonym names to canonical names (train, test, val).
+        # A synonym can be a prefix/suffixed word e.g. train <> training.
         split_aliases = {
             'train': train_aliases,
             'test': test_aliases,
             'val': val_aliases
         }
+
+        # self.dataset_splits will hold the actual dataset for each split.
         self.dataset_splits = make_dataset_splits(path, split, split_aliases, kwargs)
 
         self.num_workers = num_workers
