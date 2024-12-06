@@ -29,6 +29,9 @@ To run CI on an untrusted fork, a NeMo user with write access must first click "
 - [ ] Did you add or update any necessary documentation?
 - [ ] Does the PR affect components that are optional to install? (Ex: Numba, Pynini, Apex etc)
   - [ ] Reviewer: Does the PR have correct import guards for all optional libraries?
+
+**NeMo 2.0 checks**:
+- [ ] Did you add necessary [config validations](https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/api.py) in `_validate_config` function?
   
 **PR Type**:
 - [ ] New Feature
