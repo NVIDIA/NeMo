@@ -30,7 +30,11 @@ def get_args():
     parser.add_argument("--temperature", type=float, default=1.0, help='Sampling temperature.')
     parser.add_argument("--top_k", type=int, default=1, help='Top k sampling.')
     parser.add_argument("--top_p", type=float, default=0.0, help='Top p sampling.')
-    parser.add_argument('--no-space-before-mask', action='store_true', help="Flag to not having space before <mask>. E.g., as in Tiktokenizer or sentencepiece case.")
+    parser.add_argument(
+        '--no-space-before-mask',
+        action='store_true',
+        help="Flag to not having space before <mask>. E.g., as in Tiktokenizer or sentencepiece case.",
+    )
     parser.add_argument(
         "--num-tokens-to-generate", type=int, default=30, help='Number of tokens to generate for each prompt.'
     )
@@ -97,7 +101,6 @@ if __name__ == "__main__":
             "How <mask> r's are in the <mask> 'strawberry'? Can you <mask> me?",
             "Which number is <mask>? 10.119 <mask> 10.19?",
         ]
-
 
     results = api.generate(
         path=args.checkpoint_path,
