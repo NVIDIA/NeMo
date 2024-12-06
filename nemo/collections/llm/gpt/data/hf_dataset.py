@@ -141,14 +141,14 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     def map(self, function=None, split_names=None, **kwargs):
         if split_names is not None:
-            dataset = extract_split(self.dataset, split_names)
+            datasets = extract_split(self.dataset, split_names)
         else:
-            dataset = self.dataset
+            datasets = self.dataset
 
         if isinstance(dataset, datasets.dataset_dict.DatasetDict):
-            dataset_iter = dataset.values()
+            dataset_iter = datasets.values()
         else:
-            dataset_iter = [dataset]
+            dataset_iter = [datasets]
 
         for subset in dataset_iter:
             subset.map(function, **kwargs)
