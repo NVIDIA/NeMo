@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import torch
+from torch.cuda.nvtx import range_push as nvtx_range_push
+from torch.cuda.nvtx import range_pop as nvtx_range_pop
 
 
 def _filter_empty_common_step(state_dict):
@@ -124,7 +126,9 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
             loss = closure()
 
         # return unused update_successful, grad_norm, num_zeros_in_grad
+        nvtx_range_push("MC_optim")
         _, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
+        nvtx_range_pop()
 
         return loss, grad_norm, num_zeros_in_grad
 
