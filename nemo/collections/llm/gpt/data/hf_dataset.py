@@ -203,7 +203,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     def map(self, function=None, split_names=None, **kwargs):
         if isinstance(split_names, str):
-            dataset_splits = {'split_names': self.dataset_splits[split_names]}
+            dataset_splits = {split_names: self.dataset_splits[split_names]}
         elif isinstance(split_names, list):
             dataset_splits = {k: self.dataset_splits[k] for k in split_names}
         else:
