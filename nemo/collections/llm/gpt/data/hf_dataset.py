@@ -21,7 +21,7 @@ import datasets.dataset_dict.DatasetDict
 import lightning.pytorch as pl
 import torch
 
-def make_dataset_splits(path, split=None, **kwargs):
+def make_dataset_splits(path, split, kwargs):
     """
     Loads a dataset with datasets.load_dataset and returns a dict containing dataset splits,
     For example:
@@ -108,7 +108,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         logging.info(f"Loading HF dataset from {path}")
 
         # self.dataset_splits will hold the actual dataset for each split.
-        self.dataset_splits = make_dataset_splits(path, split, **kwargs)
+        self.dataset_splits = make_dataset_splits(path, split, kwargs)
 
         self.num_workers = num_workers
         self.pin_memory = pin_memory
