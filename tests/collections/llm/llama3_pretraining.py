@@ -95,6 +95,7 @@ def main():
     pretrain_recipe.trainer.log_every_n_steps = 1
     pretrain_recipe.log.ckpt.every_n_train_steps = None
     pretrain_recipe.log.ckpt.train_time_interval = None
+    pretrain_recipe.log.ckpt.save_optim_on_train_end = True
     pretrain_recipe.trainer.val_check_interval = 2
     pretrain_recipe.trainer.limit_val_batches = 2
 
