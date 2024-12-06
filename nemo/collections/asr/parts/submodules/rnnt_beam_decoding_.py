@@ -1195,12 +1195,12 @@ class BeamRNNTInfer(Typing):
             )  # type: List[Hypothesis]
             kept_hyps = []
             
-            # print("Frame idx: ", t)
-            # for hyp1 in hyps:
-            #     print("Sequence: ", hyp1.y_sequence)
-            #     print("Timesteps: ", hyp1.timestep)
-            #     print("Score: ", hyp1.score)
-            #     print()
+            print("Frame idx: ", t)
+            for hyp1 in hyps:
+                print("Sequence: ", hyp1.y_sequence)
+                print("Timesteps: ", hyp1.timestep)
+                print("Score: ", hyp1.score)
+                print()
 
             # Prepare output tensor
             beam_enc_out = enc_out_t
@@ -1218,19 +1218,19 @@ class BeamRNNTInfer(Typing):
                 ytm, ilm_ytm = self.resolve_joint_output(beam_enc_out, beam_dec_out)
                 total_logps = ytm[:, 0, 0, :]
                 
-                if not self.use_kenlm and self.ngram_lm:
-                    lm_next_states_list = []
-                    lm_scores_list = []
-                    for h1 in hyps:
-                        lm_score, lm_state_candidates = self.ngram_lm(states=h1.ngram_lm_state)
-                        lm_next_states = torch.gather(lm_state_candidates, dim=1, index=labels).flatten()
+                # if not self.use_kenlm and self.ngram_lm:
+                #     lm_next_states_list = []
+                #     lm_scores_list = []
+                #     for h1 in hyps:
+                #         lm_score, lm_state_candidates = self.ngram_lm(states=h1.ngram_lm_state)
+                #         lm_next_states = torch.gather(lm_state_candidates, dim=1, index=labels).flatten()
                         
-                        lm_next_states_list.append(lm_next_states)
-                        lm_scores_list.append(lm_score.flatten())
-                    lm_scores = torch.stack(lm_scores_list)
-                    lm_next_states = torch.stack(lm_next_states_list)
+                #         lm_next_states_list.append(lm_next_states)
+                #         lm_scores_list.append(lm_score.flatten())
+                #     lm_scores = torch.stack(lm_scores_list)
+                #     lm_next_states = torch.stack(lm_next_states_list)
 
-                    total_logps[..., :-1] += lm_scores * self.ngram_lm_alpha
+                #     total_logps[..., :-1] += lm_scores * self.ngram_lm_alpha
                 
                 beam_logp, beam_idx = total_logps.topk(self.max_candidates, dim=-1)
                 beam_logp = beam_logp # [B, V + 1]
@@ -1269,17 +1269,17 @@ class BeamRNNTInfer(Typing):
                                 if not self.use_kenlm and self.ngram_lm:
                                     new_hyp.ngram_lm_state = lm_next_states[i, k].unsqueeze(-1)
 
-                                # # Setup ngram LM:
-                                # if self.ngram_lm:
-                                #     lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(
-                                #         hyp.ngram_lm_state, int(k)
-                                #     )
-                                #     if self.hat_subtract_ilm:
-                                #         new_hyp.score += self.ngram_lm_alpha * lm_score - float(
-                                #             self.hat_ilm_weight * ilm_ytm[i, 0, 0, k]
-                                #         )
-                                #     else:
-                                #         new_hyp.score += self.ngram_lm_alpha * lm_score
+                                # Setup ngram LM:
+                                if self.ngram_lm:
+                                    lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(
+                                        hyp.ngram_lm_state, int(k)
+                                    )
+                                    if self.hat_subtract_ilm:
+                                        new_hyp.score += self.ngram_lm_alpha * lm_score - float(
+                                            self.hat_ilm_weight * ilm_ytm[i, 0, 0, k]
+                                        )
+                                    else:
+                                        new_hyp.score += self.ngram_lm_alpha * lm_score
 
                                 list_exp.append(new_hyp)
 

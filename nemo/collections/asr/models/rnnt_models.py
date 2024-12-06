@@ -250,7 +250,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         verbose: bool = True,
         timestamps: Optional[bool] = None,
         override_config: Optional[TranscribeConfig] = None,
-    ) -> TranscriptionReturnType:
+     ) -> TranscriptionReturnType:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
@@ -285,24 +285,25 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
-
-        if timestamps is not None:
-            if timestamps or (override_config is not None and override_config.timestamps):
-                logging.info(
-                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
-                        with output[0][idx].timestep['word'/'segment'/'char']"
-                )
-                return_hypotheses = True
-                with open_dict(self.cfg.decoding):
-                    self.cfg.decoding.compute_timestamps = True
-                    self.cfg.decoding.preserve_alignments = True
-                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
-            else:
-                return_hypotheses = False
-                with open_dict(self.cfg.decoding):
-                    self.cfg.decoding.compute_timestamps = False
-                    self.cfg.decoding.preserve_alignments = False
-                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+        # decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
+        # if timestamps is not None:
+        #     if timestamps or (override_config is not None and override_config.timestamps):
+        #         logging.info(
+        #             "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
+        #                 with output[0][idx].timestep['word'/'segment'/'char']"
+        #         )
+        #         return_hypotheses = True
+        #         with open_dict(self.cfg.decoding):
+        #             decoding_cfg.compute_timestamps = True
+        #             decoding_cfg.preserve_alignments = True
+        #         self.change_decoding_strategy(decoding_cfg, verbose=False)
+        #     else:
+        #         return_hypotheses = False
+        #         with open_dict(self.cfg.decoding):
+        #             decoding_cfg.compute_timestamps = False
+        #             decoding_cfg.preserve_alignments = False
+                    
+        #         self.change_decoding_strategy(decoding_cfg,  verbose=False)
 
         return super().transcribe(
             audio=audio,
