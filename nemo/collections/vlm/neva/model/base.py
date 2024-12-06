@@ -21,8 +21,9 @@ import lightning.pytorch as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
-from megatron.core import dist_checkpointing, tensor_parallel
+from megatron.core import dist_checkpointing
 from megatron.core import parallel_state as ps
+from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
@@ -45,7 +46,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
-from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX, IGNORE_INDEX
+from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -691,9 +692,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
             # Number of tiles per sample.
             num_image_tiles_batch = num_image_tiles.split(num_images_per_sample.tolist(), dim=0)
-            num_image_tiles_batch = torch.tensor(
-                [x.sum() for x in num_image_tiles_batch], device=input_ids.device
-            )
+            num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
 
             # Sequence length for each sample is the image sequence length multiplied by
             # the number of tiles for that image, minus image token indices,
@@ -701,10 +700,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             seq_lens = num_image_tiles_batch * img_seq_len - num_images_per_sample + text_seq_len
             max_seq_len = seq_lens.max()
             # Pipeline parallel expects fixed input size. Check if we need to pad.
-            if (
-                self._language_is_pipeline_parallel
-                and max_seq_len < self._language_max_sequence_length
-            ):
+            if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
                 max_seq_len = self._language_max_sequence_length
 
             if self.sequence_parallel_lm:
@@ -716,9 +712,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 else:
                     # Pad to multiple of tp size for sequence parallelism
                     tp_world_size = ps.get_tensor_model_parallel_world_size()
-                    padded_seq_len = int(
-                        (max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size
-                    )
+                    padded_seq_len = int((max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size)
                 sp_padding_needed = padded_seq_len - max_seq_len
                 max_seq_len = padded_seq_len
             batch_indices, non_image_indices = torch.where(input_ids != image_token_index)
@@ -747,9 +741,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 label_non_image_indices = label_non_image_indices[valid_label_non_image_indices]
 
             # Create a mask for the image embedding positions.
-            images_mask = torch.full(
-                (batch_size, max_seq_len), True, dtype=torch.bool, device=input_ids.device
-            )
+            images_mask = torch.full((batch_size, max_seq_len), True, dtype=torch.bool, device=input_ids.device)
             # No images in the text positions.
             images_mask[batch_indices, text_position_ids] = False
             # Samples can have different amount of images tokens.
@@ -774,14 +766,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )
 
             # Put text embeddings to the text positions in the result tensor.
-            final_embedding[batch_indices, text_position_ids] = language_embeddings[
-                batch_indices, non_image_indices
-            ]
+            final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_image_indices]
 
             # Put image embeddings to image positions.
-            final_embedding[images_mask] = (
-                image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
-            )
+            final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
 
         # Create the final labels and loss mask (if this is the last language model stage).
         final_labels, final_loss_mask = None, None
@@ -789,18 +777,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_labels = torch.full(
                 (batch_size, max_seq_len), IGNORE_INDEX, dtype=labels.dtype, device=labels.device
             )
-            final_loss_mask = torch.full(
-                (batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device
-            )
+            final_loss_mask = torch.full((batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device)
 
             # Put text labels and loss mask to the text positions.
             final_labels[label_batch_indices, label_text_position_ids] = labels[
                 label_batch_indices, label_non_image_indices
             ]
 
-            final_loss_mask[batch_indices, text_position_ids] = loss_mask[
-                batch_indices, non_image_indices
-            ]
+            final_loss_mask[batch_indices, text_position_ids] = loss_mask[batch_indices, non_image_indices]
 
             # For labels, pick the last label index that got dropped by the shift to left.
             label_extra_text_position_ids = seq_lens - 1
@@ -819,9 +803,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             valid_batch_image_indices = batch_image_indices[valid]
             valid_before_image_indices = before_image_indices[valid]
             # Map those indices those position ids.
-            valid_before_image_indices = new_position_ids[
-                valid_batch_image_indices, valid_before_image_indices
-            ]
+            valid_before_image_indices = new_position_ids[valid_batch_image_indices, valid_before_image_indices]
 
             final_loss_mask[valid_batch_image_indices, valid_before_image_indices] = 0
 
@@ -863,9 +845,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
                 # Attention mask True/False meaning flipped in 1.7.0
                 attention_mask = attention_mask < 0.5
-                final_embedding = tensor_parallel.scatter_to_sequence_parallel_region(
-                    final_embedding
-                )
+                final_embedding = tensor_parallel.scatter_to_sequence_parallel_region(final_embedding)
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
