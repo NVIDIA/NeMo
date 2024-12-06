@@ -1785,3 +1785,33 @@ def ts_vad_post_processing(
         cfg_vad_params.pad_offset = 0.0
         speech_segments = binarization(ts_vad_binary_frames, cfg_vad_params)
     return speech_segments
+
+def predlist_to_timestamps(
+    batch_preds_list: List[torch.Tensor],
+    audio_rttm_map_dict: Dict[str, Dict[str, Union[float, int]]],
+    cfg_vad_params: OmegaConf,
+    unit_10ms_frame_count: int,
+    bypass_postprocessing: bool = False,
+    precision: int = 2,
+) -> List[List[float]]:
+    total_speaker_timestamps = []
+    pp_message = "Binarization" if bypass_postprocessing else "Post-processing"
+    for sample_idx, (uniq_id, audio_rttm_values) in tqdm(
+    enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc=pp_message
+):
+        offset = audio_rttm_values['offset']
+        speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)
+        speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
+        for spk_id in range(speaker_assign_mat.shape[-1]):
+            ts_mat = ts_vad_post_processing(
+                speaker_assign_mat[:, spk_id],
+                cfg_vad_params=cfg_vad_params,
+                unit_10ms_frame_count=unit_10ms_frame_count,
+                bypass_postprocessing=bypass_postprocessing,
+            )
+            ts_mat = ts_mat + offset
+            ts_seg_raw_list = ts_mat.tolist()
+            ts_seg_list = [[round(stt, precision), round(end, precision)] for (stt, end) in ts_seg_raw_list]
+            speaker_timestamps[spk_id].extend(ts_seg_list)
+        total_speaker_timestamps.append(speaker_timestamps)
+    return total_speaker_timestamps

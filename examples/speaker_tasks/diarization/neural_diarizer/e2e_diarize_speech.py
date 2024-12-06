@@ -52,29 +52,17 @@ from tqdm import tqdm
 
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models import SortformerEncLabelModel
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, timestamps_to_pyannote_object
-from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing
+from nemo.collections.asr.models.sortformer_diar_models import PostProcessingParams
+from nemo.collections.asr.parts.utils.speaker_utils import (
+get_uniqname_from_filepath,
+audio_rttm_map, 
+timestamps_to_pyannote_object,
+)
+from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing, predlist_to_timestamps
 from nemo.core.config import hydra_runner
 
 seed_everything(42)
 torch.backends.cudnn.deterministic = True
-
-
-@dataclass
-class PostProcessingParams:
-    """
-    Postprocessing parameters for end-to-end speaker diarization models.
-    These parameters can significantly affect DER performance depending on the evaluation style and the dataset.
-    It is recommended to tune these parameters based on the evaluation style and the dataset
-    to achieve the desired DER performance.
-    """
-
-    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
-    offset: float = 0.5  # Offset threshold for detecting the end of a speech
-    pad_onset: float = 0.0  # Adding durations before each speech segment
-    pad_offset: float = 0.0  # Adding durations after each speech segment
-    min_duration_on: float = 0.0  # Threshold for small non-speech deletion
-    min_duration_off: float = 0.0  # Threshold for short speech segment deletion
 
 
 @dataclass
@@ -303,26 +291,19 @@ def convert_pred_mat_to_segments(
     """
     batch_pred_ts_segs, all_hypothesis, all_reference, all_uems = [], [], [], []
     cfg_vad_params = OmegaConf.structured(postprocessing_cfg)
-    pp_message = "Bypass PP, Running Binarization" if bypass_postprocessing else "Running post-processing"
-    for sample_idx, (uniq_id, audio_rttm_values) in tqdm(
-        enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc=pp_message
-    ):
-        spk_ts = []
-        offset, duration = audio_rttm_values['offset'], audio_rttm_values['duration']
-        speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)
-        speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
-        for spk_id in range(speaker_assign_mat.shape[-1]):
-            ts_mat = ts_vad_post_processing(
-                speaker_assign_mat[:, spk_id],
-                cfg_vad_params=cfg_vad_params,
-                unit_10ms_frame_count=unit_10ms_frame_count,
-                bypass_postprocessing=bypass_postprocessing,
-            )
-            ts_mat = ts_mat + offset
-            ts_mat = torch.clamp(ts_mat, min=offset, max=(offset + duration))
-            ts_seg_list = ts_mat.tolist()
-            speaker_timestamps[spk_id].extend(ts_seg_list)
-            spk_ts.append(ts_seg_list)
+    total_speaker_timestamps = predlist_to_timestamps(
+        batch_preds_list=batch_preds_list,
+        audio_rttm_map_dict=audio_rttm_map_dict,
+        cfg_vad_params=cfg_vad_params,
+        unit_10ms_frame_count=unit_10ms_frame_count,
+        bypass_postprocessing=bypass_postprocessing,
+    ) 
+    for sample_idx, (uniq_id, audio_rttm_values) in enumerate(audio_rttm_map_dict.items()):
+        speaker_timestamps = total_speaker_timestamps[sample_idx]
+        if audio_rttm_values.get("uniq_id", None) is not None:
+            uniq_id = audio_rttm_values["uniq_id"]
+        else:
+            uniq_id = get_uniqname_from_filepath(audio_rttm_values["audio_filepath"])
         all_hypothesis, all_reference, all_uems = timestamps_to_pyannote_object(
             speaker_timestamps,
             uniq_id,
@@ -332,7 +313,6 @@ def convert_pred_mat_to_segments(
             all_uems,
             out_rttm_dir,
         )
-        batch_pred_ts_segs.append(spk_ts)
     return all_hypothesis, all_reference, all_uems
 
 

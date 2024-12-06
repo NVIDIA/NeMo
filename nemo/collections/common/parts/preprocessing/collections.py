@@ -1510,13 +1510,16 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
             # Training mode
             rttm_labels = []
-            with open(item['rttm_file'], 'r') as f:
-                for index, rttm_line in enumerate(f.readlines()):
-                    rttm = rttm_line.strip().split()
-                    start = round(float(rttm[3]), round_digits)
-                    end = round(float(rttm[4]), round_digits) + round(float(rttm[3]), round_digits)
-                    speaker = rttm[7]
-                    rttm_labels.append('{} {} {}'.format(start, end, speaker))
+            if item['offset'] is None:
+                item['offset'] = 0
+            if item['rttm_file'] is not None and os.path.exists(item['rttm_file']):
+                with open(item['rttm_file'], 'r') as f:
+                    for index, rttm_line in enumerate(f.readlines()):
+                        rttm = rttm_line.strip().split()
+                        start = round(float(rttm[3]), round_digits)
+                        end = round(float(rttm[4]), round_digits) + round(float(rttm[3]), round_digits)
+                        speaker = rttm[7]
+                        rttm_labels.append('{} {} {}'.format(start, end, speaker))
             audio_files.append(item['audio_file'])
             uniq_ids.append(item['uniq_id'])
             durations.append(item['duration'])
@@ -1549,6 +1552,9 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
         else:
             item['audio_file'] = os.path.expanduser(item['audio_file'])
 
+        if 'rttm_filepath' not in item:
+            item['rttm_filepath'] = None 
+            
         if not isinstance(item['audio_file'], list):
             if 'uniq_id' not in item:
                 item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
