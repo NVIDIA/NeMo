@@ -23,6 +23,7 @@ import torch.distributed
 import torch.nn.functional as F
 from megatron.core import dist_checkpointing
 from megatron.core.enums import ModelType
+from megatron.core.transformer.enums import AttnMaskType
 from megatron.core import InferenceParams, tensor_parallel
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
@@ -89,15 +90,15 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
     return num_patches + (class_token_len if add_class_token else 0)
 
-def calculate_model_parallel_padding(decoder_seq_len, text_only=False):
+def calculate_model_parallel_padding(config, decoder_seq_len, text_only=False):
     from megatron.core import parallel_state as ps
     cp_size = ps.get_context_parallel_world_size()
     tp_size = ps.get_tensor_model_parallel_world_size()
 
     mp_padding_needed = 0
-    sequence_parallel = True
-    decoder_tp_comm_overlap = True
-    decoder_seq_length = 4096
+    sequence_parallel = getattr(config, "sequence_parallel", False)
+    decoder_tp_comm_overlap = getattr(config, "tp_comm_overlap", False)
+    decoder_seq_length = config.seq_length
     # TP Comm overlap is performed with combined text+image embeddings.
     # text_only flag skips using the full sequence length to calculate padding and uses
     # the provided decoder_seq_len
@@ -116,14 +117,14 @@ def calculate_model_parallel_padding(decoder_seq_len, text_only=False):
         elif sequence_parallel:
             padding_factor = tp_size
         mp_padding_needed = int((decoder_seq_len + padding_factor - 1) // (padding_factor) * (padding_factor)) - decoder_seq_len
-        decoder_seq_length = decoder_seq_len + mp_padding_needed
+        config.seq_length = decoder_seq_len + mp_padding_needed
     else:
-        decoder_seq_length = decoder_seq_len
+        config.seq_length = decoder_seq_len
 
     return mp_padding_needed
 
 
-def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def neva_data_step(dataloader_iter, config) -> Dict[str, torch.Tensor]:
     """neva data step prepare batch"""
     from megatron.core import parallel_state
     cp_size = parallel_state.get_context_parallel_world_size()
@@ -190,11 +191,10 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     }
 
     if cp_size > 1:
-        vision_model_type = "clip"
         # Calculate the number of image embedding tokens will be added to text tokens
-        num_image_embeddings_per_tile = 1
+        num_image_embeddings_per_tile = config.vision_transformer_config.num_image_embeddings_per_tile
         # Pad to make sure the text sequence can be sharded equally by CP chunks.
-        mp_padding_needed_for_text = calculate_model_parallel_padding(_batch["tokens"].shape[1], text_only=True)
+        mp_padding_needed_for_text = calculate_model_parallel_padding(config, _batch["tokens"].shape[1], text_only=True)
         if mp_padding_needed_for_text > 0:
             _batch["tokens"], _batch["position_ids"], _batch["labels"], _batch["loss_mask"] = \
                 [torch.nn.functional.pad(item, (0, mp_padding_needed_for_text)) for item in
@@ -307,10 +307,22 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     """
 
     hidden_size: int = 1024
+    num_image_embeddings_per_tile: Optional[int] = None
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
 
     def __post_init__(self, *args, **kwargs) -> None:
         CLIPVisionConfig.__init__(self, *args, **kwargs, hidden_size=self.hidden_size)
+        if self.pretrained_model_name_or_path is not None:
+            config = CLIPVisionConfig.from_pretrained(self.pretrained_model_name_or_path)
+            for key, value in config.to_dict().items():
+                setattr(self, key, value)
+        self.num_image_embeddings_per_tile = get_image_sequence_length(
+            img_h=self.image_size,
+            img_w=self.image_size,
+            patch_dim=self.patch_size,
+            add_class_token=False,
+            class_token_len=1,
+        )
 
     def configure_model(self) -> "CLIPVisionModel":
         # Monkey patch the method to the vision encoder
@@ -320,9 +332,6 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
             model = CLIPVisionModel(self)
         else:
             model = CLIPVisionModel.from_pretrained(self.pretrained_model_name_or_path)
-        # Extend all model.config fields to self
-        for key, value in model.config.to_dict().items():
-            setattr(self, key, value)
         return model
 
 
@@ -336,6 +345,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
     img_h: int = 336
     img_w: int = 336
     vision_model_type: str = "clip"  # ["clip", "siglip"]
+    num_image_embeddings_per_tile: Optional[int] = None
     transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
 
     num_layers: int = 1  # Placeholder, NOT used!
@@ -345,6 +355,13 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         if self.vision_model_type == "siglip":
             self.add_class_token = False
             self.class_token_len = 0
+        self.num_image_embeddings_per_tile = get_image_sequence_length(
+            img_h=self.img_h,
+            img_w=self.img_w,
+            patch_dim=self.patch_dim,
+            add_class_token=self.add_class_token,
+            class_token_len=self.class_token_len,
+        )
 
     def configure_model(self) -> "CLIPViTModel":
         transformer_layer_spec = self.transformer_layer_spec
@@ -487,6 +504,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.share_embeddings_and_output_weights = False
         if self.add_decoder:
             language_transformer_config.scatter_embedding_sequence_parallel = False
+            language_transformer_layer_spec = language_transformer_config.transformer_layer_spec
+            if not isinstance(language_transformer_layer_spec, ModuleSpec):
+                language_transformer_layer_spec = language_transformer_layer_spec(language_transformer_config)
+            language_transformer_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding_causal
+            language_transformer_config.transformer_layer_spec = language_transformer_layer_spec
             self.language_model = language_transformer_config.configure_model(
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
@@ -527,23 +549,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
         self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
-        if self.vision_model_from_hf:
-            # img_h, img_w, patch_dim, add_class_token, class_token_len
-            self._img_seq_len = get_image_sequence_length(
-                img_h=vision_transformer_config.image_size,
-                img_w=vision_transformer_config.image_size,
-                patch_dim=vision_transformer_config.patch_size,
-                add_class_token=not drop_vision_class_token,
-                class_token_len=0 if "siglip" in vision_transformer_config.model_type else 1,
-            )
-        else:
-            self._img_seq_len = get_image_sequence_length(
-                img_h=vision_transformer_config.img_h,
-                img_w=vision_transformer_config.img_w,
-                patch_dim=vision_transformer_config.patch_dim,
-                add_class_token=not drop_vision_class_token,
-                class_token_len=vision_transformer_config.class_token_len,
-            )
+        self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
 
     def forward(
         self,
@@ -769,7 +775,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return output_tensor
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
-        return self.config.data_step_fn(dataloader_iter)
+        return self.config.data_step_fn(dataloader_iter, config=self.config)
 
     def forward_step(self, batch) -> torch.Tensor:
         return self.config.forward_step_fn(self, batch)

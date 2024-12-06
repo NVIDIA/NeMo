@@ -29,6 +29,7 @@ from nemo.collections import llm, vlm
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 
@@ -63,7 +64,7 @@ def main(args):
         )
     elif args.data_type == "mock":
         data = vlm.NevaMockDataModule(
-            seq_length=decoder_seq_length,
+            seq_length=16,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=None,
@@ -75,7 +76,7 @@ def main(args):
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
-        seq_length=decoder_seq_length,
+        seq_length=decoder_seq_length, num_layers=2,
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
@@ -108,6 +109,7 @@ def main(args):
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=True,
+        context_parallel_size=2,
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
@@ -134,7 +136,11 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback, TimingCallback()],
+        callbacks=[
+            checkpoint_callback,
+            TimingCallback(),
+            MegatronCommOverlapCallback(tp_comm_overlap=True),
+        ],
         val_check_interval=500,
         limit_val_batches=gbs,
         log_every_n_steps=1,
