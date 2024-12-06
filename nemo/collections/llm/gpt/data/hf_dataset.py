@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datasets import load_dataset
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils import logging
+from torch.utils.data import DataLoader
+
+import datasets.dataset_dict.DatasetDict
 import lightning.pytorch as pl
 import torch
-from torch.utils.data import DataLoader
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-from datasets import load_dataset
-import datasets.dataset_dict.DatasetDict
 
 def listify(x):
     if isinstance(x, list):
@@ -54,7 +56,15 @@ class HFDatasetDataModule(pl.LightningDataModule):
         super().__init__()
         assert pad_token_id is not None
 
+        logging.info(f"Loading HF dataset from {path}")
+
         self.dataset = load_dataset(path, **kwargs)
+        if isinstance(self.dataset, datasets.dataset_dict.DatasetDict):
+            split_names = self.dataset.keys()
+            logging.info(f"HF dataset has the following splits: {split_names}")
+        else:
+            logging.info(f"Loaded HF dataset has a single split.")
+
 
         self.num_workers = num_workers
         self.pin_memory = pin_memory
