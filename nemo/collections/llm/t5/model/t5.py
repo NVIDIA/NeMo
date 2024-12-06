@@ -148,10 +148,12 @@ class T5Config(TransformerConfig, io.IOMixin):
     share_embeddings_and_output_weights: bool = True
     make_vocab_size_divisible_by: int = 128
     position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
-    apply_rope_fusion: bool = True
+    apply_rope_fusion: bool = False
     max_position_embeddings: int = 512
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
+    seq_length: int = 512
+    seq_length_dec: int = 128
     encoder_pipeline_model_parallel_size: int = 0
     attention_softmax_in_fp32: float = False
     bias_activation_fusion: bool = True
@@ -273,17 +275,6 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         lm_labels: Optional[torch.Tensor] = None,
         inference_params=None,
     ) -> torch.Tensor:
-
-        # # DEBUGGING
-        # if torch.distributed.get_rank()==0:
-        #     # for tiktoken tokenizer
-        #     print("   **** encoder_input_ids: ", encoder_input_ids.cpu()[0])
-        #     print("   **** decoder_input_ids: ", decoder_input_ids.cpu()[0])
-        #     print("   **** encoder_input_ids: ", "".join(self.tokenizer.ids_to_tokens(encoder_input_ids.cpu()[0].tolist())))
-        #     print("   **** decoder_input_ids: ", "".join(self.tokenizer.ids_to_tokens(decoder_input_ids.cpu()[0].tolist())))
-        #     # print("   **** encoder_input_ids: ", self.tokenizer.ids_to_text(encoder_input_ids.cpu()[0], remove_special_tokens=False))
-        #     # print("   **** decoder_input_ids: ", self.tokenizer.ids_to_text(decoder_input_ids.cpu()[0], remove_special_tokens=False))
-        #     print("=============================== ")
 
         output_tensor = self.module(
             encoder_input_ids=encoder_input_ids,

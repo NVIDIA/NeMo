@@ -64,7 +64,7 @@ def reload_mergeable_ranks(
 
 PATTERN_TIKTOKEN = "[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]*[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]+|[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]+[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]*|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n/]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
 DEFAULT_TIKTOKEN_MAX_VOCAB = 2**17  # 131072
-SPECIAL_TOKENS = ["<unk>", "<s>", "</s>"]
+SPECIAL_TOKENS = ["<unk>", "<s>", "</s>", "<mask>", "<pad>", "<cls>", "<sep>"]
 SPECIAL_TOKEN_TEMPLATE = "<SPECIAL_{id}>"
 
 
@@ -100,16 +100,10 @@ class TiktokenTokenizer(TokenizerSpec):
         self._unk_id = special_tokens.index("<unk>")
         self._bos_id = special_tokens.index("<s>")
         self._eos_id = special_tokens.index("</s>")
-        
-        # DEBUGGING
-        if "<mask>" in special_tokens:
-            self.mask_id = special_tokens.index("<mask>")
-        if "<pad>" in special_tokens:
-            self.pad_id = special_tokens.index("<pad>")
-        if "<cls>" in special_tokens:
-            self.cls_id = special_tokens.index("<cls>")
-        if "<sep>" in special_tokens:
-            self.sep_id = special_tokens.index("<sep>")
+        self._mask_id = special_tokens.index("<mask>")
+        self._pad_id = special_tokens.index("<pad>")
+        self._cls_id = special_tokens.index("<cls>")
+        self._sep_id = special_tokens.index("<sep>")
 
         self._vocab_size = vocab_size
         print(f'{self._vocab_size = }')
@@ -187,17 +181,36 @@ class TiktokenTokenizer(TokenizerSpec):
         tokens = [t + self.num_special_tokens for t in tokens]
         return tokens
 
-    def ids_to_text(self, tokens: List[int]):
+    def ids_to_text(self, tokens: List[int], remove_special_tokens: bool = True):\
+        # DEBUGGING
+        # # Filter out special tokens and adjust the remaining tokens
+        # adjusted_tokens = [
+        #     t - self.num_special_tokens
+        #     for t in tokens
+        #     if t not in {self.bos, self.eos} and t >= self.num_special_tokens
+        # ]
+
+        # # Decode only if there are tokens left after filtering
+        # if adjusted_tokens:
+        #     return self.tokenizer.decode(adjusted_tokens)
+        # else:
+        #     return ""  # Return an empty string if all tokens were filtered out
+
         # Filter out special tokens and adjust the remaining tokens
-        adjusted_tokens = [
-            t - self.num_special_tokens
-            for t in tokens
-            if t not in {self.bos, self.eos} and t >= self.num_special_tokens
-        ]
+        if remove_special_tokens:
+            adjusted_tokens = [
+                t for t in tokens
+                if t not in {self.bos, self.eos} and t >= self.num_special_tokens
+            ]
+        else:
+            adjusted_tokens = tokens
+
+        # DEBUGGING
+        print("adjusted_tokens: ", adjusted_tokens)
 
         # Decode only if there are tokens left after filtering
         if adjusted_tokens:
-            return self.tokenizer.decode(adjusted_tokens)
+            return "".join(self.ids_to_tokens(adjusted_tokens))
         else:
             return ""  # Return an empty string if all tokens were filtered out
 
@@ -212,6 +225,22 @@ class TiktokenTokenizer(TokenizerSpec):
     @property
     def unk_id(self):
         return self._unk_id
+
+    @property
+    def mask_id(self):
+        return self._mask_id
+
+    @property
+    def pad_id(self):
+        return self._pad_id
+
+    @property
+    def cls_id(self):
+        return self._cls_id
+
+    @property
+    def sep_id(self):
+        return self._sep_id
 
     @property
     def vocab(self):
