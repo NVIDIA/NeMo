@@ -118,7 +118,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         logging.info(f"Loading HF dataset from {path}")
 
         # A dataset usually will have several splits (e.g. train, val, test, etc).
-        # We canonicalize synonym names to canonical names (train, test, val).
+        # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
         split_aliases = {
             'train': train_aliases,
