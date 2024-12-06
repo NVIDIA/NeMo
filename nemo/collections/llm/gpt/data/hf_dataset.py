@@ -16,12 +16,30 @@ import lightning.pytorch as pl
 import torch
 from torch.utils.data import DataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from datasets import load_dataset
+import datasets.dataset_dict.DatasetDict
 
+def listify(x):
+    if isinstance(x, list):
+        return x
+    return [x]
+
+def extract_split(dataset, split_names):
+    if isinstance(dataset, datasets.dataset_dict.DatasetDict):
+        for split_name in split_names:
+            if split_name in dataset:
+                return dataset[split_name]
+        raise ValueError(("Dataset does not contain any of " + str(split_names) + \
+            "; available splits= " + str(dataset.keys()))
+        )
+    else:
+        return dataset
 
 class HFDatasetDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        dataset,
+        path,
+        split=None,
         num_workers=2,
         pin_memory=True,
         persistent_workers=True,
@@ -31,11 +49,13 @@ class HFDatasetDataModule(pl.LightningDataModule):
         pad_token_id=0,
         use_mcore_sampler=False,
         mcore_dataloader_type='cyclic',
+        **kwargs,
     ) -> None:
         super().__init__()
         assert pad_token_id is not None
 
-        self.dataset = dataset
+        self.dataset = load_dataset(path, **kwargs)
+
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
@@ -84,17 +104,41 @@ class HFDatasetDataModule(pl.LightningDataModule):
             dataloader_type=self.mcore_dataloader_type,
         )
 
-    def train_dataloader(self, collate_fn=None):
-        from nemo.lightning.data import add_megatron_sampler
-
+    def _make_dataloader(self, dataset, collate_fn=None):
         if collate_fn is None:
             collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
         return DataLoader(
-            self.dataset,
+            dataset,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=collate_fn,
             batch_size=self.micro_batch_size,
         )
+
+    def train_dataloader(self, collate_fn=None, split_names=["train", "training"]):
+        dataset = extract_split(self.dataset, split_names)
+        return self._make_dataloader(dataset, collate_fn)
+
+    def val_dataloader(self, collate_fn=None, split_names=["val", "validation", "eval"]):
+        dataset = extract_split(self.dataset, split_names)
+        return self._make_dataloader(dataset, collate_fn)
+
+    def test_dataloader(self, collate_fn=None, split_names=["test", "testing"]):
+        dataset = extract_split(self.dataset, split_names)
+        return self._make_dataloader(dataset, collate_fn)
+
+    def map(self, function=None, split_names=None, **kwargs):
+        if split_names is not None:
+            dataset = extract_split(self.dataset, split_names)
+        else:
+            dataset = self.dataset
+
+        if isinstance(dataset, datasets.dataset_dict.DatasetDict):
+            dataset_iter = dataset.values()
+        else:
+            dataset_iter = [dataset]
+
+        for subset in dataset_iter:
+            subset.map(function, **kwargs)
