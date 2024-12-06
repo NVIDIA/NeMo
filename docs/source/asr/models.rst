@@ -20,13 +20,17 @@ Spotlight Models
 Canary
 ~~~~~~
 
-Canary-1B is the latest ASR model from NVIDIA NeMo. It sits at the top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of publishing.
+Canary-1B is the latest multi-lingual, multi-task model supporting automatic speech-to-text recognition (ASR) as well as translation from NVIDIA NeMo. It supports ASR in 4 languages (English, German, French, Spanish) and translation between English and the 3 other supported languages. It sits at the top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of publishing.
 
-You can `download the checkpoint <https://huggingface.co/nvidia/canary-1b>`__  or try out Canary in action in this `HuggingFace Space <https://huggingface.co/spaces/nvidia/canary-1b>`__.
+It is an attention-based encoder-decoder (AED) model with a :ref:`FastConformer Encoder <Fast-Conformer>` and Transformer Decoder :cite:`asr-models-vaswani2017aayn`.
 
-Canary-1B is an encoder-decoder model with a :ref:`FastConformer Encoder <Fast-Conformer>` and Transformer Decoder :cite:`asr-models-vaswani2017aayn`.
+Model checkpoints:
 
-It is a multi-lingual, multi-task model, supporting automatic speech-to-text recognition (ASR) in 4 languages (English, German, French, Spanish) as well as translation between English and the 3 other supported languages.
+* `Canary-1B <https://huggingface.co/nvidia/canary-1b>`__  model card
+
+HuggingFace Spaces to try out Canary-1B in your browser:
+
+* `Canary-1B <https://huggingface.co/spaces/nvidia/canary-1b>`__ space
 
 
 Parakeet
@@ -44,6 +48,27 @@ HuggingFace Spaces to try out Parakeet models in your browser:
 
 * `Parakeet-RNNT-1.1B <https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b>`__ space
 * `Parakeet-TDT-1.1B <https://huggingface.co/spaces/nvidia/parakeet-tdt-1.1b>`__ space
+
+.. _AED_model:
+
+AED
+---
+
+Attention-based Encoder-Decoder (AED) models in NeMo are based on Fast-conformer encoder and Transformer decoder. 
+
+Here is the overall architecture of the AED models in NeMo:
+
+    .. image:: images/aed_model.png
+        :align: center
+        :alt: AED Model
+        :scale: 50%
+
+The Multi-task AED model is implemented in the :class:`~nemo.collections.asr.models.EncDecMultiTaskModel` class. 
+The model uses an aggregate tokenizer system with special tokens to control different tasks (ASR and translation) and languages during inference. 
+You can find the example config file for the Multi-task AED model at ``<NeMo_git_root>/examples/asr/conf/speech_multitask/fast-conformer_aed.yaml``. 
+For more details about tokenizer configuration, refer to the `Tokenizer Configurations <./configs.html#_canary_tokenizer_config>`_ section. 
+Example launch script for Multi-task AED model can be found at ``<NeMo_git_root>/examples/asr/speech_multitask/speech_to_text_aed.py``.
+
 
 .. _Conformer_model:
 
