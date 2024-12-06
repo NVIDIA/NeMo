@@ -812,6 +812,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def checkpoint_io(self) -> CheckpointIO:
         """Creates & returns checkpoint io"""
+        use_optim_separation_hint = (getattr(self.checkpoint_callback, "save_last_n_optim_states", -1) > 0)
+
         if not self._checkpoint_io:
             self._checkpoint_io = create_checkpoint_io(
                 save_ckpt_format=self.save_ckpt_format,
@@ -822,6 +824,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 parallel_save_within_dp=self.parallel_save_within_dp,
                 parallel_load=self.parallel_load,
                 load_directly_on_device=self.load_directly_on_device,
+                use_optim_separation_hint=use_optim_separation_hint,
             )
 
         return self._checkpoint_io

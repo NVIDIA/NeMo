@@ -116,6 +116,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         parallel_save: bool = True,
         parallel_save_within_dp: bool = False,
         parallel_load: bool = False,
+        use_optim_separation_hint: bool = False,
     ):
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
@@ -125,6 +126,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.parallel_save = parallel_save
         self.parallel_save_within_dp = parallel_save_within_dp
         self.parallel_load = parallel_load
+        self.use_optim_separation_hint = use_optim_separation_hint
 
         self._save_sharded_strategy = None
         self.validated_consistency = False
@@ -276,7 +278,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise ValueError('Async dist-ckpt save supported only for torch_dist format')
 
         torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
-        torch_dist_kwargs['separation_hint'] = "optimizer"
+        if self.use_optim_separation_hint:
+            torch_dist_kwargs['separation_hint'] = "optimizer"
         if self.save_ckpt_format == 'torch_dist':
             save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
