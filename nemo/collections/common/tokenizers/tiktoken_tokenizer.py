@@ -144,7 +144,7 @@ class TiktokenTokenizer(TokenizerSpec):
         if token in self.special_tokens:
             return self.special_tokens.index(token)
         else:
-            return (self.tokenizer.encode_single_token(token) + self.num_special_tokens)
+            return self.tokenizer.encode_single_token(token) + self.num_special_tokens
 
     def tokens_to_ids(self, tokens):
         return [self.token_to_id(token) for token in tokens]
@@ -156,7 +156,7 @@ class TiktokenTokenizer(TokenizerSpec):
             token_id -= self.num_special_tokens
             token_bytes = self.tokenizer.decode_single_token_bytes(token_id)
             return token_bytes.decode('utf-8', errors='replace')
-    
+
     def ids_to_tokens(self, token_ids):
         tokens = []
         for token_id in token_ids:
@@ -169,13 +169,11 @@ class TiktokenTokenizer(TokenizerSpec):
         tokens = [t + self.num_special_tokens for t in tokens]
         return tokens
 
-    def ids_to_text(self, tokens: List[int], remove_special_tokens: bool = True):\
-        # Filter out special tokens and adjust the remaining tokens
+    def ids_to_text(
+        self, tokens: List[int], remove_special_tokens: bool = True
+    ):  # Filter out special tokens and adjust the remaining tokens
         if remove_special_tokens:
-            adjusted_tokens = [
-                t for t in tokens
-                if t not in {self.bos, self.eos} and t >= self.num_special_tokens
-            ]
+            adjusted_tokens = [t for t in tokens if t not in {self.bos, self.eos} and t >= self.num_special_tokens]
         else:
             adjusted_tokens = tokens
 
@@ -212,7 +210,7 @@ class TiktokenTokenizer(TokenizerSpec):
     @property
     def sep_id(self):
         return self._sep_id
-    
+
     @property
     def vocab(self):
         return self.token2id
@@ -220,7 +218,7 @@ class TiktokenTokenizer(TokenizerSpec):
     @property
     def additional_special_tokens_ids(self):
         """
-        Returns a list of the additional special tokens, excluding [bos, eos, pad, unk] and special_filler. 
+        Returns a list of the additional special tokens, excluding [bos, eos, pad, unk] and special_filler.
         Used to return sentinel tokens for e.g. T5.
         """
         excluding_tokens = self.ids_to_tokens([self._unk_id, self._bos_id, self._eos_id]) + self.special_filler
