@@ -118,9 +118,12 @@ class HFDatasetDataModule(pl.LightningDataModule):
         logging.info(f"Loading HF dataset from {path}")
 
         # self.dataset_splits will hold the actual dataset for each split.
-        self.dataset_splits = make_dataset_splits(path, split, {
-            'train':train_aliases, 'test': test_aliases, 'val': val_aliases},
-            kwargs)
+        split_aliases = {
+            'train': train_aliases,
+            'test': test_aliases,
+            'val': val_aliases
+        }
+        self.dataset_splits = make_dataset_splits(path, split, split_aliases, kwargs)
 
         self.num_workers = num_workers
         self.pin_memory = pin_memory
