@@ -559,8 +559,8 @@ def find_smallest_bucket(
     if isinstance(example_lens, float):  # 1-D
         idx = bisect_left(buckets, example_lens)
         if idx == len(buckets):
-            return None
-        return idx
+            return None, None
+        return buckets[idx], idx
 
     left, right = 0, len(buckets) - 1
     smallest_fit = None
