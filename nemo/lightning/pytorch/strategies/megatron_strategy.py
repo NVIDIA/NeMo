@@ -813,7 +813,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def checkpoint_io(self) -> CheckpointIO:
         """Creates & returns checkpoint io"""
         use_optim_separation_hint = False
-        if hasattr(self, trainer):
+        if hasattr(self, "trainer"):
             use_optim_separation_hint = getattr(self.trainer.checkpoint_callback, "save_last_n_optim_states", -1) > 0
 
         if not self._checkpoint_io:
