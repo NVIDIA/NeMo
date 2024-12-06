@@ -48,7 +48,7 @@ RUN \
 pip install --no-cache-dir --no-build-isolation "apex @ git+https://github.com/NVIDIA/apex.git@${APEX_TAG}"
 pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
 -r tools/ctc_segmentation/requirements.txt \
-".[nlp]"
+".[all]"
 EOF
 
 # Copy over M-LM stuff
