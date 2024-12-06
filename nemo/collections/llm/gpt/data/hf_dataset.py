@@ -109,7 +109,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         mcore_dataloader_type='cyclic',
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
-        val_aliases=["val", "validation", "eval"],
+        val_aliases=["val", "validation", "valid", "eval"],
         **kwargs,
     ) -> None:
         super().__init__()
