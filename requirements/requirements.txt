@@ -1,7 +1,11 @@
 huggingface_hub>=0.24
+llama-index==0.10.43
+nemo_run @ git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG:-main}
 numba
 numpy>=1.22
+
 onnx>=1.7.0
+
 python-dateutil
 ruamel.yaml
 scikit-learn
@@ -10,5 +14,6 @@ tensorboard
 text-unidecode
 torch
 tqdm>=4.41.0
+unstructured==0.14.9
 wget
 wrapt

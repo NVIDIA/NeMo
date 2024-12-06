@@ -17,3 +17,5 @@ scikit-learn
 vllm==0.6.3
 webdataset>=0.2.86
 wget
+nvidia-modelopt[torch]==${MODELOPT_VERSION:-0.19.0}
+onnxscript @ git+https://github.com/microsoft/onnxscript
