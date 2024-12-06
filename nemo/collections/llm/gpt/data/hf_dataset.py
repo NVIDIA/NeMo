@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datasets import load_dataset
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-from nemo.utils import logging
-from torch.utils.data import DataLoader
-
 import datasets.dataset_dict
 import lightning.pytorch as pl
 import torch
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils import logging
+
 
 def make_dataset_splits(path, split, split_aliases, kwargs):
     """
@@ -60,7 +61,6 @@ def make_dataset_splits(path, split, split_aliases, kwargs):
         for alias in _split_aliases:
             alias_to_split[alias] = split_name
 
-
     if isinstance(dataset, datasets.dataset_dict.DatasetDict):
         dataset_split_names = dataset.keys()
         logging.info(f"HF dataset has the following splits: {dataset_split_names}")
@@ -89,9 +89,11 @@ def make_dataset_splits(path, split, split_aliases, kwargs):
     else:
         raise ValueError("Expected split name to be None, str or a list")
 
-    assert sum(map(lambda x: x is not None, dataset_splits.values())) > 0, \
-        "Expected at least one dataset to have been initialized"
+    assert (
+        sum(map(lambda x: x is not None, dataset_splits.values())) > 0
+    ), "Expected at least one dataset to have been initialized"
     return dataset_splits
+
 
 class HFDatasetDataModule(pl.LightningDataModule):
     def __init__(
@@ -120,11 +122,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
-        split_aliases = {
-            'train': train_aliases,
-            'test': test_aliases,
-            'val': val_aliases
-        }
+        split_aliases = {'train': train_aliases, 'test': test_aliases, 'val': val_aliases}
 
         # self.dataset_splits will hold the actual dataset for each split.
         self.dataset_splits = make_dataset_splits(path, split, split_aliases, kwargs)
