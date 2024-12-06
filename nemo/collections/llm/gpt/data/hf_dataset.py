@@ -208,4 +208,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
             dataset_splits = self.dataset_splits.values()
 
         for subset in dataset_splits:
+            if subset is None:
+                continue
             subset.map(function, **kwargs)
