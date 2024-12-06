@@ -178,6 +178,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
         )
 
     def _make_dataloader(self, dataset, collate_fn=None):
+        assert dataset is not None
+
         if collate_fn is None:
             collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
@@ -201,13 +203,13 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     def map(self, function=None, split_names=None, **kwargs):
         if isinstance(split_names, str):
-            dataset_splits = [self.dataset_splits[split_names]]
+            dataset_splits = {'split_names': self.dataset_splits[split_names]}
         elif isinstance(split_names, list):
-            dataset_splits = [self.dataset_splits[k] for k in split_names]
+            dataset_splits = {k: self.dataset_splits[k] for k in split_names}
         else:
-            dataset_splits = self.dataset_splits.values()
+            dataset_splits = self.dataset_splits
 
-        for subset in dataset_splits:
+        for split_name, subset in dataset_splits.items():
             if subset is None:
                 continue
-            subset.map(function, **kwargs)
+            dataset_splits[split_name] = subset.map(function, **kwargs)
