@@ -504,11 +504,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.share_embeddings_and_output_weights = False
         if self.add_decoder:
             language_transformer_config.scatter_embedding_sequence_parallel = False
-            language_transformer_layer_spec = language_transformer_config.transformer_layer_spec
-            if not isinstance(language_transformer_layer_spec, ModuleSpec):
-                language_transformer_layer_spec = language_transformer_layer_spec(language_transformer_config)
-            language_transformer_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding_causal
-            language_transformer_config.transformer_layer_spec = language_transformer_layer_spec
             self.language_model = language_transformer_config.configure_model(
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
