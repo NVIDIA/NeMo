@@ -21,7 +21,7 @@ import datasets.dataset_dict
 import lightning.pytorch as pl
 import torch
 
-def make_dataset_splits(path, split, kwargs):
+def make_dataset_splits(path, split, split_aliases, kwargs):
     """
     Loads a dataset with datasets.load_dataset and
     returns a dictionary containing all dataset splits.
@@ -49,15 +49,17 @@ def make_dataset_splits(path, split, kwargs):
     >    "val": Dataset .. (with 10570 rows),
     > }
     """
+    dataset = load_dataset(path, split=split, **kwargs)
+
     split_names = ['train', 'test', 'val']
     dataset_splits = {split: None for split in split_names}
 
     alias_to_split = {}
-    for split_name, aliases in zip(split_names, [train_aliases, test_aliases, val_aliases]):
-        for alias in aliases:
+    for split_name, _split_aliases in split_aliases.items():
+        assert split_name in split_names
+        for alias in _split_aliases:
             alias_to_split[alias] = split_name
 
-    dataset = load_dataset(path, split=split, **kwargs)
 
     if isinstance(dataset, datasets.dataset_dict.DatasetDict):
         dataset_split_names = dataset.keys()
@@ -67,9 +69,9 @@ def make_dataset_splits(path, split, kwargs):
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = split
     elif isinstance(split, list):
-        logging.info(f"Loaded HF dataset will use " + str(self.split_names) + " splits.")
+        logging.info(f"Loaded HF dataset will use " + str(split) + " splits.")
         assert isinstance(dataset, list)
-        for i, alias_split_name in enumerate(self.split_names):
+        for i, alias_split_name in enumerate(split):
             split_name = alias_to_split[alias_split_name]
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = dataset[i]
@@ -116,7 +118,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         logging.info(f"Loading HF dataset from {path}")
 
         # self.dataset_splits will hold the actual dataset for each split.
-        self.dataset_splits = make_dataset_splits(path, split, kwargs)
+        self.dataset_splits = make_dataset_splits(path, split, {
+            'train':train_aliases, 'test': test_aliases, 'val': val_aliases},
+            kwargs)
 
         self.num_workers = num_workers
         self.pin_memory = pin_memory
