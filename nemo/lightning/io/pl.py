@@ -280,7 +280,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
         if self.use_optim_separation_hint:
             torch_dist_kwargs['separation_hint'] = "optimizer"
-        if self.save_ckpt_format == 'torch_dist':
+        if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
             save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
             save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
