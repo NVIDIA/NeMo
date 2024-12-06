@@ -12,25 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-
 from typing import Optional
+
 import lightning.pytorch as pl
 import nemo_run as run
+import torch
 
-from nemo.collections.llm.recipes.bert import bert_model, bert_trainer
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.bert.data.mock import BERTMockDataModule
+from nemo.collections.llm.recipes.bert import bert_model, bert_trainer
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
-
 
 NAME = "bert_110m"
 
 
 @run.cli.factory(name=NAME)
-def model(bert_type: str="megatron") -> run.Config[pl.LightningModule]:
+def model(bert_type: str = "megatron") -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Bert-Base (110 million) model configuration.
 
@@ -46,6 +45,7 @@ def model(bert_type: str="megatron") -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return bert_model(version=NAME, bert_type=bert_type)
+
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
@@ -167,4 +167,3 @@ def pretrain_recipe(
         ),
         resume=default_resume(),
     )
-

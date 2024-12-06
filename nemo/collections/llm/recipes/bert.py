@@ -13,18 +13,25 @@
 # limitations under the License.
 
 from typing import Optional
+
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
-from nemo import lightning as nl
-
 from lightning.pytorch.callbacks.callback import Callback
-from nemo.collections.llm import MegatronBertBaseConfig, HuggingFaceBertBaseConfig, MegatronBertLargeConfig, \
-    HuggingFaceBertLargeConfig, BertModel
+from megatron.core.distributed import DistributedDataParallelConfig
+
+from nemo import lightning as nl
+from nemo.collections.llm import (
+    BertModel,
+    HuggingFaceBertBaseConfig,
+    HuggingFaceBertLargeConfig,
+    MegatronBertBaseConfig,
+    MegatronBertLargeConfig,
+)
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
 
-def bert_model(version: str, bert_type: str="megatron") -> run.Config[pl.LightningModule]:
+
+def bert_model(version: str, bert_type: str = "megatron") -> run.Config[pl.LightningModule]:
     """
     A function to create a Bert models.
 
@@ -47,6 +54,7 @@ def bert_model(version: str, bert_type: str="megatron") -> run.Config[pl.Lightni
 
     assert config is not None, f"Invalid BERT version: {version} | {bert_type}"
     return run.Config(BertModel, config=config)
+
 
 def bert_trainer(
     tensor_parallelism: int = 2,

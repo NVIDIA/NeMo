@@ -43,6 +43,7 @@ class BERTMockDataModule(pl.LightningDataModule):
         pin_memory (bool): See ``torch.utils.data.DataLoader`` documentation.
         persistent_workers (bool): See ``torch.utils.data.DataLoader`` documentation.
     """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -82,13 +83,22 @@ class BERTMockDataModule(pl.LightningDataModule):
     def setup(self, stage: str = "") -> None:
         """Setup train/val/test datasets."""
         self._train_ds = _MockBERTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length,
+            self.tokenizer,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
         )
         self._validation_ds = _MockBERTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length,
+            self.tokenizer,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
         )
         self._test_ds = _MockBERTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length,
+            self.tokenizer,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -118,6 +128,7 @@ class BERTMockDataModule(pl.LightningDataModule):
             collate_fn=dataset.collate_fn,
             **kwargs,
         )
+
 
 class _MockBERTDataset(Dataset):
     def __init__(
