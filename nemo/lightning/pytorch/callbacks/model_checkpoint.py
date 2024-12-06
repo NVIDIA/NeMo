@@ -326,13 +326,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 ema_callback = callback
         return ema_callback
 
-    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path]) -> None:
+    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], global_step: int) -> None:
         from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
         from nemo.utils.get_rank import is_global_rank_zero
 
         # Get list of saved checkpoints
-        checkpoints = self._get_checkpoints_list(filepath)
+        checkpoints = self._get_checkpoints_list(filepath, global_step)
 
         # Drop optimizer states
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
@@ -555,7 +555,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
             if self.save_last_n_optim_states >= 0 and '-last' not in filepath:
-                self._drop_optimizer_states(trainer, filepath)
+                self._drop_optimizer_states(trainer, filepath, global_step - 1) ## want step to be zero-indexed here
 
             if not self.async_save:
                 return
@@ -681,7 +681,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         dirpath = Path(self.dirpath).absolute()
         return dirpath in previous.parents
 
-    def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
+    def _get_checkpoints_list(self, filepath: Union[str, Path], global_step: int) -> List[str]:
         # Get a checkpoints directory
         checkpoints_dir = os.path.dirname(filepath)
 
@@ -691,7 +691,14 @@ class ModelCheckpoint(PTLModelCheckpoint):
             for d in os.listdir(checkpoints_dir)
             if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d
         ]
-        ## sort by time saved. NOTE: this will not work if the checkpoint is loaded and re-saved
-        checkpoints = sorted(checkpoints, key=lambda pth: Path(pth).lstat().st_mtime)
+
+        assert "step=" in checkpoints[0], "'step' must be present in the checkpoint filename when dropping optimizer states"
+
+        def get_step(ckpt):
+            return int(ckpt.split("step=")[1].split("-")[0])
+
+        checkpoints = [ckpt for ckpt in checkpoints if get_step(ckpt) <= global_step]
+        ## sort by time step
+        checkpoints = sorted(checkpoints, key=lambda pth: get_step(pth))
 
         return checkpoints
