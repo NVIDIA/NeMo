@@ -25,20 +25,20 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "bert_110m"
+NAME = "bert_340m"
 
 
 @run.cli.factory(name=NAME)
 def model(bert_type: str = "huggingface") -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Bert-Base (110 million) model configuration.
+    Factory function to create a Bert-Large (340 million) model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the BERT-Base (110 million) model.
+        run.Config[pl.LightningModule]: Configuration for the BERT-Large (340 million) model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=bert_110m ...
+            $ nemo llm pretrain model=bert_340m ...
 
         Python API usage:
             >>> model_config = model(bert_type="megatron")
@@ -83,7 +83,7 @@ def pretrain_recipe(
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for BERT-base (110M) model.
+    Create a pre-training recipe for BERT-Large (340M) model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -122,8 +122,8 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory bert_110m
-            $ nemo llm pretrain --factory "bert_110m(num_nodes=1, name='my_bert_pretrain')"
+            $ nemo llm pretrain --factory bert_340m
+            $ nemo llm pretrain --factory "bert_340m(num_nodes=1, name='my_bert_pretrain')"
 
         Python API usage:
             >>> recipe = pretrain_recipe(name="bert_pretrain", num_nodes=1)

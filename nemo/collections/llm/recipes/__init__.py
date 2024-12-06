@@ -16,6 +16,7 @@
 from nemo.collections.llm.recipes import (
     baichuan2_7b,
     bert_110m,
+    bert_340m,
     chatglm3_6b,
     gemma2,
     gemma2_2b,
@@ -81,6 +82,7 @@ from nemo.collections.llm.recipes.run.executor import torchrun
 __all__ = [
     "baichuan2_7b",
     "bert_110m",
+    "bert_340m",
     "chatglm3_6b",
     "gemma_2b",
     "gemma_7b",
