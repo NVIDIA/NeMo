@@ -23,7 +23,9 @@ import torch
 
 def make_dataset_splits(path, split, kwargs):
     """
-    Loads a dataset with datasets.load_dataset and returns a dict containing dataset splits,
+    Loads a dataset with datasets.load_dataset and
+    returns a dictionary containing all dataset splits.
+
     For example:
 
     ans = make_dataset_splits("dataset-id")
@@ -85,7 +87,8 @@ def make_dataset_splits(path, split, kwargs):
     else:
         raise ValueError("Expected split name to be None, str or a list")
 
-    assert sum(map(lambda x: x is not None, dataset_splits.values())) > 0, "Expected at least one dataset to have been initialized"
+    assert sum(map(lambda x: x is not None, dataset_splits.values())) > 0, \
+        "Expected at least one dataset to have been initialized"
     return dataset_splits
 
 class HFDatasetDataModule(pl.LightningDataModule):
