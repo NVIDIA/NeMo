@@ -43,12 +43,12 @@ RUN \
   --mount=type=bind,source=requirements,target=requirements \
   --mount=type=bind,source=tools,target=tools \
   --mount=type=bind,source=setup.py,target=setup.py \
+  --mount=type=bind,source=reinstall.sh,target=reinstall.sh \
   --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex    
-pip install --no-cache-dir --no-build-isolation "apex @ git+https://github.com/NVIDIA/apex.git@${APEX_TAG}"
 pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
--r tools/ctc_segmentation/requirements.txt \
-".[all]"
+-r tools/ctc_segmentation/requirements.txt
+bash reinstall.sh
 EOF
 
 # Copy over M-LM stuff

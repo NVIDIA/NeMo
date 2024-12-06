@@ -26,6 +26,8 @@ else
   fi
 fi
 
+${PIP} install --no-cache-dir --no-build-isolation \
+  git+https://github.com/NVIDIA/apex.git@${APEX_TAG}
 ${PIP} install --no-cache-dir \
   git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e \
   git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG} \
