@@ -30,11 +30,14 @@ import torch
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
 
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt, get_layer_prefix
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
+    dist_model_to_trt_llm_ckpt,
+    get_layer_prefix,
+    torch_dtype_from_precision,
+)
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
