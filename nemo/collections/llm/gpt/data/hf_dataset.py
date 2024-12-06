@@ -26,16 +26,80 @@ def listify(x):
         return x
     return [x]
 
-def extract_split(dataset, split_names):
+def is_dataset_dict(dataset):
+    return isinstance(dataset, datasets.dataset_dict.DatasetDict)
+
+def extract_matching_split(dataset, split_names):
+    assert is_dataset_dict(dataset)
+    for split_name in split_names:
+        if split_name in dataset:
+            return dataset[split_name]
+    raise ValueError(("Dataset does not contain any of " + str(split_names) + \
+        "; available splits= " + str(dataset.keys()))
+    )
+
+
+def make_dataset_splits(path, split=None, **kwargs):
+    """
+    Loads a dataset with datasets.load_dataset and returns a dict containing dataset splits,
+    For example:
+
+    ans = make_dataset_splits("dataset-id")
+        $ ds = load_dataset("dataset-id")
+        $ print(ds)
+        > DatasetDict({
+        >    train: Dataset({
+        >        features: ['id', 'title', 'context', 'question', 'answers'],
+        >        num_rows: 87599
+        >    })
+        >    validation: Dataset({
+        >        features: ['id', 'title', 'context', 'question', 'answers'],
+        >        num_rows: 10570
+        >    })
+        > })
+
+    In this case the value of `ans` (returned value) will be:
+    $ print(ans)
+    > {
+    >    "train": Dataset .. (with 87599 rows),
+    >    "val": Dataset .. (with 10570 rows),
+    > }
+    """
+    split_names = ['train', 'test', 'val']
+    dataset_splits = {split: None for split in split_names}
+
+    alias_to_split = {}
+    for split_name, aliases in zip(split_names, [train_aliases, test_aliases, val_aliases]):
+        for alias in aliases:
+            alias_to_split[alias] = split_name
+
+    dataset = load_dataset(path, split=split, **kwargs)
+
     if isinstance(dataset, datasets.dataset_dict.DatasetDict):
-        for split_name in split_names:
-            if split_name in dataset:
-                return dataset[split_name]
-        raise ValueError(("Dataset does not contain any of " + str(split_names) + \
-            "; available splits= " + str(dataset.keys()))
-        )
+        dataset_split_names = dataset.keys()
+        logging.info(f"HF dataset has the following splits: {dataset_split_names}")
+        for alias_split_name, split in dataset.items():
+            split_name = alias_to_split[alias_split_name]
+            assert dataset_splits[split_name] is None
+            dataset_splits[split_name] = split
+    elif isinstance(split, list):
+        logging.info(f"Loaded HF dataset will use " + str(self.split_names) + " splits.")
+        assert isinstance(dataset, list)
+        for i, alias_split_name in enumerate(self.split_names):
+            split_name = alias_to_split[alias_split_name]
+            assert dataset_splits[split_name] is None
+            dataset_splits[split_name] = dataset[i]
+    elif isinstance(split, str):
+        logging.info(f"Loaded HF dataset has a single split.")
+        assert not isinstance(dataset, list)
+        split_name = alias_to_split[alias_split_name]
+        assert dataset_splits[split_name] is None
+        dataset_splits[split_name] = dataset
     else:
-        return dataset
+        raise ValueError("Expected split name to be None, str or a list")
+
+    assert sum(map(lambda x: x is not None, dataset_splits.values())) > 0, "Expected at least one dataset to have been initialized"
+    return dataset_splits
 
 class HFDatasetDataModule(pl.LightningDataModule):
     def __init__(
@@ -51,6 +115,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         pad_token_id=0,
         use_mcore_sampler=False,
         mcore_dataloader_type='cyclic',
+        train_aliases=["train", "training"],
+        test_aliases=["test", "testing"],
+        val_aliases=["val", "validation", "eval"],
         **kwargs,
     ) -> None:
         super().__init__()
@@ -58,13 +125,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         logging.info(f"Loading HF dataset from {path}")
 
-        self.dataset = load_dataset(path, **kwargs)
-        if isinstance(self.dataset, datasets.dataset_dict.DatasetDict):
-            split_names = self.dataset.keys()
-            logging.info(f"HF dataset has the following splits: {split_names}")
-        else:
-            logging.info(f"Loaded HF dataset has a single split.")
-
+        # self.dataset_splits will hold the actual dataset for each split.
+        self.dataset_splits = make_dataset_splits(path, split, **kwargs)
 
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -127,17 +189,22 @@ class HFDatasetDataModule(pl.LightningDataModule):
             batch_size=self.micro_batch_size,
         )
 
-    def train_dataloader(self, collate_fn=None, split_names=["train", "training"]):
-        dataset = extract_split(self.dataset, split_names)
-        return self._make_dataloader(dataset, collate_fn)
+    def _extract_split_from_dict(self, split_names):
+        if is_dataset_dict(self.dataset):
+            return extract_matching_split(self.dataset, split_names)
+        else:
+            if self.split is not None:
+                assert any(map(lambda x: x in split_names, self.split))
+            return self.dataset
 
-    def val_dataloader(self, collate_fn=None, split_names=["val", "validation", "eval"]):
-        dataset = extract_split(self.dataset, split_names)
-        return self._make_dataloader(dataset, collate_fn)
+    def train_dataloader(self, collate_fn=None):
+        return self._make_dataloader(self.dataset_splits['train'], collate_fn)
 
-    def test_dataloader(self, collate_fn=None, split_names=["test", "testing"]):
-        dataset = extract_split(self.dataset, split_names)
-        return self._make_dataloader(dataset, collate_fn)
+    def val_dataloader(self, collate_fn=None):
+        return self._make_dataloader(self.dataset_splits['val'], collate_fn)
+
+    def test_dataloader(self, collate_fn=None):
+        return self._make_dataloader(self.dataset_splits['test'], collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
         if split_names is not None:
