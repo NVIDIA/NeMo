@@ -555,7 +555,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
             if self.save_last_n_optim_states >= 0 and '-last' not in filepath:
-                self._drop_optimizer_states(trainer, filepath, global_step - 1) ## want step to be zero-indexed here
+                self._drop_optimizer_states(trainer, filepath, global_step - 1)  ## want step to be zero-indexed here
 
             if not self.async_save:
                 return
@@ -692,7 +692,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d
         ]
 
-        assert "step=" in checkpoints[0], "'step' must be present in the checkpoint filename when dropping optimizer states"
+        assert (
+            "step=" in checkpoints[0]
+        ), "'step' must be present in the checkpoint filename when dropping optimizer states"
 
         def get_step(ckpt):
             return int(ckpt.split("step=")[1].split("-")[0])
