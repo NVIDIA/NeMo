@@ -21,24 +21,6 @@ import datasets.dataset_dict.DatasetDict
 import lightning.pytorch as pl
 import torch
 
-def listify(x):
-    if isinstance(x, list):
-        return x
-    return [x]
-
-def is_dataset_dict(dataset):
-    return isinstance(dataset, datasets.dataset_dict.DatasetDict)
-
-def extract_matching_split(dataset, split_names):
-    assert is_dataset_dict(dataset)
-    for split_name in split_names:
-        if split_name in dataset:
-            return dataset[split_name]
-    raise ValueError(("Dataset does not contain any of " + str(split_names) + \
-        "; available splits= " + str(dataset.keys()))
-    )
-
-
 def make_dataset_splits(path, split=None, **kwargs):
     """
     Loads a dataset with datasets.load_dataset and returns a dict containing dataset splits,
@@ -188,14 +170,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
             collate_fn=collate_fn,
             batch_size=self.micro_batch_size,
         )
-
-    def _extract_split_from_dict(self, split_names):
-        if is_dataset_dict(self.dataset):
-            return extract_matching_split(self.dataset, split_names)
-        else:
-            if self.split is not None:
-                assert any(map(lambda x: x in split_names, self.split))
-            return self.dataset
 
     def train_dataloader(self, collate_fn=None):
         return self._make_dataloader(self.dataset_splits['train'], collate_fn)
