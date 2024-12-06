@@ -17,7 +17,7 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 from torch.utils.data import DataLoader
 
-import datasets.dataset_dict.DatasetDict
+import datasets.dataset_dict
 import lightning.pytorch as pl
 import torch
 
