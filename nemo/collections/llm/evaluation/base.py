@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import time
+import warnings
+from logging import warning
 
 import requests
 import torch
@@ -74,7 +76,7 @@ class NeMoFWLMEval(LM):
         elif isinstance(tokenizer, SentencePieceTokenizer):
             return "SentencePieceTokenizer"
         else:
-            raise ValueError(
+            warnings.warn(
                 "Tokenizer type is not one of SentencePieceTokenizer or HF's AutoTokenizer. Please check "
                 "how to handle special tokens for this tokenizer"
             )
@@ -167,7 +169,7 @@ class NeMoFWLMEval(LM):
         return results
 
 
-def wait_for_rest_service(rest_url, max_retries=60, retry_interval=2):
+def wait_for_rest_service(rest_url, max_retries=600, retry_interval=2):
     """
     Wait for REST service to be ready.
 
