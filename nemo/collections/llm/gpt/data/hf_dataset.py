@@ -74,6 +74,11 @@ def make_dataset_splits(path, split, kwargs):
     elif isinstance(split, str):
         logging.info(f"Loaded HF dataset has a single split.")
         assert not isinstance(dataset, list)
+        alias_split_name = split
+        if '+' in alias_split_name:
+            raise ValueError("Split concatenation not supported")
+        elif '[' in alias_split_name:
+            alias_split_name = alias_split_name.split('[')[0]
         split_name = alias_to_split[alias_split_name]
         assert dataset_splits[split_name] is None
         dataset_splits[split_name] = dataset
