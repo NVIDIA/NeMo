@@ -200,12 +200,12 @@ class HFDatasetDataModule(pl.LightningDataModule):
         return self._make_dataloader(self.dataset_splits['test'], collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
-        if isintance(split_names, str):
-            dataset_splits = [self.dataset[split_names]]
-        elif isintance(split_names, list):
-            dataset_splits = [self.dataset[k] for k in split_names]
+        if isinstance(split_names, str):
+            dataset_splits = [self.dataset_splits[split_names]]
+        elif isinstance(split_names, list):
+            dataset_splits = [self.dataset_splits[k] for k in split_names]
         else:
-            dataset_splits = self.dataset.values()
+            dataset_splits = self.dataset_splits.values()
 
         for subset in dataset_splits:
             subset.map(function, **kwargs)
