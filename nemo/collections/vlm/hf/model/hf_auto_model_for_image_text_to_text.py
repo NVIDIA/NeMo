@@ -30,7 +30,7 @@ def masked_cross_entropy(logits, targets, mask=None):
         return F.cross_entropy(logits, targets)
 
 
-class HfAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
+class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
         self,
         model_name='gpt2',

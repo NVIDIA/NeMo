@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     http:./www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,6 +38,12 @@ from nemo.collections.vlm.neva.data import (
     VideoDataConfig,
     VideoToken,
 )
+from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import (
+    HFAutoModelForImageTextToText
+)
+from nemo.collections.vlm.hf.data.hf_dataset import (
+    HFDatasetDataModule
+)
 from nemo.collections.vlm.neva.model.base import (
     CLIPViTConfig,
     HFCLIPVisionConfig,
@@ -51,6 +57,8 @@ from nemo.collections.vlm.peft import LoRA
 from nemo.collections.vlm.recipes import *
 
 __all__ = [
+    "HFDatasetDataModule",
+    "HFAutoModelForImageTextToText",
     "NevaMockDataModule",
     "NevaLazyDataModule",
     "MLlamaMockDataModule",
