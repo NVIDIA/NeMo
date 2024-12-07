@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.utils import logging
 
 GENERATE_NUM = 0
+KEEPALIVE_NUM = 1
 lock = threading.Lock()
 
 API_ALLOWED_KEYS = set(
@@ -73,6 +74,20 @@ class MegatronGenerate(Resource):
     def send_do_generate():
         choice = torch.cuda.LongTensor([GENERATE_NUM])
         torch.distributed.broadcast(choice, 0)
+
+    @staticmethod
+    def keepalive(stop_event, timeout=3600):
+        """
+        Periodically broadcast a keepalive signal to avoid timeouts.
+        """
+        while True:
+            stop_event.wait(timeout=timeout)
+            if stop_event.is_set():
+                return
+            with lock:
+                logging.debug("Sending keepalive signal")
+                choice = torch.cuda.LongTensor([KEEPALIVE_NUM])
+                torch.distributed.broadcast(choice, 0)
 
     def convert_messages(self, input_list):
         output_dict = {
@@ -202,7 +217,7 @@ class MegatronGenerate(Resource):
             time.sleep(0.5)  # process one batch every 0.5s
         else:
             queryid = 0
-        end_strings = ['<|endoftext|>', '</s>', special_tokens['turn_start'], special_tokens['label_start']]
+        end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
 
         # Return a response mimicking the OpenAI ChatCompletion API format
         if queryid == 0:
@@ -256,9 +271,6 @@ class MegatronGenerate(Resource):
         for e in end_strings:
             if output_sentence.endswith(special_tokens['end_of_turn'] + e):
                 output_sentence = output_sentence[: -len(special_tokens['end_of_turn'] + e)]
-            # todo: don't need this if it respects end_strings
-            while output_sentence.endswith(e):
-                output_sentence = output_sentence.removesuffix(e)
 
         tokens = output['tokens'][queryid]
         tokens = [t.decode('utf-8', errors='replace') if isinstance(t, bytes) else t for t in tokens]
@@ -496,4 +508,14 @@ class MegatronServer(object):
         )
 
     def run(self, url, port=5000):
-        self.app.run(url, threaded=True, port=port, debug=False)
+        # Also start a thread that periodically sends a "keepalive" signal to all workers, to ensure
+        # the PyTorch `brodcast()` operation does not time out.
+        stop_event = threading.Event()
+        keepalive_thread = threading.Thread(target=MegatronGenerate.keepalive, args=[stop_event])
+        keepalive_thread.start()
+        try:
+            self.app.run(url, threaded=True, port=port, debug=False)
+        finally:
+            # Once we're done, let the keepalive thread know so that it can exit gracefully.
+            stop_event.set()
+            keepalive_thread.join()
