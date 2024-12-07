@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from datasets import load_dataset
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 from torch.utils.data import DataLoader
 
