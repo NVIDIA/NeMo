@@ -267,8 +267,6 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             q_pos_emb, k_pos_emb = rotary_pos_emb
 
             if packed_seq_params is not None:
-                cu_seqlens_q = packed_seq_params.cu_seqlens_q
-                cu_seqlens_kv = packed_seq_params.cu_seqlens_kv
                 if packed_seq_params.cu_seqlens_q_padded is not None:
                     cu_seqlens_q = packed_seq_params.cu_seqlens_q_padded
                 else:
