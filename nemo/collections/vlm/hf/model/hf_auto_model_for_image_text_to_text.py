@@ -44,6 +44,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.save_hyperparameters()
         self.model_name = model_name
         self._processor = processor
+        self.tokenizer = None
         self.model = None
         self.loss_fn = loss_fn
         self.load_pretrained_weights = load_pretrained_weights
@@ -78,10 +79,13 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model.train()
 
     def forward(self, batch):
-        inputs = self.processor(**batch, return_tensors='pt').to(self.model.device, self.model.dtype)
-        outputs = self.model(**inputs)
-        labels = batch['labels'].to(self.model.device)
-        if (loss_mask := batch.get('loss_mask', None)) is not None:
+        labels = batch.pop('labels').to(self.model.device)
+        if 'loss_mask' in batch:
+            loss_mask = batch.pop('loss_mask')
+        else:
+            loss_mask = None
+        outputs = self.model(**batch)
+        if loss_mask is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
         n_cls = outputs.logits.shape[-1]
         outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
