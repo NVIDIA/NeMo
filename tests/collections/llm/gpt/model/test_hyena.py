@@ -32,15 +32,15 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, WarmupHoldPolicyScheduler
 
+#                                 --ckpt-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp/small_ckpt \
 
 """
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 /opt/NeMo/tests/collections/llm/gpt/model/test_hyena.py \
                                 --num-nodes=1 \
                                 --devices=8 \
-                                --max-steps=50000 \
-                                --val-check-interval=10 \
-                                --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
-                                --ckpt-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp \
+                                --max-steps=500000 \
+                                --val-check-interval=200 \
+                                --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp2 \
                                 --data-path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/datasets/hyena_data/hg38/pretraining_data_hg38/data_hg38_all_text_CharLevelTokenizer_document \
                                 --seq-length=8192 \
                                 --tensor-parallel-size=1 \
@@ -147,15 +147,15 @@ if __name__ == '__main__':
             context_parallel_size=args.context_parallel_size,
             pipeline_dtype=torch.bfloat16,
             sequence_parallel=args.sequence_parallel,
-            ckpt_load_optimizer=True,
-            ckpt_save_optimizer=True,
+            ckpt_load_optimizer=False,
+            ckpt_save_optimizer=False,
             ckpt_async_save=False,
             save_ckpt_format='zarr',
         ),
         logger=loggers,
         callbacks = [checkpoint_callback],
         log_every_n_steps=1,
-        limit_val_batches=10,
+        limit_val_batches=100,
         num_sanity_val_steps=0,
         plugins=nl.MegatronMixedPrecision(
             precision="bf16-mixed",
@@ -174,17 +174,17 @@ if __name__ == '__main__':
     from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
     resume = nl.AutoResume(
-        resume_if_exists=True,
+        resume_if_exists=False,
         resume_ignore_no_checkpoint=True,
         resume_past_end=True,
         resume_from_directory=args.ckpt_dir,
-        # restore_config=(
-        #     RestoreConfig(
-        #         path=args.ckpt_dir,
-        #         load_model_state = True,
-        #         load_optim_state = True,
-        #     ) if args.ckpt_dir else None
-        # ),
+        restore_config=(
+            RestoreConfig(
+                path=args.ckpt_dir,
+                load_model_state = True,
+                load_optim_state = False,
+            ) if args.ckpt_dir else None
+        ),
     )
     resume.setup(trainer, model)
 
@@ -192,6 +192,7 @@ if __name__ == '__main__':
     opt_config = OptimizerConfig(
         optimizer='adam',
         lr=0.0003,
+        weight_decay=0.1,
         adam_beta1=0.9,
         adam_beta2=0.95,
         use_distributed_optimizer=True,
@@ -203,7 +204,8 @@ if __name__ == '__main__':
         min_lr=0.00003,
     )
 
-    opt = MegatronOptimizerModule(opt_config, sched)
+    opt = MegatronOptimizerModule(config=opt_config, no_weight_decay_cond=hyena_config.hyena_no_weight_decay_cond_fn, lr_scheduler=sched)
+    # opt = MegatronOptimizerModule(opt_config, sched)
     opt.connect(model)
 
     # Start training

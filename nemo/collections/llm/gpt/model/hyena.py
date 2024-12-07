@@ -23,7 +23,7 @@ from nemo.utils import logging
 try:
     from megatron.core import parallel_state
     from megatron.core.models.hyena import HyenaModel as MCoreHyenaModel
-    from megatron.core.models.hyena.hyena_layer_specs import hyena_stack_spec
+    from megatron.core.models.hyena.hyena_layer_specs import hyena_stack_spec, hyena_stack_spec_no_te
     from megatron.core.ssm.hyena_utils import hyena_no_weight_decay_cond
 
     HAVE_MEGATRON_CORE_OR_TE = True
@@ -42,14 +42,13 @@ from nemo.lightning import get_vocab_size, io, teardown
 
 
 def hyena_forward_step(model, batch) -> torch.Tensor:
-
     forward_args = {
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
         "labels": batch["labels"],
         "loss_mask": batch["loss_mask"],
+        "attention_mask": None
     }
-    forward_args["attention_mask"] = None
     return model(**forward_args)
 
 
@@ -90,6 +89,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
     recompute_num_layers: int = 4
+    fp8: str = 'hybrid'
+    fp8_amax_history_len: int = 16
+    fp8_amax_compute_algo: str = "max"
     forward_step_fn: Callable = hyena_forward_step
     data_step_fn: Callable = gpt_data_step
     tokenizer_model_path: str = None
@@ -135,7 +137,7 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
 
         return GPTModel(self.config, tokenizer=self.tokenizer)
 
-    def apply(self, output_path: Path) -> Path:
+    def apply(self, output_path: Path, te_enabled=True) -> Path:
 
         source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
@@ -187,7 +189,7 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
         trainer = self.nemo_setup(target, ckpt_async_save=False, save_ckpt_format='zarr')
         source.to(self.config.params_dtype)
         target.to(self.config.params_dtype)
-        self.convert_state(source, target)
+        self.convert_state(source, target, te_enabled)
         self.nemo_save(output_path, trainer)
 
         logging.info(f"Converted Hyena model to Nemo, model saved to {output_path}")
@@ -197,33 +199,31 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
 
         return output_path
 
-    def convert_state(self, source, target):
+    def convert_state(self, source, target, te_enabled=True):
 
         mapping = {}
-        te_enabled = True
-        scale_or_weight = 'weight'
         mapping['sequential.0.word_embeddings.weight'] = 'embedding.word_embeddings.weight'
-        mapping[f'sequential.{len(self.config.hybrid_override_pattern)}.norm.{scale_or_weight}'] = (
+        mapping[f'sequential.{len(self.config.hybrid_override_pattern)}.norm.weight'] = (
             'decoder.final_norm.weight'
         )
         for i, symbol in enumerate(self.config.hybrid_override_pattern):
             if te_enabled:
-                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = (
+                mapping[f'sequential.{i}.pre_mlp_layernorm.weight'] = (
                     f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
                 )
             else:
-                mapping[f'sequential.{i}.pre_mlp_layernorm.{scale_or_weight}'] = (
+                mapping[f'sequential.{i}.pre_mlp_layernorm.weight'] = (
                     f'decoder.layers.{i}.pre_mlp_layernorm.weight'
                 )
             mapping[f'sequential.{i}.mlp.w3.weight'] = f'decoder.layers.{i}.mlp.linear_fc2.weight'
 
             if symbol != '*':
                 if te_enabled:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                    mapping[f'sequential.{i}.input_layernorm.weight'] = (
                         f'decoder.layers.{i}.mixer.dense_projection.layer_norm_weight'
                     )
                 else:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = f'decoder.layers.{i}.norm.weight'
+                    mapping[f'sequential.{i}.input_layernorm.weight'] = f'decoder.layers.{i}.norm.weight'
 
                 mapping[f'sequential.{i}.mixer.dense_projection.weight'] = (
                     f'decoder.layers.{i}.mixer.dense_projection.weight'
@@ -256,11 +256,11 @@ class PyTorchHyenaImporter(io.ModelConnector["GPTModel", GPTModel]):
 
             elif symbol == '*':
                 if te_enabled:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                    mapping[f'sequential.{i}.input_layernorm.weight'] = (
                         f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
                     )
                 else:
-                    mapping[f'sequential.{i}.input_layernorm.{scale_or_weight}'] = (
+                    mapping[f'sequential.{i}.input_layernorm.weight'] = (
                         f'decoder.layers.{i}.input_layernorm.weight'
                     )
 
