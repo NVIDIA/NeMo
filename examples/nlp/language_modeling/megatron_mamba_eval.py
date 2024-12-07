@@ -289,6 +289,7 @@ def load_prompts(cfg):
     if (cfg_prompts := getattr(cfg, 'prompts', None)) is not None:
         prompts = OmegaConf.to_container(cfg_prompts)
     if (prompts_jsonl := getattr(cfg, 'prompts_jsonl', None)) is not None:
+        prompts = []
         with open(prompts_jsonl, 'rt') as fp:
             try:
                 prompts += list(map(json.loads, map(str.rstrip, fp)))
@@ -353,31 +354,29 @@ def main(cfg) -> None:
     prompts = load_prompts(cfg)
 
     # First method of running text generation, call model.generate method
-    for i in range(1 if cfg.server else 3):
-        st = time.perf_counter()
-        response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
-        tdiff = time.perf_counter() - st
-        print(f"[Try{i} model.generate took {tdiff} seconds...")
+    #for i in range(1 if cfg.server else 3):
+    #    st = time.perf_counter()
+    #    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
+    #    tdiff = time.perf_counter() - st
+    #    print(f"[Try{i} model.generate took {tdiff} seconds...")
 
     # print("***************************")
     # print(response)
     # print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
-    bs = 2
+    bs = cfg.inference.get("batch_size", 4)
     ds = RequestDataSet(prompts)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
-    for i in range(1 if cfg.server else 3):
-        st = time.perf_counter()
-        response = trainer.predict(model, request_dl)
-        tdiff = time.perf_counter() - st
-        print(f"[Try{i} trainer.predict took {tdiff} seconds...")
+    response = trainer.predict(model, request_dl)
+    if response:
+        with open(cfg.get("save_responses_path", "./responses.jsonl"), "w") as out_file:
+            for response_batch in response:
+                for reponse_sentence in response_batch['sentences']:
+                    out_file.write(json.dumps({"prompt_and_response": reponse_sentence}) + "\n")
 
-    # print("***************************")
-    # print(response)
-    # print("***************************")
 
     # Third method of running text generation, use inference server
     if cfg.server:
