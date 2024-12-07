@@ -407,6 +407,11 @@ def nemo_deploy(argv):
         raise ValueError("Backend: {0} is not supported.".format(backend))
 
     try:
+        os.environ['TRITON_PORT'] = args.triton_port
+        os.environ['TRITON_HTTP_ADDRESS'] = args.triton_http_address
+        os.environ['TRITON_REQUEST_TIMEOUT'] = args.triton_request_timeout
+        os.environ['OPENAI_FORMAT_RESPONSE'] = args.openai_format_response
+
         nm = DeployPyTriton(
             model=triton_deployable,
             triton_model_name=args.triton_model_name,
