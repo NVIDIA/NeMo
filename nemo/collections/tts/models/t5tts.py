@@ -53,13 +53,13 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 
-def setup_tokenizers(tokenizer_config, use_text_conditioning_tokenizer, mode='train'):
+def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, mode='train'):
     # Being used in both model and worker_init_fn, so it is defined here
     # Returns two tokenizers: one for TTS transcript and one for conditioning text (if needed)
     tokenizers = []
     tokenizer_names = []
-    for tokenizer_name in tokenizer_config:
-        tokenizer_config = tokenizer_config[tokenizer_name]
+    for tokenizer_name in all_tokenizers_config:
+        tokenizer_config = all_tokenizers_config[tokenizer_name]
         if tokenizer_config._target_ == 'AutoTokenizer':
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_config.pretrained_model)
         else:
