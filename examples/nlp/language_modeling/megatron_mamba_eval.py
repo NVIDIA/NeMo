@@ -354,7 +354,7 @@ def main(cfg) -> None:
     prompts = load_prompts(cfg)
 
     # First method of running text generation, call model.generate method
-    #for i in range(1 if cfg.server else 3):
+    # for i in range(1 if cfg.server else 3):
     #    st = time.perf_counter()
     #    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
     #    tdiff = time.perf_counter() - st
@@ -376,7 +376,6 @@ def main(cfg) -> None:
             for response_batch in response:
                 for reponse_sentence in response_batch['sentences']:
                     out_file.write(json.dumps({"prompt_and_response": reponse_sentence}) + "\n")
-
 
     # Third method of running text generation, use inference server
     if cfg.server:
