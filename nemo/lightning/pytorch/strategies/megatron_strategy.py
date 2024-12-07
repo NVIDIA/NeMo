@@ -286,6 +286,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self._pipeline_dtype = dtype_config.pipeline_dtype
         return self._pipeline_dtype
 
+    @pipeline_dtype.setter
+    def pipeline_dtype(self, value):
+        self._pipeline_dtype = value
+
     @override
     def connect(self, model: pl.LightningModule) -> None:
         """Attaches a model to strategy."""
