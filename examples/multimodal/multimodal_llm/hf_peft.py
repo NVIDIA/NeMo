@@ -15,48 +15,64 @@
 import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
-from nemo.collections import llm
+from nemo.collections import llm, vlm
+import torch
+from PIL import Image
 
+def mk_hf_vlm_dataset(processor):
+    def collate_fn(examples, processor):
+        def fmt(sample):
+            instruction = "Describe accurately the given image."
+            conversation = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text",  "text": instruction},
+                        {"type": "image", "image": sample["image"]}
+                    ]
+                },
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text",  "text": sample["text"]}]
+                },
+            ]
+            return {"conversation": conversation, "images": [sample['image']]}
 
-def mk_hf_vlm_dataset(tokenizer):
-    EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
+        text  = []
+        images = []
+        for example in map(fmt, examples):
+            text.append(processor.apply_chat_template(
+                example["conversation"],
+                tokenize = False,
+                add_generation_prompt = False,
+            ))
+            images += example['images']
 
-    def formatting_prompts_func(examples):
-        alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+        # Tokenize the text and process the images
+        batch = processor(
+            text = text,
+            images = images,
+            padding = True,
+            return_tensors = "pt",
+        )
 
-    ### Instruction:
-    {}
+        batch["pixel_values"] = batch["pixel_values"].to(torch.bfloat16)
 
-    ### Input:
-    {}
+        labels = batch["input_ids"].clone()
+        labels[torch.isin(labels, processor.tokenizer.pad_token_id)] = -100
+        batch["labels"] = labels
+        return batch
 
-    ### Response:
-    {}"""
-        instruction = examples["context"]
-        input = examples["question"]
-        output = examples["answers"]['text']
-        if isinstance(output, list):
-            output = output[0]
-        text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
-        ans = tokenizer(text)
-        tokens = ans['input_ids']
-        return {
-            'tokens': tokens,
-            'labels': tokens[1:] + [tokens[-1]],
-        }
-
-    from datasets import load_dataset
-
-    dataset = load_dataset("rajpurkar/squad", split="train")
-    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2)
-    return dataset
+    return vlm.HFDatasetDataModule("quintend/rdr-items", split="train",
+        collate_fn=lambda x: collate_fn(x, processor=processor)
+    )
 
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
+    parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
@@ -76,11 +92,11 @@ if __name__ == '__main__':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
-    processor = llm.HfAutoModelForImageTextToText.configure_processor(args.model)
+    processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
 
     llm.api.finetune(
-        model=llm.HfAutoModelForImageTextToText(args.model),
-        data=llm.HfDatasetDataModule(mk_hf_vlm_dataset(processor), pad_token_id=tokenizer.tokenizer.eos_token_id),
+        model=vlm.HFAutoModelForImageTextToText(args.model),
+        data=mk_hf_vlm_dataset(processor),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -98,6 +114,6 @@ if __name__ == '__main__':
         log=None,
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
-            dim=32,
+            dim=16,
         ),
     )
