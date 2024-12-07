@@ -100,18 +100,20 @@ class SLMDiscriminator(NeuralModule):
         super().__init__()
 
         if not HAVE_TORCHAUDIO:
-            logging.error('Could not import torchaudio. SLMDiscriminator will not work.')
-
-            raise ModuleNotFoundError(
-                f"torchaudio is not installed but is necessary to instantiate a {self.__class__.__name__}"
-            )
+            # logging.error('Could not import torchaudio. SLMDiscriminator will not work.')
+            self.resample = None
+            # raise ModuleNotFoundError(
+                # f"torchaudio is not installed but is necessary to instantiate a {self.__class__.__name__}"
+            # )
+        else:
+            self.resample = torchaudio.transforms.Resample(input_sr, slm_sr)
 
         self.slm_model = SSLModel(slm_model_name)
 
         # Freeze slm model
         self.slm_model.freeze()
 
-        self.resample = torchaudio.transforms.Resample(input_sr, slm_sr)
+        
 
         norm_f = torch.nn.utils.weight_norm if use_spectral_norm == False else torch.nn.utils.spectral_norm
         self.pre = norm_f(nn.Conv1d(slm_hidden * slm_layers, initial_channel, 1, 1, padding=0))
