@@ -227,7 +227,7 @@ class IpaG2p(BaseG2p):
 
     @staticmethod
     def _parse_file_by_lines(p: Union[str, pathlib.Path]) -> List[str]:
-        with open(p, 'r') as f:
+        with open(p, 'r', encoding='utf-8') as f:
             return [line.rstrip() for line in f.readlines()]
 
     def _prepend_prefix_for_one_word(self, word: str) -> List[str]:
