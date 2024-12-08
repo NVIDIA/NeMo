@@ -102,8 +102,8 @@ class LhotseDataLoadingConfig:
     num_workers: int = 0
     pin_memory: bool = False
     channel_selector: int | str | None = None
-    min_tps: int = -1  # allowed tokens per second
-    max_tps: float = float("inf")
+    min_tps: int | None = -1  # allowed tokens per second
+    max_tps: float | None = float("inf")
 
     # 4. Optional Lhotse data augmentation.
     #   a. On-the-fly noise/audio mixing.
