@@ -1794,6 +1794,34 @@ def predlist_to_timestamps(
     bypass_postprocessing: bool = False,
     precision: int = 2,
 ) -> List[List[float]]:
+    """ 
+    Converts floating point number tensor diarization results to timestamps using VAD style 
+    post-processing methods.
+    
+    Args:
+        batch_preds_list (List[Tensor]):
+            Tensor diarization results for each sample.
+            Dimension: [(num_frames, num_speakers), ...]
+        audio_rttm_map_dict (Dict[str, Dict[str, Union[float, int]]]):
+            Dictionary mapping unique audio file names to their rttm file entries.
+        cfg_vad_params (OmegaConf):
+            Configuration (omega config) of VAD parameters.
+        unit_10ms_frame_count (int):
+            an integer indicating the number of 10ms frames in a unit.
+            For example, if unit_10ms_frame_count is 8, then each frame is 0.08 seconds.
+        bypass_postprocessing (bool, optional):
+            If True, diarization post-processing will be bypassed.
+        precision (int, optional):
+            The number of decimal places to round the timestamps. Defaults to 2.
+    
+    Returns:
+        total_speaker_timestamps (List[List[List[float]]]):
+            A list of lists of timestamp tensors for each session (utterance)
+            Levels: 
+                - Session-level (uniq_id) [session1_list, session2_list,...]
+                    - Segment-level: [[start1, end1], [start2, end2],...]]
+                        - List of start and end timestamp [start, end]
+    """
     total_speaker_timestamps = []
     pp_message = "Binarization" if bypass_postprocessing else "Post-processing"
     for sample_idx, (uniq_id, audio_rttm_values) in tqdm(

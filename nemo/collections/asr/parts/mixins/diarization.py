@@ -16,17 +16,15 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.speaker_utils import get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -34,13 +32,13 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_uniqname_from_filepath,
 )
 from nemo.collections.common.data.utils import move_data_to_device
-from nemo.utils import logging, logging_mode
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
 GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
 
 @dataclass
 class InternalDiarizeConfig:
+    """Internal diarization configuration parameters for diarization inference."""
     # Internal values
     device: Optional[torch.device] = None
     dtype: Optional[torch.dtype] = None
@@ -111,6 +109,7 @@ def get_value_from_diarization_config(diarcfg, key, default):
 
 
 class SpkDiarizationMixin(ABC):
+    """Mixin class for speaker diarization inference with various input types."""
     @abstractmethod
     # def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
     
@@ -242,7 +241,7 @@ class SpkDiarizationMixin(ABC):
                 # Move batch to device
                 test_batch = move_data_to_device(test_batch, diarize_cfg._internal.device)
                 # Run forward pass
-                pred_outputs = self._diarize_forward(test_batch, diarcfg=diarize_cfg)
+                pred_outputs = self._diarize_forward(test_batch)
 
                 # Yield results if generator
                 yield pred_outputs
@@ -338,7 +337,6 @@ class SpkDiarizationMixin(ABC):
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
                 # Assume it is a path to a manifest file
                 diarcfg._internal.manifest_filepath = audio[0]
-                # audio = manifest_utils.read_manifest(audio[0])
                 self._diarize_audio_rttm_map  = get_audio_rttm_map(audio[0])
                 audio_files = []
                 for uniq_id, meta_dict in self._diarize_audio_rttm_map .items():
@@ -418,7 +416,7 @@ class SpkDiarizationMixin(ABC):
         pass
 
     @abstractmethod
-    def _diarize_forward(self, batch: Any, diarcfg: DiarizeConfig):
+    def _diarize_forward(self, batch: Any):
         """
         Internal function to perform the model's custom forward pass to return outputs that are processed by
         `_diarize_output_processing()`.

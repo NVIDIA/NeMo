@@ -24,7 +24,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.asr.parts.mixins.diarization import DiarizeConfig, SpkDiarizationMixin
-from nemo.collections.asr.parts.utils import Hypothesis
 
 
 class DummyModel(torch.nn.Module):

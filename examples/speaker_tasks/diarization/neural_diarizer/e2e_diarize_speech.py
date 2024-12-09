@@ -48,7 +48,6 @@ import torch
 import yaml
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
-from tqdm import tqdm
 
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models import SortformerEncLabelModel
@@ -58,7 +57,7 @@ get_uniqname_from_filepath,
 audio_rttm_map, 
 timestamps_to_pyannote_object,
 )
-from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing, predlist_to_timestamps
+from nemo.collections.asr.parts.utils.vad_utils import predlist_to_timestamps
 from nemo.core.config import hydra_runner
 
 seed_everything(42)
