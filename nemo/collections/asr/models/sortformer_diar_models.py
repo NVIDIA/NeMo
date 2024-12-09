@@ -42,7 +42,6 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
-from nemo.collections.asr.parts.mixins.diarization import SpkDiarizationMixin
 
 __all__ = ['SortformerEncLabelModel']
 
@@ -314,9 +313,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         Args:
             config: A python dictionary which contains the following keys:
-            - manifest_filepath: Path to the manifest file containing audio file paths 
+            - manifest_filepath: Path to the manifest file containing audio file paths
               and corresponding speaker labels.
-              
+
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
