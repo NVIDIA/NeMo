@@ -22,7 +22,7 @@ LOGGER = logging.getLogger("NeMo")
 
 megatron_llm_supported = True
 try:
-    from nemo.deploy.nlp import MegatronLLMDeployable
+    from nemo.deploy.nlp import MegatronLLMDeploy
 except Exception as e:
     LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
     megatron_llm_supported = False
@@ -53,7 +53,7 @@ def get_nemo_deployable(args):
     if args.nemo_checkpoint is None:
         raise ValueError("In-Framework deployment requires a .nemo checkpoint")
 
-    return MegatronLLMDeployable(args.nemo_checkpoint, args.num_gpus)
+    return MegatronLLMDeploy.get_deployable(args.nemo_checkpoint, args.num_gpus)
 
 
 def nemo_deploy(argv):
