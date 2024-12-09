@@ -14,19 +14,18 @@
 
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Protocol, Sequence, Type, TypeVar, Union, runtime_checkable
+from typing import TYPE_CHECKING, Any, List, Optional, Protocol, Sequence, Type, TypeVar, Union, runtime_checkable
 
 import fiddle as fdl
 import lightning.fabric as lb
 import lightning.pytorch as pl
 from torch import nn
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader
 from typing_extensions import Self, override
 
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
-
-if TYPE_CHECKING:
-    from megatron.core.optimizer import OptimizerConfig
 
 ModelT = TypeVar("ModelT", bound=nn.Module)
 
@@ -145,6 +144,28 @@ class Fabric(lb.Fabric, IOMixin):
             return out._forward_module
 
         return out
+
+    @override
+    def setup(
+        self,
+        module: nn.Module,
+        *optimizers: Optimizer,
+        move_to_device: bool = True,
+        _reapply_compile: bool = True,
+    ) -> Any:  # no specific return because the way we want our API to look does not play well with mypy
+        from nemo.lightning.fabric.strategies import FabricMegatronStrategy
+
+        out = super().setup(module, *optimizers, move_to_device=move_to_device, _reapply_compile=_reapply_compile)
+
+        # Unpack the result into module and optimizers
+        module, *optimizers = out if isinstance(out, tuple) else (out,)
+
+        # We don't want to return a _FabricModule for megatron since we only want to precision convert
+        # at the beginning and end of the pipeline
+        if isinstance(self.strategy, FabricMegatronStrategy):
+            module = module._forward_module
+
+        return (module, *optimizers) if optimizers else module
 
     def setup_datamodule(self, datamodule: pl.LightningDataModule, stage: str = "") -> pl.LightningDataModule:
         datamodule.setup(stage)
