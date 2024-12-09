@@ -20,7 +20,6 @@ from torch.utils.data import DataLoader
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
-from nemo.lightning.pytorch.callbacks import ModelCallback
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
