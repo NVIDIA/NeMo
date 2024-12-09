@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
-        pipeline_parallel_size=args.pp_size,
+        pipeline_model_parallel_size=args.pp_size,
     )
 
     trainer = nl.Trainer(
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         ),
     )
 
-    if args.peft in ['lora', 'dora']:
+    if args.peft in llm.peft.PEFT_STR2CLS:
         peft = llm.peft.PEFT_STR2CLS[args.peft]()
     else:
         peft = None
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     dolly = llm.DollyDataModule(
         seq_length=2048,
         micro_batch_size=args.mbs,
-        global_batch_size=8,
+        global_batch_size=4,
         num_workers=0,
         packed_sequence_specs=packed_sequence_specs,
     )
