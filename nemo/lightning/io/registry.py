@@ -49,8 +49,10 @@ except ImportError:
 
 try:
     from nemo.collections.common.tokenizers import SentencePieceTokenizer
+    from nemo.collections.common.tokenizers import TiktokenTokenizer
 
     track_io(SentencePieceTokenizer, artifacts=[FileArtifact("model_path")])
+    track_io(TiktokenTokenizer, artifacts=[FileArtifact("model_path")])
 except ImportError:
     # SentencePieceTokenizer is not available, no need to track it
     pass

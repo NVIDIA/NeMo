@@ -12,29 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional
-
 import torch
-
+import torch.nn.functional as F
 from nemo.utils import logging
+from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
+from nemo.lightning import get_vocab_size, io, teardown
 
 try:
     from megatron.core import parallel_state
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+    from megatron.core.dist_checkpointing.serialization import load_plain_tensors
+    from megatron.core.transformer.transformer_config import TransformerConfig
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("The package `megatron.core` was not imported in this environment which is needed for SSMs.")
     HAVE_MEGATRON_CORE_OR_TE = False
-
-from megatron.core.transformer.transformer_config import TransformerConfig
-from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
-from nemo.lightning import get_vocab_size, io, teardown
-
 
 def ssm_forward_step(model, batch) -> torch.Tensor:
 
@@ -46,6 +45,71 @@ def ssm_forward_step(model, batch) -> torch.Tensor:
     forward_args["attention_mask"] = None
     return model(**forward_args)
 
+def dist_ckpt_handler(checkpoint_dir):
+
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'  # Ensure this port is available
+    world_size = 1
+    rank = 0
+    torch.distributed.init_process_group(backend="gloo", rank=rank, world_size=world_size)  # ckpt conversion done on CPU
+    
+    state_dict = load_plain_tensors(checkpoint_dir)
+
+    key_list = list(state_dict.keys())
+    for k in key_list:
+        if "optimizer" in k:
+            state_dict.pop(k)
+    dist_ckpt_args = state_dict['args']
+    state_dict.pop('args')
+    state_dict.pop('checkpoint_version')
+    state_dict.pop('iteration')
+    state_dict.pop('opt_param_scheduler')
+    state_dict.pop('num_floating_point_operations_so_far')
+
+    for i, symbol in enumerate(dist_ckpt_args.hybrid_override_pattern):
+        if symbol == 'M':
+            state_dict[f'decoder.layers.{i}.mixer.in_proj.weight'] = torch.cat(
+                [
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.z'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.x'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.B'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.C'],
+                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.dt'],
+                ],
+                dim=0,
+            )
+
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.z')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.x')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.B')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.C')
+            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.dt')
+
+            state_dict[f'decoder.layers.{i}.mixer.conv1d.weight'] = torch.cat(
+                [
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.x'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.B'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.C'],
+                ],
+                dim=0,
+            )
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.x')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.B')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.C')
+
+            state_dict[f'decoder.layers.{i}.mixer.conv1d.bias'] = torch.cat(
+                [
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.x'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.B'],
+                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.C'],
+                ],
+                dim=0,
+            )
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.x')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.B')
+            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.C')
+
+    return state_dict, dist_ckpt_args
 
 @dataclass
 class SSMConfig(TransformerConfig, io.IOMixin):
@@ -84,6 +148,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
 
     forward_step_fn: Callable = ssm_forward_step
     data_step_fn: Callable = gpt_data_step
+    vocab_file: str = None
     tokenizer_model_path: str = None
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
@@ -118,9 +183,14 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
         return GPTModel(self.config, tokenizer=self.tokenizer)
 
-    def apply(self, output_path: Path) -> Path:
+    def apply(self, output_path: Path, source_dist_ckpt: bool = False) -> Path:
 
-        source = torch.load(str(self), map_location='cpu')
+        if source_dist_ckpt:
+            source, dist_ckpt_args = dist_ckpt_handler(
+                str(self)
+            )
+        else:
+            source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
             source = source['model']
 
@@ -180,7 +250,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
                 'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
                 'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
                 'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'decoder.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
                 'decoder.final_norm.weight': 'decoder.final_norm.weight',
                 'output_layer.weight': 'output_layer.weight',
             }
@@ -206,6 +276,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
         tokenizer = get_nmt_tokenizer(
             library=self.model_config.tokenizer_library,
             model_name=self.model_config.tokenizer_name,
+            vocab_file=self.model_config.vocab_file,
             tokenizer_model=self.model_config.tokenizer_model_path,
             use_fast=True,
         )
@@ -317,6 +388,21 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
     tokenizer_name: str = "GPTSentencePieceTokenizer"
     mapping_type: str = "nvidia-hybrid"
 
+@dataclass
+class Nemotron5HybridConfig8B(SSMConfig):
+    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    num_layers: int = 52
+    seq_length: int = 8192
+    hidden_size: int = 4096
+    mamba_ssm_ngroups: int = 8
+    ffn_hidden_size: int = 21504
+    num_attention_heads: int = 32
+    num_query_groups: int = 8
+    make_vocab_size_divisible_by: int = 128
+    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
+    tokenizer_library: str = 'tiktoken'
+    tokenizer_name: str = "TiktokenTokenizer"
+    mapping_type: str = "nvidia-hybrid"
 
 __all__ = [
     "SSMConfig",
@@ -327,4 +413,5 @@ __all__ = [
     "BaseMambaConfig2_7B",
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
+    "Nemotron5HybridConfig8B",
 ]
