@@ -13,9 +13,9 @@
 # limitations under the License.
 import argparse
 import os
-import torch
 from dataclasses import dataclass
 
+import torch
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
