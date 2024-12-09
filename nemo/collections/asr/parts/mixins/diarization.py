@@ -36,6 +36,7 @@ GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[L
 @dataclass
 class InternalDiarizeConfig:
     """Internal diarization configuration parameters for diarization inference."""
+
     # Internal values
     device: Optional[torch.device] = None
     dtype: Optional[torch.dtype] = None
@@ -109,6 +110,7 @@ def get_value_from_diarization_config(diarcfg, key, default):
 
 class SpkDiarizationMixin(ABC):
     """Mixin class for speaker diarization inference with various input types."""
+
     @abstractmethod
     # def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
 
@@ -333,7 +335,7 @@ class SpkDiarizationMixin(ABC):
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
                 # Assume it is a path to a manifest file
                 diarcfg._internal.manifest_filepath = audio[0]
-                self._diarize_audio_rttm_map  = get_audio_rttm_map(audio[0])
+                self._diarize_audio_rttm_map = get_audio_rttm_map(audio[0])
                 audio_files = []
                 for uniq_id, meta_dict in self._diarize_audio_rttm_map.items():
                     audio_files.append(meta_dict['audio_filepath'])
