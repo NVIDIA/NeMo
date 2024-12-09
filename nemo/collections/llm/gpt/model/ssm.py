@@ -143,6 +143,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     layernorm_epsilon: float = 1e-5
+    persist_layer_norm: bool = True
+    fp32_residual_connections: bool = False
+    attention_softmax_in_fp32: bool = False
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
 
