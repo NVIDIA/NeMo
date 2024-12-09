@@ -406,7 +406,8 @@ class T5TTS_Model(ModelPT):
         pred_audio, pred_audio_lens = self.codes_to_audio(pred_audio_codes, audio_codes_lens_target)
         target_audio, target_audio_lens = self.codes_to_audio(target_audio_codes, audio_codes_lens_target)
         context_audio, context_audio_lens = None, None
-        if context_audio_codes is not None:
+        if context_audio_codes is not None and context_audio_codes.shape[2] > 3:
+            # > 3 ensures, it is a valid context audio tensor (and not dummy tensor used in text context)
             context_audio, context_audio_lens = self.codes_to_audio(context_audio_codes, context_audio_codes_lens)
         for idx in range(min(3, pred_audio.size(0))):
             pred_audio_np = pred_audio[idx].float().detach().cpu().numpy()
