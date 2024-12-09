@@ -142,8 +142,6 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     layernorm_epsilon: float = 1e-5
-    persist_layer_norm: bool = False
-    attention_softmax_in_fp32: bool = False
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
 
@@ -404,6 +402,10 @@ class Nemotron5HybridConfig8B(SSMConfig):
     tokenizer_library: str = 'tiktoken'
     tokenizer_name: str = "TiktokenTokenizer"
     mapping_type: str = "nvidia-hybrid"
+    masked_softmax_fusion: bool = True
+    apply_query_key_layer_scaling: bool = False
+    persist_layer_norm: bool = True
+    attention_softmax_in_fp32: bool = False
 
 __all__ = [
     "SSMConfig",
