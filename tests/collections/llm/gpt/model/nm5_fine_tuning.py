@@ -28,7 +28,7 @@ from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 """
-python /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/nm5_finetuning.py \
+python /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/nm5_fine_tuning.py \
                         --devices=8 \
                         --max-steps=20 \
                         --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/nm5_ux_temp \
@@ -114,8 +114,8 @@ if __name__ == "__main__":
 
     data = llm.SquadDataModule(
         seq_length=8192,
-        micro_batch_size=2,
-        global_batch_size=4,
+        micro_batch_size=1,
+        global_batch_size=1,
         tokenizer=model.tokenizer,
         num_workers=0,
         dataset_kwargs={"pad_to_max_length": True},
