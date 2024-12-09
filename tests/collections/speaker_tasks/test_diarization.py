@@ -131,6 +131,7 @@ class DiarizableDummy(DummyModel, SpkDiarizationMixin):
         # Pass list of results by default
         return result
 
+
 class DummyDataset(Dataset):
     def __init__(self, audio_tensors: List[str], config: Dict = None):
         self.audio_tensors = audio_tensors
