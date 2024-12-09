@@ -13,6 +13,7 @@
 # limitations under the License.
 import argparse
 import os
+import torch
 from dataclasses import dataclass
 
 from megatron.core.optimizer import OptimizerConfig
@@ -55,6 +56,8 @@ if __name__ == '__main__':
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
+        # Pipeline dtype is coupled with the bf16 mixed precision plugin
+        pipeline_dtype=torch.bfloat16,
     )
 
     trainer = nl.Trainer(
