@@ -78,7 +78,7 @@ if __name__ == "__main__":
         callbacks=[checkpoint_callback],
         log_every_n_steps=1,
         limit_val_batches=50,
-        val_check_interval=50,
+        val_check_interval=200,
         num_sanity_val_steps=0,
     )
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     wandb_logger = WandbLogger(
         name=(f"nm5-ux"),
-        project="nm5_ux_test",
+        project="nemotron5",
         save_dir=args.experiment_dir,
     )
     # wandb_logger = TensorBoardLogger(
@@ -123,9 +123,9 @@ if __name__ == "__main__":
     )
 
     data = llm.SquadDataModule(
-        seq_length=8192,
-        micro_batch_size=1,
-        global_batch_size=1,
+        seq_length=2048,
+        micro_batch_size=8,
+        global_batch_size=64,
         tokenizer=model.tokenizer,
         num_workers=0,
         dataset_kwargs={"pad_to_max_length": True},
