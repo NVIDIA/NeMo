@@ -80,10 +80,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def forward(self, batch):
         labels = batch.pop('labels').to(self.model.device)
-        if 'loss_mask' in batch:
-            loss_mask = batch.pop('loss_mask')
-        else:
-            loss_mask = None
+        loss_mask = batch.pop('loss_mask', None)
         outputs = self.model(**batch)
         if loss_mask is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
