@@ -66,6 +66,8 @@ class BERTMockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
+        self.global_batch_size = global_batch_size
+        self.micro_batch_size = micro_batch_size
         if tokenizer is None:
             from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -75,8 +77,8 @@ class BERTMockDataModule(pl.LightningDataModule):
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
-            micro_batch_size=micro_batch_size,
-            global_batch_size=global_batch_size,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
         )
 
