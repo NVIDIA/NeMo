@@ -14,7 +14,6 @@
 
 import datasets.dataset_dict
 import lightning.pytorch as pl
-import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
