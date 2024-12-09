@@ -25,7 +25,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get_audio_rttm_map
 from nemo.collections.asr.parts.utils.speaker_utils import get_uniqname_from_filepath
 from nemo.collections.common.data.utils import move_data_to_device
