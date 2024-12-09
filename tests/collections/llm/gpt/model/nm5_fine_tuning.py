@@ -19,6 +19,7 @@ import argparse
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -30,7 +31,7 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 """
 python /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/nm5_fine_tuning.py \
                         --devices=8 \
-                        --max-steps=20 \
+                        --max-steps=200 \
                         --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/nm5_ux_temp \
                         --model-path=/lustre/share/llmservice_nlp_fm/adlr-nlp-sharing/checkpoints/8b_hybrid_15t/phase2/iter_2384185 \
                         --tokenizer-model-path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/multiMixV8.gpt4o_nc_sd.500000.128k.vocab.json
@@ -76,8 +77,8 @@ if __name__ == "__main__":
         ),
         callbacks=[checkpoint_callback],
         log_every_n_steps=1,
-        limit_val_batches=5,
-        val_check_interval=10,
+        limit_val_batches=50,
+        val_check_interval=50,
         num_sanity_val_steps=0,
     )
 
@@ -108,8 +109,17 @@ if __name__ == "__main__":
     #     model_config=model_config,
     # )
 
+    wandb_logger = WandbLogger(
+        name=(f"nm5-ux"),
+        project="nm5_ux_test",
+        save_dir=args.experiment_dir,
+    )
+    # wandb_logger = TensorBoardLogger(
+    #     save_dir='dummy',  ## NOTE: this gets overwritten by default
+    # )
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,
+        wandb=wandb_logger
     )
 
     data = llm.SquadDataModule(
