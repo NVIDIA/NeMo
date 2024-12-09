@@ -334,12 +334,7 @@ class SpkDiarizationMixin(ABC):
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
                 # Assume it is a path to a manifest file
                 diarcfg._internal.manifest_filepath = audio[0]
-<<<<<<< HEAD
                 self._diarize_audio_rttm_map  = get_audio_rttm_map(audio[0])
-=======
-                # audio = manifest_utils.read_manifest(audio[0])
-                self._diarize_audio_rttm_map = get_audio_rttm_map(audio[0])
->>>>>>> 27a7e72fc925df5ad05ba8022d36ebce6fd5c822
                 audio_files = []
                 for uniq_id, meta_dict in self._diarize_audio_rttm_map.items():
                     audio_files.append(meta_dict['audio_filepath'])

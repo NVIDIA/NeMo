@@ -31,7 +31,7 @@ from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDia
 from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
-from nemo.collections.asr.parts.mixins.diarization import DiarizeConfig, SpkDiarizationMixin
+from nemo.collections.asr.parts.mixins.diarization import SpkDiarizationMixin
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_ats_targets, get_pil_targets
@@ -299,7 +299,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         Args:
             batch (Any): The input batch containing audio signal and audio signal length.
-            diarcfg (DiarizeConfig): The configuration for diarization.
 
         Returns:
             preds (torch.Tensor): Sorted tensor containing Sigmoid values for predicted speaker labels.
