@@ -894,7 +894,7 @@ def _validate_config(
 ) -> None:
 
     ## Model validation
-    if hasattr(model, 'config'):
+    if hasattr(model, "config"):
         assert getattr(model.config, "seq_length", 1) > 0
         assert getattr(model.config, "max_position_embeddings", 1) > 0
         assert model.config.num_layers > 0
