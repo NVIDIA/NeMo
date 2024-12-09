@@ -39,12 +39,7 @@ def get_vocab_size(
     from nemo.utils import logging
 
     after = vocab_size
-    multiple = make_vocab_size_divisible_by
-
-    tp_size = config.tensor_model_parallel_size
-    if make_vocab_size_divisible_by % tp_size != 0:
-        multiple *= tp_size
-
+    multiple = make_vocab_size_divisible_by * config.tensor_model_parallel_size
     after = ((after + multiple - 1) // multiple) * multiple
     logging.info(
         f"Padded vocab_size: {after}, original vocab_size: {vocab_size}, dummy tokens:" f" {after - vocab_size}."
