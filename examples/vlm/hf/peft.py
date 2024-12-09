@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import fiddle as fdl
+import torch
 from lightning.pytorch.loggers import WandbLogger
+from PIL import Image
+
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-import torch
-from PIL import Image
+
 
 def mk_hf_vlm_dataset(processor):
     def collate_fn(examples, processor):
@@ -26,34 +28,30 @@ def mk_hf_vlm_dataset(processor):
             conversation = [
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text",  "text": instruction},
-                        {"type": "image", "image": sample["image"]}
-                    ]
+                    "content": [{"type": "text", "text": instruction}, {"type": "image", "image": sample["image"]}],
                 },
-                {
-                    "role": "assistant",
-                    "content": [{"type": "text",  "text": sample["text"]}]
-                },
+                {"role": "assistant", "content": [{"type": "text", "text": sample["text"]}]},
             ]
             return {"conversation": conversation, "images": [sample['image']]}
 
-        text  = []
+        text = []
         images = []
         for example in map(fmt, examples):
-            text.append(processor.apply_chat_template(
-                example["conversation"],
-                tokenize = False,
-                add_generation_prompt = False,
-            ))
+            text.append(
+                processor.apply_chat_template(
+                    example["conversation"],
+                    tokenize=False,
+                    add_generation_prompt=False,
+                )
+            )
             images += example['images']
 
         # Tokenize the text and process the images
         batch = processor(
-            text = text,
-            images = images,
-            padding = True,
-            return_tensors = "pt",
+            text=text,
+            images=images,
+            padding=True,
+            return_tensors="pt",
         )
 
         batch["pixel_values"] = batch["pixel_values"].to(torch.bfloat16)
@@ -63,8 +61,8 @@ def mk_hf_vlm_dataset(processor):
         batch["labels"] = labels
         return batch
 
-    return vlm.HFDatasetDataModule("quintend/rdr-items", split="train",
-        collate_fn=lambda x: collate_fn(x, processor=processor)
+    return vlm.HFDatasetDataModule(
+        "quintend/rdr-items", split="train", collate_fn=lambda x: collate_fn(x, processor=processor)
     )
 
 
