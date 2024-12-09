@@ -4297,7 +4297,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
 
-        NVTE_FUSED_ATTN=0 python tests/collections/llm/gpt_finetuning.py \
+        python tests/collections/llm/gpt_finetuning.py \
         --restore_path /home/TestData/nemo2_ckpt/llama_68M \
         --devices 2 \
         --max_steps 3 \
@@ -4306,8 +4306,8 @@ jobs:
         --tp_size 1 \
         --pp_size 2 \
         --mbs 2
-
-        NVTE_FUSED_ATTN=0 python tests/collections/llm/gpt_finetuning.py \
+        
+        python tests/collections/llm/gpt_finetuning.py \
         --restore_path /home/TestData/nemo2_ckpt/llama_68M \
         --devices 2 \
         --max_steps 6 \
