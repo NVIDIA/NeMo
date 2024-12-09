@@ -37,7 +37,7 @@ class TELlamaDecoderLayer(te.TransformerLayer):
             hidden_size=config.hidden_size,
             ffn_hidden_size=config.intermediate_size,
             num_attention_heads=config.num_attention_heads,
-            bias=False,
+            bias=config.attention_bias,
             layernorm_epsilon=config.rms_norm_eps,
             hidden_dropout=0,
             attention_dropout=0,
@@ -58,11 +58,7 @@ class TELlamaDecoderLayer(te.TransformerLayer):
         forward pass of the `TransformerLayer`. Also, make sure the output
         format matches the output of the HF's `LlamaDecoderLayer`.
         """
-        return (
-            super().forward(
-                hidden_states, attention_mask=attention_mask, rotary_pos_emb=self.te_rope_emb
-            ),
-        )
+        return (super().forward(hidden_states, attention_mask=attention_mask, rotary_pos_emb=self.te_rope_emb),)
 
 
 def te_accelerate(model, fp8_autocast=False):
@@ -97,17 +93,17 @@ def _apply_basic_module_replacement(model):
             if has_bias:
                 te_module.bias.copy_(module.bias)
 
-            setattr(model, name.split(".")[-1], te_module)
+            setattr(model, name, te_module)
         elif isinstance(module, torch.nn.LayerNorm):
             te_module = te.LayerNorm(module.normalized_shape[0], eps=module.eps, params_dtype=module.weight.dtype)
             te_module.weight.copy_(module.weight)
             te_module.bias.copy_(module.bias)
-            setattr(model, name.split(".")[-1], te_module)
+            setattr(model, name, te_module)
         elif isinstance(module, torch.nn.RMSNorm):
             te_module = te.RMSNorm(module.normalized_shape[0], eps=module.eps, dtype=module.weight.dtype)
             te_module.weight.copy_(module.weight)
             te_module.bias.copy_(module.bias)
-            setattr(model, name.split(".")[-1], te_module)
+            setattr(model, name, te_module)
         else:
             _apply_basic_module_replacement(module)
 
@@ -115,33 +111,18 @@ def _apply_basic_module_replacement(model):
 @torch.no_grad
 def _apply_transformer_layer_replacement(model):
     config = model.model.config.__dict__
-    hidden_layer_names = ["model.model.layers." + str(i) for i in range(config["num_hidden_layers"])]
+    hidden_layer_names = ["model.layers." + str(i) for i in range(config["num_hidden_layers"])]
     te_layers = []
 
     layer_indx = 1
     for name, module in model.named_modules():
+        print(name)
         if name in hidden_layer_names:
-            '''
-            te_transformer_module = TELlamaDecoderLayer(
-                hidden_size=config["hidden_size"],
-                ffn_hidden_size=config["intermediate_size"],
-                num_attention_heads=config["num_attention_heads"],
-                bias=config["attention_bias"],
-                layernorm_epsilon=config["rms_norm_eps"],
-                hidden_dropout=0,
-                attention_dropout=0,
-                fuse_qkv_params=False,
-                normalization="RMSNorm",
-                activation=config["hidden_act"],
-                attn_input_format="bshd",
-                num_gqa_groups=config["num_key_value_heads"],
-            )
-            '''
             te_layers.append(TELlamaDecoderLayer(config=model.model.config, layer_number=layer_indx))
             layer_indx += 1
 
     if len(te_layers) > 0:
-        setattr(model.model.model, "layers", torch.nn.ModuleList(te_layers))
+        setattr(model.model, "layers", torch.nn.ModuleList(te_layers))
         return True
     else:
         return False

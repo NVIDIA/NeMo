@@ -18,11 +18,23 @@ from nemo.utils.import_utils import safe_import
 safe_import("transformer_engine")
 
 from nemo.collections.llm import peft
+from nemo.collections.llm.bert.data import BERTPreTrainingDataModule
+from nemo.collections.llm.bert.model import (
+    BertConfig,
+    BertModel,
+    HuggingFaceBertBaseConfig,
+    HuggingFaceBertConfig,
+    HuggingFaceBertLargeConfig,
+    HuggingFaceBertModel,
+    MegatronBertBaseConfig,
+    MegatronBertConfig,
+    MegatronBertLargeConfig,
+)
 from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,
     DollyDataModule,
     FineTuningDataModule,
-    HfDatasetDataModule,
+    HFDatasetDataModule,
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
@@ -64,7 +76,7 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig126M,
     GPTConfig175B,
     GPTModel,
-    HfAutoModelForCausalLM,
+    HFAutoModelForCausalLM,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
@@ -73,6 +85,8 @@ from nemo.collections.llm.gpt.model import (
     Llama31Config8B,
     Llama31Config70B,
     Llama31Config405B,
+    Llama32Config1B,
+    Llama32Config3B,
     LlamaConfig,
     LlamaModel,
     MaskedTokenLossReduction,
@@ -171,6 +185,8 @@ __all__ = [
     "Llama31Config8B",
     "Llama31Config70B",
     "Llama31Config405B",
+    "Llama32Config1B",
+    "Llama32Config3B",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
@@ -214,7 +230,7 @@ __all__ = [
     "dolly",
     "peft",
     "hf_dataset",
-    "HfAutoModelForCausalLM",
+    "HFAutoModelForCausalLM",
 ]
 
 

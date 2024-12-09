@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import os
+import warnings
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
@@ -145,6 +146,7 @@ def pretrain(
         >>> llm.pretrain(model, data, trainer)
         PosixPath('/path/to/log_dir')
     """
+    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim)
     return train(
         model=model,
         data=data,
@@ -195,6 +197,7 @@ def finetune(
         PosixPath('/path/to/log_dir')
     """
 
+    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
     return train(
         model=model,
         data=data,
@@ -265,12 +268,11 @@ def validate(
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
     nemo_checkpoint: str,
-    calib_tp: int = 1,
-    calib_pp: int = 1,
+    export_config: ExportConfig,
+    calibration_tp: int = 1,
+    calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
-    export_config: Optional[Union[ExportConfig, run.Config[ExportConfig]]] = None,
 ) -> Path:
-    # TODO: Fix "nemo_run.cli.cli_parser.CLIException: An unexpected error occurred (Argument: , Context: {})"
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
@@ -281,8 +283,8 @@ def ptq(
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
     nemo llm ptq nemo_checkpoint=/models/Llama-3-70B \
         export_config.path=/models/Llama-3-70B-FP8 \
-        calib_tp=8 \
-        export_config.inference_tensor_parallel=2
+        calibration_tp=8 \
+        export_config.inference_tp=2
     # Choose different quantization method, for example, INT8 SmoothQuant
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
@@ -290,13 +292,16 @@ def ptq(
     ```
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
-        calib_tp (int): Calibration tensor parallelism.
-        calib_pp (int): Calibration pipeline parallelism.
+        calibration_tp (int): Calibration tensor parallelism.
+        calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
+    if not quantization_config:
+        quantization_config = QuantizationConfig()
+
     if export_config.path is None:
         raise ValueError("The export_config.path needs to be specified, got None.")
 
@@ -304,7 +309,7 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calib_tp, calib_pp)
+    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calibration_tp, calibration_pp)
 
     model = quantizer.quantize(model)
 
@@ -875,3 +880,104 @@ def _set_with_io(obj, attr, value):
     setattr(obj, attr, value)
     if hasattr(obj, "__io__") and hasattr(value, "__io__"):
         setattr(obj.__io__, attr, deepcopy(value.__io__))
+
+
+def _validate_config(
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Optional[NeMoLogger] = None,
+    resume: Optional[AutoResume] = None,
+    optim: Optional[OptimizerModule] = None,
+    tokenizer: Optional[TokenizerType] = None,
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
+) -> None:
+
+    ## Model validation
+    if hasattr(model, "config"):
+        assert getattr(model.config, "seq_length", 1) > 0
+        assert getattr(model.config, "max_position_embeddings", 1) > 0
+        assert model.config.num_layers > 0
+        assert model.config.hidden_size > 0
+        assert model.config.num_attention_heads > 0
+        assert model.config.ffn_hidden_size > 0
+
+        if hasattr(model.config, "seq_length"):
+            if getattr(model.config, "max_position_embeddings", None) is not None:
+                assert model.config.seq_length <= model.config.max_position_embeddings
+
+    ## Data validation
+    assert data.micro_batch_size > 0
+    assert data.global_batch_size > 0
+    assert data.seq_length > 0
+
+    assert (
+        data.global_batch_size % data.micro_batch_size == 0
+    ), "Global batch size must be divisible by micro batch size in data module."
+
+    ## Trainer validation
+
+    # MegatronStrategy validation
+    if isinstance(trainer.strategy, nl.MegatronStrategy):
+        # Basic validation
+        assert trainer.strategy.tensor_model_parallel_size > 0
+        assert trainer.strategy.pipeline_model_parallel_size > 0
+        assert trainer.strategy.context_parallel_size > 0
+
+        # DP validation
+        assert (trainer.num_devices * trainer.num_nodes) % (
+            trainer.strategy.tensor_model_parallel_size
+            * trainer.strategy.pipeline_model_parallel_size
+            * trainer.strategy.context_parallel_size
+        ) == 0, "Number of GPUs must be divisible by the product of all parallelism sizes for data parallel."
+
+        assert (
+            data.global_batch_size
+            % (
+                data.micro_batch_size
+                * (
+                    (trainer.num_devices * trainer.num_nodes)
+                    / (
+                        trainer.strategy.tensor_model_parallel_size
+                        * trainer.strategy.pipeline_model_parallel_size
+                        * trainer.strategy.context_parallel_size
+                    )
+                )
+            )
+            == 0
+        ), "Global batch size must be divisible by the product of micro batch size and data parallel size"
+
+        # TP/SP validation
+        if trainer.strategy.tensor_model_parallel_size == 1:
+            if trainer.strategy.sequence_parallel == True:
+                warnings.warn("Disabling sequence parallelism because tensor model parallelism is disabled")
+                trainer.strategy.sequence_parallel = False
+
+        # PP/VP validation
+        if trainer.strategy.pipeline_model_parallel_size > 1:
+            assert (
+                trainer.strategy.pipeline_dtype is not None
+            ), "pipeline_dtype must be set if pipeline model parallelism is enabled"
+        else:
+            if trainer.strategy.virtual_pipeline_model_parallel_size is not None:
+                warnings.warn("Disabling virtual pipeline parallelism because pipeline model parallelism is disabled")
+                trainer.strategy.virtual_pipeline_model_parallel_size = None
+            if trainer.strategy.pipeline_dtype is not None:
+                warnings.warn("Setting pipeline dtype to None because pipeline model parallelism is disabled")
+                trainer.strategy.pipeline_dtype = None
+
+        # CP validation
+        if trainer.strategy.context_parallel_size > 1:
+            if model.config.seq_length is not None:
+                assert (
+                    model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
+                ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+
+        # EP validation
+        if trainer.strategy.expert_model_parallel_size > 1:
+            assert (
+                model.config.num_moe_experts is not None
+            ), "num_experts must be non None to use expert model parallelism"
+            assert (
+                model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
+            ), "Number of experts should be a multiple of expert model parallel_size."

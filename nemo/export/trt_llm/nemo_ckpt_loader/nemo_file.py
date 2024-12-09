@@ -36,6 +36,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
+from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -235,7 +236,7 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
 
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
     def _update_config_entry(key, file_pattern):
-        old_path = tokenizer_config[key]
+        old_path = tokenizer_config.get(key, None)
         if old_path is None:
             return
         old_path = Path(old_path)
@@ -262,7 +263,7 @@ def copy_tokenizer_files(config, out_dir):
     }
 
     for key in basenames.keys():
-        if config[key] is None:
+        if config.get(key, None) is None:
             continue
 
         path = config[key]
@@ -275,12 +276,15 @@ def copy_tokenizer_files(config, out_dir):
             continue
 
         dst_path = out_dir / f"{basenames[key]}{path.suffix}"
+        config[key] = str(dst_path)
         LOGGER.debug(f"Copy tokenizer {key}: {path}->{dst_path}")
 
         # Copy 'path' to 'dst_path' without shutil.copy(...) because 'path' may be a TarPath
         with path.open('rb') as infile:
             with open(dst_path, 'wb') as outfile:
                 outfile.write(infile.read())
+
+    return config
 
 
 def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenizer:
@@ -291,6 +295,10 @@ def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenize
 
         tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context"), subpath="model.tokenizer")
         return build_tokenizer(tokenizer_spec)
+    elif os.path.exists(os.path.join(tokenizer_dir_or_path, "vocab.json")):
+        vocab_path = tokenizer_dir_or_path / "vocab.json" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        tokenizer_config = {"library": "tiktoken", "vocab_file": str(vocab_path)}
+        return build_tokenizer(tokenizer_config)
     else:
         if (tokenizer_dir_or_path / "huggingface_tokenizer").is_dir():
             return AutoTokenizer.from_pretrained(tokenizer_dir_or_path / "huggingface_tokenizer")
@@ -307,6 +315,8 @@ def build_tokenizer(tokenizer):
         tokenizer_config = tokenizer
         if tokenizer_config["library"] == "sentencepiece":
             return SentencePieceTokenizer(model_path=tokenizer_config["model"])
+        elif tokenizer_config["library"] == "tiktoken":
+            return TiktokenTokenizer(vocab_file=tokenizer_config["vocab_file"])
         elif "GPT2" in tokenizer_config["type"]:
             tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
         else:
@@ -318,14 +328,14 @@ def build_tokenizer(tokenizer):
             tokenizer.add_special_tokens({"eos_token": "</s>"})
     else:
         # For NeMo tokenizers, monkey patch encode & batch_decode methods for unified interface
-        from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer, TokenizerSpec
+        import nemo.collections.common.tokenizers as nemo_tokenizers
 
-        if isinstance(tokenizer, TokenizerSpec):
-            if isinstance(tokenizer, AutoTokenizer):
+        if isinstance(tokenizer, nemo_tokenizers.TokenizerSpec):
+            if isinstance(tokenizer, nemo_tokenizers.AutoTokenizer):
                 # Unwrap the original methods of HF tokenizer
                 batch_decode = tokenizer.tokenizer.batch_decode
                 encode = tokenizer.tokenizer.encode
-            elif isinstance(tokenizer, SentencePieceTokenizer):
+            elif isinstance(tokenizer, nemo_tokenizers.SentencePieceTokenizer):
                 # Define HF equivalents based on available SP methods
                 def batch_decode(self, ids):
                     if torch.is_tensor(ids):
@@ -340,8 +350,8 @@ def build_tokenizer(tokenizer):
 
             tokenizer.bos_token_id = tokenizer.bos_id
             tokenizer.eos_token_id = tokenizer.eos_id
-            TokenizerSpec.encode = encode
-            TokenizerSpec.batch_decode = batch_decode
+            nemo_tokenizers.TokenizerSpec.encode = encode
+            nemo_tokenizers.TokenizerSpec.batch_decode = batch_decode
 
     return tokenizer
 
@@ -373,9 +383,8 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 )
             else:
                 tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoint_dir)
-                copy_tokenizer_files(tokenizer_config, nemo_export_dir)
+                tokenizer_config = copy_tokenizer_files(tokenizer_config, nemo_export_dir)
 
-                tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
                 tokenizer = build_tokenizer(tokenizer_config)
         elif (nemo_dir / "weights").exists():
             dist_ckpt_folder = nemo_dir / "weights"
