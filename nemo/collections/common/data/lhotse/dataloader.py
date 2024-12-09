@@ -529,9 +529,14 @@ class MultimodalSamplingConstraint(SamplingConstraint):
 
 @dataclass
 class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
+    def __post_init__(self):
+        super().__post_init__()
+        if isinstance(self.max_seq_len_buckets[0], Sequence):
+            self.max_seq_len_buckets = np.asarray(self.max_seq_len_buckets)
+
     @property
     def bucketing_2d_enabled(self) -> bool:
-        return isinstance(self.max_seq_len_buckets[0], Sequence) and len(self.max_seq_len_buckets[0]) == 2
+        return isinstance(self.max_seq_len_buckets, np.ndarray)
 
     def measure_length(self, example: Any) -> tuple[float, float]:
         if self.bucketing_2d_enabled:
@@ -542,41 +547,30 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
     def select_bucket(self, buckets: Any, example: Any = None, example_len: Any = None) -> int:
         if example_len is None:
             example_len = self.measure_length(example)
-        bin, bucket_idx = find_smallest_bucket(buckets, example_len)
-        return bucket_idx
+        return find_smallest_bucket(buckets, example_len)
 
 
-def find_smallest_bucket(
-    buckets: list[float] | list[tuple[float, ...]], example_lens: float | tuple[float, ...]
-) -> tuple[float | tuple[float, ...] | None, int | None]:
+def find_smallest_bucket(buckets: np.ndarray, example_lens: float | Sequence[float]) -> int | None:
     """
-    Find the smallest bucket that fits a given example with binary search.
+    Find the smallest bucket that fits a given example.
     Each bucket and ``example_lens`` are floats (1-D bucketing)
     or tuples of (dim0, dim1, dim2, ...) (N-D bucketing, typically 2-D).
     Assumes the buckets have been sorted ascendingly.
     Returns a tuple of (smallest_bin, bin_idx), or (None, None) if no bucket fits the example.
     """
+    # 1D bucketing - binary search.
     if isinstance(example_lens, float):  # 1-D
         idx = bisect_left(buckets, example_lens)
         if idx == len(buckets):
-            return None, None
-        return buckets[idx], idx
-
-    left, right = 0, len(buckets) - 1
-    smallest_fit = None
-    smallest_idx = None
-    while left <= right:  # 2-D
-        mid = (left + right) // 2
-        bin_bounds = buckets[mid]
-        if all(l <= bin_boundary for l, bin_boundary in zip(example_lens, bin_bounds)):
-            smallest_fit = buckets[mid]
-            smallest_idx = mid
-            right = mid - 1
-        elif any(l > bin_boundary for l, bin_boundary in zip(example_lens, bin_bounds)):
-            left = mid + 1
-        else:
-            right = mid - 1
-    return smallest_fit, smallest_idx
+            return None
+        return idx
+    # 2D bucketing - linear search as 2nd dim may not be growing monotonically.
+    does_fit = np.all(np.asarray(example_lens) <= buckets, axis=1)
+    min_fit_idx = np.argmax(does_fit)
+    if min_fit_idx or does_fit[min_fit_idx]:
+        return min_fit_idx.item()
+    else:
+        return None
 
 
 @dataclass
