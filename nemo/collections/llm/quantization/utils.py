@@ -55,7 +55,7 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
         get_gpt_layer_modelopt_spec,
     )
 
-    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec()
+    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts)
     if model_cfg.sequence_parallel:
         logging.warning("Disabling sequence parallelism for quantization...")
         model_cfg.sequence_parallel = False
