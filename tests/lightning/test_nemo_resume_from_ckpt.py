@@ -17,8 +17,6 @@ import pytest
 
 
 def set_env():
-    os.environ['NVTE_FLASH_ATTN'] = '0'
-    os.environ['NVTE_FUSED_ATTN'] = '0'
     os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '0'
 
 
@@ -269,8 +267,6 @@ class TestCkptStateRestoration:
                 trainer._teardown()
 
         set_env()
-        assert os.environ['NVTE_FLASH_ATTN'] == '0'
-        assert os.environ['NVTE_FUSED_ATTN'] == '0'
         assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '0'
 
         # Train for 40 steps
