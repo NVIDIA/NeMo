@@ -1553,8 +1553,8 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
             item['audio_file'] = os.path.expanduser(item['audio_file'])
 
         if 'rttm_filepath' not in item:
-            item['rttm_filepath'] = None 
-            
+            item['rttm_filepath'] = None
+
         if not isinstance(item['audio_file'], list):
             if 'uniq_id' not in item:
                 item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]

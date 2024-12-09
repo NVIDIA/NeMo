@@ -26,15 +26,13 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.utils import manifest_utils
+from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get_audio_rttm_map
 from nemo.collections.asr.parts.utils.speaker_utils import get_uniqname_from_filepath
-from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map as get_audio_rttm_map,
-    get_uniqname_from_filepath,
-)
 from nemo.collections.common.data.utils import move_data_to_device
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
 GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
+
 
 @dataclass
 class InternalDiarizeConfig:
@@ -44,7 +42,7 @@ class InternalDiarizeConfig:
     dtype: Optional[torch.dtype] = None
     training_mode: bool = False
     logging_level: Optional[Any] = None
-    
+
     # Scratch space
     temp_dir: Optional[str] = None
     manifest_filepath: Optional[str] = None
@@ -53,6 +51,7 @@ class InternalDiarizeConfig:
 @dataclass
 class DiarizeConfig:
     """Diarization configuration parameters for inference."""
+
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
@@ -71,7 +70,7 @@ class DiarizeConfig:
 
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
-    # timestamps: Optional[bool] = None 
+    # timestamps: Optional[bool] = None
     verbose: bool = True
 
     # Utility
@@ -84,6 +83,7 @@ class DiarizeConfig:
 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
+
 
 def get_value_from_diarization_config(diarcfg, key, default):
     """
@@ -112,18 +112,19 @@ class SpkDiarizationMixin(ABC):
     """Mixin class for speaker diarization inference with various input types."""
     @abstractmethod
     # def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
-    
+
     def __init__(self):
         self._diarize_audio_rttm_map = {}
-        
-    def diarize(self, 
-                audio: Union[str, List[str], np.ndarray, DataLoader],
-                batch_size: int = 1,
-                num_workers: int = 1,
-                verbose: bool = False,
-                override_config: Optional[DiarizeConfig] = None,
-                **config_kwargs,
-        ) -> List[str]:
+
+    def diarize(
+        self,
+        audio: Union[str, List[str], np.ndarray, DataLoader],
+        batch_size: int = 1,
+        num_workers: int = 1,
+        verbose: bool = False,
+        override_config: Optional[DiarizeConfig] = None,
+        **config_kwargs,
+    ) -> List[str]:
         """
         Takes paths to audio files and returns speaker labels
         Args:
@@ -159,8 +160,7 @@ class SpkDiarizationMixin(ABC):
             # Check if internal config is valid
             if not isinstance(diarize_cfg._internal, InternalDiarizeConfig):
                 raise ValueError(
-                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or "
-                    "its subclass"
+                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or " "its subclass"
                 )
 
         # Hold the results here
@@ -171,7 +171,7 @@ class SpkDiarizationMixin(ABC):
 
             for processed_outputs in generator:
                 # Store results
-                
+
                 # Create a results of the same type as each element in processed_outputs
                 if results is None:
                     results = []
@@ -193,7 +193,7 @@ class SpkDiarizationMixin(ABC):
             pass
 
         return results
-    
+
     def diarize_generator(self, audio, override_config: Optional[DiarizeConfig]):
         """
         A generator version of `diarize` function.
@@ -214,14 +214,13 @@ class SpkDiarizationMixin(ABC):
             # Check if internal config is valid
             if not isinstance(override_config._internal, InternalDiarizeConfig):
                 raise ValueError(
-                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or "
-                    "its subclass"
+                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or " "its subclass"
                 )
 
         diarize_cfg = override_config
         # Initialize and assert the diarization environment
         self._diarize_on_begin(audio, diarize_cfg)
-        
+
         # Work in tmp directory - will store manifest file there
         with tempfile.TemporaryDirectory() as tmpdir:
             diarize_cfg._internal.temp_dir = tmpdir
@@ -249,31 +248,30 @@ class SpkDiarizationMixin(ABC):
                 # clear up memory
                 del test_batch, pred_outputs
                 torch.cuda.empty_cache()
-                
-                
+
     def _input_audio_to_rttm_processing(self, audio_files: List[str]) -> List[Dict[str, Union[str, float]]]:
         """
         Generate manifest style dict if `audio` is a list of paths to audio files.
-        
+
         Args:
             audio: A list of paths to audio files.
-            
+
         Returns:
             audio_rttm_map_dict A list of manifest style dicts.
         """
         audio_rttm_map_dict = {}
         for audio_file in audio_files:
             uniq_id = get_uniqname_from_filepath(audio_file)
-            entry = {'uniq_id': uniq_id, 
-                     'audio_filepath': audio_file, 
-                     'offset': 0.0, 
-                     'duration': None, 
-                     'text': '-', 
-                     'label': 'infer'}
+            entry = {
+                'uniq_id': uniq_id,
+                'audio_filepath': audio_file,
+                'offset': 0.0,
+                'duration': None,
+                'text': '-',
+                'label': 'infer',
+            }
             audio_rttm_map_dict[uniq_id] = entry
         return audio_rttm_map_dict
-
- 
 
     def _diarize_on_begin(self, audio, diarcfg):
         """
@@ -312,7 +310,6 @@ class SpkDiarizationMixin(ABC):
         diarcfg._internal.logging_level = logging.get_verbosity()
         logging.set_verbosity(logging.WARNING)
 
-
     def _diarize_input_processing(self, audio, diarcfg: DiarizeConfig):
         """
         Internal function to process the input audio data and return a DataLoader. This function is called by
@@ -337,11 +334,16 @@ class SpkDiarizationMixin(ABC):
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
                 # Assume it is a path to a manifest file
                 diarcfg._internal.manifest_filepath = audio[0]
+<<<<<<< HEAD
                 self._diarize_audio_rttm_map  = get_audio_rttm_map(audio[0])
+=======
+                # audio = manifest_utils.read_manifest(audio[0])
+                self._diarize_audio_rttm_map = get_audio_rttm_map(audio[0])
+>>>>>>> 27a7e72fc925df5ad05ba8022d36ebce6fd5c822
                 audio_files = []
-                for uniq_id, meta_dict in self._diarize_audio_rttm_map .items():
+                for uniq_id, meta_dict in self._diarize_audio_rttm_map.items():
                     audio_files.append(meta_dict['audio_filepath'])
-            else:  
+            else:
                 # Make `audio_files` a list of audio file paths
                 audio_files = list(audio)
                 self._diarize_audio_rttm_map = self._input_audio_to_rttm_processing(audio_files=audio_files)
@@ -358,12 +360,9 @@ class SpkDiarizationMixin(ABC):
                 "Only `str` (path to audio file), `np.ndarray`, and `torch.Tensor` "
                 "are supported as input."
             )
-            
+
     def _diarize_input_manifest_processing(
-        self, 
-        audio_files: List[str], 
-        temp_dir: str, 
-        diarcfg: DiarizeConfig
+        self, audio_files: List[str], temp_dir: str, diarcfg: DiarizeConfig
     ) -> Dict[str, Any]:
         """
         Internal function to process the input audio filepaths and return a config dict for the dataloader.
@@ -394,12 +393,12 @@ class SpkDiarizationMixin(ABC):
             'paths2audio_files': audio_files,
             'batch_size': get_value_from_diarization_config(diarcfg, 'batch_size', 1),
             'temp_dir': temp_dir,
-            'session_len_sec': get_value_from_diarization_config(diarcfg,'session_len_sec', diarcfg.session_len_sec),
+            'session_len_sec': get_value_from_diarization_config(diarcfg, 'session_len_sec', diarcfg.session_len_sec),
             'num_workers': get_value_from_diarization_config(diarcfg, 'num_workers', 1),
             'channel_selector': get_value_from_diarization_config(diarcfg, 'channel_selector', None),
         }
-        return ds_config 
-        
+        return ds_config
+
     @abstractmethod
     def _setup_diarize_dataloader(self, config: Dict) -> DataLoader:
         """

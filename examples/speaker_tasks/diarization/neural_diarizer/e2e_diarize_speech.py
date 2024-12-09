@@ -53,9 +53,9 @@ from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.models.sortformer_diar_models import PostProcessingParams
 from nemo.collections.asr.parts.utils.speaker_utils import (
-get_uniqname_from_filepath,
-audio_rttm_map, 
-timestamps_to_pyannote_object,
+    audio_rttm_map,
+    get_uniqname_from_filepath,
+    timestamps_to_pyannote_object,
 )
 from nemo.collections.asr.parts.utils.vad_utils import predlist_to_timestamps
 from nemo.core.config import hydra_runner
@@ -296,7 +296,7 @@ def convert_pred_mat_to_segments(
         cfg_vad_params=cfg_vad_params,
         unit_10ms_frame_count=unit_10ms_frame_count,
         bypass_postprocessing=bypass_postprocessing,
-    ) 
+    )
     for sample_idx, (uniq_id, audio_rttm_values) in enumerate(audio_rttm_map_dict.items()):
         speaker_timestamps = total_speaker_timestamps[sample_idx]
         if audio_rttm_values.get("uniq_id", None) is not None:

@@ -1786,6 +1786,7 @@ def ts_vad_post_processing(
         speech_segments = binarization(ts_vad_binary_frames, cfg_vad_params)
     return speech_segments
 
+
 def predlist_to_timestamps(
     batch_preds_list: List[torch.Tensor],
     audio_rttm_map_dict: Dict[str, Dict[str, Union[float, int]]],
@@ -1825,8 +1826,8 @@ def predlist_to_timestamps(
     total_speaker_timestamps = []
     pp_message = "Binarization" if bypass_postprocessing else "Post-processing"
     for sample_idx, (uniq_id, audio_rttm_values) in tqdm(
-    enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc=pp_message
-):
+        enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc=pp_message
+    ):
         offset = audio_rttm_values['offset']
         speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)
         speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]

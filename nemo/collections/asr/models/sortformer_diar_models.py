@@ -13,24 +13,25 @@
 # limitations under the License.
 
 import itertools
-import random
 import os
-from dataclasses import dataclass
-from torch.utils.data import DataLoader
+import random
 from collections import OrderedDict
-from typing import Dict, List, Optional, Union, Any
-import numpy as np
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
+from nemo.collections.asr.parts.mixins.diarization import DiarizeConfig, SpkDiarizationMixin
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_ats_targets, get_pil_targets
@@ -43,8 +44,8 @@ from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
 from nemo.collections.asr.parts.mixins.diarization import SpkDiarizationMixin
 
-
 __all__ = ['SortformerEncLabelModel']
+
 
 @dataclass
 class PostProcessingParams:
@@ -54,12 +55,14 @@ class PostProcessingParams:
     It is recommended to tune these parameters based on the evaluation style and the dataset
     to achieve the desired DER performance.
     """
+
     onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
     offset: float = 0.5  # Offset threshold for detecting the end of a speech
     pad_onset: float = 0.0  # Adding durations before each speech segment
     pad_offset: float = 0.0  # Adding durations after each speech segment
     min_duration_on: float = 0.0  # Threshold for small non-speech deletion
     min_duration_off: float = 0.0  # Threshold for short speech segment deletion
+
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixin):
     """
@@ -291,13 +294,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
     def _diarize_forward(self, batch: Any):
         """
         A counterpart of `_transcribe_forward` function in ASR.
-        This function is a wrapper for forward pass functions for compataibility 
+        This function is a wrapper for forward pass functions for compataibility
         with the existing classes.
-        
+
         Args:
             batch (Any): The input batch containing audio signal and audio signal length.
             diarcfg (DiarizeConfig): The configuration for diarization.
-        
+
         Returns:
             preds (torch.Tensor): Sorted tensor containing Sigmoid values for predicted speaker labels.
                 Shape: (batch_size, diar_frame_count, num_speakers)
@@ -305,7 +308,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         with torch.no_grad():
             preds = self.forward(audio_signal=batch[0], audio_signal_length=batch[1])
         return preds
-    
+
     def _setup_diarize_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
@@ -648,19 +651,20 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         verbose: bool = False,
         num_workers: int = 0,
         bypass_postprocessing: bool = True,
-        postprocessing_config = None,
+        postprocessing_config=None,
         unit_10ms_frame_count: int = 8,
     ):
         """One-click runner function for diarization."""
         # TODO: A direct one-click runner function that generates
         # speaker labels from audio file path lists.
-        
-        batch_preds_list = super().diarize(audio=audio, 
-                                           batch_size=batch_size, 
-                                           verbose=verbose,
-                                           num_workers=num_workers,
-                                        )
-        
+
+        batch_preds_list = super().diarize(
+            audio=audio,
+            batch_size=batch_size,
+            verbose=verbose,
+            num_workers=num_workers,
+        )
+
         pp_params = OmegaConf.structured(PostProcessingParams())
         postprocessing_config = pp_params if postprocessing_config is None else postprocessing_config
         total_speaker_timestamps = predlist_to_timestamps(
@@ -670,5 +674,5 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             unit_10ms_frame_count=int(self._cfg.encoder.subsampling_factor),
             bypass_postprocessing=bypass_postprocessing,
             precision=2,
-        )  
+        )
         return total_speaker_timestamps
