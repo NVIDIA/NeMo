@@ -3581,7 +3581,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/llm/peft/hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        python tests/collections/llm/hf/peft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3592,7 +3592,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/llm/sft/hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3603,7 +3603,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/llm/sft/hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
+        python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
