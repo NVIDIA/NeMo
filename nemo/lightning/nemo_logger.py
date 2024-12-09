@@ -176,7 +176,7 @@ class NeMoLogger(IOMixin):
                 elif isinstance(logger, WandbLogger):
                     logger._id = version or ""
                     logger._save_dir = Path(dir) / logger.save_dir
-                    logger._wandb_init["dir"] = Path(dir) / logger.save_dir
+                    logger._wandb_init["dir"] = str(Path(dir) / logger.save_dir)
                     logging.warning(
                         f'"update_logger_directory" is True. Overwriting wandb logger "save_dir" to {logger._save_dir}'
                     )
