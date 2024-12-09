@@ -52,7 +52,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     This strategy implements FSDP 2 using PyTorch's native FSDP 2 methods. Comparing with
     MegatronStrategy, FSDP2Strategy is designed to be more lightweight, with minimal
-    modifications over Lightning's ModelParallelStrategy which supports FSDP2 + TP 
+    modifications over Lightning's ModelParallelStrategy which supports FSDP2 + TP
     parallelization but preserves necessary features to be compatible with nemo and mcore.
     By default, this strategy wraps FSDP2 per TransformerLayer.
 
