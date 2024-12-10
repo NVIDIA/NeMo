@@ -9,6 +9,8 @@
 
 # **NVIDIA NeMo Framework**
 
+### <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html>User Guide</a> | <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>Tutorials</a>  |  <a href=https://developer.nvidia.com/blog/tag/nemo/>Technical Blog</a> | <a href=https://www.nvidia.com/en-us/ai-data-science/products/nemo/>Website</a>
+
 ## Latest News
 
 <!-- markdownlint-disable -->
@@ -17,113 +19,61 @@
       We've released NeMo 2.0, an update on the NeMo Framework which prioritizes modularity and ease-of-use. Please refer to the <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html>NeMo Framework User Guide</a> to get started.
     </details>
   </details>
-
 <details open>
   <summary><b>Large Language Models and Multimodal Models</b></summary>
-      <details>
+    <details>
       <summary>
-        <a href="https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/llama/index.html#new-llama-3-1-support for more information/">
-        New Llama 3.1 Support
-        </a> (2024-07-23)
+        <a href="https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/">
+          State-of-the-Art Multimodal Generative AI Model Development with NVIDIA NeMo
+        </a> (2024-11-06)
       </summary>
-        The NeMo Framework now supports training and customizing the Llama 3.1 collection of LLMs from Meta.
+        NVIDIA has expanded NeMo to support the entire pipeline for developing multimodal models. NeMo simplifies the curation of high-quality visual data, accelerates training with efficient tokenizers and parallelism techniques, and reconstructs high-quality visuals during inference. NVIDIA NeMo Curator streamlines data curation, reducing total cost of ownership and speeding up time-to-market for multimodal generative AI models.
       <br><br>
     </details>
-    <details>
+     <details>
       <summary>
         <a href="https://aws.amazon.com/blogs/machine-learning/accelerate-your-generative-ai-distributed-training-workloads-with-the-nvidia-nemo-framework-on-amazon-eks/">
-          Accelerate your Generative AI Distributed Training Workloads with the NVIDIA NeMo Framework on Amazon EKS
-        </a> (2024-07-16)
+          DataStax Announces New AI Development Platform, Built with NVIDIA AI
+        </a> (2024-10-15)
       </summary>
-     NVIDIA NeMo Framework now runs distributed training workloads on an Amazon Elastic Kubernetes Service (Amazon EKS) cluster. For step-by-step instructions on creating an EKS cluster and running distributed training workloads with NeMo, see the GitHub repository <a href="https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/2.nemo-launcher/EKS/"> here.</a>
-      <br><br>
-    </details>
-    <details>
+        DataStax collaborated with NVIDIA to create the DataStax AI Platform, integrated with NVIDIA NeMo and NIM, part of NVIDIA AI Enterprise software. This unified stack simplifies building AI applications, enhancing performance and relevancy, and achieving 19x better performance throughput. The platform supports the entire generative AI application lifecycle, from initial creation with NVIDIA NIM Agent Blueprints and Langflow to enhancing responses with NVIDIA NeMo Guardrails and fine-tuning with customer data.
+       <br><br>
+     </details>
+     <details>
       <summary>
-        <a href="https://developer.nvidia.com/blog/nvidia-nemo-accelerates-llm-innovation-with-hybrid-state-space-model-support/">
-          NVIDIA NeMo Accelerates LLM Innovation with Hybrid State Space Model Support
-        </a> (2024/06/17)
+        <a href="https://developer.nvidia.com/blog/mistral-nemo-minitron-8b-foundation-model-delivers-unparalleled-accuracy/">
+          Mistral-NeMo-Minitron 8B Model Delivers Unparalleled Accuracy
+        </a> (2024-10-08)
       </summary>
-     NVIDIA NeMo and Megatron Core now support pre-training and fine-tuning of state space models (SSMs). NeMo also supports training models based on the Griffin architecture as described by Google DeepMind. 
-      <br><br>
-    </details>
-      <details>
-      <summary>
-        <a href="https://huggingface.co/models?sort=trending&search=nvidia%2Fnemotron-4-340B">
-          NVIDIA releases 340B base, instruct, and reward models pretrained on a total of 9T tokens.
-        </a> (2024-06-18)
-      </summary>
-      See documentation and tutorials for SFT, PEFT, and PTQ with 
-      <a href="https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/nemotron/index.html">
-        Nemotron 340B 
-      </a>
-      in the NeMo Framework User Guide.
-      <br><br>
-    </details>
-    <details>
-      <summary>
-        <a href="https://developer.nvidia.com/blog/nvidia-sets-new-generative-ai-performance-and-scale-records-in-mlperf-training-v4-0/">
-          NVIDIA sets new generative AI performance and scale records in MLPerf Training v4.0
-        </a> (2024/06/12)
-      </summary>
-      Using NVIDIA NeMo Framework and NVIDIA Hopper GPUs NVIDIA was able to scale to 11,616 H100 GPUs and achieve near-linear performance scaling on LLM pretraining. 
-      NVIDIA also achieved the highest LLM fine-tuning performance and raised the bar for text-to-image training.
-      <br><br>
-    </details>
-    <details>
-        <summary>
-          <a href="https://cloud.google.com/blog/products/compute/gke-and-nvidia-nemo-framework-to-train-generative-ai-models">
-            Accelerate your generative AI journey with NVIDIA NeMo Framework on GKE
-          </a> (2024/03/16)
-        </summary>
-        An end-to-end walkthrough to train generative AI models on the Google Kubernetes Engine (GKE) using the NVIDIA NeMo Framework is available at https://github.com/GoogleCloudPlatform/nvidia-nemo-on-gke. 
-        The walkthrough includes detailed instructions on how to set up a Google Cloud Project and pre-train a GPT model using the NeMo Framework.
-        <br><br>
-      </details>
+        NVIDIA and Mistral AI recently introduced Mistral NeMo 12B, a state-of-the-art large language model that outperforms similarly sized models on various benchmarks. They also announced Mistral-NeMo-Minitron 8B, an advanced open-access model known for its accuracy on nine popular benchmarks. This model was created by width-pruning the Mistral NeMo 12B base model and retraining it using knowledge distillation, a method proven effective in previous NVIDIA models.
+       <br><br>
+     </details>
 </details>
-
 <details open>
   <summary><b>Speech Recognition</b></summary>
   <details>
       <summary>
         <a href="https://developer.nvidia.com/blog/accelerating-leaderboard-topping-asr-models-10x-with-nvidia-nemo/">
           Accelerating Leaderboard-Topping ASR Models 10x with NVIDIA NeMo
-        </a> (2024/09/24)
+        </a> (2024-09-24)
       </summary>
       NVIDIA NeMo team released a number of inference optimizations for CTC, RNN-T, and TDT models that resulted in up to 10x inference speed-up. 
       These models now exceed an inverse real-time factor (RTFx) of 2,000, with some reaching RTFx of even 6,000.
       <br><br>
     </details>
-    <details>
+<details>
       <summary>
-        <a href="https://developer.nvidia.com/blog/new-standard-for-speech-recognition-and-translation-from-the-nvidia-nemo-canary-model/">
-          New Standard for Speech Recognition and Translation from the NVIDIA NeMo Canary Model
-        </a> (2024/04/18)
+        <a href="https://developer.nvidia.com/blog/achieving-state-of-the-art-zero-shot-waveform-audio-generation-across-audio-types/">
+          Achieving State-of-the-Art Zero-Shot Waveform Audio Generation across Audio Types
+        </a> (2024-09-05)
       </summary>
-      The NeMo team just released Canary, a multilingual model that transcribes speech in English, Spanish, German, and French with punctuation and capitalization. 
-      Canary also provides bi-directional translation, between English and the three other supported languages.
+        BigVGAN is an open-source neural vocoder that synthesizes audio waveforms from Mel spectrograms. It uses a fully convolutional architecture with upsampling and residual dilated convolution layers. A key feature is the anti-aliased multiperiodicity composition (AMP) module, which generates high-frequency and periodic sound waves using a periodic activation function called Snake and anti-aliasing filters to reduce artifacts. BigVGAN is available as open source through <a href="https://github.com/NVIDIA/BigVGAN/"> NVIDIA/BigVGAN on GitHub</a>.
       <br><br>
     </details>
-    <details>
-      <summary>
-        <a href="https://developer.nvidia.com/blog/pushing-the-boundaries-of-speech-recognition-with-nemo-parakeet-asr-models/">
-          Pushing the Boundaries of Speech Recognition with NVIDIA NeMo Parakeet ASR Models
-        </a> (2024/04/18)
-      </summary>
-      NVIDIA NeMo, an end-to-end platform for the development of multimodal generative AI models at scale anywhere—on any cloud and on-premises—released the Parakeet family of automatic speech recognition (ASR) models. 
-      These state-of-the-art ASR models, developed in collaboration with Suno.ai, transcribe spoken English with exceptional accuracy.
-      <br><br>
+    <details open>
+  <summary><b>Technical Blog</b></summary>
+    To stay updated on the latest developments in AI and NVIDIA's advancements with NeMo, please see the <a href=https://developer.nvidia.com/blog/tag/nemo>Technical Blog</a>. It covers a wide range of topics, including advancements in multimodal generative AI, speech recognition, and model development techniques. 
     </details>
-  <details>
-    <summary>
-      <a href="https://developer.nvidia.com/blog/turbocharge-asr-accuracy-and-speed-with-nvidia-nemo-parakeet-tdt/">
-        Turbocharge ASR Accuracy and Speed with NVIDIA NeMo Parakeet-TDT
-      </a> (2024/04/18)
-    </summary>
-    NVIDIA NeMo, an end-to-end platform for developing multimodal generative AI models at scale anywhere—on any cloud and on-premises—recently released Parakeet-TDT. 
-    This new addition to the  NeMo ASR Parakeet model family boasts better accuracy and 64% greater speed over the previously best model, Parakeet-RNNT-1.1B.
-    <br><br>
-  </details>
 </details>
 <!-- markdownlint-enable -->
 
@@ -138,7 +88,7 @@ deploy new generative AI models by leveraging existing code and
 pre-trained model checkpoints.
 
 For technical documentation, please see the [NeMo Framework User
-Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html).
+Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html).
 
 ## What's New in NeMo 2.0
 
@@ -157,11 +107,12 @@ Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendl
 
 ### Get Started with NeMo 2.0
 
-- Refer to the [Quickstart](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html) for examples of using NeMo-Run to launch NeMo 2.0 experiments locally and on a slurm cluster.
+- Refer to the [Quickstart](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html) for examples of using NeMo-Run to launch NeMo 2.0 experiments locally and on a Slurm cluster.
 - For more information about NeMo 2.0, see the [NeMo Framework User Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html).
 - [NeMo 2.0 Recipes](https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes) contains additional examples of launching large-scale runs using NeMo 2.0 and NeMo-Run.
 - For an in-depth exploration of the main features of NeMo 2.0, see the [Feature Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/features/index.html#feature-guide).
 - To transition from NeMo 1.0 to 2.0, see the [Migration Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/index.html#migration-guide) for step-by-step instructions.
+- For information on using optional packages with NeMo, refer to [Best Practices for NeMo Developers](https://docs.nvidia.com/nemo-framework/user-guide/latest/best-practices.html).
 
 ## LLMs and MMs Training, Alignment, and Customization
 
@@ -223,7 +174,7 @@ training on a specific cluster.
 
 To get started quickly with the NeMo Framework Launcher, please see the
 [NeMo Framework
-Playbooks](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html).
+Tutorials](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html).
 The NeMo Framework Launcher does not currently support ASR and TTS
 training, but it will soon.
 
@@ -243,7 +194,7 @@ that can be run on [Google Colab](https://colab.research.google.com) or
 with our [NGC NeMo Framework
 Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo).
 We also have
-[playbooks](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html)
+[tutorials](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html)
 for users who want to train NeMo models with the NeMo Framework
 Launcher.
 
@@ -270,8 +221,8 @@ multi-GPU/multi-node training.
 
 | Version | Status                                                                                                                                                              | Description                                                                                                                    |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Latest  | [![Documentation Status](https://readthedocs.com/projects/nvidia-nemo/badge/?version=main)](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/)     | [Documentation of the latest (i.e. main) branch.](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/)          |
-| Stable  | [![Documentation Status](https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable)](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/) | [Documentation of the stable (i.e. most recent release)](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/) |
+| Latest  | [![Documentation Status](https://readthedocs.com/projects/nvidia-nemo/badge/?version=main)](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/)     | [Documentation of the latest (i.e., main) branch.](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/)          |
+| Stable  | [![Documentation Status](https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable)](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/) | [Documentation of the stable (i.e., most recent release).](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/) |
 
 ## Install NeMo Framework
 
@@ -634,53 +585,6 @@ To contribute an article to the collection, please submit a pull request
 to the `gh-pages-src` branch of this repository. For detailed
 information, please consult the README located at the [gh-pages-src
 branch](https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme).
-
-## Blogs
-
-<!-- markdownlint-disable -->
-<details open>
-  <summary><b>Large Language Models and Multimodal Models</b></summary>
-    <details>
-      <summary>
-        <a href="https://blogs.nvidia.com/blog/bria-builds-responsible-generative-ai-using-nemo-picasso/">
-          Bria Builds Responsible Generative AI for Enterprises Using NVIDIA NeMo, Picasso
-        </a> (2024/03/06)
-      </summary>
-      Bria, a Tel Aviv startup at the forefront of visual generative AI for enterprises now leverages the NVIDIA NeMo Framework. 
-      The Bria.ai platform uses reference implementations from the NeMo Multimodal collection, trained on NVIDIA Tensor Core GPUs, to enable high-throughput and low-latency image generation. 
-      Bria has also adopted NVIDIA Picasso, a foundry for visual generative AI models, to run inference.
-      <br><br>
-    </details>
-    <details>
-      <summary>
-        <a href="https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/">
-          New NVIDIA NeMo Framework Features and NVIDIA H200
-        </a> (2023/12/06)
-      </summary>
-      NVIDIA NeMo Framework now includes several optimizations and enhancements, 
-      including: 
-      1) Fully Sharded Data Parallelism (FSDP) to improve the efficiency of training large-scale AI models, 
-      2) Mix of Experts (MoE)-based LLM architectures with expert parallelism for efficient LLM training at scale, 
-      3) Reinforcement Learning from Human Feedback (RLHF) with TensorRT-LLM for inference stage acceleration, and 
-      4) up to 4.2x speedups for Llama 2 pre-training on NVIDIA H200 Tensor Core GPUs.
-      <br><br>
-      <a href="https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility">
-      <img src="https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png" alt="H200-NeMo-performance" style="width: 600px;"></a>
-      <br><br>
-    </details>
-    <details>
-      <summary>
-        <a href="https://blogs.nvidia.com/blog/nemo-amazon-titan/">
-          NVIDIA now powers training for Amazon Titan Foundation models
-        </a> (2023/11/28)
-      </summary>
-      NVIDIA NeMo Framework now empowers the Amazon Titan foundation models (FM) with efficient training of large language models (LLMs). 
-      The Titan FMs form the basis of Amazon’s generative AI service, Amazon Bedrock. 
-      The NeMo Framework provides a versatile framework for building, customizing, and running LLMs.
-      <br><br>
-    </details>
-</details>
-<!-- markdownlint-enable -->
 
 ## Licenses
 
