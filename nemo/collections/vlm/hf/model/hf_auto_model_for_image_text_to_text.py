@@ -113,3 +113,35 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self._processor.save_pretrained(path)
         else:
             logging.warning("A processor wasn't created before to save.")
+
+    @staticmethod
+    def extract_skipped_token_ids(tokenizer):
+        # qweb2-2b
+        QWEN_TOKENS = [
+            '<|im_start|>',
+            '<|im_end|>',
+            '<|vision_start|>',
+            '<|vision_end|>',
+            '<|vision_pad|>',
+            '<|image_pad|>',
+            '<|video_pad|>',
+            '<|im_start|>',
+            '<|im_end|>',
+            '<|vision_start|>',
+            '<|vision_end|>',
+            '<|vision_pad|>',
+            '<|image_pad|>',
+            '<|video_pad|>',
+        ]
+        # llava-1.5-7b-hf, llava-v1.6-mistral-7b-hf
+        LLAVA_TOKENS = [
+            "<image>",
+            "<pad>",
+        ]
+        PAD_TOKENS = set(QWEN_TOKENS + LLAVA_TOKENS)
+        tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+        skipped_token_ids = []
+        for key, val in tokenizer.added_tokens_decoder.items():
+            if str(val) in PAD_TOKENS:
+                skipped_token_ids.append(key)
+        return torch.IntTensor(list(set(skipped_token_ids)))
