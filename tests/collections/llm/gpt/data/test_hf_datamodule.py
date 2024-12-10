@@ -15,8 +15,6 @@
 import pytest
 
 import nemo.lightning as nl
-from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections import llm
 
 
@@ -89,7 +87,7 @@ def test_load_multiple_split():
 def test_validate_dataset_asset_accessibility_file_does_not_exist():
     raised_exception = False
     try:
-        data = llm.HFDatasetDataModule(
+        llm.HFDatasetDataModule(
             path="/this/path/should/not/exist/",
             seq_length=512,
             micro_batch_size=2,
@@ -104,7 +102,7 @@ def test_validate_dataset_asset_accessibility_file_does_not_exist():
 def test_validate_dataset_asset_accessibility_file_is_none(): #tokenizer, trainer):
     raised_exception = False
     try:
-        data = llm.HFDatasetDataModule(
+        llm.HFDatasetDataModule(
             path=None,
             seq_length=512,
             micro_batch_size=2,
