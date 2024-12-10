@@ -136,6 +136,7 @@ from nemo.collections.llm.t5.data import SquadDataModule as T5SquadDataModule
 from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
 
 __all__ = [
+    "MockDataModule",
     "T5MockDataModule",
     "GPTModel",
     "GPTConfig",
