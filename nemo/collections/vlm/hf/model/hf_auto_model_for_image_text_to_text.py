@@ -86,10 +86,16 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             loss_mask = loss_mask.to(self.model.device).view(-1)
 
         # Prepare for loss calculation
-        logits = outputs.logits.float()[..., :-1, :].contiguous()
-        labels = labels[..., 1:].contiguous()
-
+        logits = outputs.logits.float()
         n_cls = logits.shape[-1]
+        if logits.shape[-2] == labels.shape[-1]:
+            logits = logits[..., :-1, :].contiguous()
+            labels = labels[..., 1:].contiguous()
+        elif logits.shape[-2] == labels.shape[-1] + 1:
+            logits = logits[..., :-1, :].contiguous()
+        else:
+            raise ValueError("Mismatched labels and logits shapes (" + str(labels.shape) + " " + str(logits.shape))
+        assert logits.shape[-2] == labels.shape[-1]
         outputs.loss = self.loss_fn(logits.view(-1, n_cls), labels.view(-1), loss_mask)
         return outputs
 
