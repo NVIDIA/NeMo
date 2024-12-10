@@ -64,6 +64,7 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
     LlamaModel,
 )
+from nemo.collections.llm.gpt.model.megatron_auto_model import MegatronAutoModel
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig,
@@ -110,6 +111,7 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 )
 
 __all__ = [
+    "MegatronAutoModel",
     "GPTConfig",
     "GPTModel",
     "MistralConfig7B",
