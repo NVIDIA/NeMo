@@ -818,7 +818,7 @@ def s2s_sample_sequence_batch(
                 is_done_expand = is_done.unsqueeze(1).expand(-1, new_tokens.size(1))
                 new_tokens = switch(new_tokens, eod_id, is_done_expand)
 
-                if inference_strategy.model.cfg.get("duplex_method", None) is not None:
+                if inference_strategy.model.cfg.get("duplex_method", None) is None:
                     # if starting speech generation, force to stop text generation to avoid text hallucination
                     speech_start_token = (
                         (new_tokens[:, 1:] == model.cfg.speech_bos_id)
