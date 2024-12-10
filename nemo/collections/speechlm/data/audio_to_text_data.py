@@ -36,6 +36,7 @@ from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAud
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing, TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.speechlm.data.data_sampler import SpeechLMDataSampler
+from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
@@ -210,7 +211,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             data_parallel_size = parallel_state.get_data_parallel_world_size()
             num_micro_batches = data_cfg.global_batch_size // (data_cfg.micro_batch_size * data_parallel_size)
             global_batch_size_on_this_data_parallel_rank = num_micro_batches * data_cfg.micro_batch_size
-            dataloader = DataLoader(
+            dataloader = WrappedDataLoader(
+                mode,
                 dataset,
                 collate_fn=collate_fn,
                 shuffle=False,
@@ -221,12 +223,15 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             )
             return dataloader
 
-        return DataLoader(
+        return WrappedDataLoader(
+            mode,
             dataset,
             num_workers=data_cfg.num_workers,
             pin_memory=data_cfg.pin_memory,
             persistent_workers=data_cfg.get("persistent_workers", False),
             collate_fn=collate_fn,
+            drop_last=data_cfg.get("drop_last", False),
+            shuffle=data_cfg.get("shuffle", False),
             **kwargs,
         )
 
