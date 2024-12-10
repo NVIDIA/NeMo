@@ -1,4 +1,5 @@
 import torch
+
 try:
     from einops import rearrange
 except ImportError:
@@ -7,13 +8,10 @@ except ImportError:
     pass
 
 from megatron.core import parallel_state
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.models.common.embeddings import apply_rotary_pos_emb
+from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.attention import (
-    SelfAttention,
-    SelfAttentionSubmodules,
-)
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 try:
     import transformer_engine  # pylint: disable=unused-import
@@ -24,12 +22,14 @@ except ImportError:
     HAVE_TE = False
     SplitAlongDim = None
 
+
 class SpatialSelfAttention(SelfAttention):
     """Spatial Self-attention layer class
 
     Spatial Self-attention layer takes input with size [s, b, h]
     and returns output of the same size.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
@@ -60,10 +60,12 @@ class SpatialSelfAttention(SelfAttention):
         # do core_attention
         # ==========================================
         seq_size = parallel_state.get_tensor_model_parallel_world_size() if self.config.sequence_parallel else 1
-        mixed_qkv = rearrange(mixed_qkv, "(T S) B D -> S (B T) D",
-                T=seq_size * self.config.stdit_dim_T,  # tp * temporal/tp
-                S=self.config.stdit_dim_S,             # spatial/cp
-            ).contiguous()
+        mixed_qkv = rearrange(
+            mixed_qkv,
+            "(T S) B D -> S (B T) D",
+            T=seq_size * self.config.stdit_dim_T,  # tp * temporal/tp
+            S=self.config.stdit_dim_S,  # spatial/cp
+        ).contiguous()
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (
@@ -110,7 +112,6 @@ class SpatialSelfAttention(SelfAttention):
 
         return query, key, value
 
-
     def forward(
         self,
         hidden_states,
@@ -156,9 +157,7 @@ class SpatialSelfAttention(SelfAttention):
                 cu_seqlens_kv = packed_seq_params.cu_seqlens_kv
             else:
                 cu_seqlens_q = cu_seqlens_kv = None
-            query = apply_rotary_pos_emb(
-                query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q
-            )
+            query = apply_rotary_pos_emb(query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q)
             key = apply_rotary_pos_emb(key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv)
 
             # TODO, can apply positional embedding to value_layer so it has
@@ -205,10 +204,12 @@ class SpatialSelfAttention(SelfAttention):
         # reduce_scatter [temporal/tp * spatial/cp, batch, H]
         # =================
         seq_size = parallel_state.get_tensor_model_parallel_world_size() if self.config.sequence_parallel else 1
-        core_attn_out = rearrange(core_attn_out, "S (B T) D -> (T S) B D",
-                T=seq_size * self.config.stdit_dim_T,  # tp * temporal/tp
-                S=self.config.stdit_dim_S,             # spatial/cp
-            ).contiguous()
+        core_attn_out = rearrange(
+            core_attn_out,
+            "S (B T) D -> (T S) B D",
+            T=seq_size * self.config.stdit_dim_T,  # tp * temporal/tp
+            S=self.config.stdit_dim_S,  # spatial/cp
+        ).contiguous()
 
         # =================
         # Output. [sq, b, h]

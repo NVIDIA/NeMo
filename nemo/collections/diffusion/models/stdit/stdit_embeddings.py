@@ -1,22 +1,17 @@
-from typing import Optional
 import functools
-
 import math
+from typing import Optional
+
 import numpy as np
 import torch
-from torch import nn
-
 import torch.nn.functional as F
 from einops import rearrange
-
-from megatron.core.parallel_state import (
-    get_context_parallel_world_size,
-    get_context_parallel_rank,
-)
+from megatron.core.parallel_state import get_context_parallel_rank, get_context_parallel_world_size
+from torch import nn
 
 # reference : https://github.com/hpcaitech/Open-Sora/blob/main/opensora/models/layers/blocks.py
 
-## gelu function 
+## gelu function
 approx_gelu = lambda: nn.GELU(approximate="tanh")
 
 # t-embedding part:
@@ -24,11 +19,12 @@ approx_gelu = lambda: nn.GELU(approximate="tanh")
 # --------------------------- TimeStepEmbeddding -----------------------
 # ======================================================================
 
+
 class TimestepEmbedder(nn.Module):
     """
     TimestepEmbedding : Embeds scalar timesteps into embedding representations
     with an optional random seed for syncronization.
-    
+
     Args:
         hidden_size (int): Dimension of mlp embedding.
         frequency_embedding_size (int):  Dimension of timestep embedding.
@@ -67,15 +63,16 @@ class TimestepEmbedder(nn.Module):
             dim (int): the dimension of the output.
             max_period (int): controls the minimum frequency of the embeddings.
 
-        Returns: 
+        Returns:
             torch.Tensor: Tensor of positional embeddings with shape (N, dim)
         """
         # https://github.com/openai/glide-text2im/blob/main/glide_text2im/nn.py
         half = dim // 2
         freqs = torch.exp(
-            -math.log(max_period) 
-            * torch.arange(start=0, end=half, dtype=torch.float32, device=torch.cuda.current_device()) 
-            / half)
+            -math.log(max_period)
+            * torch.arange(start=0, end=half, dtype=torch.float32, device=torch.cuda.current_device())
+            / half
+        )
         args = t[:, None].float() * freqs[None]
         embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
         if dim % 2:
@@ -84,8 +81,8 @@ class TimestepEmbedder(nn.Module):
 
     def forward(self, t: torch.Tensor, dtype) -> torch.Tensor:
         """
-        For timesteps: timestep_embedding + mlp_embedding 
-        
+        For timesteps: timestep_embedding + mlp_embedding
+
         Args:
             t(torch.Tensor): Input tensor of shape (B)
         Returns:
@@ -100,9 +97,11 @@ class TimestepEmbedder(nn.Module):
         t_emb = self.mlp(t_freq)
         return t_emb
 
+
 # ======================================================================
 # --------------------------- SizeEmbedding ----------------------------
 # ======================================================================
+
 
 class SizeEmbedder(TimestepEmbedder):
     """
@@ -131,7 +130,7 @@ class SizeEmbedder(TimestepEmbedder):
                 torch.manual_seed(seed)
                 self.mlp[0].reset_parameters()
                 self.mlp[2].reset_parameters()
-        
+
         setattr(self.mlp[0].weight, "pipeline_parallel", True)
         setattr(self.mlp[0].bias, "pipeline_parallel", True)
         setattr(self.mlp[2].weight, "pipeline_parallel", True)
@@ -143,8 +142,8 @@ class SizeEmbedder(TimestepEmbedder):
         Args:
             - fps(torch.Tensor) : The input tensor(fps tensor) of shape(B, 1)
             - batch_size :  The number of batch size
-        Return 
-            - fps_emb(torch.Tensor) : The out tenosr of shape (B, D)    
+        Return
+            - fps_emb(torch.Tensor) : The out tenosr of shape (B, D)
         """
 
         if fps.ndim == 1:
@@ -165,9 +164,11 @@ class SizeEmbedder(TimestepEmbedder):
     def dtype(self):
         return next(self.parameters()).dtype
 
+
 # ======================================================================
 # --------------------------- TblockEmbedding --------------------------
 # ======================================================================
+
 
 class TblockEmbedder(nn.Module):
     """
@@ -182,10 +183,7 @@ class TblockEmbedder(nn.Module):
 
     def __init__(self, hidden_size, chunk_size=6, seed=None):
         super().__init__()
-        self.t_proj = nn.Sequential(
-            nn.SiLU(),
-            nn.Linear(hidden_size, chunk_size * hidden_size, bias=True)
-        )
+        self.t_proj = nn.Sequential(nn.SiLU(), nn.Linear(hidden_size, chunk_size * hidden_size, bias=True))
 
         if seed is not None:
             with torch.random.fork_rng():
@@ -206,15 +204,18 @@ class TblockEmbedder(nn.Module):
         t_emb = self.t_proj(t)
         return t_emb
 
+
 # x-embedding part:
 # ======================================================================
 # --------------------------- PosEmbedding2d --------------------------
 # ======================================================================
 
+
 class PositionEmbedding2D(nn.Module):
     """
     Position Embedding in spatial dimension.
     """
+
     def __init__(self, dim: int) -> None:
         """
         Args:
@@ -250,11 +251,11 @@ class PositionEmbedding2D(nn.Module):
             h(int): the original height dimension in video frame
             w(int): the original weight dimension in video frame
             scale(float): scale ratio in spatial dimension part
-            base_size(int, optional): sqrt of spatial dimension 
+            base_size(int, optional): sqrt of spatial dimension
         Return:
             torch tensor with original dimension with shape(1, h * w, D)
         """
-        
+
         grid_h = torch.arange(h, device=torch.cuda.current_device()) / scale
         grid_w = torch.arange(w, device=torch.cuda.current_device()) / scale
         if base_size is not None:
@@ -271,7 +272,7 @@ class PositionEmbedding2D(nn.Module):
         emb_w = self._get_sin_cos_emb(grid_w)
         return torch.concat([emb_h, emb_w], dim=-1).unsqueeze(0).to(dtype)
 
-    def pos_select_in_cp_rank(self, pos_origin: torch.Tensor, h: int, w: int) -> torch.Tensor :
+    def pos_select_in_cp_rank(self, pos_origin: torch.Tensor, h: int, w: int) -> torch.Tensor:
         """
         Position embedding select in cp rank due to latent split in cp group
         Args:
@@ -283,7 +284,7 @@ class PositionEmbedding2D(nn.Module):
         cp_rank = get_context_parallel_rank()
         if cp_size == 1:
             return pos_origin
-        # split in h dimension in latent 
+        # split in h dimension in latent
         assert h % cp_size == 0
         pos_emb_per_cp_rank = torch.chunk(pos_origin, cp_size, dim=1)[cp_rank].contiguous()
         return pos_emb_per_cp_rank
@@ -308,6 +309,7 @@ class PositionEmbedding2D(nn.Module):
 # ======================================================================
 # ----------------------------- PatchEmbed3D ---------------------------
 # ======================================================================
+
 
 class PatchEmbed3D(nn.Module):
     """Video latent to Patch Embedding part:
@@ -338,7 +340,7 @@ class PatchEmbed3D(nn.Module):
         self.proj = nn.Conv3d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         # due to padding = 0, change nn.conv2d to nn.linear
         # self.proj = nn.Linear(in_chans * np.prod(patch_size), embed_dim)
-        
+
         if norm_layer is not None:
             self.norm = norm_layer(embed_dim)
         else:
@@ -346,13 +348,13 @@ class PatchEmbed3D(nn.Module):
 
     def forward(self, x):
         """Forward function of the PatchEmbed3D module.
-        
+
         Parameters.
             x(torch.Tensor): The input tensor of shape(B, C, T, H, W)
 
         - Returns:
             torch.Tensor: The embedded patches as a tensor of shape(B, S, D)
-        
+
         """
         # padding_set
         _, _, T, H, W = x.size()
@@ -378,6 +380,7 @@ class PatchEmbed3D(nn.Module):
             x = x.flatten(2).transpose(1, 2)  # [B, D, T, H, W] -> [B, S, D]
         return x
 
+
 # y-embedding part
 # ======================================================================
 # --------------------------- CaptionEmbedder --------------------------
@@ -387,6 +390,7 @@ class CaptionEmbedder(nn.Module):
     CaptionEmbedder part similar to LabelEmbedder.
     Embeds class labels into vector representations. Also handles label dropout for classifier-free guidance.
     """
+
     def __init__(self, in_channels, hidden_size, uncond_prob, act_layer=approx_gelu, token_num=120, seed=None):
         super().__init__()
         self.y_proj = nn.Sequential(
@@ -443,8 +447,10 @@ class CaptionEmbedder(nn.Module):
 # ------------------------------ Final layer ---------------------------
 # ======================================================================
 
+
 def t2i_modulate(x, shift, scale):
     return x * (1 + scale) + shift
+
 
 class T2IFinalLayer(nn.Module):
     """
@@ -473,7 +479,7 @@ class T2IFinalLayer(nn.Module):
 
         Args:
             x_mask(torch.Tensor): the input tensor mask with shape (B, T), true or false
-            x(torch.Tensor): the input tensor from decoder with shape (B, (T, S), D) 
+            x(torch.Tensor): the input tensor from decoder with shape (B, (T, S), D)
             masked_x(torch.Tensor): the input tensor with mask which shape (B, (T, S), D)
             T(int): temporal dimension
             S(int): spatial dimension
@@ -487,28 +493,27 @@ class T2IFinalLayer(nn.Module):
 
     def forward(self, x, t, x_mask=None, t0=None, T=None, S=None):
         """
-            x(torch.Tensor): the input tensor from decoder
-            t(torch.Tensor): timestep tensor with shape(B, D)
-            x_mask(torch.Tensor, optional): the input tensor mask for mask some frames with shape
-            t0(torch.Tensor, optional): t with timestep=0, timestep tensor with shape(B, D)
-            T(int, optional): temporal dimension
-            S(int, optional): spatial dimension
+        x(torch.Tensor): the input tensor from decoder
+        t(torch.Tensor): timestep tensor with shape(B, D)
+        x_mask(torch.Tensor, optional): the input tensor mask for mask some frames with shape
+        t0(torch.Tensor, optional): t with timestep=0, timestep tensor with shape(B, D)
+        T(int, optional): temporal dimension
+        S(int, optional): spatial dimension
         """
         if T is None:
             T = self.d_t
         if S is None:
             S = self.d_s
-        # modulate part 
+        # modulate part
         shift, scale = (self.scale_shift_table[None] + t[:, None]).chunk(2, dim=1)
         x = t2i_modulate(self.norm_final(x), shift, scale)
-        
+
         # x_mask part
         if x_mask is not None:
             shift_zero, scale_zero = (self.scale_shift_table[None] + t0[:, None]).chunk(2, dim=1)
             x_zero = t2i_modulate(self.norm_final(x), shift_zero, scale_zero)
             x = self.t_mask_select(x_mask, x, x_zero, T, S)
-        
-        # linear part 
+
+        # linear part
         x = self.linear(x)
         return x
-    

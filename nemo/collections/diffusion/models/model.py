@@ -81,6 +81,7 @@ def stdit_data_step(module, dataloader_iter):
 
     return batch
 
+
 def stdit_get_batch_on_this_cp_rank(data: Dict):
     """Split the data for context parallelism."""
     from megatron.core import mpu
@@ -105,9 +106,12 @@ def stdit_get_batch_on_this_cp_rank(data: Dict):
                     data[key] = value.view(B, cp_size, S // cp_size, D)[:, cp_rank, ...].contiguous()
                 # TODO: sequence packing
         loss_mask = data["loss_mask"]
-        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[:, cp_rank, ...].contiguous()
+        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[
+            :, cp_rank, ...
+        ].contiguous()
         data['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
     return data
+
 
 def get_batch_on_this_cp_rank(data: Dict):
     """Split the data for context parallelism."""
@@ -349,7 +353,7 @@ class STDiTConfig(DiTConfig):
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
         model = STDiTModel
-        
+
         return model(
             self,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
@@ -373,6 +377,7 @@ class STDiTV3_XLConfig(STDiTConfig):
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 4608
 
+
 @dataclass
 class STDiTXLConfig(STDiTConfig):
 
@@ -382,6 +387,7 @@ class STDiTXLConfig(STDiTConfig):
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 6144
 
+
 @dataclass
 class STDiT3BConfig(STDiTConfig):
 
@@ -390,6 +396,7 @@ class STDiT3BConfig(STDiTConfig):
     num_attention_heads: int = 16
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 8192
+
 
 class DiTModel(GPTModel):
     """
