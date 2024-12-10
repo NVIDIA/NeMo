@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo.utils.dist_checkpointing import preprocess_common_state_dict_before_consistency_check
+from nemo.lightning.ckpt_utils import preprocess_common_state_dict_before_consistency_check
 
 
 def test_preprocess_common_state_dict_before_consistency_check():

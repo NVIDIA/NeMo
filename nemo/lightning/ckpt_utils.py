@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from pathlib import Path
-from typing import Union
+from typing import Any, Dict, Union
 
 # NeMo2 checkpoint structure is a checkpoint directory, with a WEIGHTS_PATH and CONTEXT_PATH subdirectory structure.
 #  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
@@ -59,3 +60,23 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     checkpoint_dir = filepath.with_name(filepath.stem)
 
     return checkpoint_dir
+
+
+def preprocess_common_state_dict_before_consistency_check(state_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Filters common state dict entries before the consistency check is run.
+
+    Distributed checkpointing saving automatically groups certain values into a common state dict,
+    which is assumed to be equivalent across ranks.
+    To ensure that the common state dict is actually equivalent across ranks, a consistency check is run.
+    However, there are entries within NeMo that are known to be different across ranks, so here they are removed.
+    """
+
+    # Deepcopy to ensure that all states in state dict are still saved
+    state_dict_to_check = copy.deepcopy(state_dict)
+
+    # Remove Timer callback states from consideration during consistency check
+    # These stats are not synchronize across ranks, and are therefore expected to be different
+    # Though they are included in the common state dict
+    state_dict_to_check.get("callbacks", {}).pop("Timer", None)
+
+    return state_dict_to_check
