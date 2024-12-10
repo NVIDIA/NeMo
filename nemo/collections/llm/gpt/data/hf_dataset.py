@@ -96,9 +96,22 @@ def make_dataset_splits(path, split, split_aliases, kwargs):
 
 
 class HFDatasetDataModule(pl.LightningDataModule):
+    """HFDatasetDataModule wraps HF's load_dataset (datasets library)
+    so that it can be used within NeMo.
+    Users can select whether to use an mcore-sampler via use_mcore_sampler arg.
+
+    Usage examples:
+
+    - loading a single split (train) from a dataset
+    llm.HFDatasetDataModule("rajpurkar/squad", split="train")
+
+    - loading multiple splits (train, validation) from a dataset
+    llm.HFDatasetDataModule("rajpurkar/squad", split=["train", "validation"])
+    """
     def __init__(
         self,
         path,
+        collate_fn=None,
         split=None,
         num_workers=2,
         pin_memory=True,
@@ -126,6 +139,11 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         # self.dataset_splits will hold the actual dataset for each split.
         self.dataset_splits = make_dataset_splits(path, split, split_aliases, kwargs)
+
+        if collate_fn is None:
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+        else:
+            self._collate_fn = collate_fn
 
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -202,14 +220,14 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def test(self):
         return self.dataset_splits['test']
 
-    def train_dataloader(self, collate_fn=None):
-        return self._make_dataloader(self.train, collate_fn)
+    def train_dataloader(self):
+        return self._make_dataloader(self.train, self._collate_fn)
 
-    def val_dataloader(self, collate_fn=None):
-        return self._make_dataloader(self.val, collate_fn)
+    def val_dataloader(self):
+        return self._make_dataloader(self.val, self._collate_fn)
 
-    def test_dataloader(self, collate_fn=None):
-        return self._make_dataloader(self.test, collate_fn)
+    def test_dataloader(self):
+        return self._make_dataloader(self.test, self._collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
         if isinstance(split_names, str):
