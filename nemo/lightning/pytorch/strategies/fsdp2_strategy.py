@@ -16,7 +16,7 @@ import os
 import shutil
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import lightning.pytorch as pl
 import torch
