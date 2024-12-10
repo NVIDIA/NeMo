@@ -84,8 +84,13 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         outputs = self.model(**batch)
         if loss_mask is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
-        n_cls = outputs.logits.shape[-1]
-        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
+
+        # Prepare for loss calculation
+        logits = outputs.logits.float()[..., :-1, :].contiguous()
+        labels = labels[..., 1:].contiguous()
+
+        n_cls = logits.shape[-1]
+        outputs.loss = self.loss_fn(logits.view(-1, n_cls), labels.view(-1), loss_mask)
         return outputs
 
     def training_step(self, batch):
