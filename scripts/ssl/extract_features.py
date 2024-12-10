@@ -74,7 +74,8 @@ parser.add_argument(
     "--layers",
     type=str,
     default="all",
-    help="Layers to extract features from, use 'all' to extract from all layer, 'last' for last layer, or comma-separated indices of the target layers (e.g. '0,1,2')",
+    help="Layers to extract features from, use 'all' to extract from all layer, 'last' for last layer, "
+    "or comma-separated indices of the target layers (e.g. '0,1,2')",
 )
 parser.add_argument("-b", "--batch_size", type=int, default=8, help="Batch size for feature extraction")
 parser.add_argument("-w", "--workers", type=int, default=8, help="Number of workers for feature extraction")
@@ -93,6 +94,9 @@ args = parser.parse_args()
 
 
 def get_input_manifest(input: str) -> List[dict]:
+    """
+    Build manifest from input path or directory
+    """
     if input.endswith(".json") or input.endswith(".jsonl") and os.path.isfile(input):
         logging.info(f"Reading manifest from: {input}")
         manifest = [
@@ -114,6 +118,9 @@ def get_input_manifest(input: str) -> List[dict]:
 
 
 def load_model(model_path):
+    """
+    Load SSL model from local or pretrained
+    """
     if model_path.endswith(".nemo"):
         logging.info(f"Loading model from local: {model_path}")
         model = EncDecDenoiseMaskedTokenPredModel.restore_from(model_path)
@@ -124,6 +131,10 @@ def load_model(model_path):
 
 
 class FeatureExtractor(pl.LightningModule):
+    """
+    Wrapper class for extracting features from SSL model
+    """
+
     def __init__(self, ssl_model: EncDecDenoiseMaskedTokenPredModel, layer: str = "all"):
         super().__init__()
         self.preprocessor = ssl_model.preprocessor
@@ -150,6 +161,9 @@ class FeatureExtractor(pl.LightningModule):
         processed_signal=None,
         processed_signal_length=None,
     ):
+        """
+        Forward pass to extract features, same input interface as EncDecDenoiseMaskedTokenPredModel.forward
+        """
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) == False:
@@ -166,17 +180,10 @@ class FeatureExtractor(pl.LightningModule):
         return encoded, encoded_len
 
 
-def worker_fn(item):
-    (sample_id, audio_file, features_np), output_dir = item
-    filename = str(audio_file).replace("/", "_").replace(".", "_")
-    if len(filename) > 256:
-        filename = filename[-256:]
-    output_path = os.path.join(output_dir, f"{filename}.npy")
-    np.save(output_path, features_np)
-    return sample_id, output_path
-
-
 def maybe_save_features(output_dir, results, max_cache, manifest):
+    """
+    Check if the cache is full and save features to disk
+    """
     if len(results) == 0 or max_cache < 0 or len(results) < max_cache:
         return
     os.makedirs(output_dir, exist_ok=True)
@@ -195,6 +202,10 @@ def maybe_save_features(output_dir, results, max_cache, manifest):
 
 
 def extract_features(args):
+    """
+    Main function to extract and save features from SSL model
+    """
+
     logging.info(f"Extracting features using params: {args}")
 
     # Load model

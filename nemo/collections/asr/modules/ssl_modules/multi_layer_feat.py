@@ -145,7 +145,8 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
                 layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
             except KeyError:
                 raise RuntimeError(
-                    f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of ConformerEncoder layers."
+                    f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of "
+                    "ConformerEncoder layers."
                 )
             if len(layer_outputs) > 1 or len(layer_lengths) > 1:
                 raise RuntimeError("Make sure encoder.forward is called exactly one time")
