@@ -79,7 +79,7 @@ if __name__ == '__main__':
     llm.api.finetune(
         model=llm.HFAutoModelForCausalLM(args.model),
         data=llm.HFDatasetDataModule(
-            mk_hf_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
+            make_dummy_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
         ),
         trainer=nl.Trainer(
             devices=args.devices,
