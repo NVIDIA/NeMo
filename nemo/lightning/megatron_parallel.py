@@ -588,8 +588,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     module.config,
                     self.ddp_config,
                     module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                     disable_bucketing=disable_bucketing,
                 )
 
@@ -652,6 +650,24 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return self._module_sharded_state_dict(module.module, *args, prefix=prefix, **kwargs)
 
         raise ValueError("Could not find sharded state dict")
+
+    def enable_forward_pre_hook(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP)
+            model_chunk.enable_forward_pre_hook()
+
+    def disable_forward_pre_hook(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP)
+            model_chunk.disable_forward_pre_hook()
+
+    def force_param_sync(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP)
+            model_chunk.start_param_sync(force_sync=True)
 
     @property
     def pipeline(self) -> Union[ModelT, List[ModelT]]:
