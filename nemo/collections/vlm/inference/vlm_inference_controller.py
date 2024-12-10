@@ -36,9 +36,9 @@ class TokenizerWrapper:
 
 
 class VLMTextGenerationController(SimpleTextGenerationController):
-    def __init__(self, inference_wrapped_model, processor):
-        super().__init__(inference_wrapped_model, TokenizerWrapper(processor.tokenizer))
-        self.image_processor = processor.image_processor
+    def __init__(self, inference_wrapped_model, tokenizer, image_processor):
+        super().__init__(inference_wrapped_model, TokenizerWrapper(tokenizer))
+        self.image_processor = image_processor
 
     def tokenize_prompt(self, prompt: str, image):
         tokens = self.tokenizer.tokenize(prompt)

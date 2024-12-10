@@ -29,6 +29,7 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.inference_params import InferenceParams
 from PIL import Image as PIL_Image
 from torch import nn
 
@@ -425,6 +426,7 @@ class MLlamaBaseModel(MegatronModule):
         cross_attention_masks: Optional[torch.Tensor] = None,
         full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
         xattn_caches: Optional[List] = None,
+        inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         """Forward."""
         if xattn_caches is None:
@@ -467,6 +469,9 @@ class MLlamaBaseModel(MegatronModule):
                 total_len=position_ids.shape[1],
             )
 
+            if inference_params is not None:
+                inference_params.xattn_caches = xattn_caches
+
         assert self.add_decoder, "Language model required for forward pass."
         language_embeddings = None
         if self.pre_process:
@@ -489,6 +494,7 @@ class MLlamaBaseModel(MegatronModule):
             ),
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
             xattn_caches=xattn_caches,
+            inference_params=inference_params,
         )
         return output
 

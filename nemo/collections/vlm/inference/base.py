@@ -17,6 +17,8 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 import torch.distributed
+from transformers import AutoProcessor
+
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 
@@ -28,6 +30,7 @@ from nemo.collections.vlm.inference.vlm_inference_wrapper import VLMInferenceWra
 
 
 def _setup_trainer_and_restore_model(path: str, trainer: nl.Trainer, model: pl.LightningModule):
+    """Setup trainer and restore model from path"""
     fabric = trainer.to_fabric()
     model = fabric.load_model(path, model)
     return model
@@ -39,10 +42,8 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
 ):
-    # model: io.TrainerContext = io.load_context(path=path, subpath="model")
-    # trainer = trainer or io.load_context(path=path, subpath="trainer")
+    """Set up model and tokenizer"""
     model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
-    from transformers import AutoProcessor
 
     processor = AutoProcessor.from_pretrained(model_id)
     tokenizer = processor.tokenizer
@@ -67,14 +68,35 @@ def setup_model_and_tokenizer(
 
 def generate(
     model: VLMInferenceWrapper,
-    processor,
+    tokenizer,
+    image_processor,
     prompts: list[str],
     images,
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
     inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
-    text_generation_controller = VLMTextGenerationController(inference_wrapped_model=model, processor=processor)
+    """
+    Generates text using a NeMo mllama model.
+    Args:
+        model (VLMInferenceWrapper): The model inference wrapper.
+        tokenizer: tokenizer for the input text,
+        image_processor: image processor for the input image,
+        prompts (list[str]): The list of prompts to generate text for.
+        max_batch_size (int, optional): The maximum batch size. Defaults to 4.
+        random_seed (Optional[int], optional): The random seed. Defaults to None.
+        inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
+            Mcore's CommonInferenceParams. Defaults to None.
+
+    Returns:
+        list[Union["InferenceRequest", str]]: A list of generated text,
+            either as a string or as an InferenceRequest object.
+    """
+    text_generation_controller = VLMTextGenerationController(
+        inference_wrapped_model=model,
+        tokenizer=tokenizer,
+        image_processor=image_processor,
+    )
     mcore_engine = VLMEngine(
         text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
     )

@@ -28,7 +28,6 @@ class VLMEngine(MCoreEngine):
         images: List[Image] = None,
         common_inference_params: CommonInferenceParams = None,
     ) -> dict:
-        # TODO :M core- get rng state tracker
         if self.random_seed:
             torch.random.manual_seed(self.random_seed)
 
@@ -37,6 +36,7 @@ class VLMEngine(MCoreEngine):
             image = images[i] if images is not None else None
             prompt_tokens, image_dict = self.text_generation_controller.tokenize_prompt(prompt, image)
 
+            # Reuse encoder_prompt from scheduler to pass image
             self.scheduler.add_request(
                 prompt=prompt,
                 prompt_tokens=prompt_tokens,

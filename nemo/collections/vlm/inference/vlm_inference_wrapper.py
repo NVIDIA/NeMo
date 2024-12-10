@@ -21,9 +21,10 @@ from megatron.core import tensor_parallel
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
 )
+from megatron.core.inference_params import InferenceParams
 from torch.utils.data import default_collate
 
-from nemo.collections.vlm.llama.model.utils import create_vision_mask_tensor
+from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
 
 
 class VLMInferenceWrapper(AbstractModelInferenceWrapper):
@@ -33,7 +34,7 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
     data, and runs the forward pass
 
     Args:
-        model (T5Model): The T5 model (MCore or legacy)
+        model (MllamaModel): The Mllama model
         args (Namespace): The command line arguments that were passed
     """
 
@@ -56,6 +57,7 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
             )
         batch = default_collate(image_dict)
 
+        batch_size = prompts_tokens.size(0)
         seq_length = prompts_tokens.size(1)
         self.position_ids = (
             torch.arange(seq_length, dtype=torch.long, device=prompts_tokens.device)
@@ -65,6 +67,8 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
         self.pixel_values = batch['pixel_values'].cuda(non_blocking=True)
         self.num_tiles = batch['num_tiles']
         self.aspect_ratio_ids = batch['aspect_ratio_ids'].cuda(non_blocking=True)
+        self.inference_params = InferenceParams(batch_size, seq_length)
+        self.inference_params.xattn_caches = None
 
     def get_batch_for_context_window(self, context_start_position: int, context_end_position: int) -> List:
         tokens2use = self.prompts_tokens[:, :context_end_position]
@@ -95,7 +99,10 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
             aspect_ratio_ids=self.aspect_ratio_ids,
             tokens=tokens2use,
             position_ids=positions2use,
+            xattn_caches=self.inference_params.xattn_caches,
+            inference_params=self.inference_params,
         )
         logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
+        self.inference_params.sequence_len_offset += tokens2use.size(1)
 
         return logits
