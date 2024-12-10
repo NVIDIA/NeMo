@@ -26,8 +26,8 @@ from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch import Callback
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
+from nemo.lightning.ckpt_utils import preprocess_common_state_dict_before_consistency_check
 from nemo.utils import logging
-from nemo.utils.dist_checkpointing import preprocess_common_state_dict_before_consistency_check
 
 try:
     from megatron.core import dist_checkpointing
