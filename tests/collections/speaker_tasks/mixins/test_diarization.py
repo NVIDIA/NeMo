@@ -104,7 +104,7 @@ class DiarizableDummy(DummyModel, SpkDiarizationMixin):
             drop_last=False,
         )
 
-    def _diarize_forward(self, batch: Any, diarcfg: DiarizeConfig):
+    def _diarize_forward(self, batch: Any):
         output = self(batch)
         return output
 

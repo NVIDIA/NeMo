@@ -14,6 +14,7 @@
 import json
 import os
 import tempfile
+from nemo.utils import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
