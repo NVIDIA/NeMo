@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.lightning.pytorch.strategies.fsdp_strategy import FSDPStrategy
 from nemo.lightning.pytorch.strategies.fsdp2_strategy import FSDP2Strategy
+from nemo.lightning.pytorch.strategies.fsdp_strategy import FSDPStrategy
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
-
 
 __all__ = [
     "FSDPStrategy",
