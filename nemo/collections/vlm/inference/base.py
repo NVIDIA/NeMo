@@ -36,6 +36,31 @@ def _setup_trainer_and_restore_model(path: str, trainer: nl.Trainer, model: pl.L
     return model
 
 
+def setup_inference_wrapper(
+    model,
+    tokenizer,
+    params_dtype: torch.dtype = torch.bfloat16,
+    inference_batch_times_seqlen_threshold: int = 1000,
+):
+
+    config = model.config
+
+    mcore_model = model.module.cuda()
+    mcore_model = mcore_model.to(params_dtype)
+
+    inference_wrapped_model = VLMInferenceWrapper(
+        mcore_model,
+        InferenceWrapperConfig(
+            hidden_size=config.language_model_config.hidden_size,
+            params_dtype=params_dtype,
+            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+            padded_vocab_size=tokenizer.vocab_size,
+        ),
+    )
+
+    return inference_wrapped_model
+
+
 def setup_model_and_tokenizer(
     path: str,
     trainer: Optional[nl.Trainer] = None,
@@ -51,16 +76,8 @@ def setup_model_and_tokenizer(
     model = vlm.MLlamaModel(config, tokenizer=tokenizer)
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
-    mcore_model = model.module.cuda()
-    mcore_model = mcore_model.to(params_dtype)
-    inference_wrapped_model = VLMInferenceWrapper(
-        mcore_model,
-        InferenceWrapperConfig(
-            hidden_size=config.language_model_config.hidden_size,
-            params_dtype=params_dtype,
-            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=tokenizer.vocab_size,
-        ),
+    inference_wrapped_model = setup_inference_wrapper(
+        model, tokenizer, params_dtype, inference_batch_times_seqlen_threshold
     )
 
     return inference_wrapped_model, processor

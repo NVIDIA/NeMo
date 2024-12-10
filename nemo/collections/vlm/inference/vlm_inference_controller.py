@@ -68,4 +68,7 @@ class VLMTextGenerationController(SimpleTextGenerationController):
         """
         images = list(map(lambda request: request.encoder_prompt, active_requests.values()))
 
-        self.inference_wrapped_model.prep_model_for_inference(prompts_tokens=prompts_tokens, image_dict=images)
+        self.inference_wrapped_model.prep_model_for_inference(
+            prompts_tokens=prompts_tokens,
+            image_dict=images,
+        )

@@ -40,8 +40,13 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
 
     def __init__(self, model, args: Namespace):
         super().__init__(model, args)
+        self.max_output_len = 0
 
-    def prep_model_for_inference(self, prompts_tokens: torch.Tensor, image_dict: List[Dict] = None):
+    def prep_model_for_inference(
+        self,
+        prompts_tokens: torch.Tensor,
+        image_dict: List[Dict] = None,
+    ):
         super().prep_model_for_inference(prompts_tokens=prompts_tokens)
         max_num_concurrent_media = max(instance['pixel_values'].shape[0] for instance in image_dict)
         for instance in image_dict:
@@ -67,12 +72,15 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
         self.pixel_values = batch['pixel_values'].cuda(non_blocking=True)
         self.num_tiles = batch['num_tiles']
         self.aspect_ratio_ids = batch['aspect_ratio_ids'].cuda(non_blocking=True)
-        self.inference_params = InferenceParams(batch_size, seq_length)
+
+        self.inference_params = InferenceParams(batch_size, seq_length + self.max_output_len)
         self.inference_params.xattn_caches = None
+        self.inference_params.cross_attention_masks = None
+        self.inference_params.full_text_row_masked_out_mask = None
 
     def get_batch_for_context_window(self, context_start_position: int, context_end_position: int) -> List:
-        tokens2use = self.prompts_tokens[:, :context_end_position]
-        positions2use = self.position_ids[:, :context_end_position]
+        tokens2use = self.prompts_tokens[:, context_start_position:context_end_position]
+        positions2use = self.position_ids[:, context_start_position:context_end_position]
         data_at_step_idx = [tokens2use, positions2use]
 
         return data_at_step_idx
@@ -100,6 +108,8 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
             tokens=tokens2use,
             position_ids=positions2use,
             xattn_caches=self.inference_params.xattn_caches,
+            cross_attention_masks=self.inference_params.cross_attention_masks,
+            full_text_row_masked_out_mask=self.inference_params.full_text_row_masked_out_mask,
             inference_params=self.inference_params,
         )
         logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
