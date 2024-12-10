@@ -21,7 +21,8 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 
 
-def mk_hf_vlm_dataset(processor):
+def mk_hf_vlm_dataset(processor, mbs, gbs):
+    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
     def collate_fn(examples, processor):
         def fmt(sample):
             instruction = "Describe accurately the given image."
@@ -57,12 +58,16 @@ def mk_hf_vlm_dataset(processor):
         batch["pixel_values"] = batch["pixel_values"].to(torch.bfloat16)
 
         labels = batch["input_ids"].clone()
-        labels[torch.isin(labels, processor.tokenizer.pad_token_id)] = -100
+        labels[torch.isin(labels, skipped_tokens)] = -100
         batch["labels"] = labels
         return batch
 
     return vlm.HFDatasetDataModule(
-        "quintend/rdr-items", split="train", collate_fn=lambda x: collate_fn(x, processor=processor)
+        "quintend/rdr-items",
+        split="train",
+        micro_batch_size=mbs,
+        global_batch_size=gbs,
+        collate_fn=lambda x: collate_fn(x, processor=processor)
     )
 
 
@@ -73,6 +78,8 @@ if __name__ == '__main__':
     parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
+    parser.add_argument('--mbs', default=1)
+    parser.add_argument('--gbs', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
@@ -94,7 +101,7 @@ if __name__ == '__main__':
 
     llm.api.finetune(
         model=vlm.HFAutoModelForImageTextToText(args.model),
-        data=mk_hf_vlm_dataset(processor),
+        data=mk_hf_vlm_dataset(processor, args.mbs, args.gbs),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
