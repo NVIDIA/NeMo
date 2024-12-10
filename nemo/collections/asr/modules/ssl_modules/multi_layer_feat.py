@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.distributed
@@ -82,7 +82,7 @@ class Aggregator(nn.Module):
 
 
 class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
-    def __init__(self, encoder, aggregator, layer_idx_list):
+    def __init__(self, encoder, aggregator: Optional[Callable] = None, layer_idx_list: Optional[List[int]] = None):
         """
         Args:
             encoder: ConformerEncoder instance.
@@ -153,7 +153,8 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
             encoded_len_list.append(layer_lengths[0])  # [B]
 
         self.encoder.reset_registry()
-
+        if self.aggregator is None:
+            return encoded_list, encoded_len_list
         return self.aggregator(encoded_list, encoded_len_list)
 
 
