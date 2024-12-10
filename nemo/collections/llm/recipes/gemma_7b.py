@@ -173,8 +173,6 @@ def pretrain_recipe(
         For more details on pre-training LLMs with NeMo, see the pre-training
         guide in the `examples/llm/pretrain/` directory.
     """
-    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
-    os.environ['NVTE_FUSED_ATTN'] = "0"
 
     return run.Partial(
         fn,
