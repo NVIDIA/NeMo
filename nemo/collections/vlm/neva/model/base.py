@@ -596,11 +596,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
         if use_inference_kv_cache:
             image_embeddings = None
         elif self.add_encoder and not has_images:
+            vision_param = next(self.vision_model.parameters())
             # If no images provided, use an empty image embeddings tensor.
-            image_embeddings = torch.tensor([], dtype=images.dtype, device=images.device).reshape(0, 0, 0)
+            image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
         elif self.add_encoder and has_images:
             # images is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
+            images = images.to(next(self.vision_model.parameters()).dtype)
             if self.vision_model_from_hf:
                 self.vision_model = self.vision_model.eval()
                 image_embeddings = self.vision_model(images, output_hidden_states=True)
@@ -609,7 +611,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 ]  # [num_images, img_seq_len, h_vision]
             else:
                 # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
-                images = images.to(next(self.vision_model.parameters()).dtype)
                 image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
