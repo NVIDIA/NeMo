@@ -190,14 +190,26 @@ class HFDatasetDataModule(pl.LightningDataModule):
             batch_size=self.micro_batch_size,
         )
 
+    @property
+    def train(self):
+        return self.dataset_splits['train']
+
+    @property
+    def val(self):
+        return self.dataset_splits['val']
+
+    @property
+    def test(self):
+        return self.dataset_splits['test']
+
     def train_dataloader(self, collate_fn=None):
-        return self._make_dataloader(self.dataset_splits['train'], collate_fn)
+        return self._make_dataloader(self.train, collate_fn)
 
     def val_dataloader(self, collate_fn=None):
-        return self._make_dataloader(self.dataset_splits['val'], collate_fn)
+        return self._make_dataloader(self.val, collate_fn)
 
     def test_dataloader(self, collate_fn=None):
-        return self._make_dataloader(self.dataset_splits['test'], collate_fn)
+        return self._make_dataloader(self.test, collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
         if isinstance(split_names, str):
