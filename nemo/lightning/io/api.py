@@ -109,7 +109,7 @@ def model_exporter(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[Con
 
 
 def import_ckpt(
-    model: pl.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False
+    model: pl.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False, **kwargs
 ) -> Path:
     """
     Imports a checkpoint into a model using the model's associated importer, typically for
@@ -162,7 +162,7 @@ def import_ckpt(
     if not isinstance(model, ConnectorMixin):
         raise ValueError("Model must be an instance of ConnectorMixin")
 
-    importer: ModelConnector = model.importer(source)
+    importer: ModelConnector = model.importer(source, **kwargs)
     ckpt_path = importer(overwrite=overwrite, output_path=output_path)
     importer.on_import_ckpt(model)
     return ckpt_path
