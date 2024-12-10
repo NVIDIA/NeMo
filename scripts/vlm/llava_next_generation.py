@@ -21,9 +21,7 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import vlm
-from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
-
-model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
+from nemo.utils import logging
 
 
 def load_image(image_url: str) -> Image.Image:
@@ -38,65 +36,71 @@ def load_image(image_url: str) -> Image.Image:
         return None
 
 
-def generate(model, processor, image, text):
+def generate(model, processor, raw_image, text):
     # pylint: disable=C0115,C0116
-    tokenizer = processor.tokenizer
-
     messages = [
         {
             "role": "user",
-            "content": [{"type": "text", "text": text}],
+            "content": [
+                {"type": "text", "text": "What are these?"},
+                {"type": "image"},
+            ],
         }
     ]
-    input_text = processor.apply_chat_template(messages, add_generation_prompt=True)
-    batch = processor(image, input_text, add_special_tokens=False, return_tensors="pt")
 
-    input_ids = batch["input_ids"].cuda(non_blocking=True)
+    input_text = processor.apply_chat_template(messages, add_generation_prompt=True)
+
+    input_ids = processor.tokenizer(input_text, return_tensors='pt').input_ids.cuda()
+    inputs = processor(input_text, raw_image, return_tensors='pt').to(0, torch.float32)
+
+    input_ids[input_ids == 32000] = -200
+    media = inputs['pixel_values'].cuda()
+    media = media.reshape(media.size(1), 3, 336, 336)
     position_ids = (
         torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
     )
-    num_tiles = processor.image_processor.preprocess(image, return_tensors='pt')["num_tiles"]
 
-    min_prompt_len = position_ids.shape[-1]
-
-    input_ids = input_ids[:, :min_prompt_len]
     generated_ids = input_ids.clone()
+    width, height = raw_image.size
+    image_sizes = torch.tensor([[height, width]], dtype=torch.long).cuda()
 
-    from tqdm import tqdm
-
-    for cur_pos in tqdm(range(min_prompt_len, min_prompt_len + 100)):
+    for _ in range(20):
         with torch.no_grad():
-            position_ids = torch.arange(0, cur_pos, dtype=torch.long, device="cuda").reshape(1, -1)
-            batch_masks = create_vision_mask_tensor(generated_ids[0])
-
+            attention_mask = (input_ids != 0).long().cuda()
             output = model(
-                batch_images=batch["pixel_values"].cuda(non_blocking=True),
-                batch_masks=[batch_masks],
-                num_chunks=torch.tensor(num_tiles),
-                aspect_ratio_ids=batch["aspect_ratio_ids"].cuda(non_blocking=True),
-                tokens=generated_ids,
+                media=media,
+                input_ids=input_ids,
                 position_ids=position_ids,
+                image_sizes=image_sizes,
+                num_media_tiles=[media.size(0)],
+                attention_mask=attention_mask,
             )
-
             next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
-            # Broadcast the tensor from rank 0 to all other ranks
-            torch.distributed.broadcast(next_token_ids, src=0)
+
             generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
-            if (next_token_ids == tokenizer.eos_token_id).all():
+
+            input_ids = generated_ids
+            position_ids = (
+                torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+                .unsqueeze(0)
+                .expand_as(input_ids)
+            )
+            print(f"next_token_ids {next_token_ids}")
+
+            # If the generated token is the end of sequence token, stop generating
+            if next_token_ids.item() == processor.tokenizer.eos_token_id:
+                print(f"breaking")
                 break
-
-    generated_ids = generated_ids.tolist()
-    generated_texts = tokenizer.decode(generated_ids[0][min_prompt_len:])
-
-    if torch.distributed.get_rank() == 0:
-        print("======== GENERATED TEXT OUTPUT ========")
-        print(f"{generated_texts}")
-        print("=======================================")
-    return generated_texts
+    generated_ids[generated_ids == -200] = 0
+    generated_texts = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
+    logging.info("======== GENERATED TEXT OUTPUT ========")
+    logging.info(f"{generated_texts}")
+    logging.info("=======================================")
 
 
 def main(args) -> None:
     # pylint: disable=C0115,C0116
+    model_id = 'llava-hf/llava-v1.6-vicuna-7b-hf'
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         ckpt_load_optimizer=False,
@@ -118,9 +122,9 @@ def main(args) -> None:
     fabric = trainer.to_fabric()
 
     if args.load_from_hf:
-        model = fabric.import_model(f"hf://{model_id}", vlm.MLlamaModel)
+        model = fabric.import_model("hf://llava-hf/llava-v1.6-vicuna-7b-hf", vlm.LlavaNextModel)
     else:
-        model = vlm.MLlamaModel(vlm.MLlamaConfig11BInstruct(), tokenizer=tokenizer)
+        model = vlm.LlavaNextModel(vlm.LlavaNextConfig7B(), tokenizer=tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
     model = model.module.cuda()
@@ -132,11 +136,11 @@ def main(args) -> None:
     if raw_image is None:
         return  # Exit if the image can't be loaded
 
-    generate(model, processor, image=raw_image, text="<|image|>\nDescribe the image.")
+    generate(model, processor, raw_image=raw_image, text="What are these?")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="")
+    parser = argparse.ArgumentParser(description="Llava Next Generation example")
     parser.add_argument(
         "--load_from_hf",
         action="store_true",
@@ -152,13 +156,11 @@ if __name__ == "__main__":
         "--image_url",
         type=str,
         # pylint: disable=line-too-long
-        default="https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg",
+        default="http://images.cocodataset.org/val2017/000000039769.jpg",
         help="URL of the image to use for inference.",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
-    parser.add_argument("--pp_size", type=int, required=False, default=1)
-    parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
 
     args = parser.parse_args()
     main(args)
