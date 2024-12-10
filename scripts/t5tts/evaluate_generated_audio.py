@@ -1,12 +1,13 @@
-import os
-import json
 import argparse
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import word_error_rate_detail
-import string
+import json
+import os
 import pprint
+import string
+
 import torch
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.metrics.wer import word_error_rate_detail
 
 LOCAL_EVALSETS = {
     'riva_challenging': {

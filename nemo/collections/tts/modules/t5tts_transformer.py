@@ -14,13 +14,12 @@
 import math
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from flash_attn import flash_attn_varlen_kvpacked_func, flash_attn_varlen_qkvpacked_func
+from flash_attn.layers.rotary import RotaryEmbedding
+from torch import nn
 from torch.cuda import amp
 from torch.nn.utils.rnn import pad_sequence
-from flash_attn import flash_attn_varlen_qkvpacked_func
-from flash_attn import flash_attn_varlen_kvpacked_func
-from flash_attn.layers.rotary import RotaryEmbedding
 
 
 # alibi helper functions (start)

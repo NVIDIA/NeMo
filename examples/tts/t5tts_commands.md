@@ -125,6 +125,95 @@ Audio filepaths in the manifests should be relative to `audio_dir`. Codec paths 
 
 Set `model.model_type=multi_encoder_context_tts` for Multi Encoder T5TTS or `decoder_context_tts` for decoder context and `model.use_text_conditioning_encoder=true` if you want both audio/text contexts.
 
+### Command Lhotse dataset
+```
+python examples/tts/t5tts.py \
+    --config-name=t5tts_lhotse.yaml \
+    batch_size=32 \
+    micro_batch_size=32 \
+    max_steps=1000000 \
+    limit_val_batches=20 \
+    trainer.max_steps=1000000 \
+    trainer.val_check_interval=500 \
+    exp_manager.exp_dir="/datap/misc/Experiments/SimpleT5Explore/LocalTraining_LRH/" \
+    model.codecmodel_path="/home/ecasanova/Projects/Checkpoints/Audio_codec/21Hz-no-eliz/AudioCodec_21Hz_no_eliz.nemo" \
+    model.alignment_loss_scale=0.01 \
+    model.prior_scaling_factor=0.5 \
+    model.prior_scaledown_start_step=5000 \
+    model.prior_end_step=8000 \
+    model.t5_encoder.use_flash_self_attention=true \
+    model.t5_encoder.use_flash_x_attention=true \
+    model.t5_decoder.use_flash_self_attention=true \
+    model.t5_decoder.use_flash_x_attention=false \
+    trainer.devices=1 \
+    ++model.load_cached_codes_if_available=False \
+    ++model.num_audio_codebooks=8 \
+    ++model.num_audio_tokens_per_codebook=2048 \
+    ++model.codec_model_downsample_factor=1024 \
+    ~model.optim.sched ;
+
+HYDRA_FULL_ERROR=1 PYTHONFAULTHANDLER=1 python examples/tts/t5tts.py \
+    --config-name=t5tts_lhotse.yaml \
+    exp_manager.exp_dir="/datap/misc/Experiments/SimpleT5Explore/LocalTraining_LRH/" \
+    +exp_manager.version=0 \
+    eval_batch_size=64 \
+    batch_size=384 \
+    micro_batch_size=24 \
+    max_steps=5000000 \
+    batch_duration=350 \
+    limit_val_batches=25 \
+    trainer.max_steps=5000000 \
+    model.codecmodel_path="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
+    ++model.train_ds.dataset.input_cfg.0.type="lhotse_shar" \
+    ++model.train_ds.dataset.input_cfg.0.shar_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/tts_lhotse_datasets/hifitts_v0/" \
+    ++model.train_ds.dataset.input_cfg.0.weight=1.0 \
+    ++model.train_ds.dataset.input_cfg.0.tags.lang="en" \
+    ++model.train_ds.dataset.input_cfg.0.tags.s2s=True \
+    ++model.train_ds.dataset.input_cfg.0.tags.tokenizer_names=["english_phoneme"] \
+    ++model.train_ds.dataset.input_cfg.1.type="lhotse_shar" \
+    ++model.train_ds.dataset.input_cfg.1.shar_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/tts_lhotse_datasets/libri100/" \
+    ++model.train_ds.dataset.input_cfg.1.weight=1.0 \
+    ++model.train_ds.dataset.input_cfg.1.tags.lang="en" \
+    ++model.train_ds.dataset.input_cfg.1.tags.s2s=True \
+    ++model.train_ds.dataset.input_cfg.1.tags.tokenizer_names=["english_phoneme"] \
+    ++model.train_ds.dataset.input_cfg.2.type="lhotse_shar" \
+    ++model.train_ds.dataset.input_cfg.2.shar_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/tts_lhotse_datasets/rivaLindyRodney/" \
+    ++model.train_ds.dataset.input_cfg.2.weight=1.0 \
+    ++model.train_ds.dataset.input_cfg.2.tags.lang="en" \
+    ++model.train_ds.dataset.input_cfg.2.tags.s2s=True \
+    ++model.train_ds.dataset.input_cfg.2.tags.tokenizer_names=["english_phoneme"] \
+    ++model.train_ds.dataset.input_cfg.3.type="lhotse_shar" \
+    ++model.train_ds.dataset.input_cfg.3.shar_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/tts_lhotse_datasets/libri360/" \
+    ++model.train_ds.dataset.input_cfg.3.weight=1.0 \
+    ++model.train_ds.dataset.input_cfg.3.tags.lang="en" \
+    ++model.train_ds.dataset.input_cfg.3.tags.s2s=True \
+    ++model.train_ds.dataset.input_cfg.3.tags.tokenizer_names=["english_phoneme"] \
+    ++model.validation_ds.dataset.input_cfg.0.type="lhotse_shar" \
+    ++model.validation_ds.dataset.input_cfg.0.shar_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/tts_lhotse_datasets/LibriTTS_dev_clean/" \
+    ++model.validation_ds.dataset.input_cfg.0.weight=1.0 \
+    ++model.validation_ds.dataset.input_cfg.0.tags.lang="en" \
+    ++model.validation_ds.dataset.input_cfg.0.tags.s2s=True \
+    ++model.validation_ds.dataset.input_cfg.0.tags.tokenizer_names=["english_phoneme"] \
+    model.alignment_loss_scale=0.01 \
+    model.prior_scaling_factor=0.5 \
+    model.prior_scaledown_start_step=5000 \
+    model.prior_end_step=8000 \
+    model.t5_encoder.use_flash_self_attention=true \
+    model.t5_encoder.use_flash_x_attention=true \
+    model.t5_decoder.use_flash_self_attention=true \
+    model.t5_decoder.use_flash_x_attention=false \
+    trainer.val_check_interval=50 \
+    trainer.devices=8 \
+    ++model.load_cached_codes_if_available=False \
+    ++model.num_audio_codebooks=8 \
+    ++model.num_audio_tokens_per_codebook=2048 \
+    ++model.codec_model_downsample_factor=1024 \
+    model.optim.lr=2e-4 \
+    trainer.num_nodes=${SLURM_JOB_NUM_NODES}
+
+```
+Set `model.model_type=multi_encoder_context_tts` for Multi Encoder T5TTS and `model.use_text_conditioning_encoder=true` if you are doing text context training.
+
 If you change the codec model, make sure to adjust these model config params in `t5tts.yaml`:
 
 ```

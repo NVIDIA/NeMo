@@ -20,12 +20,13 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-import torch.multiprocessing as mp
-mp.set_start_method("spawn", force=True)
-
 @hydra_runner(config_path="conf/t5tts", config_name="t5tts")
 def main(cfg):
     logging.info('\nConfig Params:\n%s', OmegaConf.to_yaml(cfg, resolve=True))
+    if not cfg.model.get('use_lthose', False):
+        import torch.multiprocessing as mp
+        mp.set_start_method("spawn", force=True)
+
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
