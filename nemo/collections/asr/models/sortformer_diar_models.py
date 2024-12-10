@@ -54,7 +54,6 @@ class PostProcessingParams:
     It is recommended to tune these parameters based on the evaluation style and the dataset
     to achieve the desired DER performance.
     """
-
     onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
     offset: float = 0.5  # Offset threshold for detecting the end of a speech
     pad_onset: float = 0.0  # Adding durations before each speech segment

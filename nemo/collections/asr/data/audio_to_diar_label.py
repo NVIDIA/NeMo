@@ -1121,12 +1121,10 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
             [[0., 1.], [0., 1.], [1., 1.], [1., 0.], [1., 0.], ..., [0., 1.]]
         """
         if rttm_file in [None, '']:
-            # return torch.zeros((target_len, self.max_spks), dtype=self.dtype)
             num_seg = torch.max(target_len)
             targets = torch.zeros(num_seg, self.max_spks)
             return targets
-            # return torch.zeros(target_len, self.max_spks)
-            # return None
+        
         with open(rttm_file, 'r') as f:
             rttm_lines = f.readlines()
 
@@ -1241,15 +1239,10 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
         audio_signal = audio_signal[: round(self.featurizer.sample_rate * session_len_sec)]
 
         audio_signal_length = torch.tensor(audio_signal.shape[0]).long()
-        # audio_signal, audio_signal_length = audio_signal.to(self.device), audio_signal_length.to(self.device)
         target_len = self.get_segment_timestamps(duration=session_len_sec, sample_rate=self.featurizer.sample_rate)
-        # .to(
-        #     self.device
-        # )
         targets = self.parse_rttm_for_targets_and_lens(
             rttm_file=sample.rttm_file, offset=offset, duration=session_len_sec, target_len=target_len
         )
-        # .to(self.device)
         return audio_signal, audio_signal_length, targets, target_len
 
 
