@@ -55,7 +55,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def processor(self):
         if self._processor is None:
-            self._processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
+            self._processor = HFAutoModelForImageTextToText.configure_processor(self.model_name, trust_remote_code=self.trust_remote_code)
         return self._processor
 
     @processor.setter
@@ -64,8 +64,8 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self._processor = value
 
     @staticmethod
-    def configure_processor(model_name):
-        return AutoProcessor.from_pretrained(model_name)
+    def configure_processor(model_name, trust_remote_code=False):
+        return AutoProcessor.from_pretrained(model_name, trust_remote_code=trust_remote_code)
 
     def configure_model(self):
         # create all your layers here
