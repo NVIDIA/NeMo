@@ -98,7 +98,7 @@ class TensorRTLLM(ITritonDeployable):
         trt_llm_exporter.export(
             nemo_checkpoint_path="/path/for/nemo/checkpoint",
             model_type="llama",
-            n_gpus=1,
+            tensor_parallelism_size=1,
         )
 
         output = trt_llm_exporter.forward(["Hi, how are you?", "I am good, thanks, how about you?"])
@@ -141,7 +141,6 @@ class TensorRTLLM(ITritonDeployable):
         self.multi_block_mode = multi_block_mode
         self.model = None
         self.tokenizer = None
-        self.n_gpus = None
         self.config = None
         self.ptuning_tables = []
         self.p_table = None
@@ -157,14 +156,11 @@ class TensorRTLLM(ITritonDeployable):
         nemo_checkpoint_path: str,
         model_type: Optional[str] = None,
         delete_existing_files: bool = True,
-        n_gpus: Optional[int] = None,
         tensor_parallelism_size: int = 1,
         pipeline_parallelism_size: int = 1,
         gpus_per_node: Optional[int] = None,
         max_input_len: int = 256,
         max_output_len: Optional[int] = 256,
-        max_input_token: Optional[int] = None,
-        max_output_token: Optional[int] = None,
         max_batch_size: int = 8,
         max_prompt_embedding_table_size: Optional[int] = None,
         use_parallel_embedding: bool = False,
@@ -197,14 +193,11 @@ class TensorRTLLM(ITritonDeployable):
             nemo_checkpoint_path (str): path for the nemo checkpoint.
             model_type (str): type of the model (optional for quantized checkpoints).
             delete_existing_files (bool): if True, deletes all the files in model_dir.
-            n_gpus (int): number of GPUs to use for inference.
             tensor_parallelism_size (int): tensor parallelism.
             pipeline_parallelism_size (int): pipeline parallelism.
             gpus_per_node (int): number of gpus per node.
             max_input_len (int): max input length.
             max_output_len (int): max output length.
-            max_input_token (int): max input length. Deprecated, use max_input_len instead.
-            max_output_token (int): max output length. Deprecated, use max_output_len instead.
             max_batch_size (int): max batch size.
             max_prompt_embedding_table_size (int): max prompt embedding size.
             use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
@@ -230,14 +223,6 @@ class TensorRTLLM(ITritonDeployable):
             gather_context_logits (Optional[bool]): if True, enables gather_context_logits while building trtllm engine. Default: False
             gather_generation_logits (Optional[bool]): if True, enables gather_generation_logits while building trtllm engine. Default: False
         """
-        if n_gpus is not None:
-            warnings.warn(
-                "Parameter n_gpus is deprecated and will be removed in the next release. "
-                "Please use tensor_parallelism_size and pipeline_parallelism_size parameters instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            tensor_parallelism_size = n_gpus
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
 
@@ -261,22 +246,6 @@ class TensorRTLLM(ITritonDeployable):
             max_prompt_embedding_table_size = 0
 
         self.model = None
-
-        if max_input_token is not None:
-            warnings.warn(
-                "Parameter max_input_token is deprecated and will be removed. Please use max_input_len instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            max_input_len = max_input_token
-
-        if max_output_token is not None:
-            warnings.warn(
-                "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            max_output_len = max_output_token
 
         if max_output_len is not None:
             warnings.warn(
@@ -940,7 +909,6 @@ class TensorRTLLM(ITritonDeployable):
         self,
         input_texts: List[str],
         max_output_len: int = 64,
-        max_output_token: Optional[int] = None,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
@@ -962,7 +930,6 @@ class TensorRTLLM(ITritonDeployable):
         Args:
             input_texts (List(str)): list of sentences.
             max_output_len (int): max generated tokens.
-            max_output_token (int): max generated tokens. Deprecated, use max_output_len instead.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
@@ -982,13 +949,6 @@ class TensorRTLLM(ITritonDeployable):
                 "then it should be loaded first to run inference."
             )
         else:
-            if max_output_token is not None:
-                warnings.warn(
-                    "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                max_output_len = max_output_token
             if prompt_embeddings_table is not None or prompt_embeddings_checkpoint_path is not None:
                 prompt_table = self._get_prompt_embedding_table(
                     prompt_embeddings_table, prompt_embeddings_checkpoint_path
@@ -1376,7 +1336,6 @@ class TensorRTLLM(ITritonDeployable):
     def _load(self):
         self.model = None
         self.tokenizer = None
-        self.n_gpus = None
         self.config = None
         self.ptuning_tables = []
 
