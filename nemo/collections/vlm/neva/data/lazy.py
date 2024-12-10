@@ -442,8 +442,6 @@ class NevaDataset(LazySupervisedDataset):
         if media_type == 'image':
             media = [instance.pop('image') for instance in instances]
             media = torch.cat(media, dim=0)
-            if media.size(0) == 0:
-                media = None
         elif media_type == 'video':
             media = [instance.pop('video', None) for instance in instances]
         else:
