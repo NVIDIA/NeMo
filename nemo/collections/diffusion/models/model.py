@@ -37,6 +37,7 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronL
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 from .dit.dit_model import DiTCrossAttentionModel
+from .stdit.stdit_model import STDiTModel
 
 
 def dit_forward_step(model, batch) -> torch.Tensor:
@@ -72,6 +73,41 @@ def dit_data_step(module, dataloader_iter):
 
     return batch
 
+
+def stdit_data_step(module, dataloader_iter):
+    batch = next(dataloader_iter)[0]
+    batch = stdit_get_batch_on_this_cp_rank(batch)
+    batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
+
+    return batch
+
+def stdit_get_batch_on_this_cp_rank(data: Dict):
+    """Split the data for context parallelism."""
+    from megatron.core import mpu
+
+    cp_size = mpu.get_context_parallel_world_size()
+    cp_rank = mpu.get_context_parallel_rank()
+
+    if cp_size > 1:
+        num_valid_tokens_in_ub = None
+        if 'loss_mask' in data and data['loss_mask'] is not None:
+            num_valid_tokens_in_ub = data['loss_mask'].sum()
+
+        for key, value in data.items():
+            if (value is not None) and (key in ['video', 'video_latent', 'noise_latent', 'pos_ids']):
+                if len(value.shape) > 5:
+                    value = value.squeeze(0)
+                if len(value.shape) == 5:
+                    B, C, T, H, W = value.shape
+                    data[key] = torch.chunk(value, cp_size, dim=3)[cp_rank].contiguous()
+                else:
+                    B, S, D = value.shape
+                    data[key] = value.view(B, cp_size, S // cp_size, D)[:, cp_rank, ...].contiguous()
+                # TODO: sequence packing
+        loss_mask = data["loss_mask"]
+        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[:, cp_rank, ...].contiguous()
+        data['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
+    return data
 
 def get_batch_on_this_cp_rank(data: Dict):
     """Split the data for context parallelism."""
@@ -282,6 +318,78 @@ class ECDiTLlama1BConfig(DiTLlama1BConfig):
     num_moe_experts: int = 64
     ffn_hidden_size: int = 1024
 
+
+@dataclass
+class STDiTConfig(DiTConfig):
+
+    # model set
+    num_layers: int = 28
+    hidden_size: int = 1152
+    num_attention_heads: int = 16
+    crossattn_emb_size: int = 1024
+    ffn_hidden_size: int = 4608
+
+    add_bias_linear: bool = True
+
+    # video set
+    max_img_h: int = 128
+    max_img_w: int = 128
+    max_frames: int = 24
+    patch_spatial: int = 2
+
+    dynamic_sequence_parallel: bool = False
+
+    @override
+    def configure_model(self, tokenizer=None) -> STDiTModel:
+        vp_size = self.virtual_pipeline_model_parallel_size
+        if vp_size:
+            p_size = self.pipeline_model_parallel_size
+            assert (
+                self.num_layers // p_size
+            ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
+
+        model = STDiTModel
+        
+        return model(
+            self,
+            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+            parallel_output=self.parallel_output,
+            pre_process=parallel_state.is_pipeline_first_stage(),
+            post_process=parallel_state.is_pipeline_last_stage(),
+            max_img_h=self.max_img_h,
+            max_img_w=self.max_img_w,
+            max_frames=self.max_frames,
+            patch_spatial=self.patch_spatial,
+            dynamic_sequence_parallel=self.dynamic_sequence_parallel,
+        )
+
+
+@dataclass
+class STDiTV3_XLConfig(STDiTConfig):
+
+    num_layers: int = 28
+    hidden_size: int = 1152
+    num_attention_heads: int = 16
+    crossattn_emb_size: int = 1024
+    ffn_hidden_size: int = 4608
+
+@dataclass
+class STDiTXLConfig(STDiTConfig):
+
+    num_layers: int = 24
+    hidden_size: int = 1536
+    num_attention_heads: int = 12
+    crossattn_emb_size: int = 1024
+    ffn_hidden_size: int = 6144
+
+@dataclass
+class STDiT3BConfig(STDiTConfig):
+
+    num_layers: int = 24
+    hidden_size: int = 2048
+    num_attention_heads: int = 16
+    crossattn_emb_size: int = 1024
+    ffn_hidden_size: int = 8192
 
 class DiTModel(GPTModel):
     """
