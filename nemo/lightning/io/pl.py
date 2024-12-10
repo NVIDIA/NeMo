@@ -40,6 +40,7 @@ from typing_extensions import Self, override
 from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
+from nemo.utils.dist_checkpointing import preprocess_common_state_dict_before_consistency_check
 
 try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
@@ -166,6 +167,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
+            preprocess_common_before_consistancy_check=preprocess_common_state_dict_before_consistency_check,
         )
 
     @override
