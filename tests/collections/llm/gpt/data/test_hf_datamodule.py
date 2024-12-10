@@ -20,6 +20,7 @@ from nemo.collections import llm
 
 DATA_PATH = "/home/TestData/lite/hf_cache/squad/"
 
+
 def test_load_single_split():
     ds = llm.HFDatasetDataModule(
         path=DATA_PATH,
@@ -29,6 +30,7 @@ def test_load_single_split():
         global_batch_size=2,
     )
     from datasets.arrow_dataset import Dataset
+
     assert isinstance(ds.dataset_splits, dict)
     assert len(ds.dataset_splits) == 3
     assert 'train' in ds.dataset_splits
@@ -41,6 +43,7 @@ def test_load_single_split():
     assert 'test' in ds.dataset_splits
     assert ds.dataset_splits['test'] is None
     assert ds.test is None
+
 
 def test_load_nonexistent_split():
     exception_msg = ''
@@ -57,6 +60,7 @@ def test_load_nonexistent_split():
         exception_msg = str(e)
     assert exception_msg == expected_msg, exception_msg
 
+
 def test_load_multiple_split():
     ds = llm.HFDatasetDataModule(
         path=DATA_PATH,
@@ -66,6 +70,7 @@ def test_load_multiple_split():
         global_batch_size=2,
     )
     from datasets.arrow_dataset import Dataset
+
     assert isinstance(ds.dataset_splits, dict)
     assert len(ds.dataset_splits) == 3
     assert 'train' in ds.dataset_splits
@@ -83,7 +88,6 @@ def test_load_multiple_split():
     assert ds.test is None
 
 
-
 def test_validate_dataset_asset_accessibility_file_does_not_exist():
     raised_exception = False
     try:
@@ -99,7 +103,7 @@ def test_validate_dataset_asset_accessibility_file_does_not_exist():
     assert raised_exception == True, "Expected to raise a FileNotFoundError"
 
 
-def test_validate_dataset_asset_accessibility_file_is_none(): #tokenizer, trainer):
+def test_validate_dataset_asset_accessibility_file_is_none():  # tokenizer, trainer):
     raised_exception = False
     try:
         llm.HFDatasetDataModule(

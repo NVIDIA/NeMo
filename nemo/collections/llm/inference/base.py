@@ -232,6 +232,7 @@ def generate(
     from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
         EncoderDecoderTextGenerationController,
     )
+
     if encoder_prompts is not None:
         text_generation_controller = EncoderDecoderTextGenerationController(
             inference_wrapped_model=model, tokenizer=tokenizer
