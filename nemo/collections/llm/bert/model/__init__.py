@@ -9,9 +9,9 @@ from nemo.collections.llm.bert.model.bert import (
     MegatronBertLargeConfig,
 )
 from nemo.collections.llm.bert.model.embedding import (
-    BertEmbeddingModel,
     BertEmbeddingLargeConfig,
     BertEmbeddingMiniConfig,
+    BertEmbeddingModel,
 )
 
 __all__ = [

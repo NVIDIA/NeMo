@@ -21,10 +21,10 @@ from nemo.collections.llm import peft
 from nemo.collections.llm.bert.data import BERTMockDataModule, BERTPreTrainingDataModule, SpecterDataModule
 from nemo.collections.llm.bert.model import (
     BertConfig,
-    BertModel,
-    BertEmbeddingModel,
     BertEmbeddingLargeConfig,
     BertEmbeddingMiniConfig,
+    BertEmbeddingModel,
+    BertModel,
     HuggingFaceBertBaseConfig,
     HuggingFaceBertConfig,
     HuggingFaceBertLargeConfig,

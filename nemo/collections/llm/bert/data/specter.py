@@ -91,9 +91,7 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
             download_mode="force_redownload" if self.force_redownload else None,
         )
 
-    def _preprocess_and_split_data(
-        self, dset: DatasetDict, train_ratio: float = 0.80, val_ratio: float = 0.15
-    ):
+    def _preprocess_and_split_data(self, dset: DatasetDict, train_ratio: float = 0.80, val_ratio: float = 0.15):
         """Preprocesses and splits the downloaded dataset into training, validation, and test sets.
 
         Args:
@@ -120,7 +118,9 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
             output_file = self.dataset_root / f"{split_name}.jsonl"
             with output_file.open("w", encoding="utf-8") as f:
                 for o in dataset:
-                    f.write(json.dumps({"query": o["anchor"], "pos_doc": o["positive"], "neg_doc": [o["negative"]]}) + "\n")
+                    f.write(
+                        json.dumps({"query": o["anchor"], "pos_doc": o["positive"], "neg_doc": [o["negative"]]}) + "\n"
+                    )
 
             logging.info(f"{split_name} split saved to {output_file}")
 
@@ -131,16 +131,15 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
                 elif '.jsonl' not in str(p.name):
                     p.unlink()
 
-
     def reconfigure_limit_batches(self):
         return
 
 
 if __name__ == "__main__":
     data_module = SpecterDataModule(
-        tokenizer=get_nmt_tokenizer("megatron", "BertWordPieceLowerCase",
-                                      vocab_file="/aot/exp/bert/mcore_release/v2/vocab.txt")
-
+        tokenizer=get_nmt_tokenizer(
+            "megatron", "BertWordPieceLowerCase", vocab_file="/aot/exp/bert/mcore_release/v2/vocab.txt"
+        )
     )
     data_module.prepare_data()
     dataloader = data_module.train_dataloader()

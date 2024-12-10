@@ -16,11 +16,11 @@ from typing import Dict, List, Tuple
 
 import torch
 import torch.nn.functional as F
-from torch import Tensor
+from torch import Tensor, nn
 
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from torch import nn
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
+
 
 class BERTLossReduction(MegatronLossReduction):
     """Bert Loss Function.
@@ -99,20 +99,20 @@ class BERTLossReduction(MegatronLossReduction):
 
 class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
     """
-        This loss uses in-batch negative samples + hard-negative samples.
-        The difference of this loss to the default MultipleNegativesRankingLoss
-        from Sentence Transformers is that the latter shares the hard negatives
-        as negatives for all examples, whereas this loss uses hard negatives
-        exclusively for the example they are associated
+    This loss uses in-batch negative samples + hard-negative samples.
+    The difference of this loss to the default MultipleNegativesRankingLoss
+    from Sentence Transformers is that the latter shares the hard negatives
+    as negatives for all examples, whereas this loss uses hard negatives
+    exclusively for the example they are associated
     """
 
     def __init__(
-            self,
-            validation_step: bool = False,
-            val_drop_last: bool = True,
-            num_hard_negatives: int = 1,
-            scale: float = 20,
-            label_smoothing: float = 0.,
+        self,
+        validation_step: bool = False,
+        val_drop_last: bool = True,
+        num_hard_negatives: int = 1,
+        scale: float = 20,
+        label_smoothing: float = 0.0,
     ) -> None:
         super().__init__()
         self.validation_step = validation_step
@@ -121,8 +121,11 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
         self.scale = scale
         self.cross_entropy_loss = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
-    def forward(self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def forward(
+        self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         from megatron.core import parallel_state
+
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size != 1:
             raise NotImplementedError(f'CP is not supported for {self.__class__} yet.')
@@ -139,7 +142,7 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
 
         # Calculate scores
         pos_in_batch_negs_scores = torch.mm(
-            queries, positives.transpose(0, 1) # shape (bs, bs); each positive is negative for other queries.
+            queries, positives.transpose(0, 1)  # shape (bs, bs); each positive is negative for other queries.
         )
         hard_negs_scores = (
             torch.multiply(
@@ -184,7 +187,6 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
             return loss_sum
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
-
 
 
 def masked_token_with_zero(tensor: Tensor, mask: Tensor):

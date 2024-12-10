@@ -1,19 +1,21 @@
 import sys
 from dataclasses import dataclass
-from typing import Optional, Callable, Dict
+from typing import Callable, Dict, Optional
+
+import lightning.pytorch as L
+import torch
+from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from torch import nn
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.llm.bert.model import BertModel, BertConfig, HuggingFaceBertModel
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, BERTLossReduction
+from nemo.collections.llm.bert.model import BertConfig, BertModel, HuggingFaceBertModel
 from nemo.collections.llm.bert.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.bert.model.bert import HuggingFaceBertImporter
 from nemo.collections.nlp.models.information_retrieval.bert_embedding_model import BertEmbeddingHead
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
-import torch
-from torch import nn
-import lightning.pytorch as L
 from nemo.lightning import io
 from nemo.lightning.pytorch.optim import OptimizerModule
+
 
 def bert_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     """Setup BERT dataloader batch."""
@@ -32,12 +34,12 @@ def bert_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_first_stage():
         required_keys.add("input_ids")
 
-
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_context_parallel_rank(_batch)
 
     return output
+
 
 def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
     """
@@ -58,6 +60,7 @@ def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch
 
     return model(**forward_args)
 
+
 @dataclass
 class BertEmbeddingConfig(BertConfig):
     bert_type: str = 'huggingface'
@@ -70,21 +73,26 @@ class BertEmbeddingConfig(BertConfig):
     forward_step_fn: Callable = bert_embedding_forward_step
     data_step_fn: Callable = bert_embedding_data_step
 
+
 @dataclass
 class BertEmbeddingLargeConfig(BertEmbeddingConfig):
     """Bert Embedding model follows Bert-large architecture."""
+
     num_layers: int = 24
     hidden_size: int = 1024
     intermediate_size: int = 4096
     num_attention_heads: int = 16
 
+
 @dataclass
 class BertEmbeddingMiniConfig(BertEmbeddingConfig):
     """Bert Embedding model follows Bert-mini (384 hidden size) architecture."""
+
     num_layers: int = 6
     hidden_size: int = 384
     intermediate_size: int = 1536
     num_attention_heads: int = 12
+
 
 class BertEmbeddingModel(BertModel):
     """Bert Lightning Module"""
@@ -115,7 +123,9 @@ class BertEmbeddingModel(BertModel):
     ) -> torch.Tensor:
         """Call the forward method of the underlying model, and return whatever it outputs."""
         assert "attention_mask" in kwargs, "attention mask is required for BERT Embedding Model."
-        output_tensor = self.module(hidden_states_only=True, *args, **kwargs)  # for now just pass through to the underlying model
+        output_tensor = self.module(
+            hidden_states_only=True, *args, **kwargs
+        )  # for now just pass through to the underlying model
         embeddings_out = self.embedding_head(output_tensor, kwargs["attention_mask"])
         return embeddings_out
 
@@ -143,6 +153,7 @@ class BertEmbeddingModel(BertModel):
 
         return self._validation_loss_reduction
 
+
 @io.model_importer(BertEmbeddingModel, "hf")
 class BertEmbeddingImporter(HuggingFaceBertImporter):
     def __init__(self, *args, **kwargs):
@@ -155,4 +166,3 @@ class BertEmbeddingImporter(HuggingFaceBertImporter):
 
     def init(self) -> BertEmbeddingModel:
         return BertEmbeddingModel(self.config, tokenizer=self.tokenizer)
-
