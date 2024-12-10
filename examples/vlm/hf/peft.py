@@ -23,6 +23,7 @@ from nemo.collections import llm, vlm
 
 def mk_hf_vlm_dataset(processor, mbs, gbs):
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
+
     def collate_fn(examples, processor):
         def fmt(sample):
             instruction = "Describe accurately the given image."
@@ -67,7 +68,7 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
         split="train",
         micro_batch_size=mbs,
         global_batch_size=gbs,
-        collate_fn=lambda x: collate_fn(x, processor=processor)
+        collate_fn=lambda x: collate_fn(x, processor=processor),
     )
 
 

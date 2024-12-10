@@ -55,7 +55,9 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def processor(self):
         if self._processor is None:
-            self._processor = HFAutoModelForImageTextToText.configure_processor(self.model_name, trust_remote_code=self.trust_remote_code)
+            self._processor = HFAutoModelForImageTextToText.configure_processor(
+                self.model_name, trust_remote_code=self.trust_remote_code
+            )
         return self._processor
 
     @processor.setter
