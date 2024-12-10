@@ -671,8 +671,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
                 with torch.no_grad():
                     logging.info(f"Running ASR on speech preds")
-                    speech_preds_transcribed = asr_model.transcribe(pred_wavs)[0]
-                    speech_answers_transcribed = asr_model.transcribe(answer_wavs)[0]
+                    asr_batch_size = min(64, len(pred_wavs))
+                    speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)[0]
+                    speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)[0]
                     deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
                     deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
 

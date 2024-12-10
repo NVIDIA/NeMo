@@ -818,21 +818,25 @@ def s2s_sample_sequence_batch(
                 is_done_expand = is_done.unsqueeze(1).expand(-1, new_tokens.size(1))
                 new_tokens = switch(new_tokens, eod_id, is_done_expand)
 
-                # if starting speech generation, force to stop text generation to avoid text hallucination
-                speech_start_token = (
-                    (new_tokens[:, 1:] == model.cfg.speech_bos_id)
-                    .all(dim=1)
-                    .unsqueeze(1)
-                    .expand(-1, new_tokens.size(1))
-                )
-                new_tokens = switch(
-                    new_tokens,
-                    torch.cat(
-                        [torch.full([new_tokens.shape[0], 1], eod_id, device=new_tokens.device), new_tokens[:, 1:]],
-                        axis=1,
-                    ),
-                    speech_start_token,
-                )
+                if inference_strategy.model.cfg.get("duplex_method", None) is not None:
+                    # if starting speech generation, force to stop text generation to avoid text hallucination
+                    speech_start_token = (
+                        (new_tokens[:, 1:] == model.cfg.speech_bos_id)
+                        .all(dim=1)
+                        .unsqueeze(1)
+                        .expand(-1, new_tokens.size(1))
+                    )
+                    new_tokens = switch(
+                        new_tokens,
+                        torch.cat(
+                            [
+                                torch.full([new_tokens.shape[0], 1], eod_id, device=new_tokens.device),
+                                new_tokens[:, 1:],
+                            ],
+                            axis=1,
+                        ),
+                        speech_start_token,
+                    )
 
                 # post process the inference tokens based on the strategy
                 inference_strategy.post_process(tokens, new_tokens, context_length)
