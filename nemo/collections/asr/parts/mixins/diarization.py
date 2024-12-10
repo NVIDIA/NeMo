@@ -14,7 +14,6 @@
 import json
 import os
 import tempfile
-from nemo.utils import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -29,6 +28,7 @@ from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get_audio_rttm_map
 from nemo.collections.asr.parts.utils.speaker_utils import get_uniqname_from_filepath
 from nemo.collections.common.data.utils import move_data_to_device
+from nemo.utils import logging
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
 GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
