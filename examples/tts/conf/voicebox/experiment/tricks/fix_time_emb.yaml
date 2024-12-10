@@ -1,0 +1,5 @@
+# @package _global_
+
+model:
+  voicebox:
+    fix_time_emb: True

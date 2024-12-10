@@ -1,0 +1,6 @@
+# @package _global_
+
+model:
+  optim:
+    sched:
+      warmup_steps: 0

@@ -1,0 +1,16 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=ngc
+
+defaults:
+  - /experiment@_global_:
+    - ngc
+    - tricks/adam_warmup
+    - tricks/no_warmup
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+# task name, determines output directory path
+task_name: "ngc-no_warmup"

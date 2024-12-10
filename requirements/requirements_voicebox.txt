@@ -1,0 +1,13 @@
+descript-audio-codec
+encodec
+jiwer>=3.0.4
+lhotse>=1.26.0
+onnx>=1.16.2
+openai-whisper
+resemblyzer
+s3prl
+tensorboard>=2.17.1
+textgrid
+torchode
+vocos
+wandb>=0.17.8

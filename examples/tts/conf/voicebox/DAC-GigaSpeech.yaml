@@ -1,0 +1,191 @@
+cfg:
+  ds_name: gigaspeech
+  librilight_dir: data/download/LibriLight
+  libriheavy_dir: data/download/LibriHeavy
+  corpus_dir: data/download/GigaSpeech
+  manifests_dir: data/parsed/GigaSpeech
+  textgrid_dir: data/aligned/GigaSpeech/textgrid
+  old_predix: download/librilight
+  subsets:
+  - XL
+  - L
+  - M
+  - S
+  - XS
+  - DEV
+  - TEST
+  sample_rate: 16000
+  train_ds:
+    subset: XL
+    defer_setup: true
+    manifest_filepath: data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz
+    sample_rate: 16000
+    batch_size: 16
+    shuffle: true
+    num_workers: 8
+    pin_memory: true
+    is_tarred: false
+    tarred_audio_filepaths: null
+    shuffle_n: 2048
+    bucketing_strategy: synced_randomized
+    bucketing_batch_size: null
+    use_lhotse: true
+    cuts_path: data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz
+    use_bucketing: true
+    batch_duration: 100.0
+    ds_kwargs:
+      textgrid_dir: data/aligned/GigaSpeech/textgrid
+      use_word_postfix: true
+      use_word_ghost_silence: true
+      sampling_rate: 16000
+      num_workers: 8
+    max_duration: 16
+    min_duration: 0.1
+  validation_ds:
+    subset: DEV
+    defer_setup: true
+    manifest_filepath: data/parsed/GigaSpeech/gigaspeech_cuts_DEV_with_jensen.speech.jsonl.gz
+    sample_rate: 16000
+    batch_size: 16
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    is_tarred: false
+    tarred_audio_filepaths: null
+    bucketing_strategy: synced_randomized
+    bucketing_batch_size: null
+    use_lhotse: true
+    cuts_path: data/parsed/GigaSpeech/gigaspeech_cuts_DEV_with_jensen.speech.jsonl.gz
+    use_bucketing: false
+    batch_duration: 100.0
+    ds_kwargs:
+      textgrid_dir: data/aligned/GigaSpeech/textgrid
+      use_word_postfix: true
+      use_word_ghost_silence: true
+      sampling_rate: 16000
+      num_workers: 8
+  test_ds:
+    subset: TEST
+    defer_setup: true
+    manifest_filepath: data/parsed/GigaSpeech/gigaspeech_cuts_TEST.speech.jsonl.gz
+    sample_rate: 16000
+    batch_size: 16
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    is_tarred: false
+    tarred_audio_filepaths: null
+    use_lhotse: true
+    cuts_path: data/parsed/GigaSpeech/gigaspeech_cuts_TEST.speech.jsonl.gz
+    use_bucketing: false
+    batch_duration: 100.0
+    ds_kwargs:
+      textgrid_dir: data/aligned/GigaSpeech/textgrid
+      use_word_postfix: true
+      use_word_ghost_silence: true
+      sampling_rate: 16000
+      num_workers: 8
+  mfa_tokenizer:
+    _target_: nemo.collections.tts.modules.voicebox_modules.MFAEnglishPhonemeTokenizer
+    textgrid_dir: data/aligned/GigaSpeech/textgrid
+    use_word_postfix: true
+  duration_predictor:
+    _target_: nemo.collections.tts.modules.voicebox_modules.MFADurationPredictor
+    dim_phoneme_emb: 512
+    dim: 512
+    depth: 2
+    dim_head: 64
+    heads: 1
+    ff_mult: 4
+    attn_qk_norm: true
+    ff_dropout: 0.0
+    attn_dropout: 0
+    attn_flash: false
+    conv_pos_embed_kernel_size: 31
+    conv_pos_embed_groups: null
+    p_drop_prob: 0.2
+    frac_lengths_mask:
+    - 0.1
+    - 1.0
+    aligner_kwargs: null
+    audio_enc_dec:
+      _target_: nemo.collections.tts.modules.voicebox_modules.DACVoco
+      sampling_rate: 16000
+      pretrained_path: 16khz
+      factorized_latent: false
+      bandwidth_id: 12
+      preq_ce: true
+      normalize: true
+  voicebox:
+    _target_: nemo.collections.tts.modules.voicebox_modules.VoiceBox
+    audio_enc_dec:
+      _target_: nemo.collections.tts.modules.voicebox_modules.DACVoco
+      sampling_rate: 16000
+      pretrained_path: 16khz
+      factorized_latent: false
+      bandwidth_id: 12
+      preq_ce: true
+      normalize: true
+    dim_cond_emb: 1024
+    dim: 1024
+    dim_in: null
+    time_hidden_dim: null
+    conv_pos_embed_kernel_size: 31
+    conv_pos_embed_groups: null
+    depth: 4
+    dim_head: 64
+    heads: 16
+    ff_mult: 4
+    ff_dropout: 0.0
+    attn_dropout: 0
+    attn_flash: false
+    attn_qk_norm: true
+    num_register_tokens: 16
+    num_cond_tokens: null
+    condition_on_text: true
+    p_drop_prob: 0.3
+    frac_lengths_mask:
+    - 0.1
+    - 0.9
+    loss_masked: true
+    use_unet_skip_connection: true
+    pytorch_mha: true
+  cfm_wrapper:
+    _target_: nemo.collections.tts.modules.voicebox_modules.ConditionalFlowMatcherWrapper
+    voicebox: null
+    duration_predictor: null
+    sigma: 1.0e-05
+    ode_atol: 1.0e-05
+    ode_rtol: 1.0e-05
+    use_torchode: false
+    torchdiffeq_ode_method: midpoint
+    torchode_method_klass: torchode.Tsit5
+    cond_drop_prob: 0.2
+  _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
+  optim:
+    name: adam
+    lr: 5.0e-05
+    betas:
+    - 0.9
+    - 0.999
+    weight_decay: 0
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 5000
+      warmup_ratio: null
+      min_lr: 1.0e-05
+  ds_kwargs:
+    textgrid_dir: data/aligned/GigaSpeech/textgrid
+    use_word_postfix: true
+    use_word_ghost_silence: true
+    sampling_rate: 16000
+    num_workers: 8
+  freeze_updates:
+    enabled: true
+    modules:
+      duration_predictor: -1
+  old_prefix: /home/sungfengh/.cache/huggingface/datasets
+  cap_vocode: true
+  additional_log_batches: 1
+  target: nemo.collections.tts.models.voicebox.VoiceboxModel
+  nemo_version: 1.21.0rc0
