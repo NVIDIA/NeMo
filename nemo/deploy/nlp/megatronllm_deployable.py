@@ -277,8 +277,6 @@ class MegatronLLMDeployable(ITritonDeployable):
             self._load_from_nemo_checkpoint(nemo_checkpoint_filepath, num_devices, num_nodes)
 
         self.model.eval()
-        # helper threads spawned by torch.multiprocessing should loop inside this helper function
-        self._helper_thread_evaluation_loop()
 
     def _load_from_nemo_checkpoint(self, nemo_checkpoint_filepath: str, num_devices: int, num_nodes: int):
         if Path(nemo_checkpoint_filepath).exists():
@@ -316,15 +314,6 @@ class MegatronLLMDeployable(ITritonDeployable):
             self.model = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, override_config_path=custom_config
             )
-
-    def _helper_thread_evaluation_loop(self):
-        # only deploy the server on main thread, other threads enter this evaluation loop
-        if torch.distributed.is_initialized() and torch.distributed.get_rank() != 0:
-            while True:
-                wait_value = ServerSync.WAIT.to_long_tensor()
-                torch.distributed.broadcast(wait_value, 0)
-                if wait_value.item() == ServerSync.SIGNAL:
-                    self.model.generate(inputs=[""], length_params=None)
 
     _INPUT_PARAMETER_FIELDS = {
         "prompts": (-1, bytes, False),
