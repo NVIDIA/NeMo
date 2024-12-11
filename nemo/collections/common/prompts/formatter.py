@@ -157,9 +157,10 @@ class PromptFormatter(ABC):
 
     # When set to true, we will insert BOS/EOS symbol at the very beginning/end of the dialog
     # (i.e., not before/after every turn).
-    # We query self.tokenizer.bos / self.tokenizer.eos to get their int IDs.
-    # Note that this is a separate mechanism from BOS_SLOT / EOS_SLOT which allows inserting
-    # these tokens at arbitrary positions in arbitrary turns.
+    # This is intended specifically for LLMs that use sentencepiece tokenizers with BOS/EOS
+    # that don't normally exist in the tokenizer's vocab (i.e., no string input generates them
+    # and you must insert them programmatically);
+    # see: https://github.com/google/sentencepiece/issues/102#issuecomment-397150427
     INSERT_BOS = False
     INSERT_EOS = False
 
