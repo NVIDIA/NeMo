@@ -169,6 +169,7 @@ def main(cfg: ParallelTranscriptionConfig):
         cfg.predict_ds.force_finite = True
         cfg.predict_ds.force_map_dataset = True
         cfg.predict_ds.do_transcribe = True
+        cfg.predict_ds.split_shards = True
         OmegaConf.set_struct(cfg.predict_ds, True)
 
     if isinstance(model, EncDecMultiTaskModel):

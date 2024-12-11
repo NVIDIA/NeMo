@@ -63,6 +63,8 @@ class LhotseDataLoadingConfig:
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
     #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
     tarred_random_access: bool = False
+    # Forces each rank/worker to have a unique subset of shards, not recommended for most applications.
+    split_shards: bool = False
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
