@@ -112,3 +112,22 @@ def test_validate_dataset_asset_accessibility_file_is_none():  # tokenizer, trai
         raised_exception = True
 
     assert raised_exception == True, "Expected to raise a ValueError"
+
+def test_load_from_dict():
+     data = {'text': "Below is an instruction that describes a task, paired with an input that "}
+
+    datamodule = llm.HFDatasetDataModule.from_dict(
+        {"text": [data['text'] for _ in range(101)]},
+        split='train',
+        global_batch_size=4,
+        micro_batch_size=1,
+    )
+    assert is not None datamodule
+    assert isinstance(datamodule, llm.HFDatasetDataModule)
+    assert hasattr(datamodule, 'train')
+    assert datamodule.train is not None
+    assert len(datamodule.train) == 101
+    assert hasattr(datamodule, 'val')
+    assert datamodule.val is None
+    assert hasattr(datamodule, 'test')
+    assert datamodule.test is None
