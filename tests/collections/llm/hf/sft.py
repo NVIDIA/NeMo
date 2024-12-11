@@ -21,29 +21,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
 
-
-class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
-    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
-        return DataLoader(
-            dataset,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            persistent_workers=self.persistent_workers,
-            collate_fn=dataset.collate_fn,
-            batch_size=self.micro_batch_size,
-            **kwargs,
-        )
-
-
-def squad(tokenizer) -> pl.LightningDataModule:
-    return SquadDataModuleWithPthDataloader(
-        tokenizer=tokenizer,
-        seq_length=2048,
-        micro_batch_size=2,
-        global_batch_size=128,  # assert gbs == mbs * accumulate_grad_batches
-        num_workers=0,
-        dataset_kwargs={"sanity_check_dist_workers": False},
-    )
+DATA_PATH = '/home/TestData/lite/hf_cache/mini_squad_100/'
 
 
 if __name__ == '__main__':
@@ -88,7 +66,9 @@ if __name__ == '__main__':
 
     llm.api.finetune(
         model=model,
-        data=squad(tokenizer),
+        data=llm.HFDatasetDataModule(DATA_PATH,
+            pad_token_id=tokenizer.tokenizer.eos_token_id
+        ),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
