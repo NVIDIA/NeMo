@@ -20,13 +20,13 @@ number of layers, D is the feature dimension, and T is the time dimension.
 Example usage:
 
 python extract_features.py \
-    --model_path="ssl_en_nest_large" \
+    --model_path="nvidia/ssl_en_nest_large_v1.0" \
     --input=<path to input manifest, or a dir containing audios, or path to audio> \
     --output=<output directory to store features and manifest> \
     --layers="all" \
-    --batch_size=2 \
-    --workers=2
-
+    --batch_size=8 \
+    --workers=8 \
+    --max_cache=1000 # save features every 1000 samples to avoid OOM in system memory
 """
 
 
@@ -121,7 +121,7 @@ def load_model(model_path):
     """
     Load SSL model from local or pretrained
     """
-    if model_path.endswith(".nemo"):
+    if model_path.endswith(".nemo") and os.path.isfile(model_path):
         logging.info(f"Loading model from local: {model_path}")
         model = EncDecDenoiseMaskedTokenPredModel.restore_from(model_path)
     else:
