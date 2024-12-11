@@ -146,7 +146,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
-            raise ValueError("Expecter `path_or_dataset` to be str, Dataset, DatasetDict, but got "\
+            raise ValueError("Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "\
                 + str(type(path_or_dataset)))
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
@@ -171,7 +171,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def from_dict(dataset_dict, split, **kwargs):
         from datasets import Dataset
         dataset = Dataset.from_dict(dataset_dict)
-        return HFDatasetDataModule(path=dataset, split=split, **kwargs)
+        return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
