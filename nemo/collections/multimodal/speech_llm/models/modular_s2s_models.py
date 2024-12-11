@@ -618,13 +618,17 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                                 self.cfg.data.train_ds.speech_pad_id,
                                 self.cfg.data.train_ds.speech_eos_id,
                             )
+
+                            def normalize_text(text):
+                                return text.strip().replace('⁇', '')
+
                             if speech_answer == None:
                                 speech_answer = torch.zeros_like(speech_pred)
                             text_pred_text = self.tokenizer.ids_to_text(text_pred)
-                            deduplicated_outputs['preds'].append(text_pred_text.strip())
-                            deduplicated_outputs['labels'].append(labels_text.strip())
+                            deduplicated_outputs['preds'].append(normalize_text(text_pred_text))
+                            deduplicated_outputs['labels'].append(normalize_text(labels_text))
                             text_answer_text = self.tokenizer.ids_to_text(text_answer)
-                            deduplicated_outputs['text_answers'].append(text_answer_text.strip())
+                            deduplicated_outputs['text_answers'].append(normalize_text(text_answer_text))
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
                             deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
 
@@ -672,8 +676,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 with torch.no_grad():
                     logging.info(f"Running ASR on speech preds")
                     asr_batch_size = min(64, len(pred_wavs))
-                    speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)[0]
-                    speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)[0]
+                    speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
+                    speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
                     deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
                     deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
 
@@ -1332,3 +1336,13 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         squim_mos_model = SQUIM_SUBJECTIVE.get_model()
         return squim_mos_model
+
+    def setup_optimizer_param_groups(self):
+        super().setup_optimizer_param_groups()
+        freeze_llm = self.cfg.get('freeze_llm', True)
+        if freeze_llm:
+            # needs to be updated since vocab is changed
+            for param in self.model.embedding.parameters():
+                param.requires_grad = True
+            for param in self.model.output_layers.parameters():
+                param.requires_grad = True
