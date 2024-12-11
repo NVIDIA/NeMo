@@ -42,7 +42,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           ref: ${{ needs.code-freeze.outputs.release-branch }}
-          token: ${{ secrets.PAT }}
 
       - name: Pin branch name in Notebooks
         run: |
