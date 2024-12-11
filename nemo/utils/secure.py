@@ -45,7 +45,7 @@ def torch_load(filename: str, map_location: str = 'cpu', safe: bool = False):
     return torch.load(filename, map_location=map_location)
 
 
-def torch_save(tensors: str, filename: str, safe: bool = False):
+def torch_save(tensors, filename: str, safe: bool = False):
     """
     save replacement for pytorch. For backwards compatability it is
     unsafe by default. This causes a pytorch and safetensors file
