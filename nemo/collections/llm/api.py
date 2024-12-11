@@ -41,7 +41,6 @@ from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
     from megatron.core.inference.inference_request import InferenceRequest
@@ -526,7 +525,6 @@ def evaluate(
         limit=limit,
         num_fewshot=num_fewshot,
         bootstrap_iters=bootstrap_iters,
-        batch_size=8,
     )
 
     print("score", results["results"][eval_task])
