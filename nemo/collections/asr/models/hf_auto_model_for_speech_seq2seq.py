@@ -58,7 +58,9 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            self._tokenizer = AutoTokenizer(self.model_name, include_special_tokens=True, trust_remote_code=self.trust_remote_code)
+            self._tokenizer = AutoTokenizer(
+                self.model_name, include_special_tokens=True, trust_remote_code=self.trust_remote_code
+            )
         return self._tokenizer
 
     @tokenizer.setter
