@@ -21,7 +21,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
 from nemo.collections.multimodal.mimo.model.gpt import MimoGPTModel
-from nemo.collections.multimodal.mimo.model.projection import Baseconfig, TempPoolingHead, TransformersProjector
+from nemo.collections.multimodal.mimo.model.projection import Baseconfig, TempPoolingHead, TransformersProjector, get_output_projection_layer_spec
 
 
 class CustomMimoModel(MCoreLLaVAModel):
@@ -123,29 +123,35 @@ class CustomMimoModel(MCoreLLaVAModel):
         # self.vision_output_projection_module = TransformersProjector(
         #     in_features=self.config.hidden_size, out_features=1024, num_query_token=77
         # )  # Yash : TODO Fix hard coding
+        # self.vision_output_projection_module = TempPoolingHead(
+        #     config=Baseconfig(),
+        #     submodules=TransformerLayerSubmodules(
+        #         cross_attention=ModuleSpec(
+        #             module=CrossAttention,
+        #             params={"attn_mask_type": MCoreAttnMaskType.no_mask},
+        #             submodules=CrossAttentionSubmodules(
+        #                 linear_q=TEColumnParallelLinear,
+        #                 linear_kv=TEColumnParallelLinear,
+        #                 core_attention=TEDotProductAttention,
+        #                 linear_proj=TERowParallelLinear,
+        #             ),
+        #         ),
+        #         cross_attn_bda=get_bias_dropout_add,
+        #         mlp=ModuleSpec(
+        #             module=MLP,
+        #             submodules=MLPSubmodules(
+        #                 linear_fc1=TELayerNormColumnParallelLinear,
+        #                 linear_fc2=TERowParallelLinear,
+        #             ),
+        #         ),
+        #         mlp_bda=get_bias_dropout_add,
+        #     ),
+        #     num_query_token=77,
+        # )
+        output_projection_spec = get_output_projection_layer_spec()
         self.vision_output_projection_module = TempPoolingHead(
             config=Baseconfig(),
-            submodules=TransformerLayerSubmodules(
-                cross_attention=ModuleSpec(
-                    module=CrossAttention,
-                    params={"attn_mask_type": MCoreAttnMaskType.no_mask},
-                    submodules=CrossAttentionSubmodules(
-                        linear_q=TEColumnParallelLinear,
-                        linear_kv=TEColumnParallelLinear,
-                        core_attention=TEDotProductAttention,
-                        linear_proj=TERowParallelLinear,
-                    ),
-                ),
-                cross_attn_bda=get_bias_dropout_add,
-                mlp=ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TELayerNormColumnParallelLinear,
-                        linear_fc2=TERowParallelLinear,
-                    ),
-                ),
-                mlp_bda=get_bias_dropout_add,
-            ),
+            submodules=output_projection_spec.submodules,
             num_query_token=77,
         )
 
@@ -314,15 +320,17 @@ class CustomMimoModel(MCoreLLaVAModel):
                 input_ids=special_token_indices, position_ids=special_token_positions
             )
             special_token_embeddings = special_token_embeddings.transpose(0, 1)  # change to b,s,h
-            if torch.distributed.get_rank() == 0:
-                breakpoint()
-            torch.distributed.barrier()
+            current_rank = torch.distributed.get_rank()
+            
+            inp_to_vision_projection = selected_hidden_states + special_token_embeddings
             output_projection_embeddings = self.vision_output_projection_module(
-                selected_hidden_states + special_token_embeddings
+                inp_to_vision_projection
             )  # (bs, no_special_tokens, 1024)
-            if torch.distributed.get_rank() == 0:
-                breakpoint()
-            torch.distributed.barrier()
+
+            # if torch.distributed.get_rank() == 0:
+            #     print("In the model forward")
+            #     breakpoint()
+            # torch.distributed.barrier()
             # Image caption embeddings
             image_caption_embeddings = image_caption_embeddings.to(
                 output_projection_embeddings.device, dtype=output_projection_embeddings.dtype

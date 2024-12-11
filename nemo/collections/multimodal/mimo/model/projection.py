@@ -1,7 +1,7 @@
 import torch
 from torch import Tensor, nn
-
-
+from megatron.core.transformer.spec_utils import build_module
+from megatron.core.utils import init_method_normal, scaled_init_method_normal
 class TransformersProjector(nn.Module):
     def __init__(self, in_features, out_features, num_query_token, **kwargs):
         super().__init__()
@@ -42,6 +42,7 @@ from megatron.core.extensions.transformer_engine import (
     TELayerNormColumnParallelLinear,
     TENorm,
     TERowParallelLinear,
+    TELinear
 )
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
@@ -78,6 +79,31 @@ class Baseconfig(TransformerConfig):
     normalization = 'LayerNorm'
     layer_spec: ModuleSpec = transformer_engine_layer_spec
 
+def get_output_projection_layer_spec() -> ModuleSpec:
+    output_projection_submodules = TransformerLayerSubmodules(
+                cross_attention=ModuleSpec(
+                    module=CrossAttention,
+                    params={"attn_mask_type": MCoreAttnMaskType.no_mask},
+                    submodules=CrossAttentionSubmodules(
+                        linear_q=TEColumnParallelLinear,
+                        linear_kv=TEColumnParallelLinear,
+                        core_attention=TEDotProductAttention,
+                        linear_proj=TERowParallelLinear,
+                    ),
+                ),
+                cross_attn_bda=get_bias_dropout_add,
+                mlp=ModuleSpec(
+                    module=MLP,
+                    submodules=MLPSubmodules(
+                        linear_fc1=TELayerNormColumnParallelLinear,
+                        linear_fc2=TERowParallelLinear,
+                    ),
+                ),
+                mlp_bda=get_bias_dropout_add,
+            )
+    output_projection_submodules.output_linear_layer = TELinear 
+    
+    return ModuleSpec(module =TempPoolingHead, submodules=output_projection_submodules )
 
 class TempPoolingHead(TransformerLayer):
     """Multihead Attention Pooling."""
@@ -91,11 +117,10 @@ class TempPoolingHead(TransformerLayer):
         super().__init__(config, submodules)
 
         self.probe = torch.nn.Parameter(torch.randn(num_query_token, 1, config.hidden_size))
-
+        # self.output_projection = build_module(submodules.output_linear_layer, input_size=4096, output_size=1024, config = config, bias = True, parallel_mode=None, skip_bias_add = False, is_expert=False, init_method = init_method_normal(0.02), skip_weight_param_allocation = False)
+        self.output_projection = torch.nn.Linear(4096, 1024)
     def forward(self, hidden_state):
-        if torch.distributed.get_rank() == 0:
-            breakpoint()
-        torch.distributed.barrier()
+        
         batch_size = hidden_state.shape[0]
 
         # [s, b, h]
@@ -106,8 +131,13 @@ class TempPoolingHead(TransformerLayer):
             attention_mask=None,
             context=hidden_state,
         )
+        
+        current_rank = torch.distributed.get_rank()
+        print(f"Yash debug current rank {current_rank} hidden_state {hidden_state.sum()} ")
+        torch.distributed.barrier()
+        
+        hidden_state = self.output_projection(hidden_state)
         hidden_state = hidden_state.transpose(0, 1)
-        if torch.distributed.get_rank() == 0:
-            breakpoint()
+        print(f"Yash debug current rank {current_rank} hidden_state after output projection {hidden_state.sum()} ")
         torch.distributed.barrier()
         return hidden_state
