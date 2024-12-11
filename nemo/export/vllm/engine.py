@@ -38,14 +38,14 @@ class VLLMTokenizerGroup(TokenizerGroup):
         return self.tokenizer
 
     @classmethod
-    def from_config(cls, tokenizer_pool_config = None, **init_kwargs):
+    def from_config(cls, tokenizer_pool_config=None, **init_kwargs):
         raise NotImplementedError
 
     def ping(self) -> bool:
         return True
 
     @property
-    def max_input_length(self, lora_request = None):
+    def max_input_length(self, lora_request=None):
         return None
 
 

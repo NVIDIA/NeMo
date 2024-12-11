@@ -15,6 +15,7 @@
 import gc
 import logging
 import os.path
+from pathlib import Path
 from typing import Optional
 
 import numpy
@@ -22,17 +23,16 @@ import safetensors.torch
 import tensorstore  # needed to register 'bfloat16' dtype with numpy for zarr compatibility
 import torch
 import zarr
-
-from pathlib import Path
 from torch.distributed.checkpoint import FileSystemReader
-from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from torch.distributed.checkpoint.metadata import TensorStorageMetadata
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from vllm.config import CacheConfig, DeviceConfig, LoRAConfig, ModelConfig, ParallelConfig, SchedulerConfig
 from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize_model
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.vllm.model_config import NemoModelConfig
+
 from .utils import is_nemo2_checkpoint
 
 LOGGER = logging.getLogger("NeMo")

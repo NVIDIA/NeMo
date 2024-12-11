@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import torch
 import yaml
-from pathlib import Path
-
 from transformers import AutoConfig
 from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
 from nemo.export.vllm.model_converters import get_model_converter
+
 from .utils import is_nemo2_checkpoint
+
 
 class NemoModelConfig(ModelConfig):
     """
@@ -110,7 +111,9 @@ class NemoModelConfig(ModelConfig):
             from nemo.lightning import io
 
             nemo_checkpoint: Path = Path(nemo_checkpoint)
-            self.nemo_model_config: dict = yaml.load((nemo_checkpoint / "context/model.yaml").open('r'), Loader=yaml.SafeLoader)
+            self.nemo_model_config: dict = yaml.load(
+                (nemo_checkpoint / "context/model.yaml").open('r'), Loader=yaml.SafeLoader
+            )
             hf_args = {}
             for hf_arg, nemo_arg in hf_to_nemo_dict.items():
                 if not isinstance(nemo_arg, list):
