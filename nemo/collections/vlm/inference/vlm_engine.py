@@ -22,6 +22,7 @@ from PIL.Image import Image
 
 
 class VLMEngine(MCoreEngine):
+    # pylint: disable=C0115,C0116
     def generate(
         self,
         prompts: List[str],
