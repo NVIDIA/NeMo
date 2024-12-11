@@ -206,7 +206,7 @@ def extract_features(args):
     Main function to extract and save features from SSL model
     """
 
-    logging.info(f"Extracting features using params: {args}")
+    logging.info(f"Extracting features using params: {vars(args)}")
 
     # Load model
     model = load_model(args.model_path)
