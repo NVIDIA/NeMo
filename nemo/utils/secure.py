@@ -21,10 +21,19 @@ from nemo.utils import logging
 SAFE_EXTENSION = '.safetensor'
 
 
-# load PyTorch files, for backwards compatability it loads insecurely
-# by default because files have to be saved securely to work perfectly,
-# however when loading untrusted files, safe should be set to True.
-def torch_load(filename, map_location='cpu', safe=False):
+def torch_load(filename: str, map_location: str = 'cpu', safe: bool = False):
+    """
+    load PyTorch files, for backwards compatability it loads insecurely
+    by default because files have to be saved securely to work perfectly,
+    however when loading untrusted files, safe should be set to True.
+
+    Args:
+        filename: the file to load
+        map_location: the device to load the file onto
+        safe: whether to load the file with safetensors
+    Returns:
+        the loaded tensors
+    """
     try:
         return storch.load_file(filename + SAFE_EXTENSION, device=map_location)
     except FileNotFoundError as e:
@@ -36,11 +45,20 @@ def torch_load(filename, map_location='cpu', safe=False):
     return torch.load(filename, map_location=map_location)
 
 
-# save replacement for pytorch. For backwards compatability it is
-# unsafe by default. This causes a pytorch and safetensors file
-# to be created. When saving the secure method, only the safetensor
-# will be created, however this won't work with old versions of nemo
-def torch_save(tensors, filename, safe=False):
+def torch_save(tensors: str, filename: str, safe: bool = False):
+    """
+    save replacement for pytorch. For backwards compatability it is
+    unsafe by default. This causes a pytorch and safetensors file
+    to be created. When saving the secure method, only the safetensor
+    will be created, however this won't work with old versions of nemo
+
+    Args:
+        tensors: the tensors to save
+        filename: the file to save to
+        safe: whether to save with safetensors
+    Returns:
+        None
+    """
     try:
         storch.save_file(tensors, filename + SAFE_EXTENSION)
     except safetensors.SafetensorError as e:
