@@ -415,6 +415,7 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
 
 
 def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
+    
     common_kwargs = {
         "text_field": config.text_field,
         "lang_field": config.lang_field,

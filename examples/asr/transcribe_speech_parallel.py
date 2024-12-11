@@ -158,7 +158,7 @@ def main(cfg: ParallelTranscriptionConfig):
         model = ASRModel.from_pretrained(model_name=cfg.model, map_location="cpu")
 
     if isinstance(model, EncDecHybridRNNTCTCModel) and cfg.decoder_type is not None:
-        model.change_decoding_strategy(decoder_type=cfg.decoder_type)
+        model.change_decoding_strategy(decoding_cfg=cfg.rnnt_decoding, decoder_type=cfg.decoder_type)
 
     cfg.predict_ds.return_sample_id = True
     cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
@@ -167,7 +167,7 @@ def main(cfg: ParallelTranscriptionConfig):
         OmegaConf.set_struct(cfg.predict_ds, False)
         cfg.trainer.use_distributed_sampler = False
         cfg.predict_ds.force_finite = True
-        cfg.predict_ds.force_map_dataset = True
+        cfg.predict_ds.force_map_dataset = False
         cfg.predict_ds.do_transcribe = True
         cfg.predict_ds.split_shards = True
         OmegaConf.set_struct(cfg.predict_ds, True)
