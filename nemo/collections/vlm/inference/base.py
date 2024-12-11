@@ -17,10 +17,9 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 import torch.distributed
-from transformers import AutoProcessor
-
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from transformers import AutoProcessor
 
 import nemo.lightning as nl
 from nemo.collections import vlm

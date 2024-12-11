@@ -22,6 +22,7 @@ import torch
 import torch.distributed
 from einops import rearrange
 from megatron.core.enums import ModelType
+from megatron.core.inference_params import InferenceParams
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
@@ -29,7 +30,6 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.inference_params import InferenceParams
 from PIL import Image as PIL_Image
 from torch import nn
 
