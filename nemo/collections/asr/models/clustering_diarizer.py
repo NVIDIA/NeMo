@@ -466,17 +466,20 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             tar.add(source_dir, arcname="./")
 
     @rank_zero_only
-    def save_to(self, save_path: str):
+    def save_to(self, save_path: str, safe: bool = False):
         """
         Saves model instance (weights and configuration) into EFF archive or .
          You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
-            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument
+                                for model's constructor
             model_wights.chpt - model checkpoint
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load,
+                  and only safetensors will be allowed
         """
 
         # TODO: Why does this override the main save_to?
@@ -488,8 +491,8 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             self.to_config_file(path2yaml_file=config_yaml)
             if self.has_vad_model:
                 vad_model = os.path.join(tmpdir, _VAD_MODEL)
-                self._vad_model.save_to(vad_model)
-            self._speaker_model.save_to(spkr_model)
+                self._vad_model.save_to(vad_model, safe=safe)
+            self._speaker_model.save_to(spkr_model, safe=safe)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @staticmethod
@@ -508,6 +511,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        safe: bool = False,
     ):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
