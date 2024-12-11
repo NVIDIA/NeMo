@@ -209,7 +209,6 @@ def extract_features(args):
     logging.info(f"Extracting features using params: {args}")
 
     # Load model
-    logging.info(f"Loading model from: {args.model_path}")
     model = load_model(args.model_path)
     feature_extractor = FeatureExtractor(model, args.layers)
     device = torch.device(args.device)
