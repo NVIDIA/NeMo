@@ -265,9 +265,11 @@ class LazyNeMoTarredIterator:
         text_field: str = "text",
         lang_field: str = "lang",
         tarred_random_access: bool = False,
+        split_shards: bool = False,
         extra_fields: list[dict[str, str]] | None = None,
     ) -> None:
         self.tarred_random_access = tarred_random_access
+        self.split_shards = split_shards
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
@@ -373,6 +375,9 @@ class LazyNeMoTarredIterator:
     def __iter__(self) -> Generator[Cut, None, None]:
         shard_ids = self.shard_ids
 
+        if self.split_shards:
+            shard_ids = _split_for_dataloading(shard_ids)
+
         seed = resolve_seed(self.shard_seed)
         if self.shuffle_shards:
             random.Random(seed).shuffle(shard_ids)
@@ -440,6 +445,12 @@ class LazyNeMoTarredIterator:
 
     def __add__(self, other):
         return LazyIteratorChain(self, other)
+
+
+def _split_for_dataloading(shards: list) -> list:
+    from lhotse.shar.readers.utils import split_by_node, split_by_worker
+
+    return split_by_worker(split_by_node(shards))
 
 
 def make_cut_with_subset_inmemory_recording(

@@ -135,6 +135,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "force_finite": config.force_finite,
         "max_open_streams": config.max_open_streams,
         "tarred_random_access": config.tarred_random_access,
+        "split_shards": config.split_shards,
     }
     input_cfg = config.input_cfg
     if isinstance(input_cfg, (str, Path)):
@@ -276,12 +277,16 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
         shard_seed = config.shard_seed
         metadata_only = config.metadata_only
         force_finite = config.force_finite
+        split_shards = config.split_shards
         if config.get("cuts_path") is not None:
             warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
         if isinstance(config.shar_path, (str, Path)):
             logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
             cuts = CutSet.from_shar(
-                **_resolve_shar_inputs(config.shar_path, metadata_only), shuffle_shards=True, seed=shard_seed
+                **_resolve_shar_inputs(config.shar_path, metadata_only),
+                shuffle_shards=True,
+                seed=shard_seed,
+                split_for_dataloading=split_shards,
             )
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat()
@@ -298,7 +303,10 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
                 if isinstance(item, (str, Path)):
                     path = item
                     cs = CutSet.from_shar(
-                        **_resolve_shar_inputs(path, metadata_only), shuffle_shards=True, seed=shard_seed
+                        **_resolve_shar_inputs(path, metadata_only),
+                        shuffle_shards=True,
+                        seed=shard_seed,
+                        split_for_dataloading=split_shards,
                     )
                     weight = len(cs)
                 else:
@@ -310,7 +318,10 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
                     )
                     path, weight = item
                     cs = CutSet.from_shar(
-                        **_resolve_shar_inputs(path, metadata_only), shuffle_shards=True, seed=shard_seed
+                        **_resolve_shar_inputs(path, metadata_only),
+                        shuffle_shards=True,
+                        seed=shard_seed,
+                        split_for_dataloading=split_shards,
                     )
                 logging.info(f"- {path=} {weight=}")
                 cutsets.append(cs)
@@ -330,7 +341,9 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
             )
             if metadata_only:
                 fields = {"cuts": fields["cuts"]}
-            cuts = CutSet.from_shar(fields=fields, shuffle_shards=True, seed=shard_seed)
+            cuts = CutSet.from_shar(
+                fields=fields, shuffle_shards=True, seed=shard_seed, split_for_dataloading=split_shards
+            )
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat()
         else:
@@ -418,6 +431,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
     notar_kwargs = {"metadata_only": config.metadata_only}
     metadata_only = config.metadata_only
     force_finite = config.force_finite
+    split_shards = config.split_shards
     if isinstance(config.manifest_filepath, (str, Path)):
         logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
         if is_tarred and not metadata_only:
@@ -426,6 +440,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     config.manifest_filepath,
                     tar_paths=config.tarred_audio_filepaths,
                     tarred_random_access=config.tarred_random_access,
+                    split_shards=split_shards,
                     **common_kwargs,
                 )
             )
@@ -468,6 +483,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     manifest_path=manifest_path,
                     tar_paths=tar_path,
                     tarred_random_access=config.tarred_random_access,
+                    split_shards=split_shards,
                     **common_kwargs,
                 )
             else:
