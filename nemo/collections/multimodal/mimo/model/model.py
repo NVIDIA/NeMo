@@ -1,14 +1,27 @@
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import torch
+from megatron.core.extensions.transformer_engine import (
+    TEColumnParallelLinear,
+    TEDotProductAttention,
+    TELayerNormColumnParallelLinear,
+    TENorm,
+    TERowParallelLinear,
+)
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
+from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
 from megatron.core.transformer.enums import ModelType
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
 from nemo.collections.multimodal.mimo.model.gpt import MimoGPTModel
-from nemo.collections.multimodal.mimo.model.projection import TransformersProjector
+from nemo.collections.multimodal.mimo.model.projection import Baseconfig, TempPoolingHead, TransformersProjector
 
 
 class CustomMimoModel(MCoreLLaVAModel):
@@ -107,9 +120,34 @@ class CustomMimoModel(MCoreLLaVAModel):
         #         projector_type="mlp" ,
         #         input_size=vision_output_projection_config.input_size,
         #     )
-        self.vision_output_projection_module = TransformersProjector(
-            in_features=self.config.hidden_size, out_features=1024, num_query_token=77
-        )  # Yash : TODO Fix hard coding
+        # self.vision_output_projection_module = TransformersProjector(
+        #     in_features=self.config.hidden_size, out_features=1024, num_query_token=77
+        # )  # Yash : TODO Fix hard coding
+        self.vision_output_projection_module = TempPoolingHead(
+            config=Baseconfig(),
+            submodules=TransformerLayerSubmodules(
+                cross_attention=ModuleSpec(
+                    module=CrossAttention,
+                    params={"attn_mask_type": MCoreAttnMaskType.no_mask},
+                    submodules=CrossAttentionSubmodules(
+                        linear_q=TEColumnParallelLinear,
+                        linear_kv=TEColumnParallelLinear,
+                        core_attention=TEDotProductAttention,
+                        linear_proj=TERowParallelLinear,
+                    ),
+                ),
+                cross_attn_bda=get_bias_dropout_add,
+                mlp=ModuleSpec(
+                    module=MLP,
+                    submodules=MLPSubmodules(
+                        linear_fc1=TELayerNormColumnParallelLinear,
+                        linear_fc2=TERowParallelLinear,
+                    ),
+                ),
+                mlp_bda=get_bias_dropout_add,
+            ),
+            num_query_token=77,
+        )
 
     def get_image_caption_embeddings(self, text_input):
         with torch.no_grad():
@@ -246,6 +284,9 @@ class CustomMimoModel(MCoreLLaVAModel):
         device = output_images.device
         image_decoder = self.image_decoder.to(device)
         image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
+        # if torch.distributed.get_rank() == 0:
+        #     breakpoint()
+        # torch.distributed.barrier()
         if new_labels is not None:
             special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
             for idx in self.model_config.image_special_token_indices:
@@ -273,10 +314,15 @@ class CustomMimoModel(MCoreLLaVAModel):
                 input_ids=special_token_indices, position_ids=special_token_positions
             )
             special_token_embeddings = special_token_embeddings.transpose(0, 1)  # change to b,s,h
-
+            if torch.distributed.get_rank() == 0:
+                breakpoint()
+            torch.distributed.barrier()
             output_projection_embeddings = self.vision_output_projection_module(
                 selected_hidden_states + special_token_embeddings
             )  # (bs, no_special_tokens, 1024)
+            if torch.distributed.get_rank() == 0:
+                breakpoint()
+            torch.distributed.barrier()
             # Image caption embeddings
             image_caption_embeddings = image_caption_embeddings.to(
                 output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
