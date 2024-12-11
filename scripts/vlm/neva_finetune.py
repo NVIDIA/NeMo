@@ -41,7 +41,7 @@ def main(args):
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 2048
+    decoder_seq_length = 4096
 
     if args.data_type == "llava":
         # Data configuration

@@ -144,7 +144,7 @@ class _MockNevaDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
+        # tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
         labels = tokens.clone()
         images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
         tokens = tokens[:-1]
@@ -164,6 +164,7 @@ class _MockNevaDataset(Dataset):
         """
         collated_batch = data.dataloader.default_collate(batch)
         collated_batch["attention_mask"] = None
+        collated_batch["media"] = torch.zeros((0, 0, 0), dtype=torch.float32)
         return collated_batch
 
     def collate_fn(self, batch):

@@ -190,15 +190,15 @@ def neva_data_step(dataloader_iter, config) -> Dict[str, torch.Tensor]:
         for key, val in _batch.items()
     }
 
-    if cp_size > 1:
+    if config.sequence_parallel or cp_size > 1:
         # Calculate the number of image embedding tokens will be added to text tokens
         num_image_embeddings_per_tile = config.vision_transformer_config.num_image_embeddings_per_tile
         # Pad to make sure the text sequence can be sharded equally by CP chunks.
         mp_padding_needed_for_text = calculate_model_parallel_padding(config, _batch["tokens"].shape[1], text_only=True)
         if mp_padding_needed_for_text > 0:
             _batch["tokens"], _batch["position_ids"], _batch["labels"], _batch["loss_mask"] = \
-                [torch.nn.functional.pad(item, (0, mp_padding_needed_for_text)) for item in
-                 (_batch["tokens"], _batch["position_ids"], _batch["labels"], _batch["loss_mask"])]
+                [torch.nn.functional.pad(item, (0, mp_padding_needed_for_text)) if item is not None else None
+                 for item in (_batch["tokens"], _batch["position_ids"], _batch["labels"], _batch["loss_mask"])]
         # Image token mask must be supplied before distributed sequence to CP ranks.
         image_token_mask = _batch["tokens"] == IMAGE_TOKEN_INDEX
         num_images_per_sample = torch.sum(image_token_mask, dim=-1)
