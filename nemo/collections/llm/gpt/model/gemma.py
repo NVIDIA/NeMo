@@ -54,6 +54,8 @@ class GemmaConfig(GPTConfig):
     # Legacy NeMo does not set layernorm_zero_centered_gamma and instead adds 1 in the HF -> NeMo conversion script
     # The present implementation is more in line with the official implementation
     layernorm_zero_centered_gamma: bool = True
+    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
+    attention_backend: AttnBackend = AttnBackend.flash
 
 
 @dataclass
@@ -72,9 +74,6 @@ class GemmaConfig7B(GemmaConfig):
     num_attention_heads: int = 16
     num_query_groups: int = 16
     ffn_hidden_size: int = 24576
-
-    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
-    attention_backend: AttnBackend = AttnBackend.flash
 
 
 class CodeGemmaConfig2B(GemmaConfig2B):
