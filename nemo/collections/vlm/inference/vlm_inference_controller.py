@@ -29,9 +29,11 @@ class TokenizerWrapper:
         self._tokenizer = tokenizer
 
     def detokenize(self, tokens):
+        # pylint: disable=C0115,C0116
         return self._tokenizer.decode(tokens, skip_special_tokens=True)
 
     def tokenize(self, prompt):
+        # pylint: disable=C0115,C0116
         return self._tokenizer.encode(prompt, add_special_tokens=False)
 
 
@@ -41,6 +43,7 @@ class VLMTextGenerationController(SimpleTextGenerationController):
         self.image_processor = image_processor
 
     def tokenize_prompt(self, prompt: str, image):
+        # pylint: disable=C0115,C0116
         tokens = self.tokenizer.tokenize(prompt)
         if image is None:
             image_dict = dict(

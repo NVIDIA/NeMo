@@ -47,6 +47,7 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
         prompts_tokens: torch.Tensor,
         image_dict: List[Dict] = None,
     ):
+        # pylint: disable=C0115,C0116
         super().prep_model_for_inference(prompts_tokens=prompts_tokens)
         max_num_concurrent_media = max(instance['pixel_values'].shape[0] for instance in image_dict)
         for instance in image_dict:
@@ -79,6 +80,7 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
         self.inference_params.full_text_row_masked_out_mask = None
 
     def get_batch_for_context_window(self, context_start_position: int, context_end_position: int) -> List:
+        # pylint: disable=C0115,C0116
         tokens2use = self.prompts_tokens[:, context_start_position:context_end_position]
         positions2use = self.position_ids[:, context_start_position:context_end_position]
         data_at_step_idx = [tokens2use, positions2use]
@@ -92,8 +94,8 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
         any parallelism or only tensor parallelism.
 
         Args:
-            inference_input (List): A list containg the inputs for the gpt
-                model [tokens, position ids, attention mask]
+            inference_input (List): A list containg the inputs for the vlm
+                model [tokens, position ids]
 
         Returns:
             torch.Tensor: The output logits of shape [batch_size, seq_len, padded_vocab_size]

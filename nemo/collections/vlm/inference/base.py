@@ -41,7 +41,7 @@ def setup_inference_wrapper(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
 ):
-
+    """Set up inference wrapper for the model"""
     config = model.config
 
     mcore_model = model.module.cuda()
@@ -87,18 +87,19 @@ def generate(
     tokenizer,
     image_processor,
     prompts: list[str],
-    images,
+    images: list,
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
     inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
     """
-    Generates text using a NeMo mllama model.
+    Generates text using a NeMo VLM model.
     Args:
         model (VLMInferenceWrapper): The model inference wrapper.
         tokenizer: tokenizer for the input text,
         image_processor: image processor for the input image,
         prompts (list[str]): The list of prompts to generate text for.
+        images (list): The list of images to generate text for.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
         random_seed (Optional[int], optional): The random seed. Defaults to None.
         inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in

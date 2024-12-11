@@ -28,6 +28,7 @@ class VLMEngine(MCoreEngine):
         images: List[Image] = None,
         common_inference_params: CommonInferenceParams = None,
     ) -> dict:
+        # pylint: disable=C0115,C0116
         if self.random_seed:
             torch.random.manual_seed(self.random_seed)
 
