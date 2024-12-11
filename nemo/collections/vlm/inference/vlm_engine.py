@@ -33,10 +33,6 @@ class VLMEngine(MCoreEngine):
         if self.random_seed:
             torch.random.manual_seed(self.random_seed)
 
-        self.text_generation_controller.inference_wrapped_model.max_output_len = (
-            common_inference_params.num_tokens_to_generate
-        )
-
         for i in range(len(prompts)):
             prompt = prompts[i]
             image = images[i] if images is not None else None

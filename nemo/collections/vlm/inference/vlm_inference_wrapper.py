@@ -40,7 +40,6 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
 
     def __init__(self, model, args: Namespace):
         super().__init__(model, args)
-        self.max_output_len = 0
 
     def prep_model_for_inference(
         self,
@@ -74,7 +73,7 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
         self.num_tiles = batch['num_tiles']
         self.aspect_ratio_ids = batch['aspect_ratio_ids'].cuda(non_blocking=True)
 
-        self.inference_params = InferenceParams(batch_size, seq_length + self.max_output_len)
+        self.inference_params = InferenceParams(batch_size, seq_length)
         self.inference_params.xattn_caches = None
         self.inference_params.cross_attention_masks = None
         self.inference_params.full_text_row_masked_out_mask = None
