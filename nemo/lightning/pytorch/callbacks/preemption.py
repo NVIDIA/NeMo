@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextlib
+import importlib.util
 import signal
 import sys
 from typing import Optional
@@ -69,7 +70,8 @@ class PreemptionCallback(Callback, IOMixin):
             if trainer.checkpoint_callback:
                 monitor_candidates = trainer.checkpoint_callback._monitor_candidates(trainer)
                 trainer.checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
-                if isinstance(trainer.strategy.checkpoint_io, AsyncFinalizableCheckpointIO):
+                mcore_available = importlib.util.find_spec("megatron.core")
+                if mcore_available and isinstance(trainer.strategy.checkpoint_io, AsyncFinalizableCheckpointIO):
                     logging.info("Async checkpointing detected, waiting for it to complete")
                     trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
                 sys.exit(0)
