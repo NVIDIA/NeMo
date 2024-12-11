@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union, Tuple
 
 import numpy as np
 import safetensors
@@ -48,6 +48,7 @@ from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import TOKENIZER_CONFIG_FILE, get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
+from nemo.export.trt_llm.utils import is_rank
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import (
     generate,
@@ -185,6 +186,7 @@ class TensorRTLLM(ITritonDeployable):
         fp8_kvcache: Optional[bool] = None,
         gather_context_logits: Optional[bool] = False,
         gather_generation_logits: Optional[bool] = False,
+        build_rank: Union[int, List[int], Tuple[int], None] = 0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -222,6 +224,7 @@ class TensorRTLLM(ITritonDeployable):
             fp8_kvcache (Optional[bool]): enables FP8 KV-cache quantization. If not set, autodetects the type.
             gather_context_logits (Optional[bool]): if True, enables gather_context_logits while building trtllm engine. Default: False
             gather_generation_logits (Optional[bool]): if True, enables gather_generation_logits while building trtllm engine. Default: False
+            build_rank (Union[int, List[int], Tuple[int], None]): rank to export the model on. If None, builds on all ranks.
         """
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
@@ -264,7 +267,9 @@ class TensorRTLLM(ITritonDeployable):
             )
             max_batch_size = 4
 
-        if tensorrt_llm.mpi_rank() == 0:
+        is_export_rank = is_rank(build_rank)
+
+        if is_export_rank:
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
@@ -471,7 +476,7 @@ class TensorRTLLM(ITritonDeployable):
         if tensorrt_llm.mpi_world_size() > 1:
             tensorrt_llm.mpi_barrier()
 
-        if load_model:
+        if is_export_rank and load_model:
             self._load()
 
     def get_transformer_config(self, nemo_model_config):
