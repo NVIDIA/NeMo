@@ -74,6 +74,9 @@ class LlamaConverter(ModelConverter):
         heads_per_group = head_num // num_query_groups
         qkv_total_dim = head_num + 2 * num_query_groups
 
+        # Standarize NeMo 2.0 and NeMo 1.0 naming
+        state_dict = { k.replace('module', 'model') : v for k, v in state_dict.items() }
+
         yield ('model.embed_tokens.weight', state_dict['model.embedding.word_embeddings.weight'])
         yield ('model.norm.weight', state_dict['model.decoder.final_layernorm.weight'])
         yield ('lm_head.weight', state_dict['model.output_layer.weight'])

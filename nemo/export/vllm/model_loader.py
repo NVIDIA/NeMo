@@ -22,14 +22,40 @@ import safetensors.torch
 import tensorstore  # needed to register 'bfloat16' dtype with numpy for zarr compatibility
 import torch
 import zarr
+
+from pathlib import Path
+from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
+from torch.distributed.checkpoint.metadata import TensorStorageMetadata
 from vllm.config import CacheConfig, DeviceConfig, LoRAConfig, ModelConfig, ParallelConfig, SchedulerConfig
 from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize_model
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.vllm.model_config import NemoModelConfig
+from .utils import is_nemo2_checkpoint
 
 LOGGER = logging.getLogger("NeMo")
+
+
+def load_sharded_metadata_torch_dist(checkpoint_dir: str):
+    weights_dir = Path(checkpoint_dir) / 'weights'
+    fs_reader = FileSystemReader(weights_dir)
+    metadata = fs_reader.read_metadata()
+
+    state_dict = {
+        k: torch.empty(tp.size, dtype=tp.properties.dtype)
+        for k, tp in metadata.state_dict_metadata.items()
+        if isinstance(tp, TensorStorageMetadata)
+    }
+
+    load_state_dict(
+        state_dict,
+        storage_reader=fs_reader,
+        no_dist=True,
+    )
+
+    return state_dict
 
 
 class NemoModelLoader(BaseModelLoader):
@@ -43,6 +69,9 @@ class NemoModelLoader(BaseModelLoader):
 
     @staticmethod
     def _load_nemo_checkpoint_state(nemo_file: str):
+        if is_nemo2_checkpoint(nemo_file):
+            return load_sharded_metadata_torch_dist(nemo_file)
+
         sharded_state_dict = {}
 
         LOGGER.info(f'Loading weights from {nemo_file}...')
@@ -92,8 +121,11 @@ class NemoModelLoader(BaseModelLoader):
             with torch.device(device_config.device):
                 model = _initialize_model(model_config, self.load_config, lora_config, cache_config)
 
-            weights_iterator = model_config.model_converter.convert_weights(model_config.nemo_model_config, state_dict)
+            nemo_config = model_config.nemo_model_config
+            if 'config' in nemo_config:
+                nemo_config = nemo_config['config']
 
+            weights_iterator = model_config.model_converter.convert_weights(nemo_config, state_dict)
             model.load_weights(weights_iterator)
 
         return model.eval()

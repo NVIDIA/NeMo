@@ -25,6 +25,30 @@ from nemo.export.vllm.tokenizer_group import NemoTokenizerGroup
 LOGGER = logging.getLogger("NeMo")
 
 
+class VLLMTokenizerGroup(TokenizerGroup):
+    """A group of tokenizers that can be used for LoRA adapters."""
+
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+
+    def get_lora_tokenizer(self, lora_request):
+        return self.tokenizer
+
+    async def get_lora_tokenizer_async(self, lora_request):
+        return self.tokenizer
+
+    @classmethod
+    def from_config(cls, tokenizer_pool_config = None, **init_kwargs):
+        raise NotImplementedError
+
+    def ping(self) -> bool:
+        return True
+
+    @property
+    def max_input_length(self, lora_request = None):
+        return None
+
+
 class NemoLLMEngine(LLMEngine):
     """
     Overrides some functionality from vllm.LLMEngine to use our custom tokenizer
@@ -32,6 +56,9 @@ class NemoLLMEngine(LLMEngine):
     """
 
     def _init_tokenizer(self, **tokenizer_init_kwargs):
+        if tokenizer := self.model_config.nemo_model_config.get('tokenizer', None):
+            return VLLMTokenizerGroup(tokenizer.tokenizer)
+
         # Find the tokenizer file name in the Nemo checkpoint config
         tokenizer_config = self.model_config.nemo_model_config.get('tokenizer', {})
         tokenizer_model = tokenizer_config.get('model', tokenizer_config.get('tokenizer_model', None))

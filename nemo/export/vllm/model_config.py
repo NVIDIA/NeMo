@@ -16,13 +16,15 @@ from typing import Any, Dict, Optional, Union
 
 import torch
 import yaml
+from pathlib import Path
+
 from transformers import AutoConfig
 from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
 from nemo.export.vllm.model_converters import get_model_converter
-
+from .utils import is_nemo2_checkpoint
 
 class NemoModelConfig(ModelConfig):
     """
@@ -101,26 +103,47 @@ class NemoModelConfig(ModelConfig):
             'initializer_range': 'init_method_std',
             'norm_epsilon': 'layernorm_epsilon',
             'rope_theta': 'rotary_base',
-            'use_bias': 'bias',
+            'use_bias': ['bias', 'add_bias_linear'],
         }
 
-        with TarPath(nemo_checkpoint) as archive:
-            with (archive / "model_config.yaml").open("r") as model_config_file:
-                self.nemo_model_config = yaml.load(model_config_file, Loader=yaml.SafeLoader)
+        if is_nemo2_checkpoint(nemo_checkpoint):
+            from nemo.lightning import io
 
-                hf_args = {}
-                for hf_arg, nemo_arg in hf_to_nemo_dict.items():
-                    if not isinstance(nemo_arg, list):
-                        nemo_arg = [nemo_arg]
+            nemo_checkpoint: Path = Path(nemo_checkpoint)
+            self.nemo_model_config: dict = yaml.load((nemo_checkpoint / "context/model.yaml").open('r'), Loader=yaml.SafeLoader)
+            hf_args = {}
+            for hf_arg, nemo_arg in hf_to_nemo_dict.items():
+                if not isinstance(nemo_arg, list):
+                    nemo_arg = [nemo_arg]
 
-                    for nemo_arg_option in nemo_arg:
-                        value = self.nemo_model_config.get(nemo_arg_option)
-                        if value is not None:
-                            hf_args[hf_arg] = value
-                            break
+                for nemo_arg_option in nemo_arg:
+                    value = self.nemo_model_config['config'].get(nemo_arg_option)
+                    if value is not None:
+                        hf_args[hf_arg] = value
+                        break
 
-                self.model_converter.convert_config(self.nemo_model_config, hf_args)
+            tokenizer = io.load_context((nemo_checkpoint / "context"), subpath="model.tokenizer")
+            hf_args['vocab_size'] = tokenizer.original_vocab_size
+            self.model_converter.convert_config(self.nemo_model_config['config'], hf_args)
+            self.hf_config = AutoConfig.for_model(model_type, **hf_args)
+            self.nemo_model_config['tokenizer'] = tokenizer
+        else:
+            with TarPath(nemo_checkpoint) as archive:
+                with (archive / "model_config.yaml").open("r") as model_config_file:
+                    self.nemo_model_config = yaml.load(model_config_file, Loader=yaml.SafeLoader)
 
+                    hf_args = {}
+                    for hf_arg, nemo_arg in hf_to_nemo_dict.items():
+                        if not isinstance(nemo_arg, list):
+                            nemo_arg = [nemo_arg]
+
+                        for nemo_arg_option in nemo_arg:
+                            value = self.nemo_model_config.get(nemo_arg_option)
+                            if value is not None:
+                                hf_args[hf_arg] = value
+                                break
+
+                    self.model_converter.convert_config(self.nemo_model_config, hf_args)
                 self.hf_config = AutoConfig.for_model(model_type, **hf_args)
 
         self.hf_config.architectures = [self.model_converter.get_architecture()]
