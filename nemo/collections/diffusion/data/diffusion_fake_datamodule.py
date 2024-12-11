@@ -145,15 +145,16 @@ class DiTVideoLatentFakeDataset(torch.utils.data.Dataset):
 
 
 class STDiTVideoLatentFakeDataset(DiTVideoLatentFakeDataset):
-    def __init__(self, 
-                 n_frames, 
-                 max_h, 
-                 max_w, 
-                 patch_size, 
-                 in_channels,
-                 crossattn_emb_size,
-                 max_text_seqlen=512,
-                 seq_length=8192,
+    def __init__(
+        self,
+        n_frames,
+        max_h,
+        max_w,
+        patch_size,
+        in_channels,
+        crossattn_emb_size,
+        max_text_seqlen=512,
+        seq_length=8192,
     ):
         super().__init__(
             n_frames=n_frames,
@@ -173,12 +174,12 @@ class STDiTVideoLatentFakeDataset(DiTVideoLatentFakeDataset):
         p = self.patch_size
         c = self.in_channels
 
-        video_latent = torch.ones((c, t, h, w), dtype=torch.bfloat16)*0.5
+        video_latent = torch.ones((c, t, h, w), dtype=torch.bfloat16) * 0.5
         text_embedding = torch.randn(self.text_seqlen, self.text_dim, dtype=torch.bfloat16)
 
         # calculate seq_length
         seq_length = t * (h // p) * (w // p)
-        
+
         return {
             'video': video_latent,
             't5_text_embeddings': text_embedding,
@@ -187,6 +188,7 @@ class STDiTVideoLatentFakeDataset(DiTVideoLatentFakeDataset):
             'pos_ids': torch.zeros((seq_length, 3), dtype=torch.int32),
             'loss_mask': torch.ones(seq_length, dtype=torch.bfloat16),
         }
+
 
 class VideoLatentFakeDataModule(pl.LightningDataModule):
     """A LightningDataModule for generating fake video latent data for training."""
@@ -261,6 +263,7 @@ class VideoLatentFakeDataModule(pl.LightningDataModule):
             **kwargs,
         )
 
+
 class STDiTLatentFakeDataModule(VideoLatentFakeDataModule):
     def __init__(
         self,
@@ -270,8 +273,8 @@ class STDiTLatentFakeDataModule(VideoLatentFakeDataModule):
         global_batch_size: int = 8,
         num_workers: int = 1,
         pin_memory: bool = True,
-        task_encoder = None,
-        use_train_split_for_val: bool = False,            
+        task_encoder=None,
+        use_train_split_for_val: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length

@@ -81,7 +81,7 @@ class STDiTModel(VisionModule):
         patch_spatial: int = 2,
         patch_temporal: int = 1,
         crossattn_emb_size: int = 1152,
-        input_sq_size: int = 512,                            # Todo: need to check its number  
+        input_sq_size: int = 512,  # Todo: need to check its number
         class_dropout_prob: float = 0.1,
         pred_sigma: bool = True,
         drop_path: float = 0.0,

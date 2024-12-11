@@ -25,8 +25,10 @@ from megatron.core.transformer.enums import AttnMaskType
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.collections.diffusion.data.diffusion_fake_datamodule import VideoLatentFakeDataModule
-from nemo.collections.diffusion.data.diffusion_fake_datamodule import STDiTVideoLatentFakeDataset
+from nemo.collections.diffusion.data.diffusion_fake_datamodule import (
+    STDiTVideoLatentFakeDataset,
+    VideoLatentFakeDataModule,
+)
 from nemo.collections.diffusion.data.diffusion_taskencoder import BasicDiffusionTaskEncoder
 from nemo.collections.diffusion.models.model import (
     DiT7BConfig,
@@ -38,8 +40,8 @@ from nemo.collections.diffusion.models.model import (
     DiTModel,
     DiTXLConfig,
     ECDiTLlama1BConfig,
-    STDiTXLConfig,
     STDiT3BConfig,
+    STDiTXLConfig,
 )
 from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
@@ -335,6 +337,7 @@ def pretrain_mock_test7b() -> run.Partial:
     )
     recipe.resume = None
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def pretrain_7b() -> run.Partial:
