@@ -114,7 +114,7 @@ def test_validate_dataset_asset_accessibility_file_is_none():  # tokenizer, trai
     assert raised_exception == True, "Expected to raise a ValueError"
 
 def test_load_from_dict():
-     data = {'text': "Below is an instruction that describes a task, paired with an input that "}
+    data = {'text': "Below is an instruction that describes a task, paired with an input that "}
 
     datamodule = llm.HFDatasetDataModule.from_dict(
         {"text": [data['text'] for _ in range(101)]},
