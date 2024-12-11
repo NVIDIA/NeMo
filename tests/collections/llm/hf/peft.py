@@ -47,9 +47,7 @@ if __name__ == '__main__':
 
     llm.api.finetune(
         model=llm.HFAutoModelForCausalLM(args.model),
-        data=llm.HFDatasetDataModule(DATA_PATH,
-            pad_token_id=tokenizer.tokenizer.eos_token_id
-        ),
+        data=llm.HFDatasetDataModule(DATA_PATH, pad_token_id=tokenizer.tokenizer.eos_token_id),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
