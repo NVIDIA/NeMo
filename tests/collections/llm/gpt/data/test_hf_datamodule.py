@@ -109,9 +109,12 @@ def test_validate_dataset_asset_accessibility_file_is_none():  # tokenizer, trai
             global_batch_size=2,
         )
     except ValueError as e:
-        raised_exception = str(e) == "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got <class 'NoneType'>"
+        raised_exception = (
+            str(e) == "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got <class 'NoneType'>"
+        )
 
     assert raised_exception == True, "Expected to raise a ValueError"
+
 
 def test_load_from_dict():
     data = {'text': "Below is an instruction that describes a task, paired with an input that "}

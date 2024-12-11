@@ -52,6 +52,7 @@ def make_dataset_splits(dataset, split, split_aliases):
     > }
     """
     from datasets import Dataset, DatasetDict
+
     split_names = ['train', 'test', 'val']
     dataset_splits = {_split: None for _split in split_names}
 
@@ -133,6 +134,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         super().__init__()
         assert pad_token_id is not None
         from datasets import Dataset, DatasetDict
+
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
@@ -146,8 +148,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
-            raise ValueError("Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "\
-                + str(type(path_or_dataset)))
+            raise ValueError(
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
+            )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
@@ -170,6 +173,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
         from datasets import Dataset
+
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
