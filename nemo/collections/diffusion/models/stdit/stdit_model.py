@@ -80,9 +80,15 @@ class STDiTModel(VisionModule):
         in_channels: int = 4,
         patch_spatial: int = 2,
         patch_temporal: int = 1,
+<<<<<<< HEAD
         crossattn_emb_size=1152,
         input_sq_size=512,  # Todo: need to check its number
         class_dropout_prob=0.1,
+=======
+        crossattn_emb_size: int = 1152,
+        input_sq_size: int = 512,                            # Todo: need to check its number  
+        class_dropout_prob: float = 0.1,
+>>>>>>> 3829fb214 (add stdit true data_config)
         pred_sigma: bool = True,
         drop_path: float = 0.0,
         caption_channels: int = 4096,
