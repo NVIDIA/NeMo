@@ -143,7 +143,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
             logging.info(f"Loading HF dataset from {path_or_dataset}")
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
         elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
-            dataset = path
+            logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
+            dataset = path_or_dataset
         else:
             raise ValueError("Expecter `path_or_dataset` to be str, Dataset, DatasetDict, but got "\
                 + str(type(path_or_dataset)))
