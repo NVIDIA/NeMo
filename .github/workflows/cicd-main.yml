@@ -2939,7 +2939,8 @@ jobs:
         model.data.train_ds.num_workers=0 \
         model.data.validation_ds.num_workers=0 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel]
+        model.data.validation_ds.names=[quarel] \
+        ++model.dist_ckpt_load_strictness=log_all
 
   L2_Megatron_GPT_Eval:
     needs: [cicd-test-container-setup]
