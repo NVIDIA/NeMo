@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import time
-import warnings
-from logging import warning
 
 import requests
 import torch
@@ -76,7 +74,7 @@ class NeMoFWLMEval(LM):
         elif isinstance(tokenizer, SentencePieceTokenizer):
             return "SentencePieceTokenizer"
         else:
-            warnings.warn(
+            raise ValueError(
                 "Tokenizer type is not one of SentencePieceTokenizer or HF's AutoTokenizer. Please check "
                 "how to handle special tokens for this tokenizer"
             )
