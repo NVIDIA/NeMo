@@ -243,35 +243,35 @@ model:
         weight: 1.0
         tags:
           lang: en
-          s2s_align: True
+          s2s: True
       - type: lhotse_shar
         # shar_path: /workspace/data/s2s_shars/msmacro/
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/msmacro/timestamp/
         weight: 0.2
         tags:
           lang: en
-          s2s_align: True
+          s2s: True
       - type: lhotse_shar
         # shar_path: /workspace/data/s2s_shars/alpaca/
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/alpaca/timestamp/
         weight: 0.1
         tags:
           lang: en
-          s2s_align: True
+          s2s: True
       - type: lhotse_shar
         # shar_path: /workspace/data/s2s_shars/squadv2/
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/squadv2/timestamp/
         weight: 0.05
         tags:
           lang: en
-          s2s_align: True
+          s2s: True
       - type: lhotse_shar
         # shar_path: /workspace/data/s2s_shars/msmacro_speech_instruct/
         shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/msmacro_speech_instruct/timestamp/
         weight: 0.2
         tags:
           lang: en
-          s2s_align: True
+          s2s: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -331,7 +331,7 @@ model:
           weight: 1.0
           tags:
             lang: en
-            s2s_align: True
+            s2s: True
           input_cfg:
             - type: lhotse_shar
               # shar_path: /workspace/data/s2s_shars/es_validation/ # ST
@@ -339,36 +339,36 @@ model:
               weight: 1.0
               tags:
                 lang: en
-                s2s_align: True
+                s2s: True
             - type: lhotse_shar
               # shar_path: /workspace/data/s2s_shars/msmacro/ # text SQA
               shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/msmacro/timestamp/
               weight: 1.0
               tags:
                 lang: en
-                s2s_align: True
+                s2s: True
             - type: lhotse_shar
               # shar_path: /workspace/data/s2s_shars/alpaca/ # text SQA
               shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/alpaca/timestamp/
               weight: 1.0
               tags:
                 lang: en
-                s2s_align: True
+                s2s: True
             - type: lhotse_shar
               # shar_path: /workspace/data/s2s_shars/squadv2/ # speech SQA
               shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/squadv2/timestamp/
               weight: 0.1
               tags:
                 lang: en
-                s2s_align: True
+                s2s: True
             - type: lhotse_shar
               # shar_path: /workspace/data/s2s_shars/msmacro_speech_instruct/ # speech SQA
               shar_path: /lustre/fsw/portfolios/llmservice/users/kevinhu/s2s/data/msmacro_speech_instruct/timestamp/
               weight: 0.9
               tags:
                 lang: en
-                s2s_align: True
-          
+                s2s: True
+
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
