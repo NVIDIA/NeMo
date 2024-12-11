@@ -130,7 +130,7 @@ class BertEmbeddingModel(BertModel):
         return embeddings_out
 
     @property
-    def training_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
+    def training_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
                 validation_step=False,
@@ -142,10 +142,10 @@ class BertEmbeddingModel(BertModel):
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
+    def validation_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._training_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
-                validation_step=False,
+            self._validation_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
+                validation_step=True,
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
