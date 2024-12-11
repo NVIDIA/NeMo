@@ -37,7 +37,7 @@ from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
 
-from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
+from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir, preprocess_common_state_dict_before_consistency_check
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
 
@@ -166,6 +166,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
+            preprocess_common_before_consistancy_check=preprocess_common_state_dict_before_consistency_check,
         )
 
     @override
