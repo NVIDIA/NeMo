@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import safetensors
@@ -48,7 +48,6 @@ from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import TOKENIZER_CONFIG_FILE, get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
-from nemo.export.trt_llm.utils import is_rank
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import (
     generate,
@@ -58,6 +57,7 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
     refit,
     unload_engine,
 )
+from nemo.export.trt_llm.utils import is_rank
 
 use_deploy = True
 try:
