@@ -58,7 +58,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            self._tokenizer = self.processor.tokenizer
+            self._tokenizer = AutoTokenizer(self.model_name, include_special_tokens=True, trust_remote_code=self.trust_remote_code)
         return self._tokenizer
 
     @tokenizer.setter
@@ -82,7 +82,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if self.load_pretrained_weights:
                 self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
                     self.model_name,
-                    torch_dtype='auto',
+                    torch_dtype=torch.bfloat16,
                     trust_remote_code=self.trust_remote_code,
                     use_safetensors=True,
                 )
@@ -95,38 +95,27 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if train:
             self.model.train()
 
-    def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
-        decoder_input_ids = torch.tensor([[1, 1]]) * self.model.config.decoder_start_token_id
-        with torch.cuda.amp.autocast():
-            outputs = self.model(
-                input_features=input_ids.to(self.model.device),
-                attention_mask=attention_mask,
-                decoder_input_ids=torch.tensor(decoder_input_ids).to(self.model.device),
-            )
-        labels = torch.tensor(labels).to(self.model.device)
-        if loss_mask is not None:
-            loss_mask = loss_mask.to(self.model.device).view(-1)
-
-        n_cls = outputs.logits.shape[-1]
-        outputs = outputs.logits.view(-1, n_cls)
-        labels = labels.reshape(-1)[0 : outputs.shape[0]]
-
-        outputs.loss = self.loss_fn(outputs, labels, loss_mask)
-        return outputs
-
-    def training_step(self, batch):
-        tokens = batch["input_features"]
-        labels = batch["labels"]
-
-        loss_mask = None  # batch.get('loss_mask', None)
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-            loss_mask=loss_mask,
+    def forward(self, input_features, decoder_input_ids, attention_mask=None):
+        return self.model(
+            input_features=input_features.to(self.model.device),
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
         )
 
-        loss = output.loss
-        self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
+    def training_step(self, batch):
+        decoder_input_ids = batch["labels"][:, :-1]
+        decoder_input_ids = decoder_input_ids.masked_fill(decoder_input_ids == -100, self.tokenizer.pad_id)
+        outputs = self.forward(input_features=batch["input_features"], decoder_input_ids=decoder_input_ids)
+
+        loss_mask = batch.get('loss_mask', None)
+        if loss_mask is not None:
+            loss_mask = loss_mask.to(self.model.device).view(-1)
+        n_cls = outputs.logits.shape[-1]
+        logits = outputs.logits.view(-1, n_cls)
+        labels = batch["labels"][:, 1:].reshape(-1)
+        loss = self.loss_fn(logits, labels, loss_mask)
+
+        self.log('loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):

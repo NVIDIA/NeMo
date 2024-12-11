@@ -24,6 +24,9 @@ from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_confi
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
+torch.set_float32_matmul_precision("medium")
+
+
 class LhotseHfNeMoDataset(torch.utils.data.Dataset):
     def __init__(self, processor):
         super().__init__()
@@ -61,28 +64,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     model = HFAutoModelForSpeechSeq2Seq(model_name=args.model)
+    model = model.to(torch.float)
     processor = model.processor
-    tokenizer = AutoTokenizer(args.model)
+    tokenizer = AutoTokenizer(args.model, include_special_tokens=True)
 
     config = OmegaConf.create(
         {
-            "cuts_path": "/opt/checkpoints/lhotse/libri/libri-train-5.jsonl.gz",
+            "cuts_path": "/data/mini-libri/cuts_train-clean-5.jsonl.gz",
             "sample_rate": 16000,
             "shuffle": True,
-            "use_lhotse": True,
-            "num_workers": 0,
-            # lhotse specific
-            "use_bucketing": True,
-            "concurrent_bucketing": False,
-            "num_buckets": 2,
-            "drop_last": False,
-            "batch_duration": 4.0,  # seconds
-            "quadratic_duration": 15.0,  # seconds
-            "shuffle_buffer_size": 10,
-            "bucket_buffer_size": 100,
-            "seed": 0,
-            "shard_seed": 0,
-            "pretokenize": True,
+            "num_workers": 2,
+            "batch_size": 4,
+            "shuffle_buffer_size": 100,
         }
     )
 
@@ -104,6 +97,7 @@ if __name__ == '__main__':
             max_steps=args.max_steps,
             accelerator=args.accelerator,
             strategy=args.strategy,
+            precision="bf16-mixed",
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
