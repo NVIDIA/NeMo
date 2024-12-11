@@ -99,9 +99,11 @@ def stdit_get_batch_on_this_cp_rank(data: Dict):
                 if len(value.shape) > 5:
                     value = value.squeeze(0)
                 if len(value.shape) == 5:
+                    # split in temporal dimension
                     B, C, T, H, W = value.shape
                     data[key] = torch.chunk(value, cp_size, dim=3)[cp_rank].contiguous()
                 else:
+                    # Todo: need to know T, H, W dimension size
                     B, S, D = value.shape
                     data[key] = value.view(B, cp_size, S // cp_size, D)[:, cp_rank, ...].contiguous()
                 # TODO: sequence packing

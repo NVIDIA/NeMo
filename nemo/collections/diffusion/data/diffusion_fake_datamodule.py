@@ -144,6 +144,50 @@ class DiTVideoLatentFakeDataset(torch.utils.data.Dataset):
         return self._collate_fn(batch)
 
 
+class STDiTVideoLatentFakeDataset(DiTVideoLatentFakeDataset):
+    def __init__(self, 
+                 n_frames, 
+                 max_h, 
+                 max_w, 
+                 patch_size, 
+                 in_channels,
+                 crossattn_emb_size,
+                 max_text_seqlen=512,
+                 seq_length=8192,
+    ):
+        super().__init__(
+            n_frames=n_frames,
+            max_h=max_h,
+            max_w=max_w,
+            patch_size=patch_size,
+            in_channels=in_channels,
+            crossattn_emb_size=crossattn_emb_size,
+            max_text_seqlen=max_text_seqlen,
+            seq_length=seq_length,
+        )
+
+    def __getitem__(self, idx):
+        t = self.max_t
+        h = self.max_height
+        w = self.max_width
+        p = self.patch_size
+        c = self.in_channels
+
+        video_latent = torch.ones((c, t, h, w), dtype=torch.bfloat16)*0.5
+        text_embedding = torch.randn(self.text_seqlen, self.text_dim, dtype=torch.bfloat16)
+
+        # calculate seq_length
+        seq_length = t * (h // p) * (w // p)
+        
+        return {
+            'video': video_latent,
+            't5_text_embeddings': text_embedding,
+            'seq_len_q': torch.tensor([seq_length], dtype=torch.int32).squeeze(),
+            'seq_len_kv': torch.tensor([self.text_seqlen], dtype=torch.int32).squeeze(),
+            'pos_ids': torch.zeros((seq_length, 3), dtype=torch.int32),
+            'loss_mask': torch.ones(seq_length, dtype=torch.bfloat16),
+        }
+
 class VideoLatentFakeDataModule(pl.LightningDataModule):
     """A LightningDataModule for generating fake video latent data for training."""
 
@@ -215,4 +259,40 @@ class VideoLatentFakeDataModule(pl.LightningDataModule):
             persistent_workers=True,
             collate_fn=dataset.collate_fn,
             **kwargs,
+        )
+
+class STDiTLatentFakeDataModule(VideoLatentFakeDataModule):
+    def __init__(
+        self,
+        model_config: DiTConfig,
+        seq_length: int = 2048,
+        micro_batch_size: int = 1,
+        global_batch_size: int = 8,
+        num_workers: int = 1,
+        pin_memory: bool = True,
+        task_encoder = None,
+        use_train_split_for_val: bool = False,            
+    ):
+        super().__init__()
+        self.seq_length = seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
+        self.num_workers = num_workers
+        self.model_config = model_config
+
+        self.data_sampler = MegatronDataSampler(
+            seq_len=self.seq_length,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+        )
+
+    def setup(self, stage: str = "") -> None:
+        self._train_ds = STDiTVideoLatentFakeDataset(
+            n_frames=self.model_config.max_frames,
+            max_h=self.model_config.max_img_h,
+            max_w=self.model_config.max_img_w,
+            patch_size=self.model_config.patch_spatial,
+            in_channels=self.model_config.in_channels,
+            crossattn_emb_size=self.model_config.crossattn_emb_size,
+            seq_length=self.seq_length,
         )
