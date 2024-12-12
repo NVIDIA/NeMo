@@ -18,11 +18,10 @@ from lhotse.dataset.collation import collate_matrices, collate_vectors
 from omegaconf import OmegaConf
 
 from nemo import lightning as nl
-from nemo.collections import llm
-from nemo.collections.asr.models.hf_auto_model_for_speech_seq2seq import HFAutoModelForSpeechSeq2Seq
+from nemo.collections import speechlm
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
+from nemo.collections.speechlm.models import HFAutoModelForSpeechSeq2Seq
 
 torch.set_float32_matmul_precision("medium")
 
@@ -70,7 +69,7 @@ if __name__ == '__main__':
 
     config = OmegaConf.create(
         {
-            "cuts_path": "/data/mini-libri/cuts_train-clean-5.jsonl.gz",
+            "cuts_path": "/opt/checkpoints/lhotse/libri/libri-train-5.jsonl.gz",
             "sample_rate": 16000,
             "shuffle": True,
             "num_workers": 2,
@@ -89,7 +88,9 @@ if __name__ == '__main__':
         tokenizer=tokenizer,
     )
 
-    llm.api.finetune(
+    from nemo.collections import llm
+
+    speechlm.api.finetune(
         model=model,
         data=train_dataloader,
         trainer=nl.Trainer(
