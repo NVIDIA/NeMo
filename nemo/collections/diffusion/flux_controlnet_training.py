@@ -82,7 +82,7 @@ def main(args):
     model = MegatronFluxControlNetModel(model_params, flux_controlnet_config)
 
     ddp = DistributedDataParallelConfig(
-        use_custom_fsdp=False,
+        use_custom_fsdp=True,
         data_parallel_sharding_strategy='MODEL_AND_OPTIMIZER_STATES',
         overlap_param_gather=True,
         overlap_grad_reduce=True,
@@ -98,7 +98,7 @@ def main(args):
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
-        save_last=False,
+        save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
         every_n_train_steps=1000,
