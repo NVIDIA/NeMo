@@ -126,7 +126,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
-        output = self.forward(**batch)
+        outputs = self.forward(**batch)
 
         logits, labels = align_labels(outputs.logits.float(), labels)
         assert logits.shape[-2] == labels.shape[-1]
