@@ -33,7 +33,7 @@ class DataSampler:
         raise NotImplementedError()
 
 
-class MegatronDataSampler(DataSampler):
+class MegatronDataSampler(DataSampler, ):
     def __init__(
         self,
         seq_len: int,
@@ -41,8 +41,6 @@ class MegatronDataSampler(DataSampler):
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
         dataloader_type: Literal["single", "cyclic", "batch"] = "single",
-        init_consumed_samples: int = 0,
-        init_global_step: int = 0,
         output_log: bool = True,
         decoder_seq_len: Optional[int] = None,
     ):
@@ -53,11 +51,8 @@ class MegatronDataSampler(DataSampler):
         self.global_batch_size = global_batch_size
         self.rampup_batch_size = rampup_batch_size
         self.dataloader_type = dataloader_type
-        self.init_consumed_samples = init_consumed_samples
-        self.prev_consumed_samples = self.init_consumed_samples
         self.if_first_step = 0
         self.prev_global_batch_size = None
-        self.init_global_step = init_global_step
 
     def setup(self, global_rank: int) -> None:
         from nemo.lightning.data import setup_microbatch_calculator
@@ -73,12 +68,13 @@ class MegatronDataSampler(DataSampler):
 
         data_parallel_rank = parallel_state.get_data_parallel_rank()
         data_parallel_size = parallel_state.get_data_parallel_world_size()
+        init_consumed_samples = self.compute_consumed_samples(self.trainer.global_step)
         return add_megatron_sampler(
             dataloader,
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
             rampup_batch_size=self.rampup_batch_size,
-            consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
+            consumed_samples=init_consumed_samples if mode == 'train' else 0,
             dataloader_type=self.dataloader_type,
             drop_last=mode not in ["test", "predict"],  # don't drop the incomplete batch in test and predict methods
             dataloader_mode=mode,  # dataloader wrapped with nemo.lightning.data.WrappedDataLoader has mode attribute
@@ -98,8 +94,7 @@ class MegatronDataSampler(DataSampler):
             consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
         else:
             consumed_samples = (
-                self.init_consumed_samples
-                + steps_since_resume * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
+                steps_since_resume * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
             )
 
         return int(consumed_samples)
@@ -138,10 +133,8 @@ class MegatronDataSampler(DataSampler):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
-        self.prev_global_batch_size = self.current_global_batch_size
-
         if step.step_i:
-            consumed_samples = self.compute_consumed_samples(step.step_i + 1 - self.init_global_step)
+            consumed_samples = self.compute_consumed_samples(step.step_i + 1)
             if self.output_log and trainer and getattr(trainer, "training", False):
                 # You may need to turn off logging, for example when doing trainer.predict(model, data)
                 pl_module.log(
@@ -193,3 +186,5 @@ class MegatronDataSampler(DataSampler):
             current_global_batch_size = 1
 
         return current_global_batch_size
+
+    ##  NOTE: datasamplers don't have state dicts, so can't use that
