@@ -15,6 +15,7 @@ import argparse
 import os
 from dataclasses import dataclass
 
+import torch
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
@@ -54,7 +55,9 @@ if __name__ == '__main__':
 
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
-        pipeline_parallel_size=args.pp_size,
+        pipeline_model_parallel_size=args.pp_size,
+        # Pipeline dtype is coupled with the bf16 mixed precision plugin
+        pipeline_dtype=torch.bfloat16,
     )
 
     trainer = nl.Trainer(
@@ -94,7 +97,7 @@ if __name__ == '__main__':
         ),
     )
 
-    if args.peft in llm.peft.PEFT_STR2CLS.keys():
+    if args.peft in llm.peft.PEFT_STR2CLS:
         peft = llm.peft.PEFT_STR2CLS[args.peft]()
     else:
         peft = None
