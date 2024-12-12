@@ -29,6 +29,17 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
+def align_labels(logits, labels):
+    logits = logits.float()
+    n_cls = logits.shape[-1]
+    if logits.shape[-2] == labels.shape[-1]:
+        logits = logits[..., :-1, :].contiguous()
+        labels = labels[..., 1:].contiguous()
+    elif logits.shape[-2] == labels.shape[-1] + 1:
+        logits = logits[..., :-1, :].contiguous()
+    else:
+        raise ValueError("Mismatched labels and logits shapes (" + str(labels.shape) + " " + str(logits.shape))
+    return logits.view(-1, n_cls), labels.view(-1)
 
 class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
@@ -80,38 +91,35 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForImageTextToText.from_config(config, trust_remote_code=self.trust_remote_code)
         self.model.train()
 
-    def forward(self, batch):
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
-        outputs = self.model(**batch)
-        if loss_mask is not None:
-            loss_mask = loss_mask.to(self.model.device).view(-1)
 
-        # Prepare for loss calculation
-        logits = outputs.logits.float()
-        n_cls = logits.shape[-1]
-        if logits.shape[-2] == labels.shape[-1]:
-            logits = logits[..., :-1, :].contiguous()
-            labels = labels[..., 1:].contiguous()
-        elif logits.shape[-2] == labels.shape[-1] + 1:
-            logits = logits[..., :-1, :].contiguous()
-        else:
-            raise ValueError("Mismatched labels and logits shapes (" + str(labels.shape) + " " + str(logits.shape))
-        assert logits.shape[-2] == labels.shape[-1]
-        outputs.loss = self.loss_fn(logits.view(-1, n_cls), labels.view(-1), loss_mask)
-        return outputs
+    def forward(self, batch):
+        return self.model(**batch)
 
     def training_step(self, batch):
-        output = self.forward(batch)
+        labels = batch.pop('labels').to(self.model.device)
+        loss_mask = batch.pop('loss_mask', None)
 
-        loss = output.loss
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        outputs = self.forward(batch)
+
+        # Prepare for loss calculation
+        logits, labels = align_labels(outputs.logits.float(), labels)
+        assert logits.shape[-2] == labels.shape[-1]
+
+        loss = self.loss_fn(logits, labels, loss_mask)
+        self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
+    @torch.no_grad
     def validation_step(self, batch, batch_idx):
-        output = self.forward(batch)
+        labels = batch.pop('labels').to(self.model.device)
+        loss_mask = batch.pop('loss_mask', None)
 
-        loss = output.loss
+        outputs = self.forward(**batch)
+
+        logits, labels = align_labels(outputs.logits.float(), labels)
+        assert logits.shape[-2] == labels.shape[-1]
+        loss = self.loss_fn(logits, labels, loss_mask)
+
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path):
