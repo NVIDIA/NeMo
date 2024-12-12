@@ -21,6 +21,11 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
 
+def clean_split(name):
+    if '[' in name:
+        return name.split('[')[0]
+    return name
+
 def make_dataset_splits(dataset, split, split_aliases):
     """
     Given a dataset (e.g. from datasets.load_dataset or datasets.Dataset.from_dict) it
@@ -62,8 +67,7 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     if isinstance(dataset, Dataset):
         assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
-        if '[' in split:
-            split = split.split('[')[0] # :/
+        split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
         dataset_split_names = dataset.keys()
@@ -75,7 +79,7 @@ def make_dataset_splits(dataset, split, split_aliases):
     elif isinstance(split, list):
         logging.info(f"Loaded HF dataset will use " + str(split) + " splits.")
         assert isinstance(dataset, list)
-        for i, alias_split_name in enumerate(split):
+        for i, alias_split_name in enumerate(map(clean_split, split)):
             split_name = alias_to_split[alias_split_name]
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = dataset[i]
