@@ -22,6 +22,7 @@ from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerat
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
+
 def make_squad_hf_dataset(data_path, tokenizer):
     EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
 
@@ -53,10 +54,11 @@ def make_squad_hf_dataset(data_path, tokenizer):
         formatting_prompts_func,
         batched=False,
         batch_size=2,
-        remove_columns=["id", "title", "context", "question", 'answers']
+        remove_columns=["id", "title", "context", "question", 'answers'],
     )
 
     return datamodule
+
 
 if __name__ == '__main__':
     import argparse

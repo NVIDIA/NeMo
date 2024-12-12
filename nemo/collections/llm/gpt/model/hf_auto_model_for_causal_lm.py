@@ -30,6 +30,7 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
+
 def align_labels(logits, labels):
     logits = logits.float()
     n_cls = logits.shape[-1]
@@ -41,6 +42,7 @@ def align_labels(logits, labels):
     else:
         raise ValueError("Mismatched labels and logits shapes (" + str(labels.shape) + " " + str(logits.shape))
     return logits.view(-1, n_cls), labels.view(-1)
+
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(

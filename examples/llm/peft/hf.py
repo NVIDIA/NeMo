@@ -42,18 +42,13 @@ def make_squad_hf_dataset(tokenizer):
         ans['labels'] = ans['input_ids']
         return ans
 
-
     tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad",
-        split="train[:100]",
-        pad_token_id=tokenizer.eos_token_id
-    )
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_token_id)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
         batch_size=2,
-        remove_columns=["id", "title", "context", "question", 'answers']
+        remove_columns=["id", "title", "context", "question", 'answers'],
     )
     return datamodule
 
