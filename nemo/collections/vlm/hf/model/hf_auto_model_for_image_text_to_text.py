@@ -154,7 +154,19 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             "<image>",
             "<pad>",
         ]
-        PAD_TOKENS = set(QWEN_TOKENS + LLAVA_TOKENS)
+        LLAMA_TOKENS = [
+            '<|begin_of_text|>',
+            '<|end_of_text|>',
+            '<|finetune_right_pad_id|>',
+            '<|step_id|>',
+            '<|start_header_id|>',
+            '<|end_header_id|>',
+            '<|eom_id|>',
+            '<|eot_id|>',
+            '<|python_tag|>',
+            '<|image|>',
+        ]
+        PAD_TOKENS = set(QWEN_TOKENS + LLAVA_TOKENS + LLAMA_TOKENS)
         tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
         skipped_token_ids = []
         for key, val in tokenizer.added_tokens_decoder.items():
