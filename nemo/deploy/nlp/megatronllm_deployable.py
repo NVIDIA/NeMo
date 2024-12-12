@@ -182,7 +182,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
     def get_triton_input(self):
         inputs = (
             Tensor(name="prompts", shape=(-1,), dtype=bytes),
-            Tensor(name="num_tokens_to_generate", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="max_length", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="max_batch_size", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
@@ -209,15 +209,15 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
             temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
             top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
-            num_tokens_to_generate = (
-                inputs.pop("num_tokens_to_generate")[0][0] if "num_tokens_to_generate" in inputs else 1
-            )
+            top_p = inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0
+            num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
             log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
             text_only = True
 
             inference_params = CommonInferenceParams(
                 temperature=temperature,
                 top_k=top_k,
+                top_p=top_p,
                 num_tokens_to_generate=num_tokens_to_generate,
                 return_log_probs=log_probs,
             )
@@ -231,7 +231,11 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 inference_params=inference_params,
             )
 
+            print("Prompt: ", prompts)
+            print("Results: ", results)
+
             output_texts = [r.generated_text if text_only else r for r in results]
+            print("Output: ", output_texts)
             output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
             if log_probs:
                 output_log_probs = []
