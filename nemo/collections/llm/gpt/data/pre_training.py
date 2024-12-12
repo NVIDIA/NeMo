@@ -204,7 +204,6 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.split = split
         self.index_mapping_dir = index_mapping_dir
         self.num_dataset_builder_threads = num_dataset_builder_threads
-        self.init_global_step = 0
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
@@ -322,7 +321,6 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         return self._create_dataloader(self._test_ds, mode="test")
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
-        self.init_global_step = self.trainer.global_step
         dataloader = WrappedDataLoader(
             mode=mode,
             dataset=dataset,
