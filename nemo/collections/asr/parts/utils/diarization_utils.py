@@ -596,76 +596,80 @@ def chunk_seglst(
     
     return chunk_id2timestamps, speakers, session_id
 
-def streaming_evaluation(
-    ref_seglst: List[Dict],
-    hyp_seglst: List[Dict],
-    collar: float = 0.25, 
-    ignore_overlap: bool = False, 
-    verbose: bool = True, 
-    chunk_size: float = 10.0,
-):
-    """
-    Perform streaming evaluation of diarization and ASR for one session
+# def streaming_evaluation(
+#     ref_seglst: List[Dict],
+#     ref_rttm_labels: List[str],
+#     hyp_seglst: List[Dict],
+#     collar: float = 0.25, 
+#     ignore_overlap: bool = False, 
+#     verbose: bool = True, 
+#     chunk_size: float = 10.0,
+# ):
+#     """
+#     Perform streaming evaluation of diarization and ASR for one session
 
-    Args:
-        ref_seglst (list): list of reference seglst dictionaries
-        hyp_seglst (list): list of hypothesis seglst dictionaries
-        collar (float): collar for DER calculation
-        ignore_overlap (bool): whether to ignore overlapping segments
-        verbose (bool): whether to print verbose output
-        chunk_size (float): how frequently to chunk and evaluate the session
-    """
-    max_duration = max([seg['end_time'] for seg in ref_seglst + hyp_seglst])
-    max_idx = int(max_duration // chunk_size) + 1
+#     Args:
+#         ref_seglst (list): list of reference seglst dictionaries
+#         hyp_seglst (list): list of hypothesis seglst dictionaries
+#         collar (float): collar for DER calculation
+#         ignore_overlap (bool): whether to ignore overlapping segments
+#         verbose (bool): whether to print verbose output
+#         chunk_size (float): how frequently to chunk and evaluate the session
+#     """
+#     max_duration = max([seg['end_time'] for seg in ref_seglst + hyp_seglst])
+#     max_idx = int(max_duration // chunk_size) + 1
 
-    chunked_ref_seglst, ref_speakers, ref_session_id = chunk_seglst(ref_seglst, chunk_size=chunk_size)
-    chunked_hyp_seglst, hyp_speakers, hyp_session_id = chunk_seglst(hyp_seglst, chunk_size=chunk_size)
+#     chunked_ref_seglst, ref_speakers, ref_session_id = chunk_seglst(ref_seglst, chunk_size=chunk_size)
+#     chunked_hyp_seglst, hyp_speakers, hyp_session_id = chunk_seglst(hyp_seglst, chunk_size=chunk_size)
 
-    if ref_session_id is None:
-        ref_session_id = hyp_session_id
+#     if ref_session_id is None:
+#         ref_session_id = hyp_session_id
 
-    assert ref_session_id == hyp_session_id, "Session IDs of reference and hypothesis should match"
+#     assert ref_session_id == hyp_session_id, "Session IDs of reference and hypothesis should match"
     
-    # Only care about the sessions in reference only
-    session_id = ref_session_id
-    ref_speaker_words = defaultdict(list)
-    hyp_speaker_words = defaultdict(list)
+#     # Only care about the sessions in reference only
+#     session_id = ref_session_id
+#     ref_speaker_words = defaultdict(list)
+#     hyp_speaker_words = defaultdict(list)
 
-    der_metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
-    cpwer_metric = calculate_session_cpWER
-    der_list, cpwer_list = [], []
-    for chunk_idx in range(max_idx):
-        ref_seglst = chunked_ref_seglst[chunk_idx]
-        hyp_seglst = chunked_hyp_seglst[chunk_idx]
+#     der_metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
+#     cpwer_metric = calculate_session_cpWER
+#     der_list, cpwer_list = [], []
+#     for chunk_idx in range(max_idx):
+#         ref_seglst = chunked_ref_seglst[chunk_idx]
+#         hyp_seglst = chunked_hyp_seglst[chunk_idx]
 
-        if len(ref_speaker_words) == 0:
-            ref_speaker_words = ['' for _ in ref_speakers]
-        if len(hyp_speaker_words) == 0:
-            hyp_speaker_words = ['' for _ in hyp_speakers]
-        ref_speaker_timestamps, ref_speaker_word = convert_seglst(ref_seglst, ref_speakers)
-        hyp_speaker_timestamps, hyp_speaker_word = convert_seglst(hyp_seglst, hyp_speakers)
+#         if len(ref_speaker_words) == 0:
+#             ref_speaker_words = ['' for _ in ref_speakers]
+#         if len(hyp_speaker_words) == 0:
+#             hyp_speaker_words = ['' for _ in hyp_speakers]
+#         if self.ref_rttm_labels is not None:
+#             ref_labels = self.ref_rttm_labels
+#         else:
+#             ref_speaker_timestamps, ref_speaker_word = convert_seglst(ref_seglst, ref_speakers)
+#             ref_labels = generate_diarization_output_lines(speaker_timestamps=ref_speaker_timestamps, model_spk_num=len(ref_speakers))
+#         hyp_speaker_timestamps, hyp_speaker_word = convert_seglst(hyp_seglst, hyp_speakers)
 
-        ref_labels = generate_diarization_output_lines(speaker_timestamps=ref_speaker_timestamps, model_spk_num=len(ref_speakers))
-        hyp_labels = generate_diarization_output_lines(speaker_timestamps=hyp_speaker_timestamps, model_spk_num=len(hyp_speakers))
-        reference = labels_to_pyannote_object(ref_labels, uniq_name=session_id)
-        hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=session_id)
+#         hyp_labels = generate_diarization_output_lines(speaker_timestamps=hyp_speaker_timestamps, model_spk_num=len(hyp_speakers))
+#         reference = labels_to_pyannote_object(ref_labels, uniq_name=session_id)
+#         hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=session_id)
         
-        for idx, speaker in enumerate(ref_speakers):
-            ref_speaker_words[idx] += ref_speaker_word[idx]
-        for idx, speaker in enumerate(hyp_speakers):
-            hyp_speaker_words[idx] += hyp_speaker_word[idx]
+#         for idx, speaker in enumerate(ref_speakers):
+#             ref_speaker_words[idx] += ref_speaker_word[idx]
+#         for idx, speaker in enumerate(hyp_speakers):
+#             hyp_speaker_words[idx] += hyp_speaker_word[idx]
         
-        der_met = der_metric(reference, hypothesis)
-        cpWER, min_perm_hyp_trans, ref_trans = cpwer_metric(ref_speaker_words, hyp_speaker_words)
+#         der_met = der_metric(reference, hypothesis)
+#         cpWER, min_perm_hyp_trans, ref_trans = cpwer_metric(ref_speaker_words, hyp_speaker_words)
 
-        if verbose:
-            logging.info(f"Session ID: {session_id} Chunk ID: {chunk_idx} from {chunk_idx*chunk_size}s to {(chunk_idx+1)*chunk_size}s")
-            logging.info(f"DER: {abs(der_metric)*100:.2f}%, cpWER: {cpWER*100:.2f}%")
+#         if verbose:
+#             logging.info(f"Session ID: {session_id} Chunk ID: {chunk_idx} from {chunk_idx*chunk_size}s to {(chunk_idx+1)*chunk_size}s")
+#             logging.info(f"DER: {abs(der_metric)*100:.2f}%, cpWER: {cpWER*100:.2f}%")
 
-        der_list.append(abs(der_metric) * 100)
-        cpwer_list.append(cpWER)
+#         der_list.append(abs(der_metric) * 100)
+#         cpwer_list.append(cpWER)
         
-    return der_list, cpwer_list
+#     return der_list, cpwer_list
 
 class OnlineEvaluation:
     """
@@ -686,12 +690,14 @@ class OnlineEvaluation:
 
     def __init__(self, 
         ref_seglst: List[Dict],
+        ref_rttm_labels: List[str],
         hyp_seglst: Optional[List[Dict]] = None,
         collar: float = 0.25, 
         ignore_overlap: bool = False, 
         verbose: bool = True, 
     ):
         self.ref_seglst = ref_seglst
+        self.ref_rttm_labels = ref_rttm_labels
         self.hyp_seglst = hyp_seglst
         self.collar = collar
         self.ignore_overlap = ignore_overlap
@@ -768,8 +774,8 @@ class OnlineEvaluation:
                 ref_speaker_words = ['' for _ in ref_speakers]
             if len(hyp_speaker_words) == 0:
                 hyp_speaker_words = ['' for _ in hyp_speakers]
-            ref_speaker_timestamps, ref_speaker_word = convert_seglst(ref_seglst, ref_speakers)
             hyp_speaker_timestamps, hyp_speaker_word = convert_seglst(hyp_seglst, hyp_speakers)
+            ref_speaker_timestamps, ref_speaker_word = convert_seglst(ref_seglst, ref_speakers)
 
             ref_labels = generate_diarization_output_lines(speaker_timestamps=ref_speaker_timestamps, model_spk_num=len(ref_speakers))
             hyp_labels = generate_diarization_output_lines(speaker_timestamps=hyp_speaker_timestamps, model_spk_num=len(hyp_speakers))

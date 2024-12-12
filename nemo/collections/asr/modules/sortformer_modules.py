@@ -223,6 +223,7 @@ class SortformerModules(NeuralModule, Exportable):
                 mem = self._compress_memory(mem, torch.cat([mem_preds, pop_out_preds], dim=1))
             
         if self.log:
+            import ipdb; ipdb.set_trace()
             logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
             
         return mem, fifo, mem_preds, fifo_preds, chunk_preds

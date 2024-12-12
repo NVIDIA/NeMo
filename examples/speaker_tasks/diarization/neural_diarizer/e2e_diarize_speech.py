@@ -294,13 +294,11 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
 
     if cfg.model_path.endswith(".ckpt"):
         diar_model = SortformerEncLabelModel.load_from_checkpoint(checkpoint_path=cfg.model_path, map_location=map_location, strict=False)
-        import ipdb; ipdb.set_trace()
     elif cfg.model_path.endswith(".nemo"):
         diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.model_path, map_location=map_location)
     else:
         raise ValueError("cfg.model_path must end with.ckpt or.nemo!")
     
-    import ipdb; ipdb.set_trace()
     diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     diar_model.set_trainer(trainer)
