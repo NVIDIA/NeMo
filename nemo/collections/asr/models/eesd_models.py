@@ -548,7 +548,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
     
     def _get_aux_test_batch_evaluations(self, batch_idx, preds, targets, target_lens):
         targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
-        targets_pil = get_pil_target(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
+        targets_pil = get_pil_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         self._accuracy_test(preds, targets_pil, target_lens)
         f1_acc, precision, recall = self._accuracy_test.compute()
         self.batch_f1_accs_list.append(f1_acc)

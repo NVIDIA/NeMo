@@ -197,6 +197,7 @@ def convert_pred_mat_to_segments(
                                                                                 all_hypothesis, 
                                                                                 all_reference, 
                                                                                 all_uems,
+                                                                                out_rttm_dir=out_rttm_dir
                                                                                )
         batch_pred_ts_segs.append(spk_ts) 
     return all_hypothesis, all_reference, all_uems
@@ -253,6 +254,7 @@ def convert_pred_mat_to_segments_chunkwise(
                                                                                     all_hypothesis, 
                                                                                     all_reference, 
                                                                                     all_uems,
+                                                                                    out_rttm_dir=None
                                                                                 )
             batch_pred_ts_segs.append(spk_ts) 
         yield all_hypothesis, all_reference, all_uems
