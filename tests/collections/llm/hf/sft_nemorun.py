@@ -18,8 +18,6 @@ from lightning.pytorch.loggers import WandbLogger
 
 from nemo.collections import llm
 
-DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
-
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
     env_vars = {
@@ -62,10 +60,10 @@ if __name__ == '__main__':
 
     recipe = llm.hf_auto_model_for_causal_lm.finetune_recipe(
         model_name=args.model,
-        name="peft",
+        name="sft",
         num_nodes=1,
         num_gpus_per_node=1,
-        peft_scheme='lora',
+        peft_scheme='none',
         max_steps=args.max_steps,
     )
     recipe.trainer.val_check_interval = 50

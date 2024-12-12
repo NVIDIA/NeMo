@@ -21,7 +21,10 @@ import torch
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.peft.lora import LoRA
@@ -172,6 +175,7 @@ def finetune_recipe(
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
     model_name: str = '',
+    max_steps: int = 100,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -203,15 +207,23 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
+    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(model_name)
     recipe = run.Partial(
         finetune,
         model=model(model_name, load_pretrained_weights=True),
         trainer=trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
+            max_steps=max_steps,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(
+            SquadHFDataModule,
+            path_or_dataset="rajpurkar/squad",
+            split="train[:100]",
+            pad_token_id=tokenizer.tokenizer.eos_token_id,
+            tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
+        ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=pytorch_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
