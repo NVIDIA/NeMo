@@ -132,6 +132,8 @@ flux_key_mapping = {
     'time_text_embed.text_embedder.linear_1.weight': 'vector_embedding.in_layer.weight',
     'time_text_embed.text_embedder.linear_2.bias': 'vector_embedding.out_layer.bias',
     'time_text_embed.text_embedder.linear_2.weight': 'vector_embedding.out_layer.weight',
+    'controlnet_x_embedder.weight':'controlnet_x_embedder.weight',
+    'controlnet_x_embedder.bias':'controlnet_x_embedder.bias',
 }
 
 
@@ -169,8 +171,6 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
             new_key = '.'.join(['single_blocks', idx, flux_key_mapping['single_blocks'][k]])
         elif key.startswith('controlnet_blocks'):
             new_key = 'controlnet_double_blocks' + key.split('.')[1:]
-        # elif key.startswith('x_embedder'):
-        #     new_key = 'controlnet_x_embedder' + key.split('.')[1:]
         else:
             new_key = flux_key_mapping[key]
         new_state_dict[new_key] = value

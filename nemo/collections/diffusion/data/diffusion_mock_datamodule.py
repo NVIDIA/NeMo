@@ -129,8 +129,8 @@ class _MockT2IDataset(Dataset):
             item['latents']=torch.randn(self.latent_shape)
             item['control_latents']=torch.randn(self.latent_shape)
         else:
-            item[self.image_key] = torch.randn(self.H, self.W, 3)
-            item[self.hint_key] = torch.randn(self.H, self.W, 3)
+            item[self.image_key] = torch.randn(3, self.H, self.W)
+            item[self.hint_key] = torch.randn(3, self.H, self.W)
 
         if self.text_precached:
             item['prompt_embeds']= torch.randn(self.prompt_embeds_shape)

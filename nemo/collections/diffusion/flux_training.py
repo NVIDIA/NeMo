@@ -31,20 +31,30 @@ from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 
 from megatron.core.distributed import DistributedDataParallelConfig
-
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
+from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
 
 def main(args):
 
-    from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
-
-    data = MockDataModule(
-        image_h=1024,
-        image_w=1024,
-        micro_batch_size=args.mbs,
-        global_batch_size=args.gbs,
-        image_precached=args.image_precached,
-        text_precached=args.text_precached,
-    )
+    if args.use_synthetic_data:
+        from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
+        data = MockDataModule(
+            image_h=1024,
+            image_w=1024,
+            micro_batch_size=args.mbs,
+            global_batch_size=args.gbs,
+            image_precached=args.image_precached,
+            text_precached=args.text_precached,
+        )
+    else:
+        data= DiffusionDataModule(
+            args.dataset_dir,
+            seq_length=4096,
+            micro_batch_size=args.mbs,
+            global_batch_size=args.gbs,
+            num_workers=23,
+            task_encoder=RawImageDiffusionTaskEncoder(),
+        )
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
@@ -84,27 +94,6 @@ def main(args):
         ddp=ddp,
     )
 
-
-    # def find_frozen_submodules(model):
-    #     frozen_submodules = []
-    #     frozen_submodule_names = []
-    #     for name, module in model.named_modules():
-    #         if (
-    #             isinstance(module, nn.Module)
-    #             and list(module.parameters())
-    #             and all(not param.requires_grad for param in module.parameters())
-    #         ):
-    #             frozen_submodule_names.append(name)
-    #             frozen_submodules.append(module)
-    #     return frozen_submodule_names, frozen_submodules
-    #
-    # frozen_submodule_names, frozen_submodules = find_frozen_submodules(model)
-    #
-    # # Training strategy setup
-    #
-    # strategy = nl.FSDPStrategy(
-    #     ignored_states = frozen_submodules
-    # )
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
@@ -183,7 +172,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
-    parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
+    parser.add_argument("--name", type=str, required=False, default="flux_training")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--mbs", type=int, required=False, default=1)
     parser.add_argument("--gbs", type=int, required=False, default=1)
@@ -191,6 +180,8 @@ if __name__ == "__main__":
     parser.add_argument("--text_precached", action='store_true', default=False)
     parser.add_argument("--num_joint_layers", type=int, required=False, default=1)
     parser.add_argument("--num_single_layers", type=int, required=False, default=1)
+    parser.add_argument("--use_synthetic_data", action='store_true', default=False)
+    parser.add_argument("--dataset_dir", type=str, required=False, default=None)
 
 
     args = parser.parse_args()

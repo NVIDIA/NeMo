@@ -30,21 +30,31 @@ from nemo.collections.diffusion.models.flux_controlnet.model import MegatronFlux
 from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 from megatron.core.distributed import DistributedDataParallelConfig
-
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
+from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
 
 
 def main(args):
 
-    from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
-
-    data = MockDataModule(
-        image_h=1024,
-        image_w=1024,
-        micro_batch_size=args.mbs,
-        global_batch_size=args.gbs,
-        image_precached=args.image_precached,
-        text_precached=args.text_precached,
-    )
+    if args.use_synthetic_data:
+        from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
+        data = MockDataModule(
+            image_h=1024,
+            image_w=1024,
+            micro_batch_size=args.mbs,
+            global_batch_size=args.gbs,
+            image_precached=args.image_precached,
+            text_precached=args.text_precached,
+        )
+    else:
+        data= DiffusionDataModule(
+            args.dataset_dir,
+            seq_length=4096,
+            micro_batch_size=args.mbs,
+            global_batch_size=args.gbs,
+            num_workers=23,
+            task_encoder=RawImageDiffusionTaskEncoder(),
+        )
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
@@ -60,8 +70,6 @@ def main(args):
     model_params.t5_params['version'] = '/ckpts/text_encoder_2'
     model_params.clip_params['version'] = '/ckpts/text_encoder'
     model_params.vae_params.ckpt = '/ckpts/ae.safetensors'
-    # model_params.flux_params.num_joint_layers=args.num_joint_layers
-    # model_params.flux_params.num_single_layers=args.num_single_layers
 
     if args.image_precached:
         model_params.vae_params = None
@@ -74,43 +82,23 @@ def main(args):
     model = MegatronFluxControlNetModel(model_params, flux_controlnet_config)
 
     ddp = DistributedDataParallelConfig(
-        use_custom_fsdp=True,
+        use_custom_fsdp=False,
         data_parallel_sharding_strategy='MODEL_AND_OPTIMIZER_STATES',
         overlap_param_gather=True,
         overlap_grad_reduce=True,
     )
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
         ddp=ddp
     )
 
-    # def find_frozen_submodules(model):
-    #     frozen_submodules = []
-    #     frozen_submodule_names = []
-    #     for name, module in model.named_modules():
-    #         if (
-    #             isinstance(module, nn.Module)
-    #             and list(module.parameters())
-    #             and all(not param.requires_grad for param in module.parameters())
-    #         ):
-    #             frozen_submodule_names.append(name)
-    #             frozen_submodules.append(module)
-    #     return frozen_submodule_names, frozen_submodules
-    #
-    # frozen_submodule_names, frozen_submodules = find_frozen_submodules(model)
-    #
-    # # Training strategy setup
-    #
-    # strategy = nl.FSDPStrategy(
-    #     ignored_states = frozen_submodules
-    # )
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
-        save_last=True,
+        save_last=False,
         monitor="reduced_train_loss",
         save_top_k=2,
         every_n_train_steps=1000,
@@ -193,6 +181,8 @@ if __name__ == "__main__":
     parser.add_argument("--text_precached", action='store_true', default=False)
     parser.add_argument("--num_joint_layers", type=int, required=False, default=1)
     parser.add_argument("--num_single_layers", type=int, required=False, default=1)
+    parser.add_argument("--use_synthetic_data", action='store_true', default=False)
+    parser.add_argument("--dataset_dir", type=str, required=False, default=None)
 
     args = parser.parse_args()
     main(args)

@@ -280,38 +280,39 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.autocast_dtype = torch.float
         else:
             self.autocast_dtype = torch.float32
+
+
+        if self.image_precached:
+            latents = batch['latents'].cuda(non_blocking=True)
+            control_latents = batch['control_latents'].cuda(non_blocking=True)
+        else:
+            img = batch['images'].cuda(non_blocking=True)
+            latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
+            hint = batch['hint'].cuda(non_blocking=True)
+            control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
+
+        latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(
+            latents)
+        control_image = self._pack_latents(
+            control_latents,
+            batch_size=control_latents.shape[0],
+            num_channels_latents=control_latents.shape[1],
+            height=control_latents.shape[2],
+            width=control_latents.shape[3],
+        ).transpose(0, 1)
+        if self.text_precached:
+            prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
+            pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
+            text_ids = batch['text_ids'].cuda(non_blocking=True)
+        else:
+            txt = batch['txt']
+            prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device=latents.device,
+                                                                               dtype=latents.dtype)
+
         with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16),
                 dtype=self.autocast_dtype,
         ):
-            if self.image_precached:
-                latents = batch['latents'].cuda(non_blocking=True)
-                control_latents = batch['control_latents'].cuda(non_blocking=True)
-            else:
-                img = batch['images'].permute(0, 3, 1, 2).cuda(non_blocking=True)
-                latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
-                hint = batch['hint'].permute(0, 3, 1, 2).cuda(non_blocking=True)
-                control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
-
-            latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(
-                latents)
-            control_image = self._pack_latents(
-                control_latents,
-                batch_size=control_latents.shape[0],
-                num_channels_latents=control_latents.shape[1],
-                height=control_latents.shape[2],
-                width=control_latents.shape[3],
-            ).transpose(0, 1)
-            if self.text_precached:
-                prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
-                pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
-                text_ids = batch['text_ids'].cuda(non_blocking=True)
-            else:
-                txt = batch['txt']
-                prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device=latents.device,
-                                                                                   dtype=latents.dtype)
-
-
             controlnet_double_block_samples, controlnet_single_block_samples = self.forward(
                 img=packed_noisy_model_input,
                 controlnet_cond=control_image,
