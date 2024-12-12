@@ -12,27 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.speechlm.models import HFAutoModelForSpeechSeq2Seq
-from nemo.utils import logging
+from typing import Optional
 
-__all__ = [
-    "HFAutoModelForSpeechSeq2Seq",
-]
+import nemo_run as run
 
-try:
-    import nemo_run as run
+from nemo.lightning.pytorch.optim import PytorchOptimizerModule
 
-    from nemo.collections.llm.recipes import adam
-    from nemo.collections.speechlm.api import finetune, generate, pretrain, train, validate
 
-    __all__.extend(
-        [
-            "train",
-            "pretrain",
-            "validate",
-            "finetune",
-            "generate",
-        ]
+@run.cli.factory
+def pytorch_adam_with_flat_lr(
+    lr: float = 1e-5,
+) -> run.Config[PytorchOptimizerModule]:
+    from torch.optim import Adam
+
+    return run.Config(
+        PytorchOptimizerModule,
+        optimizer_fn=run.Partial(
+            Adam,
+            lr=lr,
+            weight_decay=0.1,
+            betas=(0.9, 0.95),
+            eps=1e-8,
+        ),
     )
-except ImportError as error:
-    logging.warning(f"Failed to import nemo.collections.speechlm.[api, recipes]: {error}")

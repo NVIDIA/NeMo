@@ -88,8 +88,6 @@ if __name__ == '__main__':
         tokenizer=tokenizer,
     )
 
-    from nemo.collections import llm
-
     speechlm.api.finetune(
         model=model,
         data=train_dataloader,
@@ -108,7 +106,7 @@ if __name__ == '__main__':
             callbacks=[],
             logger=None,
         ),
-        optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
+        optim=fdl.build(speechlm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
 
