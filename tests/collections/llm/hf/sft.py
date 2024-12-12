@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import fiddle as fdl
-import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
-from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
