@@ -229,7 +229,7 @@ if __name__ == "__main__":
     parser.add_argument("--peft", type=str, default='none', help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--gbs", type=int, required=False, default=128, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
+    parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
 
     args = parser.parse_args()
