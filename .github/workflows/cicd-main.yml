@@ -3580,7 +3580,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/vlm/hf/peft.py --model /mnt/datadrive/TestData/vlm/qwen2-2b/ --max-steps 3
+        python examples/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
