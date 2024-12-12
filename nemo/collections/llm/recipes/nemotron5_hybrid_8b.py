@@ -49,14 +49,14 @@ def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
 @run.cli.factory(name=NAME)
 def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Mamba2 Hybrid 8B model configuration.
+    Factory function to create a Nemotron5 Hybrid 8B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Mamba2 Hybrid 8B model.
+        run.Config[pl.LightningModule]: Configuration for the Nemotron5 Hybrid 8B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=mamba2_hybrid_8b ...
+            $ nemo llm pretrain model=nemotron5_hybrid_8b ...
 
         Python API usage:
             >>> model_config = model()
@@ -87,7 +87,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Mamba2 Hybrid 8B model.
+    Configure the NeMo Lightning Trainer for Nemotron5 Hybrid 8B model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -108,7 +108,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=mamba2_hybrid_8b ...
+            $ nemo llm pretrain trainer=nemotron5_hybrid_8b ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
@@ -172,13 +172,13 @@ def pretrain_recipe(
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
-    seq_length: int = 4096,
+    seq_length: int = 8192,
     gbs: int = 8,
     mbs: int = 1,
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Mamba2 Hybrid 8B model.
+    Create a pre-training recipe for Nemotron5 Hybrid 8B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -195,11 +195,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory mamba2_hybrid_8b
-            $ nemo llm pretrain --factory "mamba2_hybrid_8b(num_nodes=1, name='my_pretrain')"
+            $ nemo llm pretrain --factory nemotron5_hybrid_8b
+            $ nemo llm pretrain --factory "nemotron5_hybrid_8b(num_nodes=1, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="mamba2_hybrid_8b_pretrain", num_nodes=1)
+            >>> recipe = pretrain_recipe(name="nemotron5_hybrid_8b_pretrain", num_nodes=1)
             >>> print(recipe)
 
     Note:
@@ -244,7 +244,7 @@ def finetune_recipe(
     num_gpus_per_node: int = 8,
     tensor_model_parallel_size: int = 8,
     pipeline_model_parallel_size: int = 1,
-    seq_length: int = 4096,
+    seq_length: int = 8192,
     max_steps: int = 100,
     val_check_interval: int = 100,
     limit_test_batches: int = 50,
@@ -255,7 +255,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Mamba2 Hybrid 8B model.
+    Create a fine-tuning recipe for Nemotron5 Hybrid 8B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -273,10 +273,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory mamba2_hybrid_8b
+            $ nemo llm finetune --factory nemotron5_hybrid_8b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="mamba2_hybrid_8b_finetune", num_nodes=1)
+            >>> recipe = finetune_recipe(name="nemotron5_hybrid_8b_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
