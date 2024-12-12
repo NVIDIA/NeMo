@@ -51,13 +51,15 @@ from pytorch_lightning import seed_everything
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    PostProcessingParams,
     audio_rttm_map,
     get_uniqname_from_filepath,
-    load_postprocessing_from_yaml,
     timestamps_to_pyannote_object,
 )
-from nemo.collections.asr.parts.utils.vad_utils import predlist_to_timestamps
+from nemo.collections.asr.parts.utils.vad_utils import (
+    PostProcessingParams,
+    load_postprocessing_from_yaml,
+    predlist_to_timestamps,
+)
 from nemo.core.config import hydra_runner
 
 seed_everything(42)

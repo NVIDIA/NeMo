@@ -18,6 +18,7 @@ import math
 import multiprocessing
 import os
 import shutil
+from dataclasses import dataclass
 from itertools import repeat
 from math import ceil, floor
 from pathlib import Path
@@ -29,6 +30,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+import yaml
 from omegaconf import DictConfig, OmegaConf
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
@@ -42,6 +44,52 @@ from nemo.utils import logging
 """
 This file contains all the utility functions required for voice activity detection. 
 """
+
+@dataclass
+class PostProcessingParams:
+    """
+    Postprocessing parameters for end-to-end speaker diarization models.
+    These parameters can significantly affect DER performance depending on the evaluation style and the dataset.
+    It is recommended to tune these parameters based on the evaluation style and the dataset
+    to achieve the desired DER performance.
+    """
+
+    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
+    offset: float = 0.5  # Offset threshold for detecting the end of a speech
+    pad_onset: float = 0.0  # Adding durations before each speech segment
+    pad_offset: float = 0.0  # Adding durations after each speech segment
+    min_duration_on: float = 0.0  # Threshold for small non-speech deletion
+    min_duration_off: float = 0.0  # Threshold for short speech segment deletion
+
+
+def load_postprocessing_from_yaml(postprocessing_yaml: str = None) -> PostProcessingParams:
+    """
+    Load postprocessing parameters from a YAML file.
+
+    Args:
+        postprocessing_yaml (str):
+            Path to a YAML file for postprocessing configurations.
+
+    Returns:
+        postprocessing_params (dataclass):
+            Postprocessing parameters loaded from the YAML file.
+    """
+    # Add PostProcessingParams as a field
+    postprocessing_params = OmegaConf.structured(PostProcessingParams())
+    if postprocessing_yaml is None:
+        logging.info(
+            f"No postprocessing YAML file has been provided. Default postprocessing configurations will be applied."
+        )
+    else:
+        # Load postprocessing params from the provided YAML file
+        with open(postprocessing_yaml, 'r') as file:
+            yaml_params = yaml.safe_load(file)['parameters']
+            # Update the postprocessing_params with the loaded values
+            logging.info(f"Postprocessing YAML file '{postprocessing_yaml}' has been loaded.")
+            for key, value in yaml_params.items():
+                if hasattr(postprocessing_params, key):
+                    setattr(postprocessing_params, key, value)
+    return postprocessing_params
 
 
 def prepare_manifest(config: dict) -> str:
