@@ -50,6 +50,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         loss_fn=masked_cross_entropy,
         model_transform=None,
         trust_remote_code=False,
+        default_dtype=torch.bfloat16,
         load_in_4bit=False,
     ):
         super().__init__()
@@ -91,7 +92,10 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
         else:
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
-            self.model = AutoModelForImageTextToText.from_config(config, trust_remote_code=self.trust_remote_code)
+            dtype = getattr(config, 'torch_dtype', self.default_dtype)
+            self.model = AutoModelForImageTextToText.from_config(
+                config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
+            )
         self.model.train()
 
 
