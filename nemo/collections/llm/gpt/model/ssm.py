@@ -249,10 +249,17 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
                 'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
                 'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
                 'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
                 'decoder.final_norm.weight': 'decoder.final_norm.weight',
                 'output_layer.weight': 'output_layer.weight',
             }
+            if "nemotron5" in self.model_config.mapping_type:
+                mapping.update({
+                    'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                })
+            else:
+                mapping.update({
+                    'decoder.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                })
             if "hybrid" in self.model_config.mapping_type:
                 mapping.update(
                     {
@@ -401,7 +408,7 @@ class Nemotron5HybridConfig8B(SSMConfig):
     activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
     tokenizer_library: str = 'tiktoken'
     tokenizer_name: str = "TiktokenTokenizer"
-    mapping_type: str = "nvidia-hybrid"
+    mapping_type: str = "nvidia-hybrid-nemotron5"
     masked_softmax_fusion: bool = True
     apply_query_key_layer_scaling: bool = False
     persist_layer_norm: bool = True
