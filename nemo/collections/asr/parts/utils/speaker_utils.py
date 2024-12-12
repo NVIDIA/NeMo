@@ -32,6 +32,7 @@ from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeaker
 from nemo.collections.asr.parts.utils.offline_clustering import get_argmin_mat, split_input_data
 from nemo.utils import logging
 
+
 def get_uniqname_from_filepath(filepath):
     """
     Return base name from provided filepath
