@@ -67,6 +67,7 @@ if __name__ == '__main__':
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
+    parser.add_argument('--disable-ckpt', action='store_false')
     args = parser.parse_args()
 
     wandb = None
@@ -98,6 +99,7 @@ if __name__ == '__main__':
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
+            enable_checkpointing=args.disable_ckpt,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
