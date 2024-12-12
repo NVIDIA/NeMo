@@ -370,9 +370,8 @@ class TensorRTLLM(ITritonDeployable):
                         model_configs, fp8_quantized, fp8_kvcache
                     )
 
-
                     # TODO: Temporary fix
-                    if  model_configs["num_moe_experts"] in {None, 0}:
+                    if model_configs["num_moe_experts"] in {None, 0}:
                         model_configs["num_moe_experts"] = 1
 
                     # We build the transformer config using the nemo model config.
@@ -384,7 +383,7 @@ class TensorRTLLM(ITritonDeployable):
                     # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
                     nemo_model_conversion_dict = {
                         f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
-                    } | { # Mapping for NeMo 2.0
+                    } | {  # Mapping for NeMo 2.0
                         f'module.{key}': value for key, value in mcore_model_conversion_dict.items()
                     }
 
