@@ -191,6 +191,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
+        self.rampup_batch_size = rampup_batch_size
         self.tokenizer = tokenizer
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -216,6 +217,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
+            prev_consumed_samples=0
         )
 
     def build(
@@ -347,6 +349,39 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             eod_mask_loss=self.eod_mask_loss,
             num_dataset_builder_threads=self.num_dataset_builder_threads,
             **self.build_kwargs,
+        )
+
+    def state_dict(self) -> Dict[str, Any]:
+        """Called when saving a checkpoint, implement to generate and save datamodule state.
+
+        Returns:
+            A dictionary containing datamodule state.
+
+        """
+        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step)
+        return {"consumed_samples": consumed_samples}
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
+
+        Args:
+            state_dict: the datamodule state returned by ``state_dict``.
+
+        """
+        try:
+            from megatron.core.num_microbatches_calculator import update_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+
+        consumed_samples = state_dict["consumed_samples"]
+        if self.rampup_batch_size:
+            self.data_sampler.prev_consumed_samples = consumed_samples
+
+        update_num_microbatches(
+            consumed_samples=consumed_samples,
+            consistency_check=False,
         )
 
     def reconfigure_limit_batches(self):

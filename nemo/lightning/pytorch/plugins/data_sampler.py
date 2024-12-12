@@ -43,6 +43,7 @@ class MegatronDataSampler(DataSampler, ):
         dataloader_type: Literal["single", "cyclic", "batch"] = "single",
         output_log: bool = True,
         decoder_seq_len: Optional[int] = None,
+        prev_consumed_samples: int | None = None
     ):
         self.seq_len = seq_len
         self.decoder_seq_len = decoder_seq_len
@@ -51,13 +52,28 @@ class MegatronDataSampler(DataSampler, ):
         self.global_batch_size = global_batch_size
         self.rampup_batch_size = rampup_batch_size
         self.dataloader_type = dataloader_type
-        self.if_first_step = 0
         self.prev_global_batch_size = None
+
+        self._prev_consumed_samples = prev_consumed_samples
 
     def setup(self, global_rank: int) -> None:
         from nemo.lightning.data import setup_microbatch_calculator
 
         setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size)
+
+    @property
+    def prev_consumed_samples(self) -> int:
+        assert self._prev_consumed_samples is not None, "Make sure to initialize prev_consumed_samples from your dataloader"
+        print(f'{self._prev_consumed_samples=}')
+        return self._prev_consumed_samples
+
+    @prev_consumed_samples.setter
+    def prev_consumed_samples(self, val: int) -> None:
+        self._prev_consumed_samples = val
+
+    @property
+    def if_first_step(self) -> int:
+        return self.trainer.global_step == 0
 
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
         from megatron.core import parallel_state
@@ -82,7 +98,7 @@ class MegatronDataSampler(DataSampler, ):
             world_size=data_parallel_size,
         )
 
-    def compute_consumed_samples(self, steps_since_resume=0) -> int:
+    def compute_consumed_samples(self, total_steps=0) -> int:
         from nemo.lightning.pytorch.strategies import MegatronStrategy
         from nemo.utils import AppState
 
@@ -94,7 +110,7 @@ class MegatronDataSampler(DataSampler, ):
             consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
         else:
             consumed_samples = (
-                steps_since_resume * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
+                total_steps * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
             )
 
         return int(consumed_samples)
@@ -158,7 +174,6 @@ class MegatronDataSampler(DataSampler, ):
                 prog_bar=True,
                 batch_size=1,
             )
-        self.if_first_step = 1
 
     @property
     def num_microbatches(self) -> int:
@@ -186,5 +201,3 @@ class MegatronDataSampler(DataSampler, ):
             current_global_batch_size = 1
 
         return current_global_batch_size
-
-    ##  NOTE: datasamplers don't have state dicts, so can't use that
