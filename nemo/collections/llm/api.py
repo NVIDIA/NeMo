@@ -909,17 +909,13 @@ def _validate_config(
         assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
     ## Data validation
-    if hasattr(data, 'micro_batch_size'):
-        assert data.micro_batch_size > 0
-    if hasattr(data, 'global_batch_size'):
-        assert data.global_batch_size > 0
-    if hasattr(data, 'seq_length'):
-        assert data.seq_length > 0
+    assert data.micro_batch_size > 0
+    assert data.global_batch_size > 0
+    assert data.seq_length > 0
 
-    if hasattr(data, 'micro_batch_size') and hasattr(data, 'global_batch_size'):
-        assert (
-            data.global_batch_size % data.micro_batch_size == 0
-        ), "Global batch size must be divisible by micro batch size in data module."
+    assert (
+        data.global_batch_size % data.micro_batch_size == 0
+    ), "Global batch size must be divisible by micro batch size in data module."
 
     ## Trainer validation
 
