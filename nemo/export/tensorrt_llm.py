@@ -41,6 +41,7 @@ from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
+    get_model_type,
     get_tokenizer,
     is_nemo_file,
     load_nemo_model,
@@ -193,7 +194,7 @@ class TensorRTLLM(ITritonDeployable):
 
         Args:
             nemo_checkpoint_path (str): path for the nemo checkpoint.
-            model_type (str): type of the model (optional for quantized checkpoints).
+            model_type (Optional[str]): type of the model (optional for NeMo 2.0 and quantized checkpoints).
             delete_existing_files (bool): if True, deletes all the files in model_dir.
             tensor_parallelism_size (int): tensor parallelism.
             pipeline_parallelism_size (int): pipeline parallelism.
@@ -310,6 +311,10 @@ class TensorRTLLM(ITritonDeployable):
                     reduce_fusion=reduce_fusion,
                 )
             else:
+                if model_type is None:
+                    # For NeMo 2.0 models we can get model_type from the model class name
+                    model_type = get_model_type(nemo_checkpoint_path)
+
                 if model_type is None:
                     raise Exception("model_type needs to be specified, got None.")
 
