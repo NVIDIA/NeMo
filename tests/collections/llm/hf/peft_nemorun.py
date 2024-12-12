@@ -20,6 +20,7 @@ from nemo.collections import llm
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
+
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
     env_vars = {
@@ -33,6 +34,7 @@ def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecut
     executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
 
     return executor
+
 
 if __name__ == '__main__':
     import argparse
@@ -72,4 +74,3 @@ if __name__ == '__main__':
 
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)
-
