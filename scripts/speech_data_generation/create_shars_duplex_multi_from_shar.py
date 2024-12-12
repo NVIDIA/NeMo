@@ -143,7 +143,8 @@ def create_shar_from_manifest(in_dir, in_dir_question, manifest, out_shar_dir, n
             user_audio = np.concatenate(user_audio_list, axis=1)
             agent_audio = np.concatenate(agent_audio_list, axis=1)
 
-            new_cut.duration = total_dur
+            new_cut.duration = total_dur + turn_silence_sec
+            new_cut.duration_no_sil = total_dur
             new_cut.start = 0.0
 
             user_stream = BytesIO()
