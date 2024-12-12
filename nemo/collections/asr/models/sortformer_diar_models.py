@@ -16,13 +16,12 @@ import itertools
 import os
 import random
 from collections import OrderedDict
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import numpy as np
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -31,11 +30,15 @@ from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDia
 from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
-from nemo.collections.asr.parts.mixins.diarization import SpkDiarizationMixin
+from nemo.collections.asr.parts.mixins.diarization import (
+    DiarizeConfig,
+    SpkDiarizationMixin,
+)
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_ats_targets, get_pil_targets
-from nemo.collections.asr.parts.utils.vad_utils import predlist_to_timestamps
+from nemo.collections.asr.parts.utils.speaker_utils import generate_diarization_output_lines
+from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -44,24 +47,6 @@ from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
 
 __all__ = ['SortformerEncLabelModel']
-
-
-@dataclass
-class PostProcessingParams:
-    """
-    Postprocessing parameters for end-to-end speaker diarization models.
-    These parameters can significantly affect DER performance depending on the evaluation style and the dataset.
-    It is recommended to tune these parameters based on the evaluation style and the dataset
-    to achieve the desired DER performance.
-    """
-
-    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
-    offset: float = 0.5  # Offset threshold for detecting the end of a speech
-    pad_onset: float = 0.0  # Adding durations before each speech segment
-    pad_offset: float = 0.0  # Adding durations after each speech segment
-    min_duration_on: float = 0.0  # Threshold for small non-speech deletion
-    min_duration_off: float = 0.0  # Threshold for short speech segment deletion
-
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixin):
     """
@@ -305,7 +290,43 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         """
         with torch.no_grad():
             preds = self.forward(audio_signal=batch[0], audio_signal_length=batch[1])
+            preds = preds.to('cpu')
+            torch.cuda.empty_cache()
         return preds
+
+    def _diarize_output_processing(
+        self, outputs, uniq_ids, diarcfg: DiarizeConfig
+    ) -> Union[List[List[str]], Tuple[List[List[str]], List[torch.Tensor]]]:
+        preds_list, diar_output_lines_list = [], []
+        if outputs.shape[0] == 1:  # batch size = 1
+            preds_list.append(outputs)
+        else:
+            preds_list.extend(torch.split(outputs, [1] * outputs.shape[0]))
+
+        for sample_idx, uniq_id in enumerate(uniq_ids):
+            offset = self._diarize_audio_rttm_map[uniq_id]['offset']
+            speaker_assign_mat = preds_list[sample_idx].squeeze(dim=0)
+            speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
+            for spk_id in range(speaker_assign_mat.shape[-1]):
+                ts_mat = ts_vad_post_processing(
+                    speaker_assign_mat[:, spk_id],
+                    cfg_vad_params=diarcfg.postprocessing_params,
+                    unit_10ms_frame_count=int(self._cfg.encoder.subsampling_factor),
+                    bypass_postprocessing=False,
+                )
+                ts_mat = ts_mat + offset
+                ts_seg_raw_list = ts_mat.tolist()
+                ts_seg_list = [[round(stt, 2), round(end, 2)] for (stt, end) in ts_seg_raw_list]
+                speaker_timestamps[spk_id].extend(ts_seg_list)
+
+            diar_output_lines = generate_diarization_output_lines(
+                speaker_timestamps=speaker_timestamps, model_spk_num=len(speaker_timestamps)
+            )
+            diar_output_lines_list.append(diar_output_lines)
+        if diarcfg.include_tensor_outputs:
+            return (diar_output_lines_list, preds_list)
+        else:
+            return diar_output_lines_list
 
     def _setup_diarize_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
@@ -642,35 +663,41 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
         logging.info(f"Batch ATS F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_ats_list))}")
 
+    @torch.no_grad()
     def diarize(
         self,
         audio: Union[str, List[str], np.ndarray, DataLoader],
         batch_size: int = 1,
-        verbose: bool = False,
+        include_tensor_outputs: bool = False,
+        postprocessing_yaml: Optional[str] = None,
         num_workers: int = 0,
-        bypass_postprocessing: bool = True,
-        postprocessing_config=None,
-        unit_10ms_frame_count: int = 8,
-    ):
-        """One-click runner function for diarization."""
-        # TODO: A direct one-click runner function that generates
-        # speaker labels from audio file path lists.
+        verbose: bool = True,
+        override_config: Optional[DiarizeConfig] = None,
+    ) -> Union[List[List[str]], Tuple[List[List[str]], List[torch.Tensor]]]:
+        """One-click runner function for diarization.
 
-        batch_preds_list = super().diarize(
+        Args:
+            audio: (a single or list) of paths to audio files or path to a manifest file.
+            batch_size: (int) Batch size to use during inference.
+                Bigger will result in better throughput performance but would use more memory.
+            include_tensor_outputs: (bool) Include raw speaker activity probabilities to the output.
+                See Returns: for more details.
+            postprocessing_yaml: Optional(str) Path to .yaml file with postprocessing parameters.
+            num_workers: (int) Number of workers for DataLoader.
+            verbose: (bool) Whether to display tqdm progress bar.
+            override_config: (Optional[DiarizeConfig]) A config to override the default config.
+
+        Returns:
+            *if include_tensor_outputs is False: A list of lists of speech segments with a corresponding speaker index,
+                in format "[begin_seconds, end_seconds, speaker_index]".
+            *if include_tensor_outputs is True: A tuple of the above list and list of tensors of raw speaker activity probabilities 
+        """
+        return super().diarize(
             audio=audio,
             batch_size=batch_size,
-            verbose=verbose,
+            include_tensor_outputs=include_tensor_outputs,
+            postprocessing_yaml=postprocessing_yaml,
             num_workers=num_workers,
+            verbose=verbose,
+            override_config=override_config,
         )
-
-        pp_params = OmegaConf.structured(PostProcessingParams())
-        postprocessing_config = pp_params if postprocessing_config is None else postprocessing_config
-        total_speaker_timestamps = predlist_to_timestamps(
-            batch_preds_list=batch_preds_list,
-            audio_rttm_map_dict=self._diarize_audio_rttm_map,
-            cfg_vad_params=postprocessing_config,
-            unit_10ms_frame_count=int(self._cfg.encoder.subsampling_factor),
-            bypass_postprocessing=bypass_postprocessing,
-            precision=2,
-        )
-        return total_speaker_timestamps
