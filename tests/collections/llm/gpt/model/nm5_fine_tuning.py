@@ -109,14 +109,14 @@ if __name__ == "__main__":
     #     model_config=model_config,
     # )
 
-    wandb_logger = WandbLogger(
-        name=(f"nm5-ux"),
-        project="nemotron5",
-        save_dir=args.experiment_dir,
-    )
-    # wandb_logger = TensorBoardLogger(
-    #     save_dir='dummy',  ## NOTE: this gets overwritten by default
+    # wandb_logger = WandbLogger(
+    #     name=(f"nm5-ux"),
+    #     project="nemotron5",
+    #     save_dir=args.experiment_dir,
     # )
+    wandb_logger = TensorBoardLogger(
+        save_dir='dummy',  ## NOTE: this gets overwritten by default
+    )
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,
         wandb=wandb_logger

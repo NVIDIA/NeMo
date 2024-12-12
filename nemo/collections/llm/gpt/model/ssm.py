@@ -28,6 +28,7 @@ try:
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
     from megatron.core.dist_checkpointing.serialization import load_plain_tensors
     from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.transformer.enums import AttnBackend
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -144,7 +145,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     layernorm_epsilon: float = 1e-5
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-
+    attention_backend: AttnBackend = AttnBackend.flash
     forward_step_fn: Callable = ssm_forward_step
     data_step_fn: Callable = gpt_data_step
     vocab_file: str = None

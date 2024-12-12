@@ -64,7 +64,7 @@ def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     """
     return run.Config(
         llm.GPTModel,
-        config=run.Config(llm.NVIDIAMambaHybridConfig8B),
+        config=run.Config(llm.Nemotron5HybridConfig8B),
         tokenizer=tokenizer(vocab_file=vocab_file),
     )
 
@@ -285,9 +285,9 @@ def finetune_recipe(
         `examples/llm/finetune/` directory.
         For converting an SSM pytorch checkpoint, use the following line of python code:
 
-        llm.GPTModel(llm.NVIDIAMambaHybridConfig8B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
+        llm.GPTModel(llm.Nemotron5HybridConfig8B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
             path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
-            model_config=llm.NVIDIAMambaHybridConfig8B())
+            model_config=llm.Nemotron5HybridConfig8B())
         This line will cache the nemo checkpoint to following directory:
             /root/.cache/nemo/models/your_pytorch_state_dict_file
 
