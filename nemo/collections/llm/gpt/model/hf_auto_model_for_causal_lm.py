@@ -55,6 +55,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         model_accelerator=None,
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
+        load_in_4bit=False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -68,6 +69,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model_accelerator = model_accelerator
         self.trust_remote_code = trust_remote_code
         self.default_dtype = default_dtype
+        self.load_in_4bit = load_in_4bit
 
     @property
     def tokenizer(self):
@@ -88,7 +90,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code
+                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code,
+                load_in_4bit=self.load_in_4bit,
             )
         else:
             from transformers import AutoConfig
