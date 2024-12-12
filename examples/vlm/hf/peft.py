@@ -15,7 +15,6 @@
 import fiddle as fdl
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from PIL import Image
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
