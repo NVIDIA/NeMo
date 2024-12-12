@@ -33,7 +33,7 @@ class DataSampler:
         raise NotImplementedError()
 
 
-class MegatronDataSampler(DataSampler, ):
+class MegatronDataSampler(DataSampler):
     def __init__(
         self,
         seq_len: int,
@@ -64,7 +64,6 @@ class MegatronDataSampler(DataSampler, ):
     @property
     def prev_consumed_samples(self) -> int:
         assert self._prev_consumed_samples is not None, "Make sure to initialize prev_consumed_samples from your dataloader"
-        print(f'{self._prev_consumed_samples=}')
         return self._prev_consumed_samples
 
     @prev_consumed_samples.setter
