@@ -14,7 +14,7 @@
 
 import lightning.pytorch as pl
 import torch
-from datasets import load_dataset, Dataset, DatasetDict
+from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
@@ -25,6 +25,7 @@ def clean_split(name):
     if '[' in name:
         return name.split('[')[0]
     return name
+
 
 def make_dataset_splits(dataset, split, split_aliases):
     """
