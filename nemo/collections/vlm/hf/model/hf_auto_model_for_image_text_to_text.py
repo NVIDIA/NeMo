@@ -50,6 +50,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         loss_fn=masked_cross_entropy,
         model_transform=None,
         trust_remote_code=False,
+        load_in_4bit=False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -62,6 +63,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.is_hf_model = True
         self.model_transform = model_transform
         self.trust_remote_code = trust_remote_code
+        self.load_in_4bit = load_in_4bit
 
     @property
     def processor(self):
@@ -84,7 +86,8 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForImageTextToText.from_pretrained(
-                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code
+                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code,
+                load_in_4bit=self.load_in_4bit,
             )
         else:
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
