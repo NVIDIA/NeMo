@@ -391,7 +391,6 @@ class TensorRTLLM(ITritonDeployable):
                     tensor_parallelism_size,
                     pipeline_parallelism_size,
                     use_parallel_embedding,
-                    use_embedding_sharing,
                 )
 
                 trtllm_model_weights_list, trtllm_model_config_list = (
@@ -476,7 +475,7 @@ class TensorRTLLM(ITritonDeployable):
             ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
             layernorm_epsilon=nemo_model_config.get('layernorm_epsilon'),
             add_bias_linear=nemo_model_config.get('bias'),
-            num_moe_experts=nemo_model_config.get('num_moe_experts', None),
+            num_moe_experts=nemo_model_config.get('num_moe_experts', 0),
             normalization=transformer_config_normalization,
             layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
         )
