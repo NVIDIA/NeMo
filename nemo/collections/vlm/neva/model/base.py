@@ -21,16 +21,16 @@ import lightning.pytorch as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
-from megatron.core import dist_checkpointing
+from megatron.core import InferenceParams, dist_checkpointing
+from megatron.core import parallel_state as ps
+from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
-from megatron.core import InferenceParams, tensor_parallel
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core import parallel_state as ps
+from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TENorm,
@@ -46,7 +46,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
-from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX, IGNORE_INDEX
+from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -500,8 +500,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         """
 
         use_inference_kv_cache = (
-            inference_params is not None
-            and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images is not None and images.shape[0] > 0
 

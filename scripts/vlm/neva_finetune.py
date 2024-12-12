@@ -27,9 +27,9 @@ from pytorch_lightning.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.vlm import ImageDataConfig
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 
