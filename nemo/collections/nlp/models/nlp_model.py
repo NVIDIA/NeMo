@@ -478,6 +478,7 @@ class NLPModel(ModelPT, Exportable):
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
         validate_access_integrity: bool = True,
+        safe: bool = False,
     ):
         if save_restore_connector is None:
             save_restore_connector = NLPSaveRestoreConnector()
@@ -499,4 +500,5 @@ class NLPModel(ModelPT, Exportable):
             save_restore_connector,
             trainer,
             validate_access_integrity,
+            safe=safe,
         )
