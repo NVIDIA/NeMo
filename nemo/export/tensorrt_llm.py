@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 import numpy as np
 import safetensors
@@ -186,7 +186,7 @@ class TensorRTLLM(ITritonDeployable):
         fp8_kvcache: Optional[bool] = None,
         gather_context_logits: Optional[bool] = False,
         gather_generation_logits: Optional[bool] = False,
-        build_rank: Union[int, List[int], Tuple[int], None] = 0,
+        build_rank: Optional[int] = 0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -224,7 +224,7 @@ class TensorRTLLM(ITritonDeployable):
             fp8_kvcache (Optional[bool]): enables FP8 KV-cache quantization. If not set, autodetects the type.
             gather_context_logits (Optional[bool]): if True, enables gather_context_logits while building trtllm engine. Default: False
             gather_generation_logits (Optional[bool]): if True, enables gather_generation_logits while building trtllm engine. Default: False
-            build_rank (Union[int, List[int], Tuple[int], None]): rank to export the model on. If None, builds on all ranks.
+            build_rank (Optional[int]): rank to export the model on. If None, builds on all ranks.
         """
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
