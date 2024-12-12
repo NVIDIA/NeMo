@@ -371,7 +371,7 @@ class TensorRTLLM(ITritonDeployable):
                     )
 
                     # TODO: Temporary fix
-                    if model_configs["num_moe_experts"] in {None, 0}:
+                    if model_configs.get("num_moe_experts", None) in {None, 0}:
                         model_configs["num_moe_experts"] = 1
 
                     # We build the transformer config using the nemo model config.
