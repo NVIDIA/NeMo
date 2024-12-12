@@ -144,9 +144,6 @@ def neva_forward_step(model, batch) -> torch.Tensor:
         "packed_seq_params": batch.get("packed_seq_params", None),
     }
 
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
-
     return model(**forward_args)
 
 
@@ -598,7 +595,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             use_inference_kv_cache,
             image_token_index,
             num_image_tiles,
-            image_token_mask,
+            attention_mask,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         output = self.language_model(
