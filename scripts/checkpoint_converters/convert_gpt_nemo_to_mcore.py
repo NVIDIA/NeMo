@@ -62,7 +62,7 @@ def get_args():
         help="Path to output mcore weights file (ends in .nemo).",
     )
     parser.add_argument(
-        "--cpu-only",
+        "--cpu_only",
         action="store_true",
         help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
         "but this option makes the conversion script significantly slower.",
@@ -73,7 +73,7 @@ def get_args():
         help="Run conversion again and overwrite output file when the output file already exists",
     )
     parser.add_argument(
-        "--ignore-if-missing",
+        "--ignore_if_missing",
         default="rotary_pos_emb.inv_freq",
         help="comma-separated list of state_dict keys that are known to be missing in mcore and can be safely ignored",
     )
