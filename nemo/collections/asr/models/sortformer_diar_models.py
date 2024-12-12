@@ -16,7 +16,7 @@ import itertools
 import os
 import random
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -30,10 +30,7 @@ from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDia
 from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
-from nemo.collections.asr.parts.mixins.diarization import (
-    DiarizeConfig,
-    SpkDiarizationMixin,
-)
+from nemo.collections.asr.parts.mixins.diarization import DiarizeConfig, SpkDiarizationMixin
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_ats_targets, get_pil_targets
@@ -47,6 +44,7 @@ from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
 
 __all__ = ['SortformerEncLabelModel']
+
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixin):
     """
@@ -690,7 +688,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         Returns:
             *if include_tensor_outputs is False: A list of lists of speech segments with a corresponding speaker index,
                 in format "[begin_seconds, end_seconds, speaker_index]".
-            *if include_tensor_outputs is True: A tuple of the above list and list of tensors of raw speaker activity probabilities 
+            *if include_tensor_outputs is True: A tuple of the above list and list of tensors of raw speaker activity probabilities
         """
         return super().diarize(
             audio=audio,

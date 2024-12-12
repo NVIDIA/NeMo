@@ -25,15 +25,16 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.speaker_utils import (
+    PostProcessingParams,
     audio_rttm_map,
     get_uniqname_from_filepath,
-    PostProcessingParams,
     load_postprocessing_from_yaml,
 )
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.utils import logging
 
 GenericDiarizationType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]]]
+
 
 @dataclass
 class InternalDiarizeConfig:
@@ -254,7 +255,9 @@ class SpkDiarizationMixin(ABC):
                 for batch_idx, test_batch in enumerate(tqdm(dataloader, desc="Diarizing", disable=not verbose)):
                     # Move batch to device
                     test_batch = move_data_to_device(test_batch, diarize_cfg._internal.device)
-                    uniq_ids = list(self._diarize_audio_rttm_map.keys())[batch_idx*diarize_cfg.batch_size:(batch_idx+1)*diarize_cfg.batch_size]
+                    uniq_ids = list(self._diarize_audio_rttm_map.keys())[
+                        batch_idx * diarize_cfg.batch_size : (batch_idx + 1) * diarize_cfg.batch_size
+                    ]
 
                     # Run forward pass
                     pred_outputs = self._diarize_forward(test_batch)
@@ -383,8 +386,7 @@ class SpkDiarizationMixin(ABC):
 
         else:
             raise ValueError(
-                f"Input `audio` is of type {type(audio[0])}. "
-                "Only `str` (path to audio file) is supported as input."
+                f"Input `audio` is of type {type(audio[0])}. " "Only `str` (path to audio file) is supported as input."
             )
 
     def _diarize_input_manifest_processing(

@@ -24,16 +24,17 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 import soundfile as sf
 import torch
+import yaml
 from omegaconf import OmegaConf
 from omegaconf.listconfig import ListConfig
 from pyannote.core import Annotation, Segment, Timeline
 from tqdm import tqdm
-import yaml
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
 from nemo.collections.asr.parts.utils.offline_clustering import get_argmin_mat, split_input_data
 from nemo.utils import logging
+
 
 @dataclass
 class PostProcessingParams:
@@ -80,6 +81,7 @@ def load_postprocessing_from_yaml(postprocessing_yaml: str = None) -> PostProces
                 if hasattr(postprocessing_params, key):
                     setattr(postprocessing_params, key, value)
     return postprocessing_params
+
 
 def get_uniqname_from_filepath(filepath):
     """
