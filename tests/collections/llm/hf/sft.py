@@ -21,8 +21,44 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
 
-DATA_PATH = '/home/TestData/lite/hf_cache/mini_squad_100/'
 
+DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
+
+def make_squad_hf_dataset(data_path, tokenizer):
+    EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
+
+    def formatting_prompts_func(examples):
+        alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+
+    ### Instruction:
+    {}
+
+    ### Input:
+    {}
+
+    ### Response:
+    {}"""
+        instruction = examples["context"]
+        input = examples["question"]
+        output = examples["answers"]['text']
+        if isinstance(output, list):
+            output = output[0]
+        text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
+        ans = tokenizer(text)
+        ans['labels'] = ans['input_ids']
+        return ans
+
+    tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+    datamodule = llm.HFDatasetDataModule(data_path, split="train[:100]", pad_token_id=tokenizer.eos_token_id)
+
+    datamodule.map(
+        formatting_prompts_func,
+        batched=False,
+        batch_size=2,
+        remove_columns=["id", "title", "context", "question", 'answers']
+    )
+
+    return datamodule
 
 if __name__ == '__main__':
     import argparse
@@ -66,7 +102,7 @@ if __name__ == '__main__':
 
     llm.api.finetune(
         model=model,
-        data=llm.HFDatasetDataModule(DATA_PATH, pad_token_id=tokenizer.tokenizer.eos_token_id),
+        data=make_squad_hf_dataset(DATA_PATH, tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
