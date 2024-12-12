@@ -55,12 +55,6 @@ def model(model_name, load_pretrained_weights) -> run.Config[pl.LightningModule]
 
 
 def trainer(
-    tensor_parallelism: int = 1,
-    pipeline_parallelism: int = 1,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
-    virtual_pipeline_parallelism: Optional[int] = None,
-    context_parallelism: int = 2,
-    sequence_parallelism: bool = False,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 100,
@@ -105,6 +99,7 @@ def trainer(
 
     trainer = run.Config(
         nl.Trainer,
+        num_nodes=num_nodes,
         devices=num_gpus_per_node,
         max_steps=max_steps,
         accelerator='gpu',
@@ -222,10 +217,10 @@ def finetune_recipe(
         resume=default_resume(),
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.optim.config.lr = 5e-6
+        recipe.optim.optimizer_fn.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA, target_modules=['*_proj'])
-        recipe.optim.config.lr = 1e-4
+        recipe.optim.optimizer_fn.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
