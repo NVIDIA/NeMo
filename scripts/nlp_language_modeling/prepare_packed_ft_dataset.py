@@ -55,7 +55,7 @@ when using context parallelism (CP) with packed dataset, CP size needs to be set
 python scripts/nlp_language_modeling/prepare_packed_ft_dataset.py \
     model.data.train_ds.file_names=[/path/to/training.jsonl] \
     model.data.train_ds.max_seq_length=4096 \
-    +model.context_parallel_size=2 \
+    ++model.context_parallel_size=2 \
     +tokenizer_path=<see note 1 below> \
     +output_dir=/path/to/output_folder \
     +pack_sizes=[4096]
