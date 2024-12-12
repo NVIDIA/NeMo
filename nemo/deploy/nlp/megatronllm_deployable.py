@@ -231,11 +231,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 inference_params=inference_params,
             )
 
-            print("Prompt: ", prompts)
-            print("Results: ", results)
-
             output_texts = [r.generated_text if text_only else r for r in results]
-            print("Output: ", output_texts)
             output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
             if log_probs:
                 output_log_probs = []
