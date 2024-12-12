@@ -59,13 +59,13 @@ def get_nemo_deployable(args):
         raise ValueError("In-Framework deployment requires a .nemo checkpoint")
 
     return MegatronLLMDeploy.get_deployable(
-                nemo_checkpoint_filepath=args.nemo_checkpoint,
-                num_devices=args.num_gpus,
-                num_nodes=args.num_nodes,
-                tensor_model_parallel_size=args.tensor_parallelism_size,
-                pipeline_model_parallel_size=args.pipeline_parallelism_size,
-                context_parallel_size=args.context_parallel_size,
-            )
+        nemo_checkpoint_filepath=args.nemo_checkpoint,
+        num_devices=args.num_gpus,
+        num_nodes=args.num_nodes,
+        tensor_model_parallel_size=args.tensor_parallelism_size,
+        pipeline_model_parallel_size=args.pipeline_parallelism_size,
+        context_parallel_size=args.context_parallel_size,
+    )
 
 
 def nemo_deploy(argv):
