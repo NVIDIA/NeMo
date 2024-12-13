@@ -20,9 +20,9 @@ from typing import ContextManager
 import torch
 import torch.nn.functional as F
 
-from nemo.core.utils.optional_libs import TRITON_AVAILABLE
 from nemo.core.classes.loss import Loss
 from nemo.core.utils.k2_guard import k2
+from nemo.core.utils.optional_libs import TRITON_AVAILABLE
 
 if TRITON_AVAILABLE:
     from nemo.collections.asr.parts.k2.rnnt_logprobs_triton import rnnt_logprobs_triton
