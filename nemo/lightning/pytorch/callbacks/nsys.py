@@ -78,7 +78,7 @@ class NsysCallback(Callback):
         )
 
     def _rank_is_active(self, trainer):
-        # TODO(@akoumparouli): investigate whether it can be cached.
+        # TODO(@akoumparouli): is this function cache-able?
         from lightning.pytorch.strategies import SingleDeviceStrategy
         if isinstance(trainer.strategy, SingleDeviceStrategy):
             return True
@@ -91,7 +91,7 @@ class NsysCallback(Callback):
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
         We use it here to enable nsys profiling.
         """
-        if not self._rank_is_active(trainer) or trainer.strategy.root_device != 'cuda':
+        if not self._rank_is_active(trainer) or trainer.strategy.root_device.type != 'cuda':
             return
 
         current_step = get_current_epoch_step(trainer)
@@ -107,7 +107,7 @@ class NsysCallback(Callback):
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
         We use it here to enable nsys profiling.
         """
-        if not self._rank_is_active(trainer) or trainer.strategy.root_device != 'cuda':
+        if not self._rank_is_active(trainer) or trainer.strategy.root_device.type != 'cuda':
             return
 
         current_step = get_current_epoch_step(trainer)
