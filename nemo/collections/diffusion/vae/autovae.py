@@ -1,5 +1,4 @@
 import itertools
-import json
 import time
 from typing import Dict, List
 
@@ -137,6 +136,7 @@ class VAEGenerator:
         if parameters_budget <= 0 and cuda_max_mem <= 0:
             raise ValueError("Please specify a valid parameter budget or cuda max memory budget")
 
+        search_space_choices = []
         if self.input_resolution == 1024 and self.compression_ratio == 8:
             search_space = self._search_space_8x1024()
             search_space_choices = self._generate_all_combinations(search_space)
@@ -175,7 +175,7 @@ class VAEGenerator:
                 # Perform forward pass
                 start_time = time.perf_counter()
                 with torch.no_grad():
-                    out = vae.encode(inp_tensor).latent_dist.sample()
+                    _ = vae.encode(inp_tensor).latent_dist.sample()
                 torch.cuda.synchronize()
                 end_time = time.perf_counter()
 
