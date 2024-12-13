@@ -27,8 +27,8 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
 from transformers import AutoTokenizer, LlamaForCausalLM, LlamaTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -108,7 +108,7 @@ def load_config(args, llama_config):
         rope_type = llama_config['rope_scaling'].get('rope_type')
         if rope_type is None:
             rope_type = llama_config['rope_scaling'].get('type')
-        if rope_type in ('linear', 'llama3'):
+        if rope_type in ('linear',):
             nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
         else:
             raise ValueError("Only linear rope scaling type is supported now")

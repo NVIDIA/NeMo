@@ -20,17 +20,22 @@ from typing import Callable, Optional
 
 import nemo_run as run
 import yaml
+from lightning.pytorch import Callback
+from lightning.pytorch.loggers import WandbLogger
 from nemo_run.core.serialization.yaml import YamlSerializer
-from pytorch_lightning import Callback
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
 
+from nemo.utils.import_utils import safe_import
+
+res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
+
 # This file contains plugins based on NeMo-Run's run.Plugin API.
 # Plugins operate both on a configured task and an executor at the same time, and are specific to NeMo-Run.
-# If you are adding functionality that goes directly into the Pytorch Lightning trainer, you may consider adding a callback instead of a plugin.
+# If you are adding functionality that goes directly into the Pytorch Lightning trainer,
+# you may consider adding a callback instead of a plugin.
 
 
 def _merge_callbacks(partial: run.Partial, callbacks: list[run.Config[Callback]]):
@@ -77,6 +82,55 @@ class PreemptionPlugin(run.Plugin):
             executor.signal = f"TERM@{self.preempt_time}"
 
         _merge_callbacks(task, callbacks=self.callbacks)
+
+
+@dataclass(kw_only=True)
+class FaultTolerancePlugin(run.Plugin):
+    """
+    A plugin for setting up the fault tolerance callback from nvidia-resiliency-ext.
+    This plugin enables workload hang detection, automatic calculation of timeouts used for hang detection, detection of rank(s) terminated due to an error and workload respawning in case of a failure.
+    Note: FaultTolerancePlugin does not work with the NsysPlugin.
+    Args:
+        num_in_job_restarts (int): Max number of restarts on failure, within the same job. Default is 3.
+        num_job_retries_on_failure (int): Max number of new job restarts on failure. Default is 2.
+        initial_rank_heartbeat_timeout (int): Timeouts are time intervals used by a rank monitor to detect that a rank is not alive. This is the max timeout for the initial heartbeat. Default is 1800.
+        rank_heartbeat_timeout (int): This is the timeout for subsequent hearbeats after the initial heartbeat. Default is 300.
+    """
+
+    num_in_job_restarts: int = 3
+    num_job_retries_on_failure: int = 2
+    initial_rank_heartbeat_timeout: int = 1800
+    rank_heartbeat_timeout: int = 300
+
+    def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+
+        assert HAVE_RES, "nvidia-resiliency-ext.ptl_resiliency is required to use the FaultTolerancePlugin."
+
+        executor.launcher = run.FaultTolerance(
+            max_restarts=self.num_in_job_restarts,
+            initial_rank_heartbeat_timeout=self.initial_rank_heartbeat_timeout,
+            rank_heartbeat_timeout=self.rank_heartbeat_timeout,
+        )
+        executor.retries = self.num_job_retries_on_failure
+
+        assert isinstance(task, run.Partial)
+
+        callbacks = [
+            run.Config(
+                res_module.FaultToleranceCallback, autoresume=True, calculate_timeouts=True, exp_dir=task.log.log_dir
+            )
+        ]
+
+        assert not executor.launcher.nsys_profile, "Nsys not supported with the FaultTolerancePlugin."
+        if hasattr(task, "trainer") and hasattr(task.trainer, "callbacks"):
+            assert all(
+                map(
+                    lambda cb: not cb.__fn_or_cls__ == NsysCallback if "__fn_or_cls__" in dir(cb) else True,
+                    task.trainer.callbacks,
+                )
+            ), "Nsys not supported with FaultTolerancePlugin."
+
+        _merge_callbacks(task, callbacks=callbacks)
 
 
 @dataclass(kw_only=True)
@@ -260,8 +314,11 @@ class PerfEnvPlugin(run.Plugin):
     enable_layernorm_sm_margin: bool = True
     layernorm_sm_margin: int = 16
     enable_vboost: bool = False
+    nccl_pp_comm_chunksize: int = None
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
+        "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
+
         import shlex
 
         vboost_cmd = " ".join(
@@ -281,18 +338,26 @@ class PerfEnvPlugin(run.Plugin):
         return vboost_cmd
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+        """Enable the performance environment settings"""
 
         if task.trainer.strategy.__fn_or_cls__ == MegatronStrategy:
             # Force program order kernel launch for TP, CP overlap
             tp_size = task.trainer.strategy.tensor_model_parallel_size
             cp_size = task.trainer.strategy.context_parallel_size
-            if tp_size > 1 and cp_size > 1:
+            if tp_size > 1 or cp_size > 1:
                 executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = "1"
 
             # Set LayerNorm SM margin to support the overlap with LayerNorm kernel
             if self.enable_layernorm_sm_margin:
                 executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
                 executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
+
+            # Set the chunk size of P2P communications. Using a large chunk size reduces the
+            # buffering overhead from the communication kernel execution time
+            pp_size = task.trainer.strategy.pipeline_model_parallel_size
+            if pp_size > 1 and self.nccl_pp_comm_chunksize is not None:
+                assert isinstance(self.nccl_pp_comm_chunksize, int) and self.nccl_pp_comm_chunksize > 1
+                executor.env_vars["NCCL_P2P_NET_CHUNKSIZE"] = str(self.nccl_pp_comm_chunksize)
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):
