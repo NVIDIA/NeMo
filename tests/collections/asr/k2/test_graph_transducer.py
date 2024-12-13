@@ -21,7 +21,7 @@ import torch
 
 from nemo.collections.asr.parts.k2.rnnt_logprobs import rnnt_logprobs_torch
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-from nemo.collections.common.optional_libs import K2_AVAILABLE, TRITON_AVAILABLE
+from nemo.core.utils.optional_libs import K2_AVAILABLE, TRITON_AVAILABLE
 
 if K2_AVAILABLE:
     import k2
