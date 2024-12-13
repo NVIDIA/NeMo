@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import lightning.pytorch as pl
 
 
 def extract_dtypes(ckpt):
@@ -55,3 +56,15 @@ def dtype_from_hf(config):
         return dtype_from_str(torch_dtype)
     else:
         raise ValueError("torch_dtype is not of type str/torch.dtype")
+
+
+def is_trainer_attached(model: pl.LightningModule):
+    """
+    Returns true if trainer is attached to a model
+    """
+    breakpoint()
+    try:
+        trainer = model.trainer
+        return True
+    except RuntimeError:
+        return False
