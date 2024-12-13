@@ -25,4 +25,9 @@ def is_lib_available(name: str) -> bool:
 
 
 TRITON_AVAILABLE = is_lib_available("triton")
-K2_AVAILABLE = is_lib_available("k2")
+
+try:
+    from nemo.core.utils.k2_guard import k2
+    K2_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    K2_AVAILABLE = False
