@@ -125,7 +125,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.build_kwargs = build_kwargs
         self.seq_length = seq_length
         self.seq_length_dec = seq_length_dec
-        self.micro_batch_size = micro_batch_size 
+        self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.tokenizer = tokenizer
         self.num_workers = num_workers
