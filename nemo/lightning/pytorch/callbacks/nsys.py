@@ -91,7 +91,7 @@ class NsysCallback(Callback):
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
         We use it here to enable nsys profiling.
         """
-        if not self._rank_is_active(trainer) or device = trainer.strategy.root_device != 'cuda':
+        if not self._rank_is_active(trainer) or trainer.strategy.root_device != 'cuda':
             return
 
         current_step = get_current_epoch_step(trainer)
