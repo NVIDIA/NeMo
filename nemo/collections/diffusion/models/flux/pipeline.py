@@ -416,7 +416,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         else:
             orig_height, orig_width = images[0].height, images[0].width
             if height != orig_height or width != orig_width:
-                images = [image.resize(width, height) for image in images]
+                images = [image.resize((width, height), resample=3) for image in images]
 
             images = self.pil_to_numpy(images)
             images = self.numpy_to_pt(images)
