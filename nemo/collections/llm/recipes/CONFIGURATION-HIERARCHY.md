@@ -16,6 +16,22 @@
 
   <blockquote>
 
+  ```sh
+  accumulate_grad_batches: int = 1 # Accumulates gradients over k batches before stepping the optimizer
+  limit_test_batches: int = 1 # How much of test dataset to check (float = fraction, int = num_batches)
+  limit_val_batches: int = 1 # How much of validation dataset to check (float = fraction, int = num_batches)
+  log_every_n_steps: int = 50 # How often to log within steps
+  max_steps: int = -1 # Stop training after this number of steps; disabled by default; If 'max_steps = -1' and 'max_epochs = None', will default to 'max_epochs = 1000'
+  num_nodes: int = 1 # Number of GPU nodes for distributed training
+  use_distributed_sampler: bool = False # Whether to wrap the DataLoader's sampler with :class:`torch.utils.data.DistributedSampler`. If not specified this is toggled automatically for strategies that require it. By default, it will add ``shuffle=True`` for the train sampler and 'shuffle=False' for validation/test/predict samplers. If you want to disable this logic, you can pass 'False' and add your own distributed sampler in the dataloader hooks. If ``True`` and a distributed sampler was already added, Lightning will not replace the existing one
+  val_check_interval: [int, float] = 1 # How often to check the validation set. Pass a 'float' in the range [0.0, 1.0] to check after a fraction of the training epoch. Pass an 'int' to check after a fixed number of training batches. An 'int' value can only be higher than the number of training batches when 'check_val_every_n_epoch=None', which validates after every 'N' training batches across epochs or during iteration-based training
+  max_epochs: Optional[int] = None # Stop training once this number of epochs is reached. If both max_epochs and max_steps are not specified, defaults to "max_epochs = 1000". To enable infinite training, set "max_epochs = -1"
+  
+  ```
+  </blockquote>
+
+  <blockquote>
+
   <details open><summary>strategy <a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/strategies/megatron_strategy.py">(MegatronStrategy)</a></summary>
   <blockquote>
 
