@@ -14,10 +14,10 @@
 
 import nemo_run as run
 from lightning.pytorch.loggers import WandbLogger
-from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 from nemo.collections import llm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
@@ -58,11 +58,11 @@ if __name__ == '__main__':
 
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     recipe.data = run.Config(
-            SquadHFDataModule,
-            path_or_dataset="rajpurkar/squad",
-            split="train[:100]",
-            pad_token_id=tokenizer.tokenizer.eos_token_id,
-            tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
-        )
+        SquadHFDataModule,
+        path_or_dataset="rajpurkar/squad",
+        split="train[:100]",
+        pad_token_id=tokenizer.tokenizer.eos_token_id,
+        tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
+    )
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)
