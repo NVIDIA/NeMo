@@ -102,6 +102,7 @@ class HFAutoModelForImageTextToText(
             model_name, trust_remote_code=trust_remote_code)
 
     def configure_model(self):
+        """Instantiates the model"""
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForImageTextToText.from_pretrained(
@@ -118,9 +119,11 @@ class HFAutoModelForImageTextToText(
         self.model.train()
 
     def forward(self, batch):
+        """Runs forward with the model"""
         return self.model(**batch)
 
     def training_step(self, batch):
+        """Run one training step"""
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
@@ -136,6 +139,7 @@ class HFAutoModelForImageTextToText(
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
+        """Run one validation step"""
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
