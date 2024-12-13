@@ -31,13 +31,13 @@ Here are some sample images generated from our pretrained VAE.
 .. list-table::
    :align: center
 
-   * - .. image:: ./asset/1.png
+   * - .. image:: https://github.com/user-attachments/assets/08122f5b-2e65-4d65-87d7-eceae9d158fb
          :width: 1400
          :align: center
-     - .. image:: ./asset/2.png
+     - .. image:: https://github.com/user-attachments/assets/6e805a0d-8783-4d24-a65b-d96a6ba1555d
          :width: 1400
          :align: center
-     - .. image:: ./asset/3.png
+     - .. image:: https://github.com/user-attachments/assets/aab1ef33-35da-444d-90ee-ba3ad58a6b2d
          :width: 1400
          :align: center
 
