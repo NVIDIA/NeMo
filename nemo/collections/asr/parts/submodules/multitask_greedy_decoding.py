@@ -204,7 +204,9 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
                     hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(self.n_samples)]
                     self.format_hypotheses(hypotheses, decoder_input_ids)
                     packed_result.append(
-                        NBestHypotheses(pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i]), step_confidence)
+                        NBestHypotheses(
+                            pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i]), step_confidence
+                        )
                     )
             else:
                 beam_scores = [None for _ in range(len(best_hypo))]
@@ -235,7 +237,9 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
                     hyp.y_sequence[: prefix.shape[0]] == prefix
                 ).all(), f"The decoder input IDs were not found at the beginning of prediction: {hyp.y_sequence=} {prefix=})"
                 hyp.y_sequence = hyp.y_sequence[prefix.shape[0] :]
-                hyp.token_confidence = hyp.token_confidence[prefix.shape[0] :] if hyp.token_confidence is not None else None
+                hyp.token_confidence = (
+                    hyp.token_confidence[prefix.shape[0] :] if hyp.token_confidence is not None else None
+                )
         for hyp in packed_result:
             ids = hyp.y_sequence
             ids_len = ids.shape[0]

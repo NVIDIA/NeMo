@@ -244,13 +244,19 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
             if self.preserve_step_confidence:
                 if i == 0:
                     step_confidence[0] = step_confidence[0].to(dtype=logits.dtype)
-                step_confidence.append(self._get_confidence_tensor(torch.nn.functional.log_softmax(logits, dim=-1) if not return_beam_scores else logits))
+                step_confidence.append(
+                    self._get_confidence_tensor(
+                        torch.nn.functional.log_softmax(logits, dim=-1) if not return_beam_scores else logits
+                    )
+                )
 
             # abort generation if all sequences end with <eos>
             if pad_profile.sum() == batch_size:
                 break
 
-        step_confidence_tensor = torch.cat(step_confidence, dim=1) if self.preserve_step_confidence and len(step_confidence) > 0 else None
+        step_confidence_tensor = (
+            torch.cat(step_confidence, dim=1) if self.preserve_step_confidence and len(step_confidence) > 0 else None
+        )
 
         samples = None
         if is_sampling:
