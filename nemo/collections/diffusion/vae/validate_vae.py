@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import nemo_run as run
 from nemo.collections import llm
 from nemo.collections.diffusion.vae.train_vae import train_vae
@@ -20,6 +19,18 @@ from nemo.collections.diffusion.vae.train_vae import train_vae
 
 @run.cli.factory(target=llm.validate)
 def validate_vae() -> run.Partial:
+    """
+    Create a partial function for validating a VAE (Variational Autoencoder) model.
+
+    This function uses the training recipe defined in `train_vae()` to set up
+    the model, data, trainer, logging, and optimization configurations for
+    validation. It returns a Partial object that can be used by the NeMo run CLI
+    to execute the validation procedure on the provided model and data.
+
+    Returns:
+        run.Partial: A partial object configured with llm.validate target
+        and all necessary arguments extracted from the VAE training recipe.
+    """
     recipe = train_vae()
     return run.Partial(
         llm.validate,

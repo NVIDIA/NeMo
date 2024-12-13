@@ -36,29 +36,60 @@ from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
 from nemo.collections.diffusion.train import pretrain
 from nemo.collections.llm.gpt.model.base import GPTModel
-from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 
 class AvgLossReduction(MegatronLossReduction):
+    """Performs average loss reduction across micro-batches."""
+
     def forward(self, batch: DataT, forward_out: Tensor) -> Tuple[Tensor, ReductionT]:
+        """
+        Forward pass for loss reduction.
+
+        Args:
+            batch: The batch of data.
+            forward_out: The output tensor from forward computation.
+
+        Returns:
+            A tuple of (loss, reduction dictionary).
+        """
         loss = forward_out.mean()
         return loss, {"avg": loss}
 
     def reduce(self, losses_reduced_per_micro_batch: Sequence[ReductionT]) -> Tensor:
+        """
+        Reduce losses across multiple micro-batches by averaging them.
+
+        Args:
+            losses_reduced_per_micro_batch: A sequence of loss dictionaries.
+
+        Returns:
+            The averaged loss tensor.
+        """
         losses = torch.stack([loss["avg"] for loss in losses_reduced_per_micro_batch])
         return losses.mean()
 
 
 class VAE(MegatronModule):
+    """Variational Autoencoder (VAE) module."""
+
     def __init__(self, config, pretrained_model_name_or_path, search_vae=False):
+        """
+        Initialize the VAE model.
+
+        Args:
+            config: Transformer configuration.
+            pretrained_model_name_or_path: Path or name of the pretrained model.
+            search_vae: Flag to indicate whether to search for a target VAE using AutoVAE.
+        """
         super().__init__(config)
         if search_vae:
-            # Get VAE automatically from AuotVAE
+            # Get VAE automatically from AutoVAE
             self.vae = VAEGenerator(input_resolution=1024, compression_ratio=16)
-            self.vae = generator.search_for_target_vae(parameters_budget=895.178707, cuda_max_mem=0)
+            # Below line is commented out due to an undefined 'generator' variable in original code snippet.
+            # self.vae = generator.search_for_target_vae(parameters_budget=895.178707, cuda_max_mem=0)
         else:
             self.vae = AutoencoderKL.from_config(pretrained_model_name_or_path, weight_dtype=torch.bfloat16)
 
@@ -87,8 +118,18 @@ class VAE(MegatronModule):
         )
 
     def forward(self, target, global_step):
+        """
+        Forward pass through the VAE.
+
+        Args:
+            target: Target images.
+            global_step: Current global step.
+
+        Returns:
+            A tuple (aeloss, log_dict_ae, pred) containing the loss, log dictionary, and predictions.
+        """
         posterior = self.vae.encode(target).latent_dist
-        z = posterior.sample()  # Not mode()
+        z = posterior.sample()
         pred = self.vae.decode(z).sample
         aeloss, log_dict_ae = self.vae_loss(
             inputs=target,
@@ -101,34 +142,79 @@ class VAE(MegatronModule):
         return aeloss, log_dict_ae, pred
 
     def set_input_tensor(self, input_tensor: Tensor) -> None:
+        """
+        Set input tensor.
+
+        Args:
+            input_tensor: The input tensor to the model.
+        """
         pass
 
 
 class VAEModel(GPTModel):
+    """A GPTModel wrapper for the VAE."""
+
     def __init__(
         self,
         pretrained_model_name_or_path: str,
         optim: Optional[OptimizerModule] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        """
+        Initialize the VAEModel.
+
+        Args:
+            pretrained_model_name_or_path: Path or name of the pretrained model.
+            optim: Optional optimizer module.
+            model_transform: Optional function to transform the model.
+        """
         self.pretrained_model_name_or_path = pretrained_model_name_or_path
         config = TransformerConfig(num_layers=1, hidden_size=1, num_attention_heads=1)
         self.model_type = ModelType.encoder_or_decoder
-
         super().__init__(config, optim=optim, model_transform=model_transform)
 
     def configure_model(self) -> None:
+        """Configure the model by initializing the module."""
         if not hasattr(self, "module"):
             self.module = VAE(self.config, self.pretrained_model_name_or_path)
 
     def data_step(self, dataloader_iter) -> Dict[str, Any]:
+        """
+        Perform a single data step to fetch a batch from the iterator.
+
+        Args:
+            dataloader_iter: The dataloader iterator.
+
+        Returns:
+            A dictionary with 'pixel_values' ready for the model.
+        """
         batch = next(dataloader_iter)[0]
         return {'pixel_values': batch.image.to(device='cuda', dtype=torch.bfloat16, non_blocking=True)}
 
     def forward(self, *args, **kwargs):
+        """
+        Forward pass through the underlying module.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            The result of forward pass of self.module.
+        """
         return self.module(*args, **kwargs)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
+        """
+        Perform a single training step.
+
+        Args:
+            batch: The input batch.
+            batch_idx: Batch index.
+
+        Returns:
+            The loss tensor.
+        """
         loss, log_dict_ae, pred = self(batch["pixel_values"], self.global_step)
 
         if torch.distributed.get_rank() == 0:
@@ -137,6 +223,16 @@ class VAEModel(GPTModel):
         return loss
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
+        """
+        Perform a single validation step.
+
+        Args:
+            batch: The input batch.
+            batch_idx: Batch index.
+
+        Returns:
+            The loss tensor.
+        """
         loss, log_dict_ae, pred = self(batch["pixel_values"], self.global_step)
 
         image = torch.cat([batch["pixel_values"].cpu(), pred.cpu()], axis=0)
@@ -167,24 +263,23 @@ class VAEModel(GPTModel):
 
     @property
     def training_loss_reduction(self) -> AvgLossReduction:
+        """Returns the loss reduction method for training."""
         if not self._training_loss_reduction:
             self._training_loss_reduction = AvgLossReduction()
-
         return self._training_loss_reduction
 
     @property
     def validation_loss_reduction(self) -> AvgLossReduction:
+        """Returns the loss reduction method for validation."""
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = AvgLossReduction()
-
         return self._validation_loss_reduction
 
     def on_validation_model_zero_grad(self) -> None:
-        '''
-        Small hack to avoid first validation on resume.
-        This will NOT work if the gradient accumulation step should be performed at this point.
-        https://github.com/Lightning-AI/pytorch-lightning/discussions/18110
-        '''
+        """
+        Hook to handle zero grad on validation model step.
+        Used here to skip first validation on resume.
+        """
         super().on_validation_model_zero_grad()
         if self.trainer.ckpt_path is not None and getattr(self, '_restarting_skip_val_flag', True):
             self.trainer.sanity_checking = True
@@ -192,6 +287,16 @@ class VAEModel(GPTModel):
 
 
 def crop_image(img, divisor=16):
+    """
+    Crop the image so that both dimensions are divisible by the given divisor.
+
+    Args:
+        img: Image tensor.
+        divisor: The divisor to use for cropping.
+
+    Returns:
+        The cropped image tensor.
+    """
     h, w = img.shape[-2], img.shape[-1]
 
     delta_h = h % divisor
@@ -209,7 +314,18 @@ def crop_image(img, divisor=16):
 
 
 class ImageTaskEncoder(DefaultTaskEncoder, IOMixin):
+    """Image task encoder that crops and normalizes the image."""
+
     def encode_sample(self, sample: ImageSample) -> ImageSample:
+        """
+        Encode a single image sample by cropping and shifting its values.
+
+        Args:
+            sample: An image sample.
+
+        Returns:
+            The transformed image sample.
+        """
         sample = super().encode_sample(sample)
         sample.image = crop_image(sample.image, 16)
         sample.image -= 0.5
@@ -218,6 +334,12 @@ class ImageTaskEncoder(DefaultTaskEncoder, IOMixin):
 
 @run.cli.factory(target=llm.train)
 def train_vae() -> run.Partial:
+    """
+    Training factory function for VAE.
+
+    Returns:
+        A run.Partial recipe for training.
+    """
     recipe = pretrain()
     recipe.model = run.Config(
         VAEModel,

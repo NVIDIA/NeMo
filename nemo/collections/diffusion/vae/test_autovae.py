@@ -5,6 +5,8 @@ from autovae import VAEGenerator
 
 
 class TestVAEGenerator(unittest.TestCase):
+    """Unit tests for the VAEGenerator class."""
+
     def setUp(self):
         # Common setup for tests
         self.input_resolution = 1024

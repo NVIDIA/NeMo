@@ -9,6 +9,13 @@ from torch import nn
 
 
 class VAEGenerator:
+    """
+    A class for generating and searching different Variational Autoencoder (VAE) configurations.
+
+    This class provides functionality to generate various VAE architecture configurations
+    given a specific input resolution and compression ratio. It allows searching through a
+    design space to find configurations that match given parameter and memory budgets.
+    """
 
     def __init__(self, input_resolution: int = 1024, compression_ratio: int = 16) -> None:
         if input_resolution == 1024:
@@ -21,20 +28,36 @@ class VAEGenerator:
         self._input_resolution = input_resolution
         self._compression_ratio = compression_ratio
 
-        # verison 1: we fixed the search space to guarantee the quality
-
     def _generate_input(self):
+        """
+        Generate a random input tensor with the specified input resolution.
+
+        The tensor is placed on the GPU in half-precision (float16).
+        """
         random_tensor = torch.rand(1, 3, self.input_resolution, self.input_resolution)
         random_tensor = random_tensor.to(dtype=torch.float16, device="cuda")
         return random_tensor
 
     def _count_parameters(self, model: nn.Module = None):
+        """
+        Count the number of trainable parameters in a given model.
+
+        Args:
+            model (nn.Module): The model for which to count parameters.
+
+        Returns:
+            int: The number of trainable parameters.
+        """
         assert model is not None, "Please provide a nn.Module to count the parameters."
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     def _load_base_json_skeleton(self):
-        # return a skeleton json that fully defines VAE
+        """
+        Load a base configuration skeleton for the VAE.
 
+        Returns:
+            dict: A dictionary representing the base configuration JSON skeleton.
+        """
         skeleton = {
             "_class_name": "AutoencoderKL",
             "_diffusers_version": "0.20.0.dev0",
@@ -56,19 +79,18 @@ class VAEGenerator:
 
     def _generate_all_combinations(self, attr):
         """
-        Generates all possible combinations of attributes defined in _search_space_8x1024.
+        Generates all possible combinations from a search space dictionary.
+
+        Args:
+            attr (dict): A dictionary where each key has a list of possible values.
 
         Returns:
             List[Dict]: A list of dictionaries, each representing a unique combination of attributes.
         """
-        # Extract the keys and corresponding lists of choices
         keys = list(attr.keys())
         choices = [attr[key] for key in keys]
-
-        # Compute the Cartesian product of all choices
         all_combinations = list(itertools.product(*choices))
 
-        # Convert each combination tuple into a dictionary
         combination_dicts = []
         for combination in all_combinations:
             combination_dict = {key: value for key, value in zip(keys, combination)}
@@ -77,6 +99,15 @@ class VAEGenerator:
         return combination_dicts
 
     def _assign_attributes(self, choice):
+        """
+        Assign a chosen set of attributes to the base VAE configuration skeleton.
+
+        Args:
+            choice (dict): A dictionary of attributes to assign to the skeleton.
+
+        Returns:
+            dict: A dictionary representing the updated VAE configuration.
+        """
         search_space_skleton = self._load_base_json_skeleton()
         search_space_skleton["down_block_types"] = choice["down_block_types"]
         search_space_skleton["up_block_types"] = choice["up_block_types"]
@@ -86,6 +117,12 @@ class VAEGenerator:
         return search_space_skleton
 
     def _search_space_16x1024(self):
+        """
+        Define the search space for a 16x compression ratio at 1024 resolution.
+
+        Returns:
+            dict: A dictionary defining lists of possible attribute values.
+        """
         attr = {}
         attr["down_block_types"] = [["DownEncoderBlock2D"] * 5]
         attr["up_block_types"] = [["UpDecoderBlock2D"] * 5]
@@ -100,6 +137,12 @@ class VAEGenerator:
         return attr
 
     def _search_space_8x1024(self):
+        """
+        Define the search space for an 8x compression ratio at 1024 resolution.
+
+        Returns:
+            dict: A dictionary defining lists of possible attribute values.
+        """
         attr = {}
         attr["down_block_types"] = [["DownEncoderBlock2D"] * 4]
         attr["up_block_types"] = [["UpDecoderBlock2D"] * 4]
@@ -109,6 +152,13 @@ class VAEGenerator:
         return attr
 
     def _sort_data_in_place(self, data: List[Dict], mode: str) -> None:
+        """
+        Sort the list of design configurations in place based on a chosen mode.
+
+        Args:
+            data (List[Dict]): A list of dictionaries representing design configurations.
+            mode (str): The sorting criterion. Can be 'abs_param_diff', 'abs_cuda_mem_diff', or 'mse'.
+        """
         if mode == 'abs_param_diff':
             data.sort(key=lambda x: abs(x['param_diff']))
         elif mode == 'abs_cuda_mem_diff':
@@ -119,6 +169,14 @@ class VAEGenerator:
             raise ValueError("Invalid mode. Choose from 'abs_param_diff', 'abs_cuda_mem_diff', 'mse'.")
 
     def _print_table(self, data, headers, col_widths):
+        """
+        Print a formatted table of the design choices.
+
+        Args:
+            data (List[Dict]): The data to print, each entry a design configuration.
+            headers (List[str]): Column headers.
+            col_widths (List[int]): Widths for each column.
+        """
         # Create header row
         header_row = ""
         for header, width in zip(headers, col_widths):
@@ -133,6 +191,17 @@ class VAEGenerator:
             print(row)
 
     def search_for_target_vae(self, parameters_budget=0, cuda_max_mem=0):
+        """
+        Search through available VAE design choices to find one that best matches
+        the given parameter and memory budgets.
+
+        Args:
+            parameters_budget (float, optional): The target number of parameters (in millions).
+            cuda_max_mem (float, optional): The target maximum GPU memory usage (in MB).
+
+        Returns:
+            AutoencoderKL: The chosen VAE configuration that best matches the provided budgets.
+        """
         if parameters_budget <= 0 and cuda_max_mem <= 0:
             raise ValueError("Please specify a valid parameter budget or cuda max memory budget")
 
@@ -202,7 +271,7 @@ class VAEGenerator:
         if parameters_budget == 0:
             sort_mode = "abs_cuda_mem_diff"
         elif cuda_max_mem == 0:
-            sort_model = "abs_param_diff"
+            sort_mode = "abs_param_diff"
         else:
             sort_mode = "mse"
 
@@ -217,8 +286,20 @@ class VAEGenerator:
 
     @property
     def input_resolution(self) -> int:
+        """
+        Get the input resolution for the VAE.
+
+        Returns:
+            int: The input resolution.
+        """
         return self._input_resolution
 
     @property
     def compression_ratio(self) -> float:
+        """
+        Get the compression ratio for the VAE.
+
+        Returns:
+            float: The compression ratio.
+        """
         return self._compression_ratio

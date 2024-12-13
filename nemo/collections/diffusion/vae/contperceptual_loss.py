@@ -5,6 +5,13 @@ from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/
 
 
 class LPIPSWithDiscriminator(nn.Module):
+    """
+    A perceptual loss module that combines LPIPS with an adversarial discriminator
+    for improved reconstruction quality in variational autoencoders. This class
+    calculates a combination of pixel-level, perceptual (LPIPS), KL, and adversarial
+    losses for training a VAE model with a discriminator.
+    """
+
     def __init__(
         self,
         disc_start,
@@ -20,7 +27,23 @@ class LPIPSWithDiscriminator(nn.Module):
         disc_conditional=False,
         disc_loss="hinge",
     ):
+        """
+        Initializes the LPIPSWithDiscriminator module.
 
+        Args:
+            disc_start (int): Iteration at which to start discriminator updates.
+            logvar_init (float): Initial value for the log variance parameter.
+            kl_weight (float): Weight for the KL divergence term.
+            pixelloss_weight (float): Weight for the pixel-level reconstruction loss.
+            disc_num_layers (int): Number of layers in the discriminator.
+            disc_in_channels (int): Number of input channels for the discriminator.
+            disc_factor (float): Scaling factor for the discriminator loss.
+            disc_weight (float): Weight applied to the discriminator gradient balancing.
+            perceptual_weight (float): Weight for the LPIPS perceptual loss.
+            use_actnorm (bool): Whether to use actnorm in the discriminator.
+            disc_conditional (bool): Whether the discriminator is conditional on an additional input.
+            disc_loss (str): Type of GAN loss to use ("hinge" or "vanilla").
+        """
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
         self.kl_weight = kl_weight
@@ -40,6 +63,20 @@ class LPIPSWithDiscriminator(nn.Module):
         self.disc_conditional = disc_conditional
 
     def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer=None):
+        """
+        Computes an adaptive weight that balances the reconstruction (NLL) and the
+        adversarial (GAN) losses. This ensures stable training by adjusting the
+        impact of the discriminator’s gradient on the generator.
+
+        Args:
+            nll_loss (torch.Tensor): The negative log-likelihood loss.
+            g_loss (torch.Tensor): The generator (adversarial) loss.
+            last_layer (torch.nn.Parameter, optional): Last layer parameters of the model
+                for gradient-based calculations. If None, uses self.last_layer[0].
+
+        Returns:
+            torch.Tensor: The computed adaptive weight for balancing the discriminator.
+        """
         if last_layer is not None:
             nll_grads = torch.autograd.grad(nll_loss, last_layer, retain_graph=True)[0]
             g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
@@ -55,6 +92,28 @@ class LPIPSWithDiscriminator(nn.Module):
     def forward(
         self, inputs, reconstructions, posteriors, optimizer_idx, global_step, last_layer=None, cond=None, weights=None
     ):
+        """
+        Forward pass for computing the combined loss. Depending on the optimizer index,
+        this either computes the generator loss (including pixel, perceptual, KL, and
+        adversarial terms) or the discriminator loss.
+
+        Args:
+            inputs (torch.Tensor): Original inputs to reconstruct.
+            reconstructions (torch.Tensor): Reconstructed outputs from the model.
+            posteriors (object): Posteriors from the VAE model for KL computation.
+            optimizer_idx (int): Indicates which optimizer is being updated
+                (0 for generator, 1 for discriminator).
+            global_step (int): Current training iteration step.
+            last_layer (torch.nn.Parameter, optional): The last layer's parameters for
+                adaptive weight calculation.
+            cond (torch.Tensor, optional): Conditional input for the discriminator.
+            weights (torch.Tensor, optional): Sample-wise weighting for the losses.
+
+        Returns:
+            (torch.Tensor, dict): A tuple of (loss, log_dict) where loss is the computed loss
+            for the current optimizer and log_dict is a dictionary of intermediate values
+            for logging and debugging.
+        """
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
         if self.perceptual_weight > 0:
             p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
@@ -105,7 +164,7 @@ class LPIPSWithDiscriminator(nn.Module):
             return loss, log
 
         if optimizer_idx == 1:
-            # second pass for discriminator update
+            # discriminator update
             if cond is None:
                 logits_real = self.discriminator(inputs.contiguous().detach())
                 logits_fake = self.discriminator(reconstructions.contiguous().detach())
