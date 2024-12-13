@@ -47,7 +47,7 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
     num_attention_heads: int = 24
     vec_in_dim: int = 768
     context_dim: int = 4096
-    guidance_embed: bool = False
+    guidance_embed: bool = True
     num_mode: int = None
     model_channels: int = 256
     conditioning_embedding_channels: int = None
@@ -178,7 +178,7 @@ class FluxControlNet(VisionModule):
                 rotary_pos_emb=rotary_pos_emb,
                 emb=vec_emb,
             )
-            double_block_samples = double_block_samples +  (hidden_states,)
+            double_block_samples = double_block_samples + (hidden_states,)
 
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
 

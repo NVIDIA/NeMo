@@ -16,9 +16,11 @@ import argparse
 
 import torch
 
-from nemo.collections.diffusion.models.flux.pipeline import FluxInferencePipeline
+from nemo.collections.diffusion.models.flux.pipeline import FluxControlNetInferencePipeline
 from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
+from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
+from PIL import Image
 
 
 def parse_args():
@@ -27,6 +29,8 @@ def parse_args():
     )
 
     parser.add_argument("--flux_ckpt", type=str, default="", help="Path to Flux transformer checkpoint(s)")
+    parser.add_argument("--controlnet_ckpt", type=str, default="", help="Path to controlnet checkpoint(s)")
+    parser.add_argument("--control_image", type=str, default="", help="Path to control image,use \',\' to separate if multiple images are provided. ")
     parser.add_argument("--vae_ckpt", type=str, default="/ckpts/ae.safetensors", help="Path to \'ae.safetensors\'")
     parser.add_argument(
         "--clip_version",
@@ -61,11 +65,14 @@ def parse_args():
     )
     parser.add_argument("--height", type=int, default=1024, help="Image height.")
     parser.add_argument("--width", type=int, default=1024, help="Image width.")
+    parser.add_argument("--num_joint_layers", type=int, default=1, help="Number of joint transformer layers in controlnet.")
+    parser.add_argument("--num_single_layers", type=int, default=1, help="Number of single transformer layers in controlnet.")
     parser.add_argument("--inference_steps", type=int, default=10, help="Number of inference steps to run.")
     parser.add_argument(
         "--num_images_per_prompt", type=int, default=1, help="Number of images to generate for each prompt."
     )
     parser.add_argument("--guidance", type=float, default=0.0, help="Guidance scale.")
+    parser.add_argument("--conditioning_scale", type=float, default=0.0, help="Controlnet conditioning scale.")
     parser.add_argument(
         "--offload", action='store_true', default=False, help="Offload modules to cpu after being called."
     )
@@ -90,16 +97,21 @@ if __name__ == '__main__':
     params.vae_params.ckpt = args.vae_ckpt
     params.clip_params['version'] = args.clip_version
     params.t5_params['version'] = args.t5_version
-    pipe = FluxInferencePipeline(params)
+
+    controlnet_config = FluxControlNetConfig(num_joint_layers=args.num_joint_layers, num_single_layers=args.num_single_layers, load_from_flux_transformer=False)
+    pipe = FluxControlNetInferencePipeline(params, controlnet_config)
 
     print('Loading transformer weights')
     pipe.load_from_pretrained(
         args.flux_ckpt,
+        args.controlnet_ckpt,
         do_convert_from_hf=args.do_convert_from_hf,
         save_converted_model_to=args.save_converted_model_to,
     )
     dtype = torch.bfloat16 if args.bf16 else torch.float32
     text = args.prompts.split(',')
+    control_images = args.control_image.split(',')
+    control_images = [Image.open(x) for x in control_images]
     pipe(
         text,
         max_sequence_length=512,
@@ -110,4 +122,6 @@ if __name__ == '__main__':
         offload=args.offload,
         guidance_scale=args.guidance,
         dtype=dtype,
+        control_image=control_images,
+        controlnet_conditioning_scale=args.conditioning_scale,
     )

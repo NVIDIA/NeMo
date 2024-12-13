@@ -150,8 +150,8 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
     else:
         raise FileNotFoundError("Please provide a valid ckpt path.")
     new_state_dict = {}
-    num_single_blocks = 0
-    num_double_blocks = 0
+    num_single_blocks = -1
+    num_double_blocks = -1
     for key, value in diffuser_state_dict.items():
         if 'attn.to_q' in key or 'attn.to_k' in key or 'attn.to_v' in key:
             continue
@@ -170,11 +170,10 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
             num_single_blocks = max(int(idx), num_single_blocks)
             new_key = '.'.join(['single_blocks', idx, flux_key_mapping['single_blocks'][k]])
         elif key.startswith('controlnet_blocks'):
-            new_key = 'controlnet_double_blocks' + key.split('.')[1:]
+            new_key = 'controlnet_double_blocks.' + '.'.join(key.split('.')[1:])
         else:
             new_key = flux_key_mapping[key]
         new_state_dict[new_key] = value
-
     for i in range(num_double_blocks + 1):
         new_key = f'double_blocks.{str(i)}.self_attention.linear_qkv.weight'
         qk, kk, vk = [f'transformer_blocks.{str(i)}.attn.to_{n}.weight' for n in ('q', 'k', 'v')]
