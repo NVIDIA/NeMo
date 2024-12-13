@@ -19,7 +19,7 @@ from typing import List, Optional
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.parts.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck

@@ -21,7 +21,7 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
