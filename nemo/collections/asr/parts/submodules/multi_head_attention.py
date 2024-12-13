@@ -77,12 +77,10 @@ class MultiHeadAttention(nn.Module):
         super(MultiHeadAttention, self).__init__()
         self.use_pytorch_sdpa = use_pytorch_sdpa
         if self.use_pytorch_sdpa and use_pytorch_sdpa_backends:
-            use_pytorch_sdpa_backends = list(
-                map(
-                    lambda backend_name: getattr(torch.nn.attention.SDPBackend, backend_name),
-                    use_pytorch_sdpa_backends,
-                )
-            )
+            use_pytorch_sdpa_backends = [
+                getattr(torch.nn.attention.SDPBackend, backend) if isinstance(backend, str) else backend
+                for backend in use_pytorch_sdpa_backends
+            ]
         self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
 
         self.cache_drop_size = None

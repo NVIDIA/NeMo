@@ -556,6 +556,13 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 self.cfg.encoder.self_attention_model = self_attention_model
                 self.cfg.encoder.att_context_size = att_context_size
 
+    def set_use_pytorch_sdpa(self, enabled: bool, sdpa_backends: list[torch.nn.attention.SDPBackend] | None = None):
+        if hasattr(self, "encoder") and hasattr(self.encoder, "layers"):
+            for layer in self.encoder.layers:
+                if hasattr(layer, "self_attn") and hasattr(layer.self_attn, "use_pytorch_sdpa"):
+                    layer.self_attn.use_pytorch_sdpa = enabled
+                    layer.self_attn.use_pytorch_sdpa_backends = sdpa_backends
+
     def change_subsampling_conv_chunking_factor(
         self, subsampling_conv_chunking_factor: int, update_config: bool = True
     ):
