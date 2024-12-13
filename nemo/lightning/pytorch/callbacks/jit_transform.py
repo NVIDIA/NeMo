@@ -44,7 +44,7 @@ def get_modules_from_selector(model, module_selector):
         if '*' in item:
             # handle wildcard selector
             # TODO(@akoumparouli): support more complex selectors e.g. net_b.*.net_c.*.conv
-            for name, module in model.named_children():
+            for name, module in tmp.named_children():
                 if re.match(item, name):
                     yield module
             return
@@ -101,7 +101,8 @@ class JitTransform(Callback, IOMixin):
         >>> trainer = Trainer(callbacks=[JitTransform(JitConfig(use_torch=True))])
     """
 
-    def __init__(self, config: JitConfig = None):
+    def __init__(self, config: JitConfig):
+        assert config is not None
         self.config = config
         assert not (self.config.use_torch and self.config.use_thunder)
 
