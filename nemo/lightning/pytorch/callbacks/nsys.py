@@ -20,6 +20,7 @@ from lightning.pytorch.callbacks.callback import Callback
 from nemo.utils import logging
 from nemo.utils.get_rank import get_rank
 
+
 def get_current_epoch_step(trainer) -> int:
     """
     Get the value of step within an epoch.
@@ -30,6 +31,7 @@ def get_current_epoch_step(trainer) -> int:
         trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
         trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
     )
+
 
 class NsysCallback(Callback):
     """
@@ -80,6 +82,7 @@ class NsysCallback(Callback):
     def _rank_is_active(self, trainer):
         # TODO(@akoumparouli): is this function cache-able?
         from lightning.pytorch.strategies import SingleDeviceStrategy
+
         if isinstance(trainer.strategy, SingleDeviceStrategy):
             return True
         if not torch.distributed.is_initialized():
