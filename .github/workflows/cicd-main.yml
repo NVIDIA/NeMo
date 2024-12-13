@@ -4613,7 +4613,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
-      RUNNER: azure-gpu-vm-runner1-cpu
+      RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
         python tests/collections/vlm/test_llava_next_train.py \
         --devices=1 \
