@@ -66,7 +66,7 @@ def slurm_executor(
     time: str = "01:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "nvcr.io/nvidia/nemo:24.09",
+    container_image: str = "nvcr.io/nvidia/nemo:dev",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
@@ -149,7 +149,6 @@ def main():
 
     pretrain.trainer.val_check_interval = 400
     pretrain.log.ckpt.save_top_k = -1
-    pretrain.log.ckpt.every_n_train_steps = 400
 
     pretrain.trainer.max_steps = 1000
 
