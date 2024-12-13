@@ -70,6 +70,12 @@ class JitTransform(Callback, IOMixin):
                 import thunder
                 import thunder.dynamo
                 from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
+                # With this setting, Dynamo Graphs inline all the modules (so Dynamo FXGraph just
+                # consists of `call_function` nodes only and no `call_module` node.
+                # This is the default setting in PyTorch 2.5 onwards
+                # (see https://github.com/pytorch/pytorch/pull/131275)
+                torch._dynamo.config.inline_inbuilt_nn_modules = True
+
                 xforms: list = [NvtxProfileTransform()] if config.profile_thunder else []
                 be = thunder.dynamo.ThunderCompiler(transforms=xforms)
                 model.compile(backend=be)
