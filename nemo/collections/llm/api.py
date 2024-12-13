@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import os
+import warnings
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
@@ -20,7 +21,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
+from megatron.core import parallel_state
 from rich.console import Console
+from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
@@ -36,6 +39,7 @@ from nemo.lightning import (
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -141,6 +145,7 @@ def pretrain(
         >>> llm.pretrain(model, data, trainer)
         PosixPath('/path/to/log_dir')
     """
+    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim)
     return train(
         model=model,
         data=data,
@@ -191,6 +196,7 @@ def finetune(
         PosixPath('/path/to/log_dir')
     """
 
+    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
     return train(
         model=model,
         data=data,
@@ -261,12 +267,11 @@ def validate(
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
     nemo_checkpoint: str,
-    calib_tp: int = 1,
-    calib_pp: int = 1,
+    export_config: ExportConfig,
+    calibration_tp: int = 1,
+    calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
-    export_config: Optional[Union[ExportConfig, run.Config[ExportConfig]]] = None,
 ) -> Path:
-    # TODO: Fix "nemo_run.cli.cli_parser.CLIException: An unexpected error occurred (Argument: , Context: {})"
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
@@ -277,8 +282,8 @@ def ptq(
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
     nemo llm ptq nemo_checkpoint=/models/Llama-3-70B \
         export_config.path=/models/Llama-3-70B-FP8 \
-        calib_tp=8 \
-        export_config.inference_tensor_parallel=2
+        calibration_tp=8 \
+        export_config.inference_tp=2
     # Choose different quantization method, for example, INT8 SmoothQuant
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
@@ -286,13 +291,16 @@ def ptq(
     ```
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
-        calib_tp (int): Calibration tensor parallelism.
-        calib_pp (int): Calibration pipeline parallelism.
+        calibration_tp (int): Calibration tensor parallelism.
+        calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
+    if not quantization_config:
+        quantization_config = QuantizationConfig()
+
     if export_config.path is None:
         raise ValueError("The export_config.path needs to be specified, got None.")
 
@@ -300,7 +308,7 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calib_tp, calib_pp)
+    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calibration_tp, calibration_pp)
 
     model = quantizer.quantize(model)
 
@@ -316,7 +324,7 @@ def ptq(
 def deploy(
     nemo_checkpoint: Path = None,
     model_type: str = "llama",
-    triton_model_name: str = 'triton_model',
+    triton_model_name: str = "triton_model",
     triton_model_version: Optional[int] = 1,
     triton_port: int = 8000,
     triton_http_address: str = "0.0.0.0",
@@ -368,22 +376,22 @@ def deploy(
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token. Default: True.
     """
-    from nemo.collections.llm import deploy
+    from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
-    deploy.unset_environment_variables()
+    unset_environment_variables()
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
             return
         # Store triton ip, port and other args relevant for REST API as env vars to be accessible by rest_model_api.py
-        os.environ['TRITON_HTTP_ADDRESS'] = triton_http_address
-        os.environ['TRITON_PORT'] = str(triton_port)
-        os.environ['TRITON_REQUEST_TIMEOUT'] = str(triton_request_timeout)
-        os.environ['OPENAI_FORMAT_RESPONSE'] = str(openai_format_response)
-        os.environ['OUTPUT_GENERATION_LOGITS'] = str(output_generation_logits)
+        os.environ["TRITON_HTTP_ADDRESS"] = triton_http_address
+        os.environ["TRITON_PORT"] = str(triton_port)
+        os.environ["TRITON_REQUEST_TIMEOUT"] = str(triton_request_timeout)
+        os.environ["OPENAI_FORMAT_RESPONSE"] = str(openai_format_response)
+        os.environ["OUTPUT_GENERATION_LOGITS"] = str(output_generation_logits)
 
-    triton_deployable = deploy.get_trtllm_deployable(
+    triton_deployable = get_trtllm_deployable(
         nemo_checkpoint,
         model_type,
         triton_model_repository,
@@ -504,7 +512,7 @@ def evaluate(
     from nemo.collections.llm import evaluation
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
-    tokenizer = io.load_context(nemo_checkpoint_path + '/context', subpath="model").tokenizer
+    tokenizer = io.load_context(nemo_checkpoint_path + "/context", subpath="model.tokenizer")
     # Wait for rest service to be ready before starting evaluation
     evaluation.wait_for_rest_service(rest_url=f"{url}/v1/health")
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
@@ -512,10 +520,14 @@ def evaluate(
         model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos
     )
     results = evaluator.simple_evaluate(
-        model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+        model=model,
+        tasks=eval_task,
+        limit=limit,
+        num_fewshot=num_fewshot,
+        bootstrap_iters=bootstrap_iters,
     )
 
-    print("score", results['results'][eval_task])
+    print("score", results["results"][eval_task])
 
 
 @run.cli.entrypoint(name="import", namespace="llm")
@@ -662,9 +674,10 @@ def export_ckpt(
 @run.cli.entrypoint(name="generate", namespace="llm")
 def generate(
     path: Union[Path, str],
-    prompts: list[str],
     trainer: nl.Trainer,
+    prompts: Optional[list[str]] = None,
     encoder_prompts: Optional[list[str]] = None,
+    input_dataset: Optional[Union[pl.LightningDataModule, str]] = None,
     params_dtype: torch.dtype = torch.bfloat16,
     add_BOS: bool = False,
     max_batch_size: int = 4,
@@ -672,6 +685,7 @@ def generate(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
+    output_path: Optional[Union[Path, str]] = None,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -725,6 +739,8 @@ def generate(
         prompts (list[str]): The list of prompts to generate text for.
         trainer (nl.Trainer): The trainer object.
         encoder_prompts (Optional[list[str]], optional): The list of encoder prompts. Defaults to None.
+        input_dataset (Optional[Union[pl.LightningDataModule, str]], optional): The input data module or jsonl file.
+            Test set will be used for generation for data modules. Defaults to None.
         params_dtype (torch.dtype, optional): The data type of the model parameters. Defaults to torch.bfloat16.
         add_BOS (bool, optional): Whether to add the beginning of sequence token. Defaults to False.
         max_batch_size (int, optional): The maximum batch size. Defaults to 4.
@@ -734,6 +750,8 @@ def generate(
         inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
             Mcore's CommonInferenceParams. Defaults to None.
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
+        output_path (Optional[Union[Path, str]], optional): The path to save the generated text or test dataset
+            predictions. Defaults to None.
 
     Returns:
         list[Union["InferenceRequest", str]]: A list of generated text,
@@ -741,24 +759,63 @@ def generate(
     """
     from nemo.collections.llm import inference
 
+    if input_dataset is not None:
+        input_path = input_dataset if isinstance(input_dataset, str) else input_dataset.test_path
+        with open(input_path) as f:
+            dataset = [json.loads(sample) for sample in f.readlines()]
+            inputs = [sample["input"] for sample in dataset]
+    elif prompts is not None:
+        inputs = prompts
+    else:
+        raise ValueError("Either prompts or input_dataset must be provided.")
+
     inference_wrapped_model, mcore_tokenizer = inference.setup_model_and_tokenizer(
         path=path,
         trainer=trainer,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
-    results = inference.generate(
+
+    dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
+    dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
+    chunk_size = (len(inputs) + dp_size - 1) // dp_size
+    start_idx = dp_rank * chunk_size
+    end_idx = min(start_idx + chunk_size, len(inputs))
+    inputs_on_this_dp_rank = inputs[start_idx:end_idx]
+
+    results_on_this_dp_rank = inference.generate(
         model=inference_wrapped_model,
         tokenizer=mcore_tokenizer,
-        prompts=prompts,
+        prompts=inputs_on_this_dp_rank,
         encoder_prompts=encoder_prompts,
         add_BOS=add_BOS,
         max_batch_size=max_batch_size,
         random_seed=random_seed,
         inference_params=inference_params,
     )
+    gathered_results = [None] * dp_size
 
-    return [r.generated_text if text_only else r for r in results]
+    all_gather_object(
+        gathered_results,
+        [r.generated_text if text_only else r for r in results_on_this_dp_rank],
+        group=parallel_state.get_data_parallel_group(),
+    )
+    gathered_results = [result for sublist in gathered_results for result in sublist]
+
+    assert len(gathered_results) == len(inputs)
+
+    if output_path is not None and is_global_rank_zero():
+        with open(output_path, "w") as f:
+            for sample, pred in zip(dataset if input_dataset else inputs, gathered_results):
+                if type(sample) == dict:
+                    sample["label"] = sample.pop("output", None)
+                    sample["prediction"] = pred if text_only else pred.generated_text
+                elif type(sample) == str:
+                    sample = {"input": sample, "prediction": pred if text_only else pred.generated_text}
+                f.write(json.dumps(sample) + "\n")
+        logging.info(f"Predictions written to {output_path}")
+
+    return gathered_results
 
 
 def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:
@@ -826,3 +883,108 @@ def _set_with_io(obj, attr, value):
     setattr(obj, attr, value)
     if hasattr(obj, "__io__") and hasattr(value, "__io__"):
         setattr(obj.__io__, attr, deepcopy(value.__io__))
+
+
+def _validate_config(
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Optional[NeMoLogger] = None,
+    resume: Optional[AutoResume] = None,
+    optim: Optional[OptimizerModule] = None,
+    tokenizer: Optional[TokenizerType] = None,
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
+) -> None:
+
+    ## Model validation
+    if hasattr(model, "config"):
+        assert getattr(model.config, "seq_length", 1) > 0
+        assert getattr(model.config, "max_position_embeddings", 1) > 0
+        assert model.config.num_layers > 0
+        assert model.config.hidden_size > 0
+        assert model.config.num_attention_heads > 0
+        assert model.config.ffn_hidden_size > 0
+
+        if hasattr(model.config, "seq_length"):
+            if getattr(model.config, "max_position_embeddings", None) is not None:
+                assert model.config.seq_length <= model.config.max_position_embeddings
+    else:
+        assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
+
+    ## Data validation
+    assert data.micro_batch_size > 0
+    assert data.global_batch_size > 0
+    assert data.seq_length > 0
+
+    assert (
+        data.global_batch_size % data.micro_batch_size == 0
+    ), "Global batch size must be divisible by micro batch size in data module."
+
+    ## Trainer validation
+
+    # MegatronStrategy validation
+    if isinstance(trainer.strategy, nl.MegatronStrategy):
+        # Basic validation
+        assert trainer.strategy.tensor_model_parallel_size > 0
+        assert trainer.strategy.pipeline_model_parallel_size > 0
+        assert trainer.strategy.context_parallel_size > 0
+
+        # DP validation
+        assert (trainer.num_devices * trainer.num_nodes) % (
+            trainer.strategy.tensor_model_parallel_size
+            * trainer.strategy.pipeline_model_parallel_size
+            * trainer.strategy.context_parallel_size
+        ) == 0, "Number of GPUs must be divisible by the product of all parallelism sizes for data parallel."
+
+        assert (
+            data.global_batch_size
+            % (
+                data.micro_batch_size
+                * (
+                    (trainer.num_devices * trainer.num_nodes)
+                    / (
+                        trainer.strategy.tensor_model_parallel_size
+                        * trainer.strategy.pipeline_model_parallel_size
+                        * trainer.strategy.context_parallel_size
+                    )
+                )
+            )
+            == 0
+        ), "Global batch size must be divisible by the product of micro batch size and data parallel size"
+
+        # TP/SP validation
+        if trainer.strategy.tensor_model_parallel_size == 1:
+            if trainer.strategy.sequence_parallel == True:
+                warnings.warn("Disabling sequence parallelism because tensor model parallelism is disabled")
+                trainer.strategy.sequence_parallel = False
+
+        # PP/VP validation
+        if trainer.strategy.pipeline_model_parallel_size > 1:
+            assert (
+                trainer.strategy.pipeline_dtype is not None
+            ), "pipeline_dtype must be set if pipeline model parallelism is enabled"
+        else:
+            if trainer.strategy.virtual_pipeline_model_parallel_size is not None:
+                warnings.warn("Disabling virtual pipeline parallelism because pipeline model parallelism is disabled")
+                trainer.strategy.virtual_pipeline_model_parallel_size = None
+            if trainer.strategy.pipeline_dtype is not None:
+                warnings.warn("Setting pipeline dtype to None because pipeline model parallelism is disabled")
+                trainer.strategy.pipeline_dtype = None
+
+        # CP validation
+        if trainer.strategy.context_parallel_size > 1:
+            if hasattr(model, "config"):
+                if model.config.seq_length is not None:
+                    assert (
+                        model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
+                    ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+
+        # EP validation
+        if trainer.strategy.expert_model_parallel_size > 1:
+            if hasattr(model, "config"):
+                assert (
+                    model.config.num_moe_experts is not None
+                ), "num_experts must be non None to use expert model parallelism"
+                assert (
+                    model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
+                ), "Number of experts should be a multiple of expert model parallel_size."

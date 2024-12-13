@@ -27,12 +27,11 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
-from nemo.collections.common.data.lhotse.dataloader import (
+from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig, tokenize
+from nemo.collections.common.data.lhotse.sampling import (
     DurationFilter,
     FixedBucketBatchSizeConstraint2D,
-    LhotseDataLoadingConfig,
     TokenPerSecondFilter,
-    tokenize,
 )
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePieceTokenizer

@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.vlm.llava_next.data import LlavaNextMockDataModule, LlavaNextTaskEncoder
+from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
+from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
 from nemo.collections.vlm.mllama.data import MLlamaLazyDataModule, MLlamaMockDataModule
 from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
@@ -42,7 +45,8 @@ from nemo.collections.vlm.neva.model.base import (
     NevaConfig,
     NevaModel,
 )
-from nemo.collections.vlm.neva.model.llava import Llava1_5Config7B, Llava1_5Config13B, LlavaConfig, LlavaModel
+from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
+from nemo.collections.vlm.neva.model.vit_config import CLIPViTL_14_336_Config, SigLIPViT400M_14_384_Config
 from nemo.collections.vlm.peft import LoRA
 from nemo.collections.vlm.recipes import *
 
@@ -59,13 +63,16 @@ __all__ = [
     "VideoToken",
     "CLIPViTConfig",
     "HFCLIPVisionConfig",
+    "CLIPViTL_14_336_Config",
+    "SigLIPViT400M_14_384_Config",
     "MultimodalProjectorConfig",
     "NevaConfig",
     "NevaModel",
     "LlavaConfig",
-    "Llava1_5Config7B",
-    "Llava1_5Config13B",
+    "Llava15Config7B",
+    "Llava15Config13B",
     "LlavaModel",
+    "LlavaNextTaskEncoder",
     "MLlamaModel",
     "MLlamaModelConfig",
     "CrossAttentionTextConfig",
@@ -76,4 +83,10 @@ __all__ = [
     "MLlamaConfig90BInstruct",
     "mllama_11b",
     "mllama_90b",
+    "llava_next_7b",
+    "LlavaNextConfig7B",
+    "LlavaNextConfig13B",
+    "LlavaNextModel",
+    "LlavaNextMockDataModule",
+    "LlavaNextTaskEncoder",
 ]

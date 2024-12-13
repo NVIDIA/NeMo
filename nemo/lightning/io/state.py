@@ -29,6 +29,8 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 @dataclass
 class TransformCTX:
+    """Transform Data class Definition."""
+
     source: nn.Module
     source_state: dict
     target: nn.Module
@@ -242,7 +244,12 @@ class StateDictTransform(Generic[F]):
             source_matches_dict = {k: _match_keys(list(source_dict.keys()), v) for k, v in source_key_dict.items()}
             target_matches = _match_keys(list(target_dict.keys()), target_key)
             param_names = list(filter(lambda x: x in source_matches_dict, fn_params))
-            for layer_names_group in zip(*([source_matches_dict[v] for v in param_names] + [target_matches])):
+            source_matches = [
+                source_matches_dict[v] if source_matches_dict[v].ndim > 0 else [source_matches_dict[v].item()]
+                for v in param_names
+            ]
+            target_matches = [target_matches if target_matches.ndim > 0 else [target_matches.item()]]
+            for layer_names_group in zip(*(source_matches + target_matches)):
                 # Wrap in a list if it's a single layer (ie non-expert)
                 if isinstance(layer_names_group[0], str):
                     layer_names_group = [[x] for x in layer_names_group]
@@ -327,6 +334,7 @@ class StateDictTransform(Generic[F]):
         return ctx
 
     def call_transform(self, ctx: TransformCTX, *args, **kwargs):
+        """Perform transform and check if the given args valid."""
         func_params = inspect.signature(self.transform).parameters
         expected_num_args = len([p for p in func_params if p not in ['self', 'ctx']])
         provided_num_args = len(args) + len(kwargs)
@@ -381,6 +389,9 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
     # Determine the shape of the output array based on the unique matches for each wildcard
     shape = [len(matches) for matches in wildcard_matches]
 
+    if len(wildcard_matches) == 0:
+        # If there is no wildcard matches, assuming it is a single match
+        shape = [1]
     # Initialize an empty array with the determined shape
     output_array = np.empty(shape, dtype=object)
 

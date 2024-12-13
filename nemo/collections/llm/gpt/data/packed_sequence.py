@@ -78,7 +78,7 @@ def prepare_packed_sequence_data(
     sequences, histogram = create_hist(dataset, max_seq_length)
 
     assignments = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)
-    output_data = fill_packing_strategy(assignments, sequences, packed_sequence_size)
+    output_data = fill_packing_strategy(assignments, sequences, packed_sequence_size, tokenizer.eos_id)
 
     # save output data
     np.save(output_path, output_data)
@@ -101,15 +101,31 @@ class PackedSequenceSpecs:
     This field is set by llm.finetune api.
     """
 
-    packed_data_path: str = None
+    packed_train_data_path: str = None
     """
-    If specified, use the packed dataset from this file instead of the default path.
+    If specified, use this file for the packed training dataset instead of the default path.
+    """
+
+    packed_val_data_path: str = None
+    """
+    If specified, use this file for the packed validation dataset instead of the default path.
     """
 
     def __post_init__(self):
-        if self.packed_data_path is not None:
-            self.packed_data_path = Path(self.packed_data_path)
+        if self.packed_train_data_path is not None:
+            self.packed_train_data_path = Path(self.packed_train_data_path)
             assert (
-                self.packed_data_path.suffix == ".npy"
-            ), f"packed data file must be a .npy file: {self.packed_data_path}"
-            assert self.packed_data_path.exists(), f"packed data file does not exist: {self.packed_data_path}"
+                self.packed_train_data_path.suffix == ".npy"
+            ), f"packed training data file must be a .npy file: {self.packed_train_data_path}"
+            assert (
+                self.packed_train_data_path.exists()
+            ), f"packed training data file does not exist: {self.packed_train_data_path}"
+
+        if self.packed_val_data_path is not None:
+            self.packed_val_data_path = Path(self.packed_val_data_path)
+            assert (
+                self.packed_val_data_path.suffix == ".npy"
+            ), f"packed validation data file must be a .npy file: {self.packed_val_data_path}"
+            assert (
+                self.packed_val_data_path.exists()
+            ), f"packed validation data file does not exist: {self.packed_val_data_path}"
