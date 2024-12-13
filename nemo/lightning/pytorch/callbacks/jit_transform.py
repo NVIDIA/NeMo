@@ -60,6 +60,10 @@ class JitTransform(Callback, IOMixin):
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
 
+        if getattr(pl_module, '_compiled', False) == False:
+            return
+        pl_module._compiled = True
+
         for config in listify(self.config):
             if isinstance(config.target_module, str) and config.target_module != '':
                 module = model
