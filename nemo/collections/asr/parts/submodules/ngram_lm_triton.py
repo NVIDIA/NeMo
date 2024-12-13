@@ -15,6 +15,7 @@
 import triton
 import triton.language as tl
 
+
 @triton.jit
 def _ngram_triton_kernel(
     vocab_size: "tl.constexpr",
@@ -63,9 +64,7 @@ def _ngram_triton_kernel(
         # done |= (cur_state == start_state)
         # backoff
         cur_backoff_weight = tl.load(backoff_weights_ptr + cur_state)
-        not_final_mask = (
-            tl.load(new_states_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask, other=0) == -1
-        )
+        not_final_mask = tl.load(new_states_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask, other=0) == -1
         tl.store(
             scores_ptr + batch_i * vocab_size + vocab_offsets,
             tl.load(scores_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask) + cur_backoff_weight,
