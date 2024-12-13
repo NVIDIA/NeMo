@@ -24,22 +24,22 @@ import torch.nn as nn
 from tqdm.auto import tqdm
 
 from nemo.utils import logging
-from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE
+from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, triton_required, kenlm_required
 
 if KENLM_AVAILABLE:
     import kenlm
 
 if TRITON_AVAILABLE:
     from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_triton_kernel
+    import triton
 
 def _log_e_score(score):
     return score / np.log10(np.e)
 
 
 class KenLMWrapper:
+    @kenlm_required
     def __init__(self, model_path: Path | str, token_offset=100):
-        if not KENLM_AVAILABLE:
-            raise Exception(f"No kenlm found, cannot instantiate {self.__class__}")
         self.ngram_lm = kenlm.Model(str(model_path))
         self.token_offset = token_offset
 
@@ -381,6 +381,7 @@ class FastNGramLM(nn.Module):
             return self._compute_scores_batch_cuda(states=states)
         return self._compute_scores_batch_pytorch(states=states)
 
+    @triton_required
     def _compute_scores_batch_triton(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         batch_size = states.shape[0]
         device = states.device
