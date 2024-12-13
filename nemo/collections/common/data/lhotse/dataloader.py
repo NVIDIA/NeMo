@@ -41,6 +41,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
 from nemo.collections.common.prompts.fn import get_prompt_format_fn
+from nemo.collections.asr.parts.utils.asr_multispeaker_utils import ConcatenationMeetingSimulator, MixMeetingSimulator, LibriSpeechMixGenerator, LibriSpeechMixSimulator
 from nemo.utils import logging
 
 
@@ -61,8 +62,7 @@ class LhotseDataLoadingConfig:
     #   b. Lhotse CutSet manifest / Lhotse Shar tar dir paths.
     cuts_path: str | None = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
-    #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
-    tarred_random_access: bool = False
+
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
@@ -148,6 +148,10 @@ class LhotseDataLoadingConfig:
     # a different number of steps on different DDP ranks.
     force_finite: bool = False
 
+    # 6. Cut simulation for multi-speaker ASR
+    simulators: Any = None  # dict | None = None
+    including_real_data: bool = False
+
 
 def get_lhotse_dataloader_from_config(
     config: DictConfig,
@@ -187,6 +191,66 @@ def get_lhotse_dataloader_from_config(
 
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)
+    if config.simulators is not None:
+        simulated_cuts = CutSet()
+        for simulator_name in config.simulators.keys():
+            simulator_config = config.simulators[simulator_name]
+
+            skip_long_segments = simulator_config.get('skip_long_segments', False)
+            valid_dataset_ids = simulator_config.get('valid_dataset_ids', [])
+            if simulator_config.get('manifest_filepath', None):
+                cfg_for_simulation = LhotseDataLoadingConfig()
+                cfg_for_simulation = OmegaConf.create(cfg_for_simulation)
+                cfg_for_simulation.manifest_filepath = simulator_config.manifest_filepath
+                cuts_for_simulation, _ = read_cutset_from_config(cfg_for_simulation)
+            else:
+                cuts_for_simulation = cuts
+
+            if simulator_config.get('concat', False):
+                simulator = ConcatenationMeetingSimulator(
+                    intra_session_concat_prob=simulator_config.intra_session_concat_prob,
+                    data_type=simulator_config.ms_data_type,
+                    min_duration=simulator_config.min_duration,
+                    max_duration=simulator_config.max_duration,
+                    max_num_speakers=simulator_config.max_num_speakers,
+                    speaker_count_distribution=simulator_config.speaker_count_distribution,
+                    skip_long_segments=skip_long_segments,
+                )
+                
+                simulated_cuts += simulator.simulate(cuts_for_simulation, num_meetings=simulator_config.num_meetings, num_jobs=1, seed=global_rank+seed)
+
+            if simulator_config.get('mix', False):
+                simulator = MixMeetingSimulator(
+                    intra_session_mix_prob=simulator_config.intra_session_mix_prob,
+                    data_type=simulator_config.ms_data_type,
+                    min_duration=simulator_config.min_duration,
+                    max_duration=simulator_config.max_duration,
+                    max_num_speakers=simulator_config.max_num_speakers,
+                    speaker_count_distribution=simulator_config.speaker_count_distribution,
+                )
+
+                simulated_cuts += simulator.simulate(cuts_for_simulation, num_meetings=simulator_config.num_meetings, num_jobs=1, seed=global_rank+seed)
+
+            if simulator_config.get('lsmix', False):
+                simulator = LibriSpeechMixSimulator(
+                    data_type=simulator_config.ms_data_type,
+                    min_delay=0.5,
+                    max_num_speakers=simulator_config.max_num_speakers,
+                    speaker_token_position=simulator_config.speaker_token_position,
+                    speaker_count_distribution=simulator_config.speaker_count_distribution,
+                    delay_factor=simulator_config.delay_factor,
+                )
+                simulated_cuts += simulator.simulate(cuts_for_simulation, num_meetings=simulator_config.num_meetings, num_jobs=1, seed=global_rank+seed)
+
+        if config.including_real_data:
+            cuts = CutSet.from_cuts(cuts + simulated_cuts)
+        else:
+            cuts = simulated_cuts
+
+    if hasattr(cuts[0], 'delays'):
+        generator = LibriSpeechMixGenerator()
+        cuts = generator.generate(cuts)
+
 
     # Apply channel selector
     if config.channel_selector is not None:
@@ -317,6 +381,7 @@ def get_lhotse_dataloader_from_config(
             duration_bins=determine_bucket_duration_bins(config),
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
+            concurrent=config.concurrent_bucketing,
             rank=0 if is_tarred else global_rank,
             world_size=1 if is_tarred else world_size,
         )
@@ -368,7 +433,7 @@ def get_lhotse_dataloader_from_config(
         )
 
     # 4. Creating dataloader.
-    if is_tarred and not config.tarred_random_access:
+    if is_tarred:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
@@ -656,7 +721,7 @@ def _merge_supervisions(cuts: CutSet) -> CutSet:
 
 def _flatten_alt_text(cut) -> list:
     ans = [cut]
-    if not isinstance(cut, Cut) or cut.custom is None or cut.custom.get("alt_text") is None:
+    if not isinstance(cut, Cut) or (not hasattr(cut, 'custom') or cut.custom is None) or cut.custom.get("alt_text") is None:
         return ans
     cut = cut.move_to_memory(audio_format="wav")  # performs I/O once and holds audio in memory from now on
     # Popping to ease eyesight on debug.

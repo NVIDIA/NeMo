@@ -16,6 +16,7 @@ import copy
 import csv
 import json
 import os
+import string
 from itertools import groupby
 from collections import defaultdict, OrderedDict as od
 from datetime import datetime
@@ -505,17 +506,6 @@ def read_seglst(seglst_filepath, round_digits=3, return_rttm=False, sort_by_star
 def convert_seglst(seglst, all_speakers):
     '''
     convert the seglst to a format that can be used for scoring
-
-    Args:
-        seglst (list): list of seglst dictionaries
-        all_speakers (list): list of all active speakers
-    Returns:
-        timestamps: (list of list)
-            [
-            [[st1, et1], [st2, et2]], # timestamps list for speaker 1
-            [[st1, et1], ...], # timestamps list for speaker 2 
-            ...]
-        words (list[[s1], [s2], [s3], [s4]]): list of words for each speaker 1 to 4
     '''
 
     timestamps = [[] for _ in all_speakers]
@@ -533,21 +523,8 @@ def chunk_seglst(
     seglst : List[Dict],
     chunk_size: float = 10.0
 ):
-    '''
-    Get chunked timestamps and words for each speaker
-
-    Args:
-        seglst (list): list of seglst dictionaries
-        chunk_size (float): chunk size in seconds
-
-    Returns:
-        chunk_id2timestamps (dict): dictionary of chunk_id to list of timestamps
-        speakers (set): set of all speakers
-        session_id (str): session id
-    '''
-    chunk_id2timestamps = defaultdict(list)
-    speakers = set()
-    session_ids = set()
+    sessions_by_interval = defaultdict(lambda: defaultdict(list))
+    session_id2speakers = defaultdict(set)
     
     for segment in seglst:
         session_id = segment['session_id']
@@ -578,81 +555,72 @@ def chunk_seglst(
                 'duration': segment_end - segment_start,
             }
             words = ""
-            chunk_id2timestamps[chunk_idx].append(split_segment)
-            speakers.add(segment['speaker'])
-            session_ids.add(session_id)
-
-    assert len(session_ids) == 1, "All segments should belong to the same session"
+            sessions_by_interval[session_id][chunk_idx].append(split_segment)
+            session_id2speakers[session_id].add(segment['speaker'])
     
-    return chunk_id2timestamps, speakers, session_ids.pop()
+    return sessions_by_interval, session_id2speakers
 
 def streaming_evaluation(
-    ref_seglst: List[Dict],
-    hyp_seglst: List[Dict],
+    ref_seglst_filepath: List[str], 
+    hyp_seglst_filepath: List[str],  
     collar=0.25, 
-    ignore_overlap=False, 
+    ignore_overlap=True, 
     verbose: bool = True, 
     chunk_size: float = 10.0,
 ):
-    '''
-    Perform streaming evaluation of diarization and ASR for one session
-
-    Args:
-        ref_seglst (list): list of reference seglst dictionaries
-        hyp_seglst (list): list of hypothesis seglst dictionaries
-        collar (float): collar for DER calculation
-        ignore_overlap (bool): whether to ignore overlapping segments
-        verbose (bool): whether to print verbose output
-        chunk_size (float): how frequently to chunk and evaluate the session
-    '''
-    max_duration = max([seg['end_time'] for seg in ref_seglst + hyp_seglst])
+    all_ref_seglst, ref_rttm_lines = read_seglst(ref_seglst_filepath, return_rttm=True, sort_by_start_time=True)
+    all_hyp_seglst, hyp_rttm_lines = read_seglst(hyp_seglst_filepath, return_rttm=True, sort_by_start_time=True)
+    max_duration = max([seg['end_time'] for seg in all_ref_seglst + all_hyp_seglst])
     max_idx = int(max_duration // chunk_size) + 1
 
-    chunked_ref_seglst, ref_speakers, ref_session_id = chunk_seglst(ref_seglst, chunk_size=chunk_size)
-    chunked_hyp_seglst, hyp_speakers, hyp_session_id = chunk_seglst(hyp_seglst, chunk_size=chunk_size)
-
-    assert ref_session_id == hyp_session_id, "Session IDs of reference and hypothesis should match"
+    session_id2chunked_ref_seglst, ref_session_id2speakers = chunk_seglst(all_ref_seglst, chunk_size=chunk_size)
+    session_id2chunked_hyp_seglst, hyp_session_id2speakers = chunk_seglst(all_hyp_seglst, chunk_size=chunk_size)
     
-    # Only care about the sessions in reference only
-    session_id = ref_session_id
-    ref_speaker_words = defaultdict(list)
-    hyp_speaker_words = defaultdict(list)
+    # Union of session IDs
+    session_id = set(session_id2chunked_ref_seglst.keys()) | set(session_id2chunked_hyp_seglst.keys())
+    session_id2ref_speaker_words = defaultdict(list)
+    session_id2hyp_speaker_words = defaultdict(list)
 
     der_metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
     cpwer_metric = calculate_session_cpWER
     der_list, cpwer_list = [], []
     for chunk_idx in range(max_idx):
-        ref_seglst = chunked_ref_seglst[chunk_idx]
-        hyp_seglst = chunked_hyp_seglst[chunk_idx]
+        for sess_id in session_id:
+            ref_seglst = session_id2chunked_ref_seglst[sess_id][chunk_idx]
+            hyp_seglst = session_id2chunked_hyp_seglst[sess_id][chunk_idx]
 
-        if len(ref_speaker_words) == 0:
-            ref_speaker_words = ['' for _ in ref_speakers]
-        if len(hyp_speaker_words) == 0:
-            hyp_speaker_words = ['' for _ in hyp_speakers]
-        ref_speaker_timestamps, ref_speaker_word = convert_seglst(ref_seglst, ref_speakers)
-        hyp_speaker_timestamps, hyp_speaker_word = convert_seglst(hyp_seglst, hyp_speakers)
+            ref_speakers = ref_session_id2speakers[sess_id]
+            hyp_speakers = hyp_session_id2speakers[sess_id]
+            if len(session_id2ref_speaker_words[sess_id]) == 0:
+                session_id2ref_speaker_words[sess_id] = ['' for _ in ref_speakers]
+            if len(session_id2hyp_speaker_words[sess_id]) == 0:
+                session_id2hyp_speaker_words[sess_id] = ['' for _ in hyp_speakers]
+            ref_speaker_timestamps, ref_speaker_words = convert_seglst(ref_seglst, ref_speakers)
+            hyp_speaker_timestamps, hyp_speaker_words = convert_seglst(hyp_seglst, hyp_speakers)
 
-        ref_labels = generate_diarization_output_lines(speaker_timestamps=ref_speaker_timestamps, model_spk_num=len(ref_speakers))
-        hyp_labels = generate_diarization_output_lines(speaker_timestamps=hyp_speaker_timestamps, model_spk_num=len(hyp_speakers))
-        reference = labels_to_pyannote_object(ref_labels, uniq_name=session_id)
-        hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=session_id)
-        
-        for idx, speaker in enumerate(ref_speakers):
-            ref_speaker_words[idx] += ref_speaker_word[idx]
-        for idx, speaker in enumerate(hyp_speakers):
-            hyp_speaker_words[idx] += hyp_speaker_word[idx]
-        
-        der_metric(reference, hypothesis)
-        cpWER, min_perm_hyp_trans, ref_trans = cpwer_metric(ref_speaker_words, hyp_speaker_words)
+            ref_labels = generate_diarization_output_lines(speaker_timestamps=ref_speaker_timestamps, model_spk_num=len(ref_speakers))
+            hyp_labels = generate_diarization_output_lines(speaker_timestamps=hyp_speaker_timestamps, model_spk_num=len(hyp_speakers))
+            reference = labels_to_pyannote_object(ref_labels, uniq_name=sess_id)
+            hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=sess_id)
+            
+            for idx, speaker in enumerate(ref_speakers):
+                session_id2ref_speaker_words[sess_id][idx] += ref_speaker_words[idx]
+            for idx, speaker in enumerate(hyp_speakers):
+                hyp_speaker_words[idx] = hyp_speaker_words[idx].translate(str.maketrans('', '', string.punctuation)).lower()
+                session_id2hyp_speaker_words[sess_id][idx] += hyp_speaker_words[idx]
+            
+            der_metric(reference, hypothesis)
+            cpWER, min_perm_hyp_trans, ref_trans = cpwer_metric(session_id2ref_speaker_words[sess_id], session_id2hyp_speaker_words[sess_id])
 
+        der_list.append(abs(der_metric) * 100)
+        cpwer_list.append(cpWER * 100)
         if verbose:
             logging.info(f"Session ID: {session_id} Chunk ID: {chunk_idx} from {chunk_idx*chunk_size}s to {(chunk_idx+1)*chunk_size}s")
             logging.info(f"DER: {abs(der_metric)*100:.2f}%, cpWER: {cpWER*100:.2f}%")
-
-        der_list.append(abs(der_metric) * 100)
-        cpwer_list.append(cpWER)
         
     return der_list, cpwer_list
+            
+
 class OfflineDiarWithASR:
     """
     A class designed for performing ASR and diarization together.
