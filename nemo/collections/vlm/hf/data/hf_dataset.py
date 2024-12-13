@@ -221,6 +221,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         }
 
     def setup(self, stage: str):
+        """PTL hook"""
         if not self.use_mcore_sampler:
             return
         self.data_sampler = MegatronDataSampler(
@@ -231,6 +232,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         )
 
     def _make_dataloader(self, dataset, collate_fn=None):
+        """Creates a dataloader"""
         assert dataset is not None
 
         if collate_fn is None:
