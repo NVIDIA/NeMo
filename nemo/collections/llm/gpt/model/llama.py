@@ -412,7 +412,7 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         return get_peft_model(model, self.peft_config, autocast_adapter_dtype=False)
 
     def apply(self, output_path: Path) -> Path:
-        from nemo.collections.llm.peft import LoRA, DoRA, CanonicalLoRA
+        from nemo.collections.llm.peft import CanonicalLoRA, DoRA, LoRA
 
         self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self)).model.model_transform
 
@@ -442,59 +442,63 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         transforms = []
 
         if isinstance(self.peft_obj, CanonicalLoRA):
-            mapping.update({
-                # linear_qkv for canonical lora
-                f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_in.weight": f"{ph}*.self_attn.q_proj.lora_A.default.weight",
-                f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_out.weight": f"{ph}*.self_attn.q_proj.lora_B.default.weight",
-                f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_in.weight": f"{ph}*.self_attn.k_proj.lora_A.default.weight",
-                f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_out.weight": f"{ph}*.self_attn.k_proj.lora_B.default.weight",
-                f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_in.weight": f"{ph}*.self_attn.v_proj.lora_A.default.weight",
-                f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_out.weight": f"{ph}*.self_attn.v_proj.lora_B.default.weight",
-                # linear_fc1 for canonical lora
-                f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_in.weight": f"{ph}*.mlp.up_proj.lora_A.default.weight",
-                f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_out.weight": f"{ph}*.mlp.up_proj.lora_B.default.weight",
-                f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_in.weight": f"{ph}*.mlp.gate_proj.lora_A.default.weight",
-                f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_out.weight": f"{ph}*.mlp.gate_proj.lora_B.default.weight",
-            })
+            mapping.update(
+                {
+                    # linear_qkv for canonical lora
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_in.weight": f"{ph}*.self_attn.q_proj.lora_A.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_out.weight": f"{ph}*.self_attn.q_proj.lora_B.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_in.weight": f"{ph}*.self_attn.k_proj.lora_A.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_out.weight": f"{ph}*.self_attn.k_proj.lora_B.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_in.weight": f"{ph}*.self_attn.v_proj.lora_A.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_out.weight": f"{ph}*.self_attn.v_proj.lora_B.default.weight",
+                    # linear_fc1 for canonical lora
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_in.weight": f"{ph}*.mlp.up_proj.lora_A.default.weight",
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_out.weight": f"{ph}*.mlp.up_proj.lora_B.default.weight",
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_in.weight": f"{ph}*.mlp.gate_proj.lora_A.default.weight",
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_out.weight": f"{ph}*.mlp.gate_proj.lora_B.default.weight",
+                }
+            )
         else:
-            transforms.extend([
-                # linear_qkv for performant lora
-                io.state_transform(
-                    source_key=f"{pn}*.self_attention.linear_qkv.adapter.linear_in.weight",
-                    target_key=(
-                        f"{ph}*.self_attn.q_proj.lora_A.default.weight",
-                        f"{ph}*.self_attn.k_proj.lora_A.default.weight",
-                        f"{ph}*.self_attn.v_proj.lora_A.default.weight",
+            transforms.extend(
+                [
+                    # linear_qkv for performant lora
+                    io.state_transform(
+                        source_key=f"{pn}*.self_attention.linear_qkv.adapter.linear_in.weight",
+                        target_key=(
+                            f"{ph}*.self_attn.q_proj.lora_A.default.weight",
+                            f"{ph}*.self_attn.k_proj.lora_A.default.weight",
+                            f"{ph}*.self_attn.v_proj.lora_A.default.weight",
+                        ),
+                        fn=TransformFns.duplicate3,
                     ),
-                    fn=TransformFns.duplicate3,
-                ),
-                io.state_transform(
-                    source_key=f"{pn}*.self_attention.linear_qkv.adapter.linear_out.weight",
-                    target_key=(
-                        f"{ph}*.self_attn.q_proj.lora_B.default.weight",
-                        f"{ph}*.self_attn.k_proj.lora_B.default.weight",
-                        f"{ph}*.self_attn.v_proj.lora_B.default.weight",
+                    io.state_transform(
+                        source_key=f"{pn}*.self_attention.linear_qkv.adapter.linear_out.weight",
+                        target_key=(
+                            f"{ph}*.self_attn.q_proj.lora_B.default.weight",
+                            f"{ph}*.self_attn.k_proj.lora_B.default.weight",
+                            f"{ph}*.self_attn.v_proj.lora_B.default.weight",
+                        ),
+                        fn=TransformFns.split_qkv,
                     ),
-                    fn=TransformFns.split_qkv,
-                ),
-                # linear_fc1 for performant lora
-                io.state_transform(
-                    source_key=f"{pn}*.mlp.linear_fc1.adapter.linear_in.weight",
-                    target_key=(
-                        f"{ph}*.mlp.gate_proj.lora_A.default.weight",
-                        f"{ph}*.mlp.up_proj.lora_A.default.weight",
+                    # linear_fc1 for performant lora
+                    io.state_transform(
+                        source_key=f"{pn}*.mlp.linear_fc1.adapter.linear_in.weight",
+                        target_key=(
+                            f"{ph}*.mlp.gate_proj.lora_A.default.weight",
+                            f"{ph}*.mlp.up_proj.lora_A.default.weight",
+                        ),
+                        fn=TransformFns.duplicate2,
                     ),
-                    fn=TransformFns.duplicate2,
-                ),
-                io.state_transform(
-                    source_key=f"{pn}*.mlp.linear_fc1.adapter.linear_out.weight",
-                    target_key=(
-                        f"{ph}*.mlp.gate_proj.lora_B.default.weight",
-                        f"{ph}*.mlp.up_proj.lora_B.default.weight",
+                    io.state_transform(
+                        source_key=f"{pn}*.mlp.linear_fc1.adapter.linear_out.weight",
+                        target_key=(
+                            f"{ph}*.mlp.gate_proj.lora_B.default.weight",
+                            f"{ph}*.mlp.up_proj.lora_B.default.weight",
+                        ),
+                        fn=TransformFns.split_fc1,
                     ),
-                    fn=TransformFns.split_fc1,
-                ),
-            ])
+                ]
+            )
 
         return io.apply_transforms(
             source,
@@ -506,10 +510,13 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
     @property
     def peft_config(self) -> "PeftConfig":
         from peft import LoraConfig
+
         from nemo.collections.llm.peft import DoRA
 
-        assert not self.peft_obj.dropout or self.peft_obj.dropout_position == 'pre' \
-            "LoRA dropout_position must be 'pre' to convert to HF."
+        assert (
+            not self.peft_obj.dropout
+            or self.peft_obj.dropout_position == 'pre' "LoRA dropout_position must be 'pre' to convert to HF."
+        )
 
         NEMO2HF = {
             'linear_q': ['q_proj'],
@@ -535,6 +542,7 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
             lora_dropout=self.peft_obj.dropout,
             use_dora=isinstance(self.peft_obj, DoRA),
         )
+
 
 @io.state_transform(
     source_key=(
