@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import abc
-import logging
 from contextlib import nullcontext
 from typing import ContextManager
 
@@ -23,6 +22,7 @@ import torch.nn.functional as F
 from nemo.core.classes.loss import Loss
 from nemo.core.utils.k2_guard import k2
 from nemo.core.utils.optional_libs import TRITON_AVAILABLE
+from nemo.utils import logging
 
 if TRITON_AVAILABLE:
     from nemo.collections.asr.parts.k2.rnnt_logprobs_triton import rnnt_logprobs_triton

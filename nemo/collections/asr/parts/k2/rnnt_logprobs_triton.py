@@ -25,32 +25,43 @@ def _rnnt_logprobs_fwd_kernel(
     target_lengths_ptr,
     max_source_len: int,
     max_target_len_plus_1: int,
-    num_labels: int,
+    num_labels: int,  # vocab size (with blank)
     blank_id: int,
     target_scores_ptr,
     blank_scores_ptr,
     BLOCK_SIZE: tl.constexpr,
 ):
+    """
+    Forward kernel for RNN-T log probs. Stores result in `target_scores_ptr` and `blank_scores_ptr`.
+    Calculations are performed in float32 (but original tensors can use any precision).
+    """
     batch_i = tl.program_id(axis=0).to(tl.int64)
     source_i = tl.program_id(axis=1).to(tl.int64)
     target_i = tl.program_id(axis=2).to(tl.int64)
 
+    # load lengths for source/target
     source_len = tl.load(source_lengths_ptr + batch_i)
     target_len = tl.load(target_lengths_ptr + batch_i)
+
     if source_i >= source_len or target_i > target_len:
+        # no calculations required
         return
 
+    # calculate offset in [B, T, U+1, V] tensor for the current vector with target logits
     flat_index = ((batch_i * max_source_len + source_i) * max_target_len_plus_1 + target_i) * num_labels
     logits_ptr += flat_index
     col_offsets = tl.arange(0, BLOCK_SIZE)
     mask = col_offsets < num_labels
     logits = tl.load(logits_ptr + col_offsets, mask=mask, other=-float("inf")).to(tl.float32)
+    # stable log softmax calculation
     logits_max = tl.max(logits, axis=0)
     logits_minus_max = logits - logits_max
     denominator = tl.log(tl.sum(tl.exp(logits_minus_max), axis=0))
     blank_logit = tl.load(logits_ptr + blank_id).to(tl.float32)
     flat_index_output = (batch_i * max_source_len + source_i) * max_target_len_plus_1 + target_i
     tl.store(blank_scores_ptr + flat_index_output, blank_logit - logits_max - denominator)
+
+    # calculate log prob for target if needed
     if target_i < target_len:
         target_id = tl.load(targets_ptr + batch_i * (max_target_len_plus_1 - 1) + target_i)
         target_logit = tl.load(logits_ptr + target_id).to(tl.float32)
@@ -72,15 +83,23 @@ def _rnnt_logprobs_bwd_kernel(
     grad_blank_scores_ptr,
     BLOCK_SIZE: tl.constexpr,
 ):
+    """
+    Backward kernel for RNN-T log probs. Stores result in `grad_target_scores_ptr` and `grad_blank_scores_ptr`.
+    We recalculate part of the forward here to avoid using extra memory in forward.
+    Calculations are performed in float32 (but original tensors can use any precision).
+    """
     batch_i = tl.program_id(axis=0).to(tl.int64)
     source_i = tl.program_id(axis=1).to(tl.int64)
     target_i = tl.program_id(axis=2).to(tl.int64)
 
+    # load lengths for source/target
     source_len = tl.load(source_lengths_ptr + batch_i)
     target_len = tl.load(target_lengths_ptr + batch_i)
     if source_i >= source_len or target_i > target_len:
+        # no calculations required
         return
 
+    # calculate offset in [B, T, U+1, V] tensor for the current vector with target logits/grad_logits
     flat_index = ((batch_i * max_source_len + source_i) * max_target_len_plus_1 + target_i) * num_labels
     logits_ptr += flat_index
     grad_logits_ptr += flat_index
@@ -88,10 +107,12 @@ def _rnnt_logprobs_bwd_kernel(
     col_offsets = tl.arange(0, BLOCK_SIZE)
     mask = col_offsets < num_labels
     logits = tl.load(logits_ptr + col_offsets, mask=mask, other=-float("inf")).to(tl.float32)
+    # stable log softmax calculation
     logits_max = tl.max(logits, axis=0)
     logits_minus_max = logits - logits_max
     denominator = tl.log(tl.sum(tl.exp(logits_minus_max), axis=0))
     log_softmax = logits_minus_max - denominator
+    # softmax for gradient
     softmax = tl.exp(log_softmax)
 
     flat_index_grad = (batch_i * max_source_len + source_i) * max_target_len_plus_1 + target_i
@@ -107,6 +128,10 @@ def _rnnt_logprobs_bwd_kernel(
 
 
 class RnntLogProbs(torch.autograd.Function):
+    """
+    Function to calculate log probabilities for target and blank labels for RNN-T, supporting torch.autograd.
+    """
+
     @staticmethod
     def forward(
         ctx,
@@ -129,7 +154,7 @@ class RnntLogProbs(torch.autograd.Function):
         Returns:
 
         """
-        assert logits.is_contiguous()
+        assert logits.is_contiguous()  # logits are huge, so here we just check if logits are contiguous
         targets = targets.contiguous()
         device = logits.device
         float_dtype = torch.float32
@@ -147,6 +172,7 @@ class RnntLogProbs(torch.autograd.Function):
         else:
             target_lengths = target_lengths.contiguous()
 
+        # run Triton kernel
         _rnnt_logprobs_fwd_kernel[(logits.shape[0], logits.shape[1], logits.shape[2])](
             logits_ptr=logits,
             targets_ptr=targets,
