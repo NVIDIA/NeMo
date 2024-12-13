@@ -23,13 +23,22 @@ from nemo.utils import logging
 
 
 def masked_cross_entropy(logits, targets, mask=None):
+    """Cross entropy with optional mask"""
     if mask is not None:
         loss = F.cross_entropy(logits, targets, reduction='none')
         return torch.mean(loss[mask == 1])
     else:
         return F.cross_entropy(logits, targets)
 
+
 def align_labels(logits, labels):
+    """Aligns labels to logits
+    if length of labels == logits, then will remove first item
+    from labels and last item of logits and return them
+
+    if length of labels + 1 == logits, then it will remove last
+    item of logits and return them
+    """
     logits = logits.float()
     n_cls = logits.shape[-1]
     if logits.shape[-2] == labels.shape[-1]:
@@ -38,10 +47,15 @@ def align_labels(logits, labels):
     elif logits.shape[-2] == labels.shape[-1] + 1:
         logits = logits[..., :-1, :].contiguous()
     else:
-        raise ValueError("Mismatched labels and logits shapes (" + str(labels.shape) + " " + str(logits.shape))
+        raise ValueError("Mismatched labels and logits shapes (" +
+                         str(labels.shape) + " " + str(logits.shape))
     return logits.view(-1, n_cls), labels.view(-1)
 
-class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
+
+class HFAutoModelForImageTextToText(
+        pl.LightningModule, io.IOMixin, fn.FNMixin):
+    """Wrap's HF's AutoModelForImageTextToText in a pl.LightningModule
+    for use within NeMo"""
     def __init__(
         self,
         model_name='gpt2',
@@ -68,6 +82,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     @property
     def processor(self):
+        """Return's module processor"""
         if self._processor is None:
             self._processor = HFAutoModelForImageTextToText.configure_processor(
                 self.model_name, trust_remote_code=self.trust_remote_code
@@ -76,12 +91,15 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     @processor.setter
     def processor(self, value):
+        """Set's module's processor"""
         assert self._processor is None
         self._processor = value
 
     @staticmethod
     def configure_processor(model_name, trust_remote_code=False):
-        return AutoProcessor.from_pretrained(model_name, trust_remote_code=trust_remote_code)
+        """Initializes an AutoProcessor and returns the instance"""
+        return AutoProcessor.from_pretrained(
+            model_name, trust_remote_code=trust_remote_code)
 
     def configure_model(self):
         # create all your layers here
@@ -91,13 +109,13 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 load_in_4bit=self.load_in_4bit,
             )
         else:
-            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
+            config = AutoConfig.from_pretrained(
+                self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, 'torch_dtype', self.default_dtype)
             self.model = AutoModelForImageTextToText.from_config(
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
             )
         self.model.train()
-
 
     def forward(self, batch):
         return self.model(**batch)
@@ -130,6 +148,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path):
+        """Saves checkpoint using HF"""
         assert self.model is not None, "Model has to be created first."
         self.model.save_pretrained(path)
         if self._processor is not None:
@@ -139,6 +158,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     @staticmethod
     def extract_skipped_token_ids(tokenizer):
+        """Returns list of tokens to mask in labels"""
         # qweb2-2b
         QWEN_TOKENS = [
             '<|im_start|>',
