@@ -359,11 +359,12 @@ class TensorRTLLM(ITritonDeployable):
                 transformer_config = self.get_transformer_config(model_configs)
                 input_model_type = getattr(ModelType, model_type)
 
+                model_prefix = list(model.keys())[0].split('.')[0]
                 # MCore export supports some default conversion dictionaries
                 mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT
                 # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
                 nemo_model_conversion_dict = {
-                    f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
+                    f'{model_prefix}.{key}': value for key, value in mcore_model_conversion_dict.items()
                 }
 
                 trtllm_helper = TRTLLMHelper(
@@ -459,12 +460,13 @@ class TensorRTLLM(ITritonDeployable):
         """Given nemo model config get transformer config"""
         normalization = nemo_model_config.get('normalization', 'layernorm')
         transformer_config_normalization = 'LayerNorm'
-        layernorm_zero_centered_gamma = False
+        layernorm_zero_centered_gamma = nemo_model_config.get('layernorm_zero_centered_gamma', False)
         if normalization == 'layernorm1p':
             layernorm_zero_centered_gamma = True
         elif normalization == 'rmsnorm':
             transformer_config_normalization = 'RMSNorm'
 
+        num_moe_experts = nemo_model_config.get('num_moe_experts', 0)
         conf = TransformerConfig(
             num_layers=nemo_model_config.get('num_layers'),
             moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
@@ -475,9 +477,10 @@ class TensorRTLLM(ITritonDeployable):
             ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
             layernorm_epsilon=nemo_model_config.get('layernorm_epsilon'),
             add_bias_linear=nemo_model_config.get('bias'),
-            num_moe_experts=nemo_model_config.get('num_moe_experts', 0),
+            num_moe_experts=num_moe_experts if num_moe_experts > 0 else None,
             normalization=transformer_config_normalization,
             layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
+            gated_linear_unit=nemo_model_config.get('gated_linear_unit')
         )
         return conf
 
