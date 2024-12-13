@@ -35,10 +35,13 @@ try:
 except (ImportError, ModuleNotFoundError):
     K2_AVAILABLE = False
 
+
 def lib_required(name: str, message: str | None = None):
     if is_lib_available(name):
+
         def identity_decorator(f):
             return f
+
         return identity_decorator
 
     def function_stub_with_error_decorator(f):
@@ -48,6 +51,7 @@ def lib_required(name: str, message: str | None = None):
         raise ModuleNotFoundError(error_msg)
 
     return function_stub_with_error_decorator
+
 
 kenlm_required = lib_required("kenlm")
 triton_required = lib_required("triton")

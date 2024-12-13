@@ -23,15 +23,16 @@ import torch
 import torch.nn as nn
 from tqdm.auto import tqdm
 
+from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
-from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, triton_required, kenlm_required
 
 if KENLM_AVAILABLE:
     import kenlm
 
 if TRITON_AVAILABLE:
-    from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_triton_kernel
     import triton
+
+    from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_triton_kernel
 
 
 def _log_e_score(score):
