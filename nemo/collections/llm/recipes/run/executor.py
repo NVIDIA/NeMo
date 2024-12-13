@@ -11,15 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
+
 import nemo_run as run
+import torch
 
 
 @run.cli.factory
-def torchrun(devices: int = 8) -> run.Config[run.LocalExecutor]:
+def torchrun(devices: Optional[int] = None) -> run.Config[run.LocalExecutor]:
     """Local executor using torchrun."""
     env_vars = {
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
     }
+
+    if devices is None:
+        assert torch.cuda.is_available()
+        devices = torch.cuda.device_count()
 
     executor = run.Config(
         run.LocalExecutor,
