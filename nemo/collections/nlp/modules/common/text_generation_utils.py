@@ -845,6 +845,12 @@ def generate(
         resp_sentences_seg = []
 
         decode_tokens = decode_tokens.cpu().numpy().tolist()
+        for i in range(len(decode_tokens)):
+            limit = context_length_tensor[i] + tokens_to_generate
+            if len(decode_tokens[i]) > limit:
+                decode_tokens[i] = decode_tokens[i][:limit]
+            # do not resize output_logits and full_logits here, because converting
+            # them to list of tensors could break downstream code.
         for decode_token in decode_tokens:
             sentence = tokenizer.ids_to_text(decode_token)
             resp_sentences.append(sentence)
