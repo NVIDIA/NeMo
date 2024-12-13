@@ -84,7 +84,7 @@ try:
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
     from megatron.core.datasets.utils import get_blend_from_list
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
 
@@ -672,7 +672,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # bucket.
             def make_parameter_bucket(module: torch.nn.Module) -> List[torch.nn.Parameter]:
                 bucket = [
-                    param for param in module.parameters() if not getattr(param, '_disable_overlap_grad_sync', False)
+                    param
+                    for param in module.parameters()
+                    if not getattr(param, '_disable_overlap_grad_sync', False) and param.requires_grad
                 ]
                 if any(is_float8tensor(param) for param in bucket):
                     bucket = list(filter(is_float8tensor, bucket))
@@ -693,7 +695,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     buckets.extend(make_parameter_bucket(layer) for layer in layers)
             buckets.reverse()
             used_params = set(itertools.chain.from_iterable(buckets))
-            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params and p.requires_grad)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -2026,7 +2028,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
             def skip_fp8_load(x):
                 if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
-                    x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+                    x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
                 return x
 
             if self.cfg.get('skip_fp8_attention_checkpoint_load', True):
