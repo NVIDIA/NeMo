@@ -370,9 +370,13 @@ class TensorRTLLM(ITritonDeployable):
                         model_configs, fp8_quantized, fp8_kvcache
                     )
 
-                    # TODO: Temporary fix
-                    if model_configs.get("num_moe_experts", None) in {None, 0}:
-                        model_configs["num_moe_experts"] = 1
+                    # TODO: Temporary fix to handle `<= 0` check for num_moe_experts in M-LM, see
+                    # https://github.com/NVIDIA/Megatron-LM/blob/99f23d2f111d12b73b1fbf386c60517101ff8abe/megatron/core/transformer/transformer_config.py#L409
+                    # Checking first if num_moe_experts is a part of the model config to avoid inserting it unnecessairly.
+                    if model_configs.get("num_moe_experts", None) is not None:
+                        if model_configs["num_moe_experts"] <= 0:
+                            LOGGER.warning(f"Overriding num_moe_experts from {model_configs['num_moe_experts']} to 1")
+                            model_configs["num_moe_experts"] = 1
 
                     # We build the transformer config using the nemo model config.
                     transformer_config = self.get_transformer_config(model_configs)
