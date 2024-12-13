@@ -4,7 +4,7 @@ from typing import Union
 
 import torch
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
-from megatron.core.transformer.attention import Attention, SelfAttention
+from megatron.core.transformer.attention import Attention, SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.custom_layers.transformer_engine import SplitAlongDim
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
@@ -326,6 +326,33 @@ class FluxSingleAttention(SelfAttention):
     Self-attention layer takes input with size [s, b, h]
     and returns output of the same size.
     """
+    def __init__(
+            self,
+            config: TransformerConfig,
+            submodules: SelfAttentionSubmodules,
+            layer_number: int,
+            attn_mask_type=AttnMaskType.padding,
+            cp_comm_type: str = None,
+    ):
+        super().__init__(
+            config=config,
+            submodules=submodules,
+            layer_number=layer_number,
+            attn_mask_type=attn_mask_type,
+            cp_comm_type=cp_comm_type,
+        )
+        self.linear_proj = build_module(
+            submodules.linear_proj,
+            self.query_projection_size,
+            self.config.hidden_size,
+            config=self.config,
+            init_method=self.config.output_layer_init_method,
+            bias=False,
+            input_is_parallel=True,
+            skip_bias_add=True,
+            is_expert=False,
+            tp_comm_buffer_name='proj',
+        )
 
     def forward(
         self,
@@ -424,5 +451,4 @@ class FluxSingleAttention(SelfAttention):
             core_attn_out = core_attn_out.reshape(core_attn_out.size(0), 1, -1)
 
         output, _ = self.linear_proj(core_attn_out)
-
         return output
