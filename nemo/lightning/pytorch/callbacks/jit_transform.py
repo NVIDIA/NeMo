@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+from dataclasses import dataclass, field
+
 import torch
 from lightning.pytorch.callbacks.callback import Callback
+
 from nemo.lightning.io.mixin import IOMixin
-from dataclasses import dataclass, field
-import re
+
 
 def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
     if hasattr(pl_module, 'module'):
@@ -26,10 +29,12 @@ def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
     else:
         raise ValueError("Expected lightning_module to have a .model or .module attr.")
 
+
 def listify(x):
     if not isinstance(x, list):
         return [x]
     return x
+
 
 def get_modules_from_selector(model, module_selector):
     if module_selector is None or module_selector == '' or module_selector == '*':
@@ -50,9 +55,7 @@ def get_modules_from_selector(model, module_selector):
             return
 
         if not hasattr(tmp, item):
-            raise AttributeError(
-                tmp._get_name() + " has no " "attribute `" + item + "`"
-            )
+            raise AttributeError(tmp._get_name() + " has no " "attribute `" + item + "`")
         tmp = getattr(tmp, item)
 
         if not isinstance(tmp, torch.nn.Module):
@@ -69,6 +72,7 @@ def compile_module(config, module):
         import thunder
         import thunder.dynamo
         from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
+
         # With this setting, Dynamo Graphs inline all the modules (so Dynamo FXGraph just
         # consists of `call_function` nodes only and no `call_module` node.
         # This is the default setting in PyTorch 2.5 onwards
@@ -81,6 +85,7 @@ def compile_module(config, module):
     else:
         return False
 
+
 @dataclass
 class JitConfig:
     module_selector: str = ''
@@ -88,6 +93,7 @@ class JitConfig:
     torch_kwargs: dict = field(default_factory=dict)
     use_thunder: bool = False
     profile_thunder: bool = False
+
 
 class JitTransform(Callback, IOMixin):
     """

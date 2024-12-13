@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import itertools
+
 import fiddle as fdl
 import lightning as pl
 import torch
@@ -25,14 +27,14 @@ from nemo.collections import llm
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.lightning.io.mixin import track_io
-from nemo.lightning.pytorch.callbacks import JitTransform, JitConfig
-import itertools
+from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
 
 def make_squad_hf_dataset(data_path, tokenizer):
     tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+
     def formatting_prompts_func(examples):
         alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 
@@ -51,10 +53,7 @@ def make_squad_hf_dataset(data_path, tokenizer):
             output = output[0]
         text = alpaca_prompt.format(instruction, input, output) + "<eos>"
         tokens = tokenizer.text_to_ids(text)
-        return {
-            'input_ids': tokens,
-            'labels': tokens
-        }
+        return {'input_ids': tokens, 'labels': tokens}
 
     datamodule = llm.HFDatasetDataModule(data_path, split="train[:100]", pad_token_id=tokenizer.eos_id)
 
@@ -66,6 +65,8 @@ def make_squad_hf_dataset(data_path, tokenizer):
     )
 
     return datamodule
+
+
 @track_io
 class OrdTokenizer:
     def __init__(self, vocab_size=30_000, num_reserved_tokens=128, special_token_names=['bos_id', 'eos_id', 'pad_id']):
@@ -87,6 +88,7 @@ class OrdTokenizer:
         assert max(token_ids) < self.vocab_size
         return token_ids
 
+
 def align_labels(logits, labels):
     logits = logits.float()
     n_cls = logits.shape[-1]
@@ -98,6 +100,7 @@ def align_labels(logits, labels):
     else:
         raise ValueError("Mismatched labels and logits shapes (" + str(labels.shape) + " " + str(logits.shape))
     return logits.view(-1, n_cls), labels.view(-1)
+
 
 class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
@@ -136,7 +139,7 @@ class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
             assert not hasattr(self, '_compiled')
         labels = batch.pop('labels')
         loss_mask = batch.get('loss_mask', None)
-        output =  self.forward({'input': batch['input_ids']})
+        output = self.forward({'input': batch['input_ids']})
         logits, labels = align_labels(output, labels)
         return F.cross_entropy(logits, labels)
 
@@ -153,7 +156,8 @@ if __name__ == '__main__':
     data = make_squad_hf_dataset(DATA_PATH, tokenizer)
 
     for use_torch, use_thunder in itertools.product([True, False], [False, False]):
-        if use_torch and use_thunder: continue
+        if use_torch and use_thunder:
+            continue
         model = DummyJitModel(tokenizer=tokenizer, has_jit=use_torch | use_thunder)
         optim = fdl.build(llm.sgd.pytorch_sgd_with_flat_lr(lr=1e-5))
 
