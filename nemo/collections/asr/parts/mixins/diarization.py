@@ -53,6 +53,7 @@ class InternalDiarizeConfig:
 @dataclass
 class DiarizeConfig:
     """Configuration parameters for diarization inference."""
+
     session_len_sec: float = -1  # End-to-end diarization session length limit in seconds
     batch_size: int = 1
     num_workers: int = 1
