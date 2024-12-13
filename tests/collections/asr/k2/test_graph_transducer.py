@@ -289,7 +289,8 @@ class TestRnntLogProbs:
         ],
     )
     @pytest.mark.parametrize(
-        "float_dtype", [torch.float32] + ([torch.bfloat16] if torch.cuda.is_bf16_supported() else [])
+        "float_dtype",
+        [torch.float32] + ([torch.bfloat16] if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else []),
     )
     def test_rnnt_logprobs_random(
         self, batch_size: int, num_frames: int, num_text_units: int, vocab_size: int, float_dtype: torch.dtype
