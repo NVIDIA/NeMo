@@ -17,7 +17,6 @@ from typing import Optional
 import torch
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.trainer.trainer import Trainer
-
 from nemo.lightning.io.mixin import IOMixin
 
 
@@ -29,40 +28,50 @@ def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
     else:
         raise ValueError("Expected lightning_module to have a .model or .module attr.")
 
+def listify(x):
+    if not isinstance(x, list):
+        return [x]
+    return x
+
+class JitConfig:
+    target_module: str = ''
+    use_torch_compile: bool = False
+    use_thunder: bool = False
+    profile_thunder: bool = False
 
 class JitTransform(Callback, IOMixin):
     """
     Apply JIT-compling on PyTorch model
 
     Args:
-        backend (str, optional): The jit-compiler backend to use.
+        config (JitConfig): The jit-compiler config to use.
 
     Example:
         >>> from nemo.lightning.pytorch.callbacks import JitTransform
-        >>> trainer = Trainer(callbacks=[JitTransform('torch)])
+        >>> trainer = Trainer(callbacks=[JitTransform(JitConfig(use_torch_compile=True))])
     """
 
-    def __init__(self, backend: Optional[int] = None):
-        if backend is not None:
-            assert isinstance(backend, str)
-            backend = backend.lower()
-            assert backend in ['torch', 'thunder']
-        self.backend = backend
+    def __init__(self, config: JitConfig = None):
+        self.config = config
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.backend is None:
+        if self.config is None:
             return
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
-        if self.backend == 'torch':
-            model.compile()
-        elif self.backend == 'thunder':
-            import thunder
-            import thunder.dynamo
-            from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
 
-            xforms: list = [NvtxProfileTransform()]
-            be = thunder.dynamo.ThunderCompiler(transforms=xforms)
-            model.compile(backend=be)
-        else:
-            raise ValueError("got unexpected backend")
+        for config in listify(self.config):
+            if isinstance(config.target_module, str) and config.target_module != '':
+                module = model
+            module = model
+            if self.backend == 'torch':
+                model.compile()
+            elif self.backend == 'thunder':
+                import thunder
+                import thunder.dynamo
+                from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
+                xforms: list = [NvtxProfileTransform()] if config.profile_thunder else []
+                be = thunder.dynamo.ThunderCompiler(transforms=xforms)
+                model.compile(backend=be)
+            else:
+                raise ValueError("got unexpected backend")
