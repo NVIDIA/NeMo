@@ -64,11 +64,13 @@ def get_args():
         "--precision", type=str, default="bf16", choices=valid_precision_values, help="Model precision"
     )
     parser.add_argument(
-        "--tokenizer_type", type=str, default="sentencepiece", choices=["sentencepiece", "huggingface"], help="Tokenizer type"
+        "--tokenizer_type",
+        type=str,
+        default="sentencepiece",
+        choices=["sentencepiece", "huggingface"],
+        help="Tokenizer type",
     )
-    parser.add_argument(
-        "--tokenizer_path", type=str, default=None, help="Path to tokenizer model"
-    )
+    parser.add_argument("--tokenizer_path", type=str, default=None, help="Path to tokenizer model")
     parser.add_argument('--low-ram', action='store_true')
     parser.add_argument('--tmp-dir', default='/tmp/mixtral_ckpt_parts/')
     args = parser.parse_args()
@@ -153,7 +155,7 @@ def load_config(mixtral_config, tokenizer_path, tokenizer_type):
     while mixtral_config['vocab_size'] % base != 0:
         base //= 2
     nemo_config.make_vocab_size_divisible_by = base
-    
+
     if tokenizer_type == "huggingface":
         nemo_config.tokenizer.library = "huggingface"
         nemo_config.tokenizer.type = tokenizer_path
@@ -176,7 +178,7 @@ def load_mixtral_ckpt(in_dir, load_model=True):
     if load_model:
         model = AutoModelForCausalLM.from_pretrained(in_dir, torch_dtype='auto')
         ckpt = model.state_dict()
-    
+
     if args.tokenizer_path:
         tokenizer_path = args.tokenizer_path
     else:
@@ -534,7 +536,7 @@ def save_to_nemo(args, checkpoint):
         keys = list(checkpoint['state_dict'].keys())
         for key in keys:
             checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
-    
+
     model = restore_model_from_checkpoint(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
