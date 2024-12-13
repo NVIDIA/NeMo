@@ -19,6 +19,7 @@ from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 
+DATA_PATH = "/home/TestData/TestData/vlm/rdr-items"
 
 def mk_hf_vlm_dataset(processor, mbs, gbs):
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
@@ -63,8 +64,8 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
         return batch
 
     return vlm.HFDatasetDataModule(
-        "quintend/rdr-items",
-        split="train",
+        DATA_PATH,
+        split="train[:10]",
         micro_batch_size=mbs,
         global_batch_size=gbs,
         collate_fn=lambda x: collate_fn(x, processor=processor),
