@@ -688,7 +688,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         Returns:
             *if include_tensor_outputs is False: A list of lists of speech segments with a corresponding speaker index,
                 in format "[begin_seconds, end_seconds, speaker_index]".
-            *if include_tensor_outputs is True: A tuple of the above list and list of tensors of raw speaker activity probabilities
+            *if include_tensor_outputs is True: A tuple of the above list
+                and list of tensors of raw speaker activity probabilities.
         """
         return super().diarize(
             audio=audio,

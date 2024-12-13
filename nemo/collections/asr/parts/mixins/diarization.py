@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -53,6 +52,7 @@ class InternalDiarizeConfig:
 
 @dataclass
 class DiarizeConfig:
+    """Configuration parameters for diarization inference."""
     session_len_sec: float = -1  # End-to-end diarization session length limit in seconds
     batch_size: int = 1
     num_workers: int = 1
