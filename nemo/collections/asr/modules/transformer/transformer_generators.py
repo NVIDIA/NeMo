@@ -213,7 +213,13 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         decoder_parameter = next(self.decoder.parameters())
         pad_profile = torch.zeros(batch_size).long().to(decoder_parameter.device)
 
-        step_confidence = [torch.full_like(tgt, 1, dtype=torch.float32)] if self.preserve_step_confidence else None
+        if self.preserve_step_confidence:
+            if encoder_hidden_states is None:
+                raise RuntimeError("`encoder_hidden_states` must be provided to compute confidence scores.")
+            # start with prompt confidence which is always 1
+            step_confidence = [torch.full_like(tgt, 1, dtype=encoder_hidden_states.dtype)]
+        else:
+            step_confidence = None
 
         decoder_mems_list = None
         for i in range(max_generation_length):
@@ -242,8 +248,6 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
             tgt = torch.cat((tgt, next_tokens.unsqueeze(1)), dim=-1)
 
             if self.preserve_step_confidence:
-                if i == 0:
-                    step_confidence[0] = step_confidence[0].to(dtype=logits.dtype)
                 step_confidence.append(
                     self._get_confidence_tensor(
                         torch.nn.functional.log_softmax(logits, dim=-1) if not return_beam_scores else logits
