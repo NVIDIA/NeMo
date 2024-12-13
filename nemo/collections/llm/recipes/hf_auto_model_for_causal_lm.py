@@ -220,7 +220,7 @@ def finetune_recipe(
         data=run.Config(
             SquadHFDataModule,
             path_or_dataset="rajpurkar/squad",
-            split="train[:100]",
+            split="train",
             pad_token_id=tokenizer.tokenizer.eos_token_id,
             tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
         ),
