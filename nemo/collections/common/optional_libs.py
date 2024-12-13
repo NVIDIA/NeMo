@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
+import importlib.util
 
 
 def is_lib_available(name: str) -> bool:
-    try:
-        _ = importlib.import_module(name)
-        return True
-    except (ImportError, ModuleNotFoundError):
-        return False
+    """
+    Checks if the library/package with `name` is available in the system
+    NB: try/catch with importlib.import_module(name) requires importing the library, which can be slow.
+    So, `find_spec` should be preferred
+    """
+    return importlib.util.find_spec(name) is not None
 
 
 TRITON_AVAILABLE = is_lib_available("triton")
