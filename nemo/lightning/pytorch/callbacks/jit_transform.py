@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import torch
-from pytorch_lightning.callbacks import Callback
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.callbacks.callback import Callback
 from nemo.lightning.io.mixin import IOMixin
-
+from dataclasses import dataclass, field
+import re
 
 def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
     if hasattr(pl_module, 'module'):
@@ -31,9 +31,61 @@ def listify(x):
         return [x]
     return x
 
+def get_modules_from_selector(model, module_selector):
+    if module_selector is None or module_selector == '' or module_selector == '*':
+        yield model
+        return
+
+    assert isinstance(module_selector, str), module_selector
+    atoms: List[str] = module_selector.split('.')
+    tmp = model
+
+    for i, item in enumerate(atoms):
+        if '*' in item:
+            # handle wildcard selector
+            # TODO(@akoumparouli): support more complex selectors e.g. net_b.*.net_c.*.conv
+            for name, module in model.named_children():
+                if re.match(item, name):
+                    yield module
+            return
+
+        if not hasattr(tmp, item):
+            raise AttributeError(
+                tmp._get_name() + " has no " "attribute `" + item + "`"
+            )
+        tmp = getattr(tmp, item)
+
+        if not isinstance(tmp, torch.nn.Module):
+            raise AttributeError("`" + item + "` is not " "an nn.Module")
+
+    yield tmp
+
+
+def compile_module(config, module):
+    if config.use_torch:
+        module.compile(**config.torch_kwargs)
+        return True
+    elif config.use_thunder:
+        import thunder
+        import thunder.dynamo
+        from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
+        # With this setting, Dynamo Graphs inline all the modules (so Dynamo FXGraph just
+        # consists of `call_function` nodes only and no `call_module` node.
+        # This is the default setting in PyTorch 2.5 onwards
+        # (see https://github.com/pytorch/pytorch/pull/131275)
+        torch._dynamo.config.inline_inbuilt_nn_modules = True
+
+        xforms: list = [NvtxProfileTransform()] if config.profile_thunder else []
+        module.compile(backend=thunder.dynamo.ThunderCompiler(transforms=xforms))
+        return True
+    else:
+        return False
+
+@dataclass
 class JitConfig:
-    target_module: str = ''
-    use_torch_compile: bool = False
+    module_selector: str = ''
+    use_torch: bool = False
+    torch_kwargs: dict = field(default_factory=dict)
     use_thunder: bool = False
     profile_thunder: bool = False
 
@@ -46,40 +98,30 @@ class JitTransform(Callback, IOMixin):
 
     Example:
         >>> from nemo.lightning.pytorch.callbacks import JitTransform
-        >>> trainer = Trainer(callbacks=[JitTransform(JitConfig(use_torch_compile=True))])
+        >>> trainer = Trainer(callbacks=[JitTransform(JitConfig(use_torch=True))])
     """
 
     def __init__(self, config: JitConfig = None):
         self.config = config
+        assert not (self.config.use_torch and self.config.use_thunder)
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if self.config is None:
             return
+        if not self.config.use_thunder and not self.config.use_torch:
+            return
+
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
 
-        if getattr(pl_module, '_compiled', False) == False:
+        if getattr(pl_module, '_compiled', False) == True:
             return
-        pl_module._compiled = True
 
+        # TODO(@akoumparouli): you want to concatenate (via regex OR-operator) all expressions
+        # and trigger the compile if anyone matches, instead of iterating over all O(N^2).
+        compiled = False
         for config in listify(self.config):
-            if isinstance(config.target_module, str) and config.target_module != '':
-                module = model
-            module = model
-            if self.backend == 'torch':
-                model.compile()
-            elif self.backend == 'thunder':
-                import thunder
-                import thunder.dynamo
-                from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
-                # With this setting, Dynamo Graphs inline all the modules (so Dynamo FXGraph just
-                # consists of `call_function` nodes only and no `call_module` node.
-                # This is the default setting in PyTorch 2.5 onwards
-                # (see https://github.com/pytorch/pytorch/pull/131275)
-                torch._dynamo.config.inline_inbuilt_nn_modules = True
+            for module in get_modules_from_selector(model, config.module_selector):
+                compiled |= compile_module(config, module)
 
-                xforms: list = [NvtxProfileTransform()] if config.profile_thunder else []
-                be = thunder.dynamo.ThunderCompiler(transforms=xforms)
-                model.compile(backend=be)
-            else:
-                raise ValueError("got unexpected backend")
+        setattr(pl_module, '_compiled', compiled)

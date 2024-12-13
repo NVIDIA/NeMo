@@ -14,7 +14,7 @@
 
 
 import fiddle as fdl
-import pytorch_lightning as pl
+import lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,33 +25,47 @@ from nemo.collections import llm
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.lightning.io.mixin import track_io
-from nemo.lightning.pytorch.callbacks import JitTransform
+from nemo.lightning.pytorch.callbacks import JitTransform, JitConfig
+import itertools
+
+DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
 
-class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
-    def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
-        return DataLoader(
-            dataset,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            persistent_workers=self.persistent_workers,
-            collate_fn=dataset.collate_fn,
-            batch_size=self.micro_batch_size,
-            **kwargs,
-        )
+def make_squad_hf_dataset(data_path, tokenizer):
+    tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+    def formatting_prompts_func(examples):
+        alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 
+    ### Instruction:
+    {}
 
-def squad(tokenizer) -> pl.LightningDataModule:
-    return SquadDataModuleWithPthDataloader(
-        tokenizer=tokenizer,
-        seq_length=2048,
-        micro_batch_size=1,
-        global_batch_size=1,  # assert gbs == mbs * accumulate_grad_batches
-        num_workers=0,
-        dataset_kwargs={"sanity_check_dist_workers": False},
+    ### Input:
+    {}
+
+    ### Response:
+    {}"""
+        instruction = examples["context"]
+        input = examples["question"]
+        output = examples["answers"]['text']
+        if isinstance(output, list):
+            output = output[0]
+        text = alpaca_prompt.format(instruction, input, output) + "<eos>"
+        tokens = tokenizer.text_to_ids(text)
+        return {
+            'input_ids': tokens,
+            'labels': tokens
+        }
+
+    datamodule = llm.HFDatasetDataModule(data_path, split="train[:100]", pad_token_id=tokenizer.eos_id)
+
+    datamodule.map(
+        formatting_prompts_func,
+        batched=False,
+        batch_size=2,
+        remove_columns=["id", "title", "context", "question", 'answers'],
     )
 
-
+    return datamodule
 @track_io
 class OrdTokenizer:
     def __init__(self, vocab_size=30_000, num_reserved_tokens=128, special_token_names=['bos_id', 'eos_id', 'pad_id']):
@@ -73,6 +87,17 @@ class OrdTokenizer:
         assert max(token_ids) < self.vocab_size
         return token_ids
 
+def align_labels(logits, labels):
+    logits = logits.float()
+    n_cls = logits.shape[-1]
+    if logits.shape[-2] == labels.shape[-1]:
+        logits = logits[..., :-1, :].contiguous()
+        labels = labels[..., 1:].contiguous()
+    elif logits.shape[-2] == labels.shape[-1] + 1:
+        logits = logits[..., :-1, :].contiguous()
+    else:
+        raise ValueError("Mismatched labels and logits shapes (" + str(labels.shape) + " " + str(logits.shape))
+    return logits.view(-1, n_cls), labels.view(-1)
 
 class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
@@ -92,8 +117,8 @@ class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 nn.Linear(512, 30_000),
             )
 
-    def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
-        output = self.module(input_ids)
+    def forward(self, batch):
+        output = self.module(**batch)
         if self.has_jit:
             assert self.module._compiled_call_impl is not None
             assert callable(self.module._compiled_call_impl)
@@ -101,17 +126,19 @@ class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
             assert self.module._compiled_call_impl is None
         expected_cls = torch.nn.modules.container.Sequential
         assert isinstance(self.module, expected_cls), type(self.module)
-        return F.cross_entropy(output.view(-1, output.shape[-1]), labels.view(-1))
+        return output
 
     def training_step(self, batch):
-        tokens = batch['tokens']
-        labels = batch['labels']
+        if self.has_jit:
+            assert hasattr(self, '_compiled')
+            assert self._compiled == True, self._compiled
+        else:
+            assert not hasattr(self, '_compiled')
+        labels = batch.pop('labels')
         loss_mask = batch.get('loss_mask', None)
-        return self.forward(
-            input_ids=tokens,
-            labels=labels,
-            loss_mask=loss_mask,
-        )
+        output =  self.forward({'input': batch['input_ids']})
+        logits, labels = align_labels(output, labels)
+        return F.cross_entropy(logits, labels)
 
 
 if __name__ == '__main__':
@@ -122,14 +149,20 @@ if __name__ == '__main__':
     parser.add_argument('--max-steps', type=int, default=1)
     args = parser.parse_args()
 
-    for has_jit in [True, False]:
-        tokenizer = OrdTokenizer()
-        model = DummyJitModel(tokenizer=tokenizer, has_jit=has_jit)
+    tokenizer = OrdTokenizer()
+    data = make_squad_hf_dataset(DATA_PATH, tokenizer)
+
+    for use_torch, use_thunder in itertools.product([True, False], [False, False]):
+        if use_torch and use_thunder: continue
+        model = DummyJitModel(tokenizer=tokenizer, has_jit=use_torch | use_thunder)
         optim = fdl.build(llm.sgd.pytorch_sgd_with_flat_lr(lr=1e-5))
+
+        jit_config = JitConfig(use_torch=use_torch, use_thunder=use_thunder)
+        transform = JitTransform(jit_config)
 
         llm.api.finetune(
             model=model,
-            data=squad(tokenizer),
+            data=data,
             trainer=nl.Trainer(
                 devices=args.devices,
                 max_steps=args.max_steps,
@@ -141,7 +174,7 @@ if __name__ == '__main__':
                 accumulate_grad_batches=1,
                 gradient_clip_val=1.0,
                 use_distributed_sampler=False,
-                callbacks=[JitTransform('torch' if has_jit else None)],
+                callbacks=[transform],
             ),
             optim=optim,
             log=None,
