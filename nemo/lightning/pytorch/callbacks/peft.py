@@ -239,7 +239,7 @@ class AdapterWrapper(nn.Module):
         implement the forward method.
 
     Example:
-        class AdapterParallelAdd(AdapterWrapper):
+        class LoRALinear(AdapterWrapper):
             def __init__(self, to_wrap, adapter):
                 super().__init__(to_wrap, adapter)
 
@@ -248,7 +248,7 @@ class AdapterWrapper(nn.Module):
 
         main_module = nn.Linear(100, 100)
         adapter = nn.Linear(100, 100)
-        parallel_adapter = AdapterParallelAdd(main_module, adapter)
+        parallel_adapter = LoRALinear(main_module, adapter)
     """
 
     def __init__(self, to_wrap: nn.Module, adapter: nn.Module):
@@ -405,7 +405,11 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
     @override
     def load_checkpoint(
-        self, path: _PATH, sharded_state_dict=None, map_location: Optional[Callable] = None
+        self,
+        path: _PATH,
+        sharded_state_dict=None,
+        map_location: Optional[Callable] = None,
+        strict: Optional['StrictHandling'] | bool = None,
     ) -> Dict[str, Any]:
         """
         =====================
@@ -452,7 +456,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
             self.model_ckpt_path = path
 
         # Note: this will include the Trainer-state of the model-checkpoint
-        model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location)
+        model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location, strict)
         if adapter_ckpt is not None:
             ## PEFT Resume, FIRST TIME
             adapter_ckpt['state_dict'].update(model_ckpt['state_dict'])
