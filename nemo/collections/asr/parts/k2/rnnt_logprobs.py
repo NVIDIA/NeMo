@@ -16,7 +16,9 @@ import torch
 import torch.nn.functional as F
 
 
-def rnnt_logprobs_torch(logits: torch.Tensor, targets: torch.Tensor, blank_id: int) -> tuple[torch.Tensor, torch.Tensor]:
+def rnnt_logprobs_torch(
+    logits: torch.Tensor, targets: torch.Tensor, blank_id: int
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Given logits, calculate log probabilities for blank and target labels needed for transducer loss calculation.
     Naive implementation in PyTorch, for testing and prototyping purposes.
