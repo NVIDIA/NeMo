@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import nemo_run as run
-from lightning.pytorch.loggers import WandbLogger
 
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
