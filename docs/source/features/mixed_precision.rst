@@ -6,7 +6,7 @@ Mixed Precision Training
 Mixed precision training significantly enhances computational efficiency by conducting operations in low-precision format, while selectively maintaining minimal data in single-precision to preserve critical information throughout key areas of the network. NeMo Framework now supports FP16, BF16, and FP8 via Transformer Engine (TE) across most models.
 
 
-Half-precision Training
+Half-Precision Training
 =======================
 
 NeMo Framework supports half-precision FP16 and BF16 computation training via Megatron Core and the distributed optimizer.
@@ -16,8 +16,8 @@ To avoid repeated data type casting at each layer computation, Megatron Core kee
 Half-precision training is enabled when setting trainer's ``plugins`` to either of ``fp16-mixed`` or ``bf16-mixed``.
 The parameter gradients are computed in the same half-precision, and the precision of gradient reduce-scatter across data-parallel GPUs is set automatically according to the trainer's precision.
 
-Usage
-^^^^^
+Implement Half-Precision Training
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
@@ -60,7 +60,7 @@ It's also possible to change precision for a specific recipe:
 FP8 Training
 ============
 
-NVIDIA H100 GPU introduced support for a new datatype, FP8 (8-bit floating point), enabling higher throughput of matrix multiplies and convolutions. NeMo Framework uses the NVIDIA `TransformerEngine <https://github.com/NVIDIA/TransformerEngine>`_ (TE) to leverage speedups from FP8. The following table summarizes the FP8 related arguments that can be configured in NeMo (`example config setting <https://github.com/NVIDIA/NeMo/blob/2e1814c9f031ad2aeeebad44597365e97253d2c4/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml/#L192-L200>`_). For a more detailed overview, refer to the TE `documentation <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/index.html>`_, specifically the FP8 `format <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/common.html#transformer_engine.common.recipe.Format>`_ and `recipe <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/common.html#transformer_engine.common.recipe.DelayedScaling>`_.
+NVIDIA H100 GPU introduced support for a new datatype, FP8 (8-bit floating point), enabling higher throughput of matrix multiplies and convolutions. NeMo Framework uses the NVIDIA `TransformerEngine <https://github.com/NVIDIA/TransformerEngine>`_ (TE) to leverage speedups from FP8. The following table summarizes the FP8-related arguments that can be configured in NeMo (`example config setting <https://github.com/NVIDIA/NeMo/blob/2e1814c9f031ad2aeeebad44597365e97253d2c4/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml/#L192-L200>`_). For a more detailed overview, refer to the TE `documentation <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/index.html>`_, specifically the FP8 `format <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/common.html#transformer_engine.common.recipe.Format>`_ and `recipe <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/common.html#transformer_engine.common.recipe.DelayedScaling>`_.
 
 .. list-table:: FP8 arguments
    :widths: 10 20
@@ -69,18 +69,18 @@ NVIDIA H100 GPU introduced support for a new datatype, FP8 (8-bit floating point
    * - Argument
      - Description
    * - fp8
-     - Training recipe format for FP8: 'hybrid' or 'e4m3'. 'hybrid' is set by default. With 'hybrid', activations and weight tensors use the E4M3 format, whereas gradient use the E5M2 format to satisfy the additional dynamic range requirement for backward tensors.
+     - The training recipe format for FP8 can be set to either 'hybrid' or 'e4m3', with 'hybrid' being the default. In the 'hybrid' format, activations and weight tensors use the E4M3 format, while gradients use the E5M2 format to meet the additional dynamic range requirements for backward tensors.
    * - fp8_margin
      - The scaling factor for FP8 tensors can be shifted by a factor of $2 ^ {margin}$ using this argument.
    * - fp8_amax_history_len
-     - Window size for amax history. The window size determines how many instances of the most recent absolute max values (amaxes) are stored per tensor.
+     - The window size for amax history. The window size determines how many instances of the most recent absolute max values (amaxes) are stored per tensor.
    * - fp8_amax_compute_algo
      - The choice between “max” and “most_recent” specifies how to select an amax value from the given history.
    * - fp8_params
      - Indicates whether to store module-level parameters in FP8. Enabling this option can reduce memory consumption by eliminating the need to store a copy of weights in higher precision for cases where these weights are externally maintained, such as master parameters in the optimizer. For more information, refer to the `fp8_model_init <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html#transformer_engine.pytorch.fp8_model_init>`_ API in TE.
 
-Usage
-^^^^^
+Implement FP8 Training
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 

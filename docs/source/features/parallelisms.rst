@@ -41,7 +41,7 @@ Enable Data Parallelism
 In NeMo Framework, DDP is the default parallel deployment method.
 This means that the total number of GPUs corresponds to the size of the DP group, and training an LLM with model parallelism decreases the size of the DP group.
 
-Currently, NeMo Framework supports optimizer distribution only for Megatron-Core adam distributed optimizer.
+Currently, the NeMo Framework supports optimizer distribution only for the Megatron Core Adam distributed optimizer.
 To enable the distributed adam optimizer, set up ``distributed_fused_adam_with_cosine_annealing`` optimizer recipe from ``nemo.collections.llm.recipes.optim.adam`` or you can create your own optimizer recipe.
 
 .. code-block:: python
