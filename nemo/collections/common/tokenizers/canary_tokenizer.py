@@ -190,6 +190,7 @@ class CanaryTokenizer(AggregateTokenizer):
         spl_tokenizer = SentencePieceTokenizer(str(model_path))
         return spl_tokenizer
 
+
 def _map_canary1_to_canary2_lang(lang: str, available_langs: list[str]) -> str:
     if len(lang) != 2 or lang in available_langs:
         return lang
