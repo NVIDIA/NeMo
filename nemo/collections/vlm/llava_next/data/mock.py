@@ -20,12 +20,12 @@ import torch
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
+from transformers import AutoProcessor
 
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-from transformers import AutoProcessor
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 class MockDataModule(pl.LightningDataModule):
