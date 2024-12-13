@@ -62,7 +62,6 @@ def is_trainer_attached(model: pl.LightningModule):
     """
     Returns true if trainer is attached to a model
     """
-    breakpoint()
     try:
         trainer = model.trainer
         return True
