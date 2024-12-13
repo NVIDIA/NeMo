@@ -3580,7 +3580,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --disable-ckpt
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
