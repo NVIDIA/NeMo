@@ -33,6 +33,7 @@ if TRITON_AVAILABLE:
     from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_triton_kernel
     import triton
 
+
 def _log_e_score(score):
     return score / np.log10(np.e)
 
