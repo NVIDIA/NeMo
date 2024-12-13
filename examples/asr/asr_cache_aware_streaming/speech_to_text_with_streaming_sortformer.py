@@ -19,7 +19,7 @@ import time
 import yaml
 from tqdm import tqdm
 from dataclasses import dataclass, is_dataclass
-from typing import Optional, Union, List, Tuple, Dict
+from typing import Optional, Union, List, Tuple, Dict, Any
 
 import torch
 import pytorch_lightning as pl
@@ -27,7 +27,6 @@ from omegaconf import OmegaConf
 from omegaconf import open_dict
 from pytorch_lightning import seed_everything
 
-# ASR
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
@@ -38,10 +37,7 @@ from copy import deepcopy
 from nemo.collections.asr.parts.utils.diarization_utils import read_seglst, OnlineEvaluation
 from nemo.utils import logging
 
-# DIARIZATION
-# from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.models.sortformer_diar_models import SortformerEncLabelModel
-
 from nemo.core.config import hydra_runner
 from nemo.collections.asr.metrics.der import score_labels
 from hydra.core.config_store import ConfigStore
@@ -105,19 +101,18 @@ class MultiSpeakerASRstreamer:
         cfg,
         asr_model,
         diar_model,
-        bsd_spk
     ):
         self.cfg = cfg
+        self.test_manifest_dict = get_audio_rttm_map(self.cfg.manifest_file)
         self.asr_model = asr_model
         self.diar_model = diar_model
-        self.bsd_spk = bsd_spk
-        self.fix_prev_words_count = cfg.fix_prev_words_count
-        self._sentence_render_length = int(self.fix_prev_words_count + cfg.update_prev_words_sentence)
-        self._word_count = 0
-        self.test_manifest_dict = get_audio_rttm_map(self.cfg.manifest_file)
+        self._fix_prev_words_count = cfg.fix_prev_words_count
+        self._sentence_render_length = int(self._fix_prev_words_count + cfg.update_prev_words_sentence)
+        self._frame_len_sec = 0.08
         self._initial_steps = cfg.ignored_initial_frame_steps
         self._all_sentences = []
         self._init_evaluator() 
+        self._frame_hop_length = self.asr_model.encoder.streaming_cfg.valid_out_len
     
     def _init_evaluator(self):  
         self.online_evaluators = []
@@ -222,6 +217,53 @@ class MultiSpeakerASRstreamer:
         session_trans_dict['sentences'] = sentences
         return session_trans_dict 
 
+    def get_frame_and_words(
+        self, 
+        uniq_id, 
+        step_num, 
+        diar_pred_out_stream, 
+        previous_hypothesis, 
+        word_and_ts_seq, 
+    ):        
+        offset = step_num * self._frame_hop_length
+        word_seq = previous_hypothesis.text.split()
+        new_words = word_seq[word_and_ts_seq["offset_count"]:]
+        frame_inds_seq = (torch.tensor(previous_hypothesis.timestep) + offset).tolist()
+        new_token_group = self.asr_model.tokenizer.text_to_tokens(new_words)
+        new_tokens = list(itertools.chain(*new_token_group))
+        frame_inds_seq = fix_frame_time_step(self.cfg, new_tokens, new_words, frame_inds_seq)
+        min_len = min(len(new_words), len(frame_inds_seq))
+        word_and_ts_seq['uniq_id'] = uniq_id
+
+        for idx in range(min_len):
+            word_and_ts_seq["token_frame_index"].append((new_tokens[idx], frame_inds_seq[idx]))
+            word_and_ts_seq["offset_count"] += 1
+        
+        time_step_local_offset, word_idx_offset = 0, 0
+        word_count_offset = len(word_and_ts_seq["words"]) 
+        word_and_ts_seq = get_multitoken_words(cfg=self.cfg, 
+                                               word_and_ts_seq=word_and_ts_seq, 
+                                               word_seq=word_seq, 
+                                               new_words=new_words, 
+                                               fix_prev_words_count=self._fix_prev_words_count
+                                            )
+        
+        # Get the FIFO queue preds to word_and_ts_seq 
+        local_idx = 0
+        for local_idx, (token_group, word) in enumerate(zip(new_token_group, new_words)):
+            word_dict = get_word_dict_content(cfg=self.cfg, 
+                                            word=word,
+                                            word_index= (word_count_offset + local_idx),
+                                            diar_pred_out_stream=diar_pred_out_stream,
+                                            token_group=token_group,
+                                            frame_inds_seq=frame_inds_seq,
+                                            time_step_local_offset=time_step_local_offset,
+                                            frame_len=self._frame_len_sec
+                                            )
+            # Count the number of speakers in the word window
+            time_step_local_offset += len(token_group)
+            word_idx_offset, word_and_ts_seq = append_word_and_ts_seq(self.cfg, word_idx_offset, word_and_ts_seq, word_dict)
+        return word_and_ts_seq
 
     @measure_eta 
     def perform_streaming_stt_spk(
@@ -288,22 +330,21 @@ class MultiSpeakerASRstreamer:
         for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()): 
             if not (len( previous_hypotheses[idx].text) == 0 and step_num <= self._initial_steps):
                 # Get the word-level dictionaries for each word in the chunk
-                self._word_and_ts_seq[idx] = get_frame_and_words(cfg=self.cfg,
-                                                      uniq_id=uniq_id,
-                                                      tokenizer=self.asr_model.tokenizer,
-                                                      step_num=step_num, 
-                                                      diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
-                                                      previous_hypothesis=previous_hypotheses[idx], 
-                                                      word_and_ts_seq=self._word_and_ts_seq[idx],
-                                                      fix_prev_words_count=self.cfg.fix_prev_words_count)
+                self._word_and_ts_seq[idx] = self.get_frame_and_words(uniq_id=uniq_id,
+                                                                      step_num=step_num, 
+                                                                      diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
+                                                                      previous_hypothesis=previous_hypotheses[idx], 
+                                                                      word_and_ts_seq=self._word_and_ts_seq[idx],
+                                                                    )
                 if len(self._word_and_ts_seq[idx]["words"]) > 0:
                     self._word_and_ts_seq[idx] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[idx], 
                                                                            sentence_render_length=self._sentence_render_length)
-                    transcribed_speaker_texts[idx] = print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], color_palette=get_color_palette(), params=self.cfg)
                     if self.cfg.eval_mode:
                         der, cpwer, is_update = self.online_evaluators[idx].evaluate_inloop(hyp_seglst=self._word_and_ts_seq[idx]["sentences"], 
                                                                                             end_step_time=self._word_and_ts_seq[idx]["sentences"][-1]["end_time"])
-                    write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), transcribed_speaker_texts[idx].strip())
+                    if self.cfg.generate_online_scripts:
+                        transcribed_speaker_texts[idx] = print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], color_palette=get_color_palette(), params=self.cfg)
+                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), transcribed_speaker_texts[idx].strip())
             if self.cfg.log:         
                 logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
         return (transcribed_speaker_texts,
@@ -359,12 +400,6 @@ class DiarizationConfig:
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
 
-    # Optuna Config
-    optuna_study_name: str = "diar_study"
-    storage: str = f"sqlite:///{optuna_study_name}.db"
-    output_log_file: str = f"{optuna_study_name}.log"
-    optuna_n_trials: int = 100000
-
     # ASR Configs
     asr_model: Optional[str] = None
     diar_model: Optional[str] = None
@@ -383,39 +418,22 @@ class DiarizationConfig:
     pad_and_drop_preencoded: bool = False
     set_decoder: Optional[str] = None # ["ctc", "rnnt"]
     att_context_size: Optional[str] = None
-
+    generate_online_scripts: bool = True
     
-    # Beam search parameters
-    arpa_language_model: Optional[str] = None
-    beam_prune_logp: float = -40
     word_window: int = 50
     fix_prev_words_count: int = 5
     update_prev_words_sentence: int = 2
-    bsd_maj_voting: bool = True
-    use_spk_turn_bsd: bool = False
     left_frame_shift: int = -1
     right_frame_shift: int = -1
     min_sigmoid_val: float = 1e-2
-    port: List[int] = field(default_factory=list)
-    parallel_chunk_word_len: int = 250
-    use_ngram: bool = True
-    peak_prob: float = 0.95
-    finetune_realtime_ratio: float = 1.03
     discarded_frames: int = 8
-    feat_len_sec: float = 0.01
     limit_max_spks: int = 2
-    alpha: float = 0.2
-    beta: float = 0.03
-    beam_width: int = 8
-    out_dir: Optional[str] = None
     print_time: bool = True
     colored_text: bool = True
     real_time_mode: bool = False
     print_path: str = "./"
-    beam_search_enabled: bool = False
     ignored_initial_frame_steps: int = 5
     verbose: bool = False
-    break_lines: bool = True
 
 def extract_transcriptions(hyps):
     """
@@ -438,7 +456,28 @@ def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
     else:
         return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
     
-def fix_frame_time_step(cfg, new_tokens, new_words, frame_inds_seq):
+def fix_frame_time_step(
+    cfg: Any, 
+    new_tokens: List[str], 
+    new_words: List[str], 
+    frame_inds_seq: List[int]
+    ) -> List[int]:
+    """
+    Adjust the frame indices sequence to match the length of new tokens.
+
+    This function handles mismatches between the number of tokens and the frame indices sequence.
+    It adjusts the frame_inds_seq to ensure it has the same length as new_tokens.
+
+    Args:
+        cfg (Any): Configuration object containing logging settings.
+        new_tokens (List[str]): List of new tokens.
+        new_words (List[str]): List of new words.
+        frame_inds_seq (List[int]): List of frame indices.
+
+    Returns:
+        List[int]: Adjusted frame indices sequence.
+
+    """    
     if len(new_tokens) != len(frame_inds_seq):
         # Sometimes there is a mismatch in the number of tokens between the new tokens and the frame indices sequence.
         if len(frame_inds_seq) > len(new_words):
@@ -460,8 +499,44 @@ def fix_frame_time_step(cfg, new_tokens, new_words, frame_inds_seq):
             )
     return frame_inds_seq
 
-def get_word_dict_content(cfg, word, word_index, diar_pred_out_stream, token_group, frame_inds_seq, time_step_local_offset, frame_len: float = 0.08):
-    _stt, _end = time_step_local_offset, time_step_local_offset + len(token_group)-1
+def get_simulated_softmax(cfg: DiarizationConfig, speaker_sigmoid: torch.Tensor) -> torch.Tensor:
+    """Simulate the softmax operation for speaker diarization."""
+    speaker_sigmoid = torch.clamp(speaker_sigmoid, min=cfg.min_sigmoid_val, max=1) 
+    speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
+    speaker_softmax = speaker_softmax.cpu()
+    speaker_softmax[cfg.limit_max_spks:] = 0.0 
+    return speaker_softmax
+
+def get_word_dict_content(
+    cfg: Any,
+    word: str,
+    word_index: int,
+    diar_pred_out_stream: torch.Tensor,
+    token_group: List[str],
+    frame_inds_seq: List[int],
+    time_step_local_offset: int,
+    frame_len: float = 0.08
+) -> Dict[str, Any]:
+    """
+    Generate a dictionary containing word information and speaker diarization results.
+
+    This function processes a single word and its associated tokens to determine
+    the start and end frames, speaker, and other relevant information.
+
+    Args:
+        cfg (Any): Configuration object containing diarization settings.
+        word (str): The word being processed.
+        word_index (int): Index of the word in the sequence.
+        diar_pred_out_stream (torch.Tensor): Diarization prediction output stream.
+        token_group (List[str]): Group of tokens associated with the word.
+        frame_inds_seq (List[int]): Sequence of frame indices.
+        time_step_local_offset (int): Local time step offset.
+        frame_len (float, optional): Length of each frame in seconds. Defaults to 0.08.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing word information and diarization results.
+    """    
+    _stt, _end = time_step_local_offset, time_step_local_offset + len(token_group) - 1
     if len(token_group) == 1:
         frame_stt, frame_end = frame_inds_seq[_stt], frame_inds_seq[_stt] + 1
     else:
@@ -473,17 +548,16 @@ def get_word_dict_content(cfg, word, word_index, diar_pred_out_stream, token_gro
             frame_stt, frame_end = (diar_pred_out_stream.shape[1] - 1, diar_pred_out_stream.shape[0])
         else:
             frame_end = frame_stt + 1
+    
     # Get the speaker based on the frame-wise softmax probabilities.
     speaker_sigmoid = diar_pred_out_stream[max((frame_stt + cfg.left_frame_shift), 0):(frame_end + cfg.right_frame_shift), :].mean(dim=0)
-    speaker_sigmoid = torch.clamp(speaker_sigmoid, min=cfg.min_sigmoid_val, max=1) 
-    speaker_softmax = speaker_sigmoid / speaker_sigmoid.sum()
-    # _speaker_softmax = torch.softmax(speaker_sigmoid, dim=0)
-    speaker_softmax = speaker_softmax.cpu()
-    stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
+    speaker_softmax = get_simulated_softmax(cfg, speaker_sigmoid)
+
     speaker_softmax[cfg.limit_max_spks:] = 0.0
     spk_id = speaker_softmax.argmax().item()
     speaker_votes = torch.zeros(speaker_softmax.shape[0]).to(torch.int)
     speaker_votes[spk_id] += 1
+    stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
     word_dict = {"word": word,
                  "word_index": word_index,
                 'frame_stt': frame_stt,
@@ -494,69 +568,84 @@ def get_word_dict_content(cfg, word, word_index, diar_pred_out_stream, token_gro
                 'speaker_votes': speaker_votes,
                 'speaker_softmax': speaker_softmax} 
     return word_dict
+    
+def get_multitoken_words(
+    cfg: DiarizationConfig,
+    word_and_ts_seq: Dict[str, List],
+    word_seq: List[str],
+    new_words: List[str],
+    fix_prev_words_count: int = 5
+) -> Dict[str, List]:
+    """
+    Fix multi-token words that were not fully captured by the previous chunk window.
 
-def get_multitoken_words(cfg, word_and_ts_seq,  word_seq, new_words, fix_prev_words_count=5):
-    """Fix the multi-token words which are not fully captured by the previous chunk window.""" 
-    prev_start, prev_end = max(0, len(word_seq)-fix_prev_words_count-len(new_words)), max(0, len(word_seq)-len(new_words))
-    for ct, prev_word in enumerate(word_seq[prev_start: prev_end]):
+    This function compares the words in the current sequence with the previously processed words,
+    and updates any multi-token words that may have been truncated in earlier processing.
+
+    Args:
+        cfg (DiarizationConfig): Configuration object containing verbose setting.
+        word_and_ts_seq (Dict[str, List]): Dictionary containing word sequences and timestamps.
+        word_seq (List[str]): List of all words processed so far.
+        new_words (List[str]): List of new words in the current chunk.
+        fix_prev_words_count (int, optional): Number of previous words to check. Defaults to 5.
+
+    Returns:
+        Dict[str, List]: Updated word_and_ts_seq with fixed multi-token words.
+    """
+    prev_start = max(0, len(word_seq) - fix_prev_words_count - len(new_words))
+    prev_end = max(0, len(word_seq) - len(new_words))
+    
+    for ct, prev_word in enumerate(word_seq[prev_start:prev_end]):
         if len(word_and_ts_seq["words"]) > fix_prev_words_count - ct:
             saved_word = word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"]
             if len(prev_word) > len(saved_word):
                 if cfg.verbose:
-                    logging.info(f"[Replacing Multi-token Word]: {word_and_ts_seq['words'][-fix_prev_words_count + ct]['word']} with {prev_word}")
+                    logging.info(f"[Replacing Multi-token Word]: {saved_word} with {prev_word}")
                 word_and_ts_seq["words"][-fix_prev_words_count + ct]["word"] = prev_word
+    
     return word_and_ts_seq
    
-def append_word_and_ts_seq(cfg, word_idx_offset, word_and_ts_seq, word_dict): 
-    """Append the word dictionary to the word and time-stamp sequence. """ 
+def append_word_and_ts_seq(
+    cfg: Any, 
+    word_idx_offset: int, 
+    word_and_ts_seq: Dict[str, Any], 
+    word_dict: Dict[str, Any]
+) -> tuple[int, Dict[str, Any]]:
+    """
+    Append the word dictionary to the word and time-stamp sequence.
+
+    This function updates the word_and_ts_seq dictionary by appending new word information
+    and managing the buffered words and speaker count.
+
+    Args:
+        cfg (Any): Configuration object containing parameters like word_window.
+        word_idx_offset (int): The current word index offset.
+        word_and_ts_seq (Dict[str, Any]): Dictionary containing word sequences and related information.
+        word_dict (Dict[str, Any]): Dictionary containing information about the current word.
+
+    Returns:
+        tuple[int, Dict[str, Any]]: A tuple containing the updated word_idx_offset and word_and_ts_seq.
+    """
     word_and_ts_seq["words"].append(word_dict)
     word_and_ts_seq["buffered_words"].append(word_dict)
     word_and_ts_seq["speaker_count_buffer"].append(word_dict["speaker"])
     word_and_ts_seq["word_window_seq"].append(word_dict['word'])
+    
     if len(word_and_ts_seq["words"]) >= cfg.word_window + 1: 
         word_and_ts_seq["buffered_words"].pop(0)
         word_and_ts_seq["word_window_seq"].pop(0)
         word_idx_offset = 0
+    
     word_and_ts_seq["speaker_count"] = len(set(word_and_ts_seq["speaker_count_buffer"]))
+    
     return word_idx_offset, word_and_ts_seq
     
-def get_frame_and_words(cfg, uniq_id, tokenizer, step_num, diar_pred_out_stream, previous_hypothesis, word_and_ts_seq, frame_len=0.08, fix_prev_words_count=5):
-    offset = step_num * previous_hypothesis.length.item()
-    word_seq = previous_hypothesis.text.split()
-    new_words = word_seq[word_and_ts_seq["offset_count"]:]
-    frame_inds_seq = (torch.tensor(previous_hypothesis.timestep) + offset).tolist()
-    new_token_group = tokenizer.text_to_tokens(new_words)
-    new_tokens = list(itertools.chain(*new_token_group))
-    frame_inds_seq = fix_frame_time_step(cfg, new_tokens, new_words, frame_inds_seq)
-    min_len = min(len(new_words), len(frame_inds_seq))
-    word_and_ts_seq['uniq_id'] = uniq_id
-
-    for idx in range(min_len):
-        word_and_ts_seq["token_frame_index"].append((new_tokens[idx], frame_inds_seq[idx]))
-        word_and_ts_seq["offset_count"] += 1
-    
-    time_step_local_offset, word_idx_offset = 0, 0
-    word_count_offset = len(word_and_ts_seq["words"]) 
-    word_and_ts_seq = get_multitoken_words(cfg, word_and_ts_seq, word_seq, new_words, fix_prev_words_count=fix_prev_words_count)
-    
-    # Get the FIFO queue preds to word_and_ts_seq 
-    local_idx = 0
-    for local_idx, (token_group, word) in enumerate(zip(new_token_group, new_words)):
-        word_dict = get_word_dict_content(cfg=cfg, 
-                                          word=word,
-                                          word_index= (word_count_offset + local_idx),
-                                          diar_pred_out_stream=diar_pred_out_stream,
-                                          token_group=token_group,
-                                          frame_inds_seq=frame_inds_seq,
-                                          time_step_local_offset=time_step_local_offset,
-                                          frame_len=frame_len
-                                          )
-        # Count the number of speakers in the word window
-        time_step_local_offset += len(token_group)
-        word_idx_offset, word_and_ts_seq = append_word_and_ts_seq(cfg, word_idx_offset, word_and_ts_seq, word_dict)
-    return word_and_ts_seq
-
-def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, debug_mode=False):
+def perform_streaming(
+    cfg, 
+    asr_model, 
+    diar_model, 
+    streaming_buffer, 
+    debug_mode=False):
     batch_size = len(streaming_buffer.streams_length)
     final_offline_tran = None
 
@@ -570,7 +659,7 @@ def perform_streaming(cfg, asr_model, diar_model, bsd_spk, streaming_buffer, deb
     mem_last_time, fifo_last_time = None, None
     left_offset, right_offset = 0, 0
 
-    multispk_asr_streamer = MultiSpeakerASRstreamer(cfg, asr_model, diar_model, bsd_spk)
+    multispk_asr_streamer = MultiSpeakerASRstreamer(cfg, asr_model, diar_model)
     session_start_time = time.time()
     feat_frame_count = 0
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
@@ -758,8 +847,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         pad_and_drop_preencoded=args.pad_and_drop_preencoded,
     )
     
-    bsd_spk = None
-    
     if args.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
@@ -769,14 +856,11 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             cfg=cfg,
             asr_model=asr_model,
             diar_model=diar_model,
-            bsd_spk=bsd_spk,
             streaming_buffer=streaming_buffer,
         )
     else:
         # stream audio files in a manifest file in batched mode
         samples = []
-        all_streaming_tran = []
-        all_offline_tran = []
         all_refs_text = []
 
         with open(args.manifest_file, 'r') as f:
@@ -803,7 +887,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                     cfg=cfg,
                     asr_model=asr_model,
                     diar_model=diar_model,
-                    bsd_spk=bsd_spk,
                     streaming_buffer=streaming_buffer,
                     debug_mode=args.debug_mode,
                 )
