@@ -74,7 +74,7 @@ class OrdTokenizer:
         return token_ids
 
 
-class JitTestModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
+class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
         self,
         tokenizer=None,
@@ -124,7 +124,7 @@ if __name__ == '__main__':
 
     for has_jit in [True, False]:
         tokenizer = OrdTokenizer()
-        model = JitTestModel(tokenizer=tokenizer, has_jit=has_jit)
+        model = DummyJitModel(tokenizer=tokenizer, has_jit=has_jit)
         optim = fdl.build(llm.sgd.pytorch_sgd_with_flat_lr(lr=1e-5))
 
         llm.api.finetune(
