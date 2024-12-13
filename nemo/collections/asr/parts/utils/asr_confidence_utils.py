@@ -305,8 +305,9 @@ class ConfidenceMethodMixin(ABC):
         )
 
         # set confidence calculation method
-        # we suppose that self.blank_id == len(vocabulary)
-        self.num_tokens = (self.blank_id if hasattr(self, "blank_id") else self._blank_index) + 1
+        if not hasattr(self, "num_tokens"):
+            # we suppose that self.blank_id == len(vocabulary)
+            self.num_tokens = (self.blank_id if hasattr(self, "blank_id") else self._blank_index) + 1
         self.alpha = confidence_method_cfg.alpha
 
         # init confidence measure bank
