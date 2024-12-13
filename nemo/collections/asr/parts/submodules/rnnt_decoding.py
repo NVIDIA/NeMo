@@ -1195,6 +1195,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         for i, offset in enumerate(offsets):
 
             word = offset['word']
+            
+            if not word:
+                continue
+
             # check if thr word ends with any delimeter token or the word itself is a delimeter
             if segment_gap_threshold and segment_words:
                 gap_between_words = offset['start_offset'] - offsets[i - 1]['end_offset']
