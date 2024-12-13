@@ -18,12 +18,38 @@ import torch
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 
 
+def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
+    """Infers the modelopt decoder type from GPTModel subclass."""
+    mapping = [
+        (llm.Baichuan2Model, "baichuan"),
+        (llm.ChatGLMModel, "chatglm"),
+        (llm.Gemma2Model, "gemma2"),
+        (llm.GemmaModel, "gemma"),
+        (llm.LlamaModel, "llama"),
+        (llm.MistralModel, "llama"),
+        (llm.MixtralModel, "llama"),
+        (llm.NemotronModel, "gptnext"),
+        (llm.Qwen2Model, "qwen"),
+        (llm.StarcoderModel, "gptnext"),
+        (llm.Starcoder2Model, "gptnext"),
+        (llm.Phi3Model, "phi3"),
+    ]
+
+    for config_class, decoder_type in mapping:
+        if isinstance(model, config_class):
+            return decoder_type
+
+    logging.warning("Could not infer the decoder type")
+    return None
+
+
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Modify model config for TensorRT Model Optimizer"""
+    """Modify model config for TensorRT-Model-Optimizer quantization"""
 
     from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
         get_gpt_layer_modelopt_spec,
@@ -42,25 +68,52 @@ def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     return model_cfg
 
 
-def load_with_modelopt_layer_spec(nemo_checkpoint_path: str, calib_tp: int = 1, calib_pp: int = 1) -> llm.GPTModel:
+def load_with_modelopt_layer_spec(
+    nemo_checkpoint_path: str,
+    tensor_model_parallel_size: int = 1,
+    pipeline_model_parallel_size: int = 1,
+    inference_only: bool = True,
+):
+    """Loads a model from a NeMo 2.0 checkpoint using modelopt layer spec."""
+    # TODO: setting ddp="pytorch" and deleting model.optim is a hackish way to disable DDP initialization.
+    # Needs a systematic solution.
+    if inference_only:
+        strategy = nl.MegatronStrategy(
+            tensor_model_parallel_size=tensor_model_parallel_size,
+            pipeline_model_parallel_size=pipeline_model_parallel_size,
+            pipeline_dtype=torch.bfloat16,
+            ckpt_load_optimizer=False,
+            ckpt_parallel_save_optim=False,
+            setup_optimizers=False,
+            lazy_init=True,
+            ddp="pytorch",
+        )
+    else:
+        strategy = nl.MegatronStrategy(
+            tensor_model_parallel_size=tensor_model_parallel_size,
+            pipeline_model_parallel_size=pipeline_model_parallel_size,
+            pipeline_dtype=torch.bfloat16,
+        )
+
     trainer = nl.Trainer(
-        devices=calib_tp,
-        num_nodes=calib_pp,
-        strategy=nl.MegatronStrategy(
-            tensor_model_parallel_size=calib_tp, pipeline_model_parallel_size=calib_pp, pipeline_dtype=torch.bfloat16
-        ),
-        plugins=nl.MegatronMixedPrecision(precision='bf16', pipeline_dtype=torch.bfloat16, autocast_enabled=True),
+        devices=tensor_model_parallel_size,
+        num_nodes=pipeline_model_parallel_size,
+        strategy=strategy,
+        plugins=nl.MegatronMixedPrecision(precision='bf16', params_dtype=torch.bfloat16, autocast_enabled=True),
     )
-    fabric = trainer.to_fabric()
-    fabric.launch()
-
     model_path = Path(nemo_checkpoint_path)
-    model = nl.io.load_context(ckpt_to_context_subdir(model_path)).model
+    model = nl.io.load_context(path=ckpt_to_context_subdir(model_path), subpath="model")
     model.config = quantizable_model_config(model.config)
-    return fabric.load_model(nemo_checkpoint_path, model=model)
+
+    if inference_only:
+        del model.optim
+
+    _setup_trainer_and_restore_model(nemo_checkpoint_path, trainer, model)
+    return model
 
 
-def get_unwrapped_mcore_model(model: llm.GPTModel):
+def get_unwrapped_mcore_model(model):
+    """Unwraps NeMo 2.0 to base MCore model."""
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     unwrapped_model = model

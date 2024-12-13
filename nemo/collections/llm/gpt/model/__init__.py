@@ -45,7 +45,7 @@ from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Config27B,
     Gemma2Model,
 )
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
@@ -59,6 +59,8 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama31Config8B,
     Llama31Config70B,
     Llama31Config405B,
+    Llama32Config1B,
+    Llama32Config3B,
     LlamaConfig,
     LlamaModel,
 )
@@ -79,6 +81,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig,
     NemotronModel,
 )
+from nemo.collections.llm.gpt.model.phi3mini import Phi3Config, Phi3ConfigMini, Phi3Model
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config,
     Qwen2Config1P5B,
@@ -133,6 +136,8 @@ __all__ = [
     "Llama31Config8B",
     "Llama31Config70B",
     "Llama31Config405B",
+    "Llama32Config1B",
+    "Llama32Config3B",
     "NemotronConfig",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
@@ -140,6 +145,9 @@ __all__ = [
     "Nemotron3Config22B",
     "Nemotron4Config340B",
     "NemotronModel",
+    "Phi3Config",
+    "Phi3ConfigMini",
+    "Phi3Model",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
@@ -183,5 +191,5 @@ __all__ = [
     "transformer_engine_layer_spec",
     "transformer_engine_full_layer_spec",
     "local_layer_spec",
-    "HfAutoModelForCausalLM",
+    "HFAutoModelForCausalLM",
 ]

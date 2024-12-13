@@ -9,7 +9,11 @@ on:
         options: 
         - major
         - minor
-        - pre_release
+      freeze-commit:
+        type: string
+        description: Commit SHA to use for cut-off
+        required: false
+        default: main
       mcore_version:
         description: 'Version of MCore to use (must be a valid git ref)'
         required: true
@@ -17,14 +21,16 @@ on:
 
 jobs:
   code-freeze:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_code_freeze.yml@v0.1.0
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_code_freeze.yml@v0.17.3
     with:
-      name_of_library: NeMo-Toolkit
-      type_of_release: ${{ inputs.type_of_release }}
-      python_package: nemo
+      library-name: NeMo-Toolkit
+      python-package: nemo
+      release-type: ${{ inputs.type_of_release }}
+      freeze-commit: ${{ inputs.freeze-commit }}
     secrets:
       SLACK_RELEASE_ENDPOINT: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
-  
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+
   freeze-tags:
     runs-on: ubuntu-latest
     needs: [code-freeze]
@@ -36,7 +42,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           ref: ${{ needs.code-freeze.outputs.release-branch }}
-          token: ${{ secrets.PAT }}
 
       - name: Pin branch name in Notebooks
         run: |
