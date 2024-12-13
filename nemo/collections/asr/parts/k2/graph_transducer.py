@@ -135,13 +135,13 @@ class GraphTransducerLossBase(Loss):
         return composed
 
     def get_graphs_batched(
-        self, logits_lengths: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, vocab_size: int
+        self, source_lengths: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, vocab_size: int
     ) -> "k2.Fsa":
         """
         Get batched lattice (grid or composed) for the batch of sequences.
 
         Args:
-            logits_lengths: tensor with lengths of logits
+            source_lengths: tensor with lengths of logits
             targets: tensor with target units
             target_lengths: tensor with lengths of targets
             vocab_size: vocab size (including blank)
@@ -149,16 +149,16 @@ class GraphTransducerLossBase(Loss):
         Returns:
             batched lattice - FsaVec (k2.Fsa)
         """
-        batch_size = logits_lengths.shape[0]
+        batch_size = source_lengths.shape[0]
         with torch.no_grad():
             if self.use_grid_implementation:
-                logits_lengths_list = logits_lengths.tolist()
+                source_lengths_list = source_lengths.tolist()
                 target_lengths_list = target_lengths.tolist()
                 return k2.create_fsa_vec(
                     [
                         self.get_grid(
                             units_tensor=targets[i, : target_lengths_list[i]],
-                            num_frames=logits_lengths_list[i],
+                            num_frames=source_lengths_list[i],
                             vocab_size=vocab_size,
                         )
                         for i in range(batch_size)
@@ -175,7 +175,7 @@ class GraphTransducerLossBase(Loss):
             ]
             temporal_fsas = [
                 self.get_temporal_schema(
-                    num_frames=logits_lengths[i].item(), vocab_size=vocab_size, device=targets.device
+                    num_frames=source_lengths[i].item(), vocab_size=vocab_size, device=targets.device
                 )
                 for i in range(batch_size)
             ]
@@ -255,7 +255,8 @@ class GraphRnntLoss(GraphTransducerLossBase):
             connect_composed: Connect graph after composing unit and temporal schemas (only for Compose-Transducer).
                 `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
             double_scores: Use calculation of loss in double precision (float64) in the lattice.
-                Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
+                Does not significantly affect memory usage since the lattice is ~V/2 times smaller
+                than the joint tensor.
             cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
             return_graph: Return graph (along with loss) from `forward` function
             use_triton: use optimized log probs calculations with Triton (faster and more memory efficient)
@@ -479,12 +480,25 @@ class GraphRnntLoss(GraphTransducerLossBase):
         self,
         logits: torch.Tensor,
         targets: torch.Tensor,
-        logits_lengths: torch.Tensor,
+        source_lengths: torch.Tensor,
         target_lengths: torch.Tensor,
         use_graph_weight=False,
     ) -> "k2.Fsa":
+        """
+        Get batch of graphs (FsaVec) for RNN-T loss calculation.
+
+        Args:
+            logits: activations (joint tensor). NB: raw logits, not after log-softmax
+            targets: target labels
+            source_lengths: lengths of source sequences
+            target_lengths: length of target sequences
+            use_graph_weight: uses weight from graphs (if `get_graphs_batched` returns graphs with weights)
+
+        Returns:
+            FsaVec containing RNN-T graphs for all utterances.
+        """
         vocab_size = logits.shape[-1]
-        target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, vocab_size)
+        target_fsas_vec = self.get_graphs_batched(source_lengths, targets, target_lengths, vocab_size)
 
         with torch.no_grad():
             # last transitions in the graph are labeled with -1 label
@@ -504,7 +518,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
                     logits=logits,
                     targets=targets,
                     blank_id=self.blank,
-                    source_lengths=logits_lengths,
+                    source_lengths=source_lengths,
                     target_lengths=target_lengths,
                 )
                 text_units_blank_mask = text_units == self.blank
@@ -547,7 +561,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         # argument names are consistent with NeMo, see RNNTLoss.forward:
         # self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
         target_fsas_vec = self.get_weighted_graphs(
-            logits=acts, targets=labels, logits_lengths=act_lens, target_lengths=label_lens, use_graph_weight=False
+            logits=acts, targets=labels, source_lengths=act_lens, target_lengths=label_lens, use_graph_weight=False
         )
 
         scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self.double_scores, log_semiring=True)

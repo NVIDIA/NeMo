@@ -116,6 +116,19 @@ class RnntLogProbs(torch.autograd.Function):
         source_lengths: torch.Tensor | None,
         target_lengths: torch.Tensor | None,
     ):
+        """
+
+        Args:
+            ctx: ctx object for storing the context
+            logits: Joint tensor of size [B, T, U+1, D]
+            targets: Targets of size [B, U]
+            blank_id: id of the blank output
+            source_lengths: optional tensor with lengths for source utterances
+            target_lengths: optional tensor with lengths for targets
+
+        Returns:
+
+        """
         assert logits.is_contiguous()
         targets = targets.contiguous()
         device = logits.device
@@ -133,6 +146,7 @@ class RnntLogProbs(torch.autograd.Function):
             )
         else:
             target_lengths = target_lengths.contiguous()
+
         _rnnt_logprobs_fwd_kernel[(logits.shape[0], logits.shape[1], logits.shape[2])](
             logits_ptr=logits,
             targets_ptr=targets,
@@ -154,6 +168,17 @@ class RnntLogProbs(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_target_scores, grad_blank_scores):
+        """
+        Backward calculation for RNN-T log-probs.
+
+        Args:
+            ctx: ctx object for storing the context
+            grad_target_scores: upstream gradient for targets
+            grad_blank_scores:  upstream gradient for blank scores
+
+        Returns:
+            gradient for logits, None for all other arguments for `forward`
+        """
         (logits, targets, source_lengths, target_lengths) = ctx.saved_tensors
         blank_id = ctx.blank_id
         grad_logits = torch.zeros_like(logits)
@@ -180,5 +205,20 @@ def rnnt_logprobs_triton(
     blank_id: int,
     source_lengths: torch.Tensor | None = None,
     target_lengths: torch.Tensor | None = None,
-):
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Given logits, calculate log probabilities for blank and target labels needed for transducer loss calculation.
+    Optimized implementation in Triton.
+
+    Args:
+        logits: Joint tensor of size [B, T, U+1, D]
+        targets: Targets of size [B, U]
+        blank_id: id of the blank output
+        source_lengths: optional tensor with lengths for source utterances
+        target_lengths: optional tensor with lengths for targets
+
+    Returns:
+        Tuple of tensors with log probabilities for targets and blank labels, both of size [B, T, U+1].
+        For the non-existent targets (U+1 or beyond target_lengths) output is zero.
+    """
     return RnntLogProbs.apply(logits, targets, blank_id, source_lengths, target_lengths)

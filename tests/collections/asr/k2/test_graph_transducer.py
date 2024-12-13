@@ -294,6 +294,9 @@ class TestRnntLogProbs:
     def test_rnnt_logprobs_random(
         self, batch_size: int, num_frames: int, num_text_units: int, vocab_size: int, float_dtype: torch.dtype
     ):
+        """
+        Test Triton-based implementation using etalon Torch-based implementation for RNN-T log-probs.
+        """
         device = torch.device("cuda")
         torch.manual_seed(777)
 
@@ -312,7 +315,7 @@ class TestRnntLogProbs:
 
         # Triton-based implementation works in float32 precision for accuracy purposes, should compare with float32
         target_scores_etalon, blank_scores_etalon = rnnt_logprobs_torch(
-            x=logits.to(torch.float32), targets=targets, blank_id=vocab_size
+            logits=logits.to(torch.float32), targets=targets, blank_id=vocab_size
         )
         logits2 = logits.clone().detach()
         logits2.requires_grad_(True)
@@ -322,6 +325,7 @@ class TestRnntLogProbs:
         assert torch.allclose(blank_scores, blank_scores_etalon, atol=1e-5)
         assert torch.allclose(target_scores, target_scores_etalon, atol=1e-5)
 
+        # test backward
         target_scales = torch.rand_like(target_scores, requires_grad=False)
         blank_scales = torch.rand_like(blank_scores, requires_grad=False)
         loss_etalon = (target_scales * target_scores_etalon + blank_scales * blank_scores_etalon).sum()
