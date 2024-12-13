@@ -263,8 +263,7 @@ class VideoLatentFakeDataModule(pl.LightningDataModule):
             **kwargs,
         )
 
-
-class STDiTLatentFakeDataModule(VideoLatentFakeDataModule):
+class STVideoLatentFakeDataModule(VideoLatentFakeDataModule):
     def __init__(
         self,
         model_config: DiTConfig,
@@ -273,20 +272,19 @@ class STDiTLatentFakeDataModule(VideoLatentFakeDataModule):
         global_batch_size: int = 8,
         num_workers: int = 1,
         pin_memory: bool = True,
-        task_encoder=None,
-        use_train_split_for_val: bool = False,
+        task_encoder = None,
+        use_train_split_for_val: bool = False,            
     ):
-        super().__init__()
-        self.seq_length = seq_length
-        self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
-        self.num_workers = num_workers
-        self.model_config = model_config
 
-        self.data_sampler = MegatronDataSampler(
-            seq_len=self.seq_length,
+        super().__init__(
+            model_config=model_config,
+            seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            task_encoder=task_encoder,
+            use_train_split_for_val=use_train_split_for_val,
         )
 
     def setup(self, stage: str = "") -> None:

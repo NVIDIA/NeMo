@@ -4,7 +4,10 @@ from typing import Dict, Literal, Optional
 import numpy as np
 import torch
 import torch.nn as nn
+from torch import Tensor
 from einops import rearrange
+
+from megatron.core.transformer.enums import ModelType
 from megatron.core import InferenceParams, mpu, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
@@ -14,9 +17,8 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_sharded_tensor_for_checkpoint
-from torch import Tensor
 
-from .stdit_embeddings import (
+from nemo.collections.diffusion.models.stdit.stdit_embeddings import (
     CaptionEmbedder,
     PatchEmbed3D,
     PositionEmbedding2D,
@@ -26,7 +28,7 @@ from .stdit_embeddings import (
     TimestepEmbedder,
     approx_gelu,
 )
-from .stdit_layer_spec import get_stdit_analn_block_with_transformer_engine_spec as STDiTLayerWithAdaLNspec
+from nemo.collections.diffusion.models.stdit.stdit_layer_spec import get_stdit_analn_block_with_transformer_engine_spec as STDiTLayerWithAdaLNspec
 
 
 class STDiTModel(VisionModule):
@@ -34,30 +36,25 @@ class STDiTModel(VisionModule):
 
     Args:
         config (TransformerConfig): transformer config
-
         transformer_decoder_layer_spec (ModuleSpec): transformer layer customization specs for decoder
-
-        pre_process (bool): Include embedding layer (used with pipeline parallelism)
-        post_process (bool): Include an output layer (used with pipeline parallelism)
-
-        fp16_lm_cross_entropy (bool, optional): Defaults to False
-
+        pre_process (bool): Whether to apply pre-processing steps, include embedding layer (used with pipeline parallelism)
+        post_process (bool): Whether to apply post-processing steps, include an output layer (used with pipeline parallelism)
+        fp16_lm_cross_entropy (bool, optional): Whether to use fp16 for cross-entropy loss, defaults to False
         parallel_output (bool): Do not gather the outputs, keep them split across tensor parallel ranks
-
         share_embeddings_and_output_weights (bool): When True, input embeddings and output logit weights are
             shared. Defaults to False.
-
         position_embedding_type (string): Position embedding type. Options ['learned_absolute', 'rope'].
             Defaults is 'learned_absolute'.
-
         rotary_percent (float): Percent of rotary dimension to use for rotary position embeddings.
             Defaults to 1.0 (100%). Ignored unless position_embedding_type is 'rope'.
-
         seq_len_interpolation_factor (float): scale of linearly interpolating RoPE for longer sequences.
             The value must be a float larger than 1.0. Defaults to None.
-
-        /need to add some config for other part of stditmodel
-
+        max_img_h (int): Maximum image height.
+        max_img_w (int): Maximum image width.
+        max_frames (int): Maximum number of frames.
+        patch_spatial (int): Spatial patch size.
+        patch_temporal (int): Temporal patch size.
+        in_channels (int): Number of input channels.
     """
 
     def __init__(
@@ -117,6 +114,9 @@ class STDiTModel(VisionModule):
         self.patch_temporal = patch_temporal
         self.input_sq_size = input_sq_size
         self.config.crossattn_emb_size = crossattn_emb_size
+
+        # mcore pipeline scheduler need model_type attribute set
+        self.model_type = ModelType.encoder_or_decoder   
 
         # ============================
         # config change in decoder part
@@ -206,7 +206,7 @@ class STDiTModel(VisionModule):
         self,
         x: Tensor,
         timesteps: Tensor,
-        context_embedding: Tensor,
+        crossattn_emb: Tensor,
         context_mask: Tensor = None,
         x_mask: Tensor = None,
         fps: Tensor = None,
@@ -221,7 +221,7 @@ class STDiTModel(VisionModule):
         Args:
             x : after vae noise_latent
             timesteps : timesteps
-            context_embedding : context embedding
+            crossattn_emb : context embedding
             context_mask : for crossattn context_mask with context
 
         Returns:
@@ -256,7 +256,7 @@ class STDiTModel(VisionModule):
         if self.pre_process:
             # position embedding calculate
             base_size = round(Origin_S**0.5)
-            resolution_sq = (height[0].item() * width[0].item()) ** 0.5  # Todo: maybe need to check it
+            resolution_sq = (self.max_img_h * self.max_img_w) ** 0.5  # Todo: maybe need to check it
             scale = resolution_sq / self.input_sq_size  # Todo: maybe need to check it
 
             pos_emb = self.pos_embedder(x, Origin_H, Origin_W, scale=scale, base_size=base_size)
@@ -273,13 +273,13 @@ class STDiTModel(VisionModule):
         # context part
         # ============
         if self.skip_y_embedder:
-            context_embedding_S_B_D = rearrange(context_embedding, "B S D -> S B D").contiguous()
+            crossattn_emb_S_B_D = rearrange(crossattn_emb, "B S D -> S B D").contiguous()
             packed_seq_params = None
             context_mask = None
         else:
             qkv_format = 'sbhd'
-            context_embedding = self.encode_text(context_embedding.unsqueeze(1), context_mask, qkv_format)
-            context_embedding_S_B_D = rearrange(context_embedding.squeeze(1), "B S D -> S B D")
+            crossattn_emb = self.encode_text(crossattn_emb.unsqueeze(1), context_mask, qkv_format)
+            crossattn_emb_S_B_D = rearrange(crossattn_emb.squeeze(1), "B S D -> S B D")
             packed_seq_params = self.gen_packed_seq_params(Batch, S * T, context_mask, qkv_format)
             context_mask = None
 
@@ -302,18 +302,18 @@ class STDiTModel(VisionModule):
         if self.config.sequence_parallel:
             if self.pre_process:
                 x_S_B_D = tensor_parallel.scatter_to_sequence_parallel_region(x_S_B_D)
-            context_embedding_S_B_D = tensor_parallel.scatter_to_sequence_parallel_region(context_embedding_S_B_D)
+            crossattn_emb_S_B_D = tensor_parallel.scatter_to_sequence_parallel_region(crossattn_emb_S_B_D)
 
             if self.config.clone_scatter_output_in_embedding:
                 if self.pre_process:
                     x_S_B_D = x_S_B_D.clone()
-                context_embedding_S_B_D = context_embedding_S_B_D.clone()
+                crossattn_emb_S_B_D = crossattn_emb_S_B_D.clone()
 
         # decoder part
         x_S_B_D = self.decoder_spatial_temporal(
             hidden_states=x_S_B_D,
             attention_mask=timestep_emb,
-            context=context_embedding_S_B_D,
+            context=crossattn_emb_S_B_D,
             context_mask=context_mask,
             rotary_pos_emb=rotary_pos_emb,  # Todo : stditv3 rotary_pos_embedding just in temporal block
             packed_seq_params=packed_seq_params,
@@ -377,17 +377,17 @@ class STDiTModel(VisionModule):
             timestep_emb(torch.Tensor) : output_tensor for decoder
 
         """
-        t = self.t_embedder(timesteps.squeeze(1), dtype=type)  # t shape : [Batch, Dim]
-        fps = self.fps_embedder(fps, batch)  # fps shape : [Batch, Dim]
-        t = t + fps  # t shape : [Batch, Dim]
-        timestep_emb = self.t_block(t)  # timestep_emb shape : [Batch, chunk_size * Dim]
+        t = self.t_embedder(timesteps, dtype=type)              # t shape : [Batch, Dim]
+        fps = self.fps_embedder(fps, batch)                     # fps shape : [Batch, Dim]
+        t = t + fps                                             # t shape : [Batch, Dim]
+        timestep_emb = self.t_block(t)                          # timestep_emb shape : [Batch, chunk_size * Dim]
         return timestep_emb, t
 
     def encode_text(self, y, mask=None, qkv_format='sbhd'):
         """
         encode_text if skip_y_embedder is false
         """
-        y = self.y_embedder(y, self.training)  # [B, N_token, C]
+        y = self.y_embedder(y, self.training)                   # [B, N_token, C]
         if qkv_format == 'thd':
             if mask is not None:
                 if mask.shape[0] != y.shape[0]:

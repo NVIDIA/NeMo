@@ -31,7 +31,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
 
-from .spatial_selfattention_util import SpatialSelfAttention
+from nemo.collections.diffusion.models.stdit.spatial_attention import SpatialSelfAttention
 
 
 # Todo : implemention of stditv3 t_select_mask

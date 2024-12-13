@@ -79,6 +79,9 @@ def stdit_data_step(module, dataloader_iter):
     batch = stdit_get_batch_on_this_cp_rank(batch)
     batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
 
+    batch_size = batch['video'].shape[0]
+    # hard code for fps tensor for stdit model part
+    batch['fps'] = torch.tensor([24,] * batch_size, dtype=torch.int32, device = torch.cuda.current_device())
     return batch
 
 
@@ -327,6 +330,9 @@ class ECDiTLlama1BConfig(DiTLlama1BConfig):
 
 @dataclass
 class STDiTConfig(DiTConfig):
+    """
+    Config for STDiT model
+    """
 
     # model set
     num_layers: int = 28
@@ -336,14 +342,30 @@ class STDiTConfig(DiTConfig):
     ffn_hidden_size: int = 4608
 
     add_bias_linear: bool = True
+    qk_layernorm_per_head = True
+    attn_mask_type: AttnMaskType = AttnMaskType.no_mask
+
+    hidden_dropout: float = 0
+    attention_dropout: float = 0
 
     # video set
+    in_channels: int = 4
     max_img_h: int = 128
     max_img_w: int = 128
     max_frames: int = 24
     patch_spatial: int = 2
+    patch_temporal: int = 1
 
+    # precision
+    bf16: bool = True
+    params_dtype: torch.dtype = torch.bfloat16
+
+    # parallel pattern set
     dynamic_sequence_parallel: bool = False
+    
+    # forward step set
+    data_step_fn = stdit_data_step
+    forward_step_fn = dit_forward_step
 
     @override
     def configure_model(self, tokenizer=None) -> STDiTModel:
@@ -355,7 +377,7 @@ class STDiTConfig(DiTConfig):
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
         model = STDiTModel
-
+        
         return model(
             self,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
@@ -365,10 +387,12 @@ class STDiTConfig(DiTConfig):
             max_img_h=self.max_img_h,
             max_img_w=self.max_img_w,
             max_frames=self.max_frames,
+            in_channels=self.in_channels,
             patch_spatial=self.patch_spatial,
+            patch_temporal=self.patch_temporal,
+            crossattn_emb_size=self.crossattn_emb_size,
             dynamic_sequence_parallel=self.dynamic_sequence_parallel,
         )
-
 
 @dataclass
 class STDiTV3_XLConfig(STDiTConfig):
@@ -379,7 +403,6 @@ class STDiTV3_XLConfig(STDiTConfig):
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 4608
 
-
 @dataclass
 class STDiTXLConfig(STDiTConfig):
 
@@ -389,7 +412,6 @@ class STDiTXLConfig(STDiTConfig):
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 6144
 
-
 @dataclass
 class STDiT3BConfig(STDiTConfig):
 
@@ -398,7 +420,6 @@ class STDiT3BConfig(STDiTConfig):
     num_attention_heads: int = 16
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 8192
-
 
 class DiTModel(GPTModel):
     """

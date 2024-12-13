@@ -6,7 +6,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from einops import rearrange
-from megatron.core.parallel_state import get_context_parallel_rank, get_context_parallel_world_size
+
+from megatron.core.parallel_state import (
+    get_context_parallel_world_size,
+    get_context_parallel_rank,
+)
 from torch import nn
 
 # reference : https://github.com/hpcaitech/Open-Sora/blob/main/opensora/models/layers/blocks.py
@@ -18,7 +22,6 @@ approx_gelu = lambda: nn.GELU(approximate="tanh")
 # ======================================================================
 # --------------------------- TimeStepEmbeddding -----------------------
 # ======================================================================
-
 
 class TimestepEmbedder(nn.Module):
     """
@@ -69,10 +72,9 @@ class TimestepEmbedder(nn.Module):
         # https://github.com/openai/glide-text2im/blob/main/glide_text2im/nn.py
         half = dim // 2
         freqs = torch.exp(
-            -math.log(max_period)
-            * torch.arange(start=0, end=half, dtype=torch.float32, device=torch.cuda.current_device())
-            / half
-        )
+            -math.log(max_period) 
+            * torch.arange(start=0, end=half, dtype=torch.float32, device=torch.cuda.current_device()) 
+            / half)
         args = t[:, None].float() * freqs[None]
         embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
         if dim % 2:
@@ -82,7 +84,6 @@ class TimestepEmbedder(nn.Module):
     def forward(self, t: torch.Tensor, dtype) -> torch.Tensor:
         """
         For timesteps: timestep_embedding + mlp_embedding
-
         Args:
             t(torch.Tensor): Input tensor of shape (B)
         Returns:
@@ -97,11 +98,9 @@ class TimestepEmbedder(nn.Module):
         t_emb = self.mlp(t_freq)
         return t_emb
 
-
 # ======================================================================
 # --------------------------- SizeEmbedding ----------------------------
 # ======================================================================
-
 
 class SizeEmbedder(TimestepEmbedder):
     """
@@ -142,8 +141,8 @@ class SizeEmbedder(TimestepEmbedder):
         Args:
             - fps(torch.Tensor) : The input tensor(fps tensor) of shape(B, 1)
             - batch_size :  The number of batch size
-        Return
-            - fps_emb(torch.Tensor) : The out tenosr of shape (B, D)
+        Return 
+            - fps_emb(torch.Tensor) : The out tenosr of shape (B, D)    
         """
 
         if fps.ndim == 1:
@@ -164,11 +163,9 @@ class SizeEmbedder(TimestepEmbedder):
     def dtype(self):
         return next(self.parameters()).dtype
 
-
 # ======================================================================
 # --------------------------- TblockEmbedding --------------------------
 # ======================================================================
-
 
 class TblockEmbedder(nn.Module):
     """
@@ -183,7 +180,10 @@ class TblockEmbedder(nn.Module):
 
     def __init__(self, hidden_size, chunk_size=6, seed=None):
         super().__init__()
-        self.t_proj = nn.Sequential(nn.SiLU(), nn.Linear(hidden_size, chunk_size * hidden_size, bias=True))
+        self.t_proj = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(hidden_size, chunk_size * hidden_size, bias=True)
+        )
 
         if seed is not None:
             with torch.random.fork_rng():
@@ -204,18 +204,15 @@ class TblockEmbedder(nn.Module):
         t_emb = self.t_proj(t)
         return t_emb
 
-
 # x-embedding part:
 # ======================================================================
 # --------------------------- PosEmbedding2d --------------------------
 # ======================================================================
 
-
 class PositionEmbedding2D(nn.Module):
     """
     Position Embedding in spatial dimension.
     """
-
     def __init__(self, dim: int) -> None:
         """
         Args:
@@ -310,7 +307,6 @@ class PositionEmbedding2D(nn.Module):
 # ----------------------------- PatchEmbed3D ---------------------------
 # ======================================================================
 
-
 class PatchEmbed3D(nn.Module):
     """Video latent to Patch Embedding part:
         - patchify embedding
@@ -347,9 +343,9 @@ class PatchEmbed3D(nn.Module):
             self.norm = None
 
     def forward(self, x):
-        """Forward function of the PatchEmbed3D module.
-
-        Parameters.
+        """
+            Forward function of the PatchEmbed3D module.
+        Parameters:
             x(torch.Tensor): The input tensor of shape(B, C, T, H, W)
 
         - Returns:
@@ -380,7 +376,6 @@ class PatchEmbed3D(nn.Module):
             x = x.flatten(2).transpose(1, 2)  # [B, D, T, H, W] -> [B, S, D]
         return x
 
-
 # y-embedding part
 # ======================================================================
 # --------------------------- CaptionEmbedder --------------------------
@@ -390,7 +385,6 @@ class CaptionEmbedder(nn.Module):
     CaptionEmbedder part similar to LabelEmbedder.
     Embeds class labels into vector representations. Also handles label dropout for classifier-free guidance.
     """
-
     def __init__(self, in_channels, hidden_size, uncond_prob, act_layer=approx_gelu, token_num=120, seed=None):
         super().__init__()
         self.y_proj = nn.Sequential(
@@ -447,10 +441,8 @@ class CaptionEmbedder(nn.Module):
 # ------------------------------ Final layer ---------------------------
 # ======================================================================
 
-
 def t2i_modulate(x, shift, scale):
     return x * (1 + scale) + shift
-
 
 class T2IFinalLayer(nn.Module):
     """
