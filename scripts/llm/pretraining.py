@@ -14,7 +14,8 @@
 
 # NOTE: This script is only an example of using NeMo with NeMo-Run's APIs and is subject to change without notice.
 # This script is used for pretraining on local and slurm executors.
-# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
+# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and
+# NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
 from functools import partial
@@ -71,7 +72,8 @@ def slurm_executor(
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
         raise RuntimeError(
-            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this function."
+            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
+            "function.",
         )
 
     mounts = []
