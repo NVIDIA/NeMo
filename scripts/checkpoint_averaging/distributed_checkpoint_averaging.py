@@ -39,23 +39,31 @@ import argparse
 import logging
 import os
 import shutil
+
 import numpy as np
 import tensorstore  # need to import it for bf16 support
 import zarr
+
 from nemo.utils.distributed import initialize_distributed
 
 logging.basicConfig(level=logging.INFO)
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--name_prefix', help='Name of the final checkpoint. Will append -averaged automatically.',
+        '--name_prefix',
+        help='Name of the final checkpoint. Will append -averaged automatically.',
     )
     parser.add_argument(
-        '--checkpoint_dir', help='Folder containing all the distributed checkpoints.',
+        '--checkpoint_dir',
+        help='Folder containing all the distributed checkpoints.',
     )
     parser.add_argument(
-        '--checkpoint_format', default='torch_dist', choices=['torch_dist', 'zarr'], help='Format of distributed checkpoint.',
+        '--checkpoint_format',
+        default='torch_dist',
+        choices=['torch_dist', 'zarr'],
+        help='Format of distributed checkpoint.',
     )
     parser.add_argument('--hparams_file', help='Path to hparams.yaml.')
     parser.add_argument('--precision', default='bf16-mixed', help='Model precision.')
@@ -75,11 +83,12 @@ def get_args():
 
     return args
 
+
 def init_trainer(args, world_size):
     from lightning.pytorch.trainer.trainer import Trainer
-    from omegaconf import OmegaConf, open_dict
     from megatron.core import parallel_state
-    from nemo.utils import AppState
+    from omegaconf import OmegaConf, open_dict
+
     from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
     from nemo.collections.nlp.parts.nlp_overrides import (
         GradScaler,
@@ -87,10 +96,11 @@ def init_trainer(args, world_size):
         NLPSaveRestoreConnector,
         PipelineMixedPrecisionPlugin,
     )
+    from nemo.utils import AppState
 
     app_state = AppState()
     app_state.data_parallel_rank = 0
-    num_nodes = 1 #world_size // args.gpus_per_node
+    num_nodes = 1  # world_size // args.gpus_per_node
     plugins = []
     strategy = NLPDDPStrategy(use_distributed_checkpointing=True)
 
@@ -102,7 +112,7 @@ def init_trainer(args, world_size):
             'precision': args.precision,
         },
         'model': {
-            'native_amp_init_scale': 2 ** 32,
+            'native_amp_init_scale': 2**32,
             'native_amp_growth_interval': 1000,
             'hysteresis': 2,
             'gradient_as_bucket_view': True,
@@ -142,21 +152,20 @@ def init_trainer(args, world_size):
 
     return trainer, strategy
 
+
 def load_torch_dist_ckpt(path, hparams_file, trainer):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
-    model = MegatronGPTModel.load_from_checkpoint(
-        path, hparams_file=hparams_file, trainer=trainer
-    )
+    model = MegatronGPTModel.load_from_checkpoint(path, hparams_file=hparams_file, trainer=trainer)
 
     return model
+
 
 def main(args):
     if args.checkpoint_format == 'torch_dist':
 
         local_rank, rank, world_size = initialize_distributed(args)
         trainer, strategy = init_trainer(args, world_size)
-
 
     if args.steps is not None:
         logging.info(f"Will average only steps {args.steps}")
@@ -187,7 +196,7 @@ def main(args):
     copy_items = []
     for ix, path in enumerate(checkpoint_paths):
         full_path = os.path.join(args.checkpoint_dir, path)
-        
+
         if args.checkpoint_format == 'zarr':
             for item in os.listdir(full_path):
 
@@ -221,14 +230,14 @@ def main(args):
                     avg_weights[item] = sum_array
         else:
             model = load_torch_dist_ckpt(full_path, args.hparams_file, trainer)
-            #logging.info(model.state_dict()['model.decoder.layers.1.pre_mlp_layernorm.weight'])
+            # logging.info(model.state_dict()['model.decoder.layers.1.pre_mlp_layernorm.weight'])
             for key, value in model.state_dict().items():
                 if "_extra_state" not in key:
                     if key not in avg_weights:
-                        #logging.info(f"Initialized average weights dict with: {key}")
+                        # logging.info(f"Initialized average weights dict with: {key}")
                         avg_weights[key] = value
                     else:
-                        #logging.info(f"Updated average weights dict with weight: {key}")
+                        # logging.info(f"Updated average weights dict with weight: {key}")
                         avg_weights[key] += value
 
     for k in avg_weights:
@@ -284,12 +293,12 @@ def main(args):
         avg_model_path = os.path.join(args.checkpoint_dir, checkpoint_paths[0])
         avg_model = load_torch_dist_ckpt(avg_model_path, args.hparams_file, trainer)
         avg_state_dict = avg_model.state_dict()
-        #logging.info(avg_weights['model.decoder.layers.1.pre_mlp_layernorm.weight'])
+        # logging.info(avg_weights['model.decoder.layers.1.pre_mlp_layernorm.weight'])
         for key, value in avg_weights.items():
             avg_state_dict[key] = value
-        
+
         avg_model.state_dict = avg_state_dict
-        #print(avg_state_dict['model.decoder.layers.1.pre_mlp_layernorm.weight'])
+        # print(avg_state_dict['model.decoder.layers.1.pre_mlp_layernorm.weight'])
         avg_model.save_to(os.path.join(args.checkpoint_dir, 'averaged.nemo'))
 
 
@@ -297,4 +306,3 @@ if __name__ == '__main__':
 
     args = get_args()
     main(args)
-
