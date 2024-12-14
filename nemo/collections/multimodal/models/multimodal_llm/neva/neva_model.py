@@ -15,7 +15,7 @@
 import os
 from functools import partial
 from itertools import chain
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 import torch
@@ -37,6 +37,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPVisionTransformer,
     MegatronCLIPModel,
 )
+from nemo.collections.vision.models.pixtral_vit_model import PixtralVisionModel
 from nemo.collections.multimodal.parts.utils import create_image_processor, load_nemo_model_weights
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
@@ -152,7 +153,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         use_im_start_end=False,
     ):
         self.vision_encoder = vision_encoder
-        self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel)
+        self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel) or isinstance(vision_encoder, PixtralVisionModel)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.class_token_length = class_token_length
@@ -195,88 +196,58 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         embeddings = embeddings.transpose(0, 1).contiguous()
         return tensor_parallel.mappings.scatter_to_sequence_parallel_region(embeddings)
 
-    def encode_vision_x(self, vision_x: torch.Tensor):
+    def encode_vision_x(self, vision_x: List[torch.Tensor]):
         """
         Compute media tokens from vision input by passing it through vision encoder and conditioning language model.
         Args:
-            vision_x (torch.Tensor): Vision input
-                shape (B, T_img, F, C, H, W)
-                Images in the same chunk are collated along T_img, and frames are collated along F
-                Currently only F=1 is supported (single-frame videos)
+            vision_x (List[torch.Tensor]): Vision input
+                a list of images with shape (C, H, W)
 
-        rearrange code based on https://github.com/dhansmair/flamingo-mini
+        rearrange code based on https://github.com/huggingface/transformers/blob/main/src/transformers/models/pixtral/modeling_pixtral.py
         """
-
-        assert vision_x.ndim == 6, "vision_x should be of shape (b, T_img, F, C, H, W)"
-        b, T, F = vision_x.shape[:3]
-
-        vision_x = rearrange(vision_x, "b T F c h w -> (b T F) c h w")
-        vision_x = vision_x.to(self.vision_encoder.dtype)
+        #vision_x = [element.to(self.vision_encoder.dtype) for element in vision_x]
         with torch.no_grad():
             if self.from_hf:
-                vision_x = self.vision_encoder(vision_x, output_hidden_states=True)
-                vision_x = vision_x.hidden_states[self.vision_select_layer]
+                image_outputs = self.vision_encoder(vision_x, output_hidden_states=True)
+                selected_image_feature = image_outputs.hidden_states[self.vision_select_layer]                
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
-                vision_x = self.vision_encoder(vision_x)
-        vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
+                selected_image_feature = self.vision_encoder(vision_x)
         if self.vision_select_feature == "patch":
-            vision_x = vision_x[:, :, :, self.class_token_length :]
+            selected_image_feature = selected_image_feature[:, self.class_token_length :]
+
         elif self.vision_select_feature != "cls_patch":
             raise ValueError(f"Unsupported vision_select_feature {self.vision_select_feature}")
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
         vision_connector = self.get_adapter_module(AdapterName.MULTIMODAL_PROJECTOR_ADAPTER)
-        vision_x = vision_connector(vision_x)
-        return vision_x
-
+        image_features = vision_connector(selected_image_feature)
+        return image_features
+    
     def replace_media_embeddings(self, input_ids, inputs_embeds, media):
         if media is None:
             return inputs_embeds
+
+        # Create mask for media tokens
+        special_image_mask = (input_ids == self.media_token_id)  # Shape: (batch_size, sequence_length)
+
+        # Find indices of media tokens
+        media_indices = special_image_mask.nonzero(as_tuple=False)  # Shape: (num_media_tokens, 2)
+
         batch_size, sequence_length, hidden_size = inputs_embeds.shape
+        # Encode media features with gradients
+        media_features = self.encode_vision_x(media)  # Shape: (batch_size, num_media_tokens, hidden_size)
 
-        # calculate media features without gradients
-        media_features = self.encode_vision_x(media)  # b T F S(eq) H(idden)
-        num_images_per_sample = media_features.size(1)
-        num_patches = media_features.size(3) * media_features.size(2)
-        # flatten patches
-        media_features = media_features.view(batch_size, -1, hidden_size)
+        # Clone inputs_embeds to maintain gradient flow
+        updated_embeds = inputs_embeds.clone()
 
-        # create an indices matrix used in torch.scatter
-        padded_media_indices = torch.ones(
-            (batch_size, num_images_per_sample), dtype=torch.long, device=input_ids.device
-        )
-        padded_media_indices *= sequence_length
-        for idx, input_id in enumerate(input_ids):
-            media_end_positions = torch.where(input_id == self.media_end_id)[0]
-            if self.use_im_start_end:
-                # locate the first media token positions
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches
-                assert (
-                    input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id
-                ).all()
-            else:
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches + 1
-                assert (input_id[padded_media_indices[idx, : len(media_end_positions)]] == self.media_start_id).all()
+        if media_indices.size(0) > 0:
+            # Replace the embeddings at media token positions
+            updated_embeds[media_indices[:, 0], media_indices[:, 1], :] = media_features
+        else:
+            # If there are no media tokens, add a dummy computation to ensure media_features is used in the computation graph
+            updated_embeds = updated_embeds + media_features.sum(dim=(1, 2), keepdim=True) * 0
 
-        # use indices to create a span
-        padded_media_indices = padded_media_indices.unsqueeze(-1) + torch.arange(
-            num_patches, device=padded_media_indices.device
-        ).repeat(*padded_media_indices.shape, 1)
-        padded_media_indices = padded_media_indices.reshape(batch_size, -1)
-        padded_media_indices = repeat(padded_media_indices, 'b s -> b s h', h=hidden_size)
-
-        # concat placeholder
-        updated_input_embeds = torch.cat(
-            (inputs_embeds, torch.zeros((batch_size, num_patches, hidden_size), device=inputs_embeds.device)), dim=1
-        )
-        updated_input_embeds = updated_input_embeds.type(media_features.dtype)
-        # scatter media_features
-        updated_input_embeds.scatter_(1, padded_media_indices, media_features)
-
-        # chop off placeholder
-        updated_input_embeds = updated_input_embeds[:, :sequence_length]
-
-        return updated_input_embeds
+        return updated_embeds
 
     def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
         sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
@@ -511,6 +482,8 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
+            elif config.architectures[0] == "PixtralVisionModel":
+                vision_encoder = PixtralVisionModel.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
             else:
                 raise (ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
         else:

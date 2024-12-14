@@ -32,6 +32,8 @@ from nemo.core.classes.common import typecheck
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 
+from nemo.collections.vision.models.pixtral_vit_model import PixtralVisionModel
+
 logger = trt.Logger(trt.Logger.INFO)
 
 
@@ -139,6 +141,9 @@ def build_trt_engine(
     config_wrapper = Builder().create_builder_config(**config_args)
     config = config_wrapper.trt_builder_config
 
+    # Set profiling verbosity to detailed for engine inspection
+    config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
+    
     parser = trt.OnnxParser(network, logger)
 
     with open(onnx_file, 'rb') as model:
@@ -149,7 +154,7 @@ def build_trt_engine(
         logger.log(trt.Logger.INFO, "Succeeded parsing %s" % onnx_file)
 
     # Delete onnx files since we don't need them now
-    shutil.rmtree(f'{output_dir}/onnx')
+    #shutil.rmtree(f'{output_dir}/onnx')
 
     nBS = -1
     nMinBS = 1
@@ -483,6 +488,96 @@ def build_perception_engine(
     )
 
 
+def build_pixtral_engine(
+    model_type: str,
+    model_dir: str,
+    visual_checkpoint_path: str,
+    vision_max_batch_size: int = 1,
+):
+    device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+    # extract NeMo checkpoint
+    with tempfile.TemporaryDirectory() as temp:
+        temp_path = Path(temp)
+        mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
+
+    vision_config = nemo_config["mm_cfg"]["vision_encoder"]
+
+    class VisionEncoderWrapper(torch.nn.Module):
+
+        def __init__(self, encoder, connector):
+            super().__init__()
+            self.encoder = encoder
+            self.connector = connector
+
+        def forward(self, images):
+            logger.log(trt.Logger.INFO, '-'*100)
+            logger.log(trt.Logger.INFO, f"{images.shape = }")
+            logger.log(trt.Logger.INFO, '-'*100)
+            vision_x = self.encoder(images=images, output_hidden_states=True)
+            vision_x = vision_x.hidden_states[-1]
+            logger.log(trt.Logger.INFO, f"{vision_x.shape = }")
+            vision_x = self.connector(vision_x)
+            logger.log(trt.Logger.INFO, f"FINISHED: {vision_x.shape = }")
+            return vision_x
+
+    vision_encoder = PixtralVisionModel.from_pretrained(
+        vision_config["from_pretrained"],
+        torch_dtype=torch.bfloat16,
+    )
+    hf_config = vision_encoder.config
+    dtype = hf_config.torch_dtype
+    
+    # connector
+    if nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp2x_gelu":
+        vision_connector = torch.nn.Sequential(
+            torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+            torch.nn.GELU(),
+            torch.nn.Linear(nemo_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+        ).to(dtype=dtype)
+
+        key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
+        for layer in range(0, 3, 2):
+            vision_connector[layer].load_state_dict(
+                {
+                    'weight': mp0_weights[f"{key_prefix}.{layer}.weight"].to(dtype),
+                    'bias': mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
+                }
+            )
+    else:
+        raise ValueError(f"Unknown projector type: {nemo_config['mm_cfg']['mm_mlp_adapter_type']}")
+
+    # export the whole wrapper
+    wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
+    image_size = hf_config.image_size
+    dummy_image = torch.empty(
+        1, 1, 3, image_size, image_size, dtype=dtype, device=device
+    )  # dummy image shape [B, N, C, H, W]
+
+    export_visual_wrapper_onnx(wrapper, 
+                               dummy_image, 
+                               model_dir,
+                               dynamic_axes={
+        'input': {0: 'batch', 1: 'num_images', 3: 'height', 4: 'width'},  # input dimensions
+        'output': {0: 'batch', 1: 'num_patches'}  # output dimensions
+    })
+    logger.log(trt.Logger.INFO, "DONE EXPORTING ONNX")
+    #[1, 3, image_size, image_size]
+    build_trt_engine(
+        model_type,
+        [[1, 3, 16, 16], [4, 3, 512, 512], [8, 3, 1024, 1024]],
+        model_dir,
+        vision_max_batch_size,
+        dtype,
+        image_size=image_size,
+        num_frames=None,
+        nemo_config=nemo_config,
+    )
+    
+    # Save the image processor
+    from transformers import PixtralImageProcessor
+    image_processor = PixtralImageProcessor.from_pretrained(vision_config["from_pretrained"], torch_dtype=torch.bfloat16)
+    image_processor.save_pretrained(os.path.join(model_dir, 'image_processor'))
+    
 def build_visual_engine(
     model_dir: str,
     visual_checkpoint_path: str,
@@ -494,5 +589,7 @@ def build_visual_engine(
         build_neva_engine(model_type, model_dir, visual_checkpoint_path, vision_max_batch_size)
     elif model_type == "video-neva":
         build_video_neva_engine(model_dir, visual_checkpoint_path, vision_max_batch_size)
+    elif model_type == "pixtral":
+        build_pixtral_engine(model_type, model_dir, visual_checkpoint_path, vision_max_batch_size)
     else:
         raise RuntimeError(f"Invalid model type {model_type}")
