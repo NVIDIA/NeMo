@@ -141,6 +141,10 @@ class ProgressPrinter(ProgressBar):
 
             self.total_metrics_dict = defaultdict(lambda: 0.0)
 
+            if getattr(trainer.strategy, "timers", None):
+                timers = trainer.strategy._mcore_config.timers # pointer to timers used in megatron
+                self.log_megatron_timers(timers)
+
     @override
     def on_validation_batch_start(
         self,
@@ -201,3 +205,13 @@ class ProgressPrinter(ProgressBar):
 
     def should_log(self, n):
         return n % self.log_interval == 0
+
+    ## TODO: cleanup
+    def log_megatron_timers(self, timers):
+        output_string = timers.get_all_timers_string(names=None, normalizer=self.log_interval)
+        if output_string is not None:
+            output_string = output_string.replace(":\n     ", " ")
+            output_string = output_string.replace("\n", " |")
+            output_string = output_string.replace("times across ranks (ms): |", "Megatron timing (ms): \n")
+            output_string = output_string.replace(" rank  0", "")
+            print(output_string + "\n", flush=True)
