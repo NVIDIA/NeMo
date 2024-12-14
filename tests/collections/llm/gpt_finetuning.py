@@ -45,7 +45,9 @@ def get_args():
     parser.add_argument('--tp_size', type=int, default=1, help="tensor parallel size")
     parser.add_argument('--pp_size', type=int, default=1, help="pipeline parallel size")
     parser.add_argument('--packed', action='store_true', help="use packed sequence dataset")
-    parser.add_argument('--chat_dataset_path', type=str, default="", help="path to chat dataset. Uses dolly if this is empty.")
+    parser.add_argument(
+        '--chat_dataset_path', type=str, default="", help="path to chat dataset. Uses dolly if this is empty."
+    )
 
     return parser.parse_args()
 
