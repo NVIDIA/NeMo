@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import fiddle as fdl
-from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm
 
 
-def mk_hf_dataset(tokenizer):
+def make_squad_hf_dataset(tokenizer):
     EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
 
     def formatting_prompts_func(examples):
@@ -45,11 +45,9 @@ def mk_hf_dataset(tokenizer):
             'labels': tokens[1:] + [tokens[-1]],
         }
 
-    from datasets import load_dataset
-
-    dataset = load_dataset("rajpurkar/squad", split="train")
-    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2)
-    return dataset
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", pad_token_id=tokenizer.eos_token_id)
+    datamodule.map(formatting_prompts_func, batched=False, batch_size=2)
+    return datamodule
 
 
 if __name__ == '__main__':
@@ -76,13 +74,11 @@ if __name__ == '__main__':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
-    tokenizer = llm.HfAutoModelForCausalLM.configure_tokenizer(args.model)
+    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
 
     llm.api.finetune(
-        model=llm.HfAutoModelForCausalLM(args.model),
-        data=llm.HfDatasetDataModule(
-            mk_hf_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
-        ),
+        model=llm.HFAutoModelForCausalLM(args.model),
+        data=make_squad_hf_dataset(tokenizer.tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,

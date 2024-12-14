@@ -42,13 +42,12 @@ from typing import (
 
 import torch
 import torch.distributed
+from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -58,7 +57,7 @@ T = TypeVar('T')
 STEP_OUTPUT = Optional[Union[Tensor, Mapping[str, Any]]]
 
 if TYPE_CHECKING:
-    import pytorch_lightning as pl
+    import lightning.pytorch as pl
 
 
 @runtime_checkable
@@ -589,8 +588,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     module.config,
                     self.ddp_config,
                     module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                     disable_bucketing=disable_bucketing,
                 )
 
@@ -653,6 +650,24 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return self._module_sharded_state_dict(module.module, *args, prefix=prefix, **kwargs)
 
         raise ValueError("Could not find sharded state dict")
+
+    def enable_forward_pre_hook(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP)
+            model_chunk.enable_forward_pre_hook()
+
+    def disable_forward_pre_hook(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP)
+            model_chunk.disable_forward_pre_hook()
+
+    def force_param_sync(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP)
+            model_chunk.start_param_sync(force_sync=True)
 
     @property
     def pipeline(self) -> Union[ModelT, List[ModelT]]:
@@ -836,7 +851,7 @@ class CallbackConnector:
         """
         _pl_callback = None
         try:
-            import pytorch_lightning as pl
+            import lightning.pytorch as pl
 
             _pl_callback = pl.Callback
         except ImportError:
@@ -1126,12 +1141,15 @@ class MegatronStep(Generic[ModelT, DataT]):
         if self.micro_batch_size is None:
             raise ValueError("micro_batch_size is not set")
 
+        data_iterator, seq_length = self.get_data_iterator_and_seq_length()
+        seq_length = seq_length or self.seq_length
+
         return self.forward_backward_func(
             forward_step_func=self.forward_step_func,
-            data_iterator=self.data_iterator,
+            data_iterator=data_iterator,
             model=self.model,
             num_microbatches=self.num_microbatches,
-            seq_length=self.seq_length,
+            seq_length=seq_length,
             micro_batch_size=self.micro_batch_size,
             forward_only=self.forward_only,
             decoder_seq_length=self.decoder_seq_length,
@@ -1278,13 +1296,12 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         return get_forward_backward_func()
 
-    @functools.cached_property
-    def data_iterator(self) -> List[Iterator[DataT]]:
+    def get_data_iterator_and_seq_length(self) -> Tuple[List[Iterator[DataT]], Optional[int]]:
         """
-        Cached property that converts the provided data into a list of iterators.
+        Converts the provided data into a list of iterators.
 
-        This property ensures that the data is converted to the required format
-        only once and then cached for subsequent uses.
+        For finetuning, where sequence length is different for each step, this function also outputs the
+        sequence length of the current batch.
 
         Returns:
             List[Iterator[DataT]]: A list of iterators created from the input data.
@@ -1293,12 +1310,16 @@ class MegatronStep(Generic[ModelT, DataT]):
             batch = next(self.data)
             if isinstance(batch, tuple) and len(batch) == 3:
                 batch = batch[0]
+            # finetuning can have dynamic sequence lengths
+            seq_length = batch['tokens'].size(1) if 'tokens' in batch else None
             from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
             data = get_iterator_k_split(batch, self.num_microbatches, True)
         else:
             data = self.data
-        return self.to_data_iterator_list(data)
+            # for pretraining (fixed sequence length), we use seq_length inferred from the data sampler.
+            seq_length = None
+        return self.to_data_iterator_list(data), seq_length
 
     @functools.cached_property
     def has_global_batch_sampler(self) -> bool:

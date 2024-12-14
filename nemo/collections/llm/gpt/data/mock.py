@@ -14,10 +14,10 @@
 
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+import lightning.pytorch as pl
 import numpy as np
-import pytorch_lightning as pl
 import torch
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
@@ -48,6 +48,8 @@ class MockDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.seq_length = seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
@@ -65,8 +67,8 @@ class MockDataModule(pl.LightningDataModule):
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
-            micro_batch_size=micro_batch_size,
-            global_batch_size=global_batch_size,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
         )
 

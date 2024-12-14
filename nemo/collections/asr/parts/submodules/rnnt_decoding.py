@@ -464,6 +464,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
                         hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
                         use_kenlm=self.cfg.beam.get('use_kenlm', 0.0),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', 'early')
                     )
                 else:
                     self.decoding = tdt_beam_decoding.BeamTDTInfer(
