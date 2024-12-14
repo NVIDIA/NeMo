@@ -188,7 +188,7 @@ class GraphTransducerLossBase(Loss):
 
     def get_batch_indices(self, target_fsas_vec: k2.Fsa) -> torch.Tensor:
         """
-        Get indices of flatten logits for each arc in the lattices.
+        Get batch indices (for logits) for each arc in the lattices.
 
         Args:
             target_fsas_vec: batch of target FSAs with lattices
