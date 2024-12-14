@@ -21,6 +21,7 @@ from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
+
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
     env_vars = {
