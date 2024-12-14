@@ -26,7 +26,7 @@
   use_distributed_sampler: bool = False # Whether to wrap the DataLoader's sampler with :class:`torch.utils.data.DistributedSampler`. If not specified this is toggled automatically for strategies that require it. By default, it will add ``shuffle=True`` for the train sampler and 'shuffle=False' for validation/test/predict samplers. If you want to disable this logic, you can pass 'False' and add your own distributed sampler in the dataloader hooks. If ``True`` and a distributed sampler was already added, Lightning will not replace the existing one
   val_check_interval: [int, float] = 1 # How often to check the validation set. Pass a 'float' in the range [0.0, 1.0] to check after a fraction of the training epoch. Pass an 'int' to check after a fixed number of training batches. An 'int' value can only be higher than the number of training batches when 'check_val_every_n_epoch=None', which validates after every 'N' training batches across epochs or during iteration-based training
   max_epochs: Optional[int] = None # Stop training once this number of epochs is reached. If both max_epochs and max_steps are not specified, defaults to "max_epochs = 1000". To enable infinite training, set "max_epochs = -1"
-  
+
   ```
   </blockquote>
 
@@ -82,13 +82,13 @@
   <blockquote>
 
   ```sh
-  tp_comm_overlap: bool = None # Enable tensor parallel overlap (experimental)
+  tp_comm_overlap: bool = None # Enable tensor parallel overlap
   tp_comm_overlap_cfg: TransformerLayerTPOverlapCfg = None # Tensor parallel overlap config
-  overlap_p2p_comm: bool = None # Enable pipeline parallel overlap
-  batch_p2p_comm: bool = None # Batch pipeline parallel send/recv into a single op
+  overlap_p2p_comm: bool = None # Enable pipeline parallel communication overlap
+  batch_p2p_comm: bool = None # Batch pipeline parallel send and recv into a single op
   overlap_grad_reduce: bool = None # Overlap data parallel gradient reduction with compute
   overlap_param_gather: bool = None # Overlap data parallel parameter gather with compute
-  overlap_param_gather_with_optimizer_step: bool = None # Overlap data parallel parameter gather optimizer step
+  overlap_param_gather_with_optimizer_step: bool = None # Overlap the first data parallel parameter gather chunk with optimizer step
   align_param_gather: bool = None # Align data parallel parameter gather across virtual pipeline chunks
   bucket_size: int = None # The DDP bucket size, controls the data parallel overlap granularity
   defer_embedding_wgrad_compute: bool = None # Overlap wgrads with the pipeline drain bubble for the last pipeline stage
@@ -158,7 +158,7 @@
   <blockquote>
 
   ```sh
-  enable_layernorm_sm_margin: bool = True # Set SM margin for TransformerEngine's Layernorm, so in order to not block DP level communication overlap
+  enable_layernorm_sm_margin: bool = True # Set SM margin for TransformerEngine's Layernorm, so in order not to block DP level communication overlap
   layernorm_sm_margin: int = 16 # The SM margin for TransformerEngine Layernorm
   enable_vboost: bool = False # Whether to steer more power towards tensor cores via `sudo nvidia-smi boost-slider --vboost 1`. May not work on all systems
   ```
