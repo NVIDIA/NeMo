@@ -49,7 +49,7 @@ audio_rttm_map as get_audio_rttm_map,
 rttm_to_labels,
 )
 from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing, timestamps_to_pyannote_object
-
+from start_words import COMMON_SENTENCE_STARTS
 from nemo.collections.asr.parts.utils.diarization_utils import (
 print_sentences,
 get_color_palette,
@@ -106,11 +106,13 @@ class MultiSpeakerASRstreamer:
         self.test_manifest_dict = get_audio_rttm_map(self.cfg.manifest_file)
         self.asr_model = asr_model
         self.diar_model = diar_model
+        self.fix_speaker_assignments = cfg.fix_speaker_assignments
         self._fix_prev_words_count = cfg.fix_prev_words_count
         self._sentence_render_length = int(self._fix_prev_words_count + cfg.update_prev_words_sentence)
         self._frame_len_sec = 0.08
         self._initial_steps = cfg.ignored_initial_frame_steps
         self._all_sentences = []
+        self._stt_words = COMMON_SENTENCE_STARTS
         self._init_evaluator() 
         self._frame_hop_length = self.asr_model.encoder.streaming_cfg.valid_out_len
     
@@ -174,7 +176,7 @@ class MultiSpeakerASRstreamer:
                 'end_time': word_dict['end_time'], 
                 'text': ''}
         
-    def get_sentences_values(self, session_trans_dict, sentence_render_length):
+    def get_sentences_values(self, session_trans_dict: dict, sentence_render_length: int):
         """ 
         Get sentences (speaker-turn-level text) for a given session and sentence render length.
         
@@ -217,6 +219,55 @@ class MultiSpeakerASRstreamer:
         session_trans_dict['sentences'] = sentences
         return session_trans_dict 
 
+    def correct_speaker_assignments(self, word_and_ts_seq: dict, sentence_render_length: int) -> dict:
+        """ 
+        Correct speaker assignments based on the punctuations and capitalization in the sequence.
+        
+        Args:
+            word_and_ts_seq (dict): Dictionary containing word and time-related information.
+            sentence_render_length (int): Number of previous words to consider for speaker assignment.
+        
+        Returns:
+            word_and_ts_seq (dict): Corrected word and time-related information. 
+        
+        Note:
+            This method assumes that PnC equipped ASR is used for speech recognition.
+            This method assumes that the speaker assignments are correct for the first and last words in the sequence.
+            It modifies the speaker assignments based on the speaker changes in the middle of the sequence.
+        """
+        WL = len(word_and_ts_seq["words"])
+        
+        if WL-sentence_render_length < 1 or WL-1 < 2 or sentence_render_length <= 1:
+            return word_and_ts_seq
+        
+        # Correct a starting word attached to the previous speaker turn. 
+        for idx in range(WL - sentence_render_length, WL-1):
+            word_dict = word_and_ts_seq['words'][idx]
+            if word_dict['is_stt_speaker_turn'] and not word_dict['is_end_speaker_turn']:
+                if word_and_ts_seq['words'][idx+1]['speaker'] != word_dict['speaker']:
+                    word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx+1]['speaker']
+                    
+        # Correct a ending word attached to the previous speaker turn. 
+        for idx in range(max(1, WL - sentence_render_length), max(2, WL-1)):
+            word_dict = word_and_ts_seq['words'][idx]
+            if word_dict['is_end_speaker_turn'] and not word_dict['is_stt_speaker_turn']:
+                if word_and_ts_seq['words'][idx-1]['speaker'] != word_dict['speaker']:
+                    word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx-1]['speaker']
+        
+        # Correct a middle word wrongly assigned to the other speaker, which is lower case and no punctuation.
+        for idx in range(WL - sentence_render_length, WL-1):
+            word_dict = word_and_ts_seq['words'][idx]
+            if (not word_dict['is_stt_speaker_turn'] and \
+                not word_dict['is_end_speaker_turn'] and \
+                not word_dict['word'][0].isupper()):
+                if word_and_ts_seq['words'][idx-1]['speaker'] != word_dict['speaker'] and \
+                word_and_ts_seq['words'][idx+1]['speaker'] != word_dict['speaker'] and \
+                (word_and_ts_seq['words'][idx-1]['speaker'] == \
+                word_and_ts_seq['words'][idx+1]['speaker']):
+                    word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx-1]['speaker'] 
+                    
+        return word_and_ts_seq 
+    
     def get_frame_and_words(
         self, 
         uniq_id, 
@@ -258,11 +309,16 @@ class MultiSpeakerASRstreamer:
                                             token_group=token_group,
                                             frame_inds_seq=frame_inds_seq,
                                             time_step_local_offset=time_step_local_offset,
+                                            stt_words=self._stt_words,
                                             frame_len=self._frame_len_sec
                                             )
             # Count the number of speakers in the word window
             time_step_local_offset += len(token_group)
             word_idx_offset, word_and_ts_seq = append_word_and_ts_seq(self.cfg, word_idx_offset, word_and_ts_seq, word_dict)
+        
+        if self.cfg.fix_speaker_assignments:     
+            word_and_ts_seq = self.correct_speaker_assignments(word_and_ts_seq=word_and_ts_seq, 
+                                                               sentence_render_length=self._sentence_render_length)
         return word_and_ts_seq
 
     @measure_eta 
@@ -345,8 +401,10 @@ class MultiSpeakerASRstreamer:
                     if self.cfg.generate_online_scripts:
                         transcribed_speaker_texts[idx] = print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], color_palette=get_color_palette(), params=self.cfg)
                         write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), transcribed_speaker_texts[idx].strip())
+            
             if self.cfg.log:         
                 logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
+        
         return (transcribed_speaker_texts,
                 transcribed_texts,
                 asr_pred_out_stream,
@@ -421,8 +479,9 @@ class DiarizationConfig:
     generate_online_scripts: bool = True
     
     word_window: int = 50
+    fix_speaker_assignments: bool = True
     fix_prev_words_count: int = 5
-    update_prev_words_sentence: int = 2
+    update_prev_words_sentence: int = 5
     left_frame_shift: int = -1
     right_frame_shift: int = -1
     min_sigmoid_val: float = 1e-2
@@ -476,7 +535,6 @@ def fix_frame_time_step(
 
     Returns:
         List[int]: Adjusted frame indices sequence.
-
     """    
     if len(new_tokens) != len(frame_inds_seq):
         # Sometimes there is a mismatch in the number of tokens between the new tokens and the frame indices sequence.
@@ -507,6 +565,16 @@ def get_simulated_softmax(cfg: DiarizationConfig, speaker_sigmoid: torch.Tensor)
     speaker_softmax[cfg.limit_max_spks:] = 0.0 
     return speaker_softmax
 
+def get_speaker_turn_flags(word: str, stt_words: List[str]) -> Tuple[bool, bool]:
+    if len(word) == 0:
+        is_stt_speaker_turn, is_end_speaker_turn = False, False
+    if (word[0].isupper() and word in stt_words) and (("." in word) or ("?" in word)):
+        return True, True
+    else:
+        is_end_speaker_turn = ("." in word) or ("?" in word)
+        is_stt_speaker_turn = word[0].isupper() and (word in stt_words) or ("," in word)
+    return is_stt_speaker_turn, is_end_speaker_turn
+
 def get_word_dict_content(
     cfg: Any,
     word: str,
@@ -515,6 +583,7 @@ def get_word_dict_content(
     token_group: List[str],
     frame_inds_seq: List[int],
     time_step_local_offset: int,
+    stt_words: List[str],
     frame_len: float = 0.08
 ) -> Dict[str, Any]:
     """
@@ -555,9 +624,8 @@ def get_word_dict_content(
 
     speaker_softmax[cfg.limit_max_spks:] = 0.0
     spk_id = speaker_softmax.argmax().item()
-    speaker_votes = torch.zeros(speaker_softmax.shape[0]).to(torch.int)
-    speaker_votes[spk_id] += 1
     stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
+    is_stt_speaker_turn, is_end_speaker_turn = get_speaker_turn_flags(word, stt_words=stt_words)
     word_dict = {"word": word,
                  "word_index": word_index,
                 'frame_stt': frame_stt,
@@ -565,7 +633,8 @@ def get_word_dict_content(
                 'start_time': round(stt_sec, 3), 
                 'end_time': round(end_sec, 3), 
                 'speaker': f"speaker_{spk_id}",
-                'speaker_votes': speaker_votes,
+                'is_stt_speaker_turn': is_stt_speaker_turn,
+                'is_end_speaker_turn': is_end_speaker_turn,
                 'speaker_softmax': speaker_softmax} 
     return word_dict
     
@@ -637,7 +706,6 @@ def append_word_and_ts_seq(
         word_idx_offset = 0
     
     word_and_ts_seq["speaker_count"] = len(set(word_and_ts_seq["speaker_count_buffer"]))
-    
     return word_idx_offset, word_and_ts_seq
     
 def perform_streaming(
@@ -758,7 +826,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     
     diar_model = diar_model.eval()
     diar_model._cfg.test_ds.manifest_filepath = cfg.manifest_file
-    # infer_audio_rttm_dict = get_audio_rttm_map(cfg.manifest_file)
     diar_model._cfg.test_ds.batch_size = cfg.batch_size
     
     # Model setup for inference 
