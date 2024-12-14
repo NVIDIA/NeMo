@@ -51,7 +51,7 @@ def create_sft_dataset(
     **kwargs,
 ) -> "GPTSFTDataset":
     """
-    Create the dataset class (GPTSFTDataset or GPTSFTPackedDataset)
+    Create the dataset class (GPTSFTDataset, GPTSFTChatDataset or GPTSFTPackedDataset)
     """
     if chat:
         from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
