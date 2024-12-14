@@ -115,7 +115,7 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
     logging.info("Creating histogram from tokenized dataset...")
 
     sequences = collections.defaultdict(list)
-    counts = [0] * truncate_seq_len
+    counts = [0] * (truncate_seq_len + 1)
 
     for item_dict in dataset:
         # Minus 1 here to account for the fact that transformer input and label have one less token than the full sequence
@@ -129,7 +129,7 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
     logging.debug(counts)
 
     histogram = []
-    for seq_len in range(truncate_seq_len):
+    for seq_len in range(truncate_seq_len + 1):
         histogram.append(len(sequences[seq_len]))
 
     return sequences, histogram
@@ -176,7 +176,7 @@ def create_packing_strategy(
 
 
 def fill_packing_strategy(
-    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int
+    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int, pad_id: int
 ) -> List[Dict]:
     """
     Fills the packing strategy with actual sequence data based on assignments and sequence information.
@@ -192,6 +192,7 @@ def fill_packing_strategy(
           sequences: A dictionary where keys are sequence lengths and values are lists of corresponding sequences
                       from the dataset (output of 'create_hist').
           pack_size: The maximum capacity of each bin.
+          pad_id: The tokenizer's padding token.
 
     Returns:
           output_data: A list of dictionaries, where each dictionary represents a packed sequence with its input IDs,
@@ -205,7 +206,13 @@ def fill_packing_strategy(
             input_ids = np.array([x['input_ids'] for x in per_seq_data])[perm].tolist()
             try:
                 loss_mask = np.array(
-                    [[idx >= x['answer_start_idx'] for idx in range(len(x['input_ids']))] for x in per_seq_data]
+                    [
+                        [
+                            idx >= x['answer_start_idx'] and x['input_ids'][idx] != pad_id
+                            for idx in range(len(x['input_ids']))
+                        ]
+                        for x in per_seq_data
+                    ]
                 )[perm].tolist()
             except KeyError:
                 loss_mask = None
