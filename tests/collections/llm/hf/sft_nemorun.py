@@ -19,6 +19,8 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 
+DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
+
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
     env_vars = {
@@ -58,7 +60,7 @@ if __name__ == '__main__':
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     recipe.data = run.Config(
         SquadHFDataModule,
-        path_or_dataset="rajpurkar/squad",
+        path_or_dataset=DATA_PATH,
         split="train[:100]",
         pad_token_id=tokenizer.tokenizer.eos_token_id,
         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),

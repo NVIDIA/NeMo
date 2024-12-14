@@ -60,7 +60,7 @@ if __name__ == '__main__':
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     recipe.data = run.Config(
         SquadHFDataModule,
-        path_or_dataset="rajpurkar/squad",
+        path_or_dataset=DATA_PATH,
         split="train[:100]",
         pad_token_id=tokenizer.tokenizer.eos_token_id,
         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
