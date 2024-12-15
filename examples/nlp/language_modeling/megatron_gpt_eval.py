@@ -195,7 +195,7 @@ def load_model_from_config(trainer, cfg):
 
             if model_config.get('context_parallel_size', 1) > 1:
                 logging.warning(
-                    f'Model config has context_parallel_size={model_config.context_parallel_size}, disable CP for '
+                    f'Model config has context_parallel_size={model_config.context_parallel_size}. CP will be disabled for '
                     f'inference. Considering using tensor parallelism or pipeline parallelism for fitting the model.'
                 )
 
