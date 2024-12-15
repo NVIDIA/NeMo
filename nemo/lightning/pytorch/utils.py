@@ -65,5 +65,5 @@ def is_trainer_attached(model: pl.LightningModule):
     try:
         trainer = model.trainer
         return True
-    except RuntimeError:
+    except (AttributeError, RuntimeError):
         return False
