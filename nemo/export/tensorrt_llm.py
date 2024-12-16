@@ -371,14 +371,6 @@ class TensorRTLLM(ITritonDeployable):
                         model_configs, fp8_quantized, fp8_kvcache
                     )
 
-                    # TODO: Temporary fix to handle `<= 0` check for num_moe_experts in M-LM, see
-                    # https://github.com/NVIDIA/Megatron-LM/blob/99f23d2f111d12b73b1fbf386c60517101ff8abe/megatron/core/transformer/transformer_config.py#L409
-                    # Checking first if num_moe_experts is a part of the model config to avoid inserting it unnecessairly.
-                    if model_configs.get("num_moe_experts", None) is not None:
-                        if model_configs["num_moe_experts"] <= 0:
-                            LOGGER.warning(f"Overriding num_moe_experts from {model_configs['num_moe_experts']} to 1")
-                            model_configs["num_moe_experts"] = 1
-
                     # We build the transformer config using the nemo model config.
                     transformer_config = self.get_transformer_config(model_configs)
                     input_model_type = getattr(ModelType, model_type)
@@ -401,6 +393,10 @@ class TensorRTLLM(ITritonDeployable):
                         f'module.{key}': value for key, value in mcore_model_conversion_dict.items()
                     }
 
+                    activation = model_configs.get('activation', "gelu")
+                    if activation == "openai-gelu" and input_model_type == 'gemma':
+                        activation = "geglu"
+
                     trtllm_helper = TRTLLMHelper(
                         transformer_config=transformer_config,
                         model_type=input_model_type,
@@ -411,7 +407,7 @@ class TensorRTLLM(ITritonDeployable):
                         rotary_base=model_configs.get('rotary_base', 10000),
                         moe_tp_mode=model_configs.get('moe_tp_mode', 2),
                         multi_query_mode=model_configs.get("multi_query_mode", False),
-                        activation=model_configs.get('activation', "gelu"),
+                        activation=activation,
                         seq_len_interpolation_factor=model_configs.get("seq_len_interpolation_factor"),
                         moe_renorm_mode=model_configs.get(
                             'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
@@ -545,12 +541,13 @@ class TensorRTLLM(ITritonDeployable):
 
         normalization = nemo_model_config.get('normalization', 'layernorm')
         transformer_config_normalization = 'LayerNorm'
-        layernorm_zero_centered_gamma = False
+        layernorm_zero_centered_gamma = nemo_model_config.get('layernorm_zero_centered_gamma', False)
         if normalization == 'layernorm1p':
             layernorm_zero_centered_gamma = True
         elif normalization == 'rmsnorm':
             transformer_config_normalization = 'RMSNorm'
 
+        num_moe_experts = nemo_model_config.get('num_moe_experts', 0)
         conf = TransformerConfig(
             num_layers=nemo_model_config.get('num_layers'),
             moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
@@ -561,7 +558,7 @@ class TensorRTLLM(ITritonDeployable):
             ffn_hidden_size=nemo_model_config.get('ffn_hidden_size'),
             layernorm_epsilon=nemo_model_config.get('layernorm_epsilon'),
             add_bias_linear=nemo_model_config.get('bias'),
-            num_moe_experts=nemo_model_config.get('num_moe_experts', None),
+            num_moe_experts=num_moe_experts if num_moe_experts > 0 else None,
             normalization=transformer_config_normalization,
             layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
         )
@@ -845,7 +842,6 @@ class TensorRTLLM(ITritonDeployable):
             input_model_type = getattr(ModelType, model_type)
 
             nemo_model_conversion_dict = self.get_nemo_to_trtllm_conversion_dict(model_state_dict)
-
             self.trtllm_helper = TRTLLMHelper(
                 transformer_config=transformer_config,
                 model_type=input_model_type,
