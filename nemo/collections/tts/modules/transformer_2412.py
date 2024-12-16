@@ -381,7 +381,28 @@ class TransformerLayer(nn.Module):
     ):
         super(TransformerLayer, self).__init__()
         """
-        T5-ish
+        One layer of the Transformer.
+        Args:
+            d_model <int>: Model dimension
+            d_ffn <int>: Feed forward dimension (usually 4*d_model)
+            sa_n_heads <int>: Number of attention heads used in self-attention
+            kernel_size <int>: Convolution kernel size for FFN
+            p_dropout <float>: Dropout probability
+            has_xattn <bool>: Whether to use cross attention
+            xa_d_memory <int>: Hidden dimenssion for cross attention
+            xa_n_heads <int>: Number of attention heads used in cross attention
+            xa_pos_emb TODO
+            xa_max_length_causal_mask TODO
+            is_causal <bool>: Whether to use causal attention
+            apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
+            layer_norm_method <str>: Layer normalization method
+            use_flash_self_attention <bool>: Whether to use flash attention for self attention
+            use_flash_x_attention <bool>: Whether to use flash attention for cross attention
+            deterministic <bool>: Whether to use deterministic attention
+            pos_emb <dict>: Positional embedding parameters (Dict with keys "name" and "base" for rope, base ignored
+                for learnable)
+            max_length_causal_mask <int>: Maximum length of causal mask
+            conv_non_linearity <Callable>: Convolution non-linearity
         """
         self.layer_norm_method = layer_norm_method
         self.has_xattn = has_xattn
@@ -537,7 +558,6 @@ class Transformer(nn.Module):
         is_causal=True,
         apply_norm_to_cond=True,
         apply_norm_out=False,
-        init_weight_method="gpt2",
         layer_norm_method='pre',
         use_flash_self_attention=True,
         use_flash_x_attention=True,
@@ -565,7 +585,6 @@ class Transformer(nn.Module):
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
             apply_norm_out <bool>: Whether to apply normalization to output
-            init_weight_method <str>: Weight initialization method
             layer_norm_method <str>: Layer normalization method
             use_flash_self_attention <bool>: Whether to use flash attention for self attention
             use_flash_x_attention <bool>: Whether to use flash attention for cross attention
@@ -591,7 +610,7 @@ class Transformer(nn.Module):
                 TransformerLayer(
                     d_model=d_model,
                     d_ffn=d_ffn,
-                    n_heads=sa_n_heads,
+                    sa_n_heads=sa_n_heads,
                     kernel_size=kernel_size,
                     p_dropout=p_dropout,
                     xa_d_memory=xa_d_memory,
@@ -611,11 +630,13 @@ class Transformer(nn.Module):
                 )
             )
 
-        if init_weight_method == 'gpt2':
-            self.apply(self._init_weights_gpt2)
-            for pn, p in self.named_parameters():
-                if 'o_net' in pn and pn.endswith('weight'):
-                    torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+        # Apply random uniform init for all layers, except for output layers: The second of the two layers in the MLP
+        # and the last linear projection in dot product attention. The output layers are scaled depending on the
+        # number of layers
+        self.apply(self._init_weights_gpt2)
+        for pn, p in self.named_parameters():
+            if 'o_net' in pn and pn.endswith('weight'):
+                torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
