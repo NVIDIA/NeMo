@@ -138,9 +138,7 @@ class FastNGramLM(nn.Module):
     START_STATE = 0
     BOS_STATE = 1
 
-    def __init__(
-        self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton=True
-    ):
+    def __init__(self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton=True):
         """
         Stubs for constructor that does not initialize the structure.
         This constructor can be useful when storing/loading module using native torch serialization mechanism
