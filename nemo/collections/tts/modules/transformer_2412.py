@@ -640,9 +640,10 @@ class Transformer(nn.Module):
             x <torch tensor> (B, T1, C):
             x_mask <bool mask> (B, T1): True where ignoring is required
             cond <torch tensor> (B, Tc, C) or list of such tensors (from different encoders)
-            cond_mask <bool mask> (B, T2): True where ignoring is required or list of such tensors (from different encoders)
-            output <torch tensor> (B, T1, C)
-            multi_encoder_mapping <list> <int>: None or Same size as n_layers, value indicates which cond input to use for this layer
+            cond_mask <bool mask> (B, T2): True where ignoring is required or list of such tensors (from different
+                encoders) output <torch tensor> (B, T1, C)
+            multi_encoder_mapping <list> <int>: None or Same size as n_layers, value indicates which cond input to use
+                for this layer
 
         Returns dict with keys:
             output <torch tensor> (B, T1, C): Output tensor
