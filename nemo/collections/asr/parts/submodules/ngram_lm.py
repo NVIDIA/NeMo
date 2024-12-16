@@ -130,6 +130,7 @@ class FastNGramLM(nn.Module):
     """
     N-Gram LM supporting batched queries. Fast implementation for GPU. Supports autograd (differentiable weights).
     """
+
     SPECIAL_SYMBOLS_MAP = {"<s>": -1, "</s>": -2, "<unk>": -3}
     BACKOFF_ID = -10
 
@@ -399,7 +400,9 @@ class FastNGramLM(nn.Module):
             [batch_size], fill_value=self.bos_state if bos else self.start_state, device=device, dtype=torch.long
         )
 
-    def forward(self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True) -> torch.Tensor:
+    def forward(
+        self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True
+    ) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in utterances using N-Gram LM.
 
