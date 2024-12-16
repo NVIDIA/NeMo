@@ -662,6 +662,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
         logging.info(f"Batch ATS F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_ats_list))}")
 
+    def on_validation_epoch_end(self) -> Optional[dict[str, dict[str, torch.Tensor]]]:
+        """Run validation with sync_dist=True."""
+        return super().on_validation_epoch_end(sync_metrics=True)
+
     @torch.no_grad()
     def diarize(
         self,
