@@ -68,7 +68,16 @@ class ConvolutionLayer(torch.nn.Module):
 
 
 class PositionwiseConvFF(nn.Module):
-    def __init__(self, d_model, d_ffn, p_dropout, kernel_size=1, bias=False, is_causal=True, non_linearity=nn.GELU(approximate="tanh")):
+    def __init__(
+        self,
+        d_model,
+        d_ffn,
+        p_dropout,
+        kernel_size=1,
+        bias=False,
+        is_causal=True,
+        non_linearity=nn.GELU(approximate="tanh"),
+    ):
         """
         Class used to replace the MLP layer in transformers.
         Module will take the input with d_model hidden state, project it to d_ffn hidden dimension, perform nonlinear
