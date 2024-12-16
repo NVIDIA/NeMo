@@ -462,7 +462,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         }
         return train_metrics
 
-    def training_step(self, batch: list) -> dict:
+    def training_step(self, batch: list, batch_idx: int) -> dict:
         """
         Performs a single training step.
 
@@ -472,6 +472,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 - audio_signal_length (torch.Tensor): The length of each audio signal in the batch.
                 - targets (torch.Tensor): The target labels for the batch.
                 - target_lens (torch.Tensor): The length of each target sequence in the batch.
+            batch_idx (int): The index of the current batch.
 
         Returns:
             (dict): A dictionary containing the 'loss' key with the calculated loss value.
@@ -529,7 +530,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         }
         return val_metrics
 
-    def validation_step(self, batch: list, dataloader_idx: int = 0):
+    def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
         """
         Performs a single validation step.
 
