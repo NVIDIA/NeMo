@@ -63,6 +63,9 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
+
+    # Models can be one of the supported ones by AutoModelForSpeechSeq2Seq such as
+    # openai/whisper-large-v3 and facebook/s2t-small-librispeech-asr
     parser.add_argument('--model', default='openai/whisper-large-v3')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
