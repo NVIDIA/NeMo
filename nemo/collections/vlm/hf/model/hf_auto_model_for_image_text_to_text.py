@@ -30,28 +30,6 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
-
-def align_labels(logits, labels):
-    """Aligns labels to logits
-    if length of labels == logits, then will remove first item
-    from labels and last item of logits and return them
-
-    if length of labels + 1 == logits, then it will remove last
-    item of logits and return them
-    """
-    logits = logits.float()
-    n_cls = logits.shape[-1]
-    if logits.shape[-2] == labels.shape[-1]:
-        logits = logits[..., :-1, :].contiguous()
-        labels = labels[..., 1:].contiguous()
-    elif logits.shape[-2] == labels.shape[-1] + 1:
-        logits = logits[..., :-1, :].contiguous()
-    else:
-        raise ValueError("Mismatched labels and logits shapes (" +
-                         str(labels.shape) + " " + str(logits.shape))
-    return logits.view(-1, n_cls), labels.view(-1)
-
-
 class HFAutoModelForImageTextToText(
         pl.LightningModule, io.IOMixin, fn.FNMixin):
     """Wrap's HF's AutoModelForImageTextToText in a pl.LightningModule
@@ -129,12 +107,14 @@ class HFAutoModelForImageTextToText(
 
         outputs = self.forward(batch)
 
-        # Prepare for loss calculation
-        logits, labels = align_labels(outputs.logits.float(), labels)
-        assert logits.shape[-2] == labels.shape[-1]
+        logits = outputs.logits.float()
+        n_cls = logits.shape[-1]
+        logits = logits.view(-1, n_cls)
+        labels = labels.view(-1)
 
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     @torch.no_grad
@@ -145,8 +125,12 @@ class HFAutoModelForImageTextToText(
 
         outputs = self.forward(**batch)
 
-        logits, labels = align_labels(outputs.logits.float(), labels)
-        assert logits.shape[-2] == labels.shape[-1]
+        logits = outputs.logits.float()
+        n_cls = logits.shape[-1]
+        logits = logits.view(-1, n_cls)
+        labels = labels.view(-1)
+
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
 
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)

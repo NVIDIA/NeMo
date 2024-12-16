@@ -58,11 +58,12 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
             return_tensors="pt",
         )
 
+        assert batch["input_ids"].ndim == 2, 'Expected input_ids to be 2D'
         batch["pixel_values"] = batch["pixel_values"].to(torch.bfloat16)
-
         labels = batch["input_ids"].clone()
         labels[torch.isin(labels, skipped_tokens)] = -100
-        batch["labels"] = labels
+        batch["labels"] = labels[:, 1:]
+        batch["input_ids"] = batch["input_ids"][:, :-1]
         return batch
 
     return vlm.HFDatasetDataModule(
