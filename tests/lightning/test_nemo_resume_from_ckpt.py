@@ -126,7 +126,7 @@ def setup_model_optim(log_dir, n_steps, tokenizer, gbs=2, mbs=1):
         make_vocab_size_divisible_by=128,
         normalization='RMSNorm',
         masked_softmax_fusion=False,
-        attention_backend=AttnBackend.unfused,
+        attention_backend=AttnBackend.local,
     )
 
     model = llm.GPTModel(gpt_config, tokenizer=tokenizer)
