@@ -113,7 +113,6 @@ class FLOPsMeasurementCallback(Callback):
     def on_train_start(self, trainer, pl_module):
         if self.log_dir is None:
             for logger in trainer.loggers:
-                print(f'{logger=}')
                 if isinstance(logger, TensorBoardLogger):
                     self.log_dir = logger.log_dir
             assert self.log_dir, "Please enable TensorBoard logging to use FLOPsMeasurementCallback" 
