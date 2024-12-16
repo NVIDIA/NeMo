@@ -26,7 +26,7 @@ def masked_cross_entropy(logits, targets, mask=None):
     """Cross entropy with optional mask"""
     if mask is not None:
         loss = F.cross_entropy(logits, targets, reduction='none')
-        return torch.mean(loss[mask == 1])
+        return torch.mean(loss * mask)
     else:
         return F.cross_entropy(logits, targets)
 
