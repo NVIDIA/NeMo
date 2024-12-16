@@ -128,7 +128,8 @@ class Arc(NamedTuple):
 
 class FastNGramLM(nn.Module):
     """
-    N-Gram LM supporting batched queries. Fast implementation for GPU. Supports autograd (differentiable weights).
+    N-Gram LM supporting batched queries. Fast implementation for parallel queries for full vocabulary.
+    Supports autograd (differentiable weights).
     """
 
     UNK_ID = -3
@@ -137,7 +138,22 @@ class FastNGramLM(nn.Module):
     START_STATE = 0
     BOS_STATE = 1
 
-    def __init__(self, num_states: int, num_arcs: int, vocab_size: int, token_offset=100, use_triton=True):
+    def __init__(
+        self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton=True
+    ):
+        """
+        Stubs for constructor that does not initialize the structure.
+        This constructor can be useful when storing/loading module using native torch serialization mechanism
+        instead of directly reading ARPA model -> converting to Torch which can be slow for large models
+        (of several GBs).
+
+        Args:
+            num_states: number of states in graph
+            num_arcs: number of arcs (transitions) in graph
+            max_order: maximum order of n-gram LM (maximum possible nubmer of transitions without backoffs)
+            vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
+            use_triton: allow using Triton implementation
+        """
         super().__init__()
         if not TRITON_AVAILABLE and use_triton:
             logging.warning("Triton not found, falling back to PyTorch")
@@ -149,10 +165,10 @@ class FastNGramLM(nn.Module):
             )
         self.use_triton = use_triton
 
-        self.token_offset = token_offset
         self.vocab_size = vocab_size
         self.num_states = num_states
         self.num_arcs = num_arcs
+        self.max_order = max_order
         num_arcs_extended = num_arcs + self.vocab_size  # + extra padding
 
         # parameters: weights (forward/backoff)
@@ -171,18 +187,29 @@ class FastNGramLM(nn.Module):
 
     @classmethod
     def from_arpa(cls, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True) -> "FastNGramLM":
-        logging.info(f"FastNGramLM: reading LM {lm_path}")
+        """
+        Constructor from ARPA LM (text format).
+
+        Args:
+            lm_path: path to ARPA model (human-readable)
+            vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
+            token_offset: offset for the tokens used for building ARPA LM
+            use_triton: allow using Triton implementation
+
+        Returns:
+            FastNGramLM module
+        """
+        logging.info(f"{cls.__name__}: reading LM from {lm_path}")
         ngrams = cls._read_ngrams(lm_path=lm_path, token_offset=token_offset)
         adjacency, num_states = cls._build_suffix_tree(ngrams=ngrams)
         num_arcs = sum(
             len(state_arcs) if state != cls.START_STATE else vocab_size for state, state_arcs in enumerate(adjacency)
         )
-        # self._suffix_tree_to_torch(adjacency=adjacency)
         model = FastNGramLM(
             num_states=num_states,
             num_arcs=num_arcs,
+            max_order=len(ngrams),
             vocab_size=vocab_size,
-            token_offset=token_offset,
             use_triton=use_triton,
         )
         model._init_from_suffix_tree(adjacency=adjacency)
@@ -378,7 +405,7 @@ class FastNGramLM(nn.Module):
         self.state_order.data.copy_(torch.from_numpy(state_order))
 
         assert self.state_order.min().item() == 1
-        # assert self.state_order.max().item() == max_order
+        assert self.state_order.max().item() == self.max_order
 
     # def compute_sentence_score_cpu(self, sentence: list[int], bos=True, verbose=False):
     #     state = self.BOS_STATE if bos else self.START_STATE
