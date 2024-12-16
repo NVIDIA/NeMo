@@ -21,7 +21,7 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 
-class ConvNorm(torch.nn.Module):
+class ConvolutionLayer(torch.nn.Module):
     def __init__(
         self,
         in_channels,
@@ -34,7 +34,12 @@ class ConvNorm(torch.nn.Module):
         w_init_gain='gpt2',
         is_causal=False,
     ):
-        super(ConvNorm, self).__init__()
+        """
+        Simple container for a convolutional layer that supports causal convolutions with padding. Replaces the
+        standard MLP layer used in the original transformer.
+        TODO: Add args
+        """
+        super(ConvolutionLayer, self).__init__()
 
         padding = 0 if is_causal else padding
         if padding is None:
@@ -61,7 +66,7 @@ class ConvNorm(torch.nn.Module):
             torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
 
     def forward(self, signal):
-        if self.is_causal:
+        if self.is_causal:  # TODO: maybe replace with identify rather than keep conditional if in forward
             padding = (int((self.kernel_size - 1) * (self.dilation)), 0)
             signal = torch.nn.functional.pad(signal, padding)
         conv_signal = self.conv(signal)
@@ -70,6 +75,12 @@ class ConvNorm(torch.nn.Module):
 
 class PositionwiseConvFF(nn.Module):
     def __init__(self, d_model, d_ffn, p_dropout, kernel_size=1, bias=False, is_causal=True, non_linearity="gelu"):
+        """
+        Class used to replace the MLP layer in transformers.
+        Module will take the input with d_model hidden state, project it to d_ffn hidden dimension, perform nonlinear
+        transformation, and project the state back into d_model hidden dimension. Finally, it applied dropout.
+        TODO: Add args
+        """
         super(PositionwiseConvFF, self).__init__()
         # d_ffn is usually 4*d_model
         self.d_model = d_model
@@ -80,8 +91,8 @@ class PositionwiseConvFF(nn.Module):
         elif non_linearity == "leaky_relu":
             self.non_linearity = nn.LeakyReLU()
 
-        self.proj = ConvNorm(d_model, d_ffn, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
-        self.o_net = ConvNorm(d_ffn, d_model, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
+        self.proj = ConvolutionLayer(d_model, d_ffn, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
+        self.o_net = ConvolutionLayer(d_ffn, d_model, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
         self.dropout = nn.Dropout(p_dropout)
 
     def forward(self, x):
@@ -107,6 +118,12 @@ class Attention(nn.Module):
         pos_emb={"name": "learnable"},
         max_length_causal_mask=4096,
     ):
+        """
+        Attention part of transforer. Supports both self-attention and cross-attention depending on is_self_attention
+        arg.
+
+        Does DotProductionAttention and additionally dropout inside of the module.
+        """
         super(Attention, self).__init__()
         # context conditional attention dims
         if is_self_attention:
@@ -331,6 +348,12 @@ class Attention(nn.Module):
         query_mask (T1, T1)
         memory_mask (B, T2)
         attn_prior (T1, T2)
+
+        Returns:
+            y: attention module tensor output
+            attn_prob: List, returned only in attn_naive
+                0th element being the probabilities which are logged during validation
+                1st element being the attention scores which are used for ctc loss
         """
 
         if self.use_flash_attention:
@@ -349,12 +372,14 @@ class TransformerLayer(nn.Module):
         self,
         d_model,
         d_ffn,
-        n_heads,
+        sa_n_heads,
         kernel_size,
         p_dropout,
-        context_xattn,
         has_xattn,
-        remove_self_attention=False,
+        xa_d_memory=None,
+        xa_n_heads=None,
+        xa_pos_emb=None,
+        xa_max_length_causal_mask=None,
         is_causal=True,
         apply_norm_to_cond=True,
         layer_norm_method='pre',
@@ -371,42 +396,37 @@ class TransformerLayer(nn.Module):
         """
         self.layer_norm_method = layer_norm_method
         self.has_xattn = has_xattn
-        self.remove_self_attention = remove_self_attention
 
-        if not self.remove_self_attention:
-            self.norm_self = nn.LayerNorm(d_model, bias=False)
-            self.self_attention = Attention(
-                n_heads=n_heads,
-                d_model=d_model,
-                p_dropout=p_dropout,
-                is_self_attention=True,
-                use_flash_attention=use_flash_self_attention,
-                deterministic=deterministic,
-                pos_emb=pos_emb,
-                max_length_causal_mask=max_length_causal_mask,
-            )
+        self.norm_self = nn.LayerNorm(d_model, bias=False)
+        self.self_attention = Attention(
+            n_heads=sa_n_heads,
+            d_model=d_model,
+            p_dropout=p_dropout,
+            is_self_attention=True,
+            use_flash_attention=use_flash_self_attention,
+            deterministic=deterministic,
+            pos_emb=pos_emb,
+            max_length_causal_mask=max_length_causal_mask,
+        )
 
         if self.has_xattn:
             self.apply_norm_to_cond = apply_norm_to_cond
             self.norm_xattn_query = nn.LayerNorm(d_model, bias=False)
-            params = context_xattn['params']
             cross_attention = Attention(
-                n_heads=params['n_heads'],
+                n_heads=xa_n_heads,
                 d_model=d_model,
                 p_dropout=p_dropout,
                 is_causal=False,
                 is_self_attention=False,
-                d_memory=params['d_memory'],
+                d_memory=xa_d_memory,
                 use_flash_attention=use_flash_x_attention,
                 deterministic=deterministic,
-                pos_emb=params.get('pos_emb', pos_emb),
-                max_length_causal_mask=params.get('max_length_causal_mask', max_length_causal_mask),
+                pos_emb=xa_pos_emb if xa_pos_emb is not None else pos_emb,
+                max_length_causal_mask=xa_max_length_causal_mask if xa_max_length_causal_mask is not None else max_length_causal_mask,
             )
 
             if self.apply_norm_to_cond:
-                norm_xattn_memory = nn.LayerNorm(params['d_memory'], bias=False)
-
-            if self.apply_norm_to_cond:
+                norm_xattn_memory = nn.LayerNorm(xa_d_memory, bias=False)
                 self.norm_xattn_memory = norm_xattn_memory
 
             self.cross_attention = cross_attention
@@ -442,6 +462,7 @@ class TransformerLayer(nn.Module):
             attn_probabilities <dict>: Attention probabilities
         """
         x_mask_inv_float = (~x_mask).to(x.dtype)[..., None]
+        s_attn_prob = None
         if self.layer_norm_method == 'pre':
             x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
             if self.use_cache:
@@ -513,13 +534,15 @@ class Transformer(nn.Module):
         n_layers,
         d_model,
         d_ffn,
-        n_heads,
+        sa_n_heads,
         kernel_size,
         p_dropout=0.0,
         p_dropout_out=0.0,
-        context_xattn=None,
+        xa_d_memory=None,
+        xa_n_heads=None,
+        xa_pos_emb=None,
+        xa_max_length_causal_mask=None,
         has_xattn=False,
-        remove_self_attention=False,
         is_causal=True,
         apply_norm_to_cond=True,
         apply_norm_out=False,
@@ -534,18 +557,20 @@ class Transformer(nn.Module):
     ):
         """
         Initializes a stack of transformer layers. Can be used for both encoder and decoder.
-        Set is_causal is True for autoregressive models.
+        Set is_causal is True for autoregressive models. Equivalent to TransformerBlock from Megatron-LM
         Args:
             n_layers <int>: Number of transformer layers
             d_model <int>: Model dimension
             d_ffn <int>: Feed forward dimension (usually 4*d_model)
-            n_heads <int>: Number of attention heads
+            sa_n_heads <int>: Number of attention heads used in self-attention
             kernel_size <int>: Convolution kernel size for FFN
             p_dropout <float>: Dropout probability
             p_dropout_out <float>: Dropout probability for output
-            context_xattn <dict>: Cross attention parameters
+            xa_d_memory <int>: Hidden dimenssion for cross attention
+            xa_n_heads <int>: Number of attention heads used in cross attention
+            xa_pos_emb TODO
+            xa_max_length_causal_mask TODO
             has_xattn <bool>: Whether to use cross attention
-            remove_self_attention <bool>: Whether to remove self attention
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
             apply_norm_out <bool>: Whether to apply normalization to output
@@ -554,7 +579,8 @@ class Transformer(nn.Module):
             use_flash_self_attention <bool>: Whether to use flash attention for self attention
             use_flash_x_attention <bool>: Whether to use flash attention for cross attention
             deterministic <bool>: Whether to use deterministic attention
-            pos_emb <dict>: Positional embedding parameters (Dict with keys "name" and "base" for rope, base ignored for learnable)
+            pos_emb <dict>: Positional embedding parameters (Dict with keys "name" and "base" for rope, base ignored
+                for learnable)
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <str>: Convolution non-linearity ("gelu", "relu", "leaky_relu")
         """
@@ -574,12 +600,14 @@ class Transformer(nn.Module):
                 TransformerLayer(
                     d_model=d_model,
                     d_ffn=d_ffn,
-                    n_heads=n_heads,
+                    n_heads=sa_n_heads,
                     kernel_size=kernel_size,
                     p_dropout=p_dropout,
-                    context_xattn=context_xattn,
+                    xa_d_memory=xa_d_memory,
+                    xa_n_heads=xa_n_heads,
+                    xa_pos_emb=xa_pos_emb,
+                    xa_max_length_causal_mask=xa_max_length_causal_mask,
                     has_xattn=has_xattn,
-                    remove_self_attention=remove_self_attention,
                     is_causal=is_causal,
                     apply_norm_to_cond=apply_norm_to_cond,
                     layer_norm_method=layer_norm_method,
