@@ -416,7 +416,9 @@ class TransformerLayer(nn.Module):
                 use_flash_attention=use_flash_x_attention,
                 deterministic=deterministic,
                 pos_emb=xa_pos_emb if xa_pos_emb is not None else pos_emb,
-                max_length_causal_mask=xa_max_length_causal_mask if xa_max_length_causal_mask is not None else max_length_causal_mask,
+                max_length_causal_mask=(
+                    xa_max_length_causal_mask if xa_max_length_causal_mask is not None else max_length_causal_mask
+                ),
             )
 
             if self.apply_norm_to_cond:
