@@ -130,6 +130,7 @@ class FastNGramLM(nn.Module):
     """
     N-Gram LM supporting batched queries. Fast implementation for GPU. Supports autograd (differentiable weights).
     """
+
     UNK_ID = -3
     BACKOFF_ID = -10
     SPECIAL_SYMBOLS_MAP = {"<s>": -1, "</s>": -2, "<unk>": UNK_ID}
@@ -174,11 +175,16 @@ class FastNGramLM(nn.Module):
         ngrams = cls._read_ngrams(lm_path=lm_path, token_offset=token_offset)
         adjacency, num_states = cls._build_suffix_tree(ngrams=ngrams)
         num_arcs = sum(
-            len(state_arcs) if state != cls.START_STATE else vocab_size
-            for state, state_arcs in enumerate(adjacency)
+            len(state_arcs) if state != cls.START_STATE else vocab_size for state, state_arcs in enumerate(adjacency)
         )
         # self._suffix_tree_to_torch(adjacency=adjacency)
-        model = FastNGramLM(num_states=num_states, num_arcs=num_arcs, vocab_size=vocab_size, token_offset=token_offset, use_triton=use_triton)
+        model = FastNGramLM(
+            num_states=num_states,
+            num_arcs=num_arcs,
+            vocab_size=vocab_size,
+            token_offset=token_offset,
+            use_triton=use_triton,
+        )
         model._init_from_suffix_tree(adjacency=adjacency)
         return model
 
@@ -241,11 +247,7 @@ class FastNGramLM(nn.Module):
         symbols_re = pattern.findall(symbols_str)
 
         symbols = tuple(
-            (
-                ord(symbol) - token_offset
-                if symbol not in cls.SPECIAL_SYMBOLS_MAP
-                else cls.SPECIAL_SYMBOLS_MAP[symbol]
-            )
+            (ord(symbol) - token_offset if symbol not in cls.SPECIAL_SYMBOLS_MAP else cls.SPECIAL_SYMBOLS_MAP[symbol])
             for symbol in symbols_re
         )
         return NGram(weight=weight, backoff=backoff, symbols=symbols)
