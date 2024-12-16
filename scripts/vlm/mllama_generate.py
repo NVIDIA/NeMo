@@ -21,15 +21,14 @@ import argparse
 
 import requests
 import torch
+from megatron.core.inference.common_inference_params import CommonInferenceParams
 from PIL import Image
 from transformers import AutoProcessor
 
-from megatron.core.inference.common_inference_params import CommonInferenceParams
-
 from nemo import lightning as nl
 from nemo.collections import vlm
-from nemo.collections.vlm.inference import setup_inference_wrapper
 from nemo.collections.vlm.inference import generate as vlm_generate
+from nemo.collections.vlm.inference import setup_inference_wrapper
 
 model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
