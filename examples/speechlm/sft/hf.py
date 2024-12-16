@@ -49,7 +49,9 @@ class LhotseHfNeMoDataset(torch.utils.data.Dataset):
         input_features = collate_matrices(tensors=[f["input_features"].squeeze(0) for f in features])
         labels = collate_vectors(tensors=[c.supervisions[0].tokens for c in cuts])
         decoder_input_ids = labels[:, :-1]
-        decoder_input_ids = decoder_input_ids.masked_fill(decoder_input_ids == self.decoder_mask_fill, self.tokenizer.pad_id)
+        decoder_input_ids = decoder_input_ids.masked_fill(
+            decoder_input_ids == self.decoder_mask_fill, self.tokenizer.pad_id
+        )
         labels = labels[:, 1:].reshape(-1)
 
         return {
