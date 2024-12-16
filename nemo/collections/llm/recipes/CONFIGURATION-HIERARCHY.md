@@ -165,6 +165,68 @@
   </blockquote>
   </details>
 
+  <details open><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/run/plugins.py">PreemptionPlugin</a></summary>
+  <blockquote>
+
+  ```sh
+  preempt_time: int = 60 # Time, in seconds, before the task's time limit at which the executor will send a SIGTERM preemption signal. This allows tasks to be gracefully stopped before reaching their time limit. (only applicable for nemo_run.SlurmExecutor)
+  callbacks: list[nemo_run.Config[Callback]]= [nemo_run.Config(PreemptionCallback)] # A list of callback configurations that the plugin will merge with the task's existing callbacks
+  ```
+  </blockquote>
+  </details>
+
+  <details open><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/run/plugins.py">FaultTolerancePlugin</a></summary>
+  <blockquote>
+
+  Note: FaultTolerancePlugin does not work with the NsysPlugin.
+
+  ```sh
+  num_in_job_restarts: int = 3 # Max number of restarts on failure, within the same job
+  num_job_retries_on_failure: int = 2 # Max number of new job restarts on failure
+  initial_rank_heartbeat_timeout: int = 1800 # Timeouts are time intervals used by a rank monitor to detect that a rank is not alive. This is the max timeout for the initial heartbeat
+  rank_heartbeat_timeout: int = 300 # This is the timeout for subsequent hearbeats after the initial heartbeat
+  ```
+  </blockquote>
+  </details>
+
+  <details open><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/run/plugins.py">NsysPlugin</a></summary>
+  <blockquote>
+
+  ```sh
+  start_step: int # The step at which to start the nsys profiling.
+  end_step: int # The step at which to end the nsys profiling.
+  ranks: Optional[list[int]] = None # The ranks on which to run the nsys profiling. If not specified, profiling will be run on rank 0
+  nsys_trace: Optional[list[str]] = None # The events to trace during profiling. If not specified, 'nvtx' and 'cuda' events will be traced
+  ```
+  </blockquote>
+  </details>
+
+  <details open><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/run/plugins.py">WandbPlugin</a></summary>
+  <blockquote>
+
+  NOTE: This plugin is only activated if the ``WANDB_API_KEY`` environment variable is set. The ``WANDB_API_KEY`` environment variables will also be set in the executor's environment variables. Follow https://docs.wandb.ai/quickstart to retrieve your ``WANDB_API_KEY``.
+
+  ```sh
+  name :str # The name for the Weights & Biases run
+  logger_fn: Callable[..., run.Config[WandbLogger]] # A callable that returns a Config of ``WandbLogger``
+  log_task_config: bool # Whether to log the task configuration to the logger
+  ```
+  </blockquote>
+  </details>
+
+  <details open><summary><a href="https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/run/plugins.py">ConfigValidationPlugin</a></summary>
+  <blockquote>
+
+  ```sh
+  validate_preemption: bool = True # Whether to validate the preemption callback. If set to True, the plugin will assert that the task has a 'PreemptionCallback'
+  validate_checkpoint_dir: bool = True # Whether to validate the checkpoint directory. If set to True and the executor is a 'SlurmExecutor' the plugin will assert that the task's log directory exists in the mounts specified in the `SlurmExecutor`
+  validate_serialization: bool = True # Whether to validate task serialization. If set to True, the plugin will assert that the task can be successfully serialized and deserialized using NeMo-Run's 'ZlibJSONSerializer'
+  validate_wandb: bool = False # Whether to validate Weights and Biases integration. If set to True, the plugin will assert that the executor's environment variables contain a `WANDB_API_KEY` and that NeMo Logger's `wandb` is set
+  validate_nodes_and_devices: bool = True # Whether to validate the number of devices and nodes. If set to True, the plugin will assert that the task's trainer is configured to use the same number of nodes and devices as the executor
+  ```
+  </blockquote>
+  </details>
+
   </blockquote>
   </details>
 
