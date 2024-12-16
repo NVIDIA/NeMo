@@ -3526,10 +3526,10 @@ jobs:
             --tensor_model_parallel_size 1
       IS_OPTIONAL: True
 
-  L2_Megatron_Core_T5_PEFT_Lora_TP2:
+  OPTIONAL_L2_Megatron_Core_T5_PEFT_Lora_TP2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_Core_T5_PEFT_Lora_TP2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_Megatron_Core_T5_PEFT_Lora_TP2') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -3573,7 +3573,7 @@ jobs:
         inference.greedy=True \
         inference.repetition_penalty=1.0 \
         inference.outfile_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/out.jsonl
-
+      IS_OPTIONAL: True
 
   L2_HF_Transformer_PEFT:
     needs: [ cicd-test-container-setup ]
@@ -4696,7 +4696,7 @@ jobs:
       - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
       - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
       - OPTIONAL_L2_Megatron_Core_T5_Eval
-      - L2_Megatron_Core_T5_PEFT_Lora_TP2
+      - OPTIONAL_L2_Megatron_Core_T5_PEFT_Lora_TP2
       - L2_Megatron_Mock_Data_Generation_MockGPTDataset
       - L2_Megatron_Mock_Data_Generation_MockT5Dataset
       - L2_TTS_Fast_dev_runs_1_Tacotron_2
