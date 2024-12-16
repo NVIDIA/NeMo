@@ -39,10 +39,13 @@ def get_dataset(processor):
     input_features = []
     for d in ds:
         audio_sample = d["audio"]
-        features = processor(audio_sample["array"], sampling_rate=audio_sample["sampling_rate"], return_tensors="pt", text=d["text"])
+        features = processor(
+            audio_sample["array"], sampling_rate=audio_sample["sampling_rate"], return_tensors="pt", text=d["text"]
+        )
         input_features.append(features)
-        
+
     return input_features
+
 
 class AudioDataset(Dataset):
     """Face Landmarks dataset."""
@@ -59,6 +62,7 @@ class AudioDataset(Dataset):
 
         return self.data[idx]
 
+
 def prepare_dataset(batch):
     audio_array = [array["array"] for array in batch["audio"]]
     batch = processor(audio_array, text=batch["text"])
@@ -73,16 +77,18 @@ class DataCollatorCTCWithPadding:
     def __call__(self, features) -> Dict[str, torch.Tensor]:
         # split inputs and labels since they have to be of different lengths and need
         # different padding methods
-        #print("collate called")
+        # print("collate called")
 
-        #print(features)
+        # print(features)
 
         input_features = [{"input_features": feature["input_features"][0]} for feature in features]
         label_features = [{"labels": feature["labels"]} for feature in features]
 
         batch = self.processor.feature_extractor.pad(input_features, padding=self.padding, return_tensors="pt")
 
-        labels_batch = self.processor.feature_extractor.pad(labels=label_features, padding=self.padding, return_tensors="pt")
+        labels_batch = self.processor.feature_extractor.pad(
+            labels=label_features, padding=self.padding, return_tensors="pt"
+        )
 
         # replace padding with -100 to ignore loss correctly
         labels = labels_batch["labels"].masked_fill(labels_batch.attention_mask.ne(1), -100)
@@ -104,15 +110,15 @@ if __name__ == '__main__':
     parser.add_argument('--model-save-path', type=str, default=None)
     args = parser.parse_args()
 
-
     model = HFAutoModelForSpeechSeq2Seq(model_name=args.model)
     processor = model.processor
     tokenizer = model.tokenizer
 
     train_dataset = get_dataset(processor)
     train_dataset = AudioDataset(train_dataset)
-    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=1, collate_fn=DataCollatorCTCWithPadding(processor))
-
+    train_dataloader = DataLoader(
+        train_dataset, shuffle=True, batch_size=1, collate_fn=DataCollatorCTCWithPadding(processor)
+    )
 
     llm.api.finetune(
         model=model,
@@ -134,8 +140,6 @@ if __name__ == '__main__':
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
-
-
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)
