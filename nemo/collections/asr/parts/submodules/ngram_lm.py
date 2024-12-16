@@ -112,6 +112,7 @@ class KenLMWrapper:
 
 class NGram(NamedTuple):
     """Structure (tuple) to represent N-Gram element (symbols, weight, backoff)"""
+
     weight: float
     backoff: float
     symbols: tuple[int, ...]
@@ -119,6 +120,7 @@ class NGram(NamedTuple):
 
 class Arc(NamedTuple):
     """Structure (tuple) to represent arc in the weighted acceptor"""
+
     weight: float
     ilabel: int
     to: int
@@ -207,7 +209,11 @@ class FastNGramLM(nn.Module):
         symbols_re = self._pattern.findall(symbols_str)
 
         symbols = tuple(
-            ord(symbol) - self.token_offset if symbol not in self.SPECIAL_SYMBOLS_MAP else self.SPECIAL_SYMBOLS_MAP[symbol]
+            (
+                ord(symbol) - self.token_offset
+                if symbol not in self.SPECIAL_SYMBOLS_MAP
+                else self.SPECIAL_SYMBOLS_MAP[symbol]
+            )
             for symbol in symbols_re
         )
         return NGram(weight=weight, backoff=backoff, symbols=symbols)
@@ -479,4 +485,3 @@ class FastNGramLM(nn.Module):
             out_scores += self.backoff_weights[current_states][:, None] * (~state_found)
             torch.where(lm_not_done, self.backoff_to_states[current_states], current_states, out=current_states)
         return out_scores, out_states
-

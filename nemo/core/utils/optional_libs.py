@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from functools import wraps
 import importlib.util
+from functools import wraps
 
 
 def is_lib_available(name: str) -> bool:
@@ -53,6 +53,7 @@ def lib_required(name: str, message: str | None = None):
             if message:
                 error_msg += f" {message}"
             raise ModuleNotFoundError(error_msg)
+
         return wrapper
 
     return function_stub_with_error_decorator

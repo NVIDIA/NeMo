@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 from pathlib import Path
+
 import pytest
-from nemo.core.utils.optional_libs import TRITON_AVAILABLE, KENLM_AVAILABLE
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMWrapper
 import torch
 from tqdm.auto import tqdm
-import random
+
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMWrapper
+from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE
 
 
 class TestFastNGramLM:
