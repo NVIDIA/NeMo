@@ -75,9 +75,6 @@ class GemmaConfig7B(GemmaConfig):
     num_query_groups: int = 16
     ffn_hidden_size: int = 24576
 
-    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
-    attention_backend: AttnBackend = AttnBackend.flash
-
 
 class CodeGemmaConfig2B(GemmaConfig2B):
     pass
