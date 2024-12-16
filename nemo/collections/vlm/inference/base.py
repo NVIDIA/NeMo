@@ -83,7 +83,7 @@ def setup_model_and_tokenizer(
 
 
 def generate(
-    model: VLMInferenceWrapper,
+    wrapped_model: VLMInferenceWrapper,
     tokenizer,
     image_processor,
     prompts: list[str],
@@ -95,7 +95,7 @@ def generate(
     """
     Generates text using a NeMo VLM model.
     Args:
-        model (VLMInferenceWrapper): The model inference wrapper.
+        wrapped_model (VLMInferenceWrapper): The model inference wrapper.
         tokenizer: tokenizer for the input text,
         image_processor: image processor for the input image,
         prompts (list[str]): The list of prompts to generate text for.
@@ -110,7 +110,7 @@ def generate(
             either as a string or as an InferenceRequest object.
     """
     text_generation_controller = VLMTextGenerationController(
-        inference_wrapped_model=model,
+        inference_wrapped_model=wrapped_model,
         tokenizer=tokenizer,
         image_processor=image_processor,
     )
