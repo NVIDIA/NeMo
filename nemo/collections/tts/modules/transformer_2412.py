@@ -31,7 +31,6 @@ class ConvolutionLayer(torch.nn.Module):
         padding=None,
         dilation=1,
         bias=True,
-        w_init_gain='gpt2',
         is_causal=False,
     ):
         """
@@ -59,11 +58,6 @@ class ConvolutionLayer(torch.nn.Module):
             dilation=dilation,
             bias=bias,
         )
-
-        if w_init_gain == 'gpt2':
-            torch.nn.init.normal_(self.conv.weight, mean=0.0, std=0.02)
-        else:
-            torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
 
     def forward(self, signal):
         if self.is_causal:  # TODO: maybe replace with identify rather than keep conditional if in forward
