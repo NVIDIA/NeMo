@@ -14,6 +14,7 @@
 import argparse
 from nemo.collections import llm
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Merge LoRA weights with base LLM')
     parser.add_argument('--lora_checkpoint_path', type=str, help="Path to finetuned LORA checkpoint")

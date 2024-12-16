@@ -201,4 +201,3 @@ class Llama3ConfigCI(llm.Llama3Config8B):
     hidden_size: int = 768
     ffn_hidden_size: int = 3072
     num_attention_heads: int = 8
-
