@@ -121,14 +121,19 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             )
         )
 
+    packed_seq_params = _batch.get("packed_seq_params", None)
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
-    # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    if packed_seq_params is not None:
+        for attr in ["cu_seqlens_q", "cu_seqlens_kv", "cu_seqlens_q_padded", "cu_seqlens_kv_padded"]:
+            value = getattr(packed_seq_params, attr, None)
+            if value is not None:
+                setattr(packed_seq_params, attr, value.cuda(non_blocking=True))
+    _batch["packed_seq_params"] = packed_seq_params
 
-    return output
+    return _batch
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
@@ -597,6 +602,19 @@ class MCoreNevaModel(MCoreLLaVAModel):
             num_image_tiles,
             attention_mask,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
+
+        if getattr(packed_seq_params, 'qkv_format', None) == 'thd':
+            # If PackedSeqParams requires THD format,
+            # reshape embedding from [B,S,H] to [T,1,H] where T=B*S
+            combined_embeddings = (
+                combined_embeddings.transpose(1, 0)
+                .reshape(combined_embeddings.shape[0] * combined_embeddings.shape[1], 1, -1)
+            )
+            final_labels = final_labels.reshape(1, -1)
+            final_loss_mask = final_loss_mask.reshape(1, -1)
+
+        else:
+            assert packed_seq_params is None, "`packed_seq_params` should ONLY be used if `qkv_format` is `thd`."
 
         output = self.language_model(
             input_ids=None,
