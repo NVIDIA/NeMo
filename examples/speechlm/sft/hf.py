@@ -27,9 +27,11 @@ torch.set_float32_matmul_precision("medium")
 
 
 class LhotseHfNeMoDataset(torch.utils.data.Dataset):
-    def __init__(self, processor):
+    def __init__(self, processor, tokenizer, decoder_mask_fill=-100):
         super().__init__()
         self.processor = processor
+        self.tokenizer = tokenizer
+        self.decoder_mask_fill = decoder_mask_fill
 
     def __getitem__(self, cuts):
         features = []
@@ -44,9 +46,16 @@ class LhotseHfNeMoDataset(torch.utils.data.Dataset):
                 )
             )
 
+        input_features = collate_matrices(tensors=[f["input_features"].squeeze(0) for f in features])
+        labels = collate_vectors(tensors=[c.supervisions[0].tokens for c in cuts])
+        decoder_input_ids = labels[:, :-1]
+        decoder_input_ids = decoder_input_ids.masked_fill(decoder_input_ids == self.decoder_mask_fill, self.tokenizer.pad_id)
+        labels = labels[:, 1:].reshape(-1)
+
         return {
-            "input_features": collate_matrices(tensors=[f["input_features"].squeeze(0) for f in features]),
-            "labels": collate_vectors(tensors=[c.supervisions[0].tokens for c in cuts]),
+            "input_features": input_features,
+            "labels": labels,
+            "decoder_input_ids": decoder_input_ids,
         }
 
 
@@ -84,6 +93,7 @@ if __name__ == '__main__':
         world_size=1,
         dataset=LhotseHfNeMoDataset(
             processor=processor,
+            tokenizer=tokenizer,
         ),
         tokenizer=tokenizer,
     )

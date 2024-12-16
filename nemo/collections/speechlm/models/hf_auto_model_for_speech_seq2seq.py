@@ -105,29 +105,19 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         )
 
     def training_step(self, batch):
-        decoder_input_ids = batch["labels"][:, :-1]
-        decoder_input_ids = decoder_input_ids.masked_fill(decoder_input_ids == -100, self.tokenizer.pad_id)
-        outputs = self.forward(input_features=batch["input_features"], decoder_input_ids=decoder_input_ids)
-
+        outputs = self.forward(input_features=batch["input_features"], decoder_input_ids=batch["decoder_input_ids"])
         loss_mask = batch.get('loss_mask', None)
         if loss_mask is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
         n_cls = outputs.logits.shape[-1]
         logits = outputs.logits.view(-1, n_cls)
-        labels = batch["labels"][:, 1:].reshape(-1)
-        loss = self.loss_fn(logits, labels, loss_mask)
+        loss = self.loss_fn(logits, batch["labels"], loss_mask)
 
         self.log('loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        tokens = batch["input_features"]
-        labels = batch["labels"]
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-        )
-
+    def validation_step(self, batch):
+        output = self.forward(input_features=batch["input_features"], decoder_input_ids=batch["decoder_input_ids"])
         loss = output.loss
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
