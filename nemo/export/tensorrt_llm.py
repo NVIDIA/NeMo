@@ -510,7 +510,7 @@ class TensorRTLLM(ITritonDeployable):
             num_moe_experts=num_moe_experts if num_moe_experts > 0 else None,
             normalization=transformer_config_normalization,
             layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
-            gated_linear_unit=nemo_model_config.get('gated_linear_unit')
+            gated_linear_unit=nemo_model_config.get('gated_linear_unit'),
         )
         return conf
 
