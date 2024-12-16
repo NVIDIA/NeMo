@@ -200,7 +200,8 @@ class MegatronBaseModel(NLPModel):
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size', None),
             use_fp8=cfg.get('fp8', False),
-            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
+            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False)
+            and cfg.get('ub_tp_comm_bootstrap_backend', 'nccl') == 'mpi',
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
             use_te_rng_tracker=self.cfg.get('use_te_rng_tracker', False),
@@ -891,7 +892,17 @@ class MegatronBaseModel(NLPModel):
                     ]
                 for bucket in buckets:
                     self._optimizer.init_params_bucket(bucket)
-                self._optimizer.init_params_bucket(self.parameters())
+                try:
+                    # We first attempt to only get the parameters that require grad.
+                    # This is to support multimodal training in child classes
+                    # where some modules might be pretrained and frozen.
+                    params = self.parameters(requires_grad_only=True)
+                except TypeError as e:
+                    if "unexpected keyword argument 'requires_grad_only'" in str(e):
+                        params = self.parameters()
+                    else:
+                        raise
+                self._optimizer.init_params_bucket(params)
             if hasattr(self, 'distributed_adam_buckets'):
                 del self.distributed_adam_buckets
 
@@ -1173,6 +1184,7 @@ class MegatronBaseModel(NLPModel):
             "grad_sync_func": None,  # set dynamically during training
             "param_sync_func": None,  # set dynamically during training
             "tp_comm_overlap": self.cfg.get('ub_tp_comm_overlap', False),
+            "tp_comm_bootstrap_backend": self.cfg.get('ub_tp_comm_bootstrap_backend', 'nccl'),
         }
 
         # instantitate ModelParallelConfig from this dict

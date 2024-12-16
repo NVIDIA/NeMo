@@ -1,11 +1,20 @@
-from collections import defaultdict
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from lhotse.cut import Cut, MixedCut
 
-from lhotse import CutSet
-from lhotse.cut import MixedCut
-
-from nemo.collections.common.prompts import registered_prompt_format_fn
+from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
-from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 class PlainPromptFormatter(PromptFormatter):
@@ -31,21 +40,17 @@ class PlainPromptFormatter(PromptFormatter):
     }
 
 
-@registered_prompt_format_fn
-def plain(cuts: CutSet, tokenizer: TokenizerSpec):
-    prompt = PlainPromptFormatter(tokenizer)
-    ans = defaultdict(list)
-    for cut in cuts:
-        if isinstance(cut, MixedCut):
-            cut = cut.first_non_padding_cut
+@registered_prompt_format_fn(Cut, PlainPromptFormatter)
+def plain(cut: Cut, prompt: PlainPromptFormatter):
+    if isinstance(cut, MixedCut):
+        cut = cut.first_non_padding_cut
+    if cut.has_custom("context"):
+        ctx = cut.context
+    else:
+        ctx = ""
 
-        if not cut.has_custom("context"):
-            cut.context = "Follow instruction in the audio."
-        turns = [{"role": "user", "slots": {"message": cut.context}}]
-        if (answer := cut.supervisions[0].text) is not None:
-            turns.append({"role": "assistant", "slots": {"message": answer}})
+    turns = [{"role": "user", "slots": {"message": ctx}}]
+    if (answer := cut.supervisions[0].text) is not None:
+        turns.append({"role": "assistant", "slots": {"message": answer}})
 
-        for k, v in prompt.encode_dialog(turns).items():
-            ans[k].append(v)
-
-    return ans
+    return prompt.encode_dialog(turns)
