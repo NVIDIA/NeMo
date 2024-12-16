@@ -242,7 +242,8 @@ class TimingCallback(Callback):
     Logs execution time of train/val/test steps
     """
 
-    def __init__(self, timer_kwargs={}):
+    def __init__(self, log_tokens_per_sec: bool = False, timer_kwargs={}):
+        self.log_tokens_per_sec = log_tokens_per_sec
         self.timer = timers.NamedTimer(**timer_kwargs)
 
     def _on_batch_start(self, name):
@@ -276,6 +277,17 @@ class TimingCallback(Callback):
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("train_step_timing", pl_module)
+        if self.log_tokens_per_sec:
+            world_size = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+            num_tokens = batch["tokens"].shape[0] * batch["tokens"].shape[1]
+            pl_module.log(
+                "tokens_per_sec_per_gpu",
+                num_tokens / (torch.as_tensor(self.timer["train_step_timing"]) * world_size),
+                on_step=True,
+                on_epoch=False,
+                batch_size=1,
+                prog_bar=True,
+            )
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
         self._on_batch_start("validation_step_timing")
