@@ -79,7 +79,9 @@ def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
 
     for k, v in scales_dict.items():
         v.seek(0)
-        scales[k + '.scale_fwd'] = torch.load(v)['scale_fwd'].cpu()
+        extra_state = torch.load(v)
+        if extra_state is not None and 'scale_fwd' in extra_state:
+            scales[k + '.scale_fwd'] = extra_state['scale_fwd'].cpu()
 
     combined_scales = {}
     for k in scales:

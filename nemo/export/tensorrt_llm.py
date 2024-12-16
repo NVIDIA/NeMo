@@ -366,6 +366,7 @@ class TensorRTLLM(ITritonDeployable):
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
                     from tensorrt_llm.layers import MoeConfig
 
+                    use_embedding_sharing = model_configs.get("share_embeddings_and_output_weights", False)
                     fp8_quantized, fp8_kvcache = determine_quantization_settings(
                         model_configs, fp8_quantized, fp8_kvcache
                     )
@@ -406,9 +407,7 @@ class TensorRTLLM(ITritonDeployable):
                         moe_renorm_mode=model_configs.get(
                             'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
                         ),
-                        share_embeddings_and_output_weights=model_configs.get(
-                            "share_embeddings_and_output_weights", False
-                        ),
+                        share_embeddings_and_output_weights=use_embedding_sharing,
                     )
 
                     input_dtype = getattr(DataType, dtype)
