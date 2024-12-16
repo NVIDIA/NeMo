@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import NamedTuple, Tuple
+from typing import NamedTuple
 
 import numpy as np
 import torch
@@ -35,11 +34,15 @@ if TRITON_AVAILABLE:
     from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_triton_kernel
 
 
-def _log_e_score(score):
+def _log_10_to_e(score):
     return score / np.log10(np.e)
 
 
 class KenLMWrapper:
+    """
+    KenLM model wrapper for single element and batched queries for decoding (reference) and testing purposes.
+    """
+
     @kenlm_required
     def __init__(self, model_path: Path | str, token_offset=100):
         self.ngram_lm = kenlm.Model(str(model_path))
@@ -56,7 +59,7 @@ class KenLMWrapper:
 
     def compute_scores_batch(
         self, states: list["kenlm.State"], vocab_size: int
-    ) -> Tuple[torch.Tensor, list[list["kenlm.State"]]]:
+    ) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
         batch_size = len(states)
         new_states = [[] for _ in range(len(states))]
         scores = torch.zeros(batch_size, vocab_size)
@@ -68,9 +71,15 @@ class KenLMWrapper:
 
         return scores, new_states
 
-    def compute_single_score(self, state: "kenlm.State", label: int) -> Tuple[float, "kenlm.State"]:
+    def compute_single_score(self, state: "kenlm.State", label: int) -> tuple[float, "kenlm.State"]:
         """
-        Computes the score for KenLM Ngram language model.
+        Computes the score with KenLM N-gram language model for `label` given `state`
+        Args:
+            state: kenLM state
+            label: text unit
+
+        Returns:
+            tuple: score, next state
         """
         if self.token_offset:
             label = chr(label + self.token_offset)
@@ -84,6 +93,15 @@ class KenLMWrapper:
         return lm_score, next_state
 
     def compute_sentence_score(self, labels: list[int], bos=True) -> float:
+        """
+        Compute
+        Args:
+            labels:
+            bos: start with BOS (begin-of-sentence) symbol
+
+        Returns:
+
+        """
         state = self.get_init_state(bos=bos)
         total_score = 0.0
         for label in labels:
@@ -93,18 +111,22 @@ class KenLMWrapper:
 
 
 class NGram(NamedTuple):
+    """Structure (tuple) to represent N-Gram element (symbols, weight, backoff)"""
     weight: float
     backoff: float
     symbols: tuple[int, ...]
 
 
 class Arc(NamedTuple):
+    """Structure (tuple) to represent arc in the weighted acceptor"""
     weight: float
     ilabel: int
     to: int
 
 
 class FastNGramLM(nn.Module):
+    SPECIAL_SYMBOLS_MAP = {"<s>": -1, "</s>": -2, "<unk>": -3}
+
     def __init__(self, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True):
         super().__init__()
         if not use_triton:
@@ -120,20 +142,17 @@ class FastNGramLM(nn.Module):
         self.token_offset = token_offset
         self.vocab_size = vocab_size
 
-        self.special_symbols = {"<s>": -1, "</s>": -2, "<unk>": -3}
-
-        logging.info(f"FastNGramLM: reading LM {lm_path}")
-
-        special_words_pattern = '|'.join(re.escape(symbol) for symbol in self.special_symbols.keys())
+        special_words_pattern = '|'.join(re.escape(symbol) for symbol in self.SPECIAL_SYMBOLS_MAP.keys())
         self._pattern = re.compile(rf'({special_words_pattern}|.)\s?')
 
+        logging.info(f"FastNGramLM: reading LM {lm_path}")
         self.ngrams, self.ngram2cnt = self._read_ngrams(lm_path)
         self.max_order = len(self.ngrams)
 
         self._build_prefix_tree()
         self._prefix_tree_to_torch()
 
-    def _read_ngrams(self, lm_path: Path | str) -> Tuple[list[list[NGram]], dict[int, int]]:
+    def _read_ngrams(self, lm_path: Path | str) -> tuple[list[list[NGram]], dict[int, int]]:
         ngram2cnt_read = defaultdict(int)
         ngram2cnt = defaultdict(int)
         ngrams = []
@@ -181,14 +200,14 @@ class FastNGramLM(nn.Module):
         weight, symbols_str, *backoff_opt = line.split("\t")
         if backoff_opt:
             assert len(backoff_opt) == 1
-            backoff = _log_e_score(float(backoff_opt[0]))
+            backoff = _log_10_to_e(float(backoff_opt[0]))
         else:
             backoff = 0.0
-        weight = _log_e_score(float(weight))
+        weight = _log_10_to_e(float(weight))
         symbols_re = self._pattern.findall(symbols_str)
 
         symbols = tuple(
-            ord(symbol) - self.token_offset if symbol not in self.special_symbols else self.special_symbols[symbol]
+            ord(symbol) - self.token_offset if symbol not in self.SPECIAL_SYMBOLS_MAP else self.SPECIAL_SYMBOLS_MAP[symbol]
             for symbol in symbols_re
         )
         return NGram(weight=weight, backoff=backoff, symbols=symbols)
@@ -371,12 +390,12 @@ class FastNGramLM(nn.Module):
             [batch_size], fill_value=self.bos_state if bos else self.start_state, device=device, dtype=torch.long
         )
 
-    def forward(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # TODO: support gradient?
         with torch.no_grad():
             return self.compute_scores_batch(states=states)
 
-    def compute_scores_batch(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def compute_scores_batch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if self.use_triton and states.device.type == "cuda":
             return self._compute_scores_batch_triton(states=states)
         if self._custom_kernel is not None and states.device.type == "cuda":
@@ -384,7 +403,7 @@ class FastNGramLM(nn.Module):
         return self._compute_scores_batch_pytorch(states=states)
 
     @triton_required
-    def _compute_scores_batch_triton(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _compute_scores_batch_triton(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = states.shape[0]
         device = states.device
         scores = torch.empty([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
@@ -412,7 +431,7 @@ class FastNGramLM(nn.Module):
 
         return scores, new_states
 
-    def _compute_scores_batch_pytorch(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _compute_scores_batch_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = states.shape[0]
         device = states.device
         current_states = states.clone()
@@ -461,65 +480,3 @@ class FastNGramLM(nn.Module):
             torch.where(lm_not_done, self.backoff_to_states[current_states], current_states, out=current_states)
         return out_scores, out_states
 
-
-# minimal tests
-# TODO: move to testing directory
-if __name__ == "__main__":
-    arpa_lm_path = "/home/vbataev/code/nemo/check_beam_tdt/tdt_tune1_lmslurp.arpa.tmp.arpa"
-    device = torch.device("cuda:0")
-    _ = torch.tensor(0, device=device)
-
-    lm = KenLMWrapper(arpa_lm_path)
-    gpu_lm = FastNGramLM(arpa_lm_path, vocab_size=1024).to(device)
-
-    with torch.no_grad():
-        scores1, states1 = gpu_lm._compute_scores_batch_pytorch(states=gpu_lm.get_init_states(1, bos=True))
-        scores2, states2 = gpu_lm._compute_scores_batch_cuda(states=gpu_lm.get_init_states(1, bos=True))
-        scores3, states3 = gpu_lm._compute_scores_batch_triton(states=gpu_lm.get_init_states(1, bos=True))
-    assert (states1 == states2).all()
-    assert torch.allclose(scores1, scores2)
-    assert (states1 == states3).all()
-    assert torch.allclose(scores1, scores3)
-
-    batch_size = 2
-    for _ in tqdm(range(10000)):
-        start_state = random.randint(0, gpu_lm.num_states - 1)
-        with torch.no_grad():
-            scores1, states1 = gpu_lm._compute_scores_batch_pytorch(
-                states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
-            )
-            scores2, states2 = gpu_lm._compute_scores_batch_cuda(
-                states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
-            )
-            scores3, states3 = gpu_lm._compute_scores_batch_triton(
-                states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
-            )
-        assert (states1 == states2).all()
-        assert (states1 == states3).all()
-        assert torch.allclose(scores1, scores2)
-        assert torch.allclose(scores1, scores3)
-
-    for bos in [False, True]:
-        for i in range(1024):
-            if abs(gpu_lm.compute_sentence_score([i], bos=bos) - lm.compute_sentence_score([i], bos=bos)) > 1e-4:
-                print(i, gpu_lm.compute_sentence_score([i], bos=bos), lm.compute_sentence_score([i], bos=bos))
-
-    for sentence in [[25, 70, 12], [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999]]:
-        for bos in [True, False]:
-            score1 = lm.compute_sentence_score(sentence, bos=False)
-            score2 = gpu_lm.compute_sentence_score_cpu(sentence, bos=False)
-            score3 = gpu_lm.compute_sentence_score(sentence, bos=False)
-            assert abs(score1 - score2) < 1e-4
-            assert abs(score1 - score3) < 1e-4
-
-        # model_score = gpu_lm.compute_sentence_score(sentence, bos=bos, verbose=True)
-        # lm_score = lm.compute_sentence_score(sentence, bos=bos)
-        # model_score_batch = 0.0
-        # states = gpu_lm.get_init_states(1, bos=bos)
-        # for token in sentence:
-        #     print(states)
-        #     scores, new_states = compute_scores_batch(model, states)
-        #     print(scores[0, token])
-        #     model_score_batch += scores[0, token]
-        #     states[:] = new_states[:, token]
-        # print(bos, model_score, lm_score, model_score_batch)

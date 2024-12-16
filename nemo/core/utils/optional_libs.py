@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import wraps
 import importlib.util
 
 
@@ -44,11 +45,15 @@ def lib_required(name: str, message: str | None = None):
 
         return identity_decorator
 
+    # return wrapper that will raise an error when the function is called
     def function_stub_with_error_decorator(f):
-        error_msg = f"Module {name} required for the function {f.__name__} is not found."
-        if message:
-            error_msg += f" {message}"
-        raise ModuleNotFoundError(error_msg)
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            error_msg = f"Module {name} required for the function {f.__name__} is not found."
+            if message:
+                error_msg += f" {message}"
+            raise ModuleNotFoundError(error_msg)
+        return wrapper
 
     return function_stub_with_error_decorator
 
