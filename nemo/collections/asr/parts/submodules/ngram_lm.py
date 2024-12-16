@@ -127,18 +127,22 @@ class Arc(NamedTuple):
 
 
 class FastNGramLM(nn.Module):
+    """
+    N-Gram LM supporting batched queries. Fast implementation for GPU. Supports autograd (differentiable weights).
+    """
     SPECIAL_SYMBOLS_MAP = {"<s>": -1, "</s>": -2, "<unk>": -3}
+    BACKOFF_ID = -10
 
     def __init__(self, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True):
         super().__init__()
-        if not use_triton:
-            logging.warning(
-                "Triton is disabled, falling back to PyTorch. "
-                "NB: version without Triton is not compatible with Cuda graphs, decoding can be slow"
-            )
         if not TRITON_AVAILABLE and use_triton:
             logging.warning("Triton not found, falling back to PyTorch")
             use_triton = False
+        if not use_triton:
+            logging.warning(
+                "Triton is disabled. "
+                "NB: version without Triton is not compatible with Cuda graphs, decoding can be slow"
+            )
         self.use_triton = use_triton
         self.max_order = 0
         self.token_offset = token_offset
@@ -222,7 +226,6 @@ class FastNGramLM(nn.Module):
         logging.info("FastNGramLM: Building prefix tree")
         self.start_state = 0
         self.bos_state = 1
-        self.backoff_id = -10
         self.adjacency: list[dict[int, Arc]] = [dict(), dict()]
 
         num_states = 2
@@ -235,8 +238,8 @@ class FastNGramLM(nn.Module):
             if symbol == -1:
                 # bos
                 self.adjacency[self.start_state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=self.bos_state)
-                self.adjacency[self.bos_state][self.backoff_id] = Arc(
-                    weight=ngram.backoff, ilabel=self.backoff_id, to=self.start_state
+                self.adjacency[self.bos_state][self.BACKOFF_ID] = Arc(
+                    weight=ngram.backoff, ilabel=self.BACKOFF_ID, to=self.start_state
                 )
                 states_cache[ngram.symbols] = self.bos_state
             else:
@@ -245,7 +248,7 @@ class FastNGramLM(nn.Module):
                 num_states += 1
                 self.adjacency[self.start_state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
                 self.adjacency.append(
-                    {self.backoff_id: Arc(weight=ngram.backoff, ilabel=self.backoff_id, to=self.start_state)}
+                    {self.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=self.BACKOFF_ID, to=self.start_state)}
                 )
                 states_cache[ngram.symbols] = to_state
 
@@ -267,7 +270,7 @@ class FastNGramLM(nn.Module):
                     num_states += 1
                     self.adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
                     self.adjacency.append(
-                        {self.backoff_id: Arc(weight=ngram.backoff, ilabel=self.backoff_id, to=backoff_state)}
+                        {self.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=self.BACKOFF_ID, to=backoff_state)}
                     )
                     states_cache[ngram.symbols] = to_state
                 else:
@@ -363,9 +366,9 @@ class FastNGramLM(nn.Module):
             while token not in self.adjacency[state] and state != self.start_state:
                 if verbose:
                     print(f"--State: {state}")
-                    print(f"--Backoff: {self.adjacency[state][self.backoff_id].weight}")
-                weight += self.adjacency[state][self.backoff_id].weight
-                state = self.adjacency[state][self.backoff_id].to
+                    print(f"--Backoff: {self.adjacency[state][self.BACKOFF_ID].weight}")
+                weight += self.adjacency[state][self.BACKOFF_ID].weight
+                state = self.adjacency[state][self.BACKOFF_ID].to
             if state == self.start_state and token not in self.adjacency[state]:
                 token = -3  # unk
             if verbose:
@@ -396,16 +399,34 @@ class FastNGramLM(nn.Module):
             [batch_size], fill_value=self.bos_state if bos else self.start_state, device=device, dtype=torch.long
         )
 
-    def forward(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        # TODO: support gradient?
-        with torch.no_grad():
-            return self.compute_scores_batch(states=states)
+    def forward(self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True) -> torch.Tensor:
+        """
+        Compute log-probabilities for all labels in utterances using N-Gram LM.
+
+        Args:
+            labels: label sequences [B x L]
+            labels_lengths (optional): lengths of the label sequences
+            bos: start with BOS symbol
+
+        Returns:
+            Tensor [B x L] with scores for each label in the utterance
+        """
+        device = labels.device
+        batch_size, max_length = labels.shape
+        if labels_lengths is None:
+            labels_lengths = torch.full([batch_size], fill_value=max_length, dtype=torch.int32, device=device)
+        scores = torch.zeros(labels.shape, device=device)
+        states = self.get_init_states(batch_size=batch_size, bos=bos)
+        # TODO(vbataev): faster algorithm
+        for i in range(max_length):
+            # TODO(vbataev): support differentiable implementation with Triton
+            step_scores, states = self._compute_scores_batch_pytorch(states)
+            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i]) * (i < labels_lengths)
+        return scores
 
     def compute_scores_batch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if self.use_triton and states.device.type == "cuda":
             return self._compute_scores_batch_triton(states=states)
-        if self._custom_kernel is not None and states.device.type == "cuda":
-            return self._compute_scores_batch_cuda(states=states)
         return self._compute_scores_batch_pytorch(states=states)
 
     @triton_required

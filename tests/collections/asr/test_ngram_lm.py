@@ -91,3 +91,7 @@ class TestFastNGramLM:
             #     model_score_batch += scores[0, token]
             #     states[:] = new_states[:, token]
             # print(bos, model_score, lm_score, model_score_batch)
+
+    def test_autograd(self, test_data_dir):
+        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        lm = FastNGramLM(kenlm_model_path, vocab_size=1024)

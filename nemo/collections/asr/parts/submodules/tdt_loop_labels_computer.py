@@ -419,7 +419,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             scores, labels = logits[:, :-num_durations].max(dim=-1)
             if self.ngram_lm_batch is not None:
-                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.compute_scores_batch(
                     states=batch_lm_states
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype)
@@ -897,7 +897,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
 
         # get lm scores/states
         if self.ngram_lm_batch is not None:
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.compute_scores_batch(
                 states=self.state.batch_lm_states
             )  # vocab_size_no_blank
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)

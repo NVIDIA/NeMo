@@ -395,7 +395,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
             scores, labels = logits.max(-1)
             if self.ngram_lm_batch is not None:
-                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.compute_scores_batch(
                     states=batch_lm_states
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype)
@@ -819,7 +819,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
         # get lm scores/states
         if self.ngram_lm_batch is not None:
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.compute_scores_batch(
                 states=self.state.batch_lm_states
             )  # vocab_size_no_blank
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
