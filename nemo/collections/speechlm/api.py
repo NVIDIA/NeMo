@@ -24,8 +24,9 @@ from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
 from nemo.collections.speechlm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
 from nemo.core.classes.common import Serialization, typecheck
+from nemo.lightning.pytorch.callbacks import PreemptionCallback
 from nemo.utils import logging
-from nemo.utils.exp_manager import StatelessTimer
+from nemo.utils.exp_manager import StatelessTimer, TimingCallback
 
 
 def speech_to_text_llm_train(cfg: DictConfig):
@@ -67,6 +68,7 @@ def speech_to_text_llm_train(cfg: DictConfig):
             # ckpt_async_save must be False to save ckpt when training is interrupted by max_time_per_run
             logging.info(f"Setting max_time_per_run={cfg['max_time_per_run']} for the training job.")
             callbacks.append(StatelessTimer(cfg['max_time_per_run']))
+    callbacks.append(TimingCallback())
 
     trainer = nl.Trainer(
         strategy=Serialization.from_config_dict(cfg['strategy']),
