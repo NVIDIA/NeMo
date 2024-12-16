@@ -99,6 +99,7 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
+    use_te_rng_tracker: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -168,6 +169,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             that prints the metrics to stdout. Suitable for non-interactive settings.
         progress_interval (int): How frequently to print progress to stdout. Only used when
             replace_progress_bar is True.
+        use_te_rng_tracker (bool): If true, uses RNG state tracker in TransformerEngine. Defaults to False.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -213,6 +215,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
+        use_te_rng_tracker: bool = False,
         restore_config: Optional[RestoreConfig] = None,
         **kwargs,
     ) -> None:
@@ -264,6 +267,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.progress_interval = progress_interval
 
         self.restore_config = restore_config
+        self.use_te_rng_tracker = use_te_rng_tracker
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -900,6 +904,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
             encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
             pipeline_dtype=self.pipeline_dtype,
+            use_te_rng_tracker=self.use_te_rng_tracker,
         )
 
     @contextmanager
