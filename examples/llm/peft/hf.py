@@ -39,7 +39,11 @@ def make_squad_hf_dataset(tokenizer):
             output = output[0]
         text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
         ans = tokenizer(text)
-        ans['labels'] = ans['input_ids']
+        # 'input_ids' is a list, we want to remove EOS_TOKEN from input_ids and the first token from
+        # labels to align the two:
+        ans['labels'] = list(ans['input_ids'][1:])
+        ans['input_ids'] = ans['input_ids'][:-1]
+        ans['attention_mask'] = ans['attention_mask'][:-1]
         return ans
 
     tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
