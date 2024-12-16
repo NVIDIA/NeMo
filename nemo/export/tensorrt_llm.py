@@ -380,6 +380,7 @@ class TensorRTLLM(ITritonDeployable):
 
                     # TODO: remove after adding this mapping to mcore
                     from megatron.core.export.trtllm.trtllm_layers import TRTLLMLayers
+
                     mcore_model_conversion_dict |= {
                         'decoder.layers.mlp.experts.experts.linear_fc1.weight': TRTLLMLayers.mlp_fc_weight_mixture_of_experts,
                         'decoder.layers.mlp.experts.experts.linear_fc2.weight': TRTLLMLayers.mlp_projection_weight_mixture_of_experts,
