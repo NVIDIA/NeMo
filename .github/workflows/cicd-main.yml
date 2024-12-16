@@ -571,9 +571,7 @@ jobs:
           prune.num_attention_heads=2 \
           prune.num_query_groups=2 \
           prune.hidden_size=128 \
-          export.save_path=examples/nlp/language_modeling/ci_prune_width.nemo
-      AFTER_SCRIPT: |
-          rm -rf examples/nlp/language_modeling/ci_prune_width.nemo
+          export.save_path=/tmp/ci_prune_width.nemo
 
   L2_Prune_Depth_Llama2:
     needs: [cicd-test-container-setup]
@@ -590,9 +588,7 @@ jobs:
           model.tensor_model_parallel_size=2 \
           model.pipeline_model_parallel_size=1 \
           'prune.drop_layers=[1]' \
-          export.save_path=examples/nlp/language_modeling/ci_prune_depth.nemo
-      AFTER_SCRIPT: |
-          rm -rf examples/nlp/language_modeling/ci_prune_depth.nemo
+          export.save_path=/tmp/ci_prune_depth.nemo
 
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:

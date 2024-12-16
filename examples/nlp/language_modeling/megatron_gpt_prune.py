@@ -32,7 +32,7 @@ Nemo pruning example script.
 Please consult examples/nlp/language_modeling/conf/megatron_gpt_prune.yaml config on available pruning arguments,
 models supported as well as how to set up data and inference for calibration (with defaults recommended).
 
-Example usage to prune width or depth automatically:
+Example usage to prune width automatically:
 ```
 python examples/nlp/language_modeling/megatron_gpt_prune.py \
     model.restore_from_path=llama3.1-8b.nemo \
@@ -45,12 +45,43 @@ python examples/nlp/language_modeling/megatron_gpt_prune.py \
     prune.num_attention_heads=null \
     prune.num_query_groups=null \
     prune.hidden_size=3072 \
-    prune.num_layers=null \
     export.save_path=llama3.1-8b-width-pruned.nemo
 ```
-where tensor_model_parallel_size must be 1 because of the current prune API limitation
 
-Example usage to drop specific model layers (1-indexed):
+Example usage to prune depth automatically using cosine-similarity based importance metric:
+```
+python examples/nlp/language_modeling/megatron_gpt_prune.py \
+    model.restore_from_path=llama3.1-8b.nemo \
+    model.tensor_model_parallel_size=1 \
+    model.pipeline_model_parallel_size=8 \
+    trainer.num_nodes=1 \
+    trainer.precision=bf16 \
+    trainer.devices=8 \
+    prune.num_layers=16 \
+    export.save_path=llama3.1-8b-depth-pruned.nemo
+```
+
+Example usage to prune width and depth automatically:
+```
+python examples/nlp/language_modeling/megatron_gpt_prune.py \
+    model.restore_from_path=llama3.1-8b.nemo \
+    model.tensor_model_parallel_size=1 \
+    model.pipeline_model_parallel_size=8 \
+    trainer.num_nodes=1 \
+    trainer.precision=bf16 \
+    trainer.devices=8 \
+    prune.ffn_hidden_size=9216 \
+    prune.num_attention_heads=null \
+    prune.num_query_groups=null \
+    prune.hidden_size=3072 \
+    prune.num_layers=16 \
+    export.save_path=llama3.1-8b-width-and-depth-pruned.nemo
+```
+
+NOTE: for above usages, `model.tensor_model_parallel_size` and `inference.batch_size` must be 1
+because of the current prune API limitation
+
+Example usage to prune depth by dropping specific model layers (1-indexed):
 ```
 python examples/nlp/language_modeling/megatron_gpt_prune.py \
     model.restore_from_path=llama3.1-8b.nemo \
@@ -60,7 +91,7 @@ python examples/nlp/language_modeling/megatron_gpt_prune.py \
     trainer.precision=bf16 \
     trainer.devices=8 \
     'prune.drop_layers=[16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]' \
-    export.save_path=llama3.1-8b-depth-pruned.nemo
+    export.save_path=llama3.1-8b-pruned.nemo
 ```
 """
 
@@ -125,13 +156,12 @@ def main(cfg) -> None:
         if cfg.prune.get(k) is not None
     }
 
-    if cfg.prune.drop_layers:
+    drop_layers = OmegaConf.to_object(cfg.prune.drop_layers)  # convert to native python list
+    if drop_layers:
         assert (
             not export_config
         ), f"Cannot specify `prune.drop_layers` with other prune constraints. Recieved: {cfg.prune}"
-        mtp.plugins.megatron.drop_mcore_gpt_layers(
-            model.model, layers_to_drop=cfg.prune.drop_layers
-        )
+        mtp.plugins.megatron.drop_mcore_gpt_layers(model.model, layers_to_drop=drop_layers)
         setattr(model.cfg, "num_layers", model.model.config.num_layers)
     else:
         assert (
