@@ -378,7 +378,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # init ngram lm
         if ngram_lm_model is not None:
-            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+            self.ngram_lm_batch = FastNGramLM.from_arpa(lm_path=ngram_lm_model, vocab_size=self.blank_id)
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha

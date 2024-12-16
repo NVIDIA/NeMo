@@ -28,7 +28,7 @@ class TestFastNGramLM:
     @pytest.mark.unit
     def test_load(self, test_data_dir):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        lm = FastNGramLM(kenlm_model_path, vocab_size=1024)
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=1024)
 
     @pytest.mark.unit
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
@@ -38,16 +38,13 @@ class TestFastNGramLM:
         _ = torch.tensor(0, device=device)
 
         lm = KenLMWrapper(arpa_lm_path)
-        gpu_lm = FastNGramLM(arpa_lm_path, vocab_size=1024).to(device)
+        gpu_lm = FastNGramLM.from_arpa(arpa_lm_path, vocab_size=1024).to(device)
 
         with torch.no_grad():
             scores1, states1 = gpu_lm._compute_scores_batch_pytorch(states=gpu_lm.get_init_states(1, bos=True))
-            scores2, states2 = gpu_lm._compute_scores_batch_cuda(states=gpu_lm.get_init_states(1, bos=True))
-            scores3, states3 = gpu_lm._compute_scores_batch_triton(states=gpu_lm.get_init_states(1, bos=True))
+            scores2, states2 = gpu_lm._compute_scores_batch_triton(states=gpu_lm.get_init_states(1, bos=True))
         assert (states1 == states2).all()
         assert torch.allclose(scores1, scores2)
-        assert (states1 == states3).all()
-        assert torch.allclose(scores1, scores3)
 
         batch_size = 2
         for _ in tqdm(range(10000)):
@@ -94,4 +91,4 @@ class TestFastNGramLM:
 
     def test_autograd(self, test_data_dir):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        lm = FastNGramLM(kenlm_model_path, vocab_size=1024)
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=1024)

@@ -130,11 +130,13 @@ class FastNGramLM(nn.Module):
     """
     N-Gram LM supporting batched queries. Fast implementation for GPU. Supports autograd (differentiable weights).
     """
-
-    SPECIAL_SYMBOLS_MAP = {"<s>": -1, "</s>": -2, "<unk>": -3}
+    UNK_ID = -3
     BACKOFF_ID = -10
+    SPECIAL_SYMBOLS_MAP = {"<s>": -1, "</s>": -2, "<unk>": UNK_ID}
+    START_STATE = 0
+    BOS_STATE = 1
 
-    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True):
+    def __init__(self, num_states: int, num_arcs: int, vocab_size: int, token_offset=100, use_triton=True):
         super().__init__()
         if not TRITON_AVAILABLE and use_triton:
             logging.warning("Triton not found, falling back to PyTorch")
@@ -145,24 +147,48 @@ class FastNGramLM(nn.Module):
                 "NB: version without Triton is not compatible with Cuda graphs, decoding can be slow"
             )
         self.use_triton = use_triton
-        self.max_order = 0
+
         self.token_offset = token_offset
         self.vocab_size = vocab_size
+        self.num_states = num_states
+        self.num_arcs = num_arcs
+        num_arcs_extended = num_arcs + self.vocab_size  # + extra padding
 
-        special_words_pattern = '|'.join(re.escape(symbol) for symbol in self.SPECIAL_SYMBOLS_MAP.keys())
-        self._pattern = re.compile(rf'({special_words_pattern}|.)\s?')
+        # parameters: weights (forward/backoff)
+        self.arcs_weights = nn.Parameter(torch.zeros([num_arcs_extended]))
+        self.backoff_weights = nn.Parameter(torch.zeros([num_states]))
 
+        # buffers: LM (suffix tree) structure
+        self.register_buffer("from_states", torch.zeros([num_arcs_extended], dtype=torch.int64))
+        self.register_buffer("to_states", torch.zeros([num_arcs_extended], dtype=torch.int64))
+        self.register_buffer("ilabels", torch.zeros([num_arcs_extended], dtype=torch.int64))
+        self.register_buffer("backoff_to_states", torch.zeros([num_states], dtype=torch.int64))
+
+        self.register_buffer("state_start_arcs", torch.zeros([num_states], dtype=torch.int64))
+        self.register_buffer("state_end_arcs", torch.zeros([num_states], dtype=torch.int64))
+        self.register_buffer("state_order", torch.zeros([num_states], dtype=torch.int64))
+
+    @classmethod
+    def from_arpa(cls, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True) -> "FastNGramLM":
         logging.info(f"FastNGramLM: reading LM {lm_path}")
-        self.ngrams, self.ngram2cnt = self._read_ngrams(lm_path)
-        self.max_order = len(self.ngrams)
+        ngrams = cls._read_ngrams(lm_path=lm_path, token_offset=token_offset)
+        adjacency, num_states = cls._build_suffix_tree(ngrams=ngrams)
+        num_arcs = sum(
+            len(state_arcs) if state != cls.START_STATE else vocab_size
+            for state, state_arcs in enumerate(adjacency)
+        )
+        # self._suffix_tree_to_torch(adjacency=adjacency)
+        model = FastNGramLM(num_states=num_states, num_arcs=num_arcs, vocab_size=vocab_size, token_offset=token_offset, use_triton=use_triton)
+        model._init_from_suffix_tree(adjacency=adjacency)
+        return model
 
-        self._build_prefix_tree()
-        self._prefix_tree_to_torch()
-
-    def _read_ngrams(self, lm_path: Path | str) -> tuple[list[list[NGram]], dict[int, int]]:
+    @classmethod
+    def _read_ngrams(cls, lm_path: Path | str, token_offset: int) -> list[list[NGram]]:
         ngram2cnt_read = defaultdict(int)
         ngram2cnt = defaultdict(int)
         ngrams = []
+        special_words_pattern = '|'.join(re.escape(symbol) for symbol in cls.SPECIAL_SYMBOLS_MAP.keys())
+        pattern = re.compile(rf'({special_words_pattern}|.)\s?')
         with open(lm_path, "r", encoding="utf-8") as f:
             is_header = True
             cur_order = 0
@@ -196,14 +222,15 @@ class FastNGramLM(nn.Module):
                     ngrams.append([])
                     continue
 
-                ngrams[-1].append(self._line_to_ngram(line))
+                ngrams[-1].append(cls._line_to_ngram(line, pattern=pattern, token_offset=token_offset))
                 ngram2cnt_read[cur_order] += 1
             assert ngram2cnt == ngram2cnt_read
             assert len(ngrams) == max_order
             logging.info(f"Loaded model, order={max_order}")
-            return ngrams, ngram2cnt
+            return ngrams
 
-    def _line_to_ngram(self, line: str) -> NGram:
+    @classmethod
+    def _line_to_ngram(cls, line: str, pattern: re.Pattern, token_offset: int) -> NGram:
         weight, symbols_str, *backoff_opt = line.split("\t")
         if backoff_opt:
             assert len(backoff_opt) == 1
@@ -211,78 +238,69 @@ class FastNGramLM(nn.Module):
         else:
             backoff = 0.0
         weight = _log_10_to_e(float(weight))
-        symbols_re = self._pattern.findall(symbols_str)
+        symbols_re = pattern.findall(symbols_str)
 
         symbols = tuple(
             (
-                ord(symbol) - self.token_offset
-                if symbol not in self.SPECIAL_SYMBOLS_MAP
-                else self.SPECIAL_SYMBOLS_MAP[symbol]
+                ord(symbol) - token_offset
+                if symbol not in cls.SPECIAL_SYMBOLS_MAP
+                else cls.SPECIAL_SYMBOLS_MAP[symbol]
             )
             for symbol in symbols_re
         )
         return NGram(weight=weight, backoff=backoff, symbols=symbols)
 
-    def _build_prefix_tree(self):
+    @classmethod
+    def _build_suffix_tree(cls, ngrams: list[list[NGram]]) -> tuple[list[dict[int, Arc]], int]:
         logging.info("FastNGramLM: Building prefix tree")
-        self.start_state = 0
-        self.bos_state = 1
-        self.adjacency: list[dict[int, Arc]] = [dict(), dict()]
-
-        num_states = 2
-
+        adjacency: list[dict[int, Arc]] = [dict(), dict()]
+        num_states = 2  # start, bos
         states_cache = dict()
 
-        for ngram in self.ngrams[0]:
+        for ngram in ngrams[0]:
             assert len(ngram.symbols) == 1
             symbol = ngram.symbols[0]
             if symbol == -1:
                 # bos
-                self.adjacency[self.start_state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=self.bos_state)
-                self.adjacency[self.bos_state][self.BACKOFF_ID] = Arc(
-                    weight=ngram.backoff, ilabel=self.BACKOFF_ID, to=self.start_state
+                adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=cls.BOS_STATE)
+                adjacency[cls.BOS_STATE][cls.BACKOFF_ID] = Arc(
+                    weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=cls.START_STATE
                 )
-                states_cache[ngram.symbols] = self.bos_state
+                states_cache[ngram.symbols] = cls.BOS_STATE
             else:
-                assert symbol >= 0 or symbol in {-2, -3}
+                assert symbol >= 0 or symbol in {-2, cls.UNK_ID}
                 to_state = num_states
                 num_states += 1
-                self.adjacency[self.start_state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
-                self.adjacency.append(
-                    {self.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=self.BACKOFF_ID, to=self.start_state)}
+                adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
+                adjacency.append(
+                    {cls.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=cls.START_STATE)}
                 )
                 states_cache[ngram.symbols] = to_state
 
-        for order in tqdm(range(2, self.max_order + 1)):
+        max_order = len(ngrams)
+        for order in tqdm(range(2, max_order + 1)):
             ngram: NGram
-            for ngram in self.ngrams[order - 1]:
+            for ngram in ngrams[order - 1]:
                 state = states_cache[ngram.symbols[:-1]]
-                # state = self.start_state
-                # for symbol in ngram.symbols[:-1]:
-                #     state = self.adjacency[state][symbol].to
                 backoff_state = states_cache[ngram.symbols[1:]]
-                # backoff_state = self.start_state
-                # for symbol in ngram.symbols[1:]:
-                #     backoff_state = self.adjacency[backoff_state][symbol].to
-
                 symbol = ngram.symbols[-1]
-                if order < self.max_order:
+                if order < max_order:
                     to_state = num_states
                     num_states += 1
-                    self.adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
-                    self.adjacency.append(
-                        {self.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=self.BACKOFF_ID, to=backoff_state)}
+                    adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
+                    adjacency.append(
+                        {cls.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=backoff_state)}
                     )
                     states_cache[ngram.symbols] = to_state
                 else:
-                    self.adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=backoff_state)
-        self.num_states = num_states
+                    adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=backoff_state)
+        return adjacency, num_states
 
-    def _prefix_tree_to_torch(self):
-        logging.info("Converting prefix tree to PyTorch")
+    def _init_from_suffix_tree(self, adjacency):
+        logging.info("Converting suffix tree to PyTorch")
         num_arcs = sum(
-            len(state_arcs) if state != self.start_state else self.vocab_size
-            for state, state_arcs in enumerate(self.adjacency)
+            len(state_arcs) if state != self.START_STATE else self.vocab_size
+            for state, state_arcs in enumerate(adjacency)
         )
 
         num_arcs_extended = num_arcs + self.vocab_size  # + extra padding
@@ -301,32 +319,32 @@ class FastNGramLM(nn.Module):
         state_end_arcs = np.zeros([self.num_states], dtype=np.int64)
         state_order = np.zeros([self.num_states], dtype=np.int64)
 
-        self.unk_prob = self.adjacency[0][-3].weight
+        unk_prob = adjacency[0][self.UNK_ID].weight
 
         i = 0
         # TODO: arc to start? +1
-        state_order[self.start_state] = 1
-        state_order[self.bos_state] = 2
+        state_order[self.START_STATE] = 1
+        state_order[self.BOS_STATE] = 2
         for ilabel in range(self.vocab_size):
-            if ilabel in self.adjacency[self.start_state]:
-                arc = self.adjacency[self.start_state][ilabel]
+            if ilabel in adjacency[self.START_STATE]:
+                arc = adjacency[self.START_STATE][ilabel]
                 arcs_weights[i] = arc.weight
-                from_states[i] = self.start_state
+                from_states[i] = self.START_STATE
                 to_states[i] = arc.to
                 ilabels[i] = arc.ilabel
             else:
-                arcs_weights[i] = self.unk_prob
-                from_states[i] = self.start_state
-                to_states[i] = self.start_state
+                arcs_weights[i] = unk_prob
+                from_states[i] = self.START_STATE
+                to_states[i] = self.START_STATE
                 ilabels[i] = ilabel
             i += 1
-        state_end_arcs[self.start_state] = i
+        state_end_arcs[self.START_STATE] = i
 
         for state in tqdm(range(0, self.num_states)):
-            if state == self.start_state:
+            if state == self.START_STATE:
                 continue
             state_start_arcs[state] = i
-            for arc in sorted(self.adjacency[state].values(), key=lambda arc: arc.ilabel):
+            for arc in sorted(adjacency[state].values(), key=lambda arc: arc.ilabel):
                 # TODO: batch sort in PyTorch?
                 if arc.ilabel >= 0:
                     arcs_weights[i] = arc.weight
@@ -334,7 +352,7 @@ class FastNGramLM(nn.Module):
                     to_states[i] = arc.to
                     ilabels[i] = arc.ilabel
                     i += 1
-                elif arc.ilabel == -10:
+                elif arc.ilabel == self.BACKOFF_ID:
                     # backoff
                     backoff_weights[state] = arc.weight
                     backoff_to_states[state] = arc.to
@@ -343,41 +361,43 @@ class FastNGramLM(nn.Module):
                     continue
             state_end_arcs[state] = i
 
-        self.arcs_weights = nn.Parameter(torch.from_numpy(arcs_weights))
-        self.register_buffer("from_states", torch.from_numpy(from_states))
-        self.register_buffer("to_states", torch.from_numpy(to_states))
-        self.register_buffer("ilabels", torch.from_numpy(ilabels))
+        # parameters: weights
+        self.arcs_weights.data.copy_(torch.from_numpy(arcs_weights))
+        self.backoff_weights.data.copy_(torch.from_numpy(backoff_weights))
 
-        self.backoff_weights = nn.Parameter(torch.from_numpy(backoff_weights))
-        self.register_buffer("backoff_to_states", torch.from_numpy(backoff_to_states))
+        # buffers: LM (suffix tree) structure
+        self.from_states.data.copy_(torch.from_numpy(from_states))
+        self.to_states.data.copy_(torch.from_numpy(to_states))
+        self.ilabels.data.copy_(torch.from_numpy(ilabels))
+        self.backoff_to_states.data.copy_(torch.from_numpy(backoff_to_states))
 
-        self.register_buffer("state_start_arcs", torch.from_numpy(state_start_arcs))
-        self.register_buffer("state_end_arcs", torch.from_numpy(state_end_arcs))
-        self.register_buffer("state_order", torch.from_numpy(state_order))
+        self.state_start_arcs.data.copy_(torch.from_numpy(state_start_arcs))
+        self.state_end_arcs.data.copy_(torch.from_numpy(state_end_arcs))
+        self.state_order.data.copy_(torch.from_numpy(state_order))
 
         assert self.state_order.min().item() == 1
-        assert self.state_order.max().item() == self.max_order
+        # assert self.state_order.max().item() == max_order
 
-    def compute_sentence_score_cpu(self, sentence: list[int], bos=True, verbose=False):
-        state = self.bos_state if bos else self.start_state
-        weight = 0.0
-        for token in sentence:
-            if verbose:
-                print(f"Token: {token}")
-            while token not in self.adjacency[state] and state != self.start_state:
-                if verbose:
-                    print(f"--State: {state}")
-                    print(f"--Backoff: {self.adjacency[state][self.BACKOFF_ID].weight}")
-                weight += self.adjacency[state][self.BACKOFF_ID].weight
-                state = self.adjacency[state][self.BACKOFF_ID].to
-            if state == self.start_state and token not in self.adjacency[state]:
-                token = -3  # unk
-            if verbose:
-                print(f"--Final state: {state}")
-                print(f"--add-weight: {self.adjacency[state][token].weight:.4f}")
-            weight += self.adjacency[state][token].weight
-            state = self.adjacency[state][token].to
-        return weight
+    # def compute_sentence_score_cpu(self, sentence: list[int], bos=True, verbose=False):
+    #     state = self.BOS_STATE if bos else self.START_STATE
+    #     weight = 0.0
+    #     for token in sentence:
+    #         if verbose:
+    #             print(f"Token: {token}")
+    #         while token not in self.adjacency[state] and state != self.START_STATE:
+    #             if verbose:
+    #                 print(f"--State: {state}")
+    #                 print(f"--Backoff: {self.adjacency[state][self.BACKOFF_ID].weight}")
+    #             weight += self.adjacency[state][self.BACKOFF_ID].weight
+    #             state = self.adjacency[state][self.BACKOFF_ID].to
+    #         if state == self.START_STATE and token not in self.adjacency[state]:
+    #             token = self.UNK_ID  # unk
+    #         if verbose:
+    #             print(f"--Final state: {state}")
+    #             print(f"--add-weight: {self.adjacency[state][token].weight:.4f}")
+    #         weight += self.adjacency[state][token].weight
+    #         state = self.adjacency[state][token].to
+    #     return weight
 
     def compute_sentence_score(self, sentence: list[int], bos=True):
         device = self.arcs_weights.device
@@ -397,7 +417,7 @@ class FastNGramLM(nn.Module):
     def get_init_states(self, batch_size: int, bos=True):
         device = self.arcs_weights.device
         return torch.full(
-            [batch_size], fill_value=self.bos_state if bos else self.start_state, device=device, dtype=torch.long
+            [batch_size], fill_value=self.BOS_STATE if bos else self.START_STATE, device=device, dtype=torch.long
         )
 
     def forward(
@@ -447,7 +467,7 @@ class FastNGramLM(nn.Module):
             states_ptr=states,
             new_states_ptr=new_states,
             scores_ptr=scores,
-            start_state=self.start_state,
+            start_state=self.START_STATE,
             max_order=self.max_order,
             backoff_to_states_ptr=self.backoff_to_states,
             backoff_weights_ptr=self.backoff_weights,
@@ -505,7 +525,7 @@ class FastNGramLM(nn.Module):
             # new_states[~state_found] = new_states_add[~state_found]
             torch.where(state_found, out_states, out_states_add[:, : self.vocab_size], out=out_states)
             state_found = out_states != -1
-            lm_not_done &= current_states != self.start_state
+            lm_not_done &= current_states != self.START_STATE
             out_scores += self.backoff_weights[current_states][:, None] * (~state_found)
             torch.where(lm_not_done, self.backoff_to_states[current_states], current_states, out=current_states)
         return out_scores, out_states
