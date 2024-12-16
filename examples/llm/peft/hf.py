@@ -39,14 +39,17 @@ def make_squad_hf_dataset(tokenizer):
             output = output[0]
         text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
         ans = tokenizer(text)
-        tokens = ans['input_ids']
-        return {
-            'tokens': tokens,
-            'labels': tokens[1:] + [tokens[-1]],
-        }
+        ans['labels'] = ans['input_ids']
+        return ans
 
-    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", pad_token_id=tokenizer.eos_token_id)
-    datamodule.map(formatting_prompts_func, batched=False, batch_size=2)
+    tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_token_id)
+    datamodule.map(
+        formatting_prompts_func,
+        batched=False,
+        batch_size=2,
+        remove_columns=["id", "title", "context", "question", 'answers'],
+    )
     return datamodule
 
 
