@@ -144,7 +144,7 @@ class FastNGramLM(nn.Module):
         """
         Stubs for constructor that does not initialize the structure.
         This constructor can be useful when storing/loading module using native torch serialization mechanism
-        instead of directly reading ARPA model -> converting to Torch which can be slow for large models
+        instead of directly reading ARPA model -> converting to Torch, which can be slow for large N-Gram models
         (of several GBs).
 
         Args:
@@ -407,37 +407,16 @@ class FastNGramLM(nn.Module):
         assert self.state_order.min().item() == 1
         assert self.state_order.max().item() == self.max_order
 
-    # def compute_sentence_score_cpu(self, sentence: list[int], bos=True, verbose=False):
-    #     state = self.BOS_STATE if bos else self.START_STATE
-    #     weight = 0.0
+    # def compute_sentence_score(self, sentence: list[int], bos=True):
+    #     device = self.arcs_weights.device
+    #     # sentence = torch.tensor(sentence, device=device)[None, :]
+    #     states = self.get_init_states(batch_size=1, bos=bos)
+    #     weight = torch.tensor(0, device=device, dtype=self.arcs_weights.dtype)
     #     for token in sentence:
-    #         if verbose:
-    #             print(f"Token: {token}")
-    #         while token not in self.adjacency[state] and state != self.START_STATE:
-    #             if verbose:
-    #                 print(f"--State: {state}")
-    #                 print(f"--Backoff: {self.adjacency[state][self.BACKOFF_ID].weight}")
-    #             weight += self.adjacency[state][self.BACKOFF_ID].weight
-    #             state = self.adjacency[state][self.BACKOFF_ID].to
-    #         if state == self.START_STATE and token not in self.adjacency[state]:
-    #             token = self.UNK_ID  # unk
-    #         if verbose:
-    #             print(f"--Final state: {state}")
-    #             print(f"--add-weight: {self.adjacency[state][token].weight:.4f}")
-    #         weight += self.adjacency[state][token].weight
-    #         state = self.adjacency[state][token].to
+    #         new_scores, new_states_candidates = self.compute_scores_batch(states=states)
+    #         weight += new_scores[0, token]
+    #         states = new_states_candidates[:, token]
     #     return weight
-
-    def compute_sentence_score(self, sentence: list[int], bos=True):
-        device = self.arcs_weights.device
-        # sentence = torch.tensor(sentence, device=device)[None, :]
-        states = self.get_init_states(batch_size=1, bos=bos)
-        weight = torch.tensor(0, device=device, dtype=self.arcs_weights.dtype)
-        for token in sentence:
-            new_scores, new_states_candidates = self.compute_scores_batch(states=states)
-            weight += new_scores[0, token]
-            states = new_states_candidates[:, token]
-        return weight
 
     @classmethod
     def _log_e_score(cls, score):
@@ -488,10 +467,7 @@ class FastNGramLM(nn.Module):
         scores = torch.empty([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
         new_states = torch.empty([batch_size, self.vocab_size], dtype=torch.long, device=device)
 
-        NUM_BLOCKS = batch_size
-        BLOCK_SIZE = triton.next_power_of_2(self.vocab_size)
-
-        _ngram_triton_kernel[NUM_BLOCKS,](
+        _ngram_triton_kernel[batch_size,](
             vocab_size=self.vocab_size,
             states_ptr=states,
             new_states_ptr=new_states,
@@ -505,7 +481,7 @@ class FastNGramLM(nn.Module):
             to_states_ptr=self.to_states,
             ilabels_ptr=self.ilabels,
             arcs_weights_ptr=self.arcs_weights,
-            BLOCK_SIZE=BLOCK_SIZE,
+            BLOCK_SIZE=triton.next_power_of_2(self.vocab_size),
         )
 
         return scores, new_states
@@ -523,8 +499,6 @@ class FastNGramLM(nn.Module):
         batch_indices = torch.arange(batch_size, device=device)
 
         lm_not_done = torch.full([batch_size], fill_value=True, dtype=torch.bool, device=device)
-        # max_iter = self.state_order[states].max().item()
-        # for _ in range(max_iter):
         while lm_not_done.any():
             start = self.state_start_arcs[current_states]
             indices = start[:, None] + all_labels[None, :]
@@ -533,25 +507,14 @@ class FastNGramLM(nn.Module):
             mask &= lm_not_done[:, None]
             mask_flat = mask.view(-1)
             indices_flat = indices.view(-1)
-
-            # scores_add = torch.zeros_like(scores)
-            # new_states_add = torch.full_like(new_states, fill_value=-1)
-            # scores_add[batch_indices.repeat_interleave(self.vocab_size)[mask_flat], \
-            # self.ilabels[indices_flat][mask_flat]] = self.arcs_weights[indices_flat][mask_flat]
-            # new_states_add[batch_indices.repeat_interleave(self.vocab_size)[mask_flat], \
-            # self.ilabels[indices_flat][mask_flat]] = self.to_states[indices_flat][mask_flat]
             scores_add = torch.zeros([batch_size, self.vocab_size + 1], device=device, dtype=out_scores.dtype)
             out_states_add = torch.full(
                 [batch_size, self.vocab_size + 1], fill_value=-1, device=device, dtype=torch.long
             )
             ilabels = self.ilabels[indices_flat] * mask_flat + ~mask_flat * self.vocab_size
-            # todo: is this UB or not?
             scores_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.arcs_weights[indices_flat]
             out_states_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.to_states[indices_flat]
-
-            # scores[~state_found] += scores_add[~state_found]
             torch.where(state_found, out_scores, out_scores + scores_add[:, : self.vocab_size], out=out_scores)
-            # new_states[~state_found] = new_states_add[~state_found]
             torch.where(state_found, out_states, out_states_add[:, : self.vocab_size], out=out_states)
             state_found = out_states != -1
             lm_not_done &= current_states != self.START_STATE
