@@ -68,7 +68,7 @@ class ConvolutionLayer(torch.nn.Module):
 
 
 class PositionwiseConvFF(nn.Module):
-    def __init__(self, d_model, d_ffn, p_dropout, kernel_size=1, bias=False, is_causal=True, non_linearity="gelu"):
+    def __init__(self, d_model, d_ffn, p_dropout, kernel_size=1, bias=False, is_causal=True, non_linearity=nn.GELU(approximate="tanh")):
         """
         Class used to replace the MLP layer in transformers.
         Module will take the input with d_model hidden state, project it to d_ffn hidden dimension, perform nonlinear
@@ -78,12 +78,7 @@ class PositionwiseConvFF(nn.Module):
         super(PositionwiseConvFF, self).__init__()
         # d_ffn is usually 4*d_model
         self.d_model = d_model
-        if non_linearity == "gelu":
-            self.non_linearity = nn.GELU(approximate="tanh")
-        elif non_linearity == "relu":
-            self.non_linearity = nn.ReLU()
-        elif non_linearity == "leaky_relu":
-            self.non_linearity = nn.LeakyReLU()
+        self.non_linearity = non_linearity
 
         self.proj = ConvolutionLayer(d_model, d_ffn, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
         self.o_net = ConvolutionLayer(d_ffn, d_model, bias=bias, kernel_size=kernel_size, is_causal=is_causal)
@@ -382,7 +377,7 @@ class TransformerLayer(nn.Module):
         deterministic=False,
         pos_emb={"name": "learnable"},
         max_length_causal_mask=4096,
-        conv_non_linearity="gelu",
+        conv_non_linearity=nn.GELU(approximate="tanh"),
     ):
         super(TransformerLayer, self).__init__()
         """
@@ -549,7 +544,7 @@ class Transformer(nn.Module):
         deterministic=False,
         pos_emb={"name": "learnable"},
         max_length_causal_mask=4096,
-        conv_non_linearity="gelu",
+        conv_non_linearity=nn.GELU(approximate="tanh"),
     ):
         """
         Initializes a stack of transformer layers. Can be used for both encoder and decoder.
@@ -578,7 +573,7 @@ class Transformer(nn.Module):
             pos_emb <dict>: Positional embedding parameters (Dict with keys "name" and "base" for rope, base ignored
                 for learnable)
             max_length_causal_mask <int>: Maximum length of causal mask
-            conv_non_linearity <str>: Convolution non-linearity ("gelu", "relu", "leaky_relu")
+            conv_non_linearity <Callable>: Convolution non-linearity
         """
         super(Transformer, self).__init__()
         self.dropout = nn.Dropout(p_dropout)
