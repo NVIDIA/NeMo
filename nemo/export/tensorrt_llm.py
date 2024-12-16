@@ -395,7 +395,7 @@ class TensorRTLLM(ITritonDeployable):
                     }
 
                     activation = model_configs.get('activation', "gelu")
-                    if activation == "openai-gelu" and input_model_type == 'gemma':
+                    if activation == "openai-gelu" and input_model_type.name == 'gemma':
                         activation = "geglu"
 
                     trtllm_helper = TRTLLMHelper(
