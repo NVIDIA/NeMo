@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from nemo.collections.common.parts.preprocessing import manifest, parsers
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path 
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, logging_mode
 
 
@@ -1533,10 +1533,10 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
     def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
         """Parse each rttm file and save it to in Dict format"""
         item = json.loads(line)
-       
+
         if 'offset' not in item or item['offset'] is None:
             item['offset'] = 0
-        
+
         # If the name `audio_file` is not present in the manifest file, replace it.
         if 'audio_filename' in item:
             item['audio_file'] = item.pop('audio_filename')
@@ -1546,7 +1546,7 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
-        
+
         # Audio file handling
         if isinstance(item['audio_file'], list):
             audio_file_list = []
@@ -1554,9 +1554,7 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
                 if not os.path.exists(single_audio_file):
                     raise FileNotFoundError(f"Audio file not found: {single_audio_file}")
                 else:
-                    audio_file_list.append(get_full_path(audio_file=ingle_audio_file, 
-                                                         manifest_file=manifest_file
-                    ))
+                    audio_file_list.append(get_full_path(audio_file=ingle_audio_file, manifest_file=manifest_file))
             item['audio_file'] = audio_file_list
         else:
             if not os.path.exists(item['audio_file']):
@@ -1574,7 +1572,6 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper RTTM file key."
             )
 
-
         # RTTM file handling
         if 'rttm_file' not in item:
             item['rttm_file'] = None
@@ -1583,7 +1580,7 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
                 raise FileNotFoundError(f"RTTM file not found: {item['rttm_file']}")
             else:
                 item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
-            
+
         # Handling `uniq_id` string
         if 'uniq_id' not in item:
             item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
@@ -1592,7 +1589,7 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
 
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
-        
+
         item = dict(
             audio_file=item['audio_file'],
             uniq_id=item['uniq_id'],
