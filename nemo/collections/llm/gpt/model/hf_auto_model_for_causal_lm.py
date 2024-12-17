@@ -26,7 +26,7 @@ from nemo.utils import logging
 def masked_cross_entropy(logits, targets, mask=None):
     if mask is not None:
         loss = F.cross_entropy(logits, targets, reduction='none')
-        return torch.mean(loss * mask)
+        return torch.mean(loss * mask.view(-1))
     else:
         return F.cross_entropy(logits, targets)
 
@@ -103,8 +103,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
+        # GPTSFTDataset emits `tokens` instead of `input_ids`
+        if not 'input_ids' in batch and 'tokens' in batch:
+            batch['input_ids'] = batch['tokens']
+        batch = self._remove_extra_batch_keys(batch)
+
         outputs = self.forward(batch)
 
+        # Prepare for loss calculation
         logits = outputs.logits.float()
         n_cls = logits.shape[-1]
         logits = logits.view(-1, n_cls)
@@ -120,6 +126,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
+        # GPTSFTDataset emits `tokens` instead of `input_ids`
+        if not 'input_ids' in batch and 'tokens' in batch:
+            batch['input_ids'] = batch['tokens']
+        batch = self._remove_extra_batch_keys(batch)
+
         outputs = self.forward(**batch)
 
         logits = outputs.logits.float()
@@ -129,7 +140,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path):
@@ -139,3 +149,18 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self._tokenizer.save_pretrained(path)
         else:
             logging.warning("A tokenizer wasn't created before to save.")
+
+    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
+        """Remove extra keys from batch that are not kwargs in model's forward
+
+        Args:
+            batch (dict): dictionary of tensors.
+
+        Returns:
+            dict: dictionary of tensors; keys that are not in model's forward are removed.
+        """
+        import inspect
+
+        fwd_signature = inspect.signature(self.model.forward)
+        allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
+        return {k: batch[k] for k in allowed_keys if k in batch}
