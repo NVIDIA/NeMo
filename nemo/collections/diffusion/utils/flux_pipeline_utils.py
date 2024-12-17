@@ -38,6 +38,8 @@ configs = {
             patch_size=1,
             guidance_embed=True,
             vec_in_dim=768,
+            ckpt_path=None,
+            convert_from_hf=None
         ),
         vae_params=AutoEncoderParams(
             ch_mult=[1, 2, 4, 4],

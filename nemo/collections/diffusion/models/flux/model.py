@@ -25,6 +25,8 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
 from torch import nn
 from torch.nn import functional as F
+from safetensors.torch import load_file as load_safetensors
+from safetensors.torch import save_file as save_safetensors
 
 from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
@@ -91,6 +93,8 @@ class FluxConfig(TransformerConfig, io.IOMixin):
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step
+    ckpt_path: Optional[str] = None
+    convert_from_hf: bool = False
 
     def configure_model(self):
         model = Flux(config=self)
@@ -155,6 +159,9 @@ class Flux(VisionModule):
 
         self.norm_out = AdaLNContinuous(config=config, conditioning_embedding_dim=self.hidden_size)
         self.proj_out = nn.Linear(self.hidden_size, self.patch_size * self.patch_size * self.out_channels, bias=True)
+        if self.config.ckpt_path is not None:
+            self.load_from_pretrained(self.config.ckpt_path, do_convert_from_hf=self.config.convert_from_hf)
+
 
     def forward(
         self,
@@ -220,23 +227,42 @@ class Flux(VisionModule):
 
         return output
 
+    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None):
+        if do_convert_from_hf:
+            ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
+            if save_converted_model_to is not None:
+                save_path = os.path.join(save_converted_model_to, 'nemo_flux_transformer.safetensors')
+                save_safetensors(ckpt, save_path)
+                logging.info(f'saving converted transformer checkpoint to {save_path}')
+        else:
+            ckpt = load_safetensors(ckpt_path)
+        missing, unexpected = self.load_state_dict(ckpt, strict=False)
+        missing = [
+            k for k in missing if not k.endswith('_extra_state')
+        ]
+        # These keys are mcore specific and should not affect the model performance
+        if len(missing) > 0:
+            logging.info(
+                f"The following keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+            )
+            logging.info(f"Found unexepected keys: \n {unexpected}")
 
 class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
-        config: FluxModelParams,
+        params: FluxModelParams,
         optim: Optional[OptimizerModule] = None,
     ):
-
-        self.config = config.flux_params
+        self.params = params
+        self.config = params.flux_params
         super().__init__()
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
-        self.vae_params = config.vae_params
-        self.clip_params = config.clip_params
-        self.t5_params = config.t5_params
-        self.scheduler_params = config.scheduler_params
+        self.vae_params = self.params.vae_params
+        self.clip_params = self.params.clip_params
+        self.t5_params = self.params.t5_params
+        self.scheduler_params = self.params.scheduler_params
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=False))
         self.optim.connect(self)
         self.model_type = ModelType.encoder_or_decoder

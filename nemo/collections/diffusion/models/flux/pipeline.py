@@ -52,7 +52,7 @@ class FluxInferencePipeline(nn.Module):
         self.t5_encoder = FrozenT5Embedder(**params.t5_params) if t5 is None else t5
         self.transformer = Flux(params.flux_params).to(self.device).eval() if flux is None else flux
         self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
-        self.scheduler = FlowMatchEulerDiscreteScheduler(**params.scheduler_params) if scheduler is None else scheduler
+        self.scheduler = FlowMatchEulerDiscreteScheduler(**params.scheduler_params)
         self.params = params
 
     def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None):

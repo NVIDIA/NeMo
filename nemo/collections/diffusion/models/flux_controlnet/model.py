@@ -215,7 +215,7 @@ class FluxControlNet(VisionModule):
 
 
 class FluxControlnetForwardWrapper(VisionModule):
-    def __init__(self, flux_config: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
+    def __init__(self, flux_config: FluxConfig, flux_controlnet_config: FluxControlNetConfig):
         super().__init__(flux_config)
 
         self.flux = self.config.configure_model()
@@ -228,8 +228,8 @@ class FluxControlnetForwardWrapper(VisionModule):
 
 
 class MegatronFluxControlNetModel(MegatronFluxModel):
-    def __init__(self, flux_config: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
-        super().__init__(flux_config)
+    def __init__(self, flux_params: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
+        super().__init__(flux_params)
         self.flux_controlnet_config = flux_controlnet_config
         self.optim.connect(self)
 
@@ -335,14 +335,16 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             return loss
 
     def validation_step(self, batch, batch_idx=None):
+        print("Start validation step")
+        from nemo.collections.diffusion.models.flux.pipeline import FluxControlNetInferencePipeline
         pipe = FluxControlNetInferencePipeline(
-            params=self.flux_config,
+            params=self.params,
             contorlnet_config=self.flux_controlnet_config,
             flux=self.module.module.module.flux,
             vae=self.vae,
             t5=self.t5,
             clip=self.clip,
-            scheduler=self.scheduler,
+            scheduler=self.params.scheduler_params,
             flux_controlnet=self.module.module.module.flux_controlnet,
         )
 
@@ -356,11 +358,12 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 control_image=control_latents,
                 prompt_embeds=prompt_embeds,
                 pooled_prompt_embeds=pooled_prompt_embeds,
-                height=latents.shape[1] * self.vae_scale_factor,
-                width=latents.shape[2] * self.vae_scale_factor,
+                height=latents.shape[2] * self.vae_scale_factor,
+                width=latents.shape[3] * self.vae_scale_factor,
                 num_inference_steps=30,
                 num_images_per_prompt=1,
                 guidance_scale=7.0,
+                dtype=self.autocast_dtype
             )
         elif not (self.image_precached or self.text_precached):
             img = batch['images'].cuda(non_blocking=True)
@@ -368,11 +371,14 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             text = batch['txt']
             log_image = pipe(
                 text,
+                control_image=hint,
                 num_inference_steps=30,
                 num_images_per_prompt=1,
-                height=img.shape[1],
-                width=img.shape[2],
-                guidance_scale=7.0
+                height=img.shape[2],
+                width=img.shape[3],
+                guidance_scale=7.0,
+                dtype=self.autocast_dtype
             )
+        return torch.tensor([0.0], device=torch.cuda.current_device())
 
 

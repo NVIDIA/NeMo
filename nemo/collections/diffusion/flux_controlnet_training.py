@@ -61,6 +61,7 @@ def main(args):
             global_batch_size=args.gbs,
             num_workers=23,
             task_encoder=RawImageDiffusionTaskEncoder(),
+            use_train_split_for_val=True,
         )
 
     # Optimizer and scheduler setup
@@ -77,6 +78,8 @@ def main(args):
     model_params.t5_params['version'] = '/ckpts/text_encoder_2'
     model_params.clip_params['version'] = '/ckpts/text_encoder'
     model_params.vae_params.ckpt = '/ckpts/ae.safetensors'
+    model_params.device = 'cuda'
+    model_params.flux_params.ckpt_path = '/ckpts/transformer/nemo_flux_transformer.safetensors'
 
     if args.image_precached:
         model_params.vae_params = None
