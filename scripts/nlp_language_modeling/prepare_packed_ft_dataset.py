@@ -50,6 +50,16 @@ python scripts/nlp_language_modeling/prepare_packed_ft_dataset.py \
    +output_dir=/path/to/output_folder \
    +pack_sizes=[2048,4096,8192]
    
+when using context parallelism (CP) with packed dataset, CP size needs to be set in the command:
+
+python scripts/nlp_language_modeling/prepare_packed_ft_dataset.py \
+    model.data.train_ds.file_names=[/path/to/training.jsonl] \
+    model.data.train_ds.max_seq_length=4096 \
+    ++model.context_parallel_size=2 \
+    +tokenizer_path=<see note 1 below> \
+    +output_dir=/path/to/output_folder \
+    +pack_sizes=[4096]
+
 Note: 
   - Tokenizer path supports SentencePiece tokenizer and HF tokenizer. 
     For SentencePiece tokenizer, specify the file /path/to/tokenizer.model 
@@ -62,6 +72,10 @@ Note:
   - ``model.data.train_ds.max_seq_length`` is the length to truncate each sequence before packing multiple sequences
     to the size of packed sequence (``pack_size``). ``max_seq_length`` should be set to the same value as unpacked data,
     and can be determined by examining the distribution of sequence lengths in the dataset.
+
+  - ``model.context_parallel_size`` is the CP size the model uses in SFT. The default value is 1 (no context parallelism)
+    if not specified. This argument is necessary to make each individual sequence length in a packed sequence a multiple of CP*2
+    when CP is enabled in SFT.
 
   - ``pack_sizes`` is a list of packed sequence lengths. In this example, there will be three output files, one for
     each pack size. The output files are named ``<output_folder>/packed_{pack_size}_seed{seed}.npy``.
@@ -131,6 +145,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
 
     max_seq_length = dataset.max_seq_length
     pad_id = dataset.tokenizer.eos_id
+    tokenizer = dataset.tokenizer
     pad_seq_length_to_mult = dataset.pad_seq_length_to_mult
     dataset = np.array([dataset[i] for i in range(len(dataset))])
     if cp_size > 1:
@@ -162,7 +177,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
         for data in dataset:
             max_length_to_pad = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
             pre_pad_dataset(data, max_seq_length, max_length_to_pad, pad_id)
-    return dataset
+    return dataset, tokenizer
 
 
 @dataclass
@@ -187,11 +202,11 @@ class PackingArgs:
 )
 def main(cfg: 'DictConfig') -> None:
     args = PackingArgs().from_config(cfg)
-    dataset = tokenize_dataset(cfg)
+    dataset, tokenizer = tokenize_dataset(cfg)
     sequences, histogram = create_hist(dataset, cfg.model.data.train_ds.max_seq_length)
     for pack_size in args.pack_sizes:
         assignments = create_packing_strategy(histogram, pack_size, args.packing_algorithm)
-        output_data = fill_packing_strategy(assignments, sequences, pack_size)
+        output_data = fill_packing_strategy(assignments, sequences, pack_size, tokenizer.eos_id)
 
         # save output data
         os.makedirs(args.output_dir, exist_ok=True)
