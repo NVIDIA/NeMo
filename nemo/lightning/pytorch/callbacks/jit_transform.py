@@ -88,11 +88,25 @@ def compile_module(config, module):
 
 @dataclass
 class JitConfig:
+    """Config POD for Jit transforms (e.g. torch.compile or thunder)
+    Options:
+    - module_selector (str): reg-exp to match modules to apply JitTransform to, useful for multi-trunk
+      models where you want to apply it on one of them only. If empty will apply transform to root
+      module.
+    - use_torch (bool): whether to use torch.compile or not.
+    - torch_kwargs (dict): kwargs to pass to torch.compile.
+    - use_thunder (bool): whether to use thunder or not.
+    - profile_thunder (bool): toggle for thunder's profiler.
+    """
     module_selector: str = ''
     use_torch: bool = False
     torch_kwargs: dict = field(default_factory=dict)
     use_thunder: bool = False
     profile_thunder: bool = False
+
+    def __post_init__(self):
+        assert not (self.use_torch and self.use_thunder), \
+            "use_torch cannot be used at the same time with use_thunder"
 
 
 class JitTransform(Callback, IOMixin):
