@@ -24,7 +24,7 @@ https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit
 
 Usage for diarization inference:
 
-The end-to-end speaker diarization model can be specified by either "model_path" or "pretrained_name".
+The end-to-end speaker diarization model can be specified by "model_path".
 Data for diarization is fed through the "dataset_manifest".
 By default, post-processing is bypassed, and only binarization is performed.
 If you want to reproduce DER scores reported on NeMo model cards, you need to apply post-processing steps.
@@ -71,8 +71,6 @@ class DiarizationConfig:
     """Diarization configuration parameters for inference."""
 
     model_path: Optional[str] = None  # Path to a .nemo file
-    pretrained_name: Optional[str] = None  # Name of a pretrained model
-    audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
 
     postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
@@ -299,10 +297,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     if cfg.random_seed:
         pl.seed_everything(cfg.random_seed)
 
-    if cfg.model_path is None and cfg.pretrained_name is None:
-        raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
-    if cfg.audio_dir is None and cfg.dataset_manifest is None:
-        raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
+    if cfg.model_path is None:
+        raise ValueError("cfg.model_path cannot be None. Please specify the path to the model.")
 
     # setup GPU
     torch.set_float32_matmul_precision(cfg.matmul_precision)
@@ -337,6 +333,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
     infer_audio_rttm_dict = audio_rttm_map(cfg.dataset_manifest)
     diar_model._cfg.test_ds.batch_size = cfg.batch_size
+    diar_model._cfg.test_ds.pin_memory = False
 
     # Model setup for inference
     diar_model._cfg.test_ds.num_workers = cfg.num_workers
