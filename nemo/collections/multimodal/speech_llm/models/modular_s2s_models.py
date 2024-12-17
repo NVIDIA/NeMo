@@ -1138,8 +1138,25 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     dim=0,
                 )
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
-            # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
-            all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
+
+            if getattr(self.cfg, 'speech_delay', False):
+                text_len, text_vocab = sliced_text_channel.shape
+                speech_len, speech_vocab = answer_codec.shape
+                assert text_len == speech_len
+                speech_pad_id = self.cfg.data.train_ds.speech_unk_id
+                text_pad_id = self.tokenizer.eos_id
+                answer_codec_padded = torch.full((self.cfg.speech_delay, speech_vocab),
+                                                    speech_pad_id, device=answer_codec.device)
+                answer_codec_shifted = torch.cat([answer_codec_padded, answer_codec], dim=0)[:speech_len, :]
+                sliced_text_channel_padded = torch.full((self.cfg.speech_delay, text_vocab),
+                                                        text_pad_id, device=sliced_text_channel.device)
+                sliced_text_channel_extended = torch.cat([sliced_text_channel, sliced_text_channel_padded], dim=0)[:speech_len, :]
+                combined_channels = torch.cat([sliced_text_channel_extended, answer_codec_shifted], dim=-1)
+                all_channels.append(combined_channels)
+            else:    
+                # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
+                all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
+
             if loss_mask is not None:
                 cur_loss_mask = torch.cat(
                     [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
