@@ -14,7 +14,6 @@
 import json
 import os
 import tempfile
-from nemo.utils import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -25,13 +24,12 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get_audio_rttm_map
-from nemo.collections.asr.parts.utils.speaker_utils import get_uniqname_from_filepath
+from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
+from nemo.collections.asr.parts.utils.vad_utils import PostProcessingParams, load_postprocessing_from_yaml
 from nemo.collections.common.data.utils import move_data_to_device
+from nemo.utils import logging
 
-TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
-GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
+GenericDiarizationType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]]]
 
 
 @dataclass
@@ -44,6 +42,10 @@ class InternalDiarizeConfig:
     training_mode: bool = False
     logging_level: Optional[Any] = None
 
+    # Preprocessor values
+    dither_value: float = 0.0
+    pad_to_value: int = 0
+
     # Scratch space
     temp_dir: Optional[str] = None
     manifest_filepath: Optional[str] = None
@@ -51,39 +53,16 @@ class InternalDiarizeConfig:
 
 @dataclass
 class DiarizeConfig:
-    """Diarization configuration parameters for inference."""
-
-    model_path: Optional[str] = None  # Path to a .nemo file
-    pretrained_name: Optional[str] = None  # Name of a pretrained model
-    audio_dir: Optional[str] = None  # Path to a directory which contains audio files
-    dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
-
-    postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
-    no_der: bool = False
-    out_rttm_dir: Optional[str] = None
-
-    # General configs
-    session_len_sec: float = 600  # End-to-end diarization session length limit in seconds
+    session_len_sec: float = -1  # End-to-end diarization session length limit in seconds
     batch_size: int = 1
-    num_workers: int = 2
-    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
-    bypass_postprocessing: bool = True  # If True, postprocessing will be bypassed
-
-    channel_selector: ChannelSelectorType = None
-    augmentor: Optional[DictConfig] = None
-    # timestamps: Optional[bool] = None
+    num_workers: int = 1
+    postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
     verbose: bool = True
+    include_tensor_outputs: bool = False
+    postprocessing_params: PostProcessingParams = None
 
     # Utility
-    partial_hypothesis: Optional[List[Any]] = None
     _internal: Optional[InternalDiarizeConfig] = None
-
-    # Eval Settings: (0.25, False) should be default setting for sortformer eval.
-    collar: float = 0.25  # Collar in seconds for DER calculation
-    ignore_overlap: bool = False  # If True, DER will be calculated only for non-overlapping segments
-
-    # If `cuda` is a negative number, inference will be on CPU only.
-    cuda: Optional[int] = None
 
 
 def get_value_from_diarization_config(diarcfg, key, default):
@@ -110,37 +89,57 @@ def get_value_from_diarization_config(diarcfg, key, default):
 
 
 class SpkDiarizationMixin(ABC):
-    """Mixin class for speaker diarization inference with various input types."""
+    """
+    An abstract class for diarize-able models.
 
-    @abstractmethod
-    # def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
+    Creates a template function `diarize()` that provides an interface to perform transcription of audio tensors or
+    filepaths.
+
+    The following abstract classes must be implemented by the subclass:
+
+        - `_setup_diarize_dataloader()`:
+            Setup the dataloader for diarization. Receives the output from
+            `_diarize_input_manifest_processing()`.
+
+        - `_diarize_forward()`:
+            Implements the model's custom forward pass to return outputs that are processed by
+            `_diarize_output_processing()`.
+
+        - `_diarize_output_processing()`:
+            Implements the post processing of the model's outputs to return the results to
+            the user. The result can be a list of objects, list of list of objects, tuple of objects, tuple of list of
+            objects, or a dict of list of objects.
+
+    """
 
     def __init__(self):
         self._diarize_audio_rttm_map = {}
 
+    @torch.inference_mode()
     def diarize(
         self,
         audio: Union[str, List[str], np.ndarray, DataLoader],
         batch_size: int = 1,
+        include_tensor_outputs: bool = False,
+        postprocessing_yaml: Optional[str] = None,
         num_workers: int = 1,
         verbose: bool = False,
         override_config: Optional[DiarizeConfig] = None,
         **config_kwargs,
-    ) -> List[str]:
+    ) -> GenericDiarizationType:
         """
         Takes paths to audio files and returns speaker labels
-        Args:
-            paths2audio_files: paths to audio fragment to be transcribed
-
-        Returns:
-            Speaker labels
         """
 
         if override_config is None:
+            postprocessing_params = load_postprocessing_from_yaml(postprocessing_yaml)
             diarize_cfg = DiarizeConfig(
                 batch_size=batch_size,
                 num_workers=num_workers,
                 verbose=verbose,
+                include_tensor_outputs=include_tensor_outputs,
+                postprocessing_yaml=postprocessing_yaml,
+                postprocessing_params=postprocessing_params,
                 **config_kwargs,
             )
         else:
@@ -166,30 +165,39 @@ class SpkDiarizationMixin(ABC):
                 )
 
         # Hold the results here
-        results = None  # type: GenericTranscriptionType
+        results = None
 
         try:
             generator = self.diarize_generator(audio, override_config=diarize_cfg)
 
             for processed_outputs in generator:
                 # Store results
+                if isinstance(processed_outputs, list):
+                    # Create a results of the same type as each element in processed_outputs
+                    if results is None:
+                        results = []
 
-                # Create a results of the same type as each element in processed_outputs
-                if results is None:
-                    results = []
-
-                    # if list of inner list of results, copy structure
-                    if isinstance(processed_outputs[0], list):
-                        for _ in processed_outputs:
-                            results.append([])
-
-                # If nested list structure
-                if isinstance(processed_outputs[0], list):
-                    for i, processed_output in enumerate(processed_outputs):
-                        results[i].extend(processed_output)
-                else:
-                    # If flat list structure
                     results.extend(processed_outputs)
+
+                elif isinstance(processed_outputs, tuple):
+                    # Create a results of the same type as each element in processed_outputs
+                    if results is None:
+                        results = tuple([[] for _ in processed_outputs])
+
+                    # If nested list structure
+                    if isinstance(processed_outputs[0], list):
+                        for i, processed_output in enumerate(processed_outputs):
+                            results[i].extend(processed_output)
+                    else:
+                        # If flat list structure
+                        if len(processed_outputs) != len(results):
+                            raise RuntimeError(
+                                f"The number of elements in the result ({len(results)}) does not "
+                                f"match the results of the current batch ({len(processed_outputs)})."
+                            )
+
+                        for i, processed_output in enumerate(processed_outputs):
+                            results[i].append(processed_output)
 
         except StopIteration:
             pass
@@ -220,36 +228,47 @@ class SpkDiarizationMixin(ABC):
                 )
 
         diarize_cfg = override_config
-        # Initialize and assert the diarization environment
-        self._diarize_on_begin(audio, diarize_cfg)
 
-        # Work in tmp directory - will store manifest file there
-        with tempfile.TemporaryDirectory() as tmpdir:
-            diarize_cfg._internal.temp_dir = tmpdir
+        try:
+            # Initialize and assert the diarization environment
+            self._diarize_on_begin(audio, diarize_cfg)
 
-            # Create a DataLoader if not already present
-            if not isinstance(audio, DataLoader):
-                dataloader = self._diarize_input_processing(audio, diarize_cfg)
-            else:
-                dataloader = audio
+            # Work in tmp directory - will store manifest file there
+            with tempfile.TemporaryDirectory() as tmpdir:
+                diarize_cfg._internal.temp_dir = tmpdir
 
-            if hasattr(diarize_cfg, 'verbose'):
-                verbose = diarize_cfg.verbose
-            else:
-                verbose = True
+                # Create a DataLoader if not already present
+                if not isinstance(audio, DataLoader):
+                    dataloader = self._diarize_input_processing(audio, diarize_cfg)
+                else:
+                    dataloader = audio
 
-            for test_batch in tqdm(dataloader, desc="Diarizing", disable=not verbose):
-                # Move batch to device
-                test_batch = move_data_to_device(test_batch, diarize_cfg._internal.device)
-                # Run forward pass
-                pred_outputs = self._diarize_forward(test_batch)
+                if hasattr(diarize_cfg, 'verbose'):
+                    verbose = diarize_cfg.verbose
+                else:
+                    verbose = True
 
-                # Yield results if generator
-                yield pred_outputs
+                for batch_idx, test_batch in enumerate(tqdm(dataloader, desc="Diarizing", disable=not verbose)):
+                    # Move batch to device
+                    test_batch = move_data_to_device(test_batch, diarize_cfg._internal.device)
+                    uniq_ids = list(self._diarize_audio_rttm_map.keys())[
+                        batch_idx * diarize_cfg.batch_size : (batch_idx + 1) * diarize_cfg.batch_size
+                    ]
 
-                # clear up memory
-                del test_batch, pred_outputs
-                torch.cuda.empty_cache()
+                    # Run forward pass
+                    pred_outputs = self._diarize_forward(test_batch)
+                    processed_outputs = self._diarize_output_processing(pred_outputs, uniq_ids, diarize_cfg)
+
+                    # Yield results if generator
+                    yield processed_outputs
+
+                    # clear up memory
+                    del test_batch, pred_outputs, processed_outputs
+                    torch.cuda.empty_cache()
+
+        finally:
+            # set mode back to its original value
+            self._diarize_on_end(diarize_cfg)
 
     def _input_audio_to_rttm_processing(self, audio_files: List[str]) -> List[Dict[str, Union[str, float]]]:
         """
@@ -280,12 +299,12 @@ class SpkDiarizationMixin(ABC):
         Internal function to setup the model for diarization. Perform all setup and pre-checks here.
 
         Args:
-            audio: Of type `GenericdiarizationType`
+            audio: Of type `GenericDiarizationType`
         """
         if audio is None:
             return {}
 
-        if isinstance(audio, (str, np.ndarray, torch.Tensor)):
+        if isinstance(audio, str):
             audio = [audio]
 
         if isinstance(audio, list) and len(audio) == 0:
@@ -295,7 +314,7 @@ class SpkDiarizationMixin(ABC):
         num_workers = get_value_from_diarization_config(diarcfg, 'num_workers', default=1)
 
         if num_workers is None:
-            _batch_size = get_value_from_diarization_config(diarcfg, 'batch_size', default=4)
+            _batch_size = get_value_from_diarization_config(diarcfg, 'batch_size', default=1)
             num_workers = min(_batch_size, os.cpu_count() - 1)
 
         # Assign num_workers if available as key in diarcfg
@@ -304,6 +323,16 @@ class SpkDiarizationMixin(ABC):
 
         # Model's mode and device
         diarcfg._internal.training_mode = self.training
+
+        # Switch model to evaluation mode
+        if hasattr(self, 'preprocessor'):
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+                diarcfg._internal.dither_value = self.preprocessor.featurizer.dither
+                self.preprocessor.featurizer.dither = 0.0
+
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+                diarcfg._internal.pad_to_value = self.preprocessor.featurizer.pad_to
+                self.preprocessor.featurizer.pad_to = 0
 
         # Switch model to evaluation mode
         self.eval()
@@ -315,10 +344,10 @@ class SpkDiarizationMixin(ABC):
     def _diarize_input_processing(self, audio, diarcfg: DiarizeConfig):
         """
         Internal function to process the input audio data and return a DataLoader. This function is called by
-        `transcribe()` and `diarize_generator()` to setup the input data for diarization.
+        `diarize()` and `diarize_generator()` to setup the input data for diarization.
 
         Args:
-            audio: Of type `GenericdiarizationType`
+            audio: Of type `GenericDiarizationType`
             diarcfg: The diarization config dataclass. Subclasses can change this to a different dataclass if needed.
 
         Returns:
@@ -336,7 +365,7 @@ class SpkDiarizationMixin(ABC):
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
                 # Assume it is a path to a manifest file
                 diarcfg._internal.manifest_filepath = audio[0]
-                self._diarize_audio_rttm_map = get_audio_rttm_map(audio[0])
+                self._diarize_audio_rttm_map = audio_rttm_map(audio[0])
                 audio_files = []
                 for uniq_id, meta_dict in self._diarize_audio_rttm_map.items():
                     audio_files.append(meta_dict['audio_filepath'])
@@ -353,9 +382,7 @@ class SpkDiarizationMixin(ABC):
 
         else:
             raise ValueError(
-                f"Input `audio` is of type {type(audio[0])}. "
-                "Only `str` (path to audio file), `np.ndarray`, and `torch.Tensor` "
-                "are supported as input."
+                f"Input `audio` is of type {type(audio[0])}. " "Only `str` (path to audio file) is supported as input."
             )
 
     def _diarize_input_manifest_processing(
@@ -363,15 +390,14 @@ class SpkDiarizationMixin(ABC):
     ) -> Dict[str, Any]:
         """
         Internal function to process the input audio filepaths and return a config dict for the dataloader.
-        Specializes to ASR models which can have Encoder-Decoder-Joint architectures.
 
         Args:
             audio_files: A list of string filepaths for audio files.
             temp_dir: A temporary directory to store intermediate files.
-            diarcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+            diarcfg: The diarization config dataclass. Subclasses can change this to a different dataclass if needed.
 
         Returns:
-            A config dict that is used to setup the dataloader for transcription.
+            A config dict that is used to setup the dataloader for diarization.
         """
         with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_files:
@@ -392,19 +418,19 @@ class SpkDiarizationMixin(ABC):
             'temp_dir': temp_dir,
             'session_len_sec': get_value_from_diarization_config(diarcfg, 'session_len_sec', diarcfg.session_len_sec),
             'num_workers': get_value_from_diarization_config(diarcfg, 'num_workers', 1),
-            'channel_selector': get_value_from_diarization_config(diarcfg, 'channel_selector', None),
         }
+
         return ds_config
 
     @abstractmethod
     def _setup_diarize_dataloader(self, config: Dict) -> DataLoader:
         """
-        Internal function to setup the dataloader for transcription. This function is called by
-        `transcribe()` and `diarize_generator()` to setup the input data for transcription.
+        Internal function to setup the dataloader for diarization. This function is called by
+        `diarize()` and `diarize_generator()` to setup the input data for diarization.
 
         Args:
-            config: A config dict that is used to setup the dataloader for transcription. It can be generated either
-                by `_diarize_input_manifest_processing()` or `_diarize_input_tensor_processing()`.
+            config: A config dict that is used to setup the dataloader for diarization.
+                It can be generated by `_diarize_input_manifest_processing()`.
 
         Returns:
             A DataLoader object that is used to iterate over the input audio data.
@@ -416,13 +442,50 @@ class SpkDiarizationMixin(ABC):
         """
         Internal function to perform the model's custom forward pass to return outputs that are processed by
         `_diarize_output_processing()`.
-        This function is called by `transcribe()` and `diarize_generator()` to perform the model's forward pass.
+        This function is called by `diarize()` and `diarize_generator()` to perform the model's forward pass.
 
         Args:
             batch: A batch of input data from the data loader that is used to perform the model's forward pass.
-            diarcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
 
         Returns:
             The model's outputs that are processed by `_diarize_output_processing()`.
         """
         pass
+
+    @abstractmethod
+    def _diarize_output_processing(self, outputs, uniq_ids, diarcfg: DiarizeConfig) -> GenericDiarizationType:
+        """
+        Internal function to process the model's outputs to return the results to the user. This function is called by
+        `diarize()` and `diarize_generator()` to process the model's outputs.
+
+        Args:
+            outputs: The model's outputs that are processed by `_diarize_forward()`.
+            uniq_ids: List of unique recording identificators in batch
+            diarcfg: The diarization config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            The output can be a list of
+            objects, list of list of objects, tuple of objects, tuple of list of objects.
+            Its type is defined in `GenericDiarizationType`.
+        """
+        pass
+
+    def _diarize_on_end(self, diarcfg: DiarizeConfig):
+        """
+        Internal function to teardown the model after transcription. Perform all teardown and post-checks here.
+
+        Args:
+            diarcfg: The diarization config dataclass. Subclasses can change this to a different dataclass if needed.
+        """
+        # set mode back to its original value
+        self.train(mode=diarcfg._internal.training_mode)
+
+        if hasattr(self, 'preprocessor'):
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+                self.preprocessor.featurizer.dither = diarcfg._internal.dither_value
+
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+                self.preprocessor.featurizer.pad_to = diarcfg._internal.pad_to_value
+
+        if diarcfg._internal.logging_level is not None:
+            logging.set_verbosity(diarcfg._internal.logging_level)

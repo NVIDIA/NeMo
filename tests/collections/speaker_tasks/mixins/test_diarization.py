@@ -76,7 +76,6 @@ class DiarizableDummy(DummyModel, SpkDiarizationMixin):
             'temp_dir': temp_dir,
             'session_len_sec': diarcfg.session_len_sec,
             'num_workers': diarcfg.num_workers,
-            'channel_selector': diarcfg.channel_selector,
         }
         return ds_config
 
@@ -108,7 +107,7 @@ class DiarizableDummy(DummyModel, SpkDiarizationMixin):
         output = self(batch)
         return output
 
-    def _diarize_output_processing(self, outputs, diarcfg: DiarizeConfig):
+    def _diarize_output_processing(self, outputs, uniq_ids, diarcfg: DiarizeConfig):
         self.execution_count += 1
 
         result = []

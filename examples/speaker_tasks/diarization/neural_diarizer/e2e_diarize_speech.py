@@ -45,19 +45,21 @@ from typing import Dict, List, Optional, Union
 import lightning.pytorch as pl
 import optuna
 import torch
-import yaml
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models import SortformerEncLabelModel
-from nemo.collections.asr.models.sortformer_diar_models import PostProcessingParams
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_uniqname_from_filepath,
     timestamps_to_pyannote_object,
 )
-from nemo.collections.asr.parts.utils.vad_utils import predlist_to_timestamps
+from nemo.collections.asr.parts.utils.vad_utils import (
+    PostProcessingParams,
+    load_postprocessing_from_yaml,
+    predlist_to_timestamps,
+)
 from nemo.core.config import hydra_runner
 
 seed_everything(42)
@@ -99,36 +101,6 @@ class DiarizationConfig:
     optuna_storage: str = f"sqlite:///{optuna_study_name}.db"
     optuna_log_file: str = f"{optuna_study_name}.log"
     optuna_n_trials: int = 100000
-
-
-def load_postprocessing_from_yaml(postprocessing_yaml: PostProcessingParams = None) -> PostProcessingParams:
-    """
-    Load postprocessing parameters from a YAML file.
-
-    Args:
-        postprocessing_yaml (str):
-            Path to a YAML file for postprocessing configurations.
-
-    Returns:
-        postprocessing_params (dataclass):
-            Postprocessing parameters loaded from the YAML file.
-    """
-    # Add PostProcessingParams as a field
-    postprocessing_params = OmegaConf.structured(PostProcessingParams())
-    if postprocessing_yaml is None:
-        logging.info(
-            f"No postprocessing YAML file has been provided. Default postprocessing configurations will be applied."
-        )
-    else:
-        # Load postprocessing params from the provided YAML file
-        with open(postprocessing_yaml, 'r') as file:
-            yaml_params = yaml.safe_load(file)['parameters']
-            # Update the postprocessing_params with the loaded values
-            logging.info(f"Postprocessing YAML file '{postprocessing_yaml}' has been loaded.")
-            for key, value in yaml_params.items():
-                if hasattr(postprocessing_params, key):
-                    setattr(postprocessing_params, key, value)
-    return postprocessing_params
 
 
 def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optuna.Trial) -> PostProcessingParams:
