@@ -20,7 +20,6 @@ from torch.utils.data import DataLoader
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
-from nemo.lightning.pytorch.callbacks import ModelCallback
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
@@ -51,8 +50,7 @@ def squad(tokenizer) -> pl.LightningDataModule:
         },
     )
 
-
-if __name__ == '__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -93,11 +91,10 @@ if __name__ == '__main__':
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     tokenizer = model.tokenizer
 
+    callbacks = []
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
-    else:
-        callbacks = []
 
     llm.api.finetune(
         model=model,
@@ -128,3 +125,6 @@ if __name__ == '__main__':
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)
+
+if __name__ == '__main__':
+    main()

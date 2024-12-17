@@ -54,7 +54,7 @@ def make_squad_hf_dataset(tokenizer):
     return datamodule
 
 
-if __name__ == '__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -81,11 +81,10 @@ if __name__ == '__main__':
     use_dist_samp = False
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
 
+    callbacks = []
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
-    else:
-        callbacks = []
 
     llm.api.finetune(
         model=llm.HFAutoModelForCausalLM(args.model),
@@ -102,7 +101,7 @@ if __name__ == '__main__':
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
-            callbacks=[transform],
+            callbacks=callbacks,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
@@ -111,3 +110,6 @@ if __name__ == '__main__':
             dim=32,
         ),
     )
+
+if __name__ == '__main__':
+    main()
