@@ -462,7 +462,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         }
         return train_metrics
 
-    def training_step(self, batch: list) -> dict:
+    def training_step(self, batch: list, batch_idx: int) -> dict:
         """
         Performs a single training step.
 
@@ -472,6 +472,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 - audio_signal_length (torch.Tensor): The length of each audio signal in the batch.
                 - targets (torch.Tensor): The target labels for the batch.
                 - target_lens (torch.Tensor): The length of each target sequence in the batch.
+            batch_idx (int): The index of the current batch.
 
         Returns:
             (dict): A dictionary containing the 'loss' key with the calculated loss value.
@@ -529,7 +530,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         }
         return val_metrics
 
-    def validation_step(self, batch: list, dataloader_idx: int = 0):
+    def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
         """
         Performs a single validation step.
 
@@ -661,6 +662,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
         logging.info(f"Batch ATS F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_ats_list))}")
 
+    def on_validation_epoch_end(self) -> Optional[dict[str, dict[str, torch.Tensor]]]:
+        """Run validation with sync_dist=True."""
+        return super().on_validation_epoch_end(sync_metrics=True)
+
     @torch.no_grad()
     def diarize(
         self,
@@ -688,7 +693,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         Returns:
             *if include_tensor_outputs is False: A list of lists of speech segments with a corresponding speaker index,
                 in format "[begin_seconds, end_seconds, speaker_index]".
-            *if include_tensor_outputs is True: A tuple of the above list and list of tensors of raw speaker activity probabilities
+            *if include_tensor_outputs is True: A tuple of the above list
+                and list of tensors of raw speaker activity probabilities.
         """
         return super().diarize(
             audio=audio,
