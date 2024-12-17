@@ -514,6 +514,12 @@ def optimizer_sharded_state_dict(
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     from megatron.core import parallel_state
+    try:
+        from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+        use_custom_fsdp = True
+    except:
+        use_custom_fsdp = False
+        pass
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -550,6 +556,10 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key[len(to_remove) :]] = value
             else:
                 _state_dict[key] = value
+
+        if use_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
+            module.module.load_state_dict(_state_dict, strict=strict)
+            continue
 
         module.load_state_dict(_state_dict, strict=strict)
 
