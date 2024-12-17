@@ -430,7 +430,7 @@ class NevaDataset(LazySupervisedDataset):
         if packed_sequence:
             from megatron.core.packed_seq_params import PackedSeqParams
 
-            media_token = self.data_config.media_token
+            media_token_id = self.data_config.media_token.token_index
 
             tokens = []
             labels = []
@@ -439,11 +439,15 @@ class NevaDataset(LazySupervisedDataset):
             cu_seqlens = [0]
             cu_seqlens_padded = [0]
             for instance in instances:
-                seqlen = len(instance['tokens'])
-                seqlen_padded = seqlen  ## FIX
+                # Assume 1 tile per image
+                num_image_embeddings_per_tile = 576
+                num_images = torch.sum(instance['tokens'] == media_token_id)
+                seqlen = len(instance['tokens']) + (num_image_embeddings_per_tile - 1) * num_images
+                seqlen_padded = (seqlen - 1) // 8 * 8 + 8
                 pad_len = seqlen_padded - seqlen
-                instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
-                instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
+                if pad_len > 0:
+                    instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
+                    instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
                 tokens.append(instance['tokens'])
                 labels.append(instance['labels'])
                 position_ids.append(torch.arange(len(instance['tokens']), dtype=torch.int, device=instance['tokens'].device))
@@ -458,7 +462,7 @@ class NevaDataset(LazySupervisedDataset):
             attention_mask = None
 
             cu_seqlens = torch.IntTensor(cu_seqlens)
-            cu_seqlens_padded = None # torch.IntTensor(cu_seqlens_padded)
+            cu_seqlens_padded = torch.IntTensor(cu_seqlens_padded)
             qkv_format = 'thd'
             packed_seq_params = PackedSeqParams(
                 cu_seqlens_q=cu_seqlens,
