@@ -37,10 +37,9 @@ from nemo.lightning import (
     io,
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
-from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
+from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -325,7 +324,7 @@ def ptq(
 def deploy(
     nemo_checkpoint: Path = None,
     model_type: str = "llama",
-    triton_model_name: str = 'triton_model',
+    triton_model_name: str = "triton_model",
     triton_model_version: Optional[int] = 1,
     triton_port: int = 8000,
     triton_http_address: str = "0.0.0.0",
@@ -377,22 +376,22 @@ def deploy(
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token. Default: True.
     """
-    from nemo.collections.llm import deploy
+    from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
-    deploy.unset_environment_variables()
+    unset_environment_variables()
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
             return
         # Store triton ip, port and other args relevant for REST API as env vars to be accessible by rest_model_api.py
-        os.environ['TRITON_HTTP_ADDRESS'] = triton_http_address
-        os.environ['TRITON_PORT'] = str(triton_port)
-        os.environ['TRITON_REQUEST_TIMEOUT'] = str(triton_request_timeout)
-        os.environ['OPENAI_FORMAT_RESPONSE'] = str(openai_format_response)
-        os.environ['OUTPUT_GENERATION_LOGITS'] = str(output_generation_logits)
+        os.environ["TRITON_HTTP_ADDRESS"] = triton_http_address
+        os.environ["TRITON_PORT"] = str(triton_port)
+        os.environ["TRITON_REQUEST_TIMEOUT"] = str(triton_request_timeout)
+        os.environ["OPENAI_FORMAT_RESPONSE"] = str(openai_format_response)
+        os.environ["OUTPUT_GENERATION_LOGITS"] = str(output_generation_logits)
 
-    triton_deployable = deploy.get_trtllm_deployable(
+    triton_deployable = get_trtllm_deployable(
         nemo_checkpoint,
         model_type,
         triton_model_repository,
@@ -513,7 +512,7 @@ def evaluate(
     from nemo.collections.llm import evaluation
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
-    tokenizer = io.load_context(nemo_checkpoint_path + '/context', subpath="model").tokenizer
+    tokenizer = io.load_context(nemo_checkpoint_path + "/context", subpath="model.tokenizer")
     # Wait for rest service to be ready before starting evaluation
     evaluation.wait_for_rest_service(rest_url=f"{url}/v1/health")
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
@@ -521,10 +520,14 @@ def evaluate(
         model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos
     )
     results = evaluator.simple_evaluate(
-        model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+        model=model,
+        tasks=eval_task,
+        limit=limit,
+        num_fewshot=num_fewshot,
+        bootstrap_iters=bootstrap_iters,
     )
 
-    print("score", results['results'][eval_task])
+    print("score", results["results"][eval_task])
 
 
 @run.cli.entrypoint(name="import", namespace="llm")
@@ -602,7 +605,7 @@ def import_ckpt(
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnector:
-    return io.load_context(path).model.exporter(target, path)
+    return io.load_context(path, subpath="model").exporter(target, path)
 
 
 @run.cli.entrypoint(name="export", namespace="llm")
@@ -872,7 +875,14 @@ def _setup(
                 trainer.callbacks.append(model_transform)
             else:
                 trainer.callbacks.append(ModelTransform())
-
+    # Move jit callback at the end ensure it's applied on top of any model transformations (peft)
+    jit_cb = None
+    for i, cb in enumerate(trainer.callbacks):
+        if isinstance(cb, JitTransform):
+            assert jit_cb is None
+            jit_cb = trainer.callbacks.pop(i)
+    if jit_cb is not None:
+        trainer.callbacks.append(jit_cb)
     return app_state
 
 
@@ -894,16 +904,19 @@ def _validate_config(
 ) -> None:
 
     ## Model validation
-    assert getattr(model.config, "seq_length", 1) > 0
-    assert getattr(model.config, "max_position_embeddings", 1) > 0
-    assert model.config.num_layers > 0
-    assert model.config.hidden_size > 0
-    assert model.config.num_attention_heads > 0
-    assert model.config.ffn_hidden_size > 0
+    if hasattr(model, "config"):
+        assert getattr(model.config, "seq_length", 1) > 0
+        assert getattr(model.config, "max_position_embeddings", 1) > 0
+        assert model.config.num_layers > 0
+        assert model.config.hidden_size > 0
+        assert model.config.num_attention_heads > 0
+        assert model.config.ffn_hidden_size > 0
 
-    if hasattr(model.config, "seq_length"):
-        if getattr(model.config, "max_position_embeddings", None) is not None:
-            assert model.config.seq_length <= model.config.max_position_embeddings
+        if hasattr(model.config, "seq_length"):
+            if getattr(model.config, "max_position_embeddings", None) is not None:
+                assert model.config.seq_length <= model.config.max_position_embeddings
+    else:
+        assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
     ## Data validation
     assert data.micro_batch_size > 0
@@ -967,16 +980,18 @@ def _validate_config(
 
         # CP validation
         if trainer.strategy.context_parallel_size > 1:
-            if model.config.seq_length is not None:
-                assert (
-                    model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
-                ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+            if hasattr(model, "config"):
+                if model.config.seq_length is not None:
+                    assert (
+                        model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
+                    ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
-            assert (
-                model.config.num_moe_experts is not None
-            ), "num_experts must be non None to use expert model parallelism"
-            assert (
-                model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
-            ), "Number of experts should be a multiple of expert model parallel_size."
+            if hasattr(model, "config"):
+                assert (
+                    model.config.num_moe_experts is not None
+                ), "num_experts must be non None to use expert model parallelism"
+                assert (
+                    model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
+                ), "Number of experts should be a multiple of expert model parallel_size."

@@ -226,11 +226,12 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
         from nemo.lightning.io.api import load_context
 
-        model = load_context(path).model
+        model = load_context(path, subpath="model")
         is_peft_ckpt = model.model_transform is not None
         callbacks = []
         if is_peft_ckpt:
             callbacks.append(model.model_transform)
+
         _trainer = trainer or Trainer(
             devices=1,
             accelerator="cpu" if cpu else "gpu",
@@ -292,7 +293,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
     def save_hf_tokenizer_assets(self, tokenizer_name_or_path, save_path="/tmp/nemo_tokenizer"):
         from transformers import AutoTokenizer
 
-        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path, trust_remote_code=True)
         # Save tokenizer assets to save_path.
         tok.save_pretrained(save_path)
         return save_path
