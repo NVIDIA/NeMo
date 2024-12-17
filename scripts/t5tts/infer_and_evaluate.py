@@ -9,29 +9,50 @@ import evaluate_generated_audio
 import json
 import argparse
 
+"""
+Sample command line:
+ python scripts/t5tts/infer_and_evaluate.py --hparams_file /data/experiments/decoder_context/hparams.yaml --checkpoint_file /data/experiments/decoder_context/T5TTS--val_loss\=5.0848-epoch\=28.ckpt   --codecmodel_path /data/codec_checkpoints/codecs-no-eliz/AudioCodec_21Hz_no_eliz.nemo --datasets vctk --out_dir ./inference_output
+"""
+# dataset_meta_info = {
+#     'vctk': {
+#         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
+#         'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
+#         'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
+#     },
+#     'riva_challenging': {
+#         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
+#         'audio_dir' : '/datap/misc/Datasets/riva',
+#         'feature_dir' : '/datap/misc/Datasets/riva',
+#     },
+#     'riva_challenging_nozeros': {
+#         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
+#         'audio_dir' : '/datap/misc/Datasets/riva',
+#         'feature_dir' : '/datap/misc/Datasets/riva',
+#     },
+#     'libri_val': {
+#         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
+#         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
+#         'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
+#     }
+# }
+
 dataset_meta_info = {
     'vctk': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
+        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
         'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
         'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
     },
-    'riva_challenging': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
-        'audio_dir' : '/datap/misc/Datasets/riva',
-        'feature_dir' : '/datap/misc/Datasets/riva',
-    },
-    'riva_challenging_nozeros': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
-        'audio_dir' : '/datap/misc/Datasets/riva',
-        'feature_dir' : '/datap/misc/Datasets/riva',
-    },
-    'libri_val': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    }
 }
 
+def write_audio_tensor(t: torch.Tensor, lengths: torch.Tensor, prefix:str, audio_dir:str, sample_rate:int, item_index:int):
+    for idx in range(t.size(0)):
+        audio_np = t[idx].float().detach().cpu().numpy()
+        audio_np = audio_np[:lengths[idx]]
+        audio_path = os.path.join(audio_dir, f"{prefix}_{item_index}.wav")
+        sf.write(audio_path, audio_np,sample_rate)
+        item_index += 1
+    return item_index
+        
 
 def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path, use_cfg, cfg_scale, batch_size):
     # import ipdb; ipdb.set_trace()
@@ -105,6 +126,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
         item_idx = 0
         for bidx, batch in enumerate(test_data_loader):
+            #dict_keys(['dataset_names', 'raw_texts', 'audio_filepaths', 'text', 'text_lens', 'audio_codes', 'audio_codes_lens', 'context_audio', 'context_audio_lens', 'context_text_tokens', 'context_text_tokens_lens', 'has_text_context'])
             print("Processing batch {} out of {} of dataset {}".format(bidx, len(test_data_loader), dataset))
             batch_cuda ={}
             for key in batch:
@@ -114,12 +136,17 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                     batch_cuda[key] = batch[key]
             
             predicted_audio, predicted_audio_lens, _, _ = model.infer_batch(batch_cuda, max_decoder_steps=500, temperature=temperature, topk=topk, use_cfg=use_cfg, cfg_scale=cfg_scale)
-            for idx in range(predicted_audio.size(0)):
-                predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
-                predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
-                audio_path = os.path.join(audio_dir, f"predicted_audio_{item_idx}.wav")
-                sf.write(audio_path, predicted_audio_np, model.cfg.sample_rate)
-                item_idx += 1
+            write_audio_tensor(t=predicted_audio, lengths=predicted_audio_lens, prefix="predicted_audio", 
+                               audio_dir=audio_dir, sample_rate=model.cfg.sample_rate, item_index=item_idx)
+            write_audio_tensor(t=batch['context_audio'], lengths=batch['context_audio_lens'], prefix="context_audio", 
+                               audio_dir=audio_dir, sample_rate=model.cfg.sample_rate, item_index=item_idx)
+            item_idx += predicted_audio.size(0)
+            # for idx in range(predicted_audio.size(0)):
+            #     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
+            #     predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
+            #     audio_path = os.path.join(audio_dir, f"predicted_audio_{item_idx}.wav")
+            #     sf.write(audio_path, predicted_audio_np, model.cfg.sample_rate)
+            #     item_idx += 1
         
         metrics = evaluate_generated_audio.evaluate(
             dataset_meta[dataset]['manifest_path'],
