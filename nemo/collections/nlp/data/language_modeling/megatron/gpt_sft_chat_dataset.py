@@ -250,6 +250,7 @@ def preprocess(
     label_start_ids: list,
     special_tokens: dict,
     num_turn_start_tokens: int,
+    num_meta_tokens: int,
 ):
     """
     Given a conversation list. This transform:
@@ -260,6 +261,9 @@ def preprocess(
     """
     header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
     # tokenize conversations
+    meta_tokens = "".join([f"<SPECIAL_{meta_id}>" for meta_id in range(13, 13 + num_meta_tokens)])
+    conversation =  meta_tokens + conversation
+    header = meta_tokens + header
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
     header_tokens = tokenizer.text_to_ids(header)
@@ -339,6 +343,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
             self.label_start_tokens,
             self.special_tokens,
             self.num_turn_start_tokens,
+            self.meta_tokens,
         )
 
         # store metadata in dataset, in case user may have keys required in the prediction json files

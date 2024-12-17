@@ -303,6 +303,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 ceil_to_power_2=data_cfg.get('ceil_to_power_2', False),
                 get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', True),
                 global_sample_mapping=data_cfg.get('global_sample_mapping', False),
+                meta_tokens=data_cfg.get("meta_tokens", 0),
                 virtual_tokens=self.virtual_tokens,
                 tokens_to_generate=data_cfg.get(
                     'tokens_to_generate', 0
