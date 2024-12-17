@@ -140,6 +140,7 @@ class JitConfig:
     - use_thunder (bool): whether to use thunder or not.
     - profile_thunder (bool): toggle for thunder's profiler.
     """
+
     module_selector: str = ''
     use_torch: bool = False
     torch_kwargs: dict = field(default_factory=dict)
@@ -147,8 +148,7 @@ class JitConfig:
     profile_thunder: bool = False
 
     def __post_init__(self):
-        assert not (self.use_torch and self.use_thunder), \
-            "use_torch cannot be used at the same time with use_thunder"
+        assert not (self.use_torch and self.use_thunder), "use_torch cannot be used at the same time with use_thunder"
 
 
 class JitTransform(Callback, IOMixin):

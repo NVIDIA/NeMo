@@ -37,7 +37,7 @@ from nemo.lightning import (
     io,
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
-from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform, JitTransform
+from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 

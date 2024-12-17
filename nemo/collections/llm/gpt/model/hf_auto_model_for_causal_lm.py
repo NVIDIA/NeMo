@@ -30,6 +30,7 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
+
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
         self,
@@ -144,7 +145,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logging.warning("A tokenizer wasn't created before to save.")
 
     def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
-        """ Remove extra keys from batch that are not kwargs in model's forward
+        """Remove extra keys from batch that are not kwargs in model's forward
 
         Args:
             batch (dict): dictionary of tensors.
@@ -153,6 +154,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             dict: dictionary of tensors; keys that are not in model's forward are removed.
         """
         import inspect
+
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
         return {k: batch[k] for k in allowed_keys if k in batch}
