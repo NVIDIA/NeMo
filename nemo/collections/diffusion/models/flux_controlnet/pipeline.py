@@ -118,8 +118,6 @@ class FluxControlNetPipeline(nn.Module):
 
         return prompt_embeds.transpose(0, 1), pooled_prompt_embeds, text_ids
 
-
-
     @staticmethod
     def _prepare_latent_image_ids(batch_size: int, height: int, width: int, device: torch.device, dtype: torch.dtype):
         latent_image_ids = torch.zeros(height // 2, width // 2, 3)
@@ -212,10 +210,10 @@ class FluxControlNetPipeline(nn.Module):
         return (image / 2 + 0.5).clamp(0, 1)
 
     def process_image(
-            self,
-            control_image,
-            height,
-            width,
+        self,
+        control_image,
+        height,
+        width,
     ):
         if not isinstance(control_image, list):
             control_image = [control_image]
@@ -236,7 +234,9 @@ class FluxControlNetPipeline(nn.Module):
             control_image = torch.from_numpy(control_image.transpose(0, 3, 1, 2))
 
         elif isinstance(control_image[0], torch.Tensor):
-            control_image = torch.cat(control_image, axis=0) if control_image[0].ndim == 4 else torch.stack(control_image, axis=0)
+            control_image = (
+                torch.cat(control_image, axis=0) if control_image[0].ndim == 4 else torch.stack(control_image, axis=0)
+            )
             channel = control_image.shape[1]
 
             if channel == self.vae_z_channels:
@@ -244,11 +244,13 @@ class FluxControlNetPipeline(nn.Module):
 
             orig_h, orig_w = control_image[0].shape[2], control_image[0].shape[3]
             if orig_h != height or orig_w != width:
-                control_image = [torch.nn.functional.interpolate(
-                    image,
-                    size=(height, width),
-                )
-                for image in control_image]
+                control_image = [
+                    torch.nn.functional.interpolate(
+                        image,
+                        size=(height, width),
+                    )
+                    for image in control_image
+                ]
 
         if control_image.min() < 0:
             logging.warning('`image` with value range [{image.min()},{image.max()} is passed')
@@ -256,35 +258,28 @@ class FluxControlNetPipeline(nn.Module):
             # Do normalization
             control_image = control_image * 2.0 - 1.0
 
-
-
-
-
-
-
-
     def __call__(
-            self,
-            prompt: Union[str, List[str]] = None,
-            height: Optional[int] = 512,
-            width: Optional[int] = 512,
-            num_inference_steps: int = 28,
-            timesteps: Optional[List[int]] = None,
-            guidance_scale: float = 7.0,
-            num_images_per_prompt: Optional[int] = 1,
-            generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
-            control_guidance_start: Union[float, List[float]] = 0.0,
-            control_guidance_end: Union[float, List[float]] = 1.0,
-            control_image: Union[torch.Tensor, Image] = None,
-            latents: Optional[torch.FloatTensor] = None,
-            prompt_embeds: Optional[torch.FloatTensor] = None,
-            pooled_prompt_embeds: Optional[torch.FloatTensor] = None,
-            output_type: Optional[str] = "pil",
-            max_sequence_length: int = 512,
-            device: torch.device = 'cuda',
-            dtype: torch.dtype = torch.float32,
-            save_to_disk: bool = True,
-            offload: bool = False,
+        self,
+        prompt: Union[str, List[str]] = None,
+        height: Optional[int] = 512,
+        width: Optional[int] = 512,
+        num_inference_steps: int = 28,
+        timesteps: Optional[List[int]] = None,
+        guidance_scale: float = 7.0,
+        num_images_per_prompt: Optional[int] = 1,
+        generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
+        control_guidance_start: Union[float, List[float]] = 0.0,
+        control_guidance_end: Union[float, List[float]] = 1.0,
+        control_image: Union[torch.Tensor, Image] = None,
+        latents: Optional[torch.FloatTensor] = None,
+        prompt_embeds: Optional[torch.FloatTensor] = None,
+        pooled_prompt_embeds: Optional[torch.FloatTensor] = None,
+        output_type: Optional[str] = "pil",
+        max_sequence_length: int = 512,
+        device: torch.device = 'cuda',
+        dtype: torch.dtype = torch.float32,
+        save_to_disk: bool = True,
+        offload: bool = False,
     ):
 
         assert device == 'cuda', 'Transformer blocks in Mcore must run on cuda devices'
@@ -325,7 +320,10 @@ class FluxControlNetPipeline(nn.Module):
 
         if self.flux_controlnet.input_hint_block is None:
             if self.vae is None:
-                assert(control_image.shape==(1,2,3,4), "no vae is found and no hint blocks in controlnet, the input control image must be packed latents")
+                assert (
+                    control_image.shape == (1, 2, 3, 4),
+                    "no vae is found and no hint blocks in controlnet, the input control image must be packed latents",
+                )
             else:
                 control_image = self.vae.encode(control_image)
 
@@ -338,7 +336,6 @@ class FluxControlNetPipeline(nn.Module):
                     height_control_image,
                     width_control_image,
                 )
-
 
         num_channels_latents = self.transformer.in_channels // 4
         latents, latent_image_ids = self.prepare_latents(
@@ -370,7 +367,6 @@ class FluxControlNetPipeline(nn.Module):
             for i, t in tqdm(enumerate(timesteps)):
                 timestep = t.expand(latents.shape[1]).to(device=latents.device, dtype=latents.dtype)
 
-
                 if isinstance(controlnet_keep[i], list):
                     cond_scale = [c * s for c, s in zip(controlnet_conditioning_scale, controlnet_keep[i])]
                 else:
@@ -378,7 +374,6 @@ class FluxControlNetPipeline(nn.Module):
                     if isinstance(controlnet_cond_scale, list):
                         controlnet_cond_scale = controlnet_cond_scale[0]
                     cond_scale = controlnet_cond_scale * controlnet_keep[i]
-
 
                 with torch.autocast(device_type='cuda', dtype=latents.dtype):
                     if self.flux_controlnet.guidance_embed:

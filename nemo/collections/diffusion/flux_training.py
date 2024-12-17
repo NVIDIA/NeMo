@@ -37,6 +37,7 @@ def main(args):
 
     if args.use_synthetic_data:
         from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
+
         data = MockDataModule(
             image_h=1024,
             image_w=1024,
@@ -46,7 +47,7 @@ def main(args):
             text_precached=args.text_precached,
         )
     else:
-        data= DiffusionDataModule(
+        data = DiffusionDataModule(
             args.dataset_dir,
             seq_length=4096,
             micro_batch_size=args.mbs,
@@ -69,8 +70,8 @@ def main(args):
     model_params.t5_params['version'] = '/ckpts/text_encoder_2'
     model_params.clip_params['version'] = '/ckpts/text_encoder'
     model_params.vae_params.ckpt = '/ckpts/ae.safetensors'
-    model_params.flux_params.num_joint_layers=args.num_joint_layers
-    model_params.flux_params.num_single_layers=args.num_single_layers
+    model_params.flux_params.num_joint_layers = args.num_joint_layers
+    model_params.flux_params.num_single_layers = args.num_single_layers
     if args.image_precached:
         model_params.vae_params = None
     if args.text_precached:
@@ -92,7 +93,6 @@ def main(args):
         pipeline_dtype=torch.bfloat16,
         ddp=ddp,
     )
-
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
@@ -133,7 +133,6 @@ def main(args):
         restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
 
-
     sched = WarmupHoldPolicyScheduler(
         max_steps=trainer.max_steps,
         warmup_steps=1000,
@@ -141,16 +140,7 @@ def main(args):
     )
     opt = MegatronOptimizerModule(opt_config, sched)
 
-
-
-    llm.train(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=nemo_logger,
-        resume=resume,
-        optim=opt
-    )
+    llm.train(model=model, data=data, trainer=trainer, log=nemo_logger, resume=resume, optim=opt)
 
 
 if __name__ == "__main__":
@@ -181,7 +171,6 @@ if __name__ == "__main__":
     parser.add_argument("--num_single_layers", type=int, required=False, default=1)
     parser.add_argument("--use_synthetic_data", action='store_true', default=False)
     parser.add_argument("--dataset_dir", type=str, required=False, default=None)
-
 
     args = parser.parse_args()
     main(args)

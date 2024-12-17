@@ -30,7 +30,12 @@ def parse_args():
 
     parser.add_argument("--flux_ckpt", type=str, default="", help="Path to Flux transformer checkpoint(s)")
     parser.add_argument("--controlnet_ckpt", type=str, default="", help="Path to controlnet checkpoint(s)")
-    parser.add_argument("--control_image", type=str, default="", help="Path to control image,use \',\' to separate if multiple images are provided. ")
+    parser.add_argument(
+        "--control_image",
+        type=str,
+        default="",
+        help="Path to control image,use \',\' to separate if multiple images are provided. ",
+    )
     parser.add_argument("--vae_ckpt", type=str, default="/ckpts/ae.safetensors", help="Path to \'ae.safetensors\'")
     parser.add_argument(
         "--clip_version",
@@ -65,8 +70,12 @@ def parse_args():
     )
     parser.add_argument("--height", type=int, default=1024, help="Image height.")
     parser.add_argument("--width", type=int, default=1024, help="Image width.")
-    parser.add_argument("--num_joint_layers", type=int, default=1, help="Number of joint transformer layers in controlnet.")
-    parser.add_argument("--num_single_layers", type=int, default=1, help="Number of single transformer layers in controlnet.")
+    parser.add_argument(
+        "--num_joint_layers", type=int, default=1, help="Number of joint transformer layers in controlnet."
+    )
+    parser.add_argument(
+        "--num_single_layers", type=int, default=1, help="Number of single transformer layers in controlnet."
+    )
     parser.add_argument("--inference_steps", type=int, default=10, help="Number of inference steps to run.")
     parser.add_argument(
         "--num_images_per_prompt", type=int, default=1, help="Number of images to generate for each prompt."
@@ -98,7 +107,11 @@ if __name__ == '__main__':
     params.clip_params['version'] = args.clip_version
     params.t5_params['version'] = args.t5_version
 
-    controlnet_config = FluxControlNetConfig(num_joint_layers=args.num_joint_layers, num_single_layers=args.num_single_layers, load_from_flux_transformer=False)
+    controlnet_config = FluxControlNetConfig(
+        num_joint_layers=args.num_joint_layers,
+        num_single_layers=args.num_single_layers,
+        load_from_flux_transformer=False,
+    )
     pipe = FluxControlNetInferencePipeline(params, controlnet_config)
 
     print('Loading transformer weights')

@@ -47,8 +47,6 @@ from nemo.utils import logging
 ##############
 
 
-
-
 def flux_data_step(dataloader_iter):
     # latents = torch.randn(4096, b, 64)
     # prompt_embeds = torch.randn(256, b, 4096)
@@ -72,7 +70,7 @@ def flux_data_step(dataloader_iter):
 @dataclass
 class FluxConfig(TransformerConfig, io.IOMixin):
     ## transformer related
-    num_layers: int = 1 # dummy setting
+    num_layers: int = 1  # dummy setting
     num_joint_layers: int = 19
     num_single_layers: int = 38
     hidden_size: int = 3072
@@ -95,10 +93,9 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = flux_data_step
 
     def configure_model(self):
-        model = Flux(
-            config = self
-        )
+        model = Flux(config=self)
         return model
+
 
 @dataclass
 class FluxModelParams:
@@ -108,10 +105,6 @@ class FluxModelParams:
     t5_params: dict | None
     scheduler_params: dict | None
     device: str | torch.device
-
-
-
-
 
 
 class Flux(VisionModule):
@@ -124,7 +117,6 @@ class Flux(VisionModule):
         self.patch_size = config.patch_size
         self.in_channels = config.in_channels
         self.guidance_embed = config.guidance_embed
-
 
         self.pos_embed = EmbedND(dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56])
         self.img_embed = nn.Linear(config.in_channels, self.hidden_size)
@@ -213,21 +205,20 @@ class Flux(VisionModule):
             if controlnet_single_block_samples is not None:
                 interval_control = len(self.single_blocks) / len(controlnet_single_block_samples)
                 interval_control = int(np.ceil(interval_control))
-                hidden_states = torch.cat([
-                    hidden_states[:encoder_hidden_states.shape[0]],
-                    hidden_states[encoder_hidden_states.shape[0]:] + controlnet_single_block_samples[id_block // interval_control]
-                ])
+                hidden_states = torch.cat(
+                    [
+                        hidden_states[: encoder_hidden_states.shape[0]],
+                        hidden_states[encoder_hidden_states.shape[0] :]
+                        + controlnet_single_block_samples[id_block // interval_control],
+                    ]
+                )
 
-        hidden_states = hidden_states[encoder_hidden_states.shape[0]:, ...]
+        hidden_states = hidden_states[encoder_hidden_states.shape[0] :, ...]
 
         hidden_states = self.norm_out(hidden_states, vec_emb)
         output = self.proj_out(hidden_states)
 
         return output
-
-
-
-
 
 
 class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
@@ -249,11 +240,8 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=False))
         self.optim.connect(self)
         self.model_type = ModelType.encoder_or_decoder
-        self.text_precached = (self.t5_params is None or self.clip_params is None)
-        self.image_precached = (self.vae_params is None)
-
-
-
+        self.text_precached = self.t5_params is None or self.clip_params is None
+        self.image_precached = self.vae_params is None
 
     def configure_model(self):
         if not hasattr(self, "module"):
@@ -270,10 +258,8 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             if 'single_blocks' in name and 'self_attention.linear_proj.bias' in name:
                 param.requires_grad = False
 
-
     def configure_scheduler(self, scheduler):
         self.scheduler = FlowMatchEulerDiscreteScheduler(**scheduler)
-
 
     def configure_vae(self, vae):
         if isinstance(vae, nn.Module):
@@ -290,8 +276,6 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             logging.info("Vae not provided, assuming the image input is precached...")
             self.vae = None
             self.vae_scale_factor = 16
-
-
 
     def configure_text_encoders(self, clip, t5):
         if isinstance(clip, nn.Module):
@@ -324,6 +308,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
+
     def forward_step(self, batch) -> torch.Tensor:
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
@@ -337,33 +322,38 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         else:
             img = batch['images'].cuda(non_blocking=True)
             latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
-        latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(latents)
+        latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = (
+            self.prepare_image_latent(latents)
+        )
         if self.text_precached:
             prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
             pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
             text_ids = batch['text_ids'].cuda(non_blocking=True)
         else:
             txt = batch['txt']
-            prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device = latents.device, dtype=latents.dtype)
+            prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(
+                txt, device=latents.device, dtype=latents.dtype
+            )
         with torch.cuda.amp.autocast(
-                self.autocast_dtype in (torch.half, torch.bfloat16),
-                dtype=self.autocast_dtype,
-            ):
+            self.autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=self.autocast_dtype,
+        ):
             noise_pred = self.forward(
                 img=packed_noisy_model_input,
                 txt=prompt_embeds,
                 y=pooled_prompt_embeds,
-                timesteps = timesteps/1000,
-                img_ids = latent_image_ids,
-                txt_ids = text_ids,
-                guidance = guidance_vec,
+                timesteps=timesteps / 1000,
+                img_ids=latent_image_ids,
+                txt_ids=text_ids,
+                guidance=guidance_vec,
             )
 
         noise_pred = self._unpack_latents(
             noise_pred.transpose(0, 1),
             int(latents.shape[2] * self.vae_scale_factor // 2),
             int(latents.shape[3] * self.vae_scale_factor // 2),
-            vae_scale_factor=self.vae_scale_factor).transpose(0, 1)
+            vae_scale_factor=self.vae_scale_factor,
+        ).transpose(0, 1)
 
         target = noise - latents
         loss = F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
@@ -377,12 +367,12 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         return prompt_embeds, pooled_prompt_embeds.to(dtype=dtype), text_ids
 
     def compute_density_for_timestep_sampling(
-            self,
-            weighting_scheme: str,
-            batch_size: int,
-            logit_mean: float = 0.0,
-            logit_std: float = 1.0,
-            mode_scale: float = 1.29
+        self,
+        weighting_scheme: str,
+        batch_size: int,
+        logit_mean: float = 0.0,
+        logit_std: float = 1.0,
+        mode_scale: float = 1.29,
     ):
         """
         Compute the density for sampling the timesteps when doing SD3 training.
@@ -401,6 +391,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         else:
             u = torch.rand(size=(batch_size,), device="cpu")
         return u
+
     def prepare_image_latent(self, latents):
         latent_image_ids = self._prepare_latent_image_ids(
             latents.shape[0],
@@ -437,18 +428,24 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             width=latents.shape[3],
         )
 
-
         if self.config.guidance_embed:
             guidance_vec = torch.full(
-                            (noisy_model_input.shape[0],),
-                            self.config.guidance_scale,
-                            device=latents.device,
-                            dtype=latents.dtype,
-                        )
+                (noisy_model_input.shape[0],),
+                self.config.guidance_scale,
+                device=latents.device,
+                dtype=latents.dtype,
+            )
         else:
             guidance_vec = None
 
-        return latents.transpose(0,1), noise.transpose(0,1), packed_noisy_model_input.transpose(0,1), latent_image_ids, guidance_vec, timesteps
+        return (
+            latents.transpose(0, 1),
+            noise.transpose(0, 1),
+            packed_noisy_model_input.transpose(0, 1),
+            latent_image_ids,
+            guidance_vec,
+            timesteps,
+        )
 
     def _unpack_latents(self, latents, height, width, vae_scale_factor):
         batch_size, num_patches, channels = latents.shape
@@ -463,8 +460,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
         return latents
 
-    def _prepare_latent_image_ids(self, batch_size: int, height: int, width: int, device: torch.device,
-                                  dtype: torch.dtype):
+    def _prepare_latent_image_ids(
+        self, batch_size: int, height: int, width: int, device: torch.device, dtype: torch.dtype
+    ):
         latent_image_ids = torch.zeros(height // 2, width // 2, 3)
         latent_image_ids[..., 1] = latent_image_ids[..., 1] + torch.arange(height // 2)[:, None]
         latent_image_ids[..., 2] = latent_image_ids[..., 2] + torch.arange(width // 2)[None, :]
@@ -501,6 +499,3 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
-
-
-

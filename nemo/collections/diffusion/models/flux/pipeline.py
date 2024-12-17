@@ -58,9 +58,7 @@ class FluxInferencePipeline(nn.Module):
         else:
             ckpt = load_safetensors(ckpt_path)
         missing, unexpected = self.transformer.load_state_dict(ckpt, strict=False)
-        missing = [
-            k for k in missing if not k.endswith('_extra_state')
-        ]
+        missing = [k for k in missing if not k.endswith('_extra_state')]
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
@@ -350,7 +348,9 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         super().__init__(params)
         self.flux_controlnet = FluxControlNet(contorlnet_config)
 
-    def load_from_pretrained(self, flux_ckpt_path, controlnet_ckpt_path, do_convert_from_hf=True, save_converted_model_to=None):
+    def load_from_pretrained(
+        self, flux_ckpt_path, controlnet_ckpt_path, do_convert_from_hf=True, save_converted_model_to=None
+    ):
         if do_convert_from_hf:
             flux_ckpt = flux_transformer_converter(flux_ckpt_path, self.transformer.config)
             flux_controlnet_ckpt = flux_transformer_converter(controlnet_ckpt_path, self.flux_controlnet.config)
@@ -366,9 +366,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
             flux_ckpt = load_safetensors(flux_ckpt_path)
             flux_controlnet_ckpt = load_safetensors(controlnet_ckpt_path)
         missing, unexpected = self.transformer.load_state_dict(flux_ckpt, strict=False)
-        missing = [
-            k for k in missing if not k.endswith('_extra_state')
-        ]
+        missing = [k for k in missing if not k.endswith('_extra_state')]
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
@@ -377,15 +375,14 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
             logging.info(f"Found unexepected keys: \n {unexpected}")
 
         missing, unexpected = self.flux_controlnet.load_state_dict(flux_controlnet_ckpt, strict=False)
-        missing = [
-            k for k in missing if not k.endswith('_extra_state')
-        ]
+        missing = [k for k in missing if not k.endswith('_extra_state')]
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
                 f"The following keys are missing during controlnet checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
+
     def pil_to_numpy(self, images):
         if not isinstance(images, list):
             images = [images]
@@ -402,14 +399,14 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         return images
 
     def prepare_image(
-            self,
-            images,
-            height,
-            width,
-            batch_size,
-            num_images_per_prompt,
-            device,
-            dtype,
+        self,
+        images,
+        height,
+        width,
+        batch_size,
+        num_images_per_prompt,
+        device,
+        dtype,
     ):
         if isinstance(images, torch.Tensor):
             pass
@@ -431,9 +428,8 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
 
         return images
 
-
-
-    def __call__(self,
+    def __call__(
+        self,
         prompt: Union[str, List[str]] = None,
         height: Optional[int] = 512,
         width: Optional[int] = 512,
@@ -504,14 +500,11 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         self.scheduler.set_timesteps(sigmas=sigmas, device=device, mu=mu)
         timesteps = self.scheduler.timesteps
 
-
-
-
         control_image = self.prepare_image(
             images=control_image,
             height=height,
             width=width,
-            batch_size=batch_size*num_images_per_prompt,
+            batch_size=batch_size * num_images_per_prompt,
             num_images_per_prompt=num_images_per_prompt,
             device=device,
             dtype=torch.float32,
@@ -527,7 +520,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
             height_control_image, width_control_image = control_image.shape[2:]
             control_image = self._pack_latents(
                 control_image,
-                batch_size*num_images_per_prompt,
+                batch_size * num_images_per_prompt,
                 num_channels_latents,
                 height_control_image,
                 width_control_image,
@@ -535,7 +528,10 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
 
         controlnet_keep = []
         for i in range(len(timesteps)):
-            controlnet_keep.append(1.0 - float(i / len(timesteps) < control_guidance_start or (i + 1) / len(timesteps) > control_guidance_end))
+            controlnet_keep.append(
+                1.0
+                - float(i / len(timesteps) < control_guidance_start or (i + 1) / len(timesteps) > control_guidance_end)
+            )
         if device == 'cuda' and device != self.device:
             self.transformer.to(device)
             self.flux_controlnet.to(device)
@@ -549,14 +545,13 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
 
                 conditioning_scale = controlnet_keep[i] * controlnet_conditioning_scale
 
-
                 with torch.autocast(device_type='cuda', dtype=latents.dtype):
                     controlnet_double_block_samples, controlnet_single_block_samples = self.flux_controlnet(
                         img=latents,
                         controlnet_cond=control_image,
                         txt=prompt_embeds,
                         y=pooled_prompt_embeds,
-                        timesteps=timestep/1000,
+                        timesteps=timestep / 1000,
                         img_ids=latent_image_ids,
                         txt_ids=text_ids,
                         guidance=guidance,
