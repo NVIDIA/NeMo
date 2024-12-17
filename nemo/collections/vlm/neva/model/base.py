@@ -844,7 +844,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Truncate if exceeding the language model's max sequence length.
             if final_embedding.shape[0] > self._language_max_sequence_length and not packed_sequence:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
-            if self.sequence_parallel_lm:
+            if self.sequence_parallel_lm and not packed_sequence:
                 # Create an attention mask. This ensures correct computation.
                 # This is done even when no padding was done as we set mask_type to
                 # 'padding' or 'padding_causal' when using SP.
