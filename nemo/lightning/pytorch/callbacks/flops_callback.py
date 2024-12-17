@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
+import os
 from typing import Any, Dict, List, Optional
 
-import glob
+import lightning.pytorch as pl
 import numpy as np
-import os
 import torch
 from lightning.pytorch.callbacks import Callback
 
@@ -24,9 +25,8 @@ from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.utils import logging
 
-import lightning.pytorch as pl
-
 __all__ = ["FLOPsMeasurementCallback"]
+
 
 class FLOPsMeasurementCallback(Callback):
     """
@@ -99,9 +99,11 @@ class FLOPsMeasurementCallback(Callback):
             print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
 
         n = trainer.strategy.current_epoch_step
-        if n % trainer.log_every_n_steps == 0: ## TODO: use current epoch step rather than batch idx?
+        if n % trainer.log_every_n_steps == 0:  ## TODO: use current epoch step rather than batch idx?
             logging.info(f'{self.avg_train_step_time / trainer.log_every_n_steps=}')
-            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(self.avg_train_step_time / trainer.log_every_n_steps)
+            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
+                self.avg_train_step_time / trainer.log_every_n_steps
+            )
             self.avg_train_step_time = 0
 
             logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")

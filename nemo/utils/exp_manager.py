@@ -47,11 +47,11 @@ from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.import_utils import safe_import_from
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
-from nemo.utils.import_utils import safe_import_from
 
 get_num_microbatches, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_num_microbatches"

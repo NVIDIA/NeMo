@@ -125,7 +125,7 @@ class ProgressPrinter(ProgressBar):
         n = trainer.strategy.current_epoch_step
 
         if self.should_log(n) and getattr(trainer.strategy, "timers", None):
-            timers = trainer.strategy._mcore_config.timers # pointer to timers used in megatron
+            timers = trainer.strategy._mcore_config.timers  # pointer to timers used in megatron
             megatron_log_string = self.log_megatron_timers(timers)
 
         if self.is_disabled:
