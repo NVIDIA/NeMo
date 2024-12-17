@@ -78,7 +78,7 @@ class Baseconfig(TransformerConfig):
     attention_softmax_in_fp32: bool = True
     normalization = 'LayerNorm'
     layer_spec: ModuleSpec = transformer_engine_layer_spec
-
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 def get_output_projection_layer_spec() -> ModuleSpec:
     output_projection_submodules = TransformerLayerSubmodules(
                 cross_attention=ModuleSpec(
@@ -101,11 +101,13 @@ def get_output_projection_layer_spec() -> ModuleSpec:
                 ),
                 mlp_bda=get_bias_dropout_add,
             )
-    output_projection_submodules.output_linear_layer = TELinear 
+    output_projection_submodules.output_linear_layer = ColumnParallelLinear #TEColumnParallelLinear 
     
     return ModuleSpec(module =TempPoolingHead, submodules=output_projection_submodules )
 
-class TempPoolingHead(TransformerLayer):
+from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+
+class ImageOutputProjectionPoolingHead(TransformerLayer):
     """Multihead Attention Pooling."""
 
     def __init__(
@@ -117,8 +119,8 @@ class TempPoolingHead(TransformerLayer):
         super().__init__(config, submodules)
 
         self.probe = torch.nn.Parameter(torch.randn(num_query_token, 1, config.hidden_size))
-        # self.output_projection = build_module(submodules.output_linear_layer, input_size=4096, output_size=1024, config = config, bias = True, parallel_mode=None, skip_bias_add = False, is_expert=False, init_method = init_method_normal(0.02), skip_weight_param_allocation = False)
-        self.output_projection = torch.nn.Linear(4096, 1024)
+        self.output_projection = build_module(submodules.output_linear_layer, input_size=4096, output_size=1024, config = config, bias = True,gather_output=True, skip_bias_add= False, is_expert=False,init_method = init_method_normal(0.02))
+        
     def forward(self, hidden_state):
         
         batch_size = hidden_state.shape[0]
@@ -130,14 +132,7 @@ class TempPoolingHead(TransformerLayer):
             probe,
             attention_mask=None,
             context=hidden_state,
-        )
-        
-        current_rank = torch.distributed.get_rank()
-        print(f"Yash debug current rank {current_rank} hidden_state {hidden_state.sum()} ")
-        torch.distributed.barrier()
-        
-        hidden_state = self.output_projection(hidden_state)
-        hidden_state = hidden_state.transpose(0, 1)
-        print(f"Yash debug current rank {current_rank} hidden_state after output projection {hidden_state.sum()} ")
-        torch.distributed.barrier()
+        )        
+        hidden_state, _ = self.output_projection(hidden_state)
+        hidden_state = hidden_state.transpose(0, 1)        
         return hidden_state

@@ -21,7 +21,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
 from nemo.collections.multimodal.mimo.model.gpt import MimoGPTModel
-from nemo.collections.multimodal.mimo.model.projection import Baseconfig, TempPoolingHead, TransformersProjector, get_output_projection_layer_spec
+from nemo.collections.multimodal.mimo.model.projection import Baseconfig, ImageOutputProjectionPoolingHead, TransformersProjector, get_output_projection_layer_spec
 
 
 class CustomMimoModel(MCoreLLaVAModel):
@@ -112,44 +112,8 @@ class CustomMimoModel(MCoreLLaVAModel):
         self.image_decoder.unet.requires_grad_(False)
         self.image_decoder.text_encoder.requires_grad_(False)
 
-        # output projection Megatron Module
-
-        # self.vision_output_projection_module = MCoreMultimodalProjector(
-        #         vision_output_projection_config,
-        #         vision_output_projection_spec,
-        #         projector_type="mlp" ,
-        #         input_size=vision_output_projection_config.input_size,
-        #     )
-        # self.vision_output_projection_module = TransformersProjector(
-        #     in_features=self.config.hidden_size, out_features=1024, num_query_token=77
-        # )  # Yash : TODO Fix hard coding
-        # self.vision_output_projection_module = TempPoolingHead(
-        #     config=Baseconfig(),
-        #     submodules=TransformerLayerSubmodules(
-        #         cross_attention=ModuleSpec(
-        #             module=CrossAttention,
-        #             params={"attn_mask_type": MCoreAttnMaskType.no_mask},
-        #             submodules=CrossAttentionSubmodules(
-        #                 linear_q=TEColumnParallelLinear,
-        #                 linear_kv=TEColumnParallelLinear,
-        #                 core_attention=TEDotProductAttention,
-        #                 linear_proj=TERowParallelLinear,
-        #             ),
-        #         ),
-        #         cross_attn_bda=get_bias_dropout_add,
-        #         mlp=ModuleSpec(
-        #             module=MLP,
-        #             submodules=MLPSubmodules(
-        #                 linear_fc1=TELayerNormColumnParallelLinear,
-        #                 linear_fc2=TERowParallelLinear,
-        #             ),
-        #         ),
-        #         mlp_bda=get_bias_dropout_add,
-        #     ),
-        #     num_query_token=77,
-        # )
         output_projection_spec = get_output_projection_layer_spec()
-        self.vision_output_projection_module = TempPoolingHead(
+        self.vision_output_projection_module = ImageOutputProjectionPoolingHead(
             config=Baseconfig(),
             submodules=output_projection_spec.submodules,
             num_query_token=77,
@@ -160,9 +124,6 @@ class CustomMimoModel(MCoreLLaVAModel):
             text_inputs = self.image_decoder.tokenizer(
                 text_input, padding="max_length", truncation=True, return_tensors="pt", add_special_tokens=True
             )
-            # if torch.distributed.get_rank() == 0:  # or other ranks
-            #     breakpoint()
-            # torch.distributed.barrier()
             text_inputs = text_inputs.to(self.image_decoder.device)
             image_caption_embeddings = self.image_decoder.text_encoder(**text_inputs)[0]  # b,77,1024
 
@@ -290,9 +251,7 @@ class CustomMimoModel(MCoreLLaVAModel):
         device = output_images.device
         image_decoder = self.image_decoder.to(device)
         image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
-        # if torch.distributed.get_rank() == 0:
-        #     breakpoint()
-        # torch.distributed.barrier()
+       
         if new_labels is not None:
             special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
             for idx in self.model_config.image_special_token_indices:
@@ -307,9 +266,7 @@ class CustomMimoModel(MCoreLLaVAModel):
             )  # batch_size, no_special_tokens
             special_token_indices = special_token_indices.view(new_labels.size(0), -1)
 
-            # if torch.distributed.get_rank() == 0:  # or other ranks
-            #     breakpoint()
-            # torch.distributed.barrier()
+            
             special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
             special_token_mask = special_token_mask.expand_as(hidden_states)
             selected_hidden_states = hidden_states[special_token_mask].view(
@@ -320,18 +277,14 @@ class CustomMimoModel(MCoreLLaVAModel):
                 input_ids=special_token_indices, position_ids=special_token_positions
             )
             special_token_embeddings = special_token_embeddings.transpose(0, 1)  # change to b,s,h
-            current_rank = torch.distributed.get_rank()
+
             
             inp_to_vision_projection = selected_hidden_states + special_token_embeddings
             output_projection_embeddings = self.vision_output_projection_module(
                 inp_to_vision_projection
             )  # (bs, no_special_tokens, 1024)
 
-            # if torch.distributed.get_rank() == 0:
-            #     print("In the model forward")
-            #     breakpoint()
-            # torch.distributed.barrier()
-            # Image caption embeddings
+           
             image_caption_embeddings = image_caption_embeddings.to(
                 output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
             )
@@ -340,17 +293,11 @@ class CustomMimoModel(MCoreLLaVAModel):
             # return output
             return {
                 'output': output,
-                # 'output_projection_embeddings': output_projection_embeddings,
-                # 'image_caption_embeddings': image_caption_embeddings,
+                'output_projection_embeddings': output_projection_embeddings,
+                'image_caption_embeddings': image_caption_embeddings,
                 'hidden_states': hidden_states,
             }
 
-        # for calcualating denoising loss
-        # with torch.no_grad():
-
-        # if torch.distributed.get_rank() == 0:  # or other ranks
-        #     breakpoint()
-        # torch.distributed.barrier()
 
         latents = image_decoder.to(device).vae.encode(output_images).latent_dist.sample()
         latents = latents * image_decoder.vae.config.scaling_factor

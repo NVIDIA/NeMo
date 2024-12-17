@@ -23,7 +23,7 @@ def main(args):
 
     # wandb.init(project=args.wandb_project, name=args.name)
     # Global and micro batch sizes
-    gbs = 4
+    gbs = 1
     mbs = 1
     seq_length = 256
 
