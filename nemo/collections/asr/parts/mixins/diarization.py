@@ -276,7 +276,7 @@ class SpkDiarizationMixin(ABC):
         Generate manifest style dict if `audio` is a list of paths to audio files.
 
         Args:
-            audio: A list of paths to audio files.
+            audio_files: A list of paths to audio files.
 
         Returns:
             audio_rttm_map_dict A list of manifest style dicts.
@@ -295,12 +295,13 @@ class SpkDiarizationMixin(ABC):
             audio_rttm_map_dict[uniq_id] = entry
         return audio_rttm_map_dict
 
-    def _diarize_on_begin(self, audio, diarcfg):
+    def _diarize_on_begin(self, audio: Union[str, List[str]], diarcfg: DiarizeConfig):
         """
         Internal function to setup the model for diarization. Perform all setup and pre-checks here.
 
         Args:
-            audio: Of type `GenericDiarizationType`
+            audio (Union[str, List[str]]): Of type `GenericDiarizationType`
+            diarcfg (DiarizeConfig): An instance of `DiarizeConfig`.
         """
         if audio is None:
             return {}
