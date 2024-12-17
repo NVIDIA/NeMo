@@ -22,8 +22,7 @@ from nemo.collections import llm, vlm
 
 def mk_hf_vlm_dataset(processor, mbs, gbs):
     """Creates vlm dataset"""
-    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(
-        processor)
+    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
 
     def collate_fn(examples, processor):
         def fmt(sample):
@@ -33,8 +32,7 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
                     "role": "user",
                     "content": [{"type": "text", "text": instruction}, {"type": "image", "image": sample["image"]}],
                 },
-                {"role": "assistant", "content": [
-                    {"type": "text", "text": sample["text"]}]},
+                {"role": "assistant", "content": [{"type": "text", "text": sample["text"]}]},
             ]
             return {"conversation": conversation, "images": [sample['image']]}
 
@@ -80,8 +78,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
-    parser.add_argument('--strategy', type=str, default='auto',
-                        choices=['auto', 'ddp', 'fsdp'])
+    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--mbs', default=1)
     parser.add_argument('--gbs', default=1)
@@ -103,8 +100,7 @@ if __name__ == '__main__':
         # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
-    processor = vlm.HFAutoModelForImageTextToText.configure_processor(
-        args.model)
+    processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
 
     llm.api.finetune(
         model=vlm.HFAutoModelForImageTextToText(args.model),

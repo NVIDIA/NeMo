@@ -45,7 +45,14 @@ class LinearAdapter(nn.Module):
     """
 
     def __init__(
-        self, orig_linear, dim=8, alpha=32, dropout=0.1, dropout_position='post', lora_A_init_method='xavier', lora_dtype=None,
+        self,
+        orig_linear,
+        dim=8,
+        alpha=32,
+        dropout=0.1,
+        dropout_position='post',
+        lora_A_init_method='xavier',
+        lora_dtype=None,
     ):
         super(LinearAdapter, self).__init__()
         assert isinstance(orig_linear, nn.Linear)
@@ -162,8 +169,12 @@ class LoRA(PEFT):
         if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
             if isinstance(m, nn.Linear):
                 return LinearAdapter(
-                    m, dim=self.dim, alpha=self.alpha, dropout=self.dropout,
-                    lora_A_init_method=self.lora_A_init_method, lora_dtype=self.lora_dtype,
+                    m,
+                    dim=self.dim,
+                    alpha=self.alpha,
+                    dropout=self.dropout,
+                    lora_A_init_method=self.lora_A_init_method,
+                    lora_dtype=self.lora_dtype,
                 )
 
             input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)

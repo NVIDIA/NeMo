@@ -21,6 +21,7 @@ from nemo.collections import llm, vlm
 
 DATA_PATH = "/home/TestData/vlm/rdr-items"
 
+
 def mk_hf_vlm_dataset(processor, mbs, gbs):
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
 

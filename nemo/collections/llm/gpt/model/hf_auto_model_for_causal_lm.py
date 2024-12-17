@@ -30,6 +30,7 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
+
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
         self,
@@ -76,7 +77,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code,
+                self.model_name,
+                torch_dtype='auto',
+                trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
             )
         else:

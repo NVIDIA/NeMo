@@ -68,14 +68,12 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(
-            split, str), "Expected split to be a string, but got " + str(type(split))
+        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
         dataset_split_names = dataset.keys()
-        logging.info(
-            f"HF dataset has the following splits: {dataset_split_names}")
+        logging.info(f"HF dataset has the following splits: {dataset_split_names}")
         for alias_split_name, split in dataset.items():
             split_name = alias_to_split[alias_split_name]
             assert dataset_splits[split_name] is None
@@ -101,10 +99,8 @@ def make_dataset_splits(dataset, split, split_aliases):
     else:
         raise ValueError("Expected split name to be None, str or a list")
 
-    assert set(valid_split_names) == set(
-        dataset_splits.keys()), dataset_splits.keys()
-    num_init_splits = sum(
-        map(lambda x: x is not None, dataset_splits.values()))
+    assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
+    num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
     assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
     return dataset_splits
 
@@ -147,10 +143,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
-        split_aliases = {
-            'train': train_aliases,
-            'test': test_aliases,
-            'val': val_aliases}
+        split_aliases = {'train': train_aliases, 'test': test_aliases, 'val': val_aliases}
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
@@ -161,16 +154,13 @@ class HFDatasetDataModule(pl.LightningDataModule):
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " +
-                str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
             )
 
-        self.dataset_splits = make_dataset_splits(
-            dataset, split, split_aliases)
+        self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id)
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
         else:
             self._collate_fn = collate_fn
 
@@ -189,12 +179,12 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def from_dict(dataset_dict, split, **kwargs):
         """Creates a Dataset from a dictionary"""
         dataset = Dataset.from_dict(dataset_dict)
-        return HFDatasetDataModule(
-            path_or_dataset=dataset, split=split, **kwargs)
+        return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
         """Collate for VLM data"""
+
         def batchify(tensor):
             if tensor.ndim == 1:
                 return tensor.unsqueeze_(0)
@@ -205,8 +195,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         def pad_within_micro(batch, pad_token_id):
             max_len = max(map(len, batch))
-            return [item + [pad_token_id] *
-                    (max_len - len(item)) for item in batch]
+            return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
         return {
             key: batchify(
@@ -236,8 +225,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            def collate_fn(x): return HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id)
+
+            def collate_fn(x):
+                return HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
         return DataLoader(
             dataset,

@@ -30,10 +30,11 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         return F.cross_entropy(logits, targets)
 
-class HFAutoModelForImageTextToText(
-        pl.LightningModule, io.IOMixin, fn.FNMixin):
+
+class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """Wrap's HF's AutoModelForImageTextToText in a pl.LightningModule
     for use within NeMo"""
+
     def __init__(
         self,
         model_name='gpt2',
@@ -76,20 +77,20 @@ class HFAutoModelForImageTextToText(
     @staticmethod
     def configure_processor(model_name, trust_remote_code=False):
         """Initializes an AutoProcessor and returns the instance"""
-        return AutoProcessor.from_pretrained(
-            model_name, trust_remote_code=trust_remote_code)
+        return AutoProcessor.from_pretrained(model_name, trust_remote_code=trust_remote_code)
 
     def configure_model(self):
         """Instantiates the model"""
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForImageTextToText.from_pretrained(
-                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code,
+                self.model_name,
+                torch_dtype='auto',
+                trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
             )
         else:
-            config = AutoConfig.from_pretrained(
-                self.model_name, trust_remote_code=self.trust_remote_code)
+            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, 'torch_dtype', self.default_dtype)
             self.model = AutoModelForImageTextToText.from_config(
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
