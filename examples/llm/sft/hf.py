@@ -24,6 +24,8 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
+    """Creates a squad dataset with a PT dataloader
+    """
     def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
@@ -37,6 +39,14 @@ class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
 
 
 def squad(tokenizer) -> pl.LightningDataModule:
+    """Instantiates a SquadDataModuleWithPthDataloader and return it
+
+    Args:
+        tokenizer (AutoTokenizer): the tokenizer to use
+
+    Returns:
+        pl.LightningDataModule: the dataset to train with.
+    """
     return SquadDataModuleWithPthDataloader(
         tokenizer=tokenizer,
         seq_length=512,
@@ -51,6 +61,8 @@ def squad(tokenizer) -> pl.LightningDataModule:
     )
 
 def main():
+    """Example script to run SFT with a HF transformers-instantiated model on squad.
+    """
     import argparse
 
     parser = argparse.ArgumentParser()
