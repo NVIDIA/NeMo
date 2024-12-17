@@ -126,7 +126,7 @@ class JitTransform(Callback, IOMixin):
         self.config = config
         assert not (self.config.use_torch and self.config.use_thunder)
 
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if self.config is None:
             return
         if not self.config.use_thunder and not self.config.use_torch:
