@@ -34,18 +34,25 @@ from nemo.utils import logging
 
 
 class FluxInferencePipeline(nn.Module):
-    def __init__(self, params: FluxModelParams):
+    def __init__(self,
+                 params: Optional[FluxModelParams] = None,
+                 flux: Flux = None,
+                 vae: AutoEncoder = None,
+                 t5: FrozenT5Embedder = None,
+                 clip: FrozenCLIPEmbedder = None,
+                 scheduler: FlowMatchEulerDiscreteScheduler = None,
+                 ):
         super().__init__()
         self.device = params.device
         params.clip_params['device'] = self.device
         params.t5_params['device'] = self.device
 
-        self.vae = AutoEncoder(params.vae_params).to(self.device).eval()
-        self.clip_encoder = FrozenCLIPEmbedder(**params.clip_params)
-        self.t5_encoder = FrozenT5Embedder(**params.t5_params)
-        self.transformer = Flux(params.flux_params).to(self.device).eval()
+        self.vae = AutoEncoder(params.vae_params).to(self.device).eval() if vae is None else vae
+        self.clip_encoder = FrozenCLIPEmbedder(**params.clip_params) if clip is None else clip
+        self.t5_encoder = FrozenT5Embedder(**params.t5_params) if t5 is None else t5
+        self.transformer = Flux(params.flux_params).to(self.device).eval() if flux is None else flux
         self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
-        self.scheduler = FlowMatchEulerDiscreteScheduler(**params.scheduler_params)
+        self.scheduler = FlowMatchEulerDiscreteScheduler(**params.scheduler_params) if scheduler is None else scheduler
         self.params = params
 
     def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None):
@@ -344,9 +351,24 @@ class FluxInferencePipeline(nn.Module):
 
 
 class FluxControlNetInferencePipeline(FluxInferencePipeline):
-    def __init__(self, params: FluxModelParams, contorlnet_config: FluxControlNetConfig):
-        super().__init__(params)
-        self.flux_controlnet = FluxControlNet(contorlnet_config)
+    def __init__(self,
+                 params: Optional[FluxModelParams] = None,
+                 contorlnet_config: Optional[FluxControlNetConfig] = None,
+                 flux: Flux = None,
+                 vae: AutoEncoder = None,
+                 t5: FrozenT5Embedder = None,
+                 clip: FrozenCLIPEmbedder = None,
+                 scheduler: FlowMatchEulerDiscreteScheduler = None,
+                 flux_controlnet: FluxControlNet = None, ):
+        super().__init__(
+            params,
+            flux,
+            vae,
+            t5,
+            clip,
+            scheduler,
+        )
+        self.flux_controlnet = FluxControlNet(contorlnet_config) if flux_controlnet is None else flux_controlnet
 
     def load_from_pretrained(
         self, flux_ckpt_path, controlnet_ckpt_path, do_convert_from_hf=True, save_converted_model_to=None

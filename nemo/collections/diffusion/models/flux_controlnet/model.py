@@ -262,11 +262,6 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
-    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
-        # In mcore the loss-function is part of the forward-pass (when labels are provided)
-
-        return self.forward_step(batch)
-
     def forward_step(self, batch) -> torch.Tensor:
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
@@ -338,3 +333,46 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             target = noise - latents
             loss = F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
             return loss
+
+    def validation_step(self, batch, batch_idx=None):
+        pipe = FluxControlNetInferencePipeline(
+            params=self.flux_config,
+            contorlnet_config=self.flux_controlnet_config,
+            flux=self.module.module.module.flux,
+            vae=self.vae,
+            t5=self.t5,
+            clip=self.clip,
+            scheduler=self.scheduler,
+            flux_controlnet=self.module.module.module.flux_controlnet,
+        )
+
+        if self.image_precached and self.text_precached:
+            latents = batch['latents'].cuda(non_blocking=True)
+            control_latents = batch['control_latents'].cuda(non_blocking=True)
+            prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
+            pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
+            log_image = pipe(
+                latents = latents,
+                control_image=control_latents,
+                prompt_embeds=prompt_embeds,
+                pooled_prompt_embeds=pooled_prompt_embeds,
+                height=latents.shape[1] * self.vae_scale_factor,
+                width=latents.shape[2] * self.vae_scale_factor,
+                num_inference_steps=30,
+                num_images_per_prompt=1,
+                guidance_scale=7.0,
+            )
+        elif not (self.image_precached or self.text_precached):
+            img = batch['images'].cuda(non_blocking=True)
+            hint = batch['hint'].cuda(non_blocking=True)
+            text = batch['txt']
+            log_image = pipe(
+                text,
+                num_inference_steps=30,
+                num_images_per_prompt=1,
+                height=img.shape[1],
+                width=img.shape[2],
+                guidance_scale=7.0
+            )
+
+
