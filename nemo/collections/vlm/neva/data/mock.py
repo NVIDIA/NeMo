@@ -75,15 +75,27 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockNevaDataset(
-            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length,
+            self.tokenizer,
+            self.image_processor,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
             packed_sequence=self.packed_sequence,
         )
         self._validation_ds = _MockNevaDataset(
-            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length,
+            self.tokenizer,
+            self.image_processor,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
             packed_sequence=self.packed_sequence,
         )
         self._test_ds = _MockNevaDataset(
-            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length,
+            self.tokenizer,
+            self.image_processor,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
             packed_sequence=self.packed_sequence,
         )
 
@@ -178,8 +190,8 @@ class _MockNevaDataset(Dataset):
             batch_size = tokens.shape[0]
             valid_seqlen = self.seq_length
             cu_seqlens = torch.arange(
-                0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32,
-                device=tokens.device)
+                0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32, device=tokens.device
+            )
             cu_seqlens_padded = None
             qkv_format = 'thd'
             packed_seq_params = PackedSeqParams(

@@ -450,7 +450,9 @@ class NevaDataset(LazySupervisedDataset):
                     instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
                 tokens.append(instance['tokens'])
                 labels.append(instance['labels'])
-                position_ids.append(torch.arange(len(instance['tokens']), dtype=torch.int, device=instance['tokens'].device))
+                position_ids.append(
+                    torch.arange(len(instance['tokens']), dtype=torch.int, device=instance['tokens'].device)
+                )
                 seqlens.append(seqlen)
                 cu_seqlens.append(cu_seqlens[-1] + seqlen)
                 cu_seqlens_padded.append(cu_seqlens_padded[-1] + seqlen_padded)
@@ -575,10 +577,13 @@ class NevaLazyDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         assert len(self.paths) == 1, "not yet support blend dataset in Neva 2.0!"
-        self._train_ds = NevaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor,
-                                     packed_sequence=self.packed_sequence)
-        self._validation_ds = NevaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor,
-                                          packed_sequence=self.packed_sequence)
+        self._train_ds = NevaDataset(
+            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence
+        )
+        self._validation_ds = NevaDataset(
+            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence
+        )
+
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._create_dataloader(self._train_ds)
 
