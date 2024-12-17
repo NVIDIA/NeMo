@@ -262,7 +262,7 @@ def preprocess(
     header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
     # tokenize conversations
     meta_tokens = "".join([f"<SPECIAL_{meta_id}>" for meta_id in range(13, 13 + num_meta_tokens)])
-    conversation =  meta_tokens + conversation
+    conversation = meta_tokens + conversation
     header = meta_tokens + header
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
