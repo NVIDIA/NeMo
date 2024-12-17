@@ -32,6 +32,13 @@ from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
+from nemo.collections.diffusion.models.flux_controlnet.model import MegatronFluxControlNetModel, FluxControlNetConfig
+from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
+from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
+from megatron.core.distributed import DistributedDataParallelConfig
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
+from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
+
 
 def main(args):
 
@@ -101,6 +108,7 @@ def main(args):
         save_top_k=2,
         every_n_train_steps=1000,
         dirpath=args.log_dir,
+        filename=f"{args.name}--" + "{reduced_train_loss:.2f}-{step}",
     )
 
     # Trainer setup
@@ -127,7 +135,7 @@ def main(args):
 
     # Auto resume setup
     resume = nl.AutoResume(
-        resume_if_exists=False,
+        resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
         restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
@@ -161,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
-    parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
+    parser.add_argument("--name", type=str, required=False, default="flux-controlnet")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--mbs", type=int, required=False, default=1)
     parser.add_argument("--gbs", type=int, required=False, default=1)
