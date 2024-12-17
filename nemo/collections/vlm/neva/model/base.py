@@ -867,6 +867,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
                 # Attention mask True/False meaning flipped in 1.7.0
                 attention_mask = attention_mask < 0.5
+            if self.sequence_parallel_lm:
                 final_embedding = tensor_parallel.scatter_to_sequence_parallel_region(final_embedding)
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
