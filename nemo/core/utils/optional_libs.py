@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+__all__ = ["KENLM_AVAILABLE", "K2_AVAILABLE", "TRITON_AVAILABLE", "kenlm_required", "k2_required", "triton_required"]
+
 import importlib.util
 from functools import wraps
+from nemo.core.utils.k2_utils import K2_INSTALLATION_MESSAGE
 
 
 def is_lib_available(name: str) -> bool:
@@ -25,8 +28,11 @@ def is_lib_available(name: str) -> bool:
     return importlib.util.find_spec(name) is not None
 
 
-TRITON_AVAILABLE = is_lib_available("triton")
 KENLM_AVAILABLE = is_lib_available("kenlm")
+KENLM_INSTALLATION_MESSAGE = "Try installing kenlm with `pip install kenlm`"
+
+TRITON_AVAILABLE = is_lib_available("triton")
+TRITON_INSTALLATION_MESSAGE = "Try installing triton with `pip install triton`"
 
 
 try:
@@ -37,16 +43,23 @@ except (ImportError, ModuleNotFoundError):
     K2_AVAILABLE = False
 
 
-def lib_required(name: str, message: str | None = None):
-    if is_lib_available(name):
+def identity_decorator(f):
+    """Identity decorator for further using in conditional decorators"""
+    return f
 
-        def identity_decorator(f):
-            return f
 
+def _lib_required(is_available: bool, name: str, message: str | None = None):
+    """
+    Decorator factory. Returns identity decorator if lib `is_available`,
+    otherwise returns a decorator which returns a function that raises an error when called.
+    """
+    if is_available:
         return identity_decorator
 
     # return wrapper that will raise an error when the function is called
     def function_stub_with_error_decorator(f):
+        """Decorator that replaces the function and raises an error when called"""
+
         @wraps(f)
         def wrapper(*args, **kwargs):
             error_msg = f"Module {name} required for the function {f.__name__} is not found."
@@ -59,5 +72,6 @@ def lib_required(name: str, message: str | None = None):
     return function_stub_with_error_decorator
 
 
-kenlm_required = lib_required("kenlm")
-triton_required = lib_required("triton")
+kenlm_required = _lib_required(is_available=KENLM_AVAILABLE, name="kenlm", message=KENLM_INSTALLATION_MESSAGE)
+triton_required = _lib_required(is_available=TRITON_AVAILABLE, name="triton", message=TRITON_INSTALLATION_MESSAGE)
+k2_required = _lib_required(is_available=K2_AVAILABLE, name="k2", message=K2_INSTALLATION_MESSAGE)
