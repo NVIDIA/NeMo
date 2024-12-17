@@ -1124,7 +1124,7 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
             num_seg = torch.max(target_len)
             targets = torch.zeros(num_seg, self.max_spks)
             return targets
-        
+
         with open(rttm_file, 'r') as f:
             rttm_lines = f.readlines()
 
