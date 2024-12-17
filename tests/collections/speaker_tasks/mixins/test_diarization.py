@@ -269,4 +269,3 @@ class TestSpkDiarizationMixin:
         assert outputs[0] == 1.0
         assert outputs[1] == 2.0
         assert outputs[2] == 3.0
-

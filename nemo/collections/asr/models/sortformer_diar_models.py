@@ -295,12 +295,12 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
     def _diarize_output_processing(
         self, outputs, uniq_ids, diarcfg: DiarizeConfig
     ) -> Union[List[List[str]], Tuple[List[List[str]], List[torch.Tensor]]]:
-        """ 
+        """
         Processes the diarization outputs and generates RTTM (Real-time Text Markup) files.
-        TODO: Currently, this function is not included in mixin test because of 
+        TODO: Currently, this function is not included in mixin test because of
               `ts_vad_post_processing` function.
-              (1) Implement a test-compatible function 
-              (2) `vad_utils.py` has `predlist_to_timestamps` function that is close to this function. 
+              (1) Implement a test-compatible function
+              (2) `vad_utils.py` has `predlist_to_timestamps` function that is close to this function.
                   Needs to consolute differences and implement the test-compatible function.
 
         Args:
@@ -310,11 +310,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             diarcfg (DiarizeConfig): Configuration object for diarization.
 
         Returns:
-            diar_output_lines_list (List[List[str]]): A list of lists, where each inner list contains 
+            diar_output_lines_list (List[List[str]]): A list of lists, where each inner list contains
                                                       the RTTM lines for a single audio file.
-            preds_list (List[torch.Tensor]): A list of tensors containing the diarization outputs 
+            preds_list (List[torch.Tensor]): A list of tensors containing the diarization outputs
                                              for each audio file.
-            
+
         """
         preds_list, diar_output_lines_list = [], []
         if outputs.shape[0] == 1:  # batch size = 1
