@@ -601,20 +601,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             image_token_index,
             num_image_tiles,
             attention_mask,
+            packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
-
-        if getattr(packed_seq_params, 'qkv_format', None) == 'thd':
-            # If PackedSeqParams requires THD format,
-            # reshape embedding from [B,S,H] to [T,1,H] where T=B*S
-            combined_embeddings = (
-                combined_embeddings.transpose(1, 0)
-                .reshape(combined_embeddings.shape[0] * combined_embeddings.shape[1], 1, -1)
-            )
-            final_labels = final_labels.reshape(1, -1)
-            final_loss_mask = final_loss_mask.reshape(1, -1)
-
-        else:
-            assert packed_seq_params is None, "`packed_seq_params` should ONLY be used if `qkv_format` is `thd`."
 
         output = self.language_model(
             input_ids=None,
@@ -660,6 +648,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         image_token_index,
         num_image_tiles,
         attention_mask,
+        packed_seq_params,
     ):
         """Preprocess input data before input to language model.
 
@@ -715,6 +704,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             assert (
                 labels.shape == loss_mask.shape
             ), f"mismatching labels shape {labels.shape} and loss mask shape {loss_mask.shape}"
+
+        packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
 
         # Create indices for new text and label positions.
         with torch.no_grad():
@@ -844,14 +835,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
             ), "unexpected shapes after data preprocessing"
 
         truncate_labels = has_labels and final_labels.shape[1] > self._language_max_sequence_length
-        if truncate_labels:
+        if truncate_labels and not packed_sequence:
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
 
         if final_embedding is not None:
             final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
-            if final_embedding.shape[0] > self._language_max_sequence_length:
+            if final_embedding.shape[0] > self._language_max_sequence_length and not packed_sequence:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
             if self.sequence_parallel_lm:
                 # Create an attention mask. This ensures correct computation.

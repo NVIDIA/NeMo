@@ -60,7 +60,8 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=8,
+            num_workers=0,
+            packed_sequence=True,
         )
     elif args.data_type == "mock":
         data = vlm.NevaMockDataModule(
@@ -69,7 +70,8 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=4,
+            num_workers=0,
+            packed_sequence=True,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -77,6 +79,7 @@ def main(args):
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
         seq_length=decoder_seq_length,
+        num_layers=2,
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"

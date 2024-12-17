@@ -193,6 +193,9 @@ class _MockNevaDataset(Dataset):
             )
             collated_batch["packed_seq_params"] = packed_seq_params
 
+            for key in ["tokens", "labels", "loss_mask", "position_ids"]:
+                collated_batch[key] = collated_batch[key].reshape(1, -1)
+
         return collated_batch
 
     def collate_fn(self, batch):
