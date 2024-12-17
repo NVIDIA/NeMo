@@ -249,4 +249,7 @@ if __name__ == "__main__":
     # Run prediction (Saves the audio codes to files)
     trainer.predict(codec_extractor, dataloaders=dataloader)
 
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
     update_manifests(manifests, save_dir, dataset_names, args.codec_model_name)
