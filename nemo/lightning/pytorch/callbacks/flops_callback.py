@@ -19,44 +19,14 @@ import numpy as np
 import os
 import torch
 from lightning.pytorch.callbacks import Callback
-from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
+from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.utils import logging
 
 import lightning.pytorch as pl
 
 __all__ = ["FLOPsMeasurementCallback"]
-
-def read_tb_log(path: str, summary_name: str) -> List:
-    """
-    Reads a TensorBoard Events file from the input path, and returns the
-    summary specified.
-
-    Args:
-        path: str, path to the dir where the events file is located.
-        summary_name: str, name of the summary to read from the TB logs.
-    Returns:
-        summary_list: list, the values in the read summary list, formatted as a list.
-    """
-    from tensorboard.backend.event_processing import event_accumulator
-
-    files = glob.glob(f"{path}/events*tfevents*")
-    files.sort(key=lambda x: os.path.getmtime(x))
-    if len(files) == 0 or not os.path.isfile(files[0]):
-        raise FileNotFoundError(f"Missing TensorBoard log file.")
-
-    events_file = files[0]
-    try:
-        ea = event_accumulator.EventAccumulator(events_file)
-        ea.Reload()
-        summary = ea.Scalars(summary_name)
-        summary_list = [round(x.value, 2) for x in summary]
-        logging.info(f"{summary_name}: {summary_list}")
-    except KeyError:
-        raise KeyError(f"{summary_name} not found in {events_file}")
-
-    return summary_list
 
 class FLOPsMeasurementCallback(Callback):
     """
@@ -108,36 +78,35 @@ class FLOPsMeasurementCallback(Callback):
             self.query_groups = self.attention_heads
 
         self.model = self.model.lower() if self.model is not None else self.model
-        self.log_dir = None ## this is set automatically in on_train_start
+
+        self.avg_train_step_time = 0
 
     def on_train_start(self, trainer, pl_module):
-        if self.log_dir is None:
-            for logger in trainer.loggers:
-                if isinstance(logger, TensorBoardLogger):
-                    self.log_dir = logger.log_dir
-            assert self.log_dir, "Please enable TensorBoard logging to use FLOPsMeasurementCallback" 
-    
-    def on_train_end(self, trainer, pl_module):
+        has_lora = False
+        for callback in trainer.callbacks:
+            if isinstance(callback, PEFT):
+                raise NotImplementedError("FLOPs measurement not supported for finetuning jobs")
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int):
         """
         PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU after training
         """
         tflops_per_sec_per_gpu = -1
 
-        ## TODO: make this check work for nemo 2
-        """try:
-            if "peft" in self.cfg["model"]:
-                raise NotImplementedError("FLOPs measurement not supported for finetuning jobs")
+        try:
+            self.avg_train_step_time += trainer.progress_bar_metrics['train_step_timing in s']
+        except KeyError:
+            print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
 
-            step_time_list = read_tb_log(self.log_dir, "train_step_timing in s")
-            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(step_time_list)
-        except Exception as exc:
-            logging.error(f"Failed to calculate TFLOPs per sec per GPU.\n{exc}")"""
+        n = trainer.strategy.current_epoch_step
+        if n % trainer.log_every_n_steps == 0: ## TODO: use current epoch step rather than batch idx?
+            logging.info(f'{self.avg_train_step_time / trainer.log_every_n_steps=}')
+            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(self.avg_train_step_time / trainer.log_every_n_steps)
+            self.avg_train_step_time = 0
 
-        step_time_list = read_tb_log(self.log_dir, "train_step_timing in s")
-        tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(step_time_list)
-        logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
-        if pl_module.logger:
-            pl_module.logger.experiment.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
+            logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
+            if pl_module.logger:
+                pl_module.logger.experiment.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
 
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
         """
@@ -182,7 +151,7 @@ class FLOPsMeasurementCallback(Callback):
 
         total_flops = model_flops_map[self.model]()
         num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
-        flops_per_gpu = total_flops / num_devices #(self.num_nodes * self.num_gpus_per_node)
+        flops_per_gpu = total_flops / num_devices
 
         return total_flops, flops_per_gpu
 
