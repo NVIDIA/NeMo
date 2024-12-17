@@ -3524,7 +3524,7 @@ jobs:
             --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
             --prompt "How do I fix my GPU memory issue? I am seeing <mask> out of memory." \
             --tensor_model_parallel_size 1
-    IS_OPTIONAL: true
+      IS_OPTIONAL: true
 
   L2_Megatron_Core_T5_PEFT_Lora_TP2:
     needs: [cicd-test-container-setup]
