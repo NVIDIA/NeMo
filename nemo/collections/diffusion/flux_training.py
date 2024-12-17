@@ -16,23 +16,22 @@ import argparse
 
 import torch
 import torch.nn as nn
+from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
+from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
+from nemo.collections.diffusion.models.flux.model import MegatronFluxModel
+from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
+from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
-from nemo.collections.diffusion.models.flux.model import MegatronFluxModel
-from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
-from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
-
-from megatron.core.distributed import DistributedDataParallelConfig
-from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
 
 def main(args):
 

@@ -15,12 +15,12 @@
 import argparse
 
 import torch
+from PIL import Image
 
 from nemo.collections.diffusion.models.flux.pipeline import FluxControlNetInferencePipeline
-from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig
+from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
-from PIL import Image
 
 
 def parse_args():

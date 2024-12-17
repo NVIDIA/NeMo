@@ -514,8 +514,10 @@ def optimizer_sharded_state_dict(
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     from megatron.core import parallel_state
+
     try:
         from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+
         use_custom_fsdp = True
     except:
         use_custom_fsdp = False

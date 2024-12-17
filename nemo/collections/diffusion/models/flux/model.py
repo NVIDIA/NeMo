@@ -13,16 +13,20 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
+import numpy as np
+import pytorch_lightning as L
 import torch
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.utils import openai_gelu
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.transformer.enums import ModelType
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.utils import openai_gelu
 from torch import nn
 from torch.nn import functional as F
 
+from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     AdaLNContinuous,
     FluxSingleTransformerBlock,
@@ -31,24 +35,17 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     get_flux_single_transformer_engine_spec,
 )
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
-
+from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
+from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderParams
+from nemo.collections.llm import fn
+from nemo.lightning import io
+from nemo.lightning import megatron_parallel as mp
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.utils import logging
 
 ##############
 
-import pytorch_lightning as L
-from nemo.collections.llm import fn
-from nemo.lightning import io
-from megatron.core.transformer.transformer_config import TransformerConfig
-from typing import Optional
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoderParams,AutoEncoder
-from nemo.utils import logging
-from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
-from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
-from nemo.lightning import megatron_parallel as mp
-from megatron.core.transformer.enums import ModelType
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
-import numpy as np
 
 
 
