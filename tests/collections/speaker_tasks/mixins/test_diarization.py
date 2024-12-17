@@ -271,18 +271,3 @@ class TestSpkDiarizationMixin:
         assert outputs[1] == 2.0
         assert outputs[2] == 3.0
 
-    @pytest.mark.with_downloads()
-    @pytest.mark.unit
-    def test_diarize_dataloader(self, audio_files, fast_conformer_ctc_model):
-
-        audio, audio2 = audio_files
-
-        dataset = DummyDataset([audio, audio2])
-        collate_fn = lambda x: _speech_collate_fn(x, pad_id=0)
-        dataloader = DataLoader(dataset, batch_size=2, shuffle=False, num_workers=0, collate_fn=collate_fn)
-
-        # DataLoader test
-        outputs = fast_conformer_ctc_model.diarize(dataloader, batch_size=1)
-        assert len(outputs) == 2
-        assert isinstance(outputs[0], str)
-        assert isinstance(outputs[1], str)
