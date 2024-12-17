@@ -21,6 +21,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
 from nemo.lightning.pytorch.callbacks import ModelCallback
+from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
@@ -39,11 +40,15 @@ class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
 def squad(tokenizer) -> pl.LightningDataModule:
     return SquadDataModuleWithPthDataloader(
         tokenizer=tokenizer,
-        seq_length=2048,
+        seq_length=512,
         micro_batch_size=2,
         global_batch_size=128,  # assert gbs == mbs * accumulate_grad_batches
         num_workers=0,
-        dataset_kwargs={"sanity_check_dist_workers": False},
+        dataset_kwargs={
+            "sanity_check_dist_workers": False,
+            "pad_to_max_length": True,
+            "get_attention_mask_from_fusion": True,
+        },
     )
 
 
@@ -60,6 +65,7 @@ if __name__ == '__main__':
     parser.add_argument("--fp8-autocast", default=False, action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--model-save-path', type=str, default=None)
+    parser.add_argument('--use-torch-jit', action='store_true')
     args = parser.parse_args()
 
     wandb = None
@@ -87,6 +93,12 @@ if __name__ == '__main__':
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     tokenizer = model.tokenizer
 
+    if args.use_torch_jit:
+        jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
+        callbacks = [JitTransform(jit_config)]
+    else:
+        callbacks = []
+
     llm.api.finetune(
         model=model,
         data=squad(tokenizer),
@@ -101,8 +113,8 @@ if __name__ == '__main__':
             accumulate_grad_batches=10,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
-            callbacks=[],
             logger=wandb,
+            callbacks=callbacks,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
